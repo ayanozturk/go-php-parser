@@ -9,15 +9,20 @@ import (
 )
 
 func main() {
-	// Example PHP code
-	input := `<?php
-function hello() {
-	$message = "Hello World";
-}
-`
+	if len(os.Args) != 2 {
+		fmt.Println("Usage: go run main.go <php-file>")
+		os.Exit(1)
+	}
+
+	// Read the PHP file
+	input, err := os.ReadFile(os.Args[1])
+	if err != nil {
+		fmt.Printf("Error reading file: %s\n", err)
+		os.Exit(1)
+	}
 
 	// Create new lexer
-	l := lexer.New(input)
+	l := lexer.New(string(input))
 
 	// Create new parser
 	p := parser.New(l)
