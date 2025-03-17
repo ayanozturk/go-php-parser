@@ -109,6 +109,8 @@ func (l *Lexer) readIdentifier() string {
 }
 
 func (l *Lexer) NextToken() token.Token {
+	var tok token.Token
+
 	l.skipWhitespace()
 
 	pos := token.Position{
@@ -151,7 +153,7 @@ func (l *Lexer) NextToken() token.Token {
 	case '$':
 		l.readChar()
 		if isLetter(l.char) {
-			tok := token.Token{
+			tok = token.Token{
 				Type:    token.T_VARIABLE,
 				Literal: "$" + l.readIdentifier(),
 				Pos:     pos,
@@ -159,50 +161,48 @@ func (l *Lexer) NextToken() token.Token {
 			return tok
 		}
 	case '=':
-		if l.peekChar() == '=' {
+		if l.peekChar() == '>' {
 			ch := l.char
 			l.readChar()
-			literal := string(ch) + string(l.char)
-			l.readChar()
-			return token.Token{Type: token.T_IS_EQUAL, Literal: literal, Pos: pos}
+			tok = token.Token{Type: token.T_DOUBLE_ARROW, Literal: string(ch) + string(l.char), Pos: pos}
 		} else {
-			tok := token.Token{Type: token.T_ASSIGN, Literal: string(l.char), Pos: pos}
-			l.readChar()
-			return tok
+			tok = token.Token{Type: token.T_ASSIGN, Literal: string(l.char), Pos: pos}
 		}
+		l.readChar()
+		return tok
 	case '(':
-		tok := token.Token{Type: token.T_LPAREN, Literal: string(l.char), Pos: pos}
+		tok = token.Token{Type: token.T_LPAREN, Literal: string(l.char), Pos: pos}
 		l.readChar()
 		return tok
 	case ')':
-		tok := token.Token{Type: token.T_RPAREN, Literal: string(l.char), Pos: pos}
+		tok = token.Token{Type: token.T_RPAREN, Literal: string(l.char), Pos: pos}
 		l.readChar()
 		return tok
 	case '{':
-		tok := token.Token{Type: token.T_LBRACE, Literal: string(l.char), Pos: pos}
+		tok = token.Token{Type: token.T_LBRACE, Literal: string(l.char), Pos: pos}
 		l.readChar()
 		return tok
 	case '}':
-		tok := token.Token{Type: token.T_RBRACE, Literal: string(l.char), Pos: pos}
+		tok = token.Token{Type: token.T_RBRACE, Literal: string(l.char), Pos: pos}
 		l.readChar()
 		return tok
 	case ';':
-		tok := token.Token{Type: token.T_SEMICOLON, Literal: string(l.char), Pos: pos}
+		tok = token.Token{Type: token.T_SEMICOLON, Literal: string(l.char), Pos: pos}
 		l.readChar()
 		return tok
 	case ',':
-		tok := token.Token{Type: token.T_COMMA, Literal: string(l.char), Pos: pos}
+		tok = token.Token{Type: token.T_COMMA, Literal: string(l.char), Pos: pos}
 		l.readChar()
 		return tok
 	case '&':
-		tok := token.Token{Type: token.T_AMPERSAND, Literal: string(l.char), Pos: pos}
+		tok = token.Token{Type: token.T_AMPERSAND, Literal: string(l.char), Pos: pos}
 		l.readChar()
 		return tok
 	case '.':
 		if l.peekChar() == '.' && l.input[l.readPos+1] == '.' {
 			l.readChar() // consume second .
 			l.readChar() // consume third .
-			tok := token.Token{Type: token.T_ELLIPSIS, Literal: "...", Pos: pos}
+			tok = token.Token{Type: token.T_ELLIPSIS, Literal: "...", Pos: pos}
 			l.readChar()
 			return tok
 		}
@@ -223,7 +223,15 @@ func (l *Lexer) NextToken() token.Token {
 			return token.Token{Type: token.T_OBJECT_OP, Literal: "->", Pos: pos}
 		}
 	case ':':
-		tok := token.Token{Type: token.T_COLON, Literal: string(l.char), Pos: pos}
+		tok = token.Token{Type: token.T_COLON, Literal: string(l.char), Pos: pos}
+		l.readChar()
+		return tok
+	case '[':
+		tok = token.Token{Type: token.T_LBRACKET, Literal: string(l.char), Pos: pos}
+		l.readChar()
+		return tok
+	case ']':
+		tok = token.Token{Type: token.T_RBRACKET, Literal: string(l.char), Pos: pos}
 		l.readChar()
 		return tok
 	}
@@ -271,6 +279,8 @@ func (l *Lexer) NextToken() token.Token {
 			return token.Token{Type: token.T_PRIVATE, Literal: ident, Pos: pos}
 		case "protected":
 			return token.Token{Type: token.T_PROTECTED, Literal: ident, Pos: pos}
+		case "return":
+			return token.Token{Type: token.T_RETURN, Literal: ident, Pos: pos}
 		default:
 			return token.Token{Type: token.T_STRING, Literal: ident, Pos: pos}
 		}
@@ -284,7 +294,7 @@ func (l *Lexer) NextToken() token.Token {
 		return token.Token{Type: token.T_LNUMBER, Literal: num, Pos: pos}
 	}
 
-	tok := token.Token{Type: token.TokenType(l.char), Literal: string(l.char), Pos: pos}
+	tok = token.Token{Type: token.TokenType(l.char), Literal: string(l.char), Pos: pos}
 	l.readChar()
 	return tok
 }
@@ -335,4 +345,14 @@ func isLetter(ch byte) bool {
 
 func isDigit(ch byte) bool {
 	return unicode.IsDigit(rune(ch))
+}
+
+// PeekToken returns the next token without consuming it
+func (l *Lexer) PeekToken() token.Token {
+	pos := l.pos
+	ch := l.char
+	tok := l.NextToken()
+	l.pos = pos
+	l.char = ch
+	return tok
 }

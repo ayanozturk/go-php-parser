@@ -2,6 +2,7 @@ package ast
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 )
 
@@ -202,10 +203,8 @@ func (f *FunctionNode) TokenLiteral() string {
 // ParameterNode represents a function parameter
 type ParameterNode struct {
 	Name         string
-	Type         string
-	ByRef        bool
-	Variadic     bool
-	DefaultValue Node
+	TypeHint     string // Type hint for the parameter (e.g., string, int, array)
+	DefaultValue Node   // Optional default value
 	Pos          Position
 }
 
@@ -214,20 +213,14 @@ func (p *ParameterNode) GetPos() Position    { return p.Pos }
 func (p *ParameterNode) SetPos(pos Position) { p.Pos = pos }
 func (p *ParameterNode) String() string {
 	var parts []string
-	if p.Type != "" {
-		parts = append(parts, p.Type)
+	if p.TypeHint != "" {
+		parts = append(parts, p.TypeHint)
 	}
-	if p.ByRef {
-		parts = append(parts, "&")
-	}
-	if p.Variadic {
-		parts = append(parts, "...")
-	}
-	parts = append(parts, fmt.Sprintf("$%s", p.Name))
+	parts = append(parts, p.Name)
 	if p.DefaultValue != nil {
 		parts = append(parts, "=", p.DefaultValue.String())
 	}
-	return fmt.Sprintf("Parameter(%s) @ %d:%d", strings.Join(parts, " "), p.Pos.Line, p.Pos.Column)
+	return fmt.Sprintf("%s @ %d:%d", strings.Join(parts, " "), p.Pos.Line, p.Pos.Column)
 }
 func (p *ParameterNode) TokenLiteral() string {
 	return p.Name
@@ -531,8 +524,9 @@ func (c *ClassNode) TokenLiteral() string {
 
 // PropertyNode represents a class property
 type PropertyNode struct {
-	Name string
-	Pos  Position
+	Name       string
+	Visibility string // public, private, protected
+	Pos        Position
 }
 
 func (n *PropertyNode) GetPos() Position {
@@ -548,7 +542,12 @@ func (n *PropertyNode) NodeType() string {
 }
 
 func (n *PropertyNode) String() string {
-	return fmt.Sprintf("Property($%s) @ %d:%d", n.Name, n.Pos.Line, n.Pos.Column)
+	var parts []string
+	if n.Visibility != "" {
+		parts = append(parts, n.Visibility)
+	}
+	parts = append(parts, fmt.Sprintf("Property($%s)", n.Name))
+	return fmt.Sprintf("%s @ %d:%d", strings.Join(parts, " "), n.Pos.Line, n.Pos.Column)
 }
 
 func (n *PropertyNode) TokenLiteral() string {
@@ -588,4 +587,159 @@ func (m *MethodCallNode) String() string {
 }
 func (m *MethodCallNode) TokenLiteral() string {
 	return m.Method
+}
+
+// ArrayNode represents an array literal
+type ArrayNode struct {
+	Elements []Node
+	Pos      Position
+}
+
+func (a *ArrayNode) NodeType() string    { return "Array" }
+func (a *ArrayNode) GetPos() Position    { return a.Pos }
+func (a *ArrayNode) SetPos(pos Position) { a.Pos = pos }
+func (a *ArrayNode) String() string {
+	var parts []string
+	for _, elem := range a.Elements {
+		parts = append(parts, elem.String())
+	}
+	return fmt.Sprintf("Array(%s) @ %d:%d", strings.Join(parts, ", "), a.Pos.Line, a.Pos.Column)
+}
+func (a *ArrayNode) TokenLiteral() string {
+	return "array"
+}
+
+// KeyValueNode represents a key-value pair in an array
+type KeyValueNode struct {
+	Key   Node
+	Value Node
+	Pos   Position
+}
+
+func (kv *KeyValueNode) NodeType() string    { return "KeyValue" }
+func (kv *KeyValueNode) GetPos() Position    { return kv.Pos }
+func (kv *KeyValueNode) SetPos(pos Position) { kv.Pos = pos }
+func (kv *KeyValueNode) String() string {
+	return fmt.Sprintf("%s => %s @ %d:%d", kv.Key.String(), kv.Value.String(), kv.Pos.Line, kv.Pos.Column)
+}
+func (kv *KeyValueNode) TokenLiteral() string {
+	return "=>"
+}
+
+// IdentifierNode represents an identifier
+type IdentifierNode struct {
+	Value string
+	Pos   Position
+}
+
+func (i *IdentifierNode) NodeType() string    { return "Identifier" }
+func (i *IdentifierNode) GetPos() Position    { return i.Pos }
+func (i *IdentifierNode) SetPos(pos Position) { i.Pos = pos }
+func (i *IdentifierNode) String() string {
+	return fmt.Sprintf("%s @ %d:%d", i.Value, i.Pos.Line, i.Pos.Column)
+}
+func (i *IdentifierNode) TokenLiteral() string {
+	return i.Value
+}
+
+// StringNode represents a string literal
+type StringNode struct {
+	Value string
+	Pos   Position
+}
+
+func (s *StringNode) NodeType() string    { return "String" }
+func (s *StringNode) GetPos() Position    { return s.Pos }
+func (s *StringNode) SetPos(pos Position) { s.Pos = pos }
+func (s *StringNode) String() string {
+	return fmt.Sprintf("\"%s\" @ %d:%d", s.Value, s.Pos.Line, s.Pos.Column)
+}
+func (s *StringNode) TokenLiteral() string {
+	return s.Value
+}
+
+// IntegerNode represents an integer literal
+type IntegerNode struct {
+	Value int64
+	Pos   Position
+}
+
+func (i *IntegerNode) NodeType() string    { return "Integer" }
+func (i *IntegerNode) GetPos() Position    { return i.Pos }
+func (i *IntegerNode) SetPos(pos Position) { i.Pos = pos }
+func (i *IntegerNode) String() string {
+	return fmt.Sprintf("%d @ %d:%d", i.Value, i.Pos.Line, i.Pos.Column)
+}
+func (i *IntegerNode) TokenLiteral() string {
+	return strconv.FormatInt(i.Value, 10)
+}
+
+// FloatNode represents a float literal
+type FloatNode struct {
+	Value float64
+	Pos   Position
+}
+
+func (f *FloatNode) NodeType() string    { return "Float" }
+func (f *FloatNode) GetPos() Position    { return f.Pos }
+func (f *FloatNode) SetPos(pos Position) { f.Pos = pos }
+func (f *FloatNode) String() string {
+	return fmt.Sprintf("%f @ %d:%d", f.Value, f.Pos.Line, f.Pos.Column)
+}
+func (f *FloatNode) TokenLiteral() string {
+	return strconv.FormatFloat(f.Value, 'f', -1, 64)
+}
+
+// BooleanNode represents a boolean literal
+type BooleanNode struct {
+	Value bool
+	Pos   Position
+}
+
+func (b *BooleanNode) NodeType() string    { return "Boolean" }
+func (b *BooleanNode) GetPos() Position    { return b.Pos }
+func (b *BooleanNode) SetPos(pos Position) { b.Pos = pos }
+func (b *BooleanNode) String() string {
+	return fmt.Sprintf("%t @ %d:%d", b.Value, b.Pos.Line, b.Pos.Column)
+}
+func (b *BooleanNode) TokenLiteral() string {
+	if b.Value {
+		return "true"
+	}
+	return "false"
+}
+
+// NullNode represents a null literal
+type NullNode struct {
+	Pos Position
+}
+
+func (n *NullNode) NodeType() string    { return "Null" }
+func (n *NullNode) GetPos() Position    { return n.Pos }
+func (n *NullNode) SetPos(pos Position) { n.Pos = pos }
+func (n *NullNode) String() string {
+	return fmt.Sprintf("null @ %d:%d", n.Pos.Line, n.Pos.Column)
+}
+func (n *NullNode) TokenLiteral() string {
+	return "null"
+}
+
+// ConcatNode represents string concatenation with variable interpolation
+type ConcatNode struct {
+	Parts []Node
+	Pos   Position
+}
+
+func (c *ConcatNode) NodeType() string    { return "Concat" }
+func (c *ConcatNode) GetPos() Position    { return c.Pos }
+func (c *ConcatNode) SetPos(pos Position) { c.Pos = pos }
+func (c *ConcatNode) String() string {
+	var parts []string
+	for _, part := range c.Parts {
+		parts = append(parts, part.String())
+	}
+	return fmt.Sprintf("Concat(%s) @ %d:%d", strings.Join(parts, " . "), c.Pos.Line, c.Pos.Column)
+}
+func (c *ConcatNode) TokenLiteral() string {
+	return "."
 }

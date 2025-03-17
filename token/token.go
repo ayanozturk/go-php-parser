@@ -25,6 +25,9 @@ const (
 	T_EOF                      TokenType = "T_EOF"
 	T_COMMENT                  TokenType = "T_COMMENT"
 	T_DOC_COMMENT              TokenType = "T_DOC_COMMENT"
+	T_LBRACKET                 TokenType = "T_LBRACKET"
+	T_RBRACKET                 TokenType = "T_RBRACKET"
+	T_DOUBLE_ARROW             TokenType = "T_DOUBLE_ARROW"
 
 	// Control structures
 	T_IF     TokenType = "T_IF"
@@ -53,6 +56,11 @@ const (
 
 	// Output tokens
 	T_ECHO TokenType = "T_ECHO" // echo keyword
+
+	// New token types
+	T_INT    TokenType = "T_INT"    // integer literal
+	T_FLOAT  TokenType = "T_FLOAT"  // float literal
+	T_RETURN TokenType = "T_RETURN" // return keyword
 )
 
 type Position struct {

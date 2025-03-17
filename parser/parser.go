@@ -32,7 +32,7 @@ func (p *Parser) Parse() []ast.Node {
 
 	// Expect PHP open tag first
 	if p.tok.Type != token.T_OPEN_TAG {
-		p.errors = append(p.errors, "expected <?php at start of file")
+		p.errors = append(p.errors, fmt.Sprintf("line %d:%d: expected <?php at start of file, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal))
 		return nodes
 	}
 	p.nextToken()
@@ -60,8 +60,24 @@ func (p *Parser) parseStatement() ast.Node {
 			Value: comment,
 			Pos:   ast.Position(pos),
 		}
+	case token.T_RETURN:
+		pos := p.tok.Pos
+		p.nextToken() // consume return
+		expr := p.parseExpression()
+		if expr == nil {
+			return nil
+		}
+		if p.tok.Type != token.T_SEMICOLON {
+			p.errors = append(p.errors, fmt.Sprintf("line %d:%d: expected ; after return statement, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal))
+			return nil
+		}
+		p.nextToken() // consume ;
+		return &ast.ReturnNode{
+			Expr: expr,
+			Pos:  ast.Position(pos),
+		}
 	case token.T_FUNCTION:
-		node = p.parseFunctionDeclaration()
+		node = p.parseFunction()
 		return node
 	case token.T_VARIABLE:
 		// Check if this is a method call
@@ -72,14 +88,14 @@ func (p *Parser) parseStatement() ast.Node {
 		if p.tok.Type == token.T_OBJECT_OP {
 			p.nextToken() // consume ->
 			if p.tok.Type != token.T_STRING {
-				p.errors = append(p.errors, "expected method name after ->")
+				p.errors = append(p.errors, fmt.Sprintf("line %d:%d: expected method name after ->, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal))
 				return nil
 			}
 			methodName := p.tok.Literal
 			p.nextToken()
 
 			if p.tok.Type != token.T_LPAREN {
-				p.errors = append(p.errors, "expected ( after method name")
+				p.errors = append(p.errors, fmt.Sprintf("line %d:%d: expected ( after method name %s, got %s", p.tok.Pos.Line, p.tok.Pos.Column, methodName, p.tok.Literal))
 				return nil
 			}
 			p.nextToken() // consume (
@@ -102,13 +118,13 @@ func (p *Parser) parseStatement() ast.Node {
 			}
 
 			if p.tok.Type != token.T_RPAREN {
-				p.errors = append(p.errors, "expected ) in argument list")
+				p.errors = append(p.errors, fmt.Sprintf("line %d:%d: expected ) in argument list for method %s, got %s", p.tok.Pos.Line, p.tok.Pos.Column, methodName, p.tok.Literal))
 				return nil
 			}
 			p.nextToken() // consume )
 
 			if p.tok.Type != token.T_SEMICOLON {
-				p.errors = append(p.errors, "expected ; after method call")
+				p.errors = append(p.errors, fmt.Sprintf("line %d:%d: expected ; after method call %s, got %s", p.tok.Pos.Line, p.tok.Pos.Column, methodName, p.tok.Literal))
 				return nil
 			}
 			p.nextToken() // consume ;
@@ -146,7 +162,7 @@ func (p *Parser) parseStatement() ast.Node {
 			return nil
 		}
 		if p.tok.Type != token.T_SEMICOLON {
-			p.errors = append(p.errors, "expected ; after echo statement")
+			p.errors = append(p.errors, fmt.Sprintf("line %d:%d: expected ; after echo statement, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal))
 			return nil
 		}
 		p.nextToken() // consume ;
@@ -164,7 +180,7 @@ func (p *Parser) parseStatement() ast.Node {
 		// Try parsing as expression statement
 		if expr := p.parseExpression(); expr != nil {
 			if p.tok.Type != token.T_SEMICOLON {
-				p.errors = append(p.errors, "expected ; after expression")
+				p.errors = append(p.errors, fmt.Sprintf("line %d:%d: expected ; after expression, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal))
 				return nil
 			}
 			p.nextToken() // consume ;
@@ -173,34 +189,25 @@ func (p *Parser) parseStatement() ast.Node {
 				Pos:  expr.GetPos(),
 			}
 		}
-		p.errors = append(p.errors, fmt.Sprintf("unexpected token %s in statement", p.tok.Type))
+		p.errors = append(p.errors, fmt.Sprintf("line %d:%d: unexpected token %s in statement", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal))
 		p.nextToken()
 		return nil
 	}
 }
 
-func (p *Parser) parseFunctionDeclaration() ast.Node {
+func (p *Parser) parseFunction() ast.Node {
 	pos := p.tok.Pos
+	p.nextToken() // consume 'function'
 
-	// Parse visibility modifier if present
-	var visibility string
-	if p.tok.Type == token.T_PUBLIC || p.tok.Type == token.T_PRIVATE || p.tok.Type == token.T_PROTECTED {
-		visibility = p.tok.Literal
+	// Parse function name if present (could be anonymous function)
+	var name string
+	if p.tok.Type == token.T_STRING {
+		name = p.tok.Literal
 		p.nextToken()
 	}
 
-	p.nextToken() // consume 'function'
-
-	if p.tok.Type != token.T_STRING {
-		p.errors = append(p.errors, "expected function name")
-		return nil
-	}
-
-	name := p.tok.Literal
-	p.nextToken()
-
 	if p.tok.Type != token.T_LPAREN {
-		p.errors = append(p.errors, "expected ( after function name")
+		p.errors = append(p.errors, fmt.Sprintf("line %d:%d: expected ( after function name %s, got %s", p.tok.Pos.Line, p.tok.Pos.Column, name, p.tok.Literal))
 		return nil
 	}
 	p.nextToken() // consume (
@@ -218,119 +225,69 @@ func (p *Parser) parseFunctionDeclaration() ast.Node {
 		}
 
 		if p.tok.Type != token.T_RPAREN {
-			p.errors = append(p.errors, "expected , or ) in parameter list")
+			p.errors = append(p.errors, fmt.Sprintf("line %d:%d: expected , or ) in parameter list for function %s, got %s", p.tok.Pos.Line, p.tok.Pos.Column, name, p.tok.Literal))
 			return nil
 		}
 	}
 	p.nextToken() // consume )
 
-	// Parse return type if present
+	// Parse return type
 	var returnType string
 	if p.tok.Type == token.T_COLON {
-		p.nextToken() // consume :
-		if p.tok.Type != token.T_STRING {
-			p.errors = append(p.errors, "expected return type after :")
+		p.nextToken()
+		if p.tok.Type == token.T_STRING || p.tok.Type == token.T_ARRAY {
+			returnType = p.tok.Literal
+			p.nextToken()
+
+			// Handle array type
+			if p.tok.Type == token.T_LBRACKET {
+				returnType += "["
+				p.nextToken()
+
+				// Handle array items
+				for p.tok.Type != token.T_RBRACKET && p.tok.Type != token.T_EOF {
+					if p.tok.Type == token.T_STRING || p.tok.Type == token.T_ARRAY {
+						returnType += p.tok.Literal
+						p.nextToken()
+					} else {
+						p.errors = append(p.errors, fmt.Sprintf("line %d:%d: expected array item type, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal))
+						return nil
+					}
+
+					if p.tok.Type == token.T_COMMA {
+						returnType += ", "
+						p.nextToken()
+						continue
+					}
+					break
+				}
+
+				if p.tok.Type != token.T_RBRACKET {
+					p.errors = append(p.errors, fmt.Sprintf("line %d:%d: expected ']' after array type in return type for function %s, got %s", p.tok.Pos.Line, p.tok.Pos.Column, name, p.tok.Literal))
+					return nil
+				}
+				returnType += "]"
+				p.nextToken()
+			}
+		} else {
+			p.errors = append(p.errors, fmt.Sprintf("line %d:%d: expected return type for function %s, got %s", p.tok.Pos.Line, p.tok.Pos.Column, name, p.tok.Literal))
 			return nil
 		}
-		returnType = p.tok.Literal
-		p.nextToken()
 	}
 
-	// Check if this is an interface method declaration (no body, just semicolon)
-	if p.tok.Type == token.T_SEMICOLON {
-		p.nextToken() // consume ;
-		return &ast.FunctionNode{
-			Name:       name,
-			Visibility: visibility,
-			ReturnType: returnType,
-			Params:     params,
-			Body:       nil, // Interface methods have no body
-			Pos:        ast.Position(pos),
-		}
-	}
-
+	// Parse function body
 	if p.tok.Type != token.T_LBRACE {
-		p.errors = append(p.errors, "expected { after function parameters")
+		p.errors = append(p.errors, fmt.Sprintf("line %d:%d: expected { to start function body for %s, got %s", p.tok.Pos.Line, p.tok.Pos.Column, name, p.tok.Literal))
 		return nil
 	}
-	var body []ast.Node
-	p.nextToken() // consume {
-
-	for p.tok.Type != token.T_RBRACE && p.tok.Type != token.T_EOF {
-		if stmt := p.parseStatement(); stmt != nil {
-			body = append(body, stmt)
-		}
-		// Don't consume tokens here - parseStatement handles that
-	}
-
-	if p.tok.Type != token.T_RBRACE {
-		p.errors = append(p.errors, "expected } to close function body")
-		return nil
-	}
-	p.nextToken() // consume closing brace
+	body := p.parseBlockStatement()
 
 	return &ast.FunctionNode{
 		Name:       name,
-		Visibility: visibility,
-		ReturnType: returnType,
 		Params:     params,
 		Body:       body,
+		ReturnType: returnType,
 		Pos:        ast.Position(pos),
-	}
-}
-
-func (p *Parser) parseParameter() ast.Node {
-	pos := p.tok.Pos
-
-	// Parse parameter type
-	var paramType string
-	if p.tok.Type == token.T_STRING || p.tok.Type == token.T_ARRAY || p.tok.Type == token.T_CALLABLE {
-		paramType = p.tok.Literal
-		p.nextToken()
-	}
-
-	// Check for by-reference
-	byRef := false
-	if p.tok.Type == token.T_AMPERSAND {
-		byRef = true
-		p.nextToken()
-	}
-
-	// Check for variadic
-	variadic := false
-	if p.tok.Type == token.T_ELLIPSIS {
-		variadic = true
-		p.nextToken()
-	}
-
-	// Parse parameter name
-	if p.tok.Type != token.T_VARIABLE {
-		p.errors = append(p.errors, "expected parameter name")
-		return nil
-	}
-	name := p.tok.Literal[1:] // Remove $ prefix
-	p.nextToken()
-
-	// Parse default value if present
-	var defaultValue ast.Node
-	if p.tok.Type == token.T_ASSIGN {
-		p.nextToken()
-		defaultValue = p.parseExpression()
-	}
-
-	// Variadic parameters cannot have default values
-	if variadic && defaultValue != nil {
-		p.errors = append(p.errors, "variadic parameter cannot have a default value")
-		return nil
-	}
-
-	return &ast.ParameterNode{
-		Name:         name,
-		Type:         paramType,
-		ByRef:        byRef,
-		Variadic:     variadic,
-		DefaultValue: defaultValue,
-		Pos:          ast.Position(pos),
 	}
 }
 
@@ -348,7 +305,7 @@ func (p *Parser) parseVariableStatement() ast.Node {
 		}
 
 		if p.tok.Type != token.T_SEMICOLON {
-			p.errors = append(p.errors, "expected ; after assignment")
+			p.errors = append(p.errors, fmt.Sprintf("line %d:%d: expected ; after assignment to $%s, got %s", p.tok.Pos.Line, p.tok.Pos.Column, varName, p.tok.Literal))
 			return nil
 		}
 
@@ -368,276 +325,166 @@ func (p *Parser) parseVariableStatement() ast.Node {
 	}
 }
 
-func isLetter(ch byte) bool {
-	return 'a' <= ch && ch <= 'z' || 'A' <= ch && ch <= 'Z' || ch == '_'
-}
-
-func isDigit(ch byte) bool {
-	return '0' <= ch && ch <= '9'
-}
-
 func (p *Parser) parseExpression() ast.Node {
-	var expr ast.Node
-
 	switch p.tok.Type {
-	case token.T_NEW:
-		pos := p.tok.Pos
-		p.nextToken() // consume 'new'
-		if p.tok.Type != token.T_STRING {
-			p.errors = append(p.errors, "expected class name after new")
-			return nil
+	case token.T_LBRACKET:
+		return p.parseArrayLiteral()
+	case token.T_ARRAY:
+		if p.peekToken().Type == token.T_LPAREN {
+			return p.parseArrayLiteral()
 		}
-		className := p.tok.Literal
-		p.nextToken()
+		fallthrough
+	case token.T_STRING:
+		// Handle array keys
+		if p.peekToken().Type == token.T_DOUBLE_ARROW {
+			return p.parseArrayLiteral()
+		}
+		fallthrough
+	default:
+		return p.parseSimpleExpression()
+	}
+}
 
+func (p *Parser) parseArrayElement() ast.Node {
+	var key ast.Node
+	var value ast.Node
+
+	// Parse key if present
+	if p.peekToken().Type == token.T_DOUBLE_ARROW {
+		key = p.parseExpression()
+		p.nextToken() // consume =>
+	}
+
+	// Parse value
+	value = p.parseExpression()
+	if value == nil {
+		return nil
+	}
+
+	// Don't consume the token here - let the caller handle commas
+	return &ast.KeyValueNode{
+		Key:   key,
+		Value: value,
+		Pos:   value.GetPos(),
+	}
+}
+
+func (p *Parser) parseArrayLiteral() ast.Node {
+	pos := p.tok.Pos
+
+	// Handle array() syntax
+	if p.tok.Type == token.T_ARRAY {
+		p.nextToken() // consume array
 		if p.tok.Type != token.T_LPAREN {
-			p.errors = append(p.errors, "expected ( after class name")
+			p.errors = append(p.errors, fmt.Sprintf("line %d:%d: expected ( after array, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal))
 			return nil
 		}
 		p.nextToken() // consume (
 
-		var args []ast.Node
-		if p.tok.Type != token.T_RPAREN {
-			for {
-				arg := p.parseExpression()
-				if arg == nil {
-					return nil
-				}
-				args = append(args, arg)
-
-				if p.tok.Type == token.T_COMMA {
-					p.nextToken()
-					continue
-				}
-				break
+		var elements []ast.Node
+		for p.tok.Type != token.T_RPAREN && p.tok.Type != token.T_EOF {
+			if element := p.parseArrayElement(); element != nil {
+				elements = append(elements, element)
 			}
-		}
 
-		if p.tok.Type != token.T_RPAREN {
-			p.errors = append(p.errors, "expected ) in argument list")
-			return nil
+			if p.tok.Type == token.T_COMMA {
+				p.nextToken() // consume comma
+				continue
+			}
+
+			if p.tok.Type != token.T_RPAREN {
+				p.errors = append(p.errors, fmt.Sprintf("line %d:%d: expected , or ) in array literal, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal))
+				return nil
+			}
+			break
 		}
 		p.nextToken() // consume )
 
-		expr = &ast.NewNode{
-			ClassName: className,
-			Args:      args,
-			Pos:       ast.Position(pos),
+		return &ast.ArrayNode{
+			Elements: elements,
+			Pos:      ast.Position(pos),
 		}
-	case token.T_VARIABLE:
-		pos := p.tok.Pos
-		name := p.tok.Literal[1:] // Remove $ prefix
+	}
+
+	// Handle [] syntax
+	if p.tok.Type == token.T_LBRACKET {
+		p.nextToken() // consume [
+	} else if p.tok.Type == token.T_STRING {
+		// Handle array with string keys
+		return p.parseArrayWithStringKeys()
+	}
+
+	var elements []ast.Node
+	for p.tok.Type != token.T_RBRACKET && p.tok.Type != token.T_EOF {
+		if element := p.parseArrayElement(); element != nil {
+			elements = append(elements, element)
+		}
+
+		if p.tok.Type == token.T_COMMA {
+			p.nextToken() // consume comma
+			continue
+		}
+
+		if p.tok.Type != token.T_RBRACKET {
+			p.errors = append(p.errors, fmt.Sprintf("line %d:%d: expected , or ] in array literal, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal))
+			return nil
+		}
+		break
+	}
+	p.nextToken() // consume ]
+
+	return &ast.ArrayNode{
+		Elements: elements,
+		Pos:      ast.Position(pos),
+	}
+}
+
+func (p *Parser) parseArrayWithStringKeys() ast.Node {
+	pos := p.tok.Pos
+	var elements []ast.Node
+
+	for {
+		if p.tok.Type != token.T_STRING {
+			p.errors = append(p.errors, fmt.Sprintf("line %d:%d: expected string key in array, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal))
+			return nil
+		}
+		key := p.tok.Literal
 		p.nextToken()
 
-		// Check for method call
-		if p.tok.Type == token.T_OBJECT_OP {
-			p.nextToken() // consume ->
-			if p.tok.Type != token.T_STRING {
-				p.errors = append(p.errors, "expected method name after ->")
-				return nil
-			}
-			methodName := p.tok.Literal
-			p.nextToken()
-
-			if p.tok.Type != token.T_LPAREN {
-				p.errors = append(p.errors, "expected ( after method name")
-				return nil
-			}
-			p.nextToken() // consume (
-
-			var args []ast.Node
-			if p.tok.Type != token.T_RPAREN {
-				for {
-					arg := p.parseExpression()
-					if arg == nil {
-						return nil
-					}
-					args = append(args, arg)
-
-					if p.tok.Type == token.T_COMMA {
-						p.nextToken()
-						continue
-					}
-					break
-				}
-			}
-
-			if p.tok.Type != token.T_RPAREN {
-				p.errors = append(p.errors, "expected ) in argument list")
-				return nil
-			}
-			p.nextToken() // consume )
-
-			expr = &ast.MethodCallNode{
-				Object: &ast.VariableNode{
-					Name: name,
-					Pos:  ast.Position(pos),
-				},
-				Method: methodName,
-				Args:   args,
-				Pos:    ast.Position(pos),
-			}
-		} else {
-			expr = &ast.VariableNode{
-				Name: name,
-				Pos:  ast.Position(pos),
-			}
-		}
-	case token.T_STRING:
-		// Check for function calls
-		strPos := p.tok.Pos
-		name := p.tok.Literal
-		p.nextToken()
-
-		if p.tok.Type == token.T_LPAREN {
-			p.nextToken() // consume (
-
-			// Parse arguments
-			var args []ast.Node
-			if p.tok.Type != token.T_RPAREN {
-				for {
-					arg := p.parseExpression()
-					if arg == nil {
-						return nil
-					}
-					args = append(args, arg)
-
-					if p.tok.Type == token.T_COMMA {
-						p.nextToken()
-						continue
-					}
-					break
-				}
-			}
-
-			if p.tok.Type != token.T_RPAREN {
-				p.errors = append(p.errors, "expected ) in argument list")
-				return nil
-			}
-			p.nextToken() // consume )
-
-			expr = &ast.FunctionCall{
-				Name:      name,
-				Arguments: args,
-				Pos:       ast.Position(strPos),
-			}
-		} else {
-			expr = &ast.StringLiteral{
-				Value: name,
-				Pos:   ast.Position(strPos),
-			}
-		}
-	case token.T_CONSTANT_STRING:
-		strPos := p.tok.Pos
-		str := p.tok.Literal
-		p.nextToken()
-		expr = &ast.StringLiteral{
-			Value: str,
-			Pos:   ast.Position(strPos),
-		}
-	case token.T_CONSTANT_ENCAPSED_STRING:
-		strPos := p.tok.Pos
-		str := p.tok.Literal[1 : len(p.tok.Literal)-1] // Remove quotes
-
-		// Handle string interpolation
-		var parts []ast.Node
-		if len(str) > 0 {
-			// Split string into parts based on variable interpolation
-			current := ""
-			for i := 0; i < len(str); i++ {
-				if str[i] == '$' {
-					// Add the current string part if any
-					if current != "" {
-						parts = append(parts, &ast.StringLiteral{
-							Value: current,
-							Pos:   ast.Position(strPos),
-						})
-						current = ""
-					}
-					// Look for variable name
-					varName := ""
-					for j := i + 1; j < len(str); j++ {
-						if isLetter(str[j]) || isDigit(str[j]) || str[j] == '_' {
-							varName += string(str[j])
-						} else {
-							break
-						}
-					}
-					if varName != "" {
-						parts = append(parts, &ast.VariableNode{
-							Name: varName,
-							Pos:  ast.Position(strPos),
-						})
-						i += len(varName) // Skip past variable name
-					}
-				} else {
-					current += string(str[i])
-				}
-			}
-			// Add any remaining string part
-			if current != "" {
-				parts = append(parts, &ast.StringLiteral{
-					Value: current,
-					Pos:   ast.Position(strPos),
-				})
-			}
-		}
-
-		p.nextToken()
-		expr = &ast.InterpolatedStringLiteral{
-			Parts: parts,
-			Pos:   ast.Position(strPos),
-		}
-	case token.T_LNUMBER:
-		numPos := p.tok.Pos
-		num, err := strconv.ParseInt(p.tok.Literal, 10, 64)
-		if err != nil {
-			p.errors = append(p.errors, fmt.Sprintf("invalid integer literal: %s", p.tok.Literal))
+		if p.tok.Type != token.T_DOUBLE_ARROW {
+			p.errors = append(p.errors, fmt.Sprintf("line %d:%d: expected => after array key %s, got %s", p.tok.Pos.Line, p.tok.Pos.Column, key, p.tok.Literal))
 			return nil
 		}
 		p.nextToken()
-		expr = &ast.IntegerLiteral{
-			Value: num,
-			Pos:   ast.Position(numPos),
-		}
-	case token.T_DNUMBER:
-		numPos := p.tok.Pos
-		num, err := strconv.ParseFloat(p.tok.Literal, 64)
-		if err != nil {
-			p.errors = append(p.errors, fmt.Sprintf("invalid float literal: %s", p.tok.Literal))
+
+		value := p.parseExpression()
+		if value == nil {
 			return nil
 		}
-		p.nextToken()
-		expr = &ast.FloatLiteral{
-			Value: num,
-			Pos:   ast.Position(numPos),
-		}
-	case token.T_TRUE:
-		pos := p.tok.Pos
-		p.nextToken()
-		expr = &ast.BooleanLiteral{
-			Value: true,
+
+		elements = append(elements, &ast.KeyValueNode{
+			Key:   &ast.StringNode{Value: key, Pos: ast.Position(pos)},
+			Value: value,
 			Pos:   ast.Position(pos),
+		})
+
+		if p.tok.Type == token.T_COMMA {
+			p.nextToken() // consume comma
+			continue
 		}
-	case token.T_FALSE:
-		pos := p.tok.Pos
-		p.nextToken()
-		expr = &ast.BooleanLiteral{
-			Value: false,
-			Pos:   ast.Position(pos),
+
+		if p.tok.Type == token.T_RBRACKET {
+			break
 		}
-	case token.T_NULL:
-		pos := p.tok.Pos
-		p.nextToken()
-		expr = &ast.NullLiteral{
-			Pos: ast.Position(pos),
-		}
-	default:
-		p.errors = append(p.errors, "unexpected token in expression")
+
+		p.errors = append(p.errors, fmt.Sprintf("line %d:%d: expected , or ] after array element, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal))
 		return nil
 	}
 
-	return expr
+	return &ast.ArrayNode{
+		Elements: elements,
+		Pos:      ast.Position(pos),
+	}
 }
 
 func (p *Parser) parseExpressionStatement() ast.Node {
@@ -647,7 +494,7 @@ func (p *Parser) parseExpressionStatement() ast.Node {
 	}
 
 	if p.tok.Type != token.T_SEMICOLON {
-		p.errors = append(p.errors, "expected ; after expression")
+		p.errors = append(p.errors, fmt.Sprintf("line %d:%d: expected ; after expression, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal))
 		return nil
 	}
 	p.nextToken() // consume ;
@@ -663,7 +510,7 @@ func (p *Parser) parseIfStatement() ast.Node {
 	p.nextToken() // consume if
 
 	if p.tok.Type != token.T_LPAREN {
-		p.errors = append(p.errors, "expected ( after if")
+		p.errors = append(p.errors, fmt.Sprintf("line %d:%d: expected ( after if, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal))
 		return nil
 	}
 	p.nextToken()
@@ -674,13 +521,13 @@ func (p *Parser) parseIfStatement() ast.Node {
 	}
 
 	if p.tok.Type != token.T_RPAREN {
-		p.errors = append(p.errors, "expected ) after if condition")
+		p.errors = append(p.errors, fmt.Sprintf("line %d:%d: expected ) after if condition, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal))
 		return nil
 	}
 	p.nextToken()
 
 	if p.tok.Type != token.T_LBRACE {
-		p.errors = append(p.errors, "expected { after if condition")
+		p.errors = append(p.errors, fmt.Sprintf("line %d:%d: expected { after if condition, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal))
 		return nil
 	}
 	p.nextToken()
@@ -694,7 +541,7 @@ func (p *Parser) parseIfStatement() ast.Node {
 	}
 
 	if p.tok.Type != token.T_RBRACE {
-		p.errors = append(p.errors, "expected } to close if body")
+		p.errors = append(p.errors, fmt.Sprintf("line %d:%d: expected } to close if body, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal))
 		return nil
 	}
 	p.nextToken() // consume }
@@ -733,7 +580,7 @@ func (p *Parser) parseElseIfClause() *ast.ElseIfNode {
 	p.nextToken() // consume elseif
 
 	if p.tok.Type != token.T_LPAREN {
-		p.errors = append(p.errors, "expected ( after elseif")
+		p.errors = append(p.errors, fmt.Sprintf("line %d:%d: expected ( after elseif, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal))
 		return nil
 	}
 	p.nextToken()
@@ -744,13 +591,13 @@ func (p *Parser) parseElseIfClause() *ast.ElseIfNode {
 	}
 
 	if p.tok.Type != token.T_RPAREN {
-		p.errors = append(p.errors, "expected ) after elseif condition")
+		p.errors = append(p.errors, fmt.Sprintf("line %d:%d: expected ) after elseif condition, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal))
 		return nil
 	}
 	p.nextToken()
 
 	if p.tok.Type != token.T_LBRACE {
-		p.errors = append(p.errors, "expected { after elseif condition")
+		p.errors = append(p.errors, fmt.Sprintf("line %d:%d: expected { after elseif condition, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal))
 		return nil
 	}
 	p.nextToken()
@@ -764,7 +611,7 @@ func (p *Parser) parseElseIfClause() *ast.ElseIfNode {
 	}
 
 	if p.tok.Type != token.T_RBRACE {
-		p.errors = append(p.errors, "expected } to close elseif body")
+		p.errors = append(p.errors, fmt.Sprintf("line %d:%d: expected } to close elseif body, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal))
 		return nil
 	}
 	p.nextToken() // consume }
@@ -781,7 +628,7 @@ func (p *Parser) parseElseClause() *ast.ElseNode {
 	p.nextToken() // consume else
 
 	if p.tok.Type != token.T_LBRACE {
-		p.errors = append(p.errors, "expected { after else")
+		p.errors = append(p.errors, fmt.Sprintf("line %d:%d: expected { after else, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal))
 		return nil
 	}
 	p.nextToken()
@@ -795,7 +642,7 @@ func (p *Parser) parseElseClause() *ast.ElseNode {
 	}
 
 	if p.tok.Type != token.T_RBRACE {
-		p.errors = append(p.errors, "expected } to close else body")
+		p.errors = append(p.errors, fmt.Sprintf("line %d:%d: expected } to close else body, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal))
 		return nil
 	}
 	p.nextToken() // consume }
@@ -811,7 +658,7 @@ func (p *Parser) parseClassDeclaration() ast.Node {
 	p.nextToken() // consume 'class'
 
 	if p.tok.Type != token.T_STRING {
-		p.errors = append(p.errors, "expected class name")
+		p.errors = append(p.errors, fmt.Sprintf("line %d:%d: expected class name, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal))
 		return nil
 	}
 
@@ -823,7 +670,7 @@ func (p *Parser) parseClassDeclaration() ast.Node {
 	if p.tok.Type == token.T_EXTENDS {
 		p.nextToken() // consume 'extends'
 		if p.tok.Type != token.T_STRING {
-			p.errors = append(p.errors, "expected parent class name after extends")
+			p.errors = append(p.errors, fmt.Sprintf("line %d:%d: expected parent class name after extends, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal))
 			return nil
 		}
 		extends = p.tok.Literal
@@ -836,7 +683,7 @@ func (p *Parser) parseClassDeclaration() ast.Node {
 		p.nextToken() // consume 'implements'
 		for {
 			if p.tok.Type != token.T_STRING {
-				p.errors = append(p.errors, "expected interface name after implements")
+				p.errors = append(p.errors, fmt.Sprintf("line %d:%d: expected interface name after implements, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal))
 				return nil
 			}
 			implements = append(implements, p.tok.Literal)
@@ -850,7 +697,7 @@ func (p *Parser) parseClassDeclaration() ast.Node {
 	}
 
 	if p.tok.Type != token.T_LBRACE {
-		p.errors = append(p.errors, "expected { after class declaration")
+		p.errors = append(p.errors, fmt.Sprintf("line %d:%d: expected { after class declaration for %s, got %s", p.tok.Pos.Line, p.tok.Pos.Column, name, p.tok.Literal))
 		return nil
 	}
 	p.nextToken() // consume {
@@ -858,13 +705,31 @@ func (p *Parser) parseClassDeclaration() ast.Node {
 	var properties []ast.Node
 	var methods []ast.Node
 	for p.tok.Type != token.T_RBRACE && p.tok.Type != token.T_EOF {
-		// Handle visibility modifiers for methods
+		// Handle visibility modifiers for methods and properties
 		if p.tok.Type == token.T_PUBLIC || p.tok.Type == token.T_PRIVATE || p.tok.Type == token.T_PROTECTED {
-			if method := p.parseFunctionDeclaration(); method != nil {
-				methods = append(methods, method)
+			visibility := p.tok.Literal
+			p.nextToken()
+
+			if p.tok.Type == token.T_FUNCTION {
+				if method := p.parseFunction(); method != nil {
+					if fn, ok := method.(*ast.FunctionNode); ok {
+						fn.Visibility = visibility
+					}
+					methods = append(methods, method)
+				}
+			} else if p.tok.Type == token.T_VARIABLE {
+				if prop := p.parsePropertyDeclaration(); prop != nil {
+					if pn, ok := prop.(*ast.PropertyNode); ok {
+						pn.Visibility = visibility
+					}
+					properties = append(properties, prop)
+				}
+			} else {
+				p.errors = append(p.errors, fmt.Sprintf("line %d:%d: expected function or property declaration after visibility modifier %s, got %s", p.tok.Pos.Line, p.tok.Pos.Column, visibility, p.tok.Literal))
+				p.nextToken()
 			}
 		} else if p.tok.Type == token.T_FUNCTION {
-			if method := p.parseFunctionDeclaration(); method != nil {
+			if method := p.parseFunction(); method != nil {
 				methods = append(methods, method)
 			}
 		} else if p.tok.Type == token.T_VARIABLE {
@@ -873,13 +738,13 @@ func (p *Parser) parseClassDeclaration() ast.Node {
 				properties = append(properties, prop)
 			}
 		} else {
-			p.errors = append(p.errors, fmt.Sprintf("unexpected token %s in class body", p.tok.Type))
+			p.errors = append(p.errors, fmt.Sprintf("line %d:%d: unexpected token %s in class %s body", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal, name))
 			p.nextToken()
 		}
 	}
 
 	if p.tok.Type != token.T_RBRACE {
-		p.errors = append(p.errors, "expected } to close class body")
+		p.errors = append(p.errors, fmt.Sprintf("line %d:%d: expected } to close class %s body, got %s", p.tok.Pos.Line, p.tok.Pos.Column, name, p.tok.Literal))
 		return nil
 	}
 	p.nextToken() // consume }
@@ -900,7 +765,7 @@ func (p *Parser) parsePropertyDeclaration() ast.Node {
 	p.nextToken()
 
 	if p.tok.Type != token.T_SEMICOLON {
-		p.errors = append(p.errors, "expected ; after property declaration")
+		p.errors = append(p.errors, fmt.Sprintf("line %d:%d: expected ; after property declaration $%s, got %s", p.tok.Pos.Line, p.tok.Pos.Column, name, p.tok.Literal))
 		return nil
 	}
 	p.nextToken()
@@ -911,6 +776,170 @@ func (p *Parser) parsePropertyDeclaration() ast.Node {
 	}
 }
 
+func (p *Parser) parseBlockStatement() []ast.Node {
+	p.nextToken() // consume {
+
+	var statements []ast.Node
+	for p.tok.Type != token.T_RBRACE && p.tok.Type != token.T_EOF {
+		if stmt := p.parseStatement(); stmt != nil {
+			statements = append(statements, stmt)
+		}
+		// Don't consume tokens here - parseStatement handles that
+	}
+
+	if p.tok.Type != token.T_RBRACE {
+		p.errors = append(p.errors, fmt.Sprintf("line %d:%d: expected } to close block, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal))
+		return nil
+	}
+	p.nextToken() // consume closing brace
+
+	return statements
+}
+
 func (p *Parser) Errors() []string {
 	return p.errors
+}
+
+// peekToken returns the next token without consuming it
+func (p *Parser) peekToken() token.Token {
+	return p.l.PeekToken()
+}
+
+// parseSimpleExpression parses a simple expression (identifier, literal, etc.)
+func (p *Parser) parseSimpleExpression() ast.Node {
+	switch p.tok.Type {
+	case token.T_NEW:
+		pos := p.tok.Pos
+		p.nextToken() // consume 'new'
+
+		if p.tok.Type != token.T_STRING {
+			p.errors = append(p.errors, fmt.Sprintf("line %d:%d: expected class name after new, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal))
+			return nil
+		}
+		className := p.tok.Literal
+		p.nextToken()
+
+		if p.tok.Type != token.T_LPAREN {
+			p.errors = append(p.errors, fmt.Sprintf("line %d:%d: expected ( after class name %s, got %s", p.tok.Pos.Line, p.tok.Pos.Column, className, p.tok.Literal))
+			return nil
+		}
+		p.nextToken() // consume (
+
+		var args []ast.Node
+		for p.tok.Type != token.T_RPAREN && p.tok.Type != token.T_EOF {
+			if arg := p.parseExpression(); arg != nil {
+				args = append(args, arg)
+			}
+
+			if p.tok.Type == token.T_COMMA {
+				p.nextToken()
+				continue
+			}
+			break
+		}
+
+		if p.tok.Type != token.T_RPAREN {
+			p.errors = append(p.errors, fmt.Sprintf("line %d:%d: expected ) after arguments for %s, got %s", p.tok.Pos.Line, p.tok.Pos.Column, className, p.tok.Literal))
+			return nil
+		}
+		p.nextToken() // consume )
+
+		return &ast.NewNode{
+			ClassName: className,
+			Args:      args,
+			Pos:       ast.Position(pos),
+		}
+	case token.T_IDENTIFIER:
+		node := &ast.IdentifierNode{
+			Value: p.tok.Literal,
+			Pos:   ast.Position(p.tok.Pos),
+		}
+		p.nextToken()
+		return node
+	case token.T_STRING:
+		node := &ast.StringNode{
+			Value: p.tok.Literal,
+			Pos:   ast.Position(p.tok.Pos),
+		}
+		p.nextToken()
+		return node
+	case token.T_CONSTANT_ENCAPSED_STRING:
+		// Handle string interpolation
+		pos := p.tok.Pos
+		value := p.tok.Literal
+		p.nextToken()
+
+		// Check for variable interpolation
+		if p.tok.Type == token.T_VARIABLE {
+			var parts []ast.Node
+			parts = append(parts, &ast.StringNode{
+				Value: value,
+				Pos:   ast.Position(pos),
+			})
+			for p.tok.Type == token.T_VARIABLE {
+				varNode := &ast.VariableNode{
+					Name: p.tok.Literal[1:], // Remove $ prefix
+					Pos:  ast.Position(p.tok.Pos),
+				}
+				parts = append(parts, varNode)
+				p.nextToken()
+			}
+			return &ast.ConcatNode{
+				Parts: parts,
+				Pos:   ast.Position(pos),
+			}
+		}
+
+		return &ast.StringNode{
+			Value: value,
+			Pos:   ast.Position(pos),
+		}
+	case token.T_CONSTANT_STRING:
+		node := &ast.StringNode{
+			Value: p.tok.Literal,
+			Pos:   ast.Position(p.tok.Pos),
+		}
+		p.nextToken()
+		return node
+	case token.T_LNUMBER:
+		val, _ := strconv.ParseInt(p.tok.Literal, 10, 64)
+		node := &ast.IntegerNode{
+			Value: val,
+			Pos:   ast.Position(p.tok.Pos),
+		}
+		p.nextToken()
+		return node
+	case token.T_DNUMBER:
+		val, _ := strconv.ParseFloat(p.tok.Literal, 64)
+		node := &ast.FloatNode{
+			Value: val,
+			Pos:   ast.Position(p.tok.Pos),
+		}
+		p.nextToken()
+		return node
+	case token.T_TRUE:
+		node := &ast.BooleanNode{
+			Value: true,
+			Pos:   ast.Position(p.tok.Pos),
+		}
+		p.nextToken()
+		return node
+	case token.T_FALSE:
+		node := &ast.BooleanNode{
+			Value: false,
+			Pos:   ast.Position(p.tok.Pos),
+		}
+		p.nextToken()
+		return node
+	case token.T_NULL:
+		node := &ast.NullNode{
+			Pos: ast.Position(p.tok.Pos),
+		}
+		p.nextToken()
+		return node
+	default:
+		p.errors = append(p.errors, fmt.Sprintf("line %d:%d: unexpected token %s in expression", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal))
+		p.nextToken()
+		return nil
+	}
 }

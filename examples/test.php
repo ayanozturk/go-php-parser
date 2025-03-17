@@ -11,10 +11,19 @@ function MyFunction($name) {
 }
 
 interface MyInterface {
-    public function myMethod();
+    public function myMethod(string $name, int $age): string;
+    public function getData(array $options = []): array;
 }
 
 class MyClass implements MyInterface {
+    public function myMethod(string $name, int $age): string {
+        return "Hello, $name! You are $age years old.";
+    }
+
+    public function getData(array $options = []): array {
+        return 'name';
+    }
+
     public function sayHello(string $name) {
         echo "Hello, world, $name!";
     }
@@ -22,3 +31,5 @@ class MyClass implements MyInterface {
 
 $myClass = new MyClass();
 $myClass->sayHello("John Doe");
+$result = $myClass->myMethod("Jane", 25);
+$data = $myClass->getData();
