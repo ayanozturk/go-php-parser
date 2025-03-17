@@ -76,44 +76,39 @@ func (l *Lexer) readIdentifier() string {
 
 func (l *Lexer) NextToken() token.Token {
 	var tok token.Token
+	pos := token.Position{Line: l.line, Column: l.column, Offset: l.pos}
 
 	l.skipWhitespace()
 
-	pos := token.Position{
-		Line:   l.line,
-		Column: l.column,
-		Offset: l.pos,
-	}
-
-	switch {
-	case l.char == 0:
-		tok = token.Token{Type: token.T_EOF, Literal: "", Pos: pos}
-	case strings.HasPrefix(l.input[l.pos:], "<?php"):
-		tok = token.Token{Type: token.T_OPEN_TAG, Literal: "<?php", Pos: pos}
-		l.pos += 4 // Skip the rest of <?php
-		l.readChar()
-	case l.char == '$':
+	switch l.char {
+	case '<':
+		if l.peekChar() == '?' {
+			l.readChar() // consume ?
+			l.readChar() // consume following char
+			tok = token.Token{Type: token.T_OPEN_TAG, Literal: "<?php", Pos: pos}
+		}
+	case '$':
 		l.readChar()
 		if isLetter(l.char) {
-			ident := l.readIdentifier()
-			tok = token.Token{Type: token.T_VARIABLE, Literal: "$" + ident, Pos: pos}
+			tok.Literal = "$" + l.readIdentifier()
+			tok.Type = token.T_VARIABLE
 		}
-	case l.char == '(':
+	case '(':
 		tok = token.Token{Type: token.T_LPAREN, Literal: "(", Pos: pos}
 		l.readChar()
-	case l.char == ')':
+	case ')':
 		tok = token.Token{Type: token.T_RPAREN, Literal: ")", Pos: pos}
 		l.readChar()
-	case l.char == '{':
+	case '{':
 		tok = token.Token{Type: token.T_LBRACE, Literal: "{", Pos: pos}
 		l.readChar()
-	case l.char == '}':
+	case '}':
 		tok = token.Token{Type: token.T_RBRACE, Literal: "}", Pos: pos}
 		l.readChar()
-	case l.char == ';':
+	case ';':
 		tok = token.Token{Type: token.T_SEMICOLON, Literal: ";", Pos: pos}
 		l.readChar()
-	case l.char == '=':
+	case '=':
 		if l.peekChar() == '=' {
 			l.readChar()
 			tok = token.Token{Type: token.T_IS_EQUAL, Literal: "==", Pos: pos}
@@ -121,18 +116,42 @@ func (l *Lexer) NextToken() token.Token {
 			tok = token.Token{Type: token.T_ASSIGN, Literal: "=", Pos: pos}
 		}
 		l.readChar()
-	case l.char == '"':
+	case '&':
+		tok = token.Token{Type: token.T_AMPERSAND, Literal: "&", Pos: pos}
+		l.readChar()
+	case ',':
+		tok = token.Token{Type: token.T_COMMA, Literal: ",", Pos: pos}
+		l.readChar()
+	case '.':
+		if l.peekChar() == '.' && l.input[l.readPos+1] == '.' {
+			l.readChar() // consume second .
+			l.readChar() // consume third .
+			tok = token.Token{Type: token.T_ELLIPSIS, Literal: "...", Pos: pos}
+		}
+		l.readChar()
+	case '"':
 		str := l.readString()
 		tok = token.Token{Type: token.T_CONSTANT_STRING, Literal: str, Pos: pos}
 		l.readChar()
-	case isLetter(l.char):
-		ident := l.readIdentifier()
-		if ident == "function" {
-			tok = token.Token{Type: token.T_FUNCTION, Literal: ident, Pos: pos}
-		} else {
-			tok = token.Token{Type: token.T_IDENTIFIER, Literal: ident, Pos: pos}
-		}
+	case 0:
+		tok = token.Token{Type: token.T_EOF, Literal: "", Pos: pos}
 	default:
+		if isLetter(l.char) {
+			ident := l.readIdentifier()
+			switch strings.ToLower(ident) {
+			case "function":
+				tok = token.Token{Type: token.T_FUNCTION, Literal: ident, Pos: pos}
+			case "array":
+				tok = token.Token{Type: token.T_ARRAY, Literal: ident, Pos: pos}
+			case "string":
+				tok = token.Token{Type: token.T_STRING, Literal: ident, Pos: pos}
+			case "callable":
+				tok = token.Token{Type: token.T_CALLABLE, Literal: ident, Pos: pos}
+			default:
+				tok = token.Token{Type: token.T_IDENTIFIER, Literal: ident, Pos: pos}
+			}
+			return tok
+		}
 		l.readChar()
 	}
 

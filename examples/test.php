@@ -1,4 +1,6 @@
 <?php
-function MyFunction($arg) {
-    $var = 1;
+
+// This is a comment
+function MyFunction($name) {
+    $var = "Hello";
 }

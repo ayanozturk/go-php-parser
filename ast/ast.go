@@ -1,6 +1,9 @@
 package ast
 
-import "fmt"
+import (
+	"fmt"
+	"strings"
+)
 
 // Position holds line/column/offset info for tooling
 type Position struct {
@@ -104,15 +107,33 @@ func (f *FunctionNode) TokenLiteral() string {
 
 // ParameterNode represents a function parameter
 type ParameterNode struct {
-	Name string
-	Pos  Position
+	Name         string
+	Type         string
+	ByRef        bool
+	Variadic     bool
+	DefaultValue Node
+	Pos          Position
 }
 
 func (p *ParameterNode) NodeType() string    { return "Parameter" }
 func (p *ParameterNode) GetPos() Position    { return p.Pos }
 func (p *ParameterNode) SetPos(pos Position) { p.Pos = pos }
 func (p *ParameterNode) String() string {
-	return fmt.Sprintf("Parameter($%s) @ %d:%d", p.Name, p.Pos.Line, p.Pos.Column)
+	var parts []string
+	if p.Type != "" {
+		parts = append(parts, p.Type)
+	}
+	if p.ByRef {
+		parts = append(parts, "&")
+	}
+	if p.Variadic {
+		parts = append(parts, "...")
+	}
+	parts = append(parts, fmt.Sprintf("$%s", p.Name))
+	if p.DefaultValue != nil {
+		parts = append(parts, "=", p.DefaultValue.String())
+	}
+	return fmt.Sprintf("Parameter(%s) @ %d:%d", strings.Join(parts, " "), p.Pos.Line, p.Pos.Column)
 }
 func (p *ParameterNode) TokenLiteral() string {
 	return p.Name

@@ -74,14 +74,25 @@ func (p *Parser) parseFunctionDeclaration() ast.Node {
 	}
 	p.nextToken()
 
-	// Parse parameters (to be implemented)
-	if p.tok.Type != token.T_RPAREN {
-		p.errors = append(p.errors, "expected )")
-		return nil
-	}
-	p.nextToken()
+	// Parse parameters
+	var params []ast.Node
+	for p.tok.Type != token.T_RPAREN {
+		if param := p.parseParameter(); param != nil {
+			params = append(params, param)
+		}
 
-	// Parse function body
+		if p.tok.Type == token.T_COMMA {
+			p.nextToken()
+			continue
+		}
+
+		if p.tok.Type != token.T_RPAREN {
+			p.errors = append(p.errors, "expected , or ) in parameter list")
+			return nil
+		}
+	}
+	p.nextToken() // consume )
+
 	if p.tok.Type != token.T_LBRACE {
 		p.errors = append(p.errors, "expected { after function parameters")
 		return nil
@@ -103,9 +114,64 @@ func (p *Parser) parseFunctionDeclaration() ast.Node {
 
 	return &ast.FunctionNode{
 		Name:   name,
-		Params: nil, // TODO: Add parameter parsing
+		Params: params,
 		Body:   body,
 		Pos:    ast.Position(pos),
+	}
+}
+
+func (p *Parser) parseParameter() ast.Node {
+	pos := p.tok.Pos
+
+	// Parse parameter type
+	var paramType string
+	if p.tok.Type == token.T_STRING || p.tok.Type == token.T_ARRAY || p.tok.Type == token.T_CALLABLE {
+		paramType = p.tok.Literal
+		p.nextToken()
+	}
+
+	// Check for by-reference
+	byRef := false
+	if p.tok.Type == token.T_AMPERSAND {
+		byRef = true
+		p.nextToken()
+	}
+
+	// Check for variadic
+	variadic := false
+	if p.tok.Type == token.T_ELLIPSIS {
+		variadic = true
+		p.nextToken()
+	}
+
+	// Parse parameter name
+	if p.tok.Type != token.T_VARIABLE {
+		p.errors = append(p.errors, "expected parameter name")
+		return nil
+	}
+	name := p.tok.Literal[1:] // Remove $ prefix
+	p.nextToken()
+
+	// Parse default value if present
+	var defaultValue ast.Node
+	if p.tok.Type == token.T_ASSIGN {
+		p.nextToken()
+		defaultValue = p.parseExpression()
+	}
+
+	// Variadic parameters cannot have default values
+	if variadic && defaultValue != nil {
+		p.errors = append(p.errors, "variadic parameter cannot have a default value")
+		return nil
+	}
+
+	return &ast.ParameterNode{
+		Name:         name,
+		Type:         paramType,
+		ByRef:        byRef,
+		Variadic:     variadic,
+		DefaultValue: defaultValue,
+		Pos:          ast.Position(pos),
 	}
 }
 
