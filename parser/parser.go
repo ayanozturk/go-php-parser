@@ -53,8 +53,13 @@ func (p *Parser) parseStatement() ast.Node {
 
 	switch p.tok.Type {
 	case token.T_COMMENT, token.T_DOC_COMMENT:
+		pos := p.tok.Pos
+		comment := p.tok.Literal
 		p.nextToken() // Skip comments
-		return nil
+		return &ast.CommentNode{
+			Value: comment,
+			Pos:   ast.Position(pos),
+		}
 	case token.T_FUNCTION:
 		node = p.parseFunctionDeclaration()
 		return node
