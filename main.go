@@ -2,17 +2,39 @@ package main
 
 import (
 	"fmt"
+	"go-phpcs/ast"
 	"go-phpcs/lexer"
 	"go-phpcs/parser"
-	"go-phpcs/style"
 	"os"
 )
 
 func main() {
-	data, _ := os.ReadFile("examples/test.php")
-	l := lexer.New(string(data))
+	// Example PHP code
+	input := `<?php
+function hello() {
+	$message = "Hello World";
+}
+`
+
+	// Create new lexer
+	l := lexer.New(input)
+
+	// Create new parser
 	p := parser.New(l)
+
+	// Parse the input
 	nodes := p.Parse()
-	style.Check(nodes)
-	fmt.Println("Finished style check")
+
+	// Check for parsing errors
+	if len(p.Errors()) > 0 {
+		fmt.Println("Parsing errors:")
+		for _, err := range p.Errors() {
+			fmt.Printf("\t%s\n", err)
+		}
+		os.Exit(1)
+	}
+
+	// Print the AST
+	fmt.Println("Abstract Syntax Tree:")
+	ast.PrintAST(nodes, 0)
 }
