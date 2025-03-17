@@ -2,20 +2,23 @@ package main
 
 import (
 	"fmt"
-	"go-phpcs/ast"
+	"go-phpcs/command"
 	"go-phpcs/lexer"
 	"go-phpcs/parser"
 	"os"
 )
 
 func main() {
-	if len(os.Args) != 2 {
-		fmt.Println("Usage: go run main.go <php-file>")
+	if len(os.Args) < 3 {
+		command.PrintUsage()
 		os.Exit(1)
 	}
 
+	commandName := os.Args[1]
+	filePath := os.Args[2]
+
 	// Read the PHP file
-	input, err := os.ReadFile(os.Args[1])
+	input, err := os.ReadFile(filePath)
 	if err != nil {
 		fmt.Printf("Error reading file: %s\n", err)
 		os.Exit(1)
@@ -39,7 +42,12 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Print the AST
-	fmt.Println("Abstract Syntax Tree:")
-	ast.PrintAST(nodes, 0)
+	// Handle commands
+	if cmd, exists := command.Commands[commandName]; exists {
+		cmd.Execute(nodes)
+	} else {
+		fmt.Printf("Unknown command: %s\n", commandName)
+		command.PrintUsage()
+		os.Exit(1)
+	}
 }
