@@ -40,8 +40,16 @@ const (
 	T_NULL    TokenType = "T_NULL"    // Null value
 
 	// Class related tokens
-	T_CLASS   TokenType = "T_CLASS"   // class keyword
-	T_EXTENDS TokenType = "T_EXTENDS" // extends keyword
+	T_CLASS      TokenType = "T_CLASS"      // class keyword
+	T_EXTENDS    TokenType = "T_EXTENDS"    // extends keyword
+	T_INTERFACE  TokenType = "T_INTERFACE"  // interface keyword
+	T_IMPLEMENTS TokenType = "T_IMPLEMENTS" // implements keyword
+	T_NEW        TokenType = "T_NEW"        // new keyword
+	T_PUBLIC     TokenType = "T_PUBLIC"     // public keyword
+	T_PRIVATE    TokenType = "T_PRIVATE"    // private keyword
+	T_PROTECTED  TokenType = "T_PROTECTED"  // protected keyword
+	T_OBJECT_OP  TokenType = "T_OBJECT_OP"  // -> operator
+	T_COLON      TokenType = "T_COLON"      // : operator (for return types)
 
 	// Output tokens
 	T_ECHO TokenType = "T_ECHO" // echo keyword

@@ -216,6 +216,16 @@ func (l *Lexer) NextToken() token.Token {
 		str := l.readString('\'')
 		l.readChar() // consume closing quote
 		return token.Token{Type: token.T_CONSTANT_STRING, Literal: `'` + str + `'`, Pos: pos}
+	case '-':
+		if l.peekChar() == '>' {
+			l.readChar() // consume -
+			l.readChar() // consume >
+			return token.Token{Type: token.T_OBJECT_OP, Literal: "->", Pos: pos}
+		}
+	case ':':
+		tok := token.Token{Type: token.T_COLON, Literal: string(l.char), Pos: pos}
+		l.readChar()
+		return tok
 	}
 
 	if isLetter(l.char) {
@@ -247,8 +257,20 @@ func (l *Lexer) NextToken() token.Token {
 			return token.Token{Type: token.T_CLASS, Literal: ident, Pos: pos}
 		case "extends":
 			return token.Token{Type: token.T_EXTENDS, Literal: ident, Pos: pos}
+		case "interface":
+			return token.Token{Type: token.T_INTERFACE, Literal: ident, Pos: pos}
+		case "implements":
+			return token.Token{Type: token.T_IMPLEMENTS, Literal: ident, Pos: pos}
 		case "echo":
 			return token.Token{Type: token.T_ECHO, Literal: ident, Pos: pos}
+		case "new":
+			return token.Token{Type: token.T_NEW, Literal: ident, Pos: pos}
+		case "public":
+			return token.Token{Type: token.T_PUBLIC, Literal: ident, Pos: pos}
+		case "private":
+			return token.Token{Type: token.T_PRIVATE, Literal: ident, Pos: pos}
+		case "protected":
+			return token.Token{Type: token.T_PROTECTED, Literal: ident, Pos: pos}
 		default:
 			return token.Token{Type: token.T_STRING, Literal: ident, Pos: pos}
 		}

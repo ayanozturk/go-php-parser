@@ -64,7 +64,69 @@ func (p *Parser) parseStatement() ast.Node {
 		node = p.parseFunctionDeclaration()
 		return node
 	case token.T_VARIABLE:
-		// Don't consume semicolon here - let parseVariableStatement handle it
+		// Check if this is a method call
+		pos := p.tok.Pos
+		name := p.tok.Literal[1:] // Remove $ prefix
+		p.nextToken()
+
+		if p.tok.Type == token.T_OBJECT_OP {
+			p.nextToken() // consume ->
+			if p.tok.Type != token.T_STRING {
+				p.errors = append(p.errors, "expected method name after ->")
+				return nil
+			}
+			methodName := p.tok.Literal
+			p.nextToken()
+
+			if p.tok.Type != token.T_LPAREN {
+				p.errors = append(p.errors, "expected ( after method name")
+				return nil
+			}
+			p.nextToken() // consume (
+
+			var args []ast.Node
+			if p.tok.Type != token.T_RPAREN {
+				for {
+					arg := p.parseExpression()
+					if arg == nil {
+						return nil
+					}
+					args = append(args, arg)
+
+					if p.tok.Type == token.T_COMMA {
+						p.nextToken()
+						continue
+					}
+					break
+				}
+			}
+
+			if p.tok.Type != token.T_RPAREN {
+				p.errors = append(p.errors, "expected ) in argument list")
+				return nil
+			}
+			p.nextToken() // consume )
+
+			if p.tok.Type != token.T_SEMICOLON {
+				p.errors = append(p.errors, "expected ; after method call")
+				return nil
+			}
+			p.nextToken() // consume ;
+
+			return &ast.ExpressionStmt{
+				Expr: &ast.MethodCallNode{
+					Object: &ast.VariableNode{
+						Name: name,
+						Pos:  ast.Position(pos),
+					},
+					Method: methodName,
+					Args:   args,
+					Pos:    ast.Position(pos),
+				},
+				Pos: ast.Position(pos),
+			}
+		}
+		// If not a method call, handle as regular variable statement
 		node = p.parseVariableStatement()
 		return node
 	case token.T_IF:
@@ -72,6 +134,9 @@ func (p *Parser) parseStatement() ast.Node {
 		return node
 	case token.T_CLASS:
 		node = p.parseClassDeclaration()
+		return node
+	case token.T_INTERFACE:
+		node = p.parseInterfaceDeclaration()
 		return node
 	case token.T_ECHO:
 		pos := p.tok.Pos
@@ -116,6 +181,14 @@ func (p *Parser) parseStatement() ast.Node {
 
 func (p *Parser) parseFunctionDeclaration() ast.Node {
 	pos := p.tok.Pos
+
+	// Parse visibility modifier if present
+	var visibility string
+	if p.tok.Type == token.T_PUBLIC || p.tok.Type == token.T_PRIVATE || p.tok.Type == token.T_PROTECTED {
+		visibility = p.tok.Literal
+		p.nextToken()
+	}
+
 	p.nextToken() // consume 'function'
 
 	if p.tok.Type != token.T_STRING {
@@ -151,6 +224,31 @@ func (p *Parser) parseFunctionDeclaration() ast.Node {
 	}
 	p.nextToken() // consume )
 
+	// Parse return type if present
+	var returnType string
+	if p.tok.Type == token.T_COLON {
+		p.nextToken() // consume :
+		if p.tok.Type != token.T_STRING {
+			p.errors = append(p.errors, "expected return type after :")
+			return nil
+		}
+		returnType = p.tok.Literal
+		p.nextToken()
+	}
+
+	// Check if this is an interface method declaration (no body, just semicolon)
+	if p.tok.Type == token.T_SEMICOLON {
+		p.nextToken() // consume ;
+		return &ast.FunctionNode{
+			Name:       name,
+			Visibility: visibility,
+			ReturnType: returnType,
+			Params:     params,
+			Body:       nil, // Interface methods have no body
+			Pos:        ast.Position(pos),
+		}
+	}
+
 	if p.tok.Type != token.T_LBRACE {
 		p.errors = append(p.errors, "expected { after function parameters")
 		return nil
@@ -172,10 +270,12 @@ func (p *Parser) parseFunctionDeclaration() ast.Node {
 	p.nextToken() // consume closing brace
 
 	return &ast.FunctionNode{
-		Name:   name,
-		Params: params,
-		Body:   body,
-		Pos:    ast.Position(pos),
+		Name:       name,
+		Visibility: visibility,
+		ReturnType: returnType,
+		Params:     params,
+		Body:       body,
+		Pos:        ast.Position(pos),
 	}
 }
 
@@ -280,6 +380,109 @@ func (p *Parser) parseExpression() ast.Node {
 	var expr ast.Node
 
 	switch p.tok.Type {
+	case token.T_NEW:
+		pos := p.tok.Pos
+		p.nextToken() // consume 'new'
+		if p.tok.Type != token.T_STRING {
+			p.errors = append(p.errors, "expected class name after new")
+			return nil
+		}
+		className := p.tok.Literal
+		p.nextToken()
+
+		if p.tok.Type != token.T_LPAREN {
+			p.errors = append(p.errors, "expected ( after class name")
+			return nil
+		}
+		p.nextToken() // consume (
+
+		var args []ast.Node
+		if p.tok.Type != token.T_RPAREN {
+			for {
+				arg := p.parseExpression()
+				if arg == nil {
+					return nil
+				}
+				args = append(args, arg)
+
+				if p.tok.Type == token.T_COMMA {
+					p.nextToken()
+					continue
+				}
+				break
+			}
+		}
+
+		if p.tok.Type != token.T_RPAREN {
+			p.errors = append(p.errors, "expected ) in argument list")
+			return nil
+		}
+		p.nextToken() // consume )
+
+		expr = &ast.NewNode{
+			ClassName: className,
+			Args:      args,
+			Pos:       ast.Position(pos),
+		}
+	case token.T_VARIABLE:
+		pos := p.tok.Pos
+		name := p.tok.Literal[1:] // Remove $ prefix
+		p.nextToken()
+
+		// Check for method call
+		if p.tok.Type == token.T_OBJECT_OP {
+			p.nextToken() // consume ->
+			if p.tok.Type != token.T_STRING {
+				p.errors = append(p.errors, "expected method name after ->")
+				return nil
+			}
+			methodName := p.tok.Literal
+			p.nextToken()
+
+			if p.tok.Type != token.T_LPAREN {
+				p.errors = append(p.errors, "expected ( after method name")
+				return nil
+			}
+			p.nextToken() // consume (
+
+			var args []ast.Node
+			if p.tok.Type != token.T_RPAREN {
+				for {
+					arg := p.parseExpression()
+					if arg == nil {
+						return nil
+					}
+					args = append(args, arg)
+
+					if p.tok.Type == token.T_COMMA {
+						p.nextToken()
+						continue
+					}
+					break
+				}
+			}
+
+			if p.tok.Type != token.T_RPAREN {
+				p.errors = append(p.errors, "expected ) in argument list")
+				return nil
+			}
+			p.nextToken() // consume )
+
+			expr = &ast.MethodCallNode{
+				Object: &ast.VariableNode{
+					Name: name,
+					Pos:  ast.Position(pos),
+				},
+				Method: methodName,
+				Args:   args,
+				Pos:    ast.Position(pos),
+			}
+		} else {
+			expr = &ast.VariableNode{
+				Name: name,
+				Pos:  ast.Position(pos),
+			}
+		}
 	case token.T_STRING:
 		// Check for function calls
 		strPos := p.tok.Pos
@@ -429,8 +632,6 @@ func (p *Parser) parseExpression() ast.Node {
 		expr = &ast.NullLiteral{
 			Pos: ast.Position(pos),
 		}
-	case token.T_VARIABLE:
-		expr = p.parseVariableStatement()
 	default:
 		p.errors = append(p.errors, "unexpected token in expression")
 		return nil
@@ -629,6 +830,25 @@ func (p *Parser) parseClassDeclaration() ast.Node {
 		p.nextToken()
 	}
 
+	// Check for implements clause
+	var implements []string
+	if p.tok.Type == token.T_IMPLEMENTS {
+		p.nextToken() // consume 'implements'
+		for {
+			if p.tok.Type != token.T_STRING {
+				p.errors = append(p.errors, "expected interface name after implements")
+				return nil
+			}
+			implements = append(implements, p.tok.Literal)
+			p.nextToken()
+
+			if p.tok.Type != token.T_COMMA {
+				break
+			}
+			p.nextToken() // consume comma
+		}
+	}
+
 	if p.tok.Type != token.T_LBRACE {
 		p.errors = append(p.errors, "expected { after class declaration")
 		return nil
@@ -638,18 +858,21 @@ func (p *Parser) parseClassDeclaration() ast.Node {
 	var properties []ast.Node
 	var methods []ast.Node
 	for p.tok.Type != token.T_RBRACE && p.tok.Type != token.T_EOF {
-		switch p.tok.Type {
-		case token.T_VARIABLE:
+		// Handle visibility modifiers for methods
+		if p.tok.Type == token.T_PUBLIC || p.tok.Type == token.T_PRIVATE || p.tok.Type == token.T_PROTECTED {
+			if method := p.parseFunctionDeclaration(); method != nil {
+				methods = append(methods, method)
+			}
+		} else if p.tok.Type == token.T_FUNCTION {
+			if method := p.parseFunctionDeclaration(); method != nil {
+				methods = append(methods, method)
+			}
+		} else if p.tok.Type == token.T_VARIABLE {
 			// Parse property declaration
 			if prop := p.parsePropertyDeclaration(); prop != nil {
 				properties = append(properties, prop)
 			}
-		case token.T_FUNCTION:
-			// Parse method declaration
-			if method := p.parseFunctionDeclaration(); method != nil {
-				methods = append(methods, method)
-			}
-		default:
+		} else {
 			p.errors = append(p.errors, fmt.Sprintf("unexpected token %s in class body", p.tok.Type))
 			p.nextToken()
 		}
@@ -664,6 +887,7 @@ func (p *Parser) parseClassDeclaration() ast.Node {
 	return &ast.ClassNode{
 		Name:       name,
 		Extends:    extends,
+		Implements: implements,
 		Properties: properties,
 		Methods:    methods,
 		Pos:        ast.Position(pos),
@@ -684,6 +908,54 @@ func (p *Parser) parsePropertyDeclaration() ast.Node {
 	return &ast.PropertyNode{
 		Name: name,
 		Pos:  ast.Position(pos),
+	}
+}
+
+func (p *Parser) parseInterfaceDeclaration() ast.Node {
+	pos := p.tok.Pos
+	p.nextToken() // consume 'interface'
+
+	if p.tok.Type != token.T_STRING {
+		p.errors = append(p.errors, "expected interface name")
+		return nil
+	}
+
+	name := p.tok.Literal
+	p.nextToken()
+
+	if p.tok.Type != token.T_LBRACE {
+		p.errors = append(p.errors, "expected { after interface name")
+		return nil
+	}
+	p.nextToken() // consume {
+
+	var methods []ast.Node
+	for p.tok.Type != token.T_RBRACE && p.tok.Type != token.T_EOF {
+		// Interface methods can have visibility modifiers
+		if p.tok.Type == token.T_PUBLIC || p.tok.Type == token.T_PRIVATE || p.tok.Type == token.T_PROTECTED {
+			if method := p.parseFunctionDeclaration(); method != nil {
+				methods = append(methods, method)
+			}
+		} else if p.tok.Type == token.T_FUNCTION {
+			if method := p.parseFunctionDeclaration(); method != nil {
+				methods = append(methods, method)
+			}
+		} else {
+			p.errors = append(p.errors, fmt.Sprintf("unexpected token %s in interface body", p.tok.Type))
+			p.nextToken()
+		}
+	}
+
+	if p.tok.Type != token.T_RBRACE {
+		p.errors = append(p.errors, "expected } to close interface body")
+		return nil
+	}
+	p.nextToken() // consume }
+
+	return &ast.InterfaceNode{
+		Name:    name,
+		Methods: methods,
+		Pos:     ast.Position(pos),
 	}
 }
 

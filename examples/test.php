@@ -10,6 +10,15 @@ function MyFunction($name) {
     }
 }
 
-class MyClass
-{
+interface MyInterface {
+    public function myMethod();
 }
+
+class MyClass implements MyInterface {
+    public function sayHello(string $name) {
+        echo "Hello, world, $name!";
+    }
+}
+
+$myClass = new MyClass();
+$myClass->sayHello("John Doe");

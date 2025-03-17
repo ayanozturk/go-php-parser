@@ -173,17 +173,27 @@ func (a *AssignmentNode) TokenLiteral() string {
 
 // FunctionNode represents a PHP function definition
 type FunctionNode struct {
-	Name   string
-	Params []Node
-	Body   []Node
-	Pos    Position
+	Name       string
+	Visibility string // public, private, protected
+	ReturnType string
+	Params     []Node
+	Body       []Node
+	Pos        Position
 }
 
 func (f *FunctionNode) NodeType() string    { return "Function" }
 func (f *FunctionNode) GetPos() Position    { return f.Pos }
 func (f *FunctionNode) SetPos(pos Position) { f.Pos = pos }
 func (f *FunctionNode) String() string {
-	return fmt.Sprintf("Function(%s) @ %d:%d", f.Name, f.Pos.Line, f.Pos.Column)
+	var parts []string
+	if f.Visibility != "" {
+		parts = append(parts, f.Visibility)
+	}
+	parts = append(parts, fmt.Sprintf("Function(%s)", f.Name))
+	if f.ReturnType != "" {
+		parts = append(parts, fmt.Sprintf(": %s", f.ReturnType))
+	}
+	return fmt.Sprintf("%s @ %d:%d", strings.Join(parts, " "), f.Pos.Line, f.Pos.Column)
 }
 func (f *FunctionNode) TokenLiteral() string {
 	return "function"
@@ -491,36 +501,48 @@ func (c *CommentNode) TokenLiteral() string {
 	return c.Value
 }
 
+// InterfaceNode represents a PHP interface definition
+type InterfaceNode struct {
+	Name    string
+	Methods []Node
+	Pos     Position
+}
+
+func (i *InterfaceNode) NodeType() string    { return "Interface" }
+func (i *InterfaceNode) GetPos() Position    { return i.Pos }
+func (i *InterfaceNode) SetPos(pos Position) { i.Pos = pos }
+func (i *InterfaceNode) String() string {
+	return fmt.Sprintf("Interface(%s) @ %d:%d", i.Name, i.Pos.Line, i.Pos.Column)
+}
+func (i *InterfaceNode) TokenLiteral() string {
+	return "interface"
+}
+
 // ClassNode represents a PHP class definition
 type ClassNode struct {
 	Name       string
-	Extends    string // Parent class name if any
+	Extends    string
+	Implements []string
 	Properties []Node
 	Methods    []Node
 	Pos        Position
 }
 
-func (n *ClassNode) GetPos() Position {
-	return n.Pos
-}
-
-func (n *ClassNode) SetPos(pos Position) {
-	n.Pos = pos
-}
-
-func (n *ClassNode) NodeType() string {
-	return "Class"
-}
-
-func (n *ClassNode) String() string {
-	extends := ""
-	if n.Extends != "" {
-		extends = fmt.Sprintf(" extends %s", n.Extends)
+func (c *ClassNode) NodeType() string    { return "Class" }
+func (c *ClassNode) GetPos() Position    { return c.Pos }
+func (c *ClassNode) SetPos(pos Position) { c.Pos = pos }
+func (c *ClassNode) String() string {
+	var parts []string
+	parts = append(parts, fmt.Sprintf("Class(%s)", c.Name))
+	if c.Extends != "" {
+		parts = append(parts, fmt.Sprintf("extends %s", c.Extends))
 	}
-	return fmt.Sprintf("Class(%s%s) @ %d:%d", n.Name, extends, n.Pos.Line, n.Pos.Column)
+	if len(c.Implements) > 0 {
+		parts = append(parts, fmt.Sprintf("implements %s", strings.Join(c.Implements, ", ")))
+	}
+	return fmt.Sprintf("%s @ %d:%d", strings.Join(parts, " "), c.Pos.Line, c.Pos.Column)
 }
-
-func (n *ClassNode) TokenLiteral() string {
+func (c *ClassNode) TokenLiteral() string {
 	return "class"
 }
 
@@ -548,4 +570,39 @@ func (n *PropertyNode) String() string {
 
 func (n *PropertyNode) TokenLiteral() string {
 	return n.Name
+}
+
+// NewNode represents object instantiation
+type NewNode struct {
+	ClassName string
+	Args      []Node
+	Pos       Position
+}
+
+func (n *NewNode) NodeType() string    { return "New" }
+func (n *NewNode) GetPos() Position    { return n.Pos }
+func (n *NewNode) SetPos(pos Position) { n.Pos = pos }
+func (n *NewNode) String() string {
+	return fmt.Sprintf("New(%s) @ %d:%d", n.ClassName, n.Pos.Line, n.Pos.Column)
+}
+func (n *NewNode) TokenLiteral() string {
+	return "new"
+}
+
+// MethodCallNode represents a method call on an object
+type MethodCallNode struct {
+	Object Node
+	Method string
+	Args   []Node
+	Pos    Position
+}
+
+func (m *MethodCallNode) NodeType() string    { return "MethodCall" }
+func (m *MethodCallNode) GetPos() Position    { return m.Pos }
+func (m *MethodCallNode) SetPos(pos Position) { m.Pos = pos }
+func (m *MethodCallNode) String() string {
+	return fmt.Sprintf("MethodCall(%s) @ %d:%d", m.Method, m.Pos.Line, m.Pos.Column)
+}
+func (m *MethodCallNode) TokenLiteral() string {
+	return m.Method
 }
