@@ -75,6 +75,26 @@ func (s *StringLiteral) String() string {
 func (s *StringLiteral) TokenLiteral() string  { return s.Value }
 func (s *StringLiteral) GetValue() interface{} { return s.Value }
 
+// InterpolatedStringLiteral represents a string with interpolated expressions
+type InterpolatedStringLiteral struct {
+	Parts []Node
+	Pos   Position
+}
+
+func (s *InterpolatedStringLiteral) NodeType() string    { return "InterpolatedString" }
+func (s *InterpolatedStringLiteral) GetPos() Position    { return s.Pos }
+func (s *InterpolatedStringLiteral) SetPos(pos Position) { s.Pos = pos }
+func (s *InterpolatedStringLiteral) String() string {
+	return fmt.Sprintf("InterpolatedString @ %d:%d", s.Pos.Line, s.Pos.Column)
+}
+func (s *InterpolatedStringLiteral) TokenLiteral() string {
+	parts := make([]string, len(s.Parts))
+	for i, part := range s.Parts {
+		parts[i] = part.TokenLiteral()
+	}
+	return strings.Join(parts, "")
+}
+
 // IntegerLiteral represents an integer literal
 type IntegerLiteral struct {
 	Value int64
@@ -253,11 +273,12 @@ func (b *BinaryExpr) TokenLiteral() string {
 	return b.Operator
 }
 
-// IfNode represents an if-else statement
+// IfNode represents an if statement with optional elseif/else clauses
 type IfNode struct {
 	Condition Node
-	ThenBlock []Node
-	ElseBlock []Node
+	Body      []Node
+	ElseIfs   []*ElseIfNode
+	Else      *ElseNode
 	Pos       Position
 }
 
@@ -269,6 +290,39 @@ func (i *IfNode) String() string {
 }
 func (i *IfNode) TokenLiteral() string {
 	return "if"
+}
+
+// ElseIfNode represents an elseif clause
+type ElseIfNode struct {
+	Condition Node
+	Body      []Node
+	Pos       Position
+}
+
+func (ei *ElseIfNode) NodeType() string    { return "ElseIf" }
+func (ei *ElseIfNode) GetPos() Position    { return ei.Pos }
+func (ei *ElseIfNode) SetPos(pos Position) { ei.Pos = pos }
+func (ei *ElseIfNode) String() string {
+	return fmt.Sprintf("ElseIf(Cond: %s) @ %d:%d", ei.Condition.String(), ei.Pos.Line, ei.Pos.Column)
+}
+func (ei *ElseIfNode) TokenLiteral() string {
+	return "elseif"
+}
+
+// ElseNode represents an else clause
+type ElseNode struct {
+	Body []Node
+	Pos  Position
+}
+
+func (e *ElseNode) NodeType() string    { return "Else" }
+func (e *ElseNode) GetPos() Position    { return e.Pos }
+func (e *ElseNode) SetPos(pos Position) { e.Pos = pos }
+func (e *ElseNode) String() string {
+	return fmt.Sprintf("Else @ %d:%d", e.Pos.Line, e.Pos.Column)
+}
+func (e *ElseNode) TokenLiteral() string {
+	return "else"
 }
 
 // WhileNode represents a while loop
@@ -295,30 +349,70 @@ func PrintAST(nodes []Node, indent int) {
 		prefix += "  "
 	}
 	for _, node := range nodes {
+		if node == nil {
+			continue
+		}
 		fmt.Println(prefix + node.String())
 		switch n := node.(type) {
 		case *FunctionNode:
-			PrintAST(n.Params, indent+1)
-			PrintAST(n.Body, indent+1)
+			if len(n.Params) > 0 {
+				fmt.Println(prefix + "  Parameters:")
+				PrintAST(n.Params, indent+2)
+			}
+			if len(n.Body) > 0 {
+				fmt.Println(prefix + "  Body:")
+				PrintAST(n.Body, indent+2)
+			}
 		case *AssignmentNode:
-			PrintAST([]Node{n.Left, n.Right}, indent+1)
+			fmt.Println(prefix + "  Left:")
+			PrintAST([]Node{n.Left}, indent+2)
+			fmt.Println(prefix + "  Right:")
+			PrintAST([]Node{n.Right}, indent+2)
 		case *BinaryExpr:
-			PrintAST([]Node{n.Left, n.Right}, indent+1)
+			fmt.Println(prefix + "  Left:")
+			PrintAST([]Node{n.Left}, indent+2)
+			fmt.Println(prefix + "  Right:")
+			PrintAST([]Node{n.Right}, indent+2)
 		case *ReturnNode:
-			PrintAST([]Node{n.Expr}, indent+1)
+			if n.Expr != nil {
+				fmt.Println(prefix + "  Expression:")
+				PrintAST([]Node{n.Expr}, indent+2)
+			}
 		case *ExpressionStmt:
-			PrintAST([]Node{n.Expr}, indent+1)
+			if n.Expr != nil {
+				fmt.Println(prefix + "  Expression:")
+				PrintAST([]Node{n.Expr}, indent+2)
+			}
 		case *IfNode:
-			PrintAST([]Node{n.Condition}, indent+1)
-			fmt.Println(prefix + "  Then:")
-			PrintAST(n.ThenBlock, indent+2)
-			if len(n.ElseBlock) > 0 {
+			fmt.Println(prefix + "  Condition:")
+			PrintAST([]Node{n.Condition}, indent+2)
+			if len(n.Body) > 0 {
+				fmt.Println(prefix + "  Then:")
+				PrintAST(n.Body, indent+2)
+			}
+			for _, elseif := range n.ElseIfs {
+				fmt.Println(prefix + "  ElseIf:")
+				fmt.Println(prefix + "    Condition:")
+				PrintAST([]Node{elseif.Condition}, indent+3)
+				if len(elseif.Body) > 0 {
+					fmt.Println(prefix + "    Body:")
+					PrintAST(elseif.Body, indent+3)
+				}
+			}
+			if n.Else != nil {
 				fmt.Println(prefix + "  Else:")
-				PrintAST(n.ElseBlock, indent+2)
+				PrintAST(n.Else.Body, indent+2)
 			}
 		case *WhileNode:
-			PrintAST([]Node{n.Condition}, indent+1)
-			PrintAST(n.Body, indent+1)
+			fmt.Println(prefix + "  Condition:")
+			PrintAST([]Node{n.Condition}, indent+2)
+			if len(n.Body) > 0 {
+				fmt.Println(prefix + "  Body:")
+				PrintAST(n.Body, indent+2)
+			}
+		case *InterpolatedStringLiteral:
+			fmt.Println(prefix + "  Parts:")
+			PrintAST(n.Parts, indent+2)
 		}
 	}
 }
@@ -353,4 +447,21 @@ func (v *Variable) String() string {
 }
 func (v *Variable) TokenLiteral() string {
 	return v.Name
+}
+
+// Add these new node types
+type FunctionCall struct {
+	Name      string
+	Arguments []Node
+	Pos       Position
+}
+
+func (f *FunctionCall) NodeType() string    { return "FunctionCall" }
+func (f *FunctionCall) GetPos() Position    { return f.Pos }
+func (f *FunctionCall) SetPos(pos Position) { f.Pos = pos }
+func (f *FunctionCall) String() string {
+	return fmt.Sprintf("FunctionCall(%s) @ %d:%d", f.Name, f.Pos.Line, f.Pos.Column)
+}
+func (f *FunctionCall) TokenLiteral() string {
+	return f.Name
 }

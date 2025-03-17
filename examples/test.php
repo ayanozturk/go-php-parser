@@ -5,4 +5,8 @@ function MyFunction($name) {
     $var = "Hello";
     $var2 = 123;
     $var3 = $name;
+
+    if (true) {
+        echo "Hello, $name!";
+    }
 }

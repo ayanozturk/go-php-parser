@@ -55,15 +55,32 @@ func (l *Lexer) skipWhitespace() {
 	}
 }
 
-func (l *Lexer) readString() string {
-	position := l.pos + 1
-	for {
-		l.readChar()
-		if l.char == '"' || l.char == 0 {
-			break
+func (l *Lexer) readString(quote byte) string {
+	var out strings.Builder
+	for l.char != quote && l.char != 0 {
+		if l.char == '\\' {
+			l.readChar()
+			switch l.char {
+			case 'n':
+				out.WriteByte('\n')
+			case 't':
+				out.WriteByte('\t')
+			case 'r':
+				out.WriteByte('\r')
+			case quote:
+				out.WriteByte(quote)
+			case '\\':
+				out.WriteByte('\\')
+			default:
+				out.WriteByte('\\')
+				out.WriteByte(l.char)
+			}
+		} else {
+			out.WriteByte(l.char)
 		}
+		l.readChar()
 	}
-	return l.input[position:l.pos]
+	return out.String()
 }
 
 func (l *Lexer) readNumber() (string, bool) {
@@ -92,101 +109,196 @@ func (l *Lexer) readIdentifier() string {
 }
 
 func (l *Lexer) NextToken() token.Token {
-	var tok token.Token
-	pos := token.Position{Line: l.line, Column: l.column, Offset: l.pos}
-
 	l.skipWhitespace()
 
+	pos := token.Position{
+		Line:   l.line,
+		Column: l.column,
+		Offset: l.pos,
+	}
+
 	switch l.char {
+	case 0:
+		return token.Token{Type: token.T_EOF, Literal: "", Pos: pos}
+	case '/':
+		if l.peekChar() == '/' {
+			l.readChar() // consume second /
+			comment := l.readLineComment()
+			return token.Token{Type: token.T_COMMENT, Literal: comment, Pos: pos}
+		} else if l.peekChar() == '*' {
+			l.readChar() // consume *
+			comment := l.readBlockComment()
+			if strings.HasPrefix(comment, "/**") {
+				return token.Token{Type: token.T_DOC_COMMENT, Literal: comment, Pos: pos}
+			}
+			return token.Token{Type: token.T_COMMENT, Literal: comment, Pos: pos}
+		}
 	case '<':
 		if l.peekChar() == '?' {
 			l.readChar() // consume ?
-			l.readChar() // consume following char
-			tok = token.Token{Type: token.T_OPEN_TAG, Literal: "<?php", Pos: pos}
+			if l.peekChar() == 'p' {
+				l.readChar()
+				if l.peekChar() == 'h' {
+					l.readChar()
+					if l.peekChar() == 'p' {
+						l.readChar()
+						l.readChar() // consume last char
+						return token.Token{Type: token.T_OPEN_TAG, Literal: "<?php", Pos: pos}
+					}
+				}
+			}
 		}
 	case '$':
 		l.readChar()
 		if isLetter(l.char) {
-			tok.Literal = "$" + l.readIdentifier()
-			tok.Type = token.T_VARIABLE
+			tok := token.Token{
+				Type:    token.T_VARIABLE,
+				Literal: "$" + l.readIdentifier(),
+				Pos:     pos,
+			}
+			return tok
 		}
-	case '(':
-		tok = token.Token{Type: token.T_LPAREN, Literal: "(", Pos: pos}
-		l.readChar()
-	case ')':
-		tok = token.Token{Type: token.T_RPAREN, Literal: ")", Pos: pos}
-		l.readChar()
-	case '{':
-		tok = token.Token{Type: token.T_LBRACE, Literal: "{", Pos: pos}
-		l.readChar()
-	case '}':
-		tok = token.Token{Type: token.T_RBRACE, Literal: "}", Pos: pos}
-		l.readChar()
-	case ';':
-		tok = token.Token{Type: token.T_SEMICOLON, Literal: ";", Pos: pos}
-		l.readChar()
 	case '=':
 		if l.peekChar() == '=' {
+			ch := l.char
 			l.readChar()
-			tok = token.Token{Type: token.T_IS_EQUAL, Literal: "==", Pos: pos}
+			literal := string(ch) + string(l.char)
+			l.readChar()
+			return token.Token{Type: token.T_IS_EQUAL, Literal: literal, Pos: pos}
 		} else {
-			tok = token.Token{Type: token.T_ASSIGN, Literal: "=", Pos: pos}
+			tok := token.Token{Type: token.T_ASSIGN, Literal: string(l.char), Pos: pos}
+			l.readChar()
+			return tok
 		}
+	case '(':
+		tok := token.Token{Type: token.T_LPAREN, Literal: string(l.char), Pos: pos}
 		l.readChar()
-	case '&':
-		tok = token.Token{Type: token.T_AMPERSAND, Literal: "&", Pos: pos}
+		return tok
+	case ')':
+		tok := token.Token{Type: token.T_RPAREN, Literal: string(l.char), Pos: pos}
 		l.readChar()
+		return tok
+	case '{':
+		tok := token.Token{Type: token.T_LBRACE, Literal: string(l.char), Pos: pos}
+		l.readChar()
+		return tok
+	case '}':
+		tok := token.Token{Type: token.T_RBRACE, Literal: string(l.char), Pos: pos}
+		l.readChar()
+		return tok
+	case ';':
+		tok := token.Token{Type: token.T_SEMICOLON, Literal: string(l.char), Pos: pos}
+		l.readChar()
+		return tok
 	case ',':
-		tok = token.Token{Type: token.T_COMMA, Literal: ",", Pos: pos}
+		tok := token.Token{Type: token.T_COMMA, Literal: string(l.char), Pos: pos}
 		l.readChar()
+		return tok
+	case '&':
+		tok := token.Token{Type: token.T_AMPERSAND, Literal: string(l.char), Pos: pos}
+		l.readChar()
+		return tok
 	case '.':
 		if l.peekChar() == '.' && l.input[l.readPos+1] == '.' {
 			l.readChar() // consume second .
 			l.readChar() // consume third .
-			tok = token.Token{Type: token.T_ELLIPSIS, Literal: "...", Pos: pos}
+			tok := token.Token{Type: token.T_ELLIPSIS, Literal: "...", Pos: pos}
+			l.readChar()
+			return tok
 		}
-		l.readChar()
 	case '"':
-		str := l.readString()
-		tok = token.Token{Type: token.T_CONSTANT_STRING, Literal: str, Pos: pos}
-		l.readChar()
-	case 0:
-		tok = token.Token{Type: token.T_EOF, Literal: "", Pos: pos}
-	default:
-		if isDigit(l.char) {
-			num, isFloat := l.readNumber()
-			if isFloat {
-				tok = token.Token{Type: token.T_DNUMBER, Literal: num, Pos: pos}
-			} else {
-				tok = token.Token{Type: token.T_LNUMBER, Literal: num, Pos: pos}
-			}
-			return tok
-		} else if isLetter(l.char) {
-			ident := l.readIdentifier()
-			switch strings.ToLower(ident) {
-			case "function":
-				tok = token.Token{Type: token.T_FUNCTION, Literal: ident, Pos: pos}
-			case "array":
-				tok = token.Token{Type: token.T_ARRAY, Literal: ident, Pos: pos}
-			case "string":
-				tok = token.Token{Type: token.T_STRING, Literal: ident, Pos: pos}
-			case "callable":
-				tok = token.Token{Type: token.T_CALLABLE, Literal: ident, Pos: pos}
-			case "true":
-				tok = token.Token{Type: token.T_TRUE, Literal: ident, Pos: pos}
-			case "false":
-				tok = token.Token{Type: token.T_FALSE, Literal: ident, Pos: pos}
-			case "null":
-				tok = token.Token{Type: token.T_NULL, Literal: ident, Pos: pos}
-			default:
-				tok = token.Token{Type: token.T_IDENTIFIER, Literal: ident, Pos: pos}
-			}
-			return tok
+		l.readChar() // consume opening quote
+		str := l.readString('"')
+		l.readChar() // consume closing quote
+		return token.Token{Type: token.T_CONSTANT_ENCAPSED_STRING, Literal: `"` + str + `"`, Pos: pos}
+	case '\'':
+		l.readChar() // consume opening quote
+		str := l.readString('\'')
+		l.readChar() // consume closing quote
+		return token.Token{Type: token.T_CONSTANT_STRING, Literal: `'` + str + `'`, Pos: pos}
+	}
+
+	if isLetter(l.char) {
+		ident := l.readIdentifier()
+
+		// Check for keywords
+		switch ident {
+		case "function":
+			return token.Token{Type: token.T_FUNCTION, Literal: ident, Pos: pos}
+		case "if":
+			return token.Token{Type: token.T_IF, Literal: ident, Pos: pos}
+		case "else":
+			return token.Token{Type: token.T_ELSE, Literal: ident, Pos: pos}
+		case "elseif":
+			return token.Token{Type: token.T_ELSEIF, Literal: ident, Pos: pos}
+		case "endif":
+			return token.Token{Type: token.T_ENDIF, Literal: ident, Pos: pos}
+		case "array":
+			return token.Token{Type: token.T_ARRAY, Literal: ident, Pos: pos}
+		case "callable":
+			return token.Token{Type: token.T_CALLABLE, Literal: ident, Pos: pos}
+		case "true":
+			return token.Token{Type: token.T_TRUE, Literal: ident, Pos: pos}
+		case "false":
+			return token.Token{Type: token.T_FALSE, Literal: ident, Pos: pos}
+		case "null":
+			return token.Token{Type: token.T_NULL, Literal: ident, Pos: pos}
+		default:
+			return token.Token{Type: token.T_STRING, Literal: ident, Pos: pos}
 		}
+	}
+
+	if isDigit(l.char) {
+		num, isFloat := l.readNumber()
+		if isFloat {
+			return token.Token{Type: token.T_DNUMBER, Literal: num, Pos: pos}
+		}
+		return token.Token{Type: token.T_LNUMBER, Literal: num, Pos: pos}
+	}
+
+	tok := token.Token{Type: token.TokenType(l.char), Literal: string(l.char), Pos: pos}
+	l.readChar()
+	return tok
+}
+
+func (l *Lexer) readLineComment() string {
+	var out strings.Builder
+	out.WriteByte('/')
+	out.WriteByte('/')
+
+	l.readChar() // Move past second /
+	for l.char != '\n' && l.char != 0 {
+		out.WriteByte(l.char)
 		l.readChar()
 	}
 
-	return tok
+	return out.String()
+}
+
+func (l *Lexer) readBlockComment() string {
+	var out strings.Builder
+	out.WriteByte('/')
+	out.WriteByte('*')
+
+	l.readChar() // Move past *
+	for {
+		if l.char == 0 {
+			break
+		}
+
+		if l.char == '*' && l.peekChar() == '/' {
+			out.WriteByte('*')
+			out.WriteByte('/')
+			l.readChar() // consume *
+			l.readChar() // consume /
+			break
+		}
+
+		out.WriteByte(l.char)
+		l.readChar()
+	}
+
+	return out.String()
 }
 
 func isLetter(ch byte) bool {
