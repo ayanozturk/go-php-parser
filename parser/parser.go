@@ -350,9 +350,23 @@ func (p *Parser) parseArrayElement() ast.Node {
 	var value ast.Node
 
 	// Parse key if present
-	if p.peekToken().Type == token.T_DOUBLE_ARROW {
-		key = p.parseExpression()
-		p.nextToken() // consume =>
+	if p.tok.Type == token.T_STRING || p.tok.Type == token.T_CONSTANT_ENCAPSED_STRING {
+		key = &ast.StringNode{
+			Value: p.tok.Literal,
+			Pos:   ast.Position(p.tok.Pos),
+		}
+		p.nextToken()
+
+		if p.tok.Type == token.T_DOUBLE_ARROW {
+			p.nextToken() // consume =>
+		} else {
+			// If no =>, treat the string as a value
+			return &ast.KeyValueNode{
+				Key:   nil,
+				Value: key,
+				Pos:   key.GetPos(),
+			}
+		}
 	}
 
 	// Parse value
@@ -409,82 +423,65 @@ func (p *Parser) parseArrayLiteral() ast.Node {
 	// Handle [] syntax
 	if p.tok.Type == token.T_LBRACKET {
 		p.nextToken() // consume [
-	} else if p.tok.Type == token.T_STRING {
-		// Handle array with string keys
-		return p.parseArrayWithStringKeys()
+
+		var elements []ast.Node
+		for p.tok.Type != token.T_RBRACKET && p.tok.Type != token.T_EOF {
+			// Parse key if present
+			var key ast.Node
+			var value ast.Node
+
+			// Parse key if it's a string
+			if p.tok.Type == token.T_STRING || p.tok.Type == token.T_CONSTANT_STRING || p.tok.Type == token.T_CONSTANT_ENCAPSED_STRING {
+				key = &ast.StringNode{
+					Value: p.tok.Literal,
+					Pos:   ast.Position(p.tok.Pos),
+				}
+				p.nextToken()
+
+				if p.tok.Type == token.T_DOUBLE_ARROW {
+					p.nextToken() // consume =>
+					value = p.parseExpression()
+					if value == nil {
+						return nil
+					}
+				} else {
+					// If no =>, treat the string as a value
+					value = key
+					key = nil
+				}
+			} else {
+				// No key, just parse value
+				value = p.parseExpression()
+				if value == nil {
+					return nil
+				}
+			}
+
+			elements = append(elements, &ast.KeyValueNode{
+				Key:   key,
+				Value: value,
+				Pos:   value.GetPos(),
+			})
+
+			if p.tok.Type == token.T_COMMA {
+				p.nextToken() // consume comma
+				continue
+			}
+
+			if p.tok.Type != token.T_RBRACKET {
+				p.errors = append(p.errors, fmt.Sprintf("line %d:%d: expected , or ] in array literal, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal))
+				return nil
+			}
+		}
+		p.nextToken() // consume ]
+
+		return &ast.ArrayNode{
+			Elements: elements,
+			Pos:      ast.Position(pos),
+		}
 	}
 
-	var elements []ast.Node
-	for p.tok.Type != token.T_RBRACKET && p.tok.Type != token.T_EOF {
-		if element := p.parseArrayElement(); element != nil {
-			elements = append(elements, element)
-		}
-
-		if p.tok.Type == token.T_COMMA {
-			p.nextToken() // consume comma
-			continue
-		}
-
-		if p.tok.Type != token.T_RBRACKET {
-			p.errors = append(p.errors, fmt.Sprintf("line %d:%d: expected , or ] in array literal, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal))
-			return nil
-		}
-		break
-	}
-	p.nextToken() // consume ]
-
-	return &ast.ArrayNode{
-		Elements: elements,
-		Pos:      ast.Position(pos),
-	}
-}
-
-func (p *Parser) parseArrayWithStringKeys() ast.Node {
-	pos := p.tok.Pos
-	var elements []ast.Node
-
-	for {
-		if p.tok.Type != token.T_STRING {
-			p.errors = append(p.errors, fmt.Sprintf("line %d:%d: expected string key in array, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal))
-			return nil
-		}
-		key := p.tok.Literal
-		p.nextToken()
-
-		if p.tok.Type != token.T_DOUBLE_ARROW {
-			p.errors = append(p.errors, fmt.Sprintf("line %d:%d: expected => after array key %s, got %s", p.tok.Pos.Line, p.tok.Pos.Column, key, p.tok.Literal))
-			return nil
-		}
-		p.nextToken()
-
-		value := p.parseExpression()
-		if value == nil {
-			return nil
-		}
-
-		elements = append(elements, &ast.KeyValueNode{
-			Key:   &ast.StringNode{Value: key, Pos: ast.Position(pos)},
-			Value: value,
-			Pos:   ast.Position(pos),
-		})
-
-		if p.tok.Type == token.T_COMMA {
-			p.nextToken() // consume comma
-			continue
-		}
-
-		if p.tok.Type == token.T_RBRACKET {
-			break
-		}
-
-		p.errors = append(p.errors, fmt.Sprintf("line %d:%d: expected , or ] after array element, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal))
-		return nil
-	}
-
-	return &ast.ArrayNode{
-		Elements: elements,
-		Pos:      ast.Position(pos),
-	}
+	return nil
 }
 
 func (p *Parser) parseExpressionStatement() ast.Node {

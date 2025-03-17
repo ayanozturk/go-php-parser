@@ -210,12 +210,12 @@ func (l *Lexer) NextToken() token.Token {
 		l.readChar() // consume opening quote
 		str := l.readString('"')
 		l.readChar() // consume closing quote
-		return token.Token{Type: token.T_CONSTANT_ENCAPSED_STRING, Literal: `"` + str + `"`, Pos: pos}
+		return token.Token{Type: token.T_CONSTANT_ENCAPSED_STRING, Literal: str, Pos: pos}
 	case '\'':
 		l.readChar() // consume opening quote
 		str := l.readString('\'')
 		l.readChar() // consume closing quote
-		return token.Token{Type: token.T_CONSTANT_STRING, Literal: `'` + str + `'`, Pos: pos}
+		return token.Token{Type: token.T_CONSTANT_STRING, Literal: str, Pos: pos}
 	case '-':
 		if l.peekChar() == '>' {
 			l.readChar() // consume -
@@ -294,7 +294,11 @@ func (l *Lexer) NextToken() token.Token {
 		return token.Token{Type: token.T_LNUMBER, Literal: num, Pos: pos}
 	}
 
-	tok = token.Token{Type: token.TokenType(l.char), Literal: string(l.char), Pos: pos}
+	tok = token.Token{
+		Type:    token.TokenType(string(l.char)),
+		Literal: string(l.char),
+		Pos:     pos,
+	}
 	l.readChar()
 	return tok
 }

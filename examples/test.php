@@ -16,12 +16,15 @@ interface MyInterface {
 }
 
 class MyClass implements MyInterface {
-    public function myMethod(string $name, int $age): string {
+    public function myMethod(string $name, int $age): string
+    {
+        $people = ["John", "Jane", "Jim", "Jill"];
+
         return "Hello, $name! You are $age years old.";
     }
 
     public function getData(array $options = []): array {
-        return 'name';
+        return ['name' => 'John', 'age' => 30];
     }
 
     public function sayHello(string $name) {

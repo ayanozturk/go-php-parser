@@ -620,6 +620,9 @@ func (kv *KeyValueNode) NodeType() string    { return "KeyValue" }
 func (kv *KeyValueNode) GetPos() Position    { return kv.Pos }
 func (kv *KeyValueNode) SetPos(pos Position) { kv.Pos = pos }
 func (kv *KeyValueNode) String() string {
+	if kv.Key == nil {
+		return fmt.Sprintf("%s @ %d:%d", kv.Value.String(), kv.Pos.Line, kv.Pos.Column)
+	}
 	return fmt.Sprintf("%s => %s @ %d:%d", kv.Key.String(), kv.Value.String(), kv.Pos.Line, kv.Pos.Column)
 }
 func (kv *KeyValueNode) TokenLiteral() string {
