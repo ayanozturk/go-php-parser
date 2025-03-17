@@ -2,15 +2,17 @@ package main
 
 import (
 	"fmt"
+	"go-phpcs/lexer"
+	"go-phpcs/parser"
+	"go-phpcs/style"
 	"os"
 )
 
 func main() {
-	if len(os.Args) < 2 {
-		fmt.Println("Please provide a file or folder as the first argument.")
-		os.Exit(1)
-	}
-
-	inputPath := os.Args[1]
-	fmt.Printf("Processing: %s\n", inputPath)
+	data, _ := os.ReadFile("examples/test.php")
+	l := lexer.New(string(data))
+	p := parser.New(l)
+	nodes := p.Parse()
+	style.Check(nodes)
+	fmt.Println("Finished style check")
 }
