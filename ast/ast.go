@@ -54,21 +54,85 @@ func (v *VariableNode) TokenLiteral() string {
 	return v.Name
 }
 
-// LiteralNode represents a literal value like number or string
-type LiteralNode struct {
+// LiteralNode represents a literal value - this is now an interface
+type LiteralNode interface {
+	Node
+	GetValue() interface{}
+}
+
+// StringLiteral represents a string literal
+type StringLiteral struct {
 	Value string
 	Pos   Position
 }
 
-func (l *LiteralNode) NodeType() string    { return "Literal" }
-func (l *LiteralNode) GetPos() Position    { return l.Pos }
-func (l *LiteralNode) SetPos(pos Position) { l.Pos = pos }
-func (l *LiteralNode) String() string {
-	return fmt.Sprintf("Literal(%s) @ %d:%d", l.Value, l.Pos.Line, l.Pos.Column)
+func (s *StringLiteral) NodeType() string    { return "StringLiteral" }
+func (s *StringLiteral) GetPos() Position    { return s.Pos }
+func (s *StringLiteral) SetPos(pos Position) { s.Pos = pos }
+func (s *StringLiteral) String() string {
+	return fmt.Sprintf("String(%q) @ %d:%d", s.Value, s.Pos.Line, s.Pos.Column)
 }
-func (l *LiteralNode) TokenLiteral() string {
-	return l.Value
+func (s *StringLiteral) TokenLiteral() string  { return s.Value }
+func (s *StringLiteral) GetValue() interface{} { return s.Value }
+
+// IntegerLiteral represents an integer literal
+type IntegerLiteral struct {
+	Value int64
+	Pos   Position
 }
+
+func (i *IntegerLiteral) NodeType() string    { return "IntegerLiteral" }
+func (i *IntegerLiteral) GetPos() Position    { return i.Pos }
+func (i *IntegerLiteral) SetPos(pos Position) { i.Pos = pos }
+func (i *IntegerLiteral) String() string {
+	return fmt.Sprintf("Integer(%d) @ %d:%d", i.Value, i.Pos.Line, i.Pos.Column)
+}
+func (i *IntegerLiteral) TokenLiteral() string  { return fmt.Sprintf("%d", i.Value) }
+func (i *IntegerLiteral) GetValue() interface{} { return i.Value }
+
+// FloatLiteral represents a floating point literal
+type FloatLiteral struct {
+	Value float64
+	Pos   Position
+}
+
+func (f *FloatLiteral) NodeType() string    { return "FloatLiteral" }
+func (f *FloatLiteral) GetPos() Position    { return f.Pos }
+func (f *FloatLiteral) SetPos(pos Position) { f.Pos = pos }
+func (f *FloatLiteral) String() string {
+	return fmt.Sprintf("Float(%g) @ %d:%d", f.Value, f.Pos.Line, f.Pos.Column)
+}
+func (f *FloatLiteral) TokenLiteral() string  { return fmt.Sprintf("%g", f.Value) }
+func (f *FloatLiteral) GetValue() interface{} { return f.Value }
+
+// BooleanLiteral represents a boolean literal
+type BooleanLiteral struct {
+	Value bool
+	Pos   Position
+}
+
+func (b *BooleanLiteral) NodeType() string    { return "BooleanLiteral" }
+func (b *BooleanLiteral) GetPos() Position    { return b.Pos }
+func (b *BooleanLiteral) SetPos(pos Position) { b.Pos = pos }
+func (b *BooleanLiteral) String() string {
+	return fmt.Sprintf("Boolean(%t) @ %d:%d", b.Value, b.Pos.Line, b.Pos.Column)
+}
+func (b *BooleanLiteral) TokenLiteral() string  { return fmt.Sprintf("%t", b.Value) }
+func (b *BooleanLiteral) GetValue() interface{} { return b.Value }
+
+// NullLiteral represents a null literal
+type NullLiteral struct {
+	Pos Position
+}
+
+func (n *NullLiteral) NodeType() string    { return "NullLiteral" }
+func (n *NullLiteral) GetPos() Position    { return n.Pos }
+func (n *NullLiteral) SetPos(pos Position) { n.Pos = pos }
+func (n *NullLiteral) String() string {
+	return fmt.Sprintf("Null @ %d:%d", n.Pos.Line, n.Pos.Column)
+}
+func (n *NullLiteral) TokenLiteral() string  { return "null" }
+func (n *NullLiteral) GetValue() interface{} { return nil }
 
 // AssignmentNode represents a variable assignment
 type AssignmentNode struct {

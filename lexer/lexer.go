@@ -66,6 +66,23 @@ func (l *Lexer) readString() string {
 	return l.input[position:l.pos]
 }
 
+func (l *Lexer) readNumber() (string, bool) {
+	position := l.pos
+	isFloat := false
+
+	for isDigit(l.char) || l.char == '.' {
+		if l.char == '.' {
+			if isFloat { // Second decimal point
+				break
+			}
+			isFloat = true
+		}
+		l.readChar()
+	}
+
+	return l.input[position:l.pos], isFloat
+}
+
 func (l *Lexer) readIdentifier() string {
 	position := l.pos
 	for isLetter(l.char) || isDigit(l.char) {
@@ -136,7 +153,15 @@ func (l *Lexer) NextToken() token.Token {
 	case 0:
 		tok = token.Token{Type: token.T_EOF, Literal: "", Pos: pos}
 	default:
-		if isLetter(l.char) {
+		if isDigit(l.char) {
+			num, isFloat := l.readNumber()
+			if isFloat {
+				tok = token.Token{Type: token.T_DNUMBER, Literal: num, Pos: pos}
+			} else {
+				tok = token.Token{Type: token.T_LNUMBER, Literal: num, Pos: pos}
+			}
+			return tok
+		} else if isLetter(l.char) {
 			ident := l.readIdentifier()
 			switch strings.ToLower(ident) {
 			case "function":
@@ -147,6 +172,12 @@ func (l *Lexer) NextToken() token.Token {
 				tok = token.Token{Type: token.T_STRING, Literal: ident, Pos: pos}
 			case "callable":
 				tok = token.Token{Type: token.T_CALLABLE, Literal: ident, Pos: pos}
+			case "true":
+				tok = token.Token{Type: token.T_TRUE, Literal: ident, Pos: pos}
+			case "false":
+				tok = token.Token{Type: token.T_FALSE, Literal: ident, Pos: pos}
+			case "null":
+				tok = token.Token{Type: token.T_NULL, Literal: ident, Pos: pos}
 			default:
 				tok = token.Token{Type: token.T_IDENTIFIER, Literal: ident, Pos: pos}
 			}

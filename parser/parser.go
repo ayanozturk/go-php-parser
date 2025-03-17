@@ -1,9 +1,11 @@
 package parser
 
 import (
+	"fmt"
 	"go-phpcs/ast"
 	"go-phpcs/lexer"
 	"go-phpcs/token"
+	"strconv"
 )
 
 type Parser struct {
@@ -215,9 +217,53 @@ func (p *Parser) parseExpression() ast.Node {
 		strPos := p.tok.Pos
 		str := p.tok.Literal
 		p.nextToken()
-		return &ast.LiteralNode{
+		return &ast.StringLiteral{
 			Value: str,
 			Pos:   ast.Position(strPos),
+		}
+	case token.T_LNUMBER:
+		numPos := p.tok.Pos
+		num, err := strconv.ParseInt(p.tok.Literal, 10, 64)
+		if err != nil {
+			p.errors = append(p.errors, fmt.Sprintf("invalid integer literal: %s", p.tok.Literal))
+			return nil
+		}
+		p.nextToken()
+		return &ast.IntegerLiteral{
+			Value: num,
+			Pos:   ast.Position(numPos),
+		}
+	case token.T_DNUMBER:
+		numPos := p.tok.Pos
+		num, err := strconv.ParseFloat(p.tok.Literal, 64)
+		if err != nil {
+			p.errors = append(p.errors, fmt.Sprintf("invalid float literal: %s", p.tok.Literal))
+			return nil
+		}
+		p.nextToken()
+		return &ast.FloatLiteral{
+			Value: num,
+			Pos:   ast.Position(numPos),
+		}
+	case token.T_TRUE:
+		pos := p.tok.Pos
+		p.nextToken()
+		return &ast.BooleanLiteral{
+			Value: true,
+			Pos:   ast.Position(pos),
+		}
+	case token.T_FALSE:
+		pos := p.tok.Pos
+		p.nextToken()
+		return &ast.BooleanLiteral{
+			Value: false,
+			Pos:   ast.Position(pos),
+		}
+	case token.T_NULL:
+		pos := p.tok.Pos
+		p.nextToken()
+		return &ast.NullLiteral{
+			Pos: ast.Position(pos),
 		}
 	case token.T_VARIABLE:
 		return p.parseVariableStatement()

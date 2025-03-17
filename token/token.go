@@ -22,6 +22,13 @@ const (
 	T_STRING          TokenType = "T_STRING"
 	T_CALLABLE        TokenType = "T_CALLABLE"
 	T_EOF             TokenType = "T_EOF"
+
+	// Literal types
+	T_LNUMBER TokenType = "T_LNUMBER" // Integer literal
+	T_DNUMBER TokenType = "T_DNUMBER" // Float literal
+	T_TRUE    TokenType = "T_TRUE"    // Boolean true
+	T_FALSE   TokenType = "T_FALSE"   // Boolean false
+	T_NULL    TokenType = "T_NULL"    // Null value
 )
 
 type Position struct {
