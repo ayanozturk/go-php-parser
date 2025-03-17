@@ -413,6 +413,15 @@ func PrintAST(nodes []Node, indent int) {
 		case *InterpolatedStringLiteral:
 			fmt.Println(prefix + "  Parts:")
 			PrintAST(n.Parts, indent+2)
+		case *ClassNode:
+			if len(n.Properties) > 0 {
+				fmt.Println(prefix + "  Properties:")
+				PrintAST(n.Properties, indent+2)
+			}
+			if len(n.Methods) > 0 {
+				fmt.Println(prefix + "  Methods:")
+				PrintAST(n.Methods, indent+2)
+			}
 		}
 	}
 }
@@ -480,4 +489,63 @@ func (c *CommentNode) String() string {
 }
 func (c *CommentNode) TokenLiteral() string {
 	return c.Value
+}
+
+// ClassNode represents a PHP class definition
+type ClassNode struct {
+	Name       string
+	Extends    string // Parent class name if any
+	Properties []Node
+	Methods    []Node
+	Pos        Position
+}
+
+func (n *ClassNode) GetPos() Position {
+	return n.Pos
+}
+
+func (n *ClassNode) SetPos(pos Position) {
+	n.Pos = pos
+}
+
+func (n *ClassNode) NodeType() string {
+	return "Class"
+}
+
+func (n *ClassNode) String() string {
+	extends := ""
+	if n.Extends != "" {
+		extends = fmt.Sprintf(" extends %s", n.Extends)
+	}
+	return fmt.Sprintf("Class(%s%s) @ %d:%d", n.Name, extends, n.Pos.Line, n.Pos.Column)
+}
+
+func (n *ClassNode) TokenLiteral() string {
+	return "class"
+}
+
+// PropertyNode represents a class property
+type PropertyNode struct {
+	Name string
+	Pos  Position
+}
+
+func (n *PropertyNode) GetPos() Position {
+	return n.Pos
+}
+
+func (n *PropertyNode) SetPos(pos Position) {
+	n.Pos = pos
+}
+
+func (n *PropertyNode) NodeType() string {
+	return "Property"
+}
+
+func (n *PropertyNode) String() string {
+	return fmt.Sprintf("Property($%s) @ %d:%d", n.Name, n.Pos.Line, n.Pos.Column)
+}
+
+func (n *PropertyNode) TokenLiteral() string {
+	return n.Name
 }

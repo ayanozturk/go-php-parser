@@ -70,23 +70,26 @@ func (p *Parser) parseStatement() ast.Node {
 	case token.T_IF:
 		node = p.parseIfStatement()
 		return node
-	case token.T_STRING:
-		if p.tok.Literal == "echo" {
-			p.nextToken() // consume echo
-			expr := p.parseExpression()
-			if expr == nil {
-				return nil
-			}
-			if p.tok.Type != token.T_SEMICOLON {
-				p.errors = append(p.errors, "expected ; after echo statement")
-				return nil
-			}
-			p.nextToken() // consume ;
-			return &ast.ExpressionStmt{
-				Expr: expr,
-				Pos:  ast.Position(p.tok.Pos),
-			}
+	case token.T_CLASS:
+		node = p.parseClassDeclaration()
+		return node
+	case token.T_ECHO:
+		pos := p.tok.Pos
+		p.nextToken() // consume echo
+		expr := p.parseExpression()
+		if expr == nil {
+			return nil
 		}
+		if p.tok.Type != token.T_SEMICOLON {
+			p.errors = append(p.errors, "expected ; after echo statement")
+			return nil
+		}
+		p.nextToken() // consume ;
+		return &ast.ExpressionStmt{
+			Expr: expr,
+			Pos:  ast.Position(pos),
+		}
+	case token.T_STRING:
 		// Handle other expressions
 		return p.parseExpressionStatement()
 	case token.T_SEMICOLON:
@@ -265,6 +268,14 @@ func (p *Parser) parseVariableStatement() ast.Node {
 	}
 }
 
+func isLetter(ch byte) bool {
+	return 'a' <= ch && ch <= 'z' || 'A' <= ch && ch <= 'Z' || ch == '_'
+}
+
+func isDigit(ch byte) bool {
+	return '0' <= ch && ch <= '9'
+}
+
 func (p *Parser) parseExpression() ast.Node {
 	var expr ast.Node
 
@@ -328,11 +339,45 @@ func (p *Parser) parseExpression() ast.Node {
 		// Handle string interpolation
 		var parts []ast.Node
 		if len(str) > 0 {
-			// Simple case: no interpolation, just a string literal
-			parts = append(parts, &ast.StringLiteral{
-				Value: str,
-				Pos:   ast.Position(strPos),
-			})
+			// Split string into parts based on variable interpolation
+			current := ""
+			for i := 0; i < len(str); i++ {
+				if str[i] == '$' {
+					// Add the current string part if any
+					if current != "" {
+						parts = append(parts, &ast.StringLiteral{
+							Value: current,
+							Pos:   ast.Position(strPos),
+						})
+						current = ""
+					}
+					// Look for variable name
+					varName := ""
+					for j := i + 1; j < len(str); j++ {
+						if isLetter(str[j]) || isDigit(str[j]) || str[j] == '_' {
+							varName += string(str[j])
+						} else {
+							break
+						}
+					}
+					if varName != "" {
+						parts = append(parts, &ast.VariableNode{
+							Name: varName,
+							Pos:  ast.Position(strPos),
+						})
+						i += len(varName) // Skip past variable name
+					}
+				} else {
+					current += string(str[i])
+				}
+			}
+			// Add any remaining string part
+			if current != "" {
+				parts = append(parts, &ast.StringLiteral{
+					Value: current,
+					Pos:   ast.Position(strPos),
+				})
+			}
 		}
 
 		p.nextToken()
@@ -556,6 +601,88 @@ func (p *Parser) parseElseClause() *ast.ElseNode {
 
 	return &ast.ElseNode{
 		Body: body,
+		Pos:  ast.Position(pos),
+	}
+}
+
+func (p *Parser) parseClassDeclaration() ast.Node {
+	pos := p.tok.Pos
+	p.nextToken() // consume 'class'
+
+	if p.tok.Type != token.T_STRING {
+		p.errors = append(p.errors, "expected class name")
+		return nil
+	}
+
+	name := p.tok.Literal
+	p.nextToken()
+
+	// Check for extends clause
+	var extends string
+	if p.tok.Type == token.T_EXTENDS {
+		p.nextToken() // consume 'extends'
+		if p.tok.Type != token.T_STRING {
+			p.errors = append(p.errors, "expected parent class name after extends")
+			return nil
+		}
+		extends = p.tok.Literal
+		p.nextToken()
+	}
+
+	if p.tok.Type != token.T_LBRACE {
+		p.errors = append(p.errors, "expected { after class declaration")
+		return nil
+	}
+	p.nextToken() // consume {
+
+	var properties []ast.Node
+	var methods []ast.Node
+	for p.tok.Type != token.T_RBRACE && p.tok.Type != token.T_EOF {
+		switch p.tok.Type {
+		case token.T_VARIABLE:
+			// Parse property declaration
+			if prop := p.parsePropertyDeclaration(); prop != nil {
+				properties = append(properties, prop)
+			}
+		case token.T_FUNCTION:
+			// Parse method declaration
+			if method := p.parseFunctionDeclaration(); method != nil {
+				methods = append(methods, method)
+			}
+		default:
+			p.errors = append(p.errors, fmt.Sprintf("unexpected token %s in class body", p.tok.Type))
+			p.nextToken()
+		}
+	}
+
+	if p.tok.Type != token.T_RBRACE {
+		p.errors = append(p.errors, "expected } to close class body")
+		return nil
+	}
+	p.nextToken() // consume }
+
+	return &ast.ClassNode{
+		Name:       name,
+		Extends:    extends,
+		Properties: properties,
+		Methods:    methods,
+		Pos:        ast.Position(pos),
+	}
+}
+
+func (p *Parser) parsePropertyDeclaration() ast.Node {
+	pos := p.tok.Pos
+	name := p.tok.Literal[1:] // Remove $ prefix
+	p.nextToken()
+
+	if p.tok.Type != token.T_SEMICOLON {
+		p.errors = append(p.errors, "expected ; after property declaration")
+		return nil
+	}
+	p.nextToken()
+
+	return &ast.PropertyNode{
+		Name: name,
 		Pos:  ast.Position(pos),
 	}
 }

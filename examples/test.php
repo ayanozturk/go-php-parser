@@ -9,3 +9,7 @@ function MyFunction($name) {
         echo "Hello, $name!";
     }
 }
+
+class MyClass
+{
+}

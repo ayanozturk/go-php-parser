@@ -38,6 +38,13 @@ const (
 	T_TRUE    TokenType = "T_TRUE"    // Boolean true
 	T_FALSE   TokenType = "T_FALSE"   // Boolean false
 	T_NULL    TokenType = "T_NULL"    // Null value
+
+	// Class related tokens
+	T_CLASS   TokenType = "T_CLASS"   // class keyword
+	T_EXTENDS TokenType = "T_EXTENDS" // extends keyword
+
+	// Output tokens
+	T_ECHO TokenType = "T_ECHO" // echo keyword
 )
 
 type Position struct {

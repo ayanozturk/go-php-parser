@@ -243,6 +243,12 @@ func (l *Lexer) NextToken() token.Token {
 			return token.Token{Type: token.T_FALSE, Literal: ident, Pos: pos}
 		case "null":
 			return token.Token{Type: token.T_NULL, Literal: ident, Pos: pos}
+		case "class":
+			return token.Token{Type: token.T_CLASS, Literal: ident, Pos: pos}
+		case "extends":
+			return token.Token{Type: token.T_EXTENDS, Literal: ident, Pos: pos}
+		case "echo":
+			return token.Token{Type: token.T_ECHO, Literal: ident, Pos: pos}
 		default:
 			return token.Token{Type: token.T_STRING, Literal: ident, Pos: pos}
 		}
