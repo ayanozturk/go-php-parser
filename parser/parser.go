@@ -439,7 +439,7 @@ func (p *Parser) parseIfStatement() ast.Node {
 		if stmt := p.parseStatement(); stmt != nil {
 			body = append(body, stmt)
 		}
-		p.nextToken()
+		// Don't consume tokens here - parseStatement handles that
 	}
 
 	if p.tok.Type != token.T_RBRACE {
