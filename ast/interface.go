@@ -47,10 +47,20 @@ func (m *InterfaceMethodNode) String() string {
 	if m.Visibility != "" {
 		parts = append(parts, m.Visibility)
 	}
-	parts = append(parts, fmt.Sprintf("Method(%s)", m.Name))
-	if m.ReturnType != "" {
-		parts = append(parts, fmt.Sprintf(": %s", m.ReturnType))
+	parts = append(parts, fmt.Sprintf("function %s(", m.Name))
+
+	// Add parameters
+	paramStrs := make([]string, len(m.Params))
+	for i, param := range m.Params {
+		paramStrs[i] = param.String()
 	}
+	parts = append(parts, strings.Join(paramStrs, ", ")+")")
+
+	// Add return type if present
+	if m.ReturnType != "" {
+		parts = append(parts, ": "+m.ReturnType)
+	}
+
 	return fmt.Sprintf("%s @ %d:%d", strings.Join(parts, " "), m.Pos.Line, m.Pos.Column)
 }
 func (m *InterfaceMethodNode) TokenLiteral() string {
