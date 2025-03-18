@@ -80,11 +80,6 @@ func (p *Parser) parseStatement() ast.Node {
 		node = p.parseFunction()
 		return node
 	case token.T_VARIABLE:
-		// Check if this is a method call
-		pos := p.tok.Pos
-		name := p.tok.Literal[1:] // Remove $ prefix
-		p.nextToken()
-
 		if p.tok.Type == token.T_OBJECT_OP {
 			p.nextToken() // consume ->
 			if p.tok.Type != token.T_STRING {
@@ -132,14 +127,14 @@ func (p *Parser) parseStatement() ast.Node {
 			return &ast.ExpressionStmt{
 				Expr: &ast.MethodCallNode{
 					Object: &ast.VariableNode{
-						Name: name,
-						Pos:  ast.Position(pos),
+						Name: p.tok.Literal[1:],
+						Pos:  ast.Position(p.tok.Pos),
 					},
 					Method: methodName,
 					Args:   args,
-					Pos:    ast.Position(pos),
+					Pos:    ast.Position(p.tok.Pos),
 				},
-				Pos: ast.Position(pos),
+				Pos: ast.Position(p.tok.Pos),
 			}
 		}
 		// If not a method call, handle as regular variable statement

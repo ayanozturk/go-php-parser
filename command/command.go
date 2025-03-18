@@ -18,7 +18,6 @@ var Commands = map[string]Command{
 		Name:        "ast",
 		Description: "Print the Abstract Syntax Tree",
 		Execute: func(nodes []ast.Node) {
-			fmt.Println("Abstract Syntax Tree:")
 			ast.PrintAST(nodes, 0)
 		},
 	},
