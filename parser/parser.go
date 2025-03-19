@@ -12,12 +12,14 @@ type Parser struct {
 	l      *lexer.Lexer
 	tok    token.Token
 	errors []string
+	debug  bool
 }
 
-func New(l *lexer.Lexer) *Parser {
+func New(l *lexer.Lexer, debug bool) *Parser {
 	p := &Parser{
 		l:      l,
 		errors: []string{},
+		debug:  debug,
 	}
 	p.nextToken() // Initialize first token
 	return p
@@ -27,12 +29,18 @@ func (p *Parser) nextToken() {
 	p.tok = p.l.NextToken()
 }
 
+func (p *Parser) addError(format string, args ...interface{}) {
+	if p.debug {
+		p.errors = append(p.errors, fmt.Sprintf(format, args...))
+	}
+}
+
 func (p *Parser) Parse() []ast.Node {
 	var nodes []ast.Node
 
 	// Expect PHP open tag first
 	if p.tok.Type != token.T_OPEN_TAG {
-		p.errors = append(p.errors, fmt.Sprintf("line %d:%d: expected <?php at start of file, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal))
+		p.addError("line %d:%d: expected <?php at start of file, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal)
 		return nodes
 	}
 	p.nextToken()
@@ -68,7 +76,7 @@ func (p *Parser) parseStatement() ast.Node {
 			return nil
 		}
 		if p.tok.Type != token.T_SEMICOLON {
-			p.errors = append(p.errors, fmt.Sprintf("line %d:%d: expected ; after return statement, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal))
+			p.addError("line %d:%d: expected ; after return statement, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal)
 			return nil
 		}
 		p.nextToken() // consume ;
@@ -83,14 +91,14 @@ func (p *Parser) parseStatement() ast.Node {
 		if p.tok.Type == token.T_OBJECT_OP {
 			p.nextToken() // consume ->
 			if p.tok.Type != token.T_STRING {
-				p.errors = append(p.errors, fmt.Sprintf("line %d:%d: expected method name after ->, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal))
+				p.addError("line %d:%d: expected method name after ->, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal)
 				return nil
 			}
 			methodName := p.tok.Literal
 			p.nextToken()
 
 			if p.tok.Type != token.T_LPAREN {
-				p.errors = append(p.errors, fmt.Sprintf("line %d:%d: expected ( after method name %s, got %s", p.tok.Pos.Line, p.tok.Pos.Column, methodName, p.tok.Literal))
+				p.addError("line %d:%d: expected ( after method name %s, got %s", p.tok.Pos.Line, p.tok.Pos.Column, methodName, p.tok.Literal)
 				return nil
 			}
 			p.nextToken() // consume (
@@ -113,13 +121,13 @@ func (p *Parser) parseStatement() ast.Node {
 			}
 
 			if p.tok.Type != token.T_RPAREN {
-				p.errors = append(p.errors, fmt.Sprintf("line %d:%d: expected ) in argument list for method %s, got %s", p.tok.Pos.Line, p.tok.Pos.Column, methodName, p.tok.Literal))
+				p.addError("line %d:%d: expected ) in argument list for method %s, got %s", p.tok.Pos.Line, p.tok.Pos.Column, methodName, p.tok.Literal)
 				return nil
 			}
 			p.nextToken() // consume )
 
 			if p.tok.Type != token.T_SEMICOLON {
-				p.errors = append(p.errors, fmt.Sprintf("line %d:%d: expected ; after method call %s, got %s", p.tok.Pos.Line, p.tok.Pos.Column, methodName, p.tok.Literal))
+				p.addError("line %d:%d: expected ; after method call %s, got %s", p.tok.Pos.Line, p.tok.Pos.Column, methodName, p.tok.Literal)
 				return nil
 			}
 			p.nextToken() // consume ;
@@ -157,7 +165,7 @@ func (p *Parser) parseStatement() ast.Node {
 			return nil
 		}
 		if p.tok.Type != token.T_SEMICOLON {
-			p.errors = append(p.errors, fmt.Sprintf("line %d:%d: expected ; after echo statement, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal))
+			p.addError("line %d:%d: expected ; after echo statement, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal)
 			return nil
 		}
 		p.nextToken() // consume ;
@@ -175,7 +183,7 @@ func (p *Parser) parseStatement() ast.Node {
 		// Try parsing as expression statement
 		if expr := p.parseExpression(); expr != nil {
 			if p.tok.Type != token.T_SEMICOLON {
-				p.errors = append(p.errors, fmt.Sprintf("line %d:%d: expected ; after expression, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal))
+				p.addError("line %d:%d: expected ; after expression, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal)
 				return nil
 			}
 			p.nextToken() // consume ;
@@ -184,7 +192,7 @@ func (p *Parser) parseStatement() ast.Node {
 				Pos:  expr.GetPos(),
 			}
 		}
-		p.errors = append(p.errors, fmt.Sprintf("line %d:%d: unexpected token %s in statement", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal))
+		p.addError("line %d:%d: unexpected token %s in statement", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal)
 		p.nextToken()
 		return nil
 	}
@@ -202,7 +210,7 @@ func (p *Parser) parseFunction() ast.Node {
 	}
 
 	if p.tok.Type != token.T_LPAREN {
-		p.errors = append(p.errors, fmt.Sprintf("line %d:%d: expected ( after function name %s, got %s", p.tok.Pos.Line, p.tok.Pos.Column, name, p.tok.Literal))
+		p.addError("line %d:%d: expected ( after function name %s, got %s", p.tok.Pos.Line, p.tok.Pos.Column, name, p.tok.Literal)
 		return nil
 	}
 	p.nextToken() // consume (
@@ -220,7 +228,7 @@ func (p *Parser) parseFunction() ast.Node {
 		}
 
 		if p.tok.Type != token.T_RPAREN {
-			p.errors = append(p.errors, fmt.Sprintf("line %d:%d: expected , or ) in parameter list for function %s, got %s", p.tok.Pos.Line, p.tok.Pos.Column, name, p.tok.Literal))
+			p.addError("line %d:%d: expected , or ) in parameter list for function %s, got %s", p.tok.Pos.Line, p.tok.Pos.Column, name, p.tok.Literal)
 			return nil
 		}
 	}
@@ -245,7 +253,7 @@ func (p *Parser) parseFunction() ast.Node {
 						returnType += p.tok.Literal
 						p.nextToken()
 					} else {
-						p.errors = append(p.errors, fmt.Sprintf("line %d:%d: expected array item type, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal))
+						p.addError("line %d:%d: expected array item type, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal)
 						return nil
 					}
 
@@ -258,21 +266,21 @@ func (p *Parser) parseFunction() ast.Node {
 				}
 
 				if p.tok.Type != token.T_RBRACKET {
-					p.errors = append(p.errors, fmt.Sprintf("line %d:%d: expected ']' after array type in return type for function %s, got %s", p.tok.Pos.Line, p.tok.Pos.Column, name, p.tok.Literal))
+					p.addError("line %d:%d: expected ']' after array type in return type for function %s, got %s", p.tok.Pos.Line, p.tok.Pos.Column, name, p.tok.Literal)
 					return nil
 				}
 				returnType += "]"
 				p.nextToken()
 			}
 		} else {
-			p.errors = append(p.errors, fmt.Sprintf("line %d:%d: expected return type for function %s, got %s", p.tok.Pos.Line, p.tok.Pos.Column, name, p.tok.Literal))
+			p.addError("line %d:%d: expected return type for function %s, got %s", p.tok.Pos.Line, p.tok.Pos.Column, name, p.tok.Literal)
 			return nil
 		}
 	}
 
 	// Parse function body
 	if p.tok.Type != token.T_LBRACE {
-		p.errors = append(p.errors, fmt.Sprintf("line %d:%d: expected { to start function body for %s, got %s", p.tok.Pos.Line, p.tok.Pos.Column, name, p.tok.Literal))
+		p.addError("line %d:%d: expected { to start function body for %s, got %s", p.tok.Pos.Line, p.tok.Pos.Column, name, p.tok.Literal)
 		return nil
 	}
 	body := p.parseBlockStatement()
@@ -300,7 +308,7 @@ func (p *Parser) parseVariableStatement() ast.Node {
 		}
 
 		if p.tok.Type != token.T_SEMICOLON {
-			p.errors = append(p.errors, fmt.Sprintf("line %d:%d: expected ; after assignment to $%s, got %s", p.tok.Pos.Line, p.tok.Pos.Column, varName, p.tok.Literal))
+			p.addError("line %d:%d: expected ; after assignment to $%s, got %s", p.tok.Pos.Line, p.tok.Pos.Column, varName, p.tok.Literal)
 			return nil
 		}
 
@@ -385,7 +393,7 @@ func (p *Parser) parseArrayLiteral() ast.Node {
 	if p.tok.Type == token.T_ARRAY {
 		p.nextToken() // consume array
 		if p.tok.Type != token.T_LPAREN {
-			p.errors = append(p.errors, fmt.Sprintf("line %d:%d: expected ( after array, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal))
+			p.addError("line %d:%d: expected ( after array, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal)
 			return nil
 		}
 		p.nextToken() // consume (
@@ -402,7 +410,7 @@ func (p *Parser) parseArrayLiteral() ast.Node {
 			}
 
 			if p.tok.Type != token.T_RPAREN {
-				p.errors = append(p.errors, fmt.Sprintf("line %d:%d: expected , or ) in array literal, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal))
+				p.addError("line %d:%d: expected , or ) in array literal, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal)
 				return nil
 			}
 			break
@@ -464,7 +472,7 @@ func (p *Parser) parseArrayLiteral() ast.Node {
 			}
 
 			if p.tok.Type != token.T_RBRACKET {
-				p.errors = append(p.errors, fmt.Sprintf("line %d:%d: expected , or ] in array literal, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal))
+				p.addError("line %d:%d: expected , or ] in array literal, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal)
 				return nil
 			}
 		}
@@ -486,7 +494,7 @@ func (p *Parser) parseExpressionStatement() ast.Node {
 	}
 
 	if p.tok.Type != token.T_SEMICOLON {
-		p.errors = append(p.errors, fmt.Sprintf("line %d:%d: expected ; after expression, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal))
+		p.addError("line %d:%d: expected ; after expression, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal)
 		return nil
 	}
 	p.nextToken() // consume ;
@@ -502,7 +510,7 @@ func (p *Parser) parseIfStatement() ast.Node {
 	p.nextToken() // consume if
 
 	if p.tok.Type != token.T_LPAREN {
-		p.errors = append(p.errors, fmt.Sprintf("line %d:%d: expected ( after if, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal))
+		p.addError("line %d:%d: expected ( after if, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal)
 		return nil
 	}
 	p.nextToken()
@@ -513,13 +521,13 @@ func (p *Parser) parseIfStatement() ast.Node {
 	}
 
 	if p.tok.Type != token.T_RPAREN {
-		p.errors = append(p.errors, fmt.Sprintf("line %d:%d: expected ) after if condition, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal))
+		p.addError("line %d:%d: expected ) after if condition, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal)
 		return nil
 	}
 	p.nextToken()
 
 	if p.tok.Type != token.T_LBRACE {
-		p.errors = append(p.errors, fmt.Sprintf("line %d:%d: expected { after if condition, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal))
+		p.addError("line %d:%d: expected { after if condition, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal)
 		return nil
 	}
 	p.nextToken()
@@ -533,7 +541,7 @@ func (p *Parser) parseIfStatement() ast.Node {
 	}
 
 	if p.tok.Type != token.T_RBRACE {
-		p.errors = append(p.errors, fmt.Sprintf("line %d:%d: expected } to close if body, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal))
+		p.addError("line %d:%d: expected } to close if body, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal)
 		return nil
 	}
 	p.nextToken() // consume }
@@ -572,7 +580,7 @@ func (p *Parser) parseElseIfClause() *ast.ElseIfNode {
 	p.nextToken() // consume elseif
 
 	if p.tok.Type != token.T_LPAREN {
-		p.errors = append(p.errors, fmt.Sprintf("line %d:%d: expected ( after elseif, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal))
+		p.addError("line %d:%d: expected ( after elseif, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal)
 		return nil
 	}
 	p.nextToken()
@@ -583,13 +591,13 @@ func (p *Parser) parseElseIfClause() *ast.ElseIfNode {
 	}
 
 	if p.tok.Type != token.T_RPAREN {
-		p.errors = append(p.errors, fmt.Sprintf("line %d:%d: expected ) after elseif condition, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal))
+		p.addError("line %d:%d: expected ) after elseif condition, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal)
 		return nil
 	}
 	p.nextToken()
 
 	if p.tok.Type != token.T_LBRACE {
-		p.errors = append(p.errors, fmt.Sprintf("line %d:%d: expected { after elseif condition, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal))
+		p.addError("line %d:%d: expected { after elseif condition, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal)
 		return nil
 	}
 	p.nextToken()
@@ -603,7 +611,7 @@ func (p *Parser) parseElseIfClause() *ast.ElseIfNode {
 	}
 
 	if p.tok.Type != token.T_RBRACE {
-		p.errors = append(p.errors, fmt.Sprintf("line %d:%d: expected } to close elseif body, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal))
+		p.addError("line %d:%d: expected } to close elseif body, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal)
 		return nil
 	}
 	p.nextToken() // consume }
@@ -620,7 +628,7 @@ func (p *Parser) parseElseClause() *ast.ElseNode {
 	p.nextToken() // consume else
 
 	if p.tok.Type != token.T_LBRACE {
-		p.errors = append(p.errors, fmt.Sprintf("line %d:%d: expected { after else, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal))
+		p.addError("line %d:%d: expected { after else, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal)
 		return nil
 	}
 	p.nextToken()
@@ -634,7 +642,7 @@ func (p *Parser) parseElseClause() *ast.ElseNode {
 	}
 
 	if p.tok.Type != token.T_RBRACE {
-		p.errors = append(p.errors, fmt.Sprintf("line %d:%d: expected } to close else body, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal))
+		p.addError("line %d:%d: expected } to close else body, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal)
 		return nil
 	}
 	p.nextToken() // consume }
@@ -650,7 +658,7 @@ func (p *Parser) parseClassDeclaration() ast.Node {
 	p.nextToken() // consume 'class'
 
 	if p.tok.Type != token.T_STRING {
-		p.errors = append(p.errors, fmt.Sprintf("line %d:%d: expected class name, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal))
+		p.addError("line %d:%d: expected class name, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal)
 		return nil
 	}
 
@@ -662,7 +670,7 @@ func (p *Parser) parseClassDeclaration() ast.Node {
 	if p.tok.Type == token.T_EXTENDS {
 		p.nextToken() // consume 'extends'
 		if p.tok.Type != token.T_STRING {
-			p.errors = append(p.errors, fmt.Sprintf("line %d:%d: expected parent class name after extends, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal))
+			p.addError("line %d:%d: expected parent class name after extends, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal)
 			return nil
 		}
 		extends = p.tok.Literal
@@ -675,7 +683,7 @@ func (p *Parser) parseClassDeclaration() ast.Node {
 		p.nextToken() // consume 'implements'
 		for {
 			if p.tok.Type != token.T_STRING {
-				p.errors = append(p.errors, fmt.Sprintf("line %d:%d: expected interface name after implements, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal))
+				p.addError("line %d:%d: expected interface name after implements, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal)
 				return nil
 			}
 			implements = append(implements, p.tok.Literal)
@@ -689,7 +697,7 @@ func (p *Parser) parseClassDeclaration() ast.Node {
 	}
 
 	if p.tok.Type != token.T_LBRACE {
-		p.errors = append(p.errors, fmt.Sprintf("line %d:%d: expected { after class declaration for %s, got %s", p.tok.Pos.Line, p.tok.Pos.Column, name, p.tok.Literal))
+		p.addError("line %d:%d: expected { after class declaration for %s, got %s", p.tok.Pos.Line, p.tok.Pos.Column, name, p.tok.Literal)
 		return nil
 	}
 	p.nextToken() // consume {
@@ -717,7 +725,7 @@ func (p *Parser) parseClassDeclaration() ast.Node {
 					properties = append(properties, prop)
 				}
 			} else {
-				p.errors = append(p.errors, fmt.Sprintf("line %d:%d: expected function or property declaration after visibility modifier %s, got %s", p.tok.Pos.Line, p.tok.Pos.Column, visibility, p.tok.Literal))
+				p.addError("line %d:%d: expected function or property declaration after visibility modifier %s, got %s", p.tok.Pos.Line, p.tok.Pos.Column, visibility, p.tok.Literal)
 				p.nextToken()
 			}
 		} else if p.tok.Type == token.T_FUNCTION {
@@ -730,13 +738,13 @@ func (p *Parser) parseClassDeclaration() ast.Node {
 				properties = append(properties, prop)
 			}
 		} else {
-			p.errors = append(p.errors, fmt.Sprintf("line %d:%d: unexpected token %s in class %s body", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal, name))
+			p.addError("line %d:%d: unexpected token %s in class %s body", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal, name)
 			p.nextToken()
 		}
 	}
 
 	if p.tok.Type != token.T_RBRACE {
-		p.errors = append(p.errors, fmt.Sprintf("line %d:%d: expected } to close class %s body, got %s", p.tok.Pos.Line, p.tok.Pos.Column, name, p.tok.Literal))
+		p.addError("line %d:%d: expected } to close class %s body, got %s", p.tok.Pos.Line, p.tok.Pos.Column, name, p.tok.Literal)
 		return nil
 	}
 	p.nextToken() // consume }
@@ -757,7 +765,7 @@ func (p *Parser) parsePropertyDeclaration() ast.Node {
 	p.nextToken()
 
 	if p.tok.Type != token.T_SEMICOLON {
-		p.errors = append(p.errors, fmt.Sprintf("line %d:%d: expected ; after property declaration $%s, got %s", p.tok.Pos.Line, p.tok.Pos.Column, name, p.tok.Literal))
+		p.addError("line %d:%d: expected ; after property declaration $%s, got %s", p.tok.Pos.Line, p.tok.Pos.Column, name, p.tok.Literal)
 		return nil
 	}
 	p.nextToken()
@@ -780,7 +788,7 @@ func (p *Parser) parseBlockStatement() []ast.Node {
 	}
 
 	if p.tok.Type != token.T_RBRACE {
-		p.errors = append(p.errors, fmt.Sprintf("line %d:%d: expected } to close block, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal))
+		p.addError("line %d:%d: expected } to close block, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal)
 		return nil
 	}
 	p.nextToken() // consume closing brace
@@ -805,14 +813,14 @@ func (p *Parser) parseSimpleExpression() ast.Node {
 		p.nextToken() // consume 'new'
 
 		if p.tok.Type != token.T_STRING {
-			p.errors = append(p.errors, fmt.Sprintf("line %d:%d: expected class name after new, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal))
+			p.addError("line %d:%d: expected class name after new, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal)
 			return nil
 		}
 		className := p.tok.Literal
 		p.nextToken()
 
 		if p.tok.Type != token.T_LPAREN {
-			p.errors = append(p.errors, fmt.Sprintf("line %d:%d: expected ( after class name %s, got %s", p.tok.Pos.Line, p.tok.Pos.Column, className, p.tok.Literal))
+			p.addError("line %d:%d: expected ( after class name %s, got %s", p.tok.Pos.Line, p.tok.Pos.Column, className, p.tok.Literal)
 			return nil
 		}
 		p.nextToken() // consume (
@@ -831,7 +839,7 @@ func (p *Parser) parseSimpleExpression() ast.Node {
 		}
 
 		if p.tok.Type != token.T_RPAREN {
-			p.errors = append(p.errors, fmt.Sprintf("line %d:%d: expected ) after arguments for %s, got %s", p.tok.Pos.Line, p.tok.Pos.Column, className, p.tok.Literal))
+			p.addError("line %d:%d: expected ) after arguments for %s, got %s", p.tok.Pos.Line, p.tok.Pos.Column, className, p.tok.Literal)
 			return nil
 		}
 		p.nextToken() // consume )
@@ -937,7 +945,7 @@ func (p *Parser) parseSimpleExpression() ast.Node {
 		p.nextToken()
 		return node
 	default:
-		p.errors = append(p.errors, fmt.Sprintf("line %d:%d: unexpected token %s in expression", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal))
+		p.addError("line %d:%d: unexpected token %s in expression", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal)
 		p.nextToken()
 		return nil
 	}

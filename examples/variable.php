@@ -11,4 +11,8 @@ $person = [
     $isStudent
 ];
 
-// echo $greeting . ", " . $name;
+$a = $person[0];
+$b = $person[1];
+$c = $person[2];
+
+var_dump($a);
