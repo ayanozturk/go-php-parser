@@ -929,6 +929,13 @@ func (p *Parser) parseSimpleExpression() ast.Node {
 		}
 		p.nextToken()
 		return node
+	case token.T_VARIABLE:
+		node := &ast.VariableNode{
+			Name: p.tok.Literal[1:], // Remove $ prefix
+			Pos:  ast.Position(p.tok.Pos),
+		}
+		p.nextToken()
+		return node
 	default:
 		p.errors = append(p.errors, fmt.Sprintf("line %d:%d: unexpected token %s in expression", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal))
 		p.nextToken()
