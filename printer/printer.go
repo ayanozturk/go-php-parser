@@ -3,6 +3,7 @@ package printer
 import (
 	"fmt"
 	"go-phpcs/ast"
+	"strings"
 )
 
 // PrintAST recursively prints the AST tree with indentation
@@ -17,6 +18,43 @@ func PrintAST(nodes []ast.Node, indent int) {
 		}
 		fmt.Println(prefix + node.String())
 		switch n := node.(type) {
+		case *ast.ArrayNode:
+			if len(n.Elements) > 0 {
+				elements := make([]string, len(n.Elements))
+				for i, elem := range n.Elements {
+					if item, ok := elem.(*ast.ArrayItemNode); ok {
+						var itemStr string
+						if item.Key != nil {
+							itemStr = fmt.Sprintf("%s => %s", item.Key.TokenLiteral(), item.Value.TokenLiteral())
+						} else {
+							itemStr = item.Value.TokenLiteral()
+						}
+						if item.ByRef {
+							itemStr = "&" + itemStr
+						}
+						if item.Unpack {
+							itemStr = "..." + itemStr
+						}
+						elements[i] = itemStr
+					}
+				}
+				fmt.Printf("%s  [ %s ]\n", prefix, strings.Join(elements, ", "))
+			} else {
+				fmt.Printf("%s  []\n", prefix)
+			}
+		case *ast.ArrayItemNode:
+			if n.Key != nil {
+				fmt.Println(prefix + "  Key:")
+				PrintAST([]ast.Node{n.Key}, indent+2)
+			}
+			fmt.Println(prefix + "  Value:")
+			PrintAST([]ast.Node{n.Value}, indent+2)
+			if n.ByRef {
+				fmt.Println(prefix + "  ByRef: true")
+			}
+			if n.Unpack {
+				fmt.Println(prefix + "  Unpack: true")
+			}
 		case *ast.FunctionNode:
 			if len(n.Params) > 0 {
 				fmt.Println(prefix + "  Parameters:")

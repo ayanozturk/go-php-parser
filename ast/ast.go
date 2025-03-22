@@ -515,11 +515,7 @@ func (a *ArrayNode) NodeType() string    { return "Array" }
 func (a *ArrayNode) GetPos() Position    { return a.Pos }
 func (a *ArrayNode) SetPos(pos Position) { a.Pos = pos }
 func (a *ArrayNode) String() string {
-	var parts []string
-	for _, elem := range a.Elements {
-		parts = append(parts, elem.NodeType()+"("+elem.String()+")")
-	}
-	return fmt.Sprintf("Array(%s) ", strings.Join(parts, ", "))
+	return fmt.Sprintf("Array @ %d:%d", a.Pos.Line, a.Pos.Column)
 }
 func (a *ArrayNode) TokenLiteral() string {
 	return "array"
@@ -661,4 +657,36 @@ func (c *ConcatNode) String() string {
 }
 func (c *ConcatNode) TokenLiteral() string {
 	return "."
+}
+
+// ArrayItemNode represents an item in an array
+type ArrayItemNode struct {
+	Key    Node // Optional key for associative arrays
+	Value  Node // The value of the array item
+	ByRef  bool // Whether the value is passed by reference
+	Unpack bool // Whether this is a spread operator item (...$array)
+	Pos    Position
+}
+
+func (a *ArrayItemNode) NodeType() string    { return "ArrayItem" }
+func (a *ArrayItemNode) GetPos() Position    { return a.Pos }
+func (a *ArrayItemNode) SetPos(pos Position) { a.Pos = pos }
+func (a *ArrayItemNode) String() string {
+	var prefix string
+	if a.ByRef {
+		prefix += "&"
+	}
+	if a.Unpack {
+		prefix += "..."
+	}
+	if a.Key != nil {
+		return fmt.Sprintf("ArrayItem(%s%s => %s) @ %d:%d", prefix, a.Key.TokenLiteral(), a.Value.TokenLiteral(), a.Pos.Line, a.Pos.Column)
+	}
+	return fmt.Sprintf("ArrayItem(%s%s) @ %d:%d", prefix, a.Value.TokenLiteral(), a.Pos.Line, a.Pos.Column)
+}
+func (a *ArrayItemNode) TokenLiteral() string {
+	if a.Key != nil {
+		return "=>"
+	}
+	return ""
 }

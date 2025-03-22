@@ -349,40 +349,58 @@ func (p *Parser) parseExpression() ast.Node {
 }
 
 func (p *Parser) parseArrayElement() ast.Node {
+	pos := p.tok.Pos
 	var key ast.Node
 	var value ast.Node
+	var byRef bool
+	var unpack bool
+
+	// Check for spread operator (...)
+	if p.tok.Type == token.T_ELLIPSIS {
+		unpack = true
+		p.nextToken()
+	}
+
+	// Check for by-reference operator (&)
+	if p.tok.Type == token.T_AMPERSAND {
+		byRef = true
+		p.nextToken()
+	}
 
 	// Parse key if present
-	if p.tok.Type == token.T_STRING || p.tok.Type == token.T_CONSTANT_ENCAPSED_STRING {
-		key = &ast.StringNode{
-			Value: p.tok.Literal,
-			Pos:   ast.Position(p.tok.Pos),
+	if p.tok.Type == token.T_STRING || p.tok.Type == token.T_CONSTANT_ENCAPSED_STRING || p.tok.Type == token.T_LNUMBER {
+		key = p.parseSimpleExpression()
+		if key == nil {
+			return nil
 		}
-		p.nextToken()
 
 		if p.tok.Type == token.T_DOUBLE_ARROW {
 			p.nextToken() // consume =>
 		} else {
-			// If no =>, treat the string as a value
-			return &ast.KeyValueNode{
-				Key:   nil,
-				Value: key,
-				Pos:   key.GetPos(),
-			}
+			// If no =>, treat the expression as a value
+			value = key
+			key = nil
 		}
 	}
 
-	// Parse value
-	value = p.parseExpression()
+	// Parse value if not already set
 	if value == nil {
-		return nil
+		if byRef && p.tok.Type != token.T_VARIABLE {
+			p.addError("line %d:%d: by-reference must be followed by a variable", p.tok.Pos.Line, p.tok.Pos.Column)
+			return nil
+		}
+		value = p.parseExpression()
+		if value == nil {
+			return nil
+		}
 	}
 
-	// Don't consume the token here - let the caller handle commas
-	return &ast.KeyValueNode{
-		Key:   key,
-		Value: value,
-		Pos:   value.GetPos(),
+	return &ast.ArrayItemNode{
+		Key:    key,
+		Value:  value,
+		ByRef:  byRef,
+		Unpack: unpack,
+		Pos:    ast.Position(pos),
 	}
 }
 
@@ -429,42 +447,9 @@ func (p *Parser) parseArrayLiteral() ast.Node {
 
 		var elements []ast.Node
 		for p.tok.Type != token.T_RBRACKET && p.tok.Type != token.T_EOF {
-			// Parse key if present
-			var key ast.Node
-			var value ast.Node
-
-			// Parse key if it's a string
-			if p.tok.Type == token.T_STRING || p.tok.Type == token.T_CONSTANT_STRING || p.tok.Type == token.T_CONSTANT_ENCAPSED_STRING {
-				key = &ast.StringNode{
-					Value: p.tok.Literal,
-					Pos:   ast.Position(p.tok.Pos),
-				}
-				p.nextToken()
-
-				if p.tok.Type == token.T_DOUBLE_ARROW {
-					p.nextToken() // consume =>
-					value = p.parseExpression()
-					if value == nil {
-						return nil
-					}
-				} else {
-					// If no =>, treat the string as a value
-					value = key
-					key = nil
-				}
-			} else {
-				// No key, just parse value
-				value = p.parseExpression()
-				if value == nil {
-					return nil
-				}
+			if element := p.parseArrayElement(); element != nil {
+				elements = append(elements, element)
 			}
-
-			elements = append(elements, &ast.KeyValueNode{
-				Key:   key,
-				Value: value,
-				Pos:   value.GetPos(),
-			})
 
 			if p.tok.Type == token.T_COMMA {
 				p.nextToken() // consume comma
