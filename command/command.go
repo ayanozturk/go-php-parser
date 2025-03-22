@@ -3,6 +3,7 @@ package command
 import (
 	"fmt"
 	"go-phpcs/ast"
+	"go-phpcs/printer"
 )
 
 // Command represents a command that can be executed
@@ -18,7 +19,7 @@ var Commands = map[string]Command{
 		Name:        "ast",
 		Description: "Print the Abstract Syntax Tree",
 		Execute: func(nodes []ast.Node) {
-			ast.PrintAST(nodes, 0)
+			printer.PrintAST(nodes, 0)
 		},
 	},
 }

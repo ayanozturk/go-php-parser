@@ -1,9 +1,12 @@
-package ast
+package printer
 
-import "fmt"
+import (
+	"fmt"
+	"go-phpcs/ast"
+)
 
 // PrintAST recursively prints the AST tree with indentation
-func PrintAST(nodes []Node, indent int) {
+func PrintAST(nodes []ast.Node, indent int) {
 	prefix := ""
 	for i := 0; i < indent; i++ {
 		prefix += "  "
@@ -14,7 +17,7 @@ func PrintAST(nodes []Node, indent int) {
 		}
 		fmt.Println(prefix + node.String())
 		switch n := node.(type) {
-		case *FunctionNode:
+		case *ast.FunctionNode:
 			if len(n.Params) > 0 {
 				fmt.Println(prefix + "  Parameters:")
 				PrintAST(n.Params, indent+2)
@@ -23,29 +26,29 @@ func PrintAST(nodes []Node, indent int) {
 				fmt.Println(prefix + "  Body:")
 				PrintAST(n.Body, indent+2)
 			}
-		case *AssignmentNode:
+		case *ast.AssignmentNode:
 			fmt.Println(prefix + "  Left:")
-			PrintAST([]Node{n.Left}, indent+2)
+			PrintAST([]ast.Node{n.Left}, indent+2)
 			fmt.Println(prefix + "  Right:")
-			PrintAST([]Node{n.Right}, indent+2)
-		case *BinaryExpr:
+			PrintAST([]ast.Node{n.Right}, indent+2)
+		case *ast.BinaryExpr:
 			fmt.Println(prefix + "  Left:")
-			PrintAST([]Node{n.Left}, indent+2)
+			PrintAST([]ast.Node{n.Left}, indent+2)
 			fmt.Println(prefix + "  Right:")
-			PrintAST([]Node{n.Right}, indent+2)
-		case *ReturnNode:
+			PrintAST([]ast.Node{n.Right}, indent+2)
+		case *ast.ReturnNode:
 			if n.Expr != nil {
 				fmt.Println(prefix + "  Expression:")
-				PrintAST([]Node{n.Expr}, indent+2)
+				PrintAST([]ast.Node{n.Expr}, indent+2)
 			}
-		case *ExpressionStmt:
+		case *ast.ExpressionStmt:
 			if n.Expr != nil {
 				fmt.Println(prefix + "  Expression:")
-				PrintAST([]Node{n.Expr}, indent+2)
+				PrintAST([]ast.Node{n.Expr}, indent+2)
 			}
-		case *IfNode:
+		case *ast.IfNode:
 			fmt.Println(prefix + "  Condition:")
-			PrintAST([]Node{n.Condition}, indent+2)
+			PrintAST([]ast.Node{n.Condition}, indent+2)
 			if len(n.Body) > 0 {
 				fmt.Println(prefix + "  Then:")
 				PrintAST(n.Body, indent+2)
@@ -53,7 +56,7 @@ func PrintAST(nodes []Node, indent int) {
 			for _, elseif := range n.ElseIfs {
 				fmt.Println(prefix + "  ElseIf:")
 				fmt.Println(prefix + "    Condition:")
-				PrintAST([]Node{elseif.Condition}, indent+3)
+				PrintAST([]ast.Node{elseif.Condition}, indent+3)
 				if len(elseif.Body) > 0 {
 					fmt.Println(prefix + "    Body:")
 					PrintAST(elseif.Body, indent+3)
@@ -63,17 +66,17 @@ func PrintAST(nodes []Node, indent int) {
 				fmt.Println(prefix + "  Else:")
 				PrintAST(n.Else.Body, indent+2)
 			}
-		case *WhileNode:
+		case *ast.WhileNode:
 			fmt.Println(prefix + "  Condition:")
-			PrintAST([]Node{n.Condition}, indent+2)
+			PrintAST([]ast.Node{n.Condition}, indent+2)
 			if len(n.Body) > 0 {
 				fmt.Println(prefix + "  Body:")
 				PrintAST(n.Body, indent+2)
 			}
-		case *InterpolatedStringLiteral:
+		case *ast.InterpolatedStringLiteral:
 			fmt.Println(prefix + "  Parts:")
 			PrintAST(n.Parts, indent+2)
-		case *ClassNode:
+		case *ast.ClassNode:
 			if len(n.Properties) > 0 {
 				fmt.Println(prefix + "  Properties:")
 				PrintAST(n.Properties, indent+2)
