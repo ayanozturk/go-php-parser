@@ -123,6 +123,23 @@ func PrintAST(nodes []ast.Node, indent int) {
 				fmt.Println(prefix + "  Methods:")
 				PrintAST(n.Methods, indent+2)
 			}
+		case *ast.EnumNode:
+			if n.BackedBy != "" {
+				fmt.Printf("%s  Backed by: %s\n", prefix, n.BackedBy)
+			}
+			if len(n.Cases) > 0 {
+				fmt.Println(prefix + "  Cases:")
+				PrintAST(convertEnumCasesToNodes(n.Cases), indent+2)
+			}
 		}
 	}
+}
+
+// Helper function to convert enum cases to nodes for printing
+func convertEnumCasesToNodes(cases []*ast.EnumCaseNode) []ast.Node {
+	nodes := make([]ast.Node, len(cases))
+	for i, c := range cases {
+		nodes[i] = c
+	}
+	return nodes
 }

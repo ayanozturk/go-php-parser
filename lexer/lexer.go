@@ -281,6 +281,10 @@ func (l *Lexer) NextToken() token.Token {
 			return token.Token{Type: token.T_PROTECTED, Literal: ident, Pos: pos}
 		case "return":
 			return token.Token{Type: token.T_RETURN, Literal: ident, Pos: pos}
+		case "enum":
+			return token.Token{Type: token.T_ENUM, Literal: ident, Pos: pos}
+		case "case":
+			return token.Token{Type: token.T_CASE, Literal: ident, Pos: pos}
 		default:
 			return token.Token{Type: token.T_STRING, Literal: ident, Pos: pos}
 		}

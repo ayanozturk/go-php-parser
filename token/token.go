@@ -62,6 +62,8 @@ const (
 	T_TRUE                     TokenType = "T_TRUE"
 	T_FALSE                    TokenType = "T_FALSE"
 	T_NULL                     TokenType = "T_NULL"
+	T_ENUM                     TokenType = "T_ENUM"
+	T_CASE                     TokenType = "T_CASE"
 )
 
 type Position struct {
