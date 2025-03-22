@@ -220,7 +220,7 @@ func (l *Lexer) NextToken() token.Token {
 		if l.peekChar() == '>' {
 			l.readChar() // consume -
 			l.readChar() // consume >
-			return token.Token{Type: token.T_OBJECT_OP, Literal: "->", Pos: pos}
+			return token.Token{Type: token.T_OBJECT_OPERATOR, Literal: "->", Pos: pos}
 		}
 	case ':':
 		tok = token.Token{Type: token.T_COLON, Literal: string(l.char), Pos: pos}

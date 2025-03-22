@@ -794,15 +794,8 @@ func (p *Parser) parseSimpleExpression() ast.Node {
 			Args:      args,
 			Pos:       ast.Position(pos),
 		}
-	case token.T_IDENTIFIER:
-		node := &ast.IdentifierNode{
-			Value: p.tok.Literal,
-			Pos:   ast.Position(p.tok.Pos),
-		}
-		p.nextToken()
-		return node
 	case token.T_STRING:
-		node := &ast.StringNode{
+		node := &ast.IdentifierNode{
 			Value: p.tok.Literal,
 			Pos:   ast.Position(p.tok.Pos),
 		}

@@ -733,3 +733,162 @@ func (e *EnumCaseNode) String() string {
 func (e *EnumCaseNode) TokenLiteral() string {
 	return e.Name
 }
+
+// AttributeNode represents a PHP 8.0+ attribute
+type AttributeNode struct {
+	Name      string
+	Arguments []Node
+	Pos       Position
+}
+
+func (a *AttributeNode) NodeType() string    { return "Attribute" }
+func (a *AttributeNode) GetPos() Position    { return a.Pos }
+func (a *AttributeNode) SetPos(pos Position) { a.Pos = pos }
+func (a *AttributeNode) String() string {
+	return fmt.Sprintf("#[%s] @ %d:%d", a.Name, a.Pos.Line, a.Pos.Column)
+}
+func (a *AttributeNode) TokenLiteral() string { return a.Name }
+
+// NamespaceNode represents a PHP namespace declaration
+type NamespaceNode struct {
+	Name string
+	Body []Node
+	Pos  Position
+}
+
+func (n *NamespaceNode) NodeType() string    { return "Namespace" }
+func (n *NamespaceNode) GetPos() Position    { return n.Pos }
+func (n *NamespaceNode) SetPos(pos Position) { n.Pos = pos }
+func (n *NamespaceNode) String() string {
+	return fmt.Sprintf("namespace %s @ %d:%d", n.Name, n.Pos.Line, n.Pos.Column)
+}
+func (n *NamespaceNode) TokenLiteral() string { return "namespace" }
+
+// UseNode represents a PHP use statement
+type UseNode struct {
+	Path  string
+	Alias string
+	Type  string // class, function, const
+	Pos   Position
+}
+
+func (u *UseNode) NodeType() string    { return "Use" }
+func (u *UseNode) GetPos() Position    { return u.Pos }
+func (u *UseNode) SetPos(pos Position) { u.Pos = pos }
+func (u *UseNode) String() string {
+	if u.Alias != "" {
+		return fmt.Sprintf("use %s as %s @ %d:%d", u.Path, u.Alias, u.Pos.Line, u.Pos.Column)
+	}
+	return fmt.Sprintf("use %s @ %d:%d", u.Path, u.Pos.Line, u.Pos.Column)
+}
+func (u *UseNode) TokenLiteral() string { return "use" }
+
+// TraitNode represents a PHP trait definition
+type TraitNode struct {
+	Name    string
+	Methods []Node
+	Pos     Position
+}
+
+func (t *TraitNode) NodeType() string    { return "Trait" }
+func (t *TraitNode) GetPos() Position    { return t.Pos }
+func (t *TraitNode) SetPos(pos Position) { t.Pos = pos }
+func (t *TraitNode) String() string {
+	return fmt.Sprintf("trait %s @ %d:%d", t.Name, t.Pos.Line, t.Pos.Column)
+}
+func (t *TraitNode) TokenLiteral() string { return "trait" }
+
+// MatchNode represents a PHP 8.0+ match expression
+type MatchNode struct {
+	Condition Node
+	Arms      []MatchArmNode
+	Pos       Position
+}
+
+func (m *MatchNode) NodeType() string    { return "Match" }
+func (m *MatchNode) GetPos() Position    { return m.Pos }
+func (m *MatchNode) SetPos(pos Position) { m.Pos = pos }
+func (m *MatchNode) String() string {
+	return fmt.Sprintf("match @ %d:%d", m.Pos.Line, m.Pos.Column)
+}
+func (m *MatchNode) TokenLiteral() string { return "match" }
+
+// MatchArmNode represents a single arm in a match expression
+type MatchArmNode struct {
+	Conditions []Node
+	Body       Node
+	Pos        Position
+}
+
+func (m *MatchArmNode) NodeType() string    { return "MatchArm" }
+func (m *MatchArmNode) GetPos() Position    { return m.Pos }
+func (m *MatchArmNode) SetPos(pos Position) { m.Pos = pos }
+func (m *MatchArmNode) String() string {
+	return fmt.Sprintf("match arm @ %d:%d", m.Pos.Line, m.Pos.Column)
+}
+func (m *MatchArmNode) TokenLiteral() string { return "=>" }
+
+// ArrowFunctionNode represents a PHP arrow function (fn)
+type ArrowFunctionNode struct {
+	Params     []Node
+	ReturnType string
+	Expr       Node
+	Pos        Position
+}
+
+func (a *ArrowFunctionNode) NodeType() string    { return "ArrowFunction" }
+func (a *ArrowFunctionNode) GetPos() Position    { return a.Pos }
+func (a *ArrowFunctionNode) SetPos(pos Position) { a.Pos = pos }
+func (a *ArrowFunctionNode) String() string {
+	return fmt.Sprintf("fn @ %d:%d", a.Pos.Line, a.Pos.Column)
+}
+func (a *ArrowFunctionNode) TokenLiteral() string { return "fn" }
+
+// TypeCastNode represents a type cast operation
+type TypeCastNode struct {
+	Type string
+	Expr Node
+	Pos  Position
+}
+
+func (t *TypeCastNode) NodeType() string    { return "TypeCast" }
+func (t *TypeCastNode) GetPos() Position    { return t.Pos }
+func (t *TypeCastNode) SetPos(pos Position) { t.Pos = pos }
+func (t *TypeCastNode) String() string {
+	return fmt.Sprintf("(%s) @ %d:%d", t.Type, t.Pos.Line, t.Pos.Column)
+}
+func (t *TypeCastNode) TokenLiteral() string { return t.Type }
+
+// YieldNode represents a yield expression
+type YieldNode struct {
+	Key   Node
+	Value Node
+	From  bool
+	Pos   Position
+}
+
+func (y *YieldNode) NodeType() string    { return "Yield" }
+func (y *YieldNode) GetPos() Position    { return y.Pos }
+func (y *YieldNode) SetPos(pos Position) { y.Pos = pos }
+func (y *YieldNode) String() string {
+	if y.From {
+		return fmt.Sprintf("yield from @ %d:%d", y.Pos.Line, y.Pos.Column)
+	}
+	return fmt.Sprintf("yield @ %d:%d", y.Pos.Line, y.Pos.Column)
+}
+func (y *YieldNode) TokenLiteral() string { return "yield" }
+
+// HeredocNode represents a heredoc string
+type HeredocNode struct {
+	Identifier string
+	Parts      []Node
+	Pos        Position
+}
+
+func (h *HeredocNode) NodeType() string    { return "Heredoc" }
+func (h *HeredocNode) GetPos() Position    { return h.Pos }
+func (h *HeredocNode) SetPos(pos Position) { h.Pos = pos }
+func (h *HeredocNode) String() string {
+	return fmt.Sprintf("<<<'%s' @ %d:%d", h.Identifier, h.Pos.Line, h.Pos.Column)
+}
+func (h *HeredocNode) TokenLiteral() string { return h.Identifier }
