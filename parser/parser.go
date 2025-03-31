@@ -36,6 +36,13 @@ func (p *Parser) addError(format string, args ...interface{}) {
 }
 
 func (p *Parser) Parse() []ast.Node {
+	// Add panic recovery
+	defer func() {
+		if r := recover(); r != nil {
+			p.addError("Parser panic: %v", r)
+		}
+	}()
+
 	var nodes []ast.Node
 
 	// Expect PHP open tag first
@@ -49,12 +56,12 @@ func (p *Parser) Parse() []ast.Node {
 		node, err := p.parseStatement()
 		if err != nil {
 			p.addError(err.Error())
+			p.nextToken() // Ensure forward progress
 			continue
 		}
 		if node != nil {
 			nodes = append(nodes, node)
 		}
-		// Don't consume token here - parseStatement handles that
 	}
 
 	return nodes
@@ -734,8 +741,14 @@ func (p *Parser) parseBlockStatement() []ast.Node {
 		stmt, err := p.parseStatement()
 		if err != nil {
 			p.addError(err.Error())
+			p.nextToken() // Add this to ensure forward progress
+			continue
 		} else if stmt != nil {
 			statements = append(statements, stmt)
+		}
+		// Always advance token if no statement was parsed
+		if stmt == nil {
+			p.nextToken()
 		}
 	}
 	return statements
