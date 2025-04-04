@@ -59,6 +59,9 @@ func (p *Printer) printNode(node ast.Node) {
 	switch n := node.(type) {
 	case *ast.ArrayNode:
 		p.printArray(n)
+	case *ast.CommentNode:
+		p.printIndent()
+		p.printf("Value: %s\n", n.Value)
 	case *ast.ArrayItemNode:
 		p.printArrayItem(n)
 	case *ast.FunctionNode:
@@ -151,6 +154,10 @@ func (p *Printer) printArrayItem(n *ast.ArrayItemNode) {
 }
 
 func (p *Printer) printFunction(n *ast.FunctionNode) {
+	if n.Name != "" {
+		p.printIndent()
+		p.printf("Name: %s\n", n.Name)
+	}
 	if n.Visibility != "" {
 		p.printIndent()
 		p.printf("Visibility: %s\n", n.Visibility)
