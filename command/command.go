@@ -22,6 +22,13 @@ var Commands = map[string]Command{
 			printer.PrintAST(nodes, 0)
 		},
 	},
+	"tokens": {
+		Name:        "tokens",
+		Description: "Print the tokens from the lexer",
+		Execute: func(nodes []ast.Node) {
+			// This is a placeholder - the actual implementation is in main.go
+		},
+	},
 }
 
 // PrintUsage prints the usage information for all available commands

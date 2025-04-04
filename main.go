@@ -48,7 +48,19 @@ func main() {
 
 	// Handle commands
 	if cmd, exists := command.Commands[commandName]; exists {
-		cmd.Execute(nodes)
+		if commandName == "tokens" {
+			// For tokens command, create a new lexer with the original input
+			l := lexer.New(string(input))
+			for {
+				tok := l.NextToken()
+				if tok.Type == "T_EOF" {
+					break
+				}
+				fmt.Printf("%s: %s @ %d:%d\n", tok.Type, tok.Literal, tok.Pos.Line, tok.Pos.Column)
+			}
+		} else {
+			cmd.Execute(nodes)
+		}
 	} else {
 		fmt.Printf("Unknown command: %s\n", commandName)
 		command.PrintUsage()
