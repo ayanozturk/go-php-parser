@@ -44,7 +44,8 @@ func (p *Printer) printNodes(nodes []ast.Node) {
 		if node == nil {
 			continue
 		}
-		p.printNode(node)
+		p.printf(node.String() + "\n")
+		// p.printNode(node)
 	}
 }
 
