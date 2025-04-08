@@ -283,6 +283,12 @@ func (p *Parser) parseVariableStatement() (ast.Node, error) {
 }
 
 func (p *Parser) parseExpression() ast.Node {
+
+	// Check for array literals
+	if p.tok.Type == token.T_LBRACKET || p.tok.Type == token.T_ARRAY {
+		return p.parseArrayLiteral()
+	}
+
 	left := p.parseSimpleExpression()
 	if left == nil {
 		p.addError("line %d:%d: expected left operand, got nil", p.tok.Pos.Line, p.tok.Pos.Column)
