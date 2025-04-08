@@ -167,33 +167,27 @@ func (p *Parser) parseFunction() (ast.Node, error) {
 	p.nextToken() // consume (
 
 	var params []ast.Node
-	if p.tok.Type != token.T_RPAREN {
-		for {
-			if p.tok.Type != token.T_VARIABLE {
-				p.addError("line %d:%d: expected parameter name in function %s, got %s", p.tok.Pos.Line, p.tok.Pos.Column, name, p.tok.Literal)
-				return nil, nil
-			}
-
-			paramName := p.tok.Literal[1:] // Remove $ from parameter name
-			p.nextToken()
-
-			param := &ast.VariableNode{
-				Name: paramName,
-				Pos:  ast.Position(p.tok.Pos),
-			}
-			params = append(params, param)
-
-			if p.tok.Type == token.T_COMMA {
-				p.nextToken()
-				continue
-			}
-
-			if p.tok.Type != token.T_RPAREN {
-				p.addError("line %d:%d: expected , or ) in parameter list for function %s, got %s", p.tok.Pos.Line, p.tok.Pos.Column, name, p.tok.Literal)
-				return nil, nil
-			}
-			break
+	for p.tok.Type != token.T_RPAREN {
+		param := p.parseParameter()
+		if param == nil {
+			return nil, nil
 		}
+		params = append(params, param)
+
+		if p.tok.Type == token.T_COMMA {
+			p.nextToken()
+		} else if p.tok.Type == token.T_RPAREN {
+			break
+		} else {
+			p.errors = append(p.errors, fmt.Sprintf("line %d:%d: expected ',' or ')' in parameter list for method %s, got %s", p.tok.Pos.Line, p.tok.Pos.Column, name, p.tok.Literal))
+			return nil, nil
+		}
+	}
+
+	// Parse closing parenthesis
+	if p.tok.Type != token.T_RPAREN {
+		p.errors = append(p.errors, fmt.Sprintf("line %d:%d: expected ')' after parameter list for method %s, got %s", p.tok.Pos.Line, p.tok.Pos.Column, name, p.tok.Literal))
+		return nil, nil
 	}
 	p.nextToken() // consume )
 
@@ -263,13 +257,14 @@ func (p *Parser) parseVariableStatement() (ast.Node, error) {
 		p.nextToken() // consume =
 		right := p.parseExpression()
 		if right == nil {
-			return nil, nil
+			return nil, fmt.Errorf("failed to parse right-hand side of assignment")
 		}
 
 		if p.tok.Type != token.T_SEMICOLON {
 			p.addError("line %d:%d: expected ; after assignment to $%s, got %s", p.tok.Pos.Line, p.tok.Pos.Column, varName, p.tok.Literal)
 			return nil, nil
 		}
+		p.nextToken() // consume ;
 
 		return &ast.AssignmentNode{
 			Left: &ast.VariableNode{
@@ -288,22 +283,41 @@ func (p *Parser) parseVariableStatement() (ast.Node, error) {
 }
 
 func (p *Parser) parseExpression() ast.Node {
-	switch p.tok.Type {
-	case token.T_LBRACKET:
-		return p.parseArrayLiteral()
-	case token.T_ARRAY:
-		if p.peekToken().Type == token.T_LPAREN {
-			return p.parseArrayLiteral()
+	left := p.parseSimpleExpression()
+	if left == nil {
+		p.addError("line %d:%d: expected left operand, got nil", p.tok.Pos.Line, p.tok.Pos.Column)
+		return nil
+	}
+
+	for p.isBinaryOperator(p.tok.Type) {
+		operator := p.tok.Literal
+		pos := p.tok.Pos
+		p.nextToken() // consume operator
+
+		right := p.parseSimpleExpression()
+		if right == nil {
+			p.addError("line %d:%d: expected right operand after operator %s", pos.Line, pos.Column, operator)
+			return nil
 		}
-		fallthrough
-	case token.T_STRING:
-		// Handle array keys
-		if p.peekToken().Type == token.T_DOUBLE_ARROW {
-			return p.parseArrayLiteral()
+
+		left = &ast.BinaryExpr{
+			Left:     left,
+			Operator: operator,
+			Right:    right,
+			Pos:      ast.Position(pos),
 		}
-		fallthrough
+	}
+
+	return left
+}
+
+func (p *Parser) isBinaryOperator(tokenType token.TokenType) bool {
+	switch tokenType {
+	case token.T_PLUS, token.T_MINUS, token.T_MULTIPLY, token.T_DIVIDE, token.T_MODULO,
+		token.T_IS_EQUAL, token.T_IS_NOT_EQUAL, token.T_IS_SMALLER, token.T_IS_GREATER:
+		return true
 	default:
-		return p.parseSimpleExpression()
+		return false
 	}
 }
 

@@ -22,6 +22,12 @@ func New(w io.Writer) *Printer {
 	return &Printer{w: w}
 }
 
+func buildStringToPrint(nodes []ast.Node, w io.Writer) {
+	p := New(w)
+	p.indent = 0
+	p.printNodes(nodes)
+}
+
 // PrintAST prints the AST nodes with proper indentation
 func PrintAST(nodes []ast.Node, indent int) {
 	p := New(os.Stdout)

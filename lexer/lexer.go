@@ -122,6 +122,23 @@ func (l *Lexer) NextToken() token.Token {
 	switch l.char {
 	case 0:
 		return token.Token{Type: token.T_EOF, Literal: "", Pos: pos}
+	case '+':
+		tok = token.Token{Type: token.T_PLUS, Literal: string(l.char), Pos: pos}
+		l.readChar()
+		return tok
+	case '-':
+		if l.peekChar() == '>' {
+			l.readChar() // consume -
+			l.readChar() // consume >
+			return token.Token{Type: token.T_OBJECT_OPERATOR, Literal: "->", Pos: pos}
+		}
+		tok = token.Token{Type: token.T_MINUS, Literal: string(l.char), Pos: pos}
+		l.readChar()
+		return tok
+	case '*':
+		tok = token.Token{Type: token.T_MULTIPLY, Literal: string(l.char), Pos: pos}
+		l.readChar()
+		return tok
 	case '/':
 		if l.peekChar() == '/' {
 			l.readChar() // consume second /
@@ -134,6 +151,10 @@ func (l *Lexer) NextToken() token.Token {
 				return token.Token{Type: token.T_DOC_COMMENT, Literal: comment, Pos: pos}
 			}
 			return token.Token{Type: token.T_COMMENT, Literal: comment, Pos: pos}
+		} else {
+			tok = token.Token{Type: token.T_DIVIDE, Literal: string(l.char), Pos: pos}
+			l.readChar()
+			return tok
 		}
 	case '<':
 		if l.peekChar() == '?' {
@@ -216,12 +237,6 @@ func (l *Lexer) NextToken() token.Token {
 		str := l.readString('\'')
 		l.readChar() // consume closing quote
 		return token.Token{Type: token.T_CONSTANT_STRING, Literal: str, Pos: pos}
-	case '-':
-		if l.peekChar() == '>' {
-			l.readChar() // consume -
-			l.readChar() // consume >
-			return token.Token{Type: token.T_OBJECT_OPERATOR, Literal: "->", Pos: pos}
-		}
 	case ':':
 		tok = token.Token{Type: token.T_COLON, Literal: string(l.char), Pos: pos}
 		l.readChar()

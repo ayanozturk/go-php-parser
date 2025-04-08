@@ -7,7 +7,8 @@ function sayHello($name) {
 }
 
 function add($a, $b) {
-    return $a + $b;
+    $sum = $a + $b;
+    return $sum;
 }
 
 function greet($greeting = "Hello", $name = "World") {
@@ -26,15 +27,15 @@ function getUserInfo(): array {
     ];
 }
 
-function variadicExample(...$args) {
-    foreach ($args as $arg) {
-        echo $arg . "\n";
-    }
-}
+// function variadicExample(...$args) {
+    // foreach ($args as $arg) {
+        // echo $arg . "\n";
+    // }
+// }
 
 sayHello("Alice");
 add(5, 10);
 greet();
 calculateArea(5.5, 3.2);
 getUserInfo();
-variadicExample(1, 2, 3, 4, 5);
+// variadicExample(1, 2, 3, 4, 5);
