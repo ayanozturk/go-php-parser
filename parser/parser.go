@@ -6,6 +6,7 @@ import (
 	"go-phpcs/lexer"
 	"go-phpcs/token"
 	"strconv"
+	"strings"
 )
 
 type Parser struct {
@@ -347,10 +348,28 @@ func (p *Parser) parseArrayElement() ast.Node {
 	}
 
 	// Parse key if present
-	if p.tok.Type == token.T_STRING || p.tok.Type == token.T_CONSTANT_ENCAPSED_STRING || p.tok.Type == token.T_LNUMBER {
+	if p.tok.Type == token.T_STRING {
+		// Check if the key is an FQDN
+		if p.peekToken().Type == token.T_BACKSLASH || p.peekToken().Type == token.T_DOUBLE_COLON {
+			key = p.parseFullyQualifiedName()
+		} else {
+			key = p.parseSimpleExpression()
+		}
+	}
+
+	if p.tok.Type == token.T_CONSTANT_ENCAPSED_STRING || p.tok.Type == token.T_LNUMBER {
 		key = p.parseSimpleExpression()
 		if key == nil {
 			return nil
+		}
+
+		// Check if the key is a valid FQDN
+		if p.tok.Type == token.T_BACKSLASH || strings.Contains(p.tok.Literal, "\\") {
+			key = &ast.IdentifierNode{
+				Value: p.tok.Literal,
+				Pos:   ast.Position(p.tok.Pos),
+			}
+			p.nextToken()
 		}
 
 		if p.tok.Type == token.T_DOUBLE_ARROW {
@@ -1009,4 +1028,34 @@ func (p *Parser) parseEnumCase() (*ast.EnumCaseNode, error) {
 		Value: value,
 		Pos:   ast.Position(pos),
 	}, nil
+}
+
+func (p *Parser) parseFullyQualifiedName() *ast.IdentifierNode {
+	pos := p.tok.Pos
+	var fqdn strings.Builder
+
+	// Combine T_STRING and T_BACKSLASH tokens
+	for p.tok.Type == token.T_STRING || p.tok.Type == token.T_BACKSLASH {
+		fqdn.WriteString(p.tok.Literal)
+		p.nextToken()
+	}
+
+	// Check for ::class
+	if p.tok.Type == token.T_DOUBLE_COLON {
+		fqdn.WriteString("::")
+		p.nextToken() // consume ::
+
+		if p.tok.Type == token.T_STRING && p.tok.Literal == "class" {
+			fqdn.WriteString("class")
+			p.nextToken() // consume class
+		} else {
+			p.addError("line %d:%d: expected 'class' after '::', got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal)
+			return nil
+		}
+	}
+
+	return &ast.IdentifierNode{
+		Value: fqdn.String(),
+		Pos:   ast.Position(pos),
+	}
 }

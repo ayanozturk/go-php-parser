@@ -63,6 +63,7 @@ const (
 	T_ASSIGN                   TokenType = "T_ASSIGN"
 	T_COLON                    TokenType = "T_COLON"
 	T_DOUBLE_ARROW             TokenType = "T_DOUBLE_ARROW"
+	T_BACKSLASH                TokenType = "T_BACKSLASH"
 	T_DOT                      TokenType = "T_DOT"
 	T_ELLIPSIS                 TokenType = "T_ELLIPSIS"
 	T_AMPERSAND                TokenType = "T_AMPERSAND"

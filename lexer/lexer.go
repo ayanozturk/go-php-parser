@@ -237,7 +237,15 @@ func (l *Lexer) NextToken() token.Token {
 		str := l.readString('\'')
 		l.readChar() // consume closing quote
 		return token.Token{Type: token.T_CONSTANT_STRING, Literal: str, Pos: pos}
+	case '\\':
+		tok := token.Token{Type: token.T_BACKSLASH, Literal: string(l.char), Pos: pos}
+		l.readChar()
+		return tok
 	case ':':
+		if l.peekChar() == ':' {
+			l.readChar() // consume second :
+			return token.Token{Type: token.T_DOUBLE_COLON, Literal: "::", Pos: pos}
+		}
 		tok = token.Token{Type: token.T_COLON, Literal: string(l.char), Pos: pos}
 		l.readChar()
 		return tok
