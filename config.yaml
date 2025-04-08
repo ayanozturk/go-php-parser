@@ -1,0 +1,6 @@
+path: ./demo_project
+extensions:
+  - php
+ignore:
+  # - vendor
+  - node_modules
