@@ -348,7 +348,7 @@ func (p *Parser) parseArrayElement() ast.Node {
 	}
 
 	// Parse key if present
-	if p.tok.Type == token.T_STRING {
+	if p.tok.Type == token.T_STRING || p.tok.Type == token.T_CONSTANT_STRING {
 		// Check if the key is an FQDN
 		if p.peekToken().Type == token.T_BACKSLASH || p.peekToken().Type == token.T_DOUBLE_COLON {
 			key = p.parseFullyQualifiedName()
@@ -357,28 +357,12 @@ func (p *Parser) parseArrayElement() ast.Node {
 		}
 	}
 
-	if p.tok.Type == token.T_CONSTANT_ENCAPSED_STRING || p.tok.Type == token.T_LNUMBER {
-		key = p.parseSimpleExpression()
-		if key == nil {
-			return nil
-		}
-
-		// Check if the key is a valid FQDN
-		if p.tok.Type == token.T_BACKSLASH || strings.Contains(p.tok.Literal, "\\") {
-			key = &ast.IdentifierNode{
-				Value: p.tok.Literal,
-				Pos:   ast.Position(p.tok.Pos),
-			}
-			p.nextToken()
-		}
-
-		if p.tok.Type == token.T_DOUBLE_ARROW {
-			p.nextToken() // consume =>
-		} else {
-			// If no =>, treat the expression as a value
-			value = key
-			key = nil
-		}
+	if p.tok.Type == token.T_DOUBLE_ARROW {
+		p.nextToken() // consume =>
+	} else {
+		// If no =>, treat the expression as a value
+		value = key
+		key = nil
 	}
 
 	// Parse value if not already set
@@ -1041,17 +1025,9 @@ func (p *Parser) parseFullyQualifiedName() *ast.IdentifierNode {
 	}
 
 	// Check for ::class
-	if p.tok.Type == token.T_DOUBLE_COLON {
-		fqdn.WriteString("::")
-		p.nextToken() // consume ::
-
-		if p.tok.Type == token.T_STRING && p.tok.Literal == "class" {
-			fqdn.WriteString("class")
-			p.nextToken() // consume class
-		} else {
-			p.addError("line %d:%d: expected 'class' after '::', got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal)
-			return nil
-		}
+	if p.tok.Type == token.T_CLASS_CONST {
+		fqdn.WriteString("::class")
+		p.nextToken() // consume T_CLASS_CONST
 	}
 
 	return &ast.IdentifierNode{

@@ -70,6 +70,7 @@ const (
 	T_OBJECT_OPERATOR          TokenType = "T_OBJECT_OPERATOR"
 	T_NULLSAFE_OBJECT_OPERATOR TokenType = "T_NULLSAFE_OBJECT_OPERATOR"
 	T_DOUBLE_COLON             TokenType = "T_DOUBLE_COLON"
+	T_CLASS_CONST              TokenType = "T_CLASS_CONST" // Represents "::class"
 
 	// Keywords
 	T_ABSTRACT     TokenType = "T_ABSTRACT"

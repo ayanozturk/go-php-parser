@@ -243,12 +243,25 @@ func (l *Lexer) NextToken() token.Token {
 		return tok
 	case ':':
 		if l.peekChar() == ':' {
-			l.readChar() // consume second :
+			l.readChar() // consume first :
+
+			// Check if "class" follows "::"
+			if l.peekChar() == 'c' && strings.HasPrefix(l.input[l.readPos:], "class") {
+				l.readChar() // consume second ':'
+				l.readChar() // consume 'c'
+				l.readChar() // consume 'l'
+				l.readChar() // consume 'a'
+				l.readChar() // consume 's'
+				l.readChar() // consume 's'
+				return token.Token{Type: token.T_CLASS_CONST, Literal: "::class", Pos: pos}
+			}
+
 			return token.Token{Type: token.T_DOUBLE_COLON, Literal: "::", Pos: pos}
+		} else {
+			tok = token.Token{Type: token.T_COLON, Literal: string(l.char), Pos: pos}
+			l.readChar()
+			return tok
 		}
-		tok = token.Token{Type: token.T_COLON, Literal: string(l.char), Pos: pos}
-		l.readChar()
-		return tok
 	case '[':
 		tok = token.Token{Type: token.T_LBRACKET, Literal: string(l.char), Pos: pos}
 		l.readChar()
