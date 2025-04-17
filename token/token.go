@@ -51,6 +51,7 @@ const (
 	T_COALESCE         TokenType = "T_COALESCE"
 	T_COALESCE_EQUAL   TokenType = "T_COALESCE_EQUAL"
 	T_QUESTION         TokenType = "T_QUESTION" // ? for nullable types
+	T_PIPE            TokenType = "T_PIPE" // | for union types
 
 	// Delimiters
 	T_LPAREN                   TokenType = "T_LPAREN"
@@ -152,6 +153,7 @@ const (
 	T_TRUE  TokenType = "T_TRUE"
 	T_FALSE TokenType = "T_FALSE"
 	T_NULL  TokenType = "T_NULL"
+	T_MIXED TokenType = "T_MIXED"
 
 	// Type casting
 	T_ARRAY_CAST  TokenType = "T_ARRAY_CAST"

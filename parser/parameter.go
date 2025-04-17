@@ -19,13 +19,14 @@ func (p *Parser) parseParameter() ast.Node {
 		p.nextToken() // consume visibility
 	}
 
-	// Parse type hint if present (support nullable type: ?Bar)
+	// Parse type hint if present (support nullable type: ?Bar and union types: Foo|Bar)
 	var typeHint string
 	if p.tok.Type == token.T_QUESTION {
 		typeHint = "?"
 		p.nextToken() // consume ?
 	}
-	if p.tok.Type == token.T_STRING || p.tok.Type == token.T_ARRAY {
+	// Parse first type segment (string, array, null, mixed, callable)
+	if p.tok.Type == token.T_STRING || p.tok.Type == token.T_ARRAY || p.tok.Type == token.T_NULL || p.tok.Type == token.T_MIXED || p.tok.Type == token.T_CALLABLE {
 		typeHint += p.tok.Literal
 		p.nextToken()
 
@@ -38,6 +39,27 @@ func (p *Parser) parseParameter() ast.Node {
 				return nil
 			}
 			p.nextToken() // consume ]
+		}
+		// Parse additional type segments separated by |
+		for p.tok.Type == token.T_PIPE {
+			typeHint += "|"
+			p.nextToken() // consume |
+			if p.tok.Type == token.T_STRING || p.tok.Type == token.T_ARRAY || p.tok.Type == token.T_NULL || p.tok.Type == token.T_MIXED || p.tok.Type == token.T_CALLABLE {
+				typeHint += p.tok.Literal
+				p.nextToken()
+				if p.tok.Type == token.T_LBRACKET {
+					typeHint += "[]"
+					p.nextToken() // consume [
+					if p.tok.Type != token.T_RBRACKET {
+						p.errors = append(p.errors, fmt.Sprintf("line %d:%d: expected ']' after array type %s[], got %s", p.tok.Pos.Line, p.tok.Pos.Column, typeHint, p.tok.Literal))
+						return nil
+					}
+					p.nextToken() // consume ]
+				}
+			} else {
+				p.errors = append(p.errors, fmt.Sprintf("line %d:%d: expected type after | in union type, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal))
+				return nil
+			}
 		}
 	}
 
