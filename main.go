@@ -9,6 +9,9 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"runtime"
+	"sync"
+	"time"
 
 	"gopkg.in/yaml.v2"
 )
@@ -38,6 +41,7 @@ func main() {
 	// }
 
 	debug := flag.Bool("debug", false, "Enable debug mode to show parsing errors")
+	parallelism := flag.Int("p", runtime.NumCPU(), "Number of files to process in parallel")
 	flag.Parse()
 
 	if len(flag.Args()) < 2 && len(filesToScan) == 0 {
@@ -51,42 +55,110 @@ func main() {
 		commandName = flag.Args()[0]
 	}
 
-	filePath := ""
+	start := time.Now()
+	totalLines := 0
+
 	if len(flag.Args()) > 1 {
-		filePath = flag.Args()[1]
+		filePath := flag.Args()[1]
+		fmt.Println(filePath)
+		if filePath == "" {
+			fmt.Println("No file specified for parsing.")
+			command.PrintUsage()
+			os.Exit(1)
+		}
+		lines := processFile(filePath, commandName, *debug)
+		totalLines += lines
 	} else {
-		filePath = filesToScan[0]
-	}
-	fmt.Println(filePath)
-	if filePath == "" {
-		fmt.Println("No file specified for parsing.")
-		command.PrintUsage()
-		os.Exit(1)
+		if len(filesToScan) == 0 {
+			fmt.Println("No files to scan.")
+			os.Exit(1)
+		}
+
+		files := filesToScan
+		var wg sync.WaitGroup
+		fileCh := make(chan string)
+		linesCh := make(chan int)
+
+		// Collector goroutine
+		go func() {
+			for lines := range linesCh {
+				totalLines += lines
+			}
+		}()
+
+		// Start worker goroutines
+		workerCount := *parallelism
+		for i := 0; i < workerCount; i++ {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				for filePath := range fileCh {
+					fmt.Println(filePath)
+					lines := processFile(filePath, commandName, *debug)
+					linesCh <- lines
+				}
+			}()
+		}
+
+		// Send files to workers
+		for _, filePath := range files {
+			fileCh <- filePath
+		}
+		close(fileCh)
+		wg.Wait()
+		close(linesCh)
 	}
 
+	elapsed := time.Since(start).Seconds()
+	fmt.Printf("\nScan completed in %.2f seconds\n", elapsed)
+	if elapsed > 0 {
+		fmt.Printf("Total lines scanned: %d\n", totalLines)
+		fmt.Printf("Lines per second: %.2f\n", float64(totalLines)/elapsed)
+	} else {
+		fmt.Printf("Total lines scanned: %d\n", totalLines)
+		fmt.Printf("Lines per second: N/A (too fast to measure)\n")
+	}
+	// End stats print block
+}
+
+
+// --- Helper function to process a file ---
+func processFile(filePath, commandName string, debug bool) int {
 	// Read the PHP file
 	input, err := os.ReadFile(filePath)
 	if err != nil {
 		fmt.Printf("Error reading file: %s\n", err)
-		os.Exit(1)
+		return 0
+	}
+
+	// Count lines in the file
+	lineCount := 0
+	for _, b := range input {
+		if b == '\n' {
+			lineCount++
+		}
+	}
+	// If file is not empty and does not end with a newline, count the last line
+	if len(input) > 0 && input[len(input)-1] != '\n' {
+		lineCount++
 	}
 
 	// Create new lexer
 	l := lexer.New(string(input))
 
 	// Create new parser
-	p := parser.New(l, *debug)
+	p := parser.New(l, debug)
 
 	// Parse the input
 	nodes := p.Parse()
 
 	// Check for parsing errors
 	if len(p.Errors()) > 0 {
-		fmt.Println("Parsing errors:")
+		fmt.Printf("Parsing errors in %s:\n", filePath)
 		for _, err := range p.Errors() {
 			fmt.Printf("\t%s\n", err)
 		}
-		os.Exit(1)
+		return lineCount
 	}
 
 	// Handle commands
@@ -107,8 +179,8 @@ func main() {
 	} else {
 		fmt.Printf("Unknown command: %s\n", commandName)
 		command.PrintUsage()
-		os.Exit(1)
 	}
+	return lineCount
 }
 
 func loadConfig(filename string) (*Config, error) {

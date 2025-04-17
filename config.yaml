@@ -1,4 +1,4 @@
-path: ./examples
+path: ./demo_project
 extensions:
   - php
 ignore:
