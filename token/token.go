@@ -50,6 +50,7 @@ const (
 	T_SPACESHIP        TokenType = "T_SPACESHIP"
 	T_COALESCE         TokenType = "T_COALESCE"
 	T_COALESCE_EQUAL   TokenType = "T_COALESCE_EQUAL"
+	T_QUESTION         TokenType = "T_QUESTION" // ? for nullable types
 
 	// Delimiters
 	T_LPAREN                   TokenType = "T_LPAREN"

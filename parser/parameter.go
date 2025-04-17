@@ -10,10 +10,23 @@ import (
 func (p *Parser) parseParameter() ast.Node {
 	pos := p.tok.Pos
 
-	// Parse type hint if present
+	// PHP8 constructor property promotion: check for visibility modifier
+	var visibility string
+	var isPromoted bool
+	if p.tok.Type == token.T_PUBLIC || p.tok.Type == token.T_PROTECTED || p.tok.Type == token.T_PRIVATE {
+		visibility = p.tok.Literal
+		isPromoted = true
+		p.nextToken() // consume visibility
+	}
+
+	// Parse type hint if present (support nullable type: ?Bar)
 	var typeHint string
+	if p.tok.Type == token.T_QUESTION {
+		typeHint = "?"
+		p.nextToken() // consume ?
+	}
 	if p.tok.Type == token.T_STRING || p.tok.Type == token.T_ARRAY {
-		typeHint = p.tok.Literal
+		typeHint += p.tok.Literal
 		p.nextToken()
 
 		// Handle array type with []
@@ -47,6 +60,8 @@ func (p *Parser) parseParameter() ast.Node {
 		Name:         name,
 		TypeHint:     typeHint,
 		DefaultValue: defaultValue,
+		Visibility:   visibility,
+		IsPromoted:   isPromoted,
 		Pos:          ast.Position(pos),
 	}
 }

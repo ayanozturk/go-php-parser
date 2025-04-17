@@ -156,6 +156,10 @@ func (l *Lexer) NextToken() token.Token {
 			l.readChar()
 			return tok
 		}
+	case '?':
+		tok = token.Token{Type: token.T_QUESTION, Literal: string(l.char), Pos: pos}
+		l.readChar()
+		return tok
 	case '<':
 		if l.peekChar() == '?' {
 			l.readChar() // consume ?

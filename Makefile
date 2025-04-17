@@ -1,5 +1,5 @@
 test:
 	go test ./...
 
-test-coverage:
+coverage:
 	go test ./... -cover

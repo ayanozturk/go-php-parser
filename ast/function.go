@@ -38,6 +38,8 @@ type ParameterNode struct {
 	Name         string
 	TypeHint     string // Type hint for the parameter (e.g., string, int, array)
 	DefaultValue Node   // Optional default value
+	Visibility   string // public, protected, private (for promoted constructor params)
+	IsPromoted   bool   // true if this param is promoted to a property
 	Pos          Position
 }
 
@@ -46,12 +48,18 @@ func (p *ParameterNode) GetPos() Position    { return p.Pos }
 func (p *ParameterNode) SetPos(pos Position) { p.Pos = pos }
 func (p *ParameterNode) String() string {
 	var parts []string
+	if p.Visibility != "" {
+		parts = append(parts, p.Visibility)
+	}
 	if p.TypeHint != "" {
 		parts = append(parts, p.TypeHint)
 	}
 	parts = append(parts, p.Name)
 	if p.DefaultValue != nil {
 		parts = append(parts, "=", p.DefaultValue.String())
+	}
+	if p.IsPromoted {
+		parts = append(parts, "[promoted]")
 	}
 	return fmt.Sprintf("%s @ %d:%d", strings.Join(parts, " "), p.Pos.Line, p.Pos.Column)
 }
