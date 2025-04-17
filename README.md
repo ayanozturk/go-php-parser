@@ -48,24 +48,44 @@ go run main.go examples/test.php
 
 This will parse the PHP file and output the AST in a tree-like structure.
 
-### Example Output
+### Directory Scanning & Parallelism
+
+You can scan all PHP files in a directory as defined in `config.yaml`:
+
+```bash
+go run main.go
+```
+
+To control parallelism (number of concurrent workers), use the `-p` flag. By default, the number of workers is set to the number of CPU cores on your machine:
+
+```bash
+go run main.go -p 4   # Use 4 workers in parallel
+```
+
+### Performance Output
+
+After scanning, the tool will print performance statistics:
 
 ```
-Abstract Syntax Tree:
-Comment(// This is a comment) @ 2:2
-Function(MyFunction) @ 3:2
-  Parameters:
-    Parameter($name) @ 3:22
-  Body:
-    Assignment(Variable($var) @ 4:6 = InterpolatedString @ 4:13) @ 4:6
-      Left:
-        Variable($var) @ 4:6
-      Right:
-        InterpolatedString @ 4:13
-          Parts:
-            String("Hello") @ 4:13
-    ...
+Scan completed in 0.92 seconds
+Total lines scanned: 1653877
+Lines per second: 1790022.29
 ```
+
+### Configuration
+
+File scanning is controlled by `config.yaml`:
+
+```yaml
+path: ./demo_project
+extensions:
+  - php
+ignore:
+  # - vendor
+```
+- `path`: Directory to scan
+- `extensions`: File extensions to include
+- `ignore`: Directories to skip (uncomment to enable)
 
 ### Programmatic Usage
 
