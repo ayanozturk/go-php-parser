@@ -50,7 +50,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	commandName := "ast"
+	commandName := "style"
 	if len(flag.Args()) > 0 {
 		commandName = flag.Args()[0]
 	}
@@ -60,7 +60,6 @@ func main() {
 
 	if len(flag.Args()) > 1 {
 		filePath := flag.Args()[1]
-		fmt.Println(filePath)
 		if filePath == "" {
 			fmt.Println("No file specified for parsing.")
 			command.PrintUsage()
@@ -93,7 +92,6 @@ func main() {
 			go func() {
 				defer wg.Done()
 				for filePath := range fileCh {
-					fmt.Println(filePath)
 					lines := processFile(filePath, commandName, *debug)
 					linesCh <- lines
 				}
@@ -120,7 +118,6 @@ func main() {
 	}
 	// End stats print block
 }
-
 
 // --- Helper function to process a file ---
 func processFile(filePath, commandName string, debug bool) int {

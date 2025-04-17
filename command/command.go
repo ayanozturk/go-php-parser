@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"go-phpcs/ast"
 	"go-phpcs/printer"
+	"go-phpcs/style"
 )
 
 // Command represents a command that can be executed
@@ -27,6 +28,13 @@ var Commands = map[string]Command{
 		Description: "Print the tokens from the lexer",
 		Execute: func(nodes []ast.Node) {
 			// This is a placeholder - the actual implementation is in main.go
+		},
+	},
+	"style": {
+		Name:        "style",
+		Description: "Check code style (e.g., function naming)",
+		Execute: func(nodes []ast.Node) {
+			style.Check(nodes)
 		},
 	},
 }
