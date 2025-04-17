@@ -36,6 +36,13 @@ func (p *Parser) addError(format string, args ...interface{}) {
 	}
 }
 
+func (p *Parser) debugPrint(format string, args ...interface{}) {
+	if p.debug {
+		fmt.Printf(format+"\n", args...)
+	}
+}
+
+// Add debug printing to Parse method
 func (p *Parser) Parse() []ast.Node {
 	// Add panic recovery
 	defer func() {
@@ -62,6 +69,7 @@ func (p *Parser) Parse() []ast.Node {
 		}
 		if node != nil {
 			nodes = append(nodes, node)
+			p.debugPrint("Parsed node: %s", node.String())
 		}
 	}
 
@@ -348,13 +356,11 @@ func (p *Parser) parseArrayElement() ast.Node {
 	}
 
 	// Parse key if present
-	if p.tok.Type == token.T_STRING || p.tok.Type == token.T_CONSTANT_STRING {
-		// Check if the key is an FQDN
-		if p.peekToken().Type == token.T_BACKSLASH || p.peekToken().Type == token.T_DOUBLE_COLON {
-			key = p.parseFullyQualifiedName()
-		} else {
-			key = p.parseSimpleExpression()
-		}
+	if p.tok.Type == token.T_STRING || p.tok.Type == token.T_BACKSLASH {
+		// Check for FQDN or class constant as key
+		key = p.parseFullyQualifiedName()
+	} else if p.tok.Type == token.T_CONSTANT_STRING {
+		key = p.parseSimpleExpression()
 	}
 
 	if p.tok.Type == token.T_DOUBLE_ARROW {
