@@ -63,6 +63,13 @@ func (p *Parser) parseParameter() ast.Node {
 		}
 	}
 
+	// Parse variadic parameter (...$var)
+	isVariadic := false
+	if p.tok.Type == token.T_ELLIPSIS {
+		isVariadic = true
+		p.nextToken() // consume ...
+	}
+
 	// Parse variable name (allow $var, or edge-case: 'mixed' or 'string' as parameter names)
 	var name string
 	if p.tok.Type == token.T_VARIABLE {
@@ -90,6 +97,7 @@ func (p *Parser) parseParameter() ast.Node {
 		DefaultValue: defaultValue,
 		Visibility:   visibility,
 		IsPromoted:   isPromoted,
+		IsVariadic:   isVariadic,
 		Pos:          ast.Position(pos),
 	}
 }

@@ -330,7 +330,8 @@ func (p *Parser) isBinaryOperator(tokenType token.TokenType) bool {
 	switch tokenType {
 	case token.T_PLUS, token.T_MINUS, token.T_MULTIPLY, token.T_DIVIDE, token.T_MODULO,
 		token.T_IS_EQUAL, token.T_IS_NOT_EQUAL, token.T_IS_SMALLER, token.T_IS_GREATER,
-		token.T_DOT: // Support string concatenation
+		token.T_DOT, // Support string concatenation
+		token.T_COALESCE: // Support null coalescing operator ??
 		return true
 	default:
 		return false
@@ -838,12 +839,60 @@ func (p *Parser) parseSimpleExpression() ast.Node {
 			Pos:       ast.Position(pos),
 		}
 	case token.T_STRING:
-		node := &ast.IdentifierNode{
-			Value: p.tok.Literal,
-			Pos:   ast.Position(p.tok.Pos),
-		}
+		ident := p.tok.Literal
+		pos := p.tok.Pos
 		p.nextToken()
-		return node
+		// Check for function call: identifier followed by '('
+		if p.tok.Type == token.T_LPAREN {
+			p.nextToken() // consume '('
+			var args []ast.Node
+			for p.tok.Type != token.T_RPAREN && p.tok.Type != token.T_EOF {
+				isUnpacked := false
+				if p.tok.Type == token.T_ELLIPSIS {
+					isUnpacked = true
+					p.nextToken() // consume ...
+				}
+				// Parse a full expression as argument
+				arg := p.parseExpression()
+				if arg != nil {
+					if isUnpacked {
+						arg = &ast.UnpackedArgumentNode{
+							Expr: arg,
+							Pos:  arg.GetPos(),
+						}
+					}
+					args = append(args, arg)
+				}
+				// Only break if next token is ')' (end of arguments)
+				if p.tok.Type == token.T_COMMA {
+					p.nextToken()
+					continue
+				} else if p.tok.Type == token.T_RPAREN {
+					break
+				} else if p.tok.Type == token.T_EOF {
+					break
+				} else {
+					// If not a comma or parenthesis, it's likely a parse error, but allow parseExpression to consume as much as possible
+					// and rely on error handling
+					continue
+				}
+			}
+			if p.tok.Type != token.T_RPAREN {
+				p.addError("line %d:%d: expected ) after arguments for function call %s, got %s", p.tok.Pos.Line, p.tok.Pos.Column, ident, p.tok.Literal)
+				return nil
+			}
+			p.nextToken() // consume )
+			return &ast.FunctionCallNode{
+				Name: ident,
+				Args: args,
+				Pos:  ast.Position(pos),
+			}
+		}
+		// Not a function call, just an identifier
+		return &ast.IdentifierNode{
+			Value: ident,
+			Pos:   ast.Position(pos),
+		}
 	case token.T_CONSTANT_ENCAPSED_STRING:
 		// Handle string interpolation
 		pos := p.tok.Pos
@@ -931,6 +980,8 @@ func (p *Parser) parseSimpleExpression() ast.Node {
 		return nil
 	}
 }
+
+// UnpackedArgumentNode and FunctionCallNode should be defined in ast package if not already present.
 
 // parseEnum parses an enum declaration
 func (p *Parser) parseEnum() (*ast.EnumNode, error) {

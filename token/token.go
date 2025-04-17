@@ -67,7 +67,7 @@ const (
 	T_DOUBLE_ARROW             TokenType = "T_DOUBLE_ARROW"
 	T_BACKSLASH                TokenType = "T_BACKSLASH"
 	T_DOT                      TokenType = "T_DOT"
-	T_ELLIPSIS                 TokenType = "T_ELLIPSIS"
+	T_ELLIPSIS                 TokenType = "T_ELLIPSIS" // ... for variadic parameters
 	T_AMPERSAND                TokenType = "T_AMPERSAND"
 	T_OBJECT_OPERATOR          TokenType = "T_OBJECT_OPERATOR"
 	T_NULLSAFE_OBJECT_OPERATOR TokenType = "T_NULLSAFE_OBJECT_OPERATOR"

@@ -33,6 +33,37 @@ func (f *FunctionNode) TokenLiteral() string {
 	return "function"
 }
 
+// FunctionCallNode represents a function call expression
+// (e.g., sprintf($format ?? '', ...$values))
+type FunctionCallNode struct {
+	Name string    // Function name (identifier)
+	Args []Node    // Arguments (may include UnpackedArgumentNode)
+	Pos  Position
+}
+
+func (f *FunctionCallNode) NodeType() string    { return "FunctionCall" }
+func (f *FunctionCallNode) GetPos() Position    { return f.Pos }
+func (f *FunctionCallNode) SetPos(pos Position) { f.Pos = pos }
+func (f *FunctionCallNode) String() string {
+	var argStrs []string
+	for _, arg := range f.Args {
+		argStrs = append(argStrs, arg.String())
+	}
+	return fmt.Sprintf("FunctionCall(%s, [%s]) @ %d:%d", f.Name, strings.Join(argStrs, ", "), f.Pos.Line, f.Pos.Column)
+}
+func (f *FunctionCallNode) TokenLiteral() string { return f.Name }
+
+// UnpackedArgumentNode represents ...$values in function call arguments
+type UnpackedArgumentNode struct {
+	Expr Node
+	Pos  Position
+}
+func (u *UnpackedArgumentNode) NodeType() string    { return "UnpackedArgument" }
+func (u *UnpackedArgumentNode) GetPos() Position    { return u.Pos }
+func (u *UnpackedArgumentNode) SetPos(pos Position) { u.Pos = pos }
+func (u *UnpackedArgumentNode) String() string      { return fmt.Sprintf("...%s", u.Expr.String()) }
+func (u *UnpackedArgumentNode) TokenLiteral() string { return "..." }
+
 // ParameterNode represents a function parameter
 type ParameterNode struct {
 	Name         string
@@ -40,6 +71,7 @@ type ParameterNode struct {
 	DefaultValue Node   // Optional default value
 	Visibility   string // public, protected, private (for promoted constructor params)
 	IsPromoted   bool   // true if this param is promoted to a property
+	IsVariadic   bool   // true if this param is variadic (...$values)
 	Pos          Position
 }
 
