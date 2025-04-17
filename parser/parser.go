@@ -329,7 +329,8 @@ func (p *Parser) parseExpression() ast.Node {
 func (p *Parser) isBinaryOperator(tokenType token.TokenType) bool {
 	switch tokenType {
 	case token.T_PLUS, token.T_MINUS, token.T_MULTIPLY, token.T_DIVIDE, token.T_MODULO,
-		token.T_IS_EQUAL, token.T_IS_NOT_EQUAL, token.T_IS_SMALLER, token.T_IS_GREATER:
+		token.T_IS_EQUAL, token.T_IS_NOT_EQUAL, token.T_IS_SMALLER, token.T_IS_GREATER,
+		token.T_DOT: // Support string concatenation
 		return true
 	default:
 		return false

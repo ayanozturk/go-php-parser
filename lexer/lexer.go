@@ -235,6 +235,10 @@ func (l *Lexer) NextToken() token.Token {
 			l.readChar()
 			return tok
 		}
+		// Emit dot operator for string concatenation
+		tok = token.Token{Type: token.T_DOT, Literal: string(l.char), Pos: pos}
+		l.readChar()
+		return tok
 	case '"':
 		l.readChar() // consume opening quote
 		str := l.readString('"')
@@ -297,6 +301,10 @@ func (l *Lexer) NextToken() token.Token {
 			return token.Token{Type: token.T_ENDIF, Literal: ident, Pos: pos}
 		case "array":
 			return token.Token{Type: token.T_ARRAY, Literal: ident, Pos: pos}
+		case "mixed":
+			return token.Token{Type: token.T_MIXED, Literal: ident, Pos: pos}
+		case "string":
+			return token.Token{Type: token.T_STRING, Literal: ident, Pos: pos}
 		case "callable":
 			return token.Token{Type: token.T_CALLABLE, Literal: ident, Pos: pos}
 		case "true":

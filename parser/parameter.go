@@ -63,13 +63,19 @@ func (p *Parser) parseParameter() ast.Node {
 		}
 	}
 
-	// Parse variable name
-	if p.tok.Type != token.T_VARIABLE {
+	// Parse variable name (allow $var, or edge-case: 'mixed' or 'string' as parameter names)
+	var name string
+	if p.tok.Type == token.T_VARIABLE {
+		name = p.tok.Literal[1:] // Remove $ prefix
+		p.nextToken()
+	} else if p.tok.Type == token.T_MIXED || p.tok.Type == token.T_STRING {
+		// Accept 'mixed' or 'string' as parameter names (no $ prefix)
+		name = p.tok.Literal
+		p.nextToken()
+	} else {
 		p.errors = append(p.errors, fmt.Sprintf("line %d:%d: expected variable name in parameter, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal))
 		return nil
 	}
-	name := p.tok.Literal[1:] // Remove $ prefix
-	p.nextToken()
 
 	// Handle default value if present
 	var defaultValue ast.Node
