@@ -1,9 +1,10 @@
-package parser
+package tests
 
 import (
+	"testing"
 	"go-phpcs/ast"
 	"go-phpcs/lexer"
-	"testing"
+	"go-phpcs/parser"
 )
 
 func TestArrayVariables(t *testing.T) {
@@ -12,7 +13,7 @@ func TestArrayVariables(t *testing.T) {
 	`
 
 	l := lexer.New(input)
-	p := New(l, true)
+	p := parser.New(l, true)
 	nodes := p.Parse()
 
 	if len(p.Errors()) > 0 {

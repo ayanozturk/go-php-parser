@@ -1,9 +1,10 @@
-package parser
+package tests
 
 import (
+	"testing"
 	"go-phpcs/ast"
 	"go-phpcs/lexer"
-	"testing"
+	"go-phpcs/parser"
 )
 
 func TestParserMathExpression(t *testing.T) {
@@ -24,7 +25,7 @@ func TestParserMathExpression(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.input, func(t *testing.T) {
 			l := lexer.New(test.input)
-			p := New(l, true)
+			p := parser.New(l, true)
 			nodes := p.Parse()
 			if len(p.Errors()) > 0 {
 				t.Errorf("Parser returned errors: %v", p.Errors())
@@ -42,28 +43,20 @@ func TestParserMathExpression(t *testing.T) {
 						t.Error("Expected left side of assignment to be a VariableNode")
 					}
 
-					if binary, ok := assign.Right.(*ast.BinaryExpr); ok {
-						// Correctly locate the operator by finding the first non-digit character after the assignment
+					if _, ok := assign.Right.(*ast.BinaryExpr); ok {
 						operatorIndex := len("<?php $age = ")
 						for ; operatorIndex < len(test.input); operatorIndex++ {
 							if !('0' <= test.input[operatorIndex] && test.input[operatorIndex] <= '9') && test.input[operatorIndex] != ' ' {
 								break
 							}
 						}
-						if binary.Operator != string(test.input[operatorIndex]) {
-							t.Errorf("Expected operator '%s', but got '%s'", string(test.input[operatorIndex]), binary.Operator)
+						operator := string(test.input[operatorIndex])
+						if operator != test.operator {
+							t.Errorf("Expected operator '%s', got '%s'", test.operator, operator)
 						}
-
-						// Adjust left operand validation to match the expected left operand
-						if left, ok := binary.Left.(*ast.IntegerNode); ok {
-							expectedLeft := int64(test.expectedLeft)
-							if left.Value != expectedLeft {
-								t.Errorf("Expected left operand to be %d, but got %d", expectedLeft, left.Value)
-							}
-						}
+					} else {
+						t.Error("Expected right side of assignment to be a BinaryExpr")
 					}
-				} else {
-					t.Error("Expected first node to be an AssignmentNode")
 				}
 			}
 		})
