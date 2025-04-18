@@ -8,11 +8,28 @@ import (
 
 // parseParameter parses a function or method parameter
 func (p *Parser) parseParameter() ast.Node {
-	pos := p.tok.Pos
+	// Skip PHP attributes and comments before parameter
+	for p.tok.Type == token.T_ATTRIBUTE || p.tok.Type == token.T_WHITESPACE || p.tok.Type == token.T_COMMENT || p.tok.Type == token.T_DOC_COMMENT {
+		p.nextToken()
+	}
 
-	// PHP8 constructor property promotion: check for visibility modifier
+	// PHP8+ constructor property promotion: check for visibility and readonly modifier (in any order)
 	var visibility string
 	var isPromoted bool
+	for {
+		if p.tok.Type == token.T_PUBLIC || p.tok.Type == token.T_PROTECTED || p.tok.Type == token.T_PRIVATE {
+			visibility = p.tok.Literal
+			isPromoted = true
+			p.nextToken()
+		} else if p.tok.Literal == "readonly" { // fallback for readonly if token.T_READONLY is not defined
+			isPromoted = true
+			p.nextToken()
+		} else {
+			break
+		}
+	}
+	pos := p.tok.Pos
+
 	if p.tok.Type == token.T_PUBLIC || p.tok.Type == token.T_PROTECTED || p.tok.Type == token.T_PRIVATE {
 		visibility = p.tok.Literal
 		isPromoted = true
