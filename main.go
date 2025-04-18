@@ -23,6 +23,7 @@ type Config struct {
 }
 
 func main() {
+	totalParseErrors := 0
 	// Load the configuration
 	config, err := loadConfig("config.yaml")
 	if err != nil {
@@ -65,7 +66,8 @@ func main() {
 			command.PrintUsage()
 			os.Exit(1)
 		}
-		lines := processFile(filePath, commandName, *debug)
+		errCount, lines := processFileWithErrors(filePath, commandName, *debug)
+		totalParseErrors += errCount
 		totalLines += lines
 	} else {
 		if len(filesToScan) == 0 {
@@ -79,9 +81,15 @@ func main() {
 		linesCh := make(chan int)
 
 		// Collector goroutine
+		errCh := make(chan int)
 		go func() {
 			for lines := range linesCh {
 				totalLines += lines
+			}
+		}()
+		go func() {
+			for errs := range errCh {
+				totalParseErrors += errs
 			}
 		}()
 
@@ -92,7 +100,8 @@ func main() {
 			go func() {
 				defer wg.Done()
 				for filePath := range fileCh {
-					lines := processFile(filePath, commandName, *debug)
+					errCount, lines := processFileWithErrors(filePath, commandName, *debug)
+					errCh <- errCount
 					linesCh <- lines
 				}
 			}()
@@ -105,6 +114,7 @@ func main() {
 		close(fileCh)
 		wg.Wait()
 		close(linesCh)
+		close(errCh)
 	}
 
 	elapsed := time.Since(start).Seconds()
@@ -117,6 +127,54 @@ func main() {
 		fmt.Printf("Lines per second: N/A (too fast to measure)\n")
 	}
 	// End stats print block
+	fmt.Printf("Total parsing errors: %d\n", totalParseErrors)
+}
+
+// processFileWithErrors returns (errorCount, lineCount)
+func processFileWithErrors(filePath, commandName string, debug bool) (int, int) {
+	input, err := os.ReadFile(filePath)
+	if err != nil {
+		fmt.Printf("Error reading file: %s\n", err)
+		return 0, 0
+	}
+	lineCount := 0
+	for _, b := range input {
+		if b == '\n' {
+			lineCount++
+		}
+	}
+	if len(input) > 0 && input[len(input)-1] != '\n' {
+		lineCount++
+	}
+	l := lexer.New(string(input))
+	p := parser.New(l, debug)
+	nodes := p.Parse()
+	errCount := len(p.Errors())
+	if errCount > 0 {
+		fmt.Printf("Parsing errors in %s (%d error(s)):\n", filePath, errCount)
+		for _, err := range p.Errors() {
+			fmt.Printf("\t%s\n", err)
+		}
+		return errCount, lineCount
+	}
+	if cmd, exists := command.Commands[commandName]; exists {
+		if commandName == "tokens" {
+			l := lexer.New(string(input))
+			for {
+				tok := l.NextToken()
+				if tok.Type == "T_EOF" {
+					break
+				}
+				fmt.Printf("%s: %s @ %d:%d\n", tok.Type, tok.Literal, tok.Pos.Line, tok.Pos.Column)
+			}
+		} else {
+			cmd.Execute(nodes)
+		}
+	} else {
+		fmt.Printf("Unknown command: %s\n", commandName)
+		command.PrintUsage()
+	}
+	return 0, lineCount
 }
 
 // --- Helper function to process a file ---
@@ -151,7 +209,8 @@ func processFile(filePath, commandName string, debug bool) int {
 
 	// Check for parsing errors
 	if len(p.Errors()) > 0 {
-		fmt.Printf("Parsing errors in %s:\n", filePath)
+		errCount := len(p.Errors())
+		fmt.Printf("Parsing errors in %s (%d error(s)):\n", filePath, errCount)
 		for _, err := range p.Errors() {
 			fmt.Printf("\t%s\n", err)
 		}
