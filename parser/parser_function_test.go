@@ -138,6 +138,49 @@ func TestParseFunctionWithVariadicParameter(t *testing.T) {
 	}
 }
 
+func TestParseFunctionWithByRefParameter(t *testing.T) {
+	input := `<?php
+	function dumpChildren(string $parent, Profile $profile, &$data) {}
+	`
+
+	l := lexer.New(input)
+	p := New(l, true)
+	nodes := p.Parse()
+
+	if len(p.Errors()) > 0 {
+		t.Errorf("Parser returned errors: %v", p.Errors())
+	}
+
+	if len(nodes) == 0 {
+		t.Error("Expected at least one node, but got none")
+	}
+
+	if len(nodes) > 0 {
+		if fn, ok := nodes[0].(*ast.FunctionNode); ok {
+			if fn.Name != "dumpChildren" {
+				t.Errorf("Expected function name 'dumpChildren', but got '%s'", fn.Name)
+			}
+
+			if len(fn.Params) != 3 {
+				t.Errorf("Expected 3 parameters, but got %d", len(fn.Params))
+			} else {
+				if p, ok := fn.Params[2].(*ast.ParameterNode); ok {
+					if p.Name != "data" {
+						t.Errorf("Expected parameter 3 to be 'data', but got '%s'", p.Name)
+					}
+					if !p.IsByRef {
+						t.Errorf("Expected parameter 3 to be by-reference (&$data)")
+					}
+				} else {
+					t.Errorf("Parameter 3 is not a ParameterNode")
+				}
+			}
+		} else {
+			t.Error("Expected first node to be a FunctionNode")
+		}
+	}
+}
+
 func TestParseFunctionWithDefaultParameters(t *testing.T) {
 	input := `<?php
 	function greet($greeting = "Hello", $name = "World") {

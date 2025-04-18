@@ -72,6 +72,7 @@ type ParameterNode struct {
 	Visibility   string // public, protected, private (for promoted constructor params)
 	IsPromoted   bool   // true if this param is promoted to a property
 	IsVariadic   bool   // true if this param is variadic (...$values)
+	IsByRef      bool   // true if this param is passed by reference (&$data)
 	Pos          Position
 }
 
@@ -85,6 +86,9 @@ func (p *ParameterNode) String() string {
 	}
 	if p.TypeHint != "" {
 		parts = append(parts, p.TypeHint)
+	}
+	if p.IsByRef {
+		parts = append(parts, "&")
 	}
 	parts = append(parts, p.Name)
 	if p.DefaultValue != nil {

@@ -63,6 +63,13 @@ func (p *Parser) parseParameter() ast.Node {
 		}
 	}
 
+	// Parse by-reference parameter (&$var)
+	isByRef := false
+	if p.tok.Type == token.T_AMPERSAND {
+		isByRef = true
+		p.nextToken() // consume &
+	}
+
 	// Parse variadic parameter (...$var)
 	isVariadic := false
 	if p.tok.Type == token.T_ELLIPSIS {
@@ -98,6 +105,7 @@ func (p *Parser) parseParameter() ast.Node {
 		Visibility:   visibility,
 		IsPromoted:   isPromoted,
 		IsVariadic:   isVariadic,
+		IsByRef:      isByRef,
 		Pos:          ast.Position(pos),
 	}
 }
