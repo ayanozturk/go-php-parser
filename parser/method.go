@@ -86,18 +86,41 @@ func (p *Parser) parseInterfaceMethod() ast.Node {
 
 	// Parse parameters
 	var params []ast.Node
-	for p.tok.Type != token.T_RPAREN {
+	for p.tok.Type != token.T_RPAREN && p.tok.Type != token.T_EOF {
+		// Allow for trailing comma before closing parenthesis
+		if p.tok.Type == token.T_COMMA {
+			p.nextToken()
+			if p.tok.Type == token.T_RPAREN {
+				break
+			}
+		}
+
 		param := p.parseParameter()
 		if param == nil {
+			// If the parameter is nil and we're at a closing parenthesis, break (tolerate trailing comma)
+			if p.tok.Type == token.T_RPAREN {
+				break
+			}
 			return nil
 		}
 		params = append(params, param)
 
 		if p.tok.Type == token.T_COMMA {
 			p.nextToken()
+			// Accept trailing comma
+			if p.tok.Type == token.T_RPAREN {
+				break
+			}
 		} else if p.tok.Type == token.T_RPAREN {
 			break
 		} else {
+			// Instead of erroring immediately, skip ignorable tokens and try to continue
+			// If the token is whitespace, comment, or doc comment, skip it
+			if p.tok.Type == token.T_WHITESPACE || p.tok.Type == token.T_COMMENT || p.tok.Type == token.T_DOC_COMMENT {
+				p.nextToken()
+				continue
+			}
+			// Otherwise, error and stop
 			p.errors = append(p.errors, fmt.Sprintf("line %d:%d: expected ',' or ')' in parameter list for method %s, got %s", p.tok.Pos.Line, p.tok.Pos.Column, name, p.tok.Literal))
 			return nil
 		}
