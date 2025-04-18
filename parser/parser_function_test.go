@@ -181,6 +181,45 @@ func TestParseFunctionWithByRefParameter(t *testing.T) {
 	}
 }
 
+func TestParseFunctionWithBackslashTypeHint(t *testing.T) {
+	input := `<?php
+function test(\Traversable $iterator) {}
+`
+
+	l := lexer.New(input)
+	p := New(l, true)
+	nodes := p.Parse()
+
+	if len(p.Errors()) > 0 {
+		t.Errorf("Parser returned errors: %v", p.Errors())
+	}
+
+	if len(nodes) == 0 {
+		t.Fatal("Expected at least one node, got none")
+	}
+
+	fn, ok := nodes[0].(*ast.FunctionNode)
+	if !ok {
+		t.Fatalf("Expected FunctionNode, got %T", nodes[0])
+	}
+
+	if fn.Name != "test" {
+		t.Errorf("Expected function name 'test', got '%s'", fn.Name)
+	}
+
+	if len(fn.Params) != 1 {
+		t.Fatalf("Expected 1 parameter, got %d", len(fn.Params))
+	}
+
+	p0 := fn.Params[0].(*ast.ParameterNode)
+	if p0.TypeHint != "\\Traversable" {
+		t.Errorf("Expected type hint '\\Traversable', got '%s'", p0.TypeHint)
+	}
+	if p0.Name != "iterator" {
+		t.Errorf("Expected parameter name 'iterator', got '%s'", p0.Name)
+	}
+}
+
 func TestParseFunctionWithDefaultParameters(t *testing.T) {
 	input := `<?php
 	function greet($greeting = "Hello", $name = "World") {

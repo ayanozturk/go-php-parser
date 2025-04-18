@@ -42,6 +42,11 @@ func (p *Parser) parseParameter() ast.Node {
 		typeHint = "?"
 		p.nextToken() // consume ?
 	}
+	// Support leading backslashes for fully-qualified class names
+	for p.tok.Literal == "\\" {
+		typeHint += "\\"
+		p.nextToken()
+	}
 	// Parse first type segment (string, array, null, mixed, callable)
 	if p.tok.Type == token.T_STRING || p.tok.Type == token.T_ARRAY || p.tok.Type == token.T_NULL || p.tok.Type == token.T_MIXED || p.tok.Type == token.T_CALLABLE {
 		typeHint += p.tok.Literal
