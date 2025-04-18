@@ -159,6 +159,61 @@ func (p *Parser) parseStatement() (ast.Node, error) {
 	}
 }
 
+// parseTypeHint parses a type hint (nullable, union, FQCN, etc.)
+func (p *Parser) parseTypeHint() string {
+	typeHint := ""
+	// Nullable type
+	if p.tok.Type == token.T_QUESTION {
+		typeHint += "?"
+		p.nextToken()
+	}
+	// Fully qualified class name (leading backslashes)
+	for p.tok.Literal == "\\" {
+		typeHint += "\\"
+		p.nextToken()
+	}
+	// Parse first type segment
+	// Only include types that are actually defined in your token package
+	if p.tok.Type == token.T_STRING || p.tok.Type == token.T_ARRAY || p.tok.Type == token.T_NULL || p.tok.Type == token.T_MIXED || p.tok.Type == token.T_CALLABLE {
+		typeHint += p.tok.Literal
+		p.nextToken()
+		// Handle array type with []
+		if p.tok.Type == token.T_LBRACKET {
+			typeHint += "[]"
+			p.nextToken()
+			if p.tok.Type != token.T_RBRACKET {
+				p.errors = append(p.errors, "expected ']' after array type in type hint")
+				return typeHint
+			}
+			p.nextToken()
+		}
+		// Parse additional type segments separated by |
+		for p.tok.Type == token.T_PIPE {
+			typeHint += "|"
+			p.nextToken() // consume |
+			// Only include types that are actually defined in your token package
+			// Removed references to token.T_VOID, token.T_TRUE, token.T_FALSE, and token.T_STATIC
+			if p.tok.Type == token.T_STRING || p.tok.Type == token.T_ARRAY || p.tok.Type == token.T_NULL || p.tok.Type == token.T_MIXED || p.tok.Type == token.T_CALLABLE {
+				typeHint += p.tok.Literal
+				p.nextToken()
+				if p.tok.Type == token.T_LBRACKET {
+					typeHint += "[]"
+					p.nextToken()
+					if p.tok.Type != token.T_RBRACKET {
+						p.errors = append(p.errors, "expected ']' after array type in type hint")
+						return typeHint
+					}
+					p.nextToken()
+				}
+			} else {
+				p.errors = append(p.errors, "expected type after | in union type hint")
+				return typeHint
+			}
+		}
+	}
+	return typeHint
+}
+
 func (p *Parser) parseFunction() (ast.Node, error) {
 	pos := p.tok.Pos
 	p.nextToken() // consume 'function'
@@ -204,33 +259,7 @@ func (p *Parser) parseFunction() (ast.Node, error) {
 	var returnType string
 	if p.tok.Type == token.T_COLON {
 		p.nextToken() // consume :
-		if p.tok.Type == token.T_STRING {
-			returnType = p.tok.Literal
-			p.nextToken()
-		} else if p.tok.Type == token.T_ARRAY {
-			returnType = "array"
-			p.nextToken()
-			if p.tok.Type == token.T_LBRACKET {
-				p.nextToken()
-				if p.tok.Type == token.T_STRING {
-					returnType = p.tok.Literal + "[]"
-					p.nextToken()
-				} else {
-					p.addError("line %d:%d: expected array item type, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal)
-					return nil, nil
-				}
-
-				if p.tok.Type != token.T_RBRACKET {
-					p.addError("line %d:%d: expected ']' after array type in return type for function %s, got %s", p.tok.Pos.Line, p.tok.Pos.Column, name, p.tok.Literal)
-					return nil, nil
-				}
-				returnType += "]"
-				p.nextToken()
-			}
-		} else {
-			p.addError("line %d:%d: expected return type for function %s, got %s", p.tok.Pos.Line, p.tok.Pos.Column, name, p.tok.Literal)
-			return nil, nil
-		}
+		returnType = p.parseTypeHint()
 	}
 
 	if p.tok.Type != token.T_LBRACE {

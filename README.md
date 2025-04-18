@@ -5,7 +5,7 @@ A PHP parser written in Go that generates an Abstract Syntax Tree (AST) from PHP
 ## Features
 
 ### Language Support
-- PHP 7+ syntax
+- PHP 8+ syntax
 - Function declarations with parameters
 - Variable declarations and assignments
 - Control structures (if, elseif, else)
