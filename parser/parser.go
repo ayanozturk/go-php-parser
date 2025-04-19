@@ -199,7 +199,7 @@ func (p *Parser) parseTypeHint() string {
 	}
 	// Parse first type segment
 	// Only include types that are actually defined in your token package
-	if p.tok.Type == token.T_STRING || p.tok.Type == token.T_ARRAY || p.tok.Type == token.T_NULL || p.tok.Type == token.T_MIXED || p.tok.Type == token.T_CALLABLE {
+	if p.tok.Type == token.T_STRING || p.tok.Type == token.T_ARRAY || p.tok.Type == token.T_NULL || p.tok.Type == token.T_MIXED || p.tok.Type == token.T_CALLABLE || p.tok.Literal == "mixed" {
 		typeHint += p.tok.Literal
 		p.nextToken()
 		// Handle array type with []
@@ -221,7 +221,7 @@ func (p *Parser) parseTypeHint() string {
 				typeHint += p.tok.Literal
 				p.nextToken()
 			}
-			if p.tok.Type == token.T_STRING || p.tok.Type == token.T_ARRAY || p.tok.Type == token.T_NULL || p.tok.Type == token.T_MIXED || p.tok.Type == token.T_CALLABLE {
+			if p.tok.Type == token.T_STRING || p.tok.Type == token.T_ARRAY || p.tok.Type == token.T_NULL || p.tok.Type == token.T_MIXED || p.tok.Type == token.T_CALLABLE || p.tok.Literal == "mixed" {
 				typeHint += p.tok.Literal
 				p.nextToken()
 				if p.tok.Type == token.T_LBRACKET {

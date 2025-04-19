@@ -178,7 +178,7 @@ func (p *Parser) parseInterfaceMethod() ast.Node {
 			returnType = "?"
 			p.nextToken()
 		}
-		if p.tok.Type == token.T_STRING || p.tok.Type == token.T_ARRAY {
+		if p.tok.Type == token.T_STRING || p.tok.Type == token.T_ARRAY || p.tok.Literal == "mixed" {
 			returnType += p.tok.Literal
 			p.nextToken()
 
