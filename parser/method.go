@@ -125,6 +125,18 @@ func (p *Parser) parseInterfaceMethod() ast.Node {
 	var params []ast.Node
 	// Handle parameter list
 	for p.tok.Type != token.T_RPAREN && p.tok.Type != token.T_EOF {
+
+		// Skip comments and commas before each parameter
+		for p.tok.Type == token.T_COMMENT || p.tok.Type == token.T_DOC_COMMENT || p.tok.Type == token.T_COMMA {
+			p.nextToken()
+		}
+		// After skipping, if next token is ')' or EOF, end the parameter list
+		if p.tok.Type == token.T_RPAREN || p.tok.Type == token.T_EOF {
+			break
+		}
+
+		// Now, expect a parameter
+
 		// Handle nullable type hint (e.g. ?string)
 		var typeHint string
 		var unionTypeNode *ast.UnionTypeNode
@@ -225,6 +237,10 @@ func (p *Parser) parseInterfaceMethod() ast.Node {
 
 		// Parameter name
 		if p.tok.Type != token.T_VARIABLE {
+			// Allow end of parameter list after skipping comments
+			if p.tok.Type == token.T_RPAREN {
+				break
+			}
 			p.errors = append(p.errors, fmt.Sprintf("line %d:%d: expected parameter name, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal))
 			return nil
 		}
@@ -246,20 +262,23 @@ func (p *Parser) parseInterfaceMethod() ast.Node {
 			DefaultValue: defaultValue,
 			Pos:          ast.Position(paramPos),
 		}
-		params = append(params, param)
+		if param != nil {
+			params = append(params, param)
+		}
 
-		// Check for comma or closing paren
-		if p.tok.Type == token.T_COMMA {
+		// After a parameter, skip any comments and commas before checking for next parameter or end
+		for p.tok.Type == token.T_COMMENT || p.tok.Type == token.T_DOC_COMMENT || p.tok.Type == token.T_COMMA {
 			p.nextToken()
-			continue
 		}
 		if p.tok.Type == token.T_RPAREN {
 			break
 		}
-
-		p.errors = append(p.errors, fmt.Sprintf("line %d:%d: expected ',' or ')' in parameter list for method %s, got %s", p.tok.Pos.Line, p.tok.Pos.Column, name, p.tok.Literal))
-		return nil
+		if p.tok.Type == token.T_EOF {
+			break
+		}
+		// If not end, loop will skip comments/commas and try to parse next parameter
 	}
+
 	p.nextToken() // consume )
 
 	// Parse return type if present

@@ -21,37 +21,29 @@ func (p *Parser) parseParameter() ast.Node {
 		break
 	}
 
-	// PHP8+ constructor property promotion: check for visibility and readonly modifier (in any order)
+	// Parse all modifiers (visibility, readonly) in any order
 	var visibility string
 	var isPromoted bool
 	for {
-		if p.tok.Type == token.T_ATTRIBUTE {
-			p.nextToken()
-			continue
-		}
 		if p.tok.Type == token.T_PUBLIC || p.tok.Type == token.T_PROTECTED || p.tok.Type == token.T_PRIVATE {
 			visibility = p.tok.Literal
 			isPromoted = true
 			p.nextToken()
-		} else if p.tok.Literal == "readonly" { // fallback for readonly if token.T_READONLY is not defined
+			continue
+		}
+		if p.tok.Literal == "readonly" {
 			isPromoted = true
 			p.nextToken()
-		} else {
-			break
+			continue
 		}
+		break
 	}
 	pos := p.tok.Pos
 
 	// Parse type hint if present (support nullable type: ?Bar, union types: Foo|Bar, FQCNs)
-	for p.tok.Type == token.T_ATTRIBUTE {
-		p.nextToken()
-	}
 	typeHint := p.parseTypeHint()
 
 	// Parse by-reference parameter (&$var)
-	for p.tok.Type == token.T_ATTRIBUTE {
-		p.nextToken()
-	}
 	isByRef := false
 	if p.tok.Type == token.T_AMPERSAND {
 		isByRef = true
@@ -59,31 +51,19 @@ func (p *Parser) parseParameter() ast.Node {
 	}
 
 	// Parse variadic parameter (...$var)
-	for p.tok.Type == token.T_ATTRIBUTE {
-		p.nextToken()
-	}
 	isVariadic := false
 	if p.tok.Type == token.T_ELLIPSIS {
 		isVariadic = true
 		p.nextToken() // consume ...
 	}
 
-	// Parse variable name (allow $var, or edge-case: 'mixed' or 'string' as parameter names)
-	for p.tok.Type == token.T_ATTRIBUTE {
-		p.nextToken()
-	}
-	var name string
-	if p.tok.Type == token.T_VARIABLE {
-		name = p.tok.Literal[1:] // Remove $ prefix
-		p.nextToken()
-	} else if p.tok.Type == token.T_MIXED || p.tok.Type == token.T_STRING {
-		// Accept 'mixed' or 'string' as parameter names (no $ prefix)
-		name = p.tok.Literal
-		p.nextToken()
-	} else {
+	// Parse variable name (must be $var)
+	if p.tok.Type != token.T_VARIABLE {
 		p.errors = append(p.errors, fmt.Sprintf("line %d:%d: expected variable name in parameter, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal))
 		return nil
 	}
+	name := p.tok.Literal[1:] // Remove $ prefix
+	p.nextToken()
 
 	// Handle default value if present
 	var defaultValue ast.Node
