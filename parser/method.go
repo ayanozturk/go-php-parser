@@ -45,6 +45,11 @@ func (p *Parser) parseInterfaceDeclaration() ast.Node {
 
 	var methods []ast.Node
 	for p.tok.Type != token.T_RBRACE && p.tok.Type != token.T_EOF {
+		// Skip doc comments and regular comments in interface body
+		if p.tok.Type == token.T_DOC_COMMENT || p.tok.Type == token.T_COMMENT {
+			p.nextToken()
+			continue
+		}
 		// Interface methods can have visibility modifiers
 		if p.tok.Type == token.T_PUBLIC || p.tok.Type == token.T_PRIVATE || p.tok.Type == token.T_PROTECTED || p.tok.Type == token.T_FUNCTION {
 			if method := p.parseInterfaceMethod(); method != nil {
@@ -73,6 +78,11 @@ func (p *Parser) parseInterfaceDeclaration() ast.Node {
 // parseInterfaceMethod parses a method declaration in an interface
 func (p *Parser) parseInterfaceMethod() ast.Node {
 	pos := p.tok.Pos
+
+	// Skip doc comments and regular comments before method signature
+	for p.tok.Type == token.T_DOC_COMMENT || p.tok.Type == token.T_COMMENT {
+		p.nextToken()
+	}
 
 	// Parse visibility modifier if present
 	var visibility string

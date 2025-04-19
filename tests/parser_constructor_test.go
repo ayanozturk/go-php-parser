@@ -1,11 +1,53 @@
 package tests
 
 import (
-	"testing"
 	"go-phpcs/ast"
 	"go-phpcs/lexer"
 	"go-phpcs/parser"
+	"testing"
 )
+
+func TestConstrutor(t *testing.T) {
+	input := `<?php
+	final class OptimizerExtension extends AbstractExtension
+{
+    public function __construct(
+        private int $optimizers = -1,
+    ) {
+    }
+}`
+
+	l := lexer.New(input)
+	p := parser.New(l, true)
+	nodes := p.Parse()
+
+	if len(p.Errors()) > 0 {
+		t.Fatalf("Parser errors: %v", p.Errors())
+	}
+
+	if len(nodes) == 0 {
+		t.Fatal("Expected at least one node, got none")
+	}
+
+	classNode, ok := nodes[0].(*ast.ClassNode)
+	if !ok {
+		t.Fatalf("Expected ClassNode, got %T", nodes[0])
+	}
+
+	if len(classNode.Methods) == 0 {
+		t.Fatalf("Expected at least one method in class")
+	}
+
+	ctor, ok := classNode.Methods[0].(*ast.FunctionNode)
+	if !ok || ctor.Name != "__construct" {
+		t.Fatalf("Expected constructor method, got %T, name=%v", classNode.Methods[0], ctor.Name)
+	}
+
+	params := ctor.Params
+	if len(params) != 1 {
+		t.Fatalf("Expected 1 parameter, got %d", len(params))
+	}
+}
 
 func TestParseConstructorPromotionReadonly(t *testing.T) {
 	input := `<?php

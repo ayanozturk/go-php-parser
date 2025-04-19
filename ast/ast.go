@@ -348,6 +348,7 @@ type ClassNode struct {
 	Properties []Node
 	Methods    []Node
 	Pos        Position
+	Modifier   string // final, abstract, or ""
 }
 
 // NewNode represents object instantiation

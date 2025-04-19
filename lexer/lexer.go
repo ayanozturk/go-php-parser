@@ -146,10 +146,12 @@ func (l *Lexer) NextToken() token.Token {
 			return token.Token{Type: token.T_COMMENT, Literal: comment, Pos: pos}
 		} else if l.peekChar() == '*' {
 			l.readChar() // consume *
-			comment := l.readBlockComment()
-			if strings.HasPrefix(comment, "/**") {
+			if l.peekChar() == '*' {
+				l.readChar() // consume second *
+				comment := "/**" + l.readBlockComment()[2:] // include both asterisks
 				return token.Token{Type: token.T_DOC_COMMENT, Literal: comment, Pos: pos}
 			}
+			comment := l.readBlockComment()
 			return token.Token{Type: token.T_COMMENT, Literal: comment, Pos: pos}
 		} else {
 			tok = token.Token{Type: token.T_DIVIDE, Literal: string(l.char), Pos: pos}

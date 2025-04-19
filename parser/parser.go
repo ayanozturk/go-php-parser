@@ -60,7 +60,22 @@ func (p *Parser) Parse() []ast.Node {
 	}
 	p.nextToken()
 
+	// Skip whitespace/comments/doc comments after open tag
+	for p.tok.Type == token.T_WHITESPACE || p.tok.Type == token.T_COMMENT || p.tok.Type == token.T_DOC_COMMENT {
+		p.nextToken()
+	}
+
 	for p.tok.Type != token.T_EOF {
+		// Also skip whitespace/comments/doc comments between statements
+		for p.tok.Type == token.T_WHITESPACE || p.tok.Type == token.T_COMMENT || p.tok.Type == token.T_DOC_COMMENT {
+			p.nextToken()
+		}
+		if p.tok.Type == token.T_EOF {
+			break
+		}
+		if p.debug {
+			fmt.Printf("[DEBUG] parseStatement sees token: %v (%q)\n", p.tok.Type, p.tok.Literal)
+		}
 		node, err := p.parseStatement()
 		if err != nil {
 			p.addError(err.Error())
@@ -69,7 +84,7 @@ func (p *Parser) Parse() []ast.Node {
 		}
 		if node != nil {
 			nodes = append(nodes, node)
-			p.debugPrint("Parsed node: %s", node.String())
+			// p.debugPrint("Parsed node: %s", node.String())
 		}
 	}
 
@@ -108,6 +123,18 @@ func (p *Parser) parseStatement() (ast.Node, error) {
 		return p.parseVariableStatement()
 	case token.T_IF:
 		return p.parseIfStatement()
+	case token.T_STRING:
+		if p.tok.Literal == "final" || p.tok.Literal == "abstract" {
+			modifier := p.tok.Literal
+			p.nextToken()
+			if p.tok.Type == token.T_CLASS {
+				return p.parseClassDeclarationWithModifier(modifier)
+			}
+			p.addError("line %d:%d: expected 'class' after modifier %s, got %s", p.tok.Pos.Line, p.tok.Pos.Column, modifier, p.tok.Literal)
+			return nil, nil
+		}
+		// else treat as expression statement
+		return p.parseExpressionStatement()
 	case token.T_CLASS:
 		return p.parseClassDeclaration()
 	case token.T_INTERFACE:
@@ -132,9 +159,7 @@ func (p *Parser) parseStatement() (ast.Node, error) {
 			Expr: expr,
 			Pos:  ast.Position(pos),
 		}, nil
-	case token.T_STRING:
-		// Handle other expressions
-		return p.parseExpressionStatement()
+
 	case token.T_SEMICOLON:
 		p.nextToken() // skip empty statements
 		return nil, nil
@@ -240,6 +265,10 @@ func (p *Parser) parseFunction() (ast.Node, error) {
 
 		if p.tok.Type == token.T_COMMA {
 			p.nextToken()
+			// Allow trailing comma before closing parenthesis
+			if p.tok.Type == token.T_RPAREN {
+				break
+			}
 		} else if p.tok.Type == token.T_RPAREN {
 			break
 		} else {
@@ -359,7 +388,7 @@ func (p *Parser) isBinaryOperator(tokenType token.TokenType) bool {
 	switch tokenType {
 	case token.T_PLUS, token.T_MINUS, token.T_MULTIPLY, token.T_DIVIDE, token.T_MODULO,
 		token.T_IS_EQUAL, token.T_IS_NOT_EQUAL, token.T_IS_SMALLER, token.T_IS_GREATER,
-		token.T_DOT, // Support string concatenation
+		token.T_DOT,      // Support string concatenation
 		token.T_COALESCE: // Support null coalescing operator ??
 		return true
 	default:
@@ -664,6 +693,122 @@ func (p *Parser) parseElseClause() (*ast.ElseNode, error) {
 	}, nil
 }
 
+func (p *Parser) parseClassDeclarationWithModifier(modifier string) (ast.Node, error) {
+	// This is the same as parseClassDeclaration but attaches the modifier
+	pos := p.tok.Pos
+	p.nextToken() // consume 'class'
+
+	if p.tok.Type != token.T_STRING {
+		p.addError("line %d:%d: expected class name, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal)
+		return nil, nil
+	}
+
+	name := p.tok.Literal
+	p.nextToken()
+
+	// Check for extends clause
+	var extends string
+	if p.tok.Type == token.T_EXTENDS {
+		p.nextToken() // consume 'extends'
+		if p.tok.Type != token.T_STRING {
+			p.addError("line %d:%d: expected parent class name after extends, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal)
+			return nil, nil
+		}
+		extends = p.tok.Literal
+		p.nextToken()
+	}
+
+	// Check for implements clause
+	var implements []string
+	if p.tok.Type == token.T_IMPLEMENTS {
+		p.nextToken() // consume 'implements'
+		for {
+			if p.tok.Type != token.T_STRING {
+				p.addError("line %d:%d: expected interface name after implements, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal)
+				return nil, nil
+			}
+			implements = append(implements, p.tok.Literal)
+			p.nextToken()
+
+			if p.tok.Type != token.T_COMMA {
+				break
+			}
+			p.nextToken() // consume comma
+		}
+	}
+
+	if p.tok.Type != token.T_LBRACE {
+		p.addError("line %d:%d: expected { after class declaration for %s, got %s", p.tok.Pos.Line, p.tok.Pos.Column, name, p.tok.Literal)
+		return nil, nil
+	}
+	p.nextToken() // consume {
+
+	var properties []ast.Node
+	var methods []ast.Node
+	for p.tok.Type != token.T_RBRACE && p.tok.Type != token.T_EOF {
+		// Handle visibility modifiers for methods and properties
+		if p.tok.Type == token.T_PUBLIC || p.tok.Type == token.T_PRIVATE || p.tok.Type == token.T_PROTECTED {
+			visibility := p.tok.Literal
+			p.nextToken()
+
+			if p.tok.Type == token.T_FUNCTION {
+				if method, err := p.parseFunction(); method != nil {
+					if fn, ok := method.(*ast.FunctionNode); ok {
+						fn.Visibility = visibility
+					}
+					methods = append(methods, method)
+				} else if err != nil {
+					return nil, err
+				}
+			} else if p.tok.Type == token.T_VARIABLE {
+				if prop, err := p.parsePropertyDeclaration(); prop != nil {
+					if pn, ok := prop.(*ast.PropertyNode); ok {
+						pn.Visibility = visibility
+					}
+					properties = append(properties, prop)
+				} else if err != nil {
+					return nil, err
+				}
+			} else {
+				p.addError("line %d:%d: expected function or property declaration after visibility modifier %s, got %s", p.tok.Pos.Line, p.tok.Pos.Column, visibility, p.tok.Literal)
+				p.nextToken()
+			}
+		} else if p.tok.Type == token.T_FUNCTION {
+			if method, err := p.parseFunction(); method != nil {
+				methods = append(methods, method)
+			} else if err != nil {
+				return nil, err
+			}
+		} else if p.tok.Type == token.T_VARIABLE {
+			// Parse property declaration
+			if prop, err := p.parsePropertyDeclaration(); prop != nil {
+				properties = append(properties, prop)
+			} else if err != nil {
+				return nil, err
+			}
+		} else {
+			p.addError("line %d:%d: unexpected token %s in class %s body", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal, name)
+			p.nextToken()
+		}
+	}
+
+	if p.tok.Type != token.T_RBRACE {
+		p.addError("line %d:%d: expected } to close class %s body, got %s", p.tok.Pos.Line, p.tok.Pos.Column, name, p.tok.Literal)
+		return nil, nil
+	}
+	p.nextToken() // consume }
+
+	return &ast.ClassNode{
+		Name:       name,
+		Extends:    extends,
+		Implements: implements,
+		Properties: properties,
+		Methods:    methods,
+		Pos:        ast.Position(pos),
+		Modifier:   modifier,
+	}, nil
+}
+
 func (p *Parser) parseClassDeclaration() (ast.Node, error) {
 	pos := p.tok.Pos
 	p.nextToken() // consume 'class'
@@ -825,6 +970,29 @@ func (p *Parser) peekToken() token.Token {
 
 // parseSimpleExpression parses a simple expression (identifier, literal, etc.)
 func (p *Parser) parseSimpleExpression() ast.Node {
+	// Handle unary minus and plus
+	if p.tok.Type == token.T_MINUS || p.tok.Type == token.T_PLUS {
+		op := p.tok.Type
+		pos := p.tok.Pos
+		p.nextToken()
+		right := p.parseSimpleExpression()
+		if intNode, ok := right.(*ast.IntegerNode); ok {
+			if op == token.T_MINUS {
+				intNode.Value = -intNode.Value
+			}
+			intNode.Pos = ast.Position(pos)
+			return intNode
+		} else if floatNode, ok := right.(*ast.FloatNode); ok {
+			if op == token.T_MINUS {
+				floatNode.Value = -floatNode.Value
+			}
+			floatNode.Pos = ast.Position(pos)
+			return floatNode
+		} else {
+			// Fallback: treat as BinaryExpr or error
+			return right
+		}
+	}
 	switch p.tok.Type {
 	case token.T_NEW:
 		pos := p.tok.Pos
