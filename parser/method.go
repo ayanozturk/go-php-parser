@@ -173,8 +173,13 @@ func (p *Parser) parseInterfaceMethod() ast.Node {
 	var returnType string
 	if p.tok.Type == token.T_COLON {
 		p.nextToken()
+		// Support nullable return types (e.g. ?Node)
+		if p.tok.Type == token.T_QUESTION {
+			returnType = "?"
+			p.nextToken()
+		}
 		if p.tok.Type == token.T_STRING || p.tok.Type == token.T_ARRAY {
-			returnType = p.tok.Literal
+			returnType += p.tok.Literal
 			p.nextToken()
 
 			// Handle array type
