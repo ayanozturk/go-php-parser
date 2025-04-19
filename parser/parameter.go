@@ -72,7 +72,7 @@ func (p *Parser) parseParameter() ast.Node {
 		defaultValue = p.parseExpression()
 	}
 
-	return &ast.ParameterNode{
+	return &ast.ParamNode{
 		Name:         name,
 		TypeHint:     typeHint,
 		DefaultValue: defaultValue,

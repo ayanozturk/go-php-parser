@@ -34,7 +34,7 @@ func TestParseFunctionWithUnionAndNamedParameters(t *testing.T) {
 			if len(fn.Params) != 2 {
 				t.Errorf("Expected 2 parameters, but got %d", len(fn.Params))
 			} else {
-				if p, ok := fn.Params[0].(*ast.ParameterNode); ok {
+				if p, ok := fn.Params[0].(*ast.ParamNode); ok {
 					if p.Name != "mixed" {
 						t.Errorf("Expected parameter 1 to be 'mixed', but got '%s'", p.Name)
 					}
@@ -43,7 +43,7 @@ func TestParseFunctionWithUnionAndNamedParameters(t *testing.T) {
 					}
 				}
 
-				if p, ok := fn.Params[1].(*ast.ParameterNode); ok {
+				if p, ok := fn.Params[1].(*ast.ParamNode); ok {
 					if p.Name != "string" {
 						t.Errorf("Expected parameter 2 to be 'string', but got '%s'", p.Name)
 					}

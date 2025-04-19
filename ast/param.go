@@ -2,14 +2,19 @@ package ast
 
 import (
 	"fmt"
+	"strings"
 )
 
 // ParamNode represents a function or method parameter
 type ParamNode struct {
 	Name         string
 	TypeHint     string
-	UnionType    *UnionTypeNode // Added for PHP 8.0+ union types
+	UnionType    *UnionTypeNode // For PHP 8.0+ union types
 	DefaultValue Node
+	Visibility   string // public, protected, private (for promoted constructor params)
+	IsPromoted   bool   // true if this param is promoted to a property
+	IsVariadic   bool   // true if this param is variadic (...$values)
+	IsByRef      bool   // true if this param is passed by reference (&$data)
 	Pos          Position
 }
 
@@ -17,20 +22,29 @@ func (p *ParamNode) NodeType() string    { return "Param" }
 func (p *ParamNode) GetPos() Position    { return p.Pos }
 func (p *ParamNode) SetPos(pos Position) { p.Pos = pos }
 func (p *ParamNode) String() string {
-	result := fmt.Sprintf("Param($%s", p.Name)
-
+	var parts []string
+	if p.Visibility != "" {
+		parts = append(parts, p.Visibility)
+	}
 	if p.TypeHint != "" {
-		result = fmt.Sprintf("%s: %s", result, p.TypeHint)
+		parts = append(parts, p.TypeHint)
 	} else if p.UnionType != nil {
-		result = fmt.Sprintf("%s: %s", result, p.UnionType.TokenLiteral())
+		parts = append(parts, p.UnionType.TokenLiteral())
 	}
-
+	if p.IsByRef {
+		parts = append(parts, "&")
+	}
+	parts = append(parts, "$"+p.Name)
 	if p.DefaultValue != nil {
-		result = fmt.Sprintf("%s = %s", result, p.DefaultValue.String())
+		parts = append(parts, "=", p.DefaultValue.String())
 	}
-
-	result = fmt.Sprintf("%s) @ %d:%d", result, p.Pos.Line, p.Pos.Column)
-	return result
+	if p.IsPromoted {
+		parts = append(parts, "[promoted]")
+	}
+	if p.IsVariadic {
+		parts = append(parts, "[variadic]")
+	}
+	return fmt.Sprintf("%s @ %d:%d", strings.Join(parts, " "), p.Pos.Line, p.Pos.Column)
 }
 func (p *ParamNode) TokenLiteral() string {
 	return p.Name
