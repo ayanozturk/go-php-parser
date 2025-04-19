@@ -8,15 +8,27 @@ import (
 
 // parseParameter parses a function or method parameter
 func (p *Parser) parseParameter() ast.Node {
-	// Skip PHP attributes and comments before parameter
-	for p.tok.Type == token.T_ATTRIBUTE || p.tok.Type == token.T_WHITESPACE || p.tok.Type == token.T_COMMENT || p.tok.Type == token.T_DOC_COMMENT {
-		p.nextToken()
+	// Skip PHP attributes (#[...]) and comments before parameter, and allow attributes before any parameter element
+	for {
+		if p.tok.Type == token.T_ATTRIBUTE {
+			p.nextToken()
+			continue
+		}
+		if p.tok.Type == token.T_WHITESPACE || p.tok.Type == token.T_COMMENT || p.tok.Type == token.T_DOC_COMMENT {
+			p.nextToken()
+			continue
+		}
+		break
 	}
 
 	// PHP8+ constructor property promotion: check for visibility and readonly modifier (in any order)
 	var visibility string
 	var isPromoted bool
 	for {
+		if p.tok.Type == token.T_ATTRIBUTE {
+			p.nextToken()
+			continue
+		}
 		if p.tok.Type == token.T_PUBLIC || p.tok.Type == token.T_PROTECTED || p.tok.Type == token.T_PRIVATE {
 			visibility = p.tok.Literal
 			isPromoted = true
@@ -30,17 +42,16 @@ func (p *Parser) parseParameter() ast.Node {
 	}
 	pos := p.tok.Pos
 
-	if p.tok.Type == token.T_PUBLIC || p.tok.Type == token.T_PROTECTED || p.tok.Type == token.T_PRIVATE {
-		visibility = p.tok.Literal
-		isPromoted = true
-		p.nextToken() // consume visibility
-	}
-
 	// Parse type hint if present (support nullable type: ?Bar, union types: Foo|Bar, FQCNs)
-	var typeHint string
-	typeHint = p.parseTypeHint()
+	for p.tok.Type == token.T_ATTRIBUTE {
+		p.nextToken()
+	}
+	typeHint := p.parseTypeHint()
 
 	// Parse by-reference parameter (&$var)
+	for p.tok.Type == token.T_ATTRIBUTE {
+		p.nextToken()
+	}
 	isByRef := false
 	if p.tok.Type == token.T_AMPERSAND {
 		isByRef = true
@@ -48,6 +59,9 @@ func (p *Parser) parseParameter() ast.Node {
 	}
 
 	// Parse variadic parameter (...$var)
+	for p.tok.Type == token.T_ATTRIBUTE {
+		p.nextToken()
+	}
 	isVariadic := false
 	if p.tok.Type == token.T_ELLIPSIS {
 		isVariadic = true
@@ -55,6 +69,9 @@ func (p *Parser) parseParameter() ast.Node {
 	}
 
 	// Parse variable name (allow $var, or edge-case: 'mixed' or 'string' as parameter names)
+	for p.tok.Type == token.T_ATTRIBUTE {
+		p.nextToken()
+	}
 	var name string
 	if p.tok.Type == token.T_VARIABLE {
 		name = p.tok.Literal[1:] // Remove $ prefix

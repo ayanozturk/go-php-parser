@@ -119,6 +119,31 @@ func (l *Lexer) NextToken() token.Token {
 		Offset: l.pos,
 	}
 
+	// PHP 8 attribute: #[...]
+	if l.char == '#' && l.peekChar() == '[' {
+		startPos := l.pos
+		startLine := l.line
+		startCol := l.column
+		l.readChar() // consume '#'
+		l.readChar() // consume '['
+		depth := 1
+		for l.char != 0 && depth > 0 {
+			if l.char == '[' {
+				depth++
+			} else if l.char == ']' {
+				depth--
+			}
+			l.readChar()
+		}
+		endPos := l.pos
+		attrLiteral := l.input[startPos:endPos]
+		return token.Token{
+			Type:    token.T_ATTRIBUTE,
+			Literal: attrLiteral,
+			Pos:     token.Position{Line: startLine, Column: startCol, Offset: startPos},
+		}
+	}
+
 	switch l.char {
 	case 0:
 		return token.Token{Type: token.T_EOF, Literal: "", Pos: pos}
