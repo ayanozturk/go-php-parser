@@ -19,6 +19,24 @@ func (p *Parser) parseInterfaceDeclaration() ast.Node {
 	name := p.tok.Literal
 	p.nextToken()
 
+	// Parse optional 'extends' clause
+	var extends []string
+	if p.tok.Type == token.T_EXTENDS {
+		p.nextToken() // consume 'extends'
+		for {
+			if p.tok.Type != token.T_STRING {
+				p.errors = append(p.errors, fmt.Sprintf("line %d:%d: expected interface name after extends, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal))
+				return nil
+			}
+			extends = append(extends, p.tok.Literal)
+			p.nextToken()
+			if p.tok.Type != token.T_COMMA {
+				break
+			}
+			p.nextToken() // consume ','
+		}
+	}
+
 	if p.tok.Type != token.T_LBRACE {
 		p.errors = append(p.errors, fmt.Sprintf("line %d:%d: expected { after interface name %s, got %s", p.tok.Pos.Line, p.tok.Pos.Column, name, p.tok.Literal))
 		return nil
@@ -46,6 +64,7 @@ func (p *Parser) parseInterfaceDeclaration() ast.Node {
 
 	return &ast.InterfaceNode{
 		Name:    name,
+		Extends: extends,
 		Methods: methods,
 		Pos:     ast.Position(pos),
 	}

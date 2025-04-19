@@ -8,6 +8,7 @@ import (
 // InterfaceNode represents a PHP interface definition
 type InterfaceNode struct {
 	Name    string
+	Extends []string
 	Methods []Node
 	Pos     Position
 }
@@ -18,6 +19,9 @@ func (i *InterfaceNode) SetPos(pos Position) { i.Pos = pos }
 func (i *InterfaceNode) String() string {
 	var parts []string
 	parts = append(parts, fmt.Sprintf("Interface(%s)", i.Name))
+	if len(i.Extends) > 0 {
+		parts = append(parts, fmt.Sprintf("Extends: %s", strings.Join(i.Extends, ", ")))
+	}
 	if len(i.Methods) > 0 {
 		parts = append(parts, "Methods:")
 		for _, method := range i.Methods {
