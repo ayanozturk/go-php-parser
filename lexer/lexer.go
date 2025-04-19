@@ -13,6 +13,8 @@ type Lexer struct {
 	char    byte
 	line    int
 	column  int
+	// For heredoc token queue
+	heredocTokens []token.Token
 }
 
 func New(input string) *Lexer {
@@ -109,6 +111,10 @@ func (l *Lexer) readIdentifier() string {
 }
 
 func (l *Lexer) NextToken() token.Token {
+	// If we have heredoc tokens queued, emit them first
+	if len(l.heredocTokens) > 0 {
+		return l.nextHeredocToken()
+	}
 	var tok token.Token
 
 	l.skipWhitespace()
@@ -203,6 +209,76 @@ func (l *Lexer) NextToken() token.Token {
 		l.readChar()
 		return tok
 	case '<':
+		// Heredoc detection
+		if l.peekChar() == '<' && l.input[l.readPos+1] == '<' {
+			l.readChar() // consume first <
+			l.readChar() // consume second <
+			l.readChar() // consume third <
+			l.skipWhitespace()
+			// Read heredoc identifier
+			start := l.pos
+			for isLetter(l.char) || isDigit(l.char) || l.char == '_' {
+				l.readChar()
+			}
+			identifier := l.input[start:l.pos]
+			if identifier == "" {
+				return token.Token{Type: token.T_ILLEGAL, Literal: "Missing heredoc identifier", Pos: pos}
+			}
+			// Skip to next line after identifier
+			for l.char != '\n' && l.char != 0 {
+				l.readChar()
+			}
+			if l.char == '\n' {
+				l.readChar()
+			}
+			bodyStart := l.pos
+			bodyEnd := -1
+			for l.char != 0 {
+				lineStart := l.pos
+				// Only match ending identifier if it's at the start of a line
+				if l.char == identifier[0] {
+					match := true
+					for i := 0; i < len(identifier); i++ {
+						if l.input[l.pos+i] != identifier[i] {
+							match = false
+							break
+						}
+					}
+					if match {
+						nextChar := l.input[l.pos+len(identifier)]
+						if nextChar == '\n' || nextChar == ';' || nextChar == 0 {
+							bodyEnd = lineStart
+							// Advance lexer past ending identifier
+							for i := 0; i < len(identifier); i++ {
+								l.readChar()
+							}
+							// If next char is semicolon, skip it
+							if l.char == ';' {
+								l.readChar()
+							}
+							// If next char is newline, skip it
+							if l.char == '\n' {
+								l.readChar()
+							}
+							break
+						}
+					}
+				}
+				// Skip to next line
+				for l.char != '\n' && l.char != 0 {
+					l.readChar()
+				}
+				if l.char == '\n' {
+					l.readChar()
+				}
+			}
+			if bodyEnd == -1 {
+				bodyEnd = l.pos
+			}
+			body := l.input[bodyStart:bodyEnd]
+			return token.Token{Type: token.T_ENCAPSED_AND_WHITESPACE, Literal: body, Pos: pos}
+		}
+		// Open tag detection
 		if l.peekChar() == '?' {
 			l.readChar() // consume ?
 			if l.peekChar() == 'p' {
@@ -217,6 +293,7 @@ func (l *Lexer) NextToken() token.Token {
 				}
 			}
 		}
+		break;
 	case '$':
 		l.readChar()
 		if isLetter(l.char) {
@@ -277,7 +354,7 @@ func (l *Lexer) NextToken() token.Token {
 		tok = token.Token{Type: token.T_DOT, Literal: string(l.char), Pos: pos}
 		l.readChar()
 		return tok
-	case '"':
+		case '"':
 		l.readChar() // consume opening quote
 		str := l.readString('"')
 		l.readChar() // consume closing quote
@@ -443,6 +520,86 @@ func isLetter(ch byte) bool {
 
 func isDigit(ch byte) bool {
 	return unicode.IsDigit(rune(ch))
+}
+
+// nextHeredocToken emits the next queued heredoc token
+func (l *Lexer) nextHeredocToken() token.Token {
+	if len(l.heredocTokens) == 0 {
+		return token.Token{Type: token.T_ILLEGAL, Literal: "No heredoc tokens queued", Pos: token.Position{}}
+	}
+	tok := l.heredocTokens[0]
+	l.heredocTokens = l.heredocTokens[1:]
+	return tok
+}
+
+// queueHeredocTokens scans and queues heredoc tokens
+func (l *Lexer) queueHeredocTokens(pos token.Position) {
+	l.readChar() // consume first <
+	l.readChar() // consume second <
+	l.readChar() // consume third <
+	l.skipWhitespace()
+	// Read heredoc identifier
+	start := l.pos
+	for isLetter(l.char) || isDigit(l.char) || l.char == '_' {
+		l.readChar()
+	}
+	identifier := l.input[start:l.pos]
+	if identifier == "" {
+		l.heredocTokens = []token.Token{{Type: token.T_ILLEGAL, Literal: "Missing heredoc identifier", Pos: pos}}
+		return
+	}
+	// Emit start heredoc token
+	startHeredocToken := token.Token{Type: token.T_START_HEREDOC, Literal: identifier, Pos: pos}
+	// Skip to next line
+	for l.char != '\n' && l.char != 0 {
+		l.readChar()
+	}
+	if l.char == '\n' {
+		l.readChar()
+	}
+	// Read heredoc body
+	bodyStart := l.pos
+	bodyEnd := -1
+	for l.char != 0 {
+		lineStart := l.pos
+		// Check for ending identifier at start of line
+		if l.char == identifier[0] {
+			match := true
+			for i := 0; i < len(identifier); i++ {
+				if l.input[l.pos+i] != identifier[i] {
+					match = false
+					break
+				}
+			}
+			if match {
+				nextChar := l.input[l.pos+len(identifier)]
+				if nextChar == '\n' || nextChar == ';' || nextChar == 0 {
+					bodyEnd = lineStart
+					l.pos += len(identifier)
+					l.readPos = l.pos
+					l.char = l.input[l.readPos-1]
+					break
+				}
+			}
+		}
+		// Skip to next line
+		for l.char != '\n' && l.char != 0 {
+			l.readChar()
+		}
+		if l.char == '\n' {
+			l.readChar()
+		}
+	}
+	if bodyEnd == -1 {
+		bodyEnd = l.pos
+	}
+	body := l.input[bodyStart:bodyEnd]
+	// Emit heredoc body as string (no interpolation)
+	bodyToken := token.Token{Type: token.T_ENCAPSED_AND_WHITESPACE, Literal: body, Pos: pos}
+	// Emit end heredoc token
+	endHeredocToken := token.Token{Type: token.T_END_HEREDOC, Literal: identifier, Pos: pos}
+	// Queue tokens
+	l.heredocTokens = []token.Token{startHeredocToken, bodyToken, endHeredocToken}
 }
 
 // PeekToken returns the next token without consuming it
