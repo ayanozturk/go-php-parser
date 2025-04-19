@@ -187,60 +187,54 @@ func (p *Parser) parseStatement() (ast.Node, error) {
 // parseTypeHint parses a type hint (nullable, union, FQCN, etc.)
 func (p *Parser) parseTypeHint() string {
 	typeHint := ""
-	// Nullable type
-	if p.tok.Type == token.T_QUESTION {
-		typeHint += "?"
-		p.nextToken()
-	}
-	// Fully qualified class name (leading backslashes)
-	for p.tok.Literal == "\\" {
-		typeHint += "\\"
-		p.nextToken()
-	}
-	// Parse first type segment
-	// Only include types that are actually defined in your token package
-	if p.tok.Type == token.T_STRING || p.tok.Type == token.T_ARRAY || p.tok.Type == token.T_NULL || p.tok.Type == token.T_MIXED || p.tok.Type == token.T_CALLABLE || p.tok.Literal == "mixed" {
-		typeHint += p.tok.Literal
-		p.nextToken()
-		// Handle array type with []
-		if p.tok.Type == token.T_LBRACKET {
-			typeHint += "[]"
-			p.nextToken()
-			if p.tok.Type != token.T_RBRACKET {
-				p.errors = append(p.errors, "expected ']' after array type in type hint")
-				return typeHint
-			}
+	for {
+		// Nullable type
+		if p.tok.Type == token.T_QUESTION {
+			typeHint += "?"
 			p.nextToken()
 		}
-		// Parse additional type segments separated by |
-		for p.tok.Type == token.T_PIPE {
-			typeHint += "|"
-			p.nextToken() // consume |
-			// Accept leading backslashes for FQCN in union types
-			for p.tok.Literal == "\\" {
-				typeHint += p.tok.Literal
-				p.nextToken()
-			}
+		// Fully qualified class name or namespace (collect all [T_BACKSLASH][T_STRING] pairs)
+		typeSegment := ""
+		for (p.tok.Literal == "\\" || p.tok.Type == token.T_BACKSLASH) && p.peekToken().Type == token.T_STRING {
+			typeSegment += "\\"
+			p.nextToken() // consume backslash
+			typeSegment += p.tok.Literal
+			p.nextToken() // consume string
+			// Continue collecting if another backslash follows
+		}
+		// If not a FQCN, handle simple types
+		if typeSegment == "" {
 			if p.tok.Type == token.T_STRING || p.tok.Type == token.T_ARRAY || p.tok.Type == token.T_NULL || p.tok.Type == token.T_MIXED || p.tok.Type == token.T_CALLABLE || p.tok.Literal == "mixed" {
-				typeHint += p.tok.Literal
+				typeSegment += p.tok.Literal
 				p.nextToken()
-				if p.tok.Type == token.T_LBRACKET {
-					typeHint += "[]"
-					p.nextToken()
-					if p.tok.Type != token.T_RBRACKET {
-						p.errors = append(p.errors, "expected ']' after array type in type hint")
-						return typeHint
-					}
-					p.nextToken()
-				}
-			} else {
-				p.errors = append(p.errors, "expected type after | in union type hint")
-				return typeHint
 			}
 		}
+		if typeSegment != "" {
+			typeHint += typeSegment
+			// Handle array type with []
+			if p.tok.Type == token.T_LBRACKET {
+				typeHint += "[]"
+				p.nextToken()
+				if p.tok.Type != token.T_RBRACKET {
+					p.errors = append(p.errors, "expected ']' after array type in type hint")
+					return typeHint
+				}
+				p.nextToken()
+			}
+		} else {
+			break
+		}
+		// If next token is |, consume and continue parsing next type segment
+		if p.tok.Type == token.T_PIPE {
+			typeHint += "|"
+			p.nextToken()
+			continue
+		}
+		break
 	}
 	return typeHint
 }
+
 
 func (p *Parser) parseFunction() (ast.Node, error) {
 	pos := p.tok.Pos
@@ -419,9 +413,50 @@ func (p *Parser) parseArrayElement() ast.Node {
 	}
 
 	// Parse key if present
-	if p.tok.Type == token.T_STRING || p.tok.Type == token.T_BACKSLASH {
-		// Check for FQDN or class constant as key
-		key = p.parseFullyQualifiedName()
+	if p.tok.Type == token.T_STRING || p.tok.Type == token.T_BACKSLASH ||
+		p.tok.Type == token.T_SELF || p.tok.Type == token.T_PARENT || p.tok.Type == token.T_STATIC {
+		// Support class constant fetch as key (e.g., self::CONST, MyClass::CONST)
+		className := p.tok.Literal
+		classPos := p.tok.Pos
+		p.nextToken()
+		if p.tok.Type == token.T_DOUBLE_COLON {
+			p.nextToken() // consume ::
+			if p.tok.Type == token.T_STRING {
+				constName := p.tok.Literal
+				key = &ast.ClassConstFetchNode{
+					Class:    className,
+					Const:    constName,
+					Pos:      ast.Position(classPos),
+				}
+				p.nextToken()
+			} else if p.tok.Type == token.T_CLASS_CONST {
+				// Support Foo::class
+				key = &ast.ClassConstFetchNode{
+					Class:    className,
+					Const:    "class",
+					Pos:      ast.Position(classPos),
+				}
+				p.nextToken()
+			} else {
+				p.addError("line %d:%d: expected constant name after :: in array key, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal)
+				return nil
+			}
+		} else {
+			// Not a class constant fetch, fallback to fully qualified name
+			fqdn := className
+			for p.tok.Type == token.T_BACKSLASH {
+				fqdn += p.tok.Literal
+				p.nextToken()
+				if p.tok.Type == token.T_STRING {
+					fqdn += p.tok.Literal
+					p.nextToken()
+				}
+			}
+			key = &ast.IdentifierNode{
+				Value: fqdn,
+				Pos:   ast.Position(classPos),
+			}
+		}
 	} else if p.tok.Type == token.T_CONSTANT_STRING {
 		key = p.parseSimpleExpression()
 	}
@@ -1042,7 +1077,7 @@ func (p *Parser) parseSimpleExpression() ast.Node {
 		className := p.tok.Literal
 		pos := p.tok.Pos
 		p.nextToken()
-		// Class constant fetch: self::CONST, static::CONST, Foo::CONST
+		// Class constant fetch: self::CONST, static::CONST, Foo::CONST, Foo::class
 		if p.tok.Type == token.T_DOUBLE_COLON {
 			p.nextToken() // consume '::'
 			if p.tok.Type == token.T_STRING {
@@ -1053,8 +1088,16 @@ func (p *Parser) parseSimpleExpression() ast.Node {
 					Const: constName,
 					Pos:   ast.Position(pos),
 				}
+			} else if p.tok.Type == token.T_CLASS_CONST {
+				// Support Foo::class
+				p.nextToken()
+				return &ast.ClassConstFetchNode{
+					Class: className,
+					Const: "class",
+					Pos:   ast.Position(pos),
+				}
 			} else {
-				p.addError("line %d:%d: expected constant name after '::', got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal)
+				p.addError("line %d:%d: expected constant name or 'class' after '::', got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal)
 				return nil
 			}
 		}
