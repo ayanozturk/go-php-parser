@@ -215,14 +215,28 @@ func (l *Lexer) NextToken() token.Token {
 			l.readChar() // consume second <
 			l.readChar() // consume third <
 			l.skipWhitespace()
-			// Read heredoc identifier
-			start := l.pos
-			for isLetter(l.char) || isDigit(l.char) || l.char == '_' {
-				l.readChar()
+			// Read heredoc/nowdoc identifier (quoted or unquoted)
+			var identifier string
+			if l.char == '\'' || l.char == '"' {
+				quote := l.char
+				l.readChar() // consume opening quote
+				start := l.pos
+				for l.char != quote && l.char != 0 {
+					l.readChar()
+				}
+				identifier = l.input[start:l.pos]
+				if l.char == quote {
+					l.readChar() // consume closing quote
+				}
+			} else {
+				start := l.pos
+				for isLetter(l.char) || isDigit(l.char) || l.char == '_' {
+					l.readChar()
+				}
+				identifier = l.input[start:l.pos]
 			}
-			identifier := l.input[start:l.pos]
 			if identifier == "" {
-				return token.Token{Type: token.T_ILLEGAL, Literal: "Missing heredoc identifier", Pos: pos}
+				return token.Token{Type: token.T_ILLEGAL, Literal: "Missing heredoc/nowdoc identifier", Pos: pos}
 			}
 			// Skip to next line after identifier
 			for l.char != '\n' && l.char != 0 {
