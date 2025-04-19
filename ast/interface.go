@@ -38,7 +38,7 @@ func (i *InterfaceNode) TokenLiteral() string {
 type InterfaceMethodNode struct {
 	Name       string
 	Visibility string // public, private, protected
-	ReturnType string
+	ReturnType Node   // Changed from string to Node to support union types
 	Params     []Node
 	Pos        Position
 }
@@ -61,8 +61,8 @@ func (m *InterfaceMethodNode) String() string {
 	parts = append(parts, strings.Join(paramStrs, ", ")+")")
 
 	// Add return type if present
-	if m.ReturnType != "" {
-		parts = append(parts, ": "+m.ReturnType)
+	if m.ReturnType != nil {
+		parts = append(parts, ": "+m.ReturnType.TokenLiteral())
 	}
 
 	return fmt.Sprintf("%s @ %d:%d", strings.Join(parts, " "), m.Pos.Line, m.Pos.Column)

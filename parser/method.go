@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"go-phpcs/ast"
 	"go-phpcs/token"
+	"strings"
 )
 
 // parseInterfaceDeclaration parses a PHP interface declaration
@@ -122,80 +123,265 @@ func (p *Parser) parseInterfaceMethod() ast.Node {
 
 	// Parse parameters
 	var params []ast.Node
+	// Handle parameter list
 	for p.tok.Type != token.T_RPAREN && p.tok.Type != token.T_EOF {
-		// Allow for trailing comma before closing parenthesis
-		if p.tok.Type == token.T_COMMA {
+		// Handle nullable type hint (e.g. ?string)
+		var typeHint string
+		var unionTypeNode *ast.UnionTypeNode
+		typePos := p.tok.Pos
+
+		if p.tok.Type == token.T_QUESTION {
+			typeHint = "?"
 			p.nextToken()
-			if p.tok.Type == token.T_RPAREN {
-				break
+		}
+
+		// Handle type hint
+		if p.tok.Type == token.T_STRING || p.tok.Type == token.T_ARRAY || p.tok.Type == token.T_BACKSLASH {
+			// Handle fully qualified class names with backslashes
+			var typeName strings.Builder
+			if p.tok.Type == token.T_BACKSLASH {
+				typeName.WriteString(p.tok.Literal)
+				p.nextToken()
+			} else {
+				typeName.WriteString(p.tok.Literal)
+				p.nextToken()
+			}
+
+			// Continue collecting parts of a class name if we encounter backslashes
+			for p.tok.Type == token.T_STRING || p.tok.Type == token.T_BACKSLASH {
+				typeName.WriteString(p.tok.Literal)
+				p.nextToken()
+			}
+
+			typeHint += typeName.String()
+
+			// Handle array syntax
+			if p.tok.Type == token.T_LBRACKET {
+				typeHint += "[]"
+				p.nextToken()
+				if p.tok.Type != token.T_RBRACKET {
+					p.errors = append(p.errors, fmt.Sprintf("line %d:%d: expected ']' after array type in parameter, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal))
+					return nil
+				}
+				p.nextToken()
+			}
+
+			// Handle union types in parameters
+			if p.tok.Type == token.T_PIPE {
+				// Create a union type
+				unionTypes := []string{typeHint}
+				typeHint = "" // Clear the string-based type hint
+
+				for p.tok.Type == token.T_PIPE {
+					p.nextToken() // consume |
+
+					// Parse each union type member
+					if p.tok.Type == token.T_STRING || p.tok.Type == token.T_ARRAY ||
+						p.tok.Literal == "mixed" || p.tok.Literal == "null" ||
+						p.tok.Literal == "int" || p.tok.Literal == "float" ||
+						p.tok.Literal == "bool" || p.tok.Literal == "string" ||
+						p.tok.Type == token.T_BACKSLASH {
+
+						// Handle fully qualified class names with backslashes
+						var memberTypeName strings.Builder
+						if p.tok.Type == token.T_BACKSLASH {
+							memberTypeName.WriteString(p.tok.Literal)
+							p.nextToken()
+						} else {
+							memberTypeName.WriteString(p.tok.Literal)
+							p.nextToken()
+						}
+
+						// Continue collecting parts of a class name
+						for p.tok.Type == token.T_STRING || p.tok.Type == token.T_BACKSLASH {
+							memberTypeName.WriteString(p.tok.Literal)
+							p.nextToken()
+						}
+
+						unionTypes = append(unionTypes, memberTypeName.String())
+
+						// Handle array syntax for union type member
+						if p.tok.Type == token.T_LBRACKET {
+							unionTypes[len(unionTypes)-1] += "[]"
+							p.nextToken()
+							if p.tok.Type != token.T_RBRACKET {
+								p.errors = append(p.errors, fmt.Sprintf("line %d:%d: expected ']' after array type in parameter union type, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal))
+								return nil
+							}
+							p.nextToken()
+						}
+					} else {
+						p.errors = append(p.errors, fmt.Sprintf("line %d:%d: expected type name in parameter union type, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal))
+						return nil
+					}
+				}
+
+				unionTypeNode = &ast.UnionTypeNode{
+					Types: unionTypes,
+					Pos:   ast.Position(typePos),
+				}
 			}
 		}
 
-		// Skip C-style comments (/* ... */) and inline comments (// ...) in parameter list
-		if p.tok.Type == token.T_COMMENT || p.tok.Type == token.T_DOC_COMMENT {
-			p.nextToken()
-			continue
-		}
-
-		param := p.parseParameter()
-		if param == nil {
-			// If the parameter is nil and we're at a closing parenthesis, break (tolerate trailing comma)
-			if p.tok.Type == token.T_RPAREN {
-				break
-			}
+		// Parameter name
+		if p.tok.Type != token.T_VARIABLE {
+			p.errors = append(p.errors, fmt.Sprintf("line %d:%d: expected parameter name, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal))
 			return nil
+		}
+		varName := p.tok.Literal[1:] // Remove $ prefix
+		paramPos := p.tok.Pos
+		p.nextToken()
+
+		// Handle default value
+		var defaultValue ast.Node
+		if p.tok.Type == token.T_ASSIGN {
+			p.nextToken() // consume =
+			defaultValue = p.parseExpression()
+		}
+
+		param := &ast.ParamNode{
+			Name:         varName,
+			TypeHint:     typeHint,
+			UnionType:    unionTypeNode,
+			DefaultValue: defaultValue,
+			Pos:          ast.Position(paramPos),
 		}
 		params = append(params, param)
 
+		// Check for comma or closing paren
 		if p.tok.Type == token.T_COMMA {
 			p.nextToken()
-			// Accept trailing comma
-			if p.tok.Type == token.T_RPAREN {
-				break
-			}
-		} else if p.tok.Type == token.T_RPAREN {
-			break
-		} else {
-			// Instead of erroring immediately, skip ignorable tokens and try to continue
-			if p.tok.Type == token.T_WHITESPACE || p.tok.Type == token.T_COMMENT || p.tok.Type == token.T_DOC_COMMENT {
-				p.nextToken()
-				continue
-			}
-			// Otherwise, error and stop
-			p.errors = append(p.errors, fmt.Sprintf("line %d:%d: expected ',' or ')' in parameter list for method %s, got %s", p.tok.Pos.Line, p.tok.Pos.Column, name, p.tok.Literal))
-			return nil
+			continue
 		}
-	}
+		if p.tok.Type == token.T_RPAREN {
+			break
+		}
 
-	// Parse closing parenthesis
-	if p.tok.Type != token.T_RPAREN {
-		p.errors = append(p.errors, fmt.Sprintf("line %d:%d: expected ')' after parameter list for method %s, got %s", p.tok.Pos.Line, p.tok.Pos.Column, name, p.tok.Literal))
+		p.errors = append(p.errors, fmt.Sprintf("line %d:%d: expected ',' or ')' in parameter list for method %s, got %s", p.tok.Pos.Line, p.tok.Pos.Column, name, p.tok.Literal))
 		return nil
 	}
-	p.nextToken()
+	p.nextToken() // consume )
 
-	// Parse return type
-	var returnType string
+	// Parse return type if present
+	var returnType ast.Node
 	if p.tok.Type == token.T_COLON {
-		p.nextToken()
+		p.nextToken() // consume :
+
 		// Support nullable return types (e.g. ?Node)
+		var nullable bool
 		if p.tok.Type == token.T_QUESTION {
-			returnType = "?"
+			nullable = true
 			p.nextToken()
 		}
-		if p.tok.Type == token.T_STRING || p.tok.Type == token.T_ARRAY || p.tok.Literal == "mixed" {
-			returnType += p.tok.Literal
-			p.nextToken()
+
+		// Check for valid return type token
+		if p.tok.Type == token.T_STRING || p.tok.Type == token.T_ARRAY ||
+			p.tok.Literal == "mixed" || p.tok.Type == token.T_BACKSLASH {
+			typePos := p.tok.Pos
+
+			// Handle fully qualified class names with backslashes
+			var typeName strings.Builder
+			if p.tok.Type == token.T_BACKSLASH {
+				typeName.WriteString(p.tok.Literal)
+				p.nextToken()
+			} else {
+				typeName.WriteString(p.tok.Literal)
+				p.nextToken()
+			}
+
+			// Continue collecting parts of a class name
+			for p.tok.Type == token.T_STRING || p.tok.Type == token.T_BACKSLASH {
+				typeName.WriteString(p.tok.Literal)
+				p.nextToken()
+			}
 
 			// Handle array type
 			if p.tok.Type == token.T_LBRACKET {
-				returnType += "[]"
+				typeName.WriteString("[]")
 				p.nextToken()
 				if p.tok.Type != token.T_RBRACKET {
 					p.errors = append(p.errors, fmt.Sprintf("line %d:%d: expected ']' after array type in return type for method %s, got %s", p.tok.Pos.Line, p.tok.Pos.Column, name, p.tok.Literal))
 					return nil
 				}
 				p.nextToken()
+			}
+
+			// Check for union type (|)
+			if p.tok.Type == token.T_PIPE {
+				// Create a union type
+				unionPos := typePos
+				unionTypes := []string{typeName.String()}
+
+				// Continue collecting types until we don't see more pipes
+				for p.tok.Type == token.T_PIPE {
+					p.nextToken() // consume |
+
+					// Parse each union type member
+					if p.tok.Type == token.T_STRING || p.tok.Type == token.T_ARRAY ||
+						p.tok.Literal == "mixed" || p.tok.Literal == "null" ||
+						p.tok.Literal == "int" || p.tok.Literal == "float" ||
+						p.tok.Literal == "bool" || p.tok.Literal == "string" ||
+						p.tok.Type == token.T_BACKSLASH {
+
+						// Handle fully qualified class names with backslashes
+						var memberTypeName strings.Builder
+						if p.tok.Type == token.T_BACKSLASH {
+							memberTypeName.WriteString(p.tok.Literal)
+							p.nextToken()
+						} else {
+							memberTypeName.WriteString(p.tok.Literal)
+							p.nextToken()
+						}
+
+						// Continue collecting parts of a class name
+						for p.tok.Type == token.T_STRING || p.tok.Type == token.T_BACKSLASH {
+							memberTypeName.WriteString(p.tok.Literal)
+							p.nextToken()
+						}
+
+						unionTypes = append(unionTypes, memberTypeName.String())
+
+						// Handle array syntax for union type member
+						if p.tok.Type == token.T_LBRACKET {
+							unionTypes[len(unionTypes)-1] += "[]"
+							p.nextToken()
+							if p.tok.Type != token.T_RBRACKET {
+								p.errors = append(p.errors, fmt.Sprintf("line %d:%d: expected ']' after array type in union type for method %s, got %s", p.tok.Pos.Line, p.tok.Pos.Column, name, p.tok.Literal))
+								return nil
+							}
+							p.nextToken()
+						}
+					} else {
+						p.errors = append(p.errors, fmt.Sprintf("line %d:%d: expected type name in union type for method %s, got %s", p.tok.Pos.Line, p.tok.Pos.Column, name, p.tok.Literal))
+						return nil
+					}
+				}
+
+				// Create the union type node
+				returnType = &ast.UnionTypeNode{
+					Types: unionTypes,
+					Pos:   ast.Position(unionPos),
+				}
+			} else {
+				// Create a simple type node
+				returnType = &ast.IdentifierNode{
+					Value: typeName.String(),
+					Pos:   ast.Position(typePos),
+				}
+			}
+
+			// If nullable, wrap the type in a nullable type node
+			if nullable {
+				// If it's already a union type, just add null to it
+				if ut, ok := returnType.(*ast.UnionTypeNode); ok {
+					ut.Types = append(ut.Types, "null")
+				} else {
+					// Otherwise, create a union type with the base type and null
+					returnType = &ast.UnionTypeNode{
+						Types: []string{returnType.TokenLiteral(), "null"},
+						Pos:   ast.Position(typePos),
+					}
+				}
 			}
 		} else {
 			p.errors = append(p.errors, fmt.Sprintf("line %d:%d: expected return type for method %s, got %s", p.tok.Pos.Line, p.tok.Pos.Column, name, p.tok.Literal))
