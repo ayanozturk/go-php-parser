@@ -1,10 +1,10 @@
 package tests
 
 import (
-	"testing"
 	"go-phpcs/ast"
 	"go-phpcs/lexer"
 	"go-phpcs/parser"
+	"testing"
 )
 
 func TestParseArrayWithClassKey(t *testing.T) {
@@ -41,6 +41,43 @@ func TestParseArrayWithClassKey(t *testing.T) {
 		if len(arrayNode.Elements) != 1 {
 			t.Errorf("Expected ArrayNode to have 1 element, but got %d", len(arrayNode.Elements))
 			return
+		}
+		item, ok := arrayNode.Elements[0].(*ast.ArrayItemNode)
+		if !ok {
+			t.Errorf("Expected ArrayItemNode, got %T", arrayNode.Elements[0])
+			return
+		}
+		// Check key is Doctrine\Abc::class
+		key, ok := item.Key.(*ast.ClassConstFetchNode)
+		if !ok {
+			t.Errorf("Expected key to be ClassConstFetchNode, got %T", item.Key)
+			return
+		}
+		if key.Class != "Doctrine\\Abc" || key.Const != "class" {
+			t.Errorf("Expected key Doctrine\\Abc::class, got %s::%s", key.Class, key.Const)
+		}
+		// Check value is array ['all' => true]
+		valArr, ok := item.Value.(*ast.ArrayNode)
+		if !ok {
+			t.Errorf("Expected value to be ArrayNode, got %T", item.Value)
+			return
+		}
+		if len(valArr.Elements) != 1 {
+			t.Errorf("Expected inner array to have 1 element, got %d", len(valArr.Elements))
+			return
+		}
+		innerItem, ok := valArr.Elements[0].(*ast.ArrayItemNode)
+		if !ok {
+			t.Errorf("Expected inner element to be ArrayItemNode, got %T", valArr.Elements[0])
+			return
+		}
+		keyStr, ok := innerItem.Key.(*ast.StringLiteral)
+		if !ok || keyStr.Value != "all" {
+			t.Errorf("Expected inner key to be string 'all', got %T (%v)", innerItem.Key, keyStr)
+		}
+		valBool, ok := innerItem.Value.(*ast.BooleanNode)
+		if !ok || !valBool.Value {
+			t.Errorf("Expected inner value to be boolean true, got %T (%v)", innerItem.Value, valBool)
 		}
 	}
 }

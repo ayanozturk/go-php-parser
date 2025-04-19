@@ -73,9 +73,9 @@ func (p *Parser) Parse() []ast.Node {
 		if p.tok.Type == token.T_EOF {
 			break
 		}
-		if p.debug {
-			fmt.Printf("[DEBUG] parseStatement sees token: %v (%q)\n", p.tok.Type, p.tok.Literal)
-		}
+		// if p.debug {
+		// fmt.Printf("[DEBUG] parseStatement sees token: %v (%q)\n", p.tok.Type, p.tok.Literal)
+		// }
 		node, err := p.parseStatement()
 		if err != nil {
 			p.addError(err.Error())
@@ -234,7 +234,6 @@ func (p *Parser) parseTypeHint() string {
 	}
 	return typeHint
 }
-
 
 func (p *Parser) parseFunction() (ast.Node, error) {
 	pos := p.tok.Pos
@@ -412,29 +411,32 @@ func (p *Parser) parseArrayElement() ast.Node {
 		p.nextToken()
 	}
 
-	// Parse key if present
+	// Parse key if present (support class constant fetches as keys)
 	if p.tok.Type == token.T_STRING || p.tok.Type == token.T_BACKSLASH ||
 		p.tok.Type == token.T_SELF || p.tok.Type == token.T_PARENT || p.tok.Type == token.T_STATIC {
-		// Support class constant fetch as key (e.g., self::CONST, MyClass::CONST)
-		className := p.tok.Literal
+		// Accumulate fully qualified class name
+		var className strings.Builder
 		classPos := p.tok.Pos
-		p.nextToken()
+		for p.tok.Type == token.T_STRING || p.tok.Type == token.T_BACKSLASH {
+			className.WriteString(p.tok.Literal)
+			p.nextToken()
+		}
 		if p.tok.Type == token.T_DOUBLE_COLON {
 			p.nextToken() // consume ::
 			if p.tok.Type == token.T_STRING {
 				constName := p.tok.Literal
 				key = &ast.ClassConstFetchNode{
-					Class:    className,
-					Const:    constName,
-					Pos:      ast.Position(classPos),
+					Class: className.String(),
+					Const: constName,
+					Pos:   ast.Position(classPos),
 				}
 				p.nextToken()
-			} else if p.tok.Type == token.T_CLASS_CONST {
+			} else if p.tok.Type == token.T_CLASS_CONST || p.tok.Type == token.T_CLASS {
 				// Support Foo::class
 				key = &ast.ClassConstFetchNode{
-					Class:    className,
-					Const:    "class",
-					Pos:      ast.Position(classPos),
+					Class: className.String(),
+					Const: "class",
+					Pos:   ast.Position(classPos),
 				}
 				p.nextToken()
 			} else {
@@ -443,15 +445,7 @@ func (p *Parser) parseArrayElement() ast.Node {
 			}
 		} else {
 			// Not a class constant fetch, fallback to fully qualified name
-			fqdn := className
-			for p.tok.Type == token.T_BACKSLASH {
-				fqdn += p.tok.Literal
-				p.nextToken()
-				if p.tok.Type == token.T_STRING {
-					fqdn += p.tok.Literal
-					p.nextToken()
-				}
-			}
+			fqdn := className.String()
 			key = &ast.IdentifierNode{
 				Value: fqdn,
 				Pos:   ast.Position(classPos),
@@ -1184,7 +1178,7 @@ func (p *Parser) parseSimpleExpression() ast.Node {
 			Pos:   ast.Position(pos),
 		}
 	case token.T_CONSTANT_STRING:
-		node := &ast.StringNode{
+		node := &ast.StringLiteral{
 			Value: p.tok.Literal,
 			Pos:   ast.Position(p.tok.Pos),
 		}
