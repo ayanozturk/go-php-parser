@@ -216,8 +216,11 @@ func (p *Parser) parseTypeHint() string {
 		for p.tok.Type == token.T_PIPE {
 			typeHint += "|"
 			p.nextToken() // consume |
-			// Only include types that are actually defined in your token package
-			// Removed references to token.T_VOID, token.T_TRUE, token.T_FALSE, and token.T_STATIC
+			// Accept leading backslashes for FQCN in union types
+			for p.tok.Literal == "\\" {
+				typeHint += p.tok.Literal
+				p.nextToken()
+			}
 			if p.tok.Type == token.T_STRING || p.tok.Type == token.T_ARRAY || p.tok.Type == token.T_NULL || p.tok.Type == token.T_MIXED || p.tok.Type == token.T_CALLABLE {
 				typeHint += p.tok.Literal
 				p.nextToken()
