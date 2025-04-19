@@ -3,6 +3,9 @@ package token
 type TokenType string
 
 const (
+	// Class fetch tokens
+	T_SELF         TokenType = "T_SELF"
+	T_PARENT       TokenType = "T_PARENT"
 	// Special tokens
 	T_ILLEGAL       TokenType = "T_ILLEGAL"
 	T_EOF           TokenType = "T_EOF"

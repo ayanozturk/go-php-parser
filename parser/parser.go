@@ -1038,10 +1038,26 @@ func (p *Parser) parseSimpleExpression() ast.Node {
 			Args:      args,
 			Pos:       ast.Position(pos),
 		}
-	case token.T_STRING:
-		ident := p.tok.Literal
+	case token.T_STRING, token.T_STATIC, token.T_SELF, token.T_PARENT:
+		className := p.tok.Literal
 		pos := p.tok.Pos
 		p.nextToken()
+		// Class constant fetch: self::CONST, static::CONST, Foo::CONST
+		if p.tok.Type == token.T_DOUBLE_COLON {
+			p.nextToken() // consume '::'
+			if p.tok.Type == token.T_STRING {
+				constName := p.tok.Literal
+				p.nextToken()
+				return &ast.ClassConstFetchNode{
+					Class: className,
+					Const: constName,
+					Pos:   ast.Position(pos),
+				}
+			} else {
+				p.addError("line %d:%d: expected constant name after '::', got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal)
+				return nil
+			}
+		}
 		// Check for function call: identifier followed by '('
 		if p.tok.Type == token.T_LPAREN {
 			p.nextToken() // consume '('
@@ -1078,19 +1094,19 @@ func (p *Parser) parseSimpleExpression() ast.Node {
 				}
 			}
 			if p.tok.Type != token.T_RPAREN {
-				p.addError("line %d:%d: expected ) after arguments for function call %s, got %s", p.tok.Pos.Line, p.tok.Pos.Column, ident, p.tok.Literal)
+				p.addError("line %d:%d: expected ) after arguments for function call %s, got %s", p.tok.Pos.Line, p.tok.Pos.Column, className, p.tok.Literal)
 				return nil
 			}
 			p.nextToken() // consume )
 			return &ast.FunctionCallNode{
-				Name: ident,
+				Name: className,
 				Args: args,
 				Pos:  ast.Position(pos),
 			}
 		}
 		// Not a function call, just an identifier
 		return &ast.IdentifierNode{
-			Value: ident,
+			Value: className,
 			Pos:   ast.Position(pos),
 		}
 	case token.T_CONSTANT_ENCAPSED_STRING:

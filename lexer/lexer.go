@@ -172,7 +172,7 @@ func (l *Lexer) NextToken() token.Token {
 		} else if l.peekChar() == '*' {
 			l.readChar() // consume *
 			if l.peekChar() == '*' {
-				l.readChar() // consume second *
+				l.readChar()                                // consume second *
 				comment := "/**" + l.readBlockComment()[2:] // include both asterisks
 				return token.Token{Type: token.T_DOC_COMMENT, Literal: comment, Pos: pos}
 			}
@@ -294,10 +294,10 @@ func (l *Lexer) NextToken() token.Token {
 	case ':':
 		if l.peekChar() == ':' {
 			l.readChar() // consume first :
+			l.readChar() // consume second :
 
 			// Check if "class" follows "::"
 			if l.peekChar() == 'c' && strings.HasPrefix(l.input[l.readPos:], "class") {
-				l.readChar() // consume second ':'
 				l.readChar() // consume 'c'
 				l.readChar() // consume 'l'
 				l.readChar() // consume 'a'
