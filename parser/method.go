@@ -131,6 +131,12 @@ func (p *Parser) parseInterfaceMethod() ast.Node {
 			}
 		}
 
+		// Skip C-style comments (/* ... */) and inline comments (// ...) in parameter list
+		if p.tok.Type == token.T_COMMENT || p.tok.Type == token.T_DOC_COMMENT {
+			p.nextToken()
+			continue
+		}
+
 		param := p.parseParameter()
 		if param == nil {
 			// If the parameter is nil and we're at a closing parenthesis, break (tolerate trailing comma)
@@ -151,7 +157,6 @@ func (p *Parser) parseInterfaceMethod() ast.Node {
 			break
 		} else {
 			// Instead of erroring immediately, skip ignorable tokens and try to continue
-			// If the token is whitespace, comment, or doc comment, skip it
 			if p.tok.Type == token.T_WHITESPACE || p.tok.Type == token.T_COMMENT || p.tok.Type == token.T_DOC_COMMENT {
 				p.nextToken()
 				continue
