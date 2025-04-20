@@ -1,9 +1,8 @@
-package tests
+package parser
 
 import (
 	"go-phpcs/ast"
 	"go-phpcs/lexer"
-	"go-phpcs/parser"
 	"testing"
 )
 
@@ -18,7 +17,7 @@ func TestConstrutor(t *testing.T) {
 }`
 
 	l := lexer.New(input)
-	p := parser.New(l, true)
+	p := New(l, true)
 	nodes := p.Parse()
 
 	if len(p.Errors()) > 0 {
@@ -61,7 +60,7 @@ class Bar {
 }`
 
 	l := lexer.New(input)
-	p := parser.New(l, true)
+	p := New(l, true)
 	nodes := p.Parse()
 
 	if len(p.Errors()) > 0 {

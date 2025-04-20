@@ -1,9 +1,8 @@
-package tests
+package parser
 
 import (
 	"go-phpcs/ast"
 	"go-phpcs/lexer"
-	"go-phpcs/parser"
 	"testing"
 )
 
@@ -15,7 +14,7 @@ interface TestInterface
 }`
 
 	l := lexer.New(input)
-	p := parser.New(l, true)
+	p := New(l, true)
 	nodes := p.Parse()
 
 	if len(p.Errors()) > 0 {

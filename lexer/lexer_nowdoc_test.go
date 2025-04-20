@@ -1,7 +1,6 @@
-package tests
+package lexer
 
 import (
-	"go-phpcs/lexer"
 	"go-phpcs/token"
 	"testing"
 )
@@ -13,12 +12,12 @@ This is a nowdoc string!
 No interpolation: $notAVar
 EOHTML;
 $end = 1;`
-	lex := lexer.New(input)
+	l := New(input)
 
 	// Find the nowdoc token
 	var nowdocToken token.Token
 	for {
-		tok := lex.NextToken()
+		tok := l.NextToken()
 		if tok.Type == token.T_ENCAPSED_AND_WHITESPACE {
 			nowdocToken = tok
 			break

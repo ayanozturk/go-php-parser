@@ -1,9 +1,8 @@
-package tests
+package parser
 
 import (
 	"go-phpcs/ast"
 	"go-phpcs/lexer"
-	"go-phpcs/parser"
 	"testing"
 )
 
@@ -14,7 +13,7 @@ interface B extends A {}
 interface C extends A, B {}
 `
 	lex := lexer.New(code)
-	p := parser.New(lex, false)
+	p := New(lex, false)
 	nodes := p.Parse()
 	if len(nodes) != 3 {
 		t.Fatalf("expected 3 nodes, got %d", len(nodes))

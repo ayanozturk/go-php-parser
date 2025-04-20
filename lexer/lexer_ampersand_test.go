@@ -1,7 +1,6 @@
-package tests
+package lexer
 
 import (
-	"go-phpcs/lexer"
 	"go-phpcs/token"
 	"testing"
 )
@@ -11,11 +10,11 @@ func TestLexerAmpersandReference(t *testing.T) {
 interface Foo {
     public function bar(?bool &$asGhostObject = null, ?string $id = null): bool;
 }`
-	lex := lexer.New(input)
+	l := New(input)
 
 	foundAmp := false
 	for {
-		tok := lex.NextToken()
+		tok := l.NextToken()
 		if tok.Type == token.T_AMPERSAND {
 			foundAmp = true
 			break

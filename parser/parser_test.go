@@ -1,9 +1,8 @@
-package tests
+package parser
 
 import (
-	"testing"
 	"go-phpcs/lexer"
-	"go-phpcs/parser"
+	"testing"
 )
 
 func TestParserInfiniteLoopScenarios(t *testing.T) {
@@ -47,7 +46,7 @@ func TestParserInfiniteLoopScenarios(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			l := lexer.New(tt.input)
-			p := parser.New(l, true)
+			p := New(l, true)
 			_ = p.Parse()
 			hasErr := len(p.Errors()) > 0
 			if hasErr != tt.wantErr {

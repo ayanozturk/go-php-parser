@@ -1,7 +1,6 @@
-package tests
+package lexer
 
 import (
-	"go-phpcs/lexer"
 	"go-phpcs/token"
 	"testing"
 )
@@ -11,12 +10,12 @@ func TestLexerFunctionParamWithAttribute(t *testing.T) {
 interface Foo {
     public function bar(Request $request, #[\SensitiveParameter] string $secret);
 }`
-	lex := lexer.New(input)
+	l := New(input)
 
 	foundAttribute := false
 	foundParam := false
 	for {
-		tok := lex.NextToken()
+		tok := l.NextToken()
 		if tok.Type == token.T_ATTRIBUTE {
 			foundAttribute = true
 		}

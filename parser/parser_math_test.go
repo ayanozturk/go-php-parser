@@ -1,10 +1,9 @@
-package tests
+package parser
 
 import (
-	"testing"
 	"go-phpcs/ast"
 	"go-phpcs/lexer"
-	"go-phpcs/parser"
+	"testing"
 )
 
 func TestParserMathExpression(t *testing.T) {
@@ -25,7 +24,7 @@ func TestParserMathExpression(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.input, func(t *testing.T) {
 			l := lexer.New(test.input)
-			p := parser.New(l, true)
+			p := New(l, true)
 			nodes := p.Parse()
 			if len(p.Errors()) > 0 {
 				t.Errorf("Parser returned errors: %v", p.Errors())

@@ -36,13 +36,6 @@ func (p *Parser) addError(format string, args ...interface{}) {
 	}
 }
 
-func (p *Parser) debugPrint(format string, args ...interface{}) {
-	if p.debug {
-		fmt.Printf(format+"\n", args...)
-	}
-}
-
-// Add debug printing to Parse method
 func (p *Parser) Parse() []ast.Node {
 	// Add panic recovery
 	defer func() {
@@ -73,9 +66,6 @@ func (p *Parser) Parse() []ast.Node {
 		if p.tok.Type == token.T_EOF {
 			break
 		}
-		// if p.debug {
-		// fmt.Printf("[DEBUG] parseStatement sees token: %v (%q)\n", p.tok.Type, p.tok.Literal)
-		// }
 		node, err := p.parseStatement()
 		if err != nil {
 			p.addError(err.Error())
@@ -84,7 +74,6 @@ func (p *Parser) Parse() []ast.Node {
 		}
 		if node != nil {
 			nodes = append(nodes, node)
-			// p.debugPrint("Parsed node: %s", node.String())
 		}
 	}
 
@@ -133,7 +122,6 @@ func (p *Parser) parseStatement() (ast.Node, error) {
 			p.addError("line %d:%d: expected 'class' after modifier %s, got %s", p.tok.Pos.Line, p.tok.Pos.Column, modifier, p.tok.Literal)
 			return nil, nil
 		}
-		// else treat as expression statement
 		return p.parseExpressionStatement()
 	case token.T_CLASS:
 		return p.parseClassDeclaration()
@@ -1323,26 +1311,4 @@ func (p *Parser) parseEnumCase() (*ast.EnumCaseNode, error) {
 		Value: value,
 		Pos:   ast.Position(pos),
 	}, nil
-}
-
-func (p *Parser) parseFullyQualifiedName() *ast.IdentifierNode {
-	pos := p.tok.Pos
-	var fqdn strings.Builder
-
-	// Combine T_STRING and T_BACKSLASH tokens
-	for p.tok.Type == token.T_STRING || p.tok.Type == token.T_BACKSLASH {
-		fqdn.WriteString(p.tok.Literal)
-		p.nextToken()
-	}
-
-	// Check for ::class
-	if p.tok.Type == token.T_CLASS_CONST {
-		fqdn.WriteString("::class")
-		p.nextToken() // consume T_CLASS_CONST
-	}
-
-	return &ast.IdentifierNode{
-		Value: fqdn.String(),
-		Pos:   ast.Position(pos),
-	}
 }

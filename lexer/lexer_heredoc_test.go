@@ -1,7 +1,6 @@
-package tests
+package lexer
 
 import (
-	"go-phpcs/lexer"
 	"go-phpcs/token"
 	"testing"
 )
@@ -14,12 +13,12 @@ With multiple lines.
 And special chars: < > $ #
 EOT;
 $end = 1;`
-	lex := lexer.New(input)
+	l := New(input)
 
 	// Find the heredoc token
 	var heredocToken token.Token
 	for {
-		tok := lex.NextToken()
+		tok := l.NextToken()
 		if tok.Type == token.T_ENCAPSED_AND_WHITESPACE {
 			heredocToken = tok
 			break

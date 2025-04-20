@@ -307,7 +307,6 @@ func (l *Lexer) NextToken() token.Token {
 				}
 			}
 		}
-		break;
 	case '$':
 		l.readChar()
 		if isLetter(l.char) {
@@ -368,7 +367,7 @@ func (l *Lexer) NextToken() token.Token {
 		tok = token.Token{Type: token.T_DOT, Literal: string(l.char), Pos: pos}
 		l.readChar()
 		return tok
-		case '"':
+	case '"':
 		l.readChar() // consume opening quote
 		str := l.readString('"')
 		l.readChar() // consume closing quote

@@ -1,8 +1,7 @@
-package tests
+package parser
 
 import (
 	"go-phpcs/lexer"
-	"go-phpcs/parser"
 	"testing"
 )
 
@@ -11,7 +10,7 @@ func TestParseFunctionWithUnionTypeParam(t *testing.T) {
 function foo(\DOMException|\Dom\Exception $e, array $a, Stub $stub, bool $isNested) {}`
 
 	l := lexer.New(input)
-	p := parser.New(l, true)
+	p := New(l, true)
 	nodes := p.Parse()
 
 	if len(p.Errors()) > 0 {

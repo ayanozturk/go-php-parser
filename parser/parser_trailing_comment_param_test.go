@@ -1,7 +1,6 @@
-package tests
+package parser
 
 import (
-	"go-phpcs/parser"
 	"go-phpcs/lexer"
 	"testing"
 )
@@ -17,7 +16,7 @@ interface TurboStreamListenRendererInterface {
     public function renderTurboStreamListen(Environment $env, $topic /* , array $eventSourceOptions = [] */): string;
 }`
 	l := lexer.New(php)
-	p := parser.New(l, false)
+	p := New(l, false)
 	ast := p.Parse()
 	errs := p.Errors()
 	if len(errs) > 0 {

@@ -1,9 +1,8 @@
-package tests
+package parser
 
 import (
-	"testing"
-	"go-phpcs/parser"
 	"go-phpcs/lexer"
+	"testing"
 )
 
 func TestParseInterfaceWithMixedReturnType(t *testing.T) {
@@ -15,7 +14,7 @@ interface MetadataStoreInterface {
     public function getMetadata(string $key, string|Transition|null $subject = null): mixed;
 }`
 	l := lexer.New(php)
-	p := parser.New(l, false)
+	p := New(l, false)
 	p.Parse()
 	if len(p.Errors()) > 0 {
 		t.Errorf("Parser errors: %v", p.Errors())

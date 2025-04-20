@@ -1,18 +1,17 @@
-package tests
+package parser
 
 import (
 	"testing"
 
 	"go-phpcs/ast"
 	"go-phpcs/lexer"
-	"go-phpcs/parser"
 )
 
 func TestParseEnum(t *testing.T) {
 	code := `<?php
 enum Status { case CASE_ONE; case CASE_TWO; }`
-	lex := lexer.New(code)
-	p := parser.New(lex, true)
+	l := lexer.New(code)
+	p := New(l, true)
 	nodes := p.Parse()
 
 	if len(p.Errors()) > 0 {

@@ -275,9 +275,8 @@ func (p *Parser) parseInterfaceMethod() ast.Node {
 			DefaultValue: defaultValue,
 			Pos:          ast.Position(paramPos),
 		}
-		if param != nil {
-			params = append(params, param)
-		}
+
+		params = append(params, param)
 
 		// After a parameter, skip any comments and commas before checking for next parameter or end
 		for p.tok.Type == token.T_COMMENT || p.tok.Type == token.T_DOC_COMMENT || p.tok.Type == token.T_COMMA {
