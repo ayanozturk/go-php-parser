@@ -34,7 +34,8 @@ var Commands = map[string]Command{
 		Name:        "style",
 		Description: "Check code style (e.g., function naming)",
 		Execute: func(nodes []ast.Node) {
-			style.Check(nodes)
+			checker := &style.ClassNameChecker{}
+			checker.Check(nodes)
 		},
 	},
 }

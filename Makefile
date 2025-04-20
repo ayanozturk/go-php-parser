@@ -6,3 +6,6 @@ test:
 
 coverage:
 	go test -cover ./...
+
+style:
+	go run main.go style
