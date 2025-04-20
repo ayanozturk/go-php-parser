@@ -137,6 +137,19 @@ func (p *Parser) parseInterfaceMethod() ast.Node {
 
 		// Now, expect a parameter
 
+		// --- FIX: skip PHP attributes before parameter (like in parseParameter) ---
+		for {
+			if p.tok.Type == token.T_ATTRIBUTE {
+				p.nextToken()
+				continue
+			}
+			if p.tok.Type == token.T_WHITESPACE || p.tok.Type == token.T_COMMENT || p.tok.Type == token.T_DOC_COMMENT {
+				p.nextToken()
+				continue
+			}
+			break
+		}
+
 		// Handle nullable type hint (e.g. ?string)
 		var typeHint string
 		var unionTypeNode *ast.UnionTypeNode
