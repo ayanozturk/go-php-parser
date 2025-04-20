@@ -20,8 +20,46 @@ func (c *ClassNameChecker) Check(nodes []ast.Node) {
 	}
 }
 
+// camelCase returns the camelCase version of the input name.
+// If the name is already camelCase, it returns it unchanged.
 func camelCase(name string) string {
-	// dummy stub - real logic needed
-	return name
+	if name == "" {
+		return name
+	}
+	// Remove underscores and capitalize following letter
+	result := ""
+	capitalizeNext := false
+	for i, r := range name {
+		if r == '_' {
+			capitalizeNext = true
+			continue
+		}
+		if i == 0 {
+			result += string(toLower(r))
+			continue
+		}
+		if capitalizeNext {
+			result += string(toUpper(r))
+			capitalizeNext = false
+		} else {
+			result += string(r)
+		}
+	}
+	return result
 }
+
+func toLower(r rune) rune {
+	if 'A' <= r && r <= 'Z' {
+		return r + ('a' - 'A')
+	}
+	return r
+}
+
+func toUpper(r rune) rune {
+	if 'a' <= r && r <= 'z' {
+		return r - ('a' - 'A')
+	}
+	return r
+}
+
 
