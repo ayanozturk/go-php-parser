@@ -24,10 +24,24 @@ func TestArrayVariables(t *testing.T) {
 	}
 
 	for _, node := range nodes {
-		assignNode, ok := node.(*ast.AssignmentNode)
-		if !ok {
-			t.Errorf("Expected AssignmentNode, found %s", node.NodeType())
-			continue
+		// Accept ExpressionStmt wrapping AssignmentNode as valid
+		var assignNode *ast.AssignmentNode
+		if exprStmt, ok := node.(*ast.ExpressionStmt); ok {
+			if a, ok := exprStmt.Expr.(*ast.AssignmentNode); ok {
+				assignNode = a
+			} else {
+				t.Errorf("Expected AssignmentNode inside ExpressionStmt, found %s", exprStmt.Expr.NodeType())
+				continue
+			}
+		}
+		if assignNode == nil {
+			// Fallback: maybe it's a bare AssignmentNode (legacy)
+			if a, ok := node.(*ast.AssignmentNode); ok {
+				assignNode = a
+			} else {
+				t.Errorf("Expected AssignmentNode (possibly wrapped in ExpressionStmt), found %s", node.NodeType())
+				continue
+			}
 		}
 
 		if _, ok := assignNode.Left.(*ast.VariableNode); !ok {

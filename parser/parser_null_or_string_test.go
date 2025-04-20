@@ -18,12 +18,14 @@ trait Mixin {
 	l := lexer.New(php)
 	p := New(l, true)
 	nodes := p.Parse()
-	fmt.Printf("AST: %#v\n", nodes)
 	if len(p.Errors()) > 0 {
 		t.Errorf("Parser errors: %v", p.Errors())
 	}
 	if len(nodes) == 0 {
+		fmt.Printf("AST (empty): %#v\n", nodes)
 		t.Fatal("No nodes parsed from trait")
+	} else {
+		fmt.Printf("AST: %#v\n", nodes)
 	}
 	// Find the trait node and check method
 	traitFound := false

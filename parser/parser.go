@@ -413,33 +413,11 @@ var phpOperatorRightAssoc = map[token.TokenType]bool{
 }
 
 func (p *Parser) parseExpression() ast.Node {
-	return p.parseExpressionWithPrecedence(0)
+	return p.parseExpressionWithPrecedence(0, true)
 }
 
-// isAssignmentOperator returns true if the operator is an assignment
-func isAssignmentOperator(op token.TokenType) bool {
-	switch op {
-	case token.T_ASSIGN, token.T_PLUS_EQUAL, token.T_MINUS_EQUAL, token.T_MUL_EQUAL, token.T_DIV_EQUAL, token.T_MOD_EQUAL, token.T_AND_EQUAL, token.T_CONCAT_EQUAL, token.T_XOR_EQUAL, token.T_COALESCE_EQUAL:
-		return true
-	default:
-		return false
-	}
-}
-
-// isValidAssignmentTarget returns true if node is a valid assignment target (VariableNode only for now)
-func isValidAssignmentTarget(node ast.Node) bool {
-	if node == nil {
-		return false
-	}
-	switch node.(type) {
-	case *ast.VariableNode:
-		return true
-	default:
-		return false
-	}
-}
-
-func (p *Parser) parseExpressionWithPrecedence(minPrec int) ast.Node {
+// parseExpressionWithPrecedence parses expressions with correct precedence. Only validateAssignmentTarget for top-level expressions.
+func (p *Parser) parseExpressionWithPrecedence(minPrec int, validateAssignmentTarget bool) ast.Node {
 	// Array literals
 	if p.tok.Type == token.T_LBRACKET || p.tok.Type == token.T_ARRAY {
 		return p.parseArrayLiteral()
@@ -466,27 +444,59 @@ func (p *Parser) parseExpressionWithPrecedence(minPrec int) ast.Node {
 			nextMinPrec = prec
 		}
 		p.nextToken()
-		right := p.parseExpressionWithPrecedence(nextMinPrec)
+		right := p.parseExpressionWithPrecedence(nextMinPrec, false)
 		if right == nil {
 			p.addError("line %d:%d: expected right operand after operator %s", pos.Line, pos.Column, operator)
 			return nil
 		}
-		// Assignment target validation: ONLY for assignment operators, never for comparison/logical ops
-		// Only validate assignment target for top-level assignments
-		if isAssignmentOperator(op) && minPrec == 0 {
+		// Only validate assignment target for the outermost assignment (not for nested assignments in logical expressions)
+		if isAssignmentOperator(op) && validateAssignmentTarget && minPrec == 0 {
 			if !isValidAssignmentTarget(left) {
 				p.addError("line %d:%d: invalid assignment target for operator %s", pos.Line, pos.Column, operator)
 				return nil
 			}
 		}
-		left = &ast.BinaryExpr{
-			Left:     left,
-			Operator: operator,
-			Right:    right,
-			Pos:      ast.Position(pos),
+		if isAssignmentOperator(op) {
+			left = &ast.AssignmentNode{
+				Left:  left,
+				Right: right,
+				Pos:   ast.Position(pos),
+			}
+		} else {
+			left = &ast.BinaryExpr{
+				Left:     left,
+				Operator: operator,
+				Right:    right,
+				Pos:      ast.Position(pos),
+			}
 		}
 	}
 	return left
+}
+
+
+
+// isAssignmentOperator returns true if the operator is an assignment
+func isAssignmentOperator(op token.TokenType) bool {
+	switch op {
+	case token.T_ASSIGN, token.T_PLUS_EQUAL, token.T_MINUS_EQUAL, token.T_MUL_EQUAL, token.T_DIV_EQUAL, token.T_MOD_EQUAL, token.T_AND_EQUAL, token.T_CONCAT_EQUAL, token.T_XOR_EQUAL, token.T_COALESCE_EQUAL:
+		return true
+	default:
+		return false
+	}
+}
+
+// isValidAssignmentTarget returns true if node is a valid assignment target (VariableNode only for now)
+func isValidAssignmentTarget(node ast.Node) bool {
+	if node == nil {
+		return false
+	}
+	switch node.(type) {
+	case *ast.VariableNode:
+		return true
+	default:
+		return false
+	}
 }
 
 func (p *Parser) isBinaryOperator(tokenType token.TokenType) bool {
@@ -667,7 +677,7 @@ func (p *Parser) parseArrayLiteral() ast.Node {
 }
 
 func (p *Parser) parseExpressionStatement() (ast.Node, error) {
-	expr := p.parseExpression()
+	expr := p.parseExpressionWithPrecedence(0, true)
 	if expr == nil {
 		return nil, nil
 	}
