@@ -250,11 +250,20 @@ func (p *Parser) parseInterfaceMethod() ast.Node {
 
 		// Parameter name
 		if p.tok.Type != token.T_VARIABLE {
-			// Allow end of parameter list after skipping comments
+			// Allow end of parameter list after skipping comments/commas/trailing comments
 			if p.tok.Type == token.T_RPAREN {
 				break
 			}
-			p.errors = append(p.errors, fmt.Sprintf("line %d:%d: expected parameter name, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal))
+			// If we see a single trailing comment (e.g., /* , ... */) or comma before ')', skip and break
+			if (p.tok.Type == token.T_COMMENT || p.tok.Type == token.T_DOC_COMMENT) && (p.peekToken().Type == token.T_RPAREN) {
+				p.nextToken() // skip trailing comment
+				break
+			}
+			if p.tok.Type == token.T_COMMA && (p.peekToken().Type == token.T_RPAREN) {
+				p.nextToken() // skip trailing comma
+				break
+			}
+			p.errors = append(p.errors, fmt.Sprintf("line %d:%d: expected parameter name in parameter, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal))
 			return nil
 		}
 		varName := p.tok.Literal[1:] // Remove $ prefix
