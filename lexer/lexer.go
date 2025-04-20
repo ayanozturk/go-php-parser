@@ -323,15 +323,30 @@ func (l *Lexer) NextToken() token.Token {
 			return tok
 		}
 	case '=':
-		if l.peekChar() == '>' {
+		// Longest match first: ===, ==, =>
+		if l.peekChar() == '=' && l.input[l.readPos+1] == '=' {
+			// ===
+			l.readChar() // consume first =
+			l.readChar() // consume second =
+			l.readChar() // consume third =
+			return token.Token{Type: token.T_IS_IDENTICAL, Literal: "===", Pos: pos}
+		} else if l.peekChar() == '=' {
+			// ==
+			l.readChar() // consume first =
+			l.readChar() // consume second =
+			return token.Token{Type: token.T_IS_EQUAL, Literal: "==", Pos: pos}
+		} else if l.peekChar() == '>' {
+			// =>
 			ch := l.char
 			l.readChar()
 			tok = token.Token{Type: token.T_DOUBLE_ARROW, Literal: string(ch) + string(l.char), Pos: pos}
+			l.readChar()
+			return tok
 		} else {
 			tok = token.Token{Type: token.T_ASSIGN, Literal: string(l.char), Pos: pos}
+			l.readChar()
+			return tok
 		}
-		l.readChar()
-		return tok
 	case '(':
 		tok = token.Token{Type: token.T_LPAREN, Literal: string(l.char), Pos: pos}
 		l.readChar()

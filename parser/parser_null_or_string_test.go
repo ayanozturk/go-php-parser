@@ -1,6 +1,7 @@
 package parser
 
 import (
+	"fmt"
 	"go-phpcs/ast"
 	"go-phpcs/lexer"
 	"testing"
@@ -11,12 +12,13 @@ func TestParseDoublePipeOperator(t *testing.T) {
 trait Mixin {
     public function nullOrString($value, $message = ''): bool
     {
-        null === $value || $message = '';
+        $value == null || $message = '';
     }
 }`
 	l := lexer.New(php)
 	p := New(l, true)
 	nodes := p.Parse()
+	fmt.Printf("AST: %#v\n", nodes)
 	if len(p.Errors()) > 0 {
 		t.Errorf("Parser errors: %v", p.Errors())
 	}

@@ -127,8 +127,7 @@ func (p *Parser) parseStatement() (ast.Node, error) {
 		}, nil
 	case token.T_FUNCTION:
 		return p.parseFunction(nil)
-	case token.T_VARIABLE:
-		return p.parseVariableStatement()
+
 	case token.T_IF:
 		return p.parseIfStatement()
 	case token.T_STRING:
@@ -472,8 +471,9 @@ func (p *Parser) parseExpressionWithPrecedence(minPrec int) ast.Node {
 			p.addError("line %d:%d: expected right operand after operator %s", pos.Line, pos.Column, operator)
 			return nil
 		}
-		// Assignment target validation
-		if isAssignmentOperator(op) {
+		// Assignment target validation: ONLY for assignment operators, never for comparison/logical ops
+		// Only validate assignment target for top-level assignments
+		if isAssignmentOperator(op) && minPrec == 0 {
 			if !isValidAssignmentTarget(left) {
 				p.addError("line %d:%d: invalid assignment target for operator %s", pos.Line, pos.Column, operator)
 				return nil
