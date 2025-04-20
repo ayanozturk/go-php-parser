@@ -257,7 +257,7 @@ func (p *Parser) parseTypeHint() string {
 			p.errors = append(p.errors, "union type ends with '|' or has empty segment")
 		}
 	}
-	if segmentCount == 0 {
+	if segmentCount == 0 && lastWasPipe {
 		if !isDocblockContext {
 			p.errors = append(p.errors, "empty union type")
 		}
@@ -418,6 +418,10 @@ func (p *Parser) parseExpression() ast.Node {
 
 // parseExpressionWithPrecedence parses expressions with correct precedence. Only validateAssignmentTarget for top-level expressions.
 func (p *Parser) parseExpressionWithPrecedence(minPrec int, validateAssignmentTarget bool) ast.Node {
+	if p.debug {
+		fmt.Printf("[DEBUG] parseExpressionWithPrecedence: minPrec=%d, validateAssignmentTarget=%v, tok=%s\n", minPrec, validateAssignmentTarget, p.tok.Literal)
+	}
+
 	// Array literals
 	if p.tok.Type == token.T_LBRACKET || p.tok.Type == token.T_ARRAY {
 		return p.parseArrayLiteral()
@@ -439,12 +443,23 @@ func (p *Parser) parseExpressionWithPrecedence(minPrec int, validateAssignmentTa
 		}
 		pos := p.tok.Pos
 		assocRight := phpOperatorRightAssoc[op]
+		if p.debug {
+			fmt.Printf("[DEBUG] Operator: %s, prec=%d, assocRight=%v, leftType=%T\n", operator, prec, assocRight, left)
+		}
 		nextMinPrec := prec + 1
 		if assocRight {
 			nextMinPrec = prec
 		}
 		p.nextToken()
-		right := p.parseExpressionWithPrecedence(nextMinPrec, false)
+		var right ast.Node
+		if op == token.T_BOOLEAN_OR || op == token.T_BOOLEAN_AND {
+			right = p.parseExpressionWithPrecedence(0, true)
+		} else {
+			right = p.parseExpressionWithPrecedence(nextMinPrec, false)
+		}
+		if p.debug {
+			fmt.Printf("[DEBUG] After right expr: operator=%s, rightType=%T\n", operator, right)
+		}
 		if right == nil {
 			p.addError("line %d:%d: expected right operand after operator %s", pos.Line, pos.Column, operator)
 			return nil
