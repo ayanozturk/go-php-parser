@@ -160,11 +160,14 @@ func (p *Parser) parseInterfaceMethod() ast.Node {
 			p.nextToken()
 		}
 
-		// Handle type hint
-		if p.tok.Type == token.T_STRING || p.tok.Type == token.T_ARRAY || p.tok.Type == token.T_BACKSLASH {
+		// Handle type hint (including 'mixed')
+		if p.tok.Type == token.T_STRING || p.tok.Type == token.T_ARRAY || p.tok.Type == token.T_BACKSLASH || p.tok.Literal == "mixed" {
 			// Handle fully qualified class names with backslashes
 			var typeName strings.Builder
-			if p.tok.Type == token.T_BACKSLASH {
+			if p.tok.Literal == "mixed" {
+				typeName.WriteString("mixed")
+				p.nextToken()
+			} else if p.tok.Type == token.T_BACKSLASH {
 				typeName.WriteString(p.tok.Literal)
 				p.nextToken()
 			} else {
@@ -321,7 +324,10 @@ func (p *Parser) parseInterfaceMethod() ast.Node {
 
 			// Handle fully qualified class names with backslashes
 			var typeName strings.Builder
-			if p.tok.Type == token.T_BACKSLASH {
+			if p.tok.Literal == "mixed" {
+				typeName.WriteString("mixed")
+				p.nextToken()
+			} else if p.tok.Type == token.T_BACKSLASH {
 				typeName.WriteString(p.tok.Literal)
 				p.nextToken()
 			} else {
