@@ -36,6 +36,12 @@ func (p *Parser) addError(format string, args ...interface{}) {
 	}
 }
 
+// Errors returns the list of errors encountered during parsing
+func (p *Parser) Errors() []string {
+	return p.errors
+}
+
+
 func (p *Parser) Parse() []ast.Node {
 	// Add panic recovery
 	defer func() {
@@ -93,6 +99,8 @@ func (p *Parser) parseStatement() (ast.Node, error) {
 		return &ast.BlockNode{Statements: stmts, Pos: ast.Position(pos)}, nil
 	}
 	switch p.tok.Type {
+	case token.T_TRAIT:
+		return p.parseTraitDeclaration()
 	case token.T_COMMENT:
 		pos := p.tok.Pos
 		comment := p.tok.Literal
@@ -118,7 +126,7 @@ func (p *Parser) parseStatement() (ast.Node, error) {
 			Pos:  ast.Position(pos),
 		}, nil
 	case token.T_FUNCTION:
-		return p.parseFunction()
+		return p.parseFunction(nil)
 	case token.T_VARIABLE:
 		return p.parseVariableStatement()
 	case token.T_IF:
@@ -258,7 +266,7 @@ func (p *Parser) parseTypeHint() string {
 	return typeHint
 }
 
-func (p *Parser) parseFunction() (ast.Node, error) {
+func (p *Parser) parseFunction(modifiers []string) (ast.Node, error) {
 	pos := p.tok.Pos
 	p.nextToken() // consume 'function'
 
@@ -284,29 +292,14 @@ func (p *Parser) parseFunction() (ast.Node, error) {
 
 		if p.tok.Type == token.T_COMMA {
 			p.nextToken()
-			// Allow trailing comma before closing parenthesis
-			if p.tok.Type == token.T_RPAREN {
-				break
-			}
-		} else if p.tok.Type == token.T_RPAREN {
-			break
-		} else {
-			p.errors = append(p.errors, fmt.Sprintf("line %d:%d: expected ',' or ')' in parameter list for method %s, got %s", p.tok.Pos.Line, p.tok.Pos.Column, name, p.tok.Literal))
-			return nil, nil
 		}
-	}
-
-	// Parse closing parenthesis
-	if p.tok.Type != token.T_RPAREN {
-		p.errors = append(p.errors, fmt.Sprintf("line %d:%d: expected ')' after parameter list for method %s, got %s", p.tok.Pos.Line, p.tok.Pos.Column, name, p.tok.Literal))
-		return nil, nil
 	}
 	p.nextToken() // consume )
 
-	// Parse return type if present
+	// Parse return type hint
 	var returnType string
 	if p.tok.Type == token.T_COLON {
-		p.nextToken() // consume :
+		p.nextToken()
 		returnType = p.parseTypeHint()
 	}
 
@@ -329,6 +322,7 @@ func (p *Parser) parseFunction() (ast.Node, error) {
 		Params:     params,
 		ReturnType: returnType,
 		Body:       body,
+		Modifiers:  modifiers,
 		Pos:        ast.Position(pos),
 	}, nil
 }
@@ -368,30 +362,123 @@ func (p *Parser) parseVariableStatement() (ast.Node, error) {
 	}, nil
 }
 
-func (p *Parser) parseExpression() ast.Node {
+// precedence table for PHP operators (higher number = higher precedence)
+var phpOperatorPrecedence = map[token.TokenType]int{
+	token.T_ASSIGN:         1,
+	token.T_PLUS_EQUAL:     1,
+	token.T_MINUS_EQUAL:    1,
+	token.T_MUL_EQUAL:      1,
+	token.T_DIV_EQUAL:      1,
+	token.T_MOD_EQUAL:      1,
+	token.T_AND_EQUAL:      1,
+	token.T_CONCAT_EQUAL:   1,
+	token.T_XOR_EQUAL:      1,
+	token.T_COALESCE_EQUAL: 1,
 
-	// Check for array literals
+	token.T_BOOLEAN_OR:     2, // ||
+	token.T_BOOLEAN_AND:    3, // &&
+	token.T_PIPE:           4, // |
+	token.T_AMPERSAND:      5, // &
+	// token.T_XOR_EQUAL:   5, // ^ (already included as assignment above)
+	token.T_IS_EQUAL:         6,
+	token.T_IS_NOT_EQUAL:     6,
+	token.T_IS_IDENTICAL:     6,
+	token.T_IS_NOT_IDENTICAL: 6,
+	token.T_IS_SMALLER:       7,
+	token.T_IS_GREATER:       7,
+	token.T_SPACESHIP:        7,
+	token.T_INSTANCEOF:       8,
+
+	token.T_COALESCE:      9, // ??
+	token.T_PLUS:         10,
+	token.T_MINUS:        10,
+	token.T_DOT:          10,
+	token.T_MULTIPLY:     11,
+	token.T_DIVIDE:       11,
+	token.T_MODULO:       11,
+}
+
+// operator associativity (true = right-associative)
+var phpOperatorRightAssoc = map[token.TokenType]bool{
+	token.T_ASSIGN:         true,
+	token.T_PLUS_EQUAL:     true,
+	token.T_MINUS_EQUAL:    true,
+	token.T_MUL_EQUAL:      true,
+	token.T_DIV_EQUAL:      true,
+	token.T_MOD_EQUAL:      true,
+	token.T_AND_EQUAL:      true,
+	token.T_CONCAT_EQUAL:   true,
+	token.T_XOR_EQUAL:      true,
+	token.T_COALESCE_EQUAL: true,
+	token.T_COALESCE:       true,
+}
+
+func (p *Parser) parseExpression() ast.Node {
+	return p.parseExpressionWithPrecedence(0)
+}
+
+// isAssignmentOperator returns true if the operator is an assignment
+func isAssignmentOperator(op token.TokenType) bool {
+	switch op {
+	case token.T_ASSIGN, token.T_PLUS_EQUAL, token.T_MINUS_EQUAL, token.T_MUL_EQUAL, token.T_DIV_EQUAL, token.T_MOD_EQUAL, token.T_AND_EQUAL, token.T_CONCAT_EQUAL, token.T_XOR_EQUAL, token.T_COALESCE_EQUAL:
+		return true
+	default:
+		return false
+	}
+}
+
+// isValidAssignmentTarget returns true if node is a valid assignment target (VariableNode only for now)
+func isValidAssignmentTarget(node ast.Node) bool {
+	if node == nil {
+		return false
+	}
+	switch node.(type) {
+	case *ast.VariableNode:
+		return true
+	default:
+		return false
+	}
+}
+
+func (p *Parser) parseExpressionWithPrecedence(minPrec int) ast.Node {
+	// Array literals
 	if p.tok.Type == token.T_LBRACKET || p.tok.Type == token.T_ARRAY {
 		return p.parseArrayLiteral()
 	}
-
 	left := p.parseSimpleExpression()
 	if left == nil {
 		p.addError("line %d:%d: expected left operand, got nil", p.tok.Pos.Line, p.tok.Pos.Column)
 		return nil
 	}
-
-	for p.isBinaryOperator(p.tok.Type) {
+	for {
+		prec, isOp := phpOperatorPrecedence[p.tok.Type]
+		if !isOp || prec < minPrec {
+			break
+		}
+		op := p.tok.Type
 		operator := p.tok.Literal
+		if op == token.T_BOOLEAN_OR {
+			operator = "||"
+		}
 		pos := p.tok.Pos
-		p.nextToken() // consume operator
-
-		right := p.parseSimpleExpression()
+		assocRight := phpOperatorRightAssoc[op]
+		nextMinPrec := prec + 1
+		if assocRight {
+			nextMinPrec = prec
+		}
+		p.nextToken()
+		right := p.parseExpressionWithPrecedence(nextMinPrec)
 		if right == nil {
 			p.addError("line %d:%d: expected right operand after operator %s", pos.Line, pos.Column, operator)
 			return nil
 		}
-
+		// Assignment target validation
+		if isAssignmentOperator(op) {
+			if !isValidAssignmentTarget(left) {
+				p.addError("line %d:%d: invalid assignment target for operator %s", pos.Line, pos.Column, operator)
+				return nil
+			}
+		}
 		left = &ast.BinaryExpr{
 			Left:     left,
 			Operator: operator,
@@ -399,7 +486,6 @@ func (p *Parser) parseExpression() ast.Node {
 			Pos:      ast.Position(pos),
 		}
 	}
-
 	return left
 }
 
@@ -407,8 +493,13 @@ func (p *Parser) isBinaryOperator(tokenType token.TokenType) bool {
 	switch tokenType {
 	case token.T_PLUS, token.T_MINUS, token.T_MULTIPLY, token.T_DIVIDE, token.T_MODULO,
 		token.T_IS_EQUAL, token.T_IS_NOT_EQUAL, token.T_IS_SMALLER, token.T_IS_GREATER,
-		token.T_DOT,      // Support string concatenation
-		token.T_COALESCE: // Support null coalescing operator ??
+		token.T_DOT,        // Support string concatenation
+		token.T_COALESCE,   // Support null coalescing operator ??
+		token.T_BOOLEAN_OR, // Support double pipe || operator
+		token.T_BOOLEAN_AND, // Support double ampersand && operator
+		token.T_PIPE: // Support single pipe | operator
+		return true
+	case token.T_ASSIGN:
 		return true
 	default:
 		return false
@@ -801,50 +892,44 @@ func (p *Parser) parseClassDeclarationWithModifier(modifier string) (ast.Node, e
 	var properties []ast.Node
 	var methods []ast.Node
 	for p.tok.Type != token.T_RBRACE && p.tok.Type != token.T_EOF {
-		// Handle visibility modifiers for methods and properties
-		if p.tok.Type == token.T_PUBLIC || p.tok.Type == token.T_PRIVATE || p.tok.Type == token.T_PROTECTED {
-			visibility := p.tok.Literal
-			p.nextToken()
-
-			if p.tok.Type == token.T_FUNCTION {
-				if method, err := p.parseFunction(); method != nil {
-					if fn, ok := method.(*ast.FunctionNode); ok {
-						fn.Visibility = visibility
-					}
-					methods = append(methods, method)
-				} else if err != nil {
-					return nil, err
-				}
-			} else if p.tok.Type == token.T_VARIABLE {
-				if prop, err := p.parsePropertyDeclaration(); prop != nil {
-					if pn, ok := prop.(*ast.PropertyNode); ok {
-						pn.Visibility = visibility
-					}
-					properties = append(properties, prop)
-				} else if err != nil {
-					return nil, err
-				}
-			} else {
-				p.addError("line %d:%d: expected function or property declaration after visibility modifier %s, got %s", p.tok.Pos.Line, p.tok.Pos.Column, visibility, p.tok.Literal)
+		// Collect all modifiers (public, protected, private, static, final, abstract) and comments/docblocks before 'function'
+		var modifiers []string
+		for {
+			switch p.tok.Type {
+			case token.T_PUBLIC, token.T_PROTECTED, token.T_PRIVATE, token.T_STATIC, token.T_FINAL, token.T_ABSTRACT:
+				modifiers = append(modifiers, p.tok.Literal)
 				p.nextToken()
+				continue
+			case token.T_COMMENT, token.T_DOC_COMMENT:
+				p.nextToken()
+				continue
 			}
-		} else if p.tok.Type == token.T_FUNCTION {
-			if method, err := p.parseFunction(); method != nil {
+			break
+		}
+		if p.tok.Type == token.T_FUNCTION {
+			if method, err := p.parseFunction(modifiers); method != nil {
 				methods = append(methods, method)
 			} else if err != nil {
 				return nil, err
 			}
-		} else if p.tok.Type == token.T_VARIABLE {
-			// Parse property declaration
+			continue
+		}
+		if len(modifiers) > 0 {
+			// If we saw modifiers but not a function, emit error and skip
+			p.addError("line %d:%d: expected function after modifiers in class %s body, got %s", p.tok.Pos.Line, p.tok.Pos.Column, name, p.tok.Literal)
+			p.nextToken()
+			continue
+		}
+		if p.tok.Type == token.T_VARIABLE {
 			if prop, err := p.parsePropertyDeclaration(); prop != nil {
 				properties = append(properties, prop)
 			} else if err != nil {
 				return nil, err
 			}
-		} else {
-			p.addError("line %d:%d: unexpected token %s in class %s body", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal, name)
-			p.nextToken()
+			continue
 		}
+		p.addError("line %d:%d: unexpected token %s in class %s body", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal, name)
+		p.nextToken()
 	}
 
 	if p.tok.Type != token.T_RBRACE {
@@ -922,7 +1007,7 @@ func (p *Parser) parseClassDeclaration() (ast.Node, error) {
 			p.nextToken()
 
 			if p.tok.Type == token.T_FUNCTION {
-				if method, err := p.parseFunction(); method != nil {
+				if method, err := p.parseFunction(nil); method != nil {
 					if fn, ok := method.(*ast.FunctionNode); ok {
 						fn.Visibility = visibility
 					}
@@ -944,7 +1029,7 @@ func (p *Parser) parseClassDeclaration() (ast.Node, error) {
 				p.nextToken()
 			}
 		} else if p.tok.Type == token.T_FUNCTION {
-			if method, err := p.parseFunction(); method != nil {
+			if method, err := p.parseFunction(nil); method != nil {
 				methods = append(methods, method)
 			} else if err != nil {
 				return nil, err
@@ -1013,9 +1098,6 @@ func (p *Parser) parseBlockStatement() []ast.Node {
 	return statements
 }
 
-func (p *Parser) Errors() []string {
-	return p.errors
-}
 
 // peekToken returns the next token without consuming it
 func (p *Parser) peekToken() token.Token {
@@ -1254,6 +1336,78 @@ func (p *Parser) parseSimpleExpression() ast.Node {
 		p.nextToken()
 		return nil
 	}
+}
+
+// parseTraitDeclaration parses a PHP trait declaration
+func (p *Parser) parseTraitDeclaration() (ast.Node, error) {
+	pos := p.tok.Pos
+	p.nextToken() // consume 'trait'
+
+	if p.tok.Type != token.T_STRING {
+		p.addError("line %d:%d: expected trait name, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal)
+		return nil, nil
+	}
+	name := p.tok.Literal
+	p.nextToken()
+
+	// Expect opening brace
+	if p.tok.Type != token.T_LBRACE {
+		p.addError("line %d:%d: expected { to start trait body for %s, got %s", p.tok.Pos.Line, p.tok.Pos.Column, name, p.tok.Literal)
+		return nil, nil
+	}
+	p.nextToken() // consume {
+
+	// Parse methods inside the trait
+	var methods []ast.Node
+	for p.tok.Type != token.T_RBRACE && p.tok.Type != token.T_EOF {
+		// Collect all modifiers (public, protected, private, static, final, abstract) and comments/docblocks before 'function'
+		var modifiers []string
+		for {
+			switch p.tok.Type {
+			case token.T_PUBLIC, token.T_PROTECTED, token.T_PRIVATE, token.T_STATIC, token.T_FINAL, token.T_ABSTRACT:
+				modifiers = append(modifiers, p.tok.Literal)
+				p.nextToken()
+				continue
+			case token.T_COMMENT, token.T_DOC_COMMENT:
+				p.nextToken()
+				continue
+			}
+			break
+		}
+		if p.tok.Type == token.T_FUNCTION {
+			fn, err := p.parseFunction(modifiers)
+			if err != nil {
+				p.addError(err.Error())
+				p.nextToken()
+				continue
+			}
+			if fn != nil {
+				methods = append(methods, fn)
+			}
+			continue
+		}
+		if len(modifiers) > 0 {
+			// If we saw modifiers but not a function, emit error and skip
+			p.addError("line %d:%d: expected function after modifiers in trait %s body, got %s", p.tok.Pos.Line, p.tok.Pos.Column, name, p.tok.Literal)
+			p.nextToken()
+			continue
+		}
+		// Skip unexpected tokens inside trait body
+		p.addError("line %d:%d: unexpected token %s in trait %s body", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal, name)
+		p.nextToken()
+	}
+
+	if p.tok.Type != token.T_RBRACE {
+		p.addError("line %d:%d: expected } to close trait %s body, got %s", p.tok.Pos.Line, p.tok.Pos.Column, name, p.tok.Literal)
+		return nil, nil
+	}
+	p.nextToken() // consume }
+
+	return &ast.TraitNode{
+		Name:    name,
+		Methods: methods,
+		Pos:     ast.Position(pos),
+	}, nil
 }
 
 // UnpackedArgumentNode and FunctionCallNode should be defined in ast package if not already present.

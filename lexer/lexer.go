@@ -205,6 +205,11 @@ func (l *Lexer) NextToken() token.Token {
 		l.readChar()
 		return tok
 	case '|':
+		if l.peekChar() == '|' {
+			l.readChar() // consume first |
+			l.readChar() // consume second |
+			return token.Token{Type: token.T_BOOLEAN_OR, Literal: "||", Pos: pos}
+		}
 		tok = token.Token{Type: token.T_PIPE, Literal: string(l.char), Pos: pos}
 		l.readChar()
 		return tok
@@ -465,6 +470,8 @@ func (l *Lexer) NextToken() token.Token {
 			return token.Token{Type: token.T_ENUM, Literal: ident, Pos: pos}
 		case "case":
 			return token.Token{Type: token.T_CASE, Literal: ident, Pos: pos}
+		case "trait":
+			return token.Token{Type: token.T_TRAIT, Literal: ident, Pos: pos}
 		default:
 			return token.Token{Type: token.T_STRING, Literal: ident, Pos: pos}
 		}

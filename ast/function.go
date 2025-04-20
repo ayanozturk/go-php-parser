@@ -8,7 +8,8 @@ import (
 // FunctionNode represents a PHP function definition
 type FunctionNode struct {
 	Name       string
-	Visibility string // public, private, protected
+	Visibility string // public, private, protected (legacy, kept for compatibility)
+	Modifiers  []string // All modifiers, e.g. public, static, final, abstract
 	ReturnType string
 	Params     []Node
 	Body       []Node
@@ -20,6 +21,9 @@ func (f *FunctionNode) GetPos() Position    { return f.Pos }
 func (f *FunctionNode) SetPos(pos Position) { f.Pos = pos }
 func (f *FunctionNode) String() string {
 	var parts []string
+	if len(f.Modifiers) > 0 {
+		parts = append(parts, strings.Join(f.Modifiers, " "))
+	}
 	if f.Visibility != "" {
 		parts = append(parts, f.Visibility)
 	}
