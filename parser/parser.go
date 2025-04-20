@@ -81,6 +81,17 @@ func (p *Parser) Parse() []ast.Node {
 }
 
 func (p *Parser) parseStatement() (ast.Node, error) {
+	if p.tok.Type == token.T_LBRACE {
+		pos := p.tok.Pos
+		p.nextToken() // consume {
+		stmts := p.parseBlockStatement()
+		if p.tok.Type != token.T_RBRACE {
+			p.addError("line %d:%d: expected } to close block, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal)
+			return nil, nil
+		}
+		p.nextToken() // consume }
+		return &ast.BlockNode{Statements: stmts, Pos: ast.Position(pos)}, nil
+	}
 	switch p.tok.Type {
 	case token.T_COMMENT:
 		pos := p.tok.Pos
@@ -174,23 +185,24 @@ func (p *Parser) parseStatement() (ast.Node, error) {
 
 // parseTypeHint parses a type hint (nullable, union, FQCN, etc.)
 func (p *Parser) parseTypeHint() string {
+	// Only emit errors for real type hints, not when inside docblocks/comments
+	isDocblockContext := p.tok.Type == token.T_DOC_COMMENT
 	typeHint := ""
+	lastWasPipe := false
+	segmentCount := 0
 	for {
 		// Nullable type
 		if p.tok.Type == token.T_QUESTION {
 			typeHint += "?"
 			p.nextToken()
 		}
-		// Fully qualified class name or namespace (collect all [T_BACKSLASH][T_STRING] pairs)
 		typeSegment := ""
 		for (p.tok.Literal == "\\" || p.tok.Type == token.T_BACKSLASH) && p.peekToken().Type == token.T_STRING {
 			typeSegment += "\\"
 			p.nextToken() // consume backslash
 			typeSegment += p.tok.Literal
 			p.nextToken() // consume string
-			// Continue collecting if another backslash follows
 		}
-		// If not a FQCN, handle simple types
 		if typeSegment == "" {
 			if p.tok.Type == token.T_STRING || p.tok.Type == token.T_ARRAY || p.tok.Type == token.T_NULL || p.tok.Type == token.T_MIXED || p.tok.Type == token.T_CALLABLE || p.tok.Literal == "mixed" {
 				typeSegment += p.tok.Literal
@@ -199,26 +211,49 @@ func (p *Parser) parseTypeHint() string {
 		}
 		if typeSegment != "" {
 			typeHint += typeSegment
-			// Handle array type with []
+			segmentCount++
+			lastWasPipe = false
 			if p.tok.Type == token.T_LBRACKET {
 				typeHint += "[]"
 				p.nextToken()
 				if p.tok.Type != token.T_RBRACKET {
-					p.errors = append(p.errors, "expected ']' after array type in type hint")
+					if !isDocblockContext {
+						p.errors = append(p.errors, "expected ']' after array type in type hint")
+					}
 					return typeHint
 				}
 				p.nextToken()
 			}
 		} else {
+			if lastWasPipe {
+				if !isDocblockContext {
+					p.errors = append(p.errors, "empty type segment in union type")
+				}
+			}
 			break
 		}
-		// If next token is |, consume and continue parsing next type segment
 		if p.tok.Type == token.T_PIPE {
+			if lastWasPipe {
+				if !isDocblockContext {
+					p.errors = append(p.errors, "consecutive '|' in union type")
+				}
+			}
 			typeHint += "|"
 			p.nextToken()
+			lastWasPipe = true
 			continue
 		}
 		break
+	}
+	if lastWasPipe {
+		if !isDocblockContext {
+			p.errors = append(p.errors, "union type ends with '|' or has empty segment")
+		}
+	}
+	if segmentCount == 0 {
+		if !isDocblockContext {
+			p.errors = append(p.errors, "empty union type")
+		}
 	}
 	return typeHint
 }
@@ -966,12 +1001,11 @@ func (p *Parser) parseBlockStatement() []ast.Node {
 		stmt, err := p.parseStatement()
 		if err != nil {
 			p.addError(err.Error())
-			p.nextToken() // Add this to ensure forward progress
+			p.nextToken()
 			continue
 		} else if stmt != nil {
 			statements = append(statements, stmt)
 		}
-		// Always advance token if no statement was parsed
 		if stmt == nil {
 			p.nextToken()
 		}

@@ -23,6 +23,20 @@ type Node interface {
 	TokenLiteral() string
 }
 
+// BlockNode represents a block of statements (e.g., {...})
+type BlockNode struct {
+	Statements []Node
+	Pos        Position
+}
+
+func (b *BlockNode) NodeType() string    { return "Block" }
+func (b *BlockNode) GetPos() Position    { return b.Pos }
+func (b *BlockNode) SetPos(pos Position) { b.Pos = pos }
+func (b *BlockNode) String() string {
+	return fmt.Sprintf("Block @ %d:%d", b.Pos.Line, b.Pos.Column)
+}
+func (b *BlockNode) TokenLiteral() string { return "{" }
+
 // Identifier represents a name like variable or function name
 type Identifier struct {
 	Name string
