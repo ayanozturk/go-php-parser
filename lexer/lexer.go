@@ -95,17 +95,24 @@ func (l *Lexer) readNumber() (string, bool) {
 	position := l.pos
 	isFloat := false
 
-	for isDigit(l.char) || l.char == '.' {
+	for isDigit(l.char) || l.char == '.' || l.char == '_' {
 		if l.char == '.' {
 			if isFloat { // Second decimal point
 				break
 			}
 			isFloat = true
 		}
+		if l.char == '_' {
+			// PHP 7.4+ numeric literal separator, skip underscore
+			l.readChar()
+			continue
+		}
 		l.readChar()
 	}
 
-	return l.input[position:l.pos], isFloat
+	// Remove underscores from the literal
+	num := strings.ReplaceAll(l.input[position:l.pos], "_", "")
+	return num, isFloat
 }
 
 func (l *Lexer) readIdentifier() string {
@@ -164,6 +171,28 @@ func (l *Lexer) NextToken() token.Token {
 	}
 
 	switch l.char {
+case '?':
+	// PHP 8: nullsafe object operator
+	if l.peekChar() == '-' && l.readPos+1 < len(l.input) && l.input[l.readPos+1] == '>' {
+		l.readChar() // consume ?
+		l.readChar() // consume -
+		l.readChar() // consume >
+		return token.Token{Type: token.T_NULLSAFE_OBJECT_OPERATOR, Literal: "?->", Pos: pos}
+	}
+	if l.peekChar() == '?' {
+		l.readChar() // consume first ?
+		if l.peekChar() == '=' {
+			l.readChar() // consume second ?
+			l.readChar() // consume =
+			return token.Token{Type: token.T_COALESCE_EQUAL, Literal: "??=", Pos: pos}
+		} else {
+			l.readChar() // consume second ?
+			return token.Token{Type: token.T_COALESCE, Literal: "??", Pos: pos}
+		}
+	}
+	tok = token.Token{Type: token.T_QUESTION, Literal: string(l.char), Pos: pos}
+	l.readChar()
+	return tok
 	case 0:
 		return token.Token{Type: token.T_EOF, Literal: "", Pos: pos}
 	case '+':
@@ -202,7 +231,7 @@ func (l *Lexer) NextToken() token.Token {
 			l.readChar()
 			return tok
 		}
-	case '?':
+	
 		if l.peekChar() == '?' {
 			l.readChar() // consume first ?
 			if l.peekChar() == '=' {
@@ -515,6 +544,12 @@ func (l *Lexer) NextToken() token.Token {
 			return token.Token{Type: token.T_RETURN, Literal: ident, Pos: pos}
 		case "enum":
 			return token.Token{Type: token.T_ENUM, Literal: ident, Pos: pos}
+		case "match":
+			return token.Token{Type: token.T_MATCH, Literal: ident, Pos: pos}
+		case "fn":
+			return token.Token{Type: token.T_FN, Literal: ident, Pos: pos}
+		case "readonly":
+			return token.Token{Type: token.T_READONLY, Literal: ident, Pos: pos}
 		case "case":
 			return token.Token{Type: token.T_CASE, Literal: ident, Pos: pos}
 		case "trait":

@@ -3,6 +3,14 @@ package token
 type TokenType string
 
 const (
+	// PHP 8+ tokens
+	T_MATCH                  TokenType = "T_MATCH"
+	T_FN                     TokenType = "T_FN"
+	T_NULLSAFE_OBJECT_OPERATOR TokenType = "T_NULLSAFE_OBJECT_OPERATOR"
+	T_ATTRIBUTE              TokenType = "T_ATTRIBUTE"
+	T_READONLY               TokenType = "T_READONLY"
+	T_ENUM                   TokenType = "T_ENUM"
+	T_TRAILING_COMMA         TokenType = "T_TRAILING_COMMA"
 	// Class fetch tokens
 	T_SELF   TokenType = "T_SELF"
 	T_PARENT TokenType = "T_PARENT"
@@ -73,7 +81,7 @@ const (
 	T_ELLIPSIS                 TokenType = "T_ELLIPSIS" // ... for variadic parameters
 	T_AMPERSAND                TokenType = "T_AMPERSAND"
 	T_OBJECT_OPERATOR          TokenType = "T_OBJECT_OPERATOR"
-	T_NULLSAFE_OBJECT_OPERATOR TokenType = "T_NULLSAFE_OBJECT_OPERATOR"
+	
 	T_DOUBLE_COLON             TokenType = "T_DOUBLE_COLON"
 	T_CLASS_CONST              TokenType = "T_CLASS_CONST" // Represents "::class"
 
@@ -102,11 +110,11 @@ const (
 	T_ENDIF        TokenType = "T_ENDIF"
 	T_ENDSWITCH    TokenType = "T_ENDSWITCH"
 	T_ENDWHILE     TokenType = "T_ENDWHILE"
-	T_ENUM         TokenType = "T_ENUM"
+	
 	T_EXTENDS      TokenType = "T_EXTENDS"
 	T_FINAL        TokenType = "T_FINAL"
 	T_FINALLY      TokenType = "T_FINALLY"
-	T_FN           TokenType = "T_FN"
+	
 	T_FOR          TokenType = "T_FOR"
 	T_FOREACH      TokenType = "T_FOREACH"
 	T_FUNCTION     TokenType = "T_FUNCTION"
@@ -121,7 +129,7 @@ const (
 	T_INTERFACE    TokenType = "T_INTERFACE"
 	T_ISSET        TokenType = "T_ISSET"
 	T_LIST         TokenType = "T_LIST"
-	T_MATCH        TokenType = "T_MATCH"
+	
 	T_NS_SEPARATOR TokenType = "T_NS_SEPARATOR"
 	T_NEW          TokenType = "T_NEW"
 	T_PRIVATE      TokenType = "T_PRIVATE"
@@ -174,7 +182,7 @@ const (
 	T_CURLY_OPEN               TokenType = "T_CURLY_OPEN"
 
 	// Attributes (PHP 8.0+)
-	T_ATTRIBUTE TokenType = "T_ATTRIBUTE"
+	
 )
 
 type Position struct {
