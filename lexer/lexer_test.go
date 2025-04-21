@@ -216,14 +216,30 @@ func TestLexer_StringLiteral(t *testing.T) {
 
 
 func TestLexer_NumberLiteral(t *testing.T) {
-	lex := New("123 45.67")
-	tok1 := lex.NextToken()
-	tok2 := lex.NextToken()
-	if tok1.Type != token.T_LNUMBER {
-		t.Errorf("expected T_LNUMBER, got %v", tok1.Type)
+	cases := []struct {
+		input    string
+		typeWant token.TokenType
+		litWant  string
+	}{
+		{"123", token.T_LNUMBER, "123"},
+		{"45.67", token.T_DNUMBER, "45.67"},
+		{"0o123", token.T_LNUMBER, "0o123"},
+		{"0O777", token.T_LNUMBER, "0o777"},
+		{"0o1_2_3", token.T_LNUMBER, "0o123"},
+		// Invalid octal: should still parse as LNUMBER, but literal will be incomplete or illegal
+		{"0o", token.T_LNUMBER, "0o"},
+		{"0o_123", token.T_LNUMBER, "0o123"},
+		{"0o89", token.T_LNUMBER, "0o"}, // 8 and 9 not valid, should stop at prefix
 	}
-	if tok2.Type != token.T_DNUMBER {
-		t.Errorf("expected T_DNUMBER, got %v", tok2.Type)
+	for _, c := range cases {
+		lex := New(c.input)
+		tok := lex.NextToken()
+		if tok.Type != c.typeWant {
+			t.Errorf("input %q: expected %v, got %v", c.input, c.typeWant, tok.Type)
+		}
+		if tok.Literal != c.litWant {
+			t.Errorf("input %q: expected literal %q, got %q", c.input, c.litWant, tok.Literal)
+		}
 	}
 }
 

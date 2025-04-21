@@ -95,6 +95,19 @@ func (l *Lexer) readNumber() (string, bool) {
 	position := l.pos
 	isFloat := false
 
+	// PHP 8 octal literal: 0o or 0O
+	if l.char == '0' && (l.peekChar() == 'o' || l.peekChar() == 'O') {
+		l.readChar() // consume '0'
+		l.readChar() // consume 'o' or 'O'
+		start := l.pos
+		for (l.char >= '0' && l.char <= '7') || l.char == '_' {
+			l.readChar()
+		}
+		// Remove underscores
+		octal := strings.ReplaceAll(l.input[start:l.pos], "_", "")
+		return "0o" + octal, false
+	}
+
 	for isDigit(l.char) || l.char == '.' || l.char == '_' {
 		if l.char == '.' {
 			if isFloat { // Second decimal point
