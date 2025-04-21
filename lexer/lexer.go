@@ -113,6 +113,13 @@ func (l *Lexer) readIdentifier() string {
 	for isLetter(l.char) || isDigit(l.char) {
 		l.readChar()
 	}
+	// Prevent panic: ensure slice bounds are valid
+	if position > len(l.input) {
+		position = len(l.input)
+	}
+	if l.pos > len(l.input) {
+		return l.input[position:]
+	}
 	return l.input[position:l.pos]
 }
 
@@ -526,7 +533,7 @@ func (l *Lexer) NextToken() token.Token {
 	}
 
 	tok = token.Token{
-		Type:    token.TokenType(string(l.char)),
+		Type:    token.T_ILLEGAL,
 		Literal: string(l.char),
 		Pos:     pos,
 	}
