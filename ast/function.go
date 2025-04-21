@@ -8,7 +8,7 @@ import (
 // FunctionNode represents a PHP function definition
 type FunctionNode struct {
 	Name       string
-	Visibility string // public, private, protected (legacy, kept for compatibility)
+	Visibility string   // public, private, protected (legacy, kept for compatibility)
 	Modifiers  []string // All modifiers, e.g. public, static, final, abstract
 	ReturnType string
 	Params     []Node
@@ -38,10 +38,10 @@ func (f *FunctionNode) TokenLiteral() string {
 }
 
 // FunctionCallNode represents a function call expression
-// (e.g., sprintf($format ?? '', ...$values))
+// (e.g., sprintf($format ?? ”, ...$values))
 type FunctionCallNode struct {
-	Name Node      // Function name (identifier or variable)
-	Args []Node    // Arguments (may include UnpackedArgumentNode)
+	Name Node   // Function name (identifier or variable)
+	Args []Node // Arguments (may include UnpackedArgumentNode)
 	Pos  Position
 }
 
@@ -71,9 +71,9 @@ type UnpackedArgumentNode struct {
 	Expr Node
 	Pos  Position
 }
-func (u *UnpackedArgumentNode) NodeType() string    { return "UnpackedArgument" }
-func (u *UnpackedArgumentNode) GetPos() Position    { return u.Pos }
-func (u *UnpackedArgumentNode) SetPos(pos Position) { u.Pos = pos }
-func (u *UnpackedArgumentNode) String() string      { return fmt.Sprintf("...%s", u.Expr.String()) }
-func (u *UnpackedArgumentNode) TokenLiteral() string { return "..." }
 
+func (u *UnpackedArgumentNode) NodeType() string     { return "UnpackedArgument" }
+func (u *UnpackedArgumentNode) GetPos() Position     { return u.Pos }
+func (u *UnpackedArgumentNode) SetPos(pos Position)  { u.Pos = pos }
+func (u *UnpackedArgumentNode) String() string       { return fmt.Sprintf("...%s", u.Expr.String()) }
+func (u *UnpackedArgumentNode) TokenLiteral() string { return "..." }

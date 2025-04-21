@@ -37,7 +37,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	commandName := "ast"
+	commandName := "style"
 	if len(flag.Args()) > 0 {
 		commandName = flag.Args()[0]
 	}

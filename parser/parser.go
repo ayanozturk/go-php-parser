@@ -203,12 +203,23 @@ func (p *Parser) parseTypeHint() string {
 			typeHint += "?"
 			p.nextToken()
 		}
+		// Parse FQCN or namespaced type: (\|NS_SEPARATOR)*STRING (repeated)
 		typeSegment := ""
-		for (p.tok.Literal == "\\" || p.tok.Type == token.T_NS_SEPARATOR) && p.peekToken().Type == token.T_STRING {
-			typeSegment += "\\"
-			p.nextToken() // consume backslash
-			typeSegment += p.tok.Literal
-			p.nextToken() // consume string
+		for {
+			if p.tok.Type == token.T_NS_SEPARATOR || p.tok.Literal == "\\" {
+				typeSegment += "\\"
+				p.nextToken()
+			}
+			if p.tok.Type == token.T_STRING || p.tok.Type == token.T_NEW {
+				typeSegment += p.tok.Literal
+				p.nextToken()
+			} else {
+				break
+			}
+			// Accept chained namespaces: \Foo\Bar
+			if !(p.tok.Type == token.T_NS_SEPARATOR || p.tok.Literal == "\\") {
+				break
+			}
 		}
 		if typeSegment == "" {
 			if p.tok.Type == token.T_CALLABLE {
@@ -217,7 +228,7 @@ func (p *Parser) parseTypeHint() string {
 				if err != nil && !isDocblockContext {
 					p.errors = append(p.errors, err.Error())
 				}
-			} else if p.tok.Type == token.T_STRING || p.tok.Type == token.T_ARRAY || p.tok.Type == token.T_NULL || p.tok.Type == token.T_MIXED || p.tok.Literal == "mixed" {
+			} else if p.tok.Type == token.T_ARRAY || p.tok.Type == token.T_NULL || p.tok.Type == token.T_MIXED || p.tok.Literal == "mixed" {
 				typeSegment += p.tok.Literal
 				p.nextToken()
 			}
@@ -1445,7 +1456,7 @@ func (p *Parser) parseSimpleExpression() ast.Node {
 			fmt.Printf("[DEBUG] parseSimpleExpression: handling T_BACKSLASH\n")
 		}
 		return p.parseFQCN()
-default:
+	default:
 		p.addError("line %d:%d: unexpected token %s in expression", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal)
 		p.nextToken()
 		return nil
