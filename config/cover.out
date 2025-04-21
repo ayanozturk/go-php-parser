@@ -1,0 +1,18 @@
+mode: set
+go-phpcs/config/config.go:16.51,18.16 2 1
+go-phpcs/config/config.go:18.16,20.3 1 1
+go-phpcs/config/config.go:21.2,25.48 4 1
+go-phpcs/config/config.go:25.48,27.3 1 1
+go-phpcs/config/config.go:29.2,29.21 1 1
+go-phpcs/config/config.go:32.55,35.89 2 1
+go-phpcs/config/config.go:35.89,36.17 1 1
+go-phpcs/config/config.go:36.17,38.4 1 1
+go-phpcs/config/config.go:41.3,41.40 1 1
+go-phpcs/config/config.go:41.40,42.45 1 1
+go-phpcs/config/config.go:42.45,44.5 1 1
+go-phpcs/config/config.go:48.3,48.20 1 1
+go-phpcs/config/config.go:48.20,49.42 1 1
+go-phpcs/config/config.go:49.42,50.38 1 1
+go-phpcs/config/config.go:50.38,52.11 2 1
+go-phpcs/config/config.go:57.3,57.13 1 1
+go-phpcs/config/config.go:60.2,60.25 1 1
