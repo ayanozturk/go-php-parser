@@ -40,7 +40,7 @@ func (f *FunctionNode) TokenLiteral() string {
 // FunctionCallNode represents a function call expression
 // (e.g., sprintf($format ?? '', ...$values))
 type FunctionCallNode struct {
-	Name string    // Function name (identifier)
+	Name Node      // Function name (identifier or variable)
 	Args []Node    // Arguments (may include UnpackedArgumentNode)
 	Pos  Position
 }
@@ -53,9 +53,18 @@ func (f *FunctionCallNode) String() string {
 	for _, arg := range f.Args {
 		argStrs = append(argStrs, arg.String())
 	}
-	return fmt.Sprintf("FunctionCall(%s, [%s]) @ %d:%d", f.Name, strings.Join(argStrs, ", "), f.Pos.Line, f.Pos.Column)
+	nameStr := "<nil>"
+	if f.Name != nil {
+		nameStr = f.Name.String()
+	}
+	return fmt.Sprintf("FunctionCall(%s, [%s]) @ %d:%d", nameStr, strings.Join(argStrs, ", "), f.Pos.Line, f.Pos.Column)
 }
-func (f *FunctionCallNode) TokenLiteral() string { return f.Name }
+func (f *FunctionCallNode) TokenLiteral() string {
+	if f.Name != nil {
+		return f.Name.TokenLiteral()
+	}
+	return ""
+}
 
 // UnpackedArgumentNode represents ...$values in function call arguments
 type UnpackedArgumentNode struct {

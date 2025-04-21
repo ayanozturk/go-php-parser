@@ -174,6 +174,7 @@ func (p *Parser) parseStatement() (ast.Node, error) {
 	default:
 		// Try parsing as expression statement
 		if expr := p.parseExpression(); expr != nil {
+			// Accept function calls as statements even if last token is ')', as long as next is semicolon
 			if p.tok.Type != token.T_SEMICOLON {
 				p.addError("line %d:%d: expected ; after expression, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal)
 				return nil, nil
@@ -211,7 +212,13 @@ func (p *Parser) parseTypeHint() string {
 			p.nextToken() // consume string
 		}
 		if typeSegment == "" {
-			if p.tok.Type == token.T_STRING || p.tok.Type == token.T_ARRAY || p.tok.Type == token.T_NULL || p.tok.Type == token.T_MIXED || p.tok.Type == token.T_CALLABLE || p.tok.Literal == "mixed" {
+			if p.tok.Type == token.T_CALLABLE {
+				callableType, err := p.parseCallableType()
+				typeSegment += callableType
+				if err != nil && !isDocblockContext {
+					p.errors = append(p.errors, err.Error())
+				}
+			} else if p.tok.Type == token.T_STRING || p.tok.Type == token.T_ARRAY || p.tok.Type == token.T_NULL || p.tok.Type == token.T_MIXED || p.tok.Literal == "mixed" {
 				typeSegment += p.tok.Literal
 				p.nextToken()
 			}
@@ -1265,7 +1272,10 @@ func (p *Parser) parseSimpleExpression() ast.Node {
 			}
 			p.nextToken() // consume )
 			return &ast.FunctionCallNode{
-				Name: className,
+				Name: &ast.IdentifierNode{
+					Value: className,
+					Pos:   ast.Position(pos),
+				},
 				Args: args,
 				Pos:  ast.Position(pos),
 			}
@@ -1350,12 +1360,54 @@ func (p *Parser) parseSimpleExpression() ast.Node {
 		p.nextToken()
 		return node
 	case token.T_VARIABLE:
-		node := &ast.VariableNode{
+		varNode := &ast.VariableNode{
 			Name: p.tok.Literal[1:], // Remove $ prefix
 			Pos:  ast.Position(p.tok.Pos),
 		}
 		p.nextToken()
-		return node
+		// Check for function call: $var()
+		if p.tok.Type == token.T_LPAREN {
+			p.nextToken() // consume '('
+			var args []ast.Node
+			for p.tok.Type != token.T_RPAREN && p.tok.Type != token.T_EOF {
+				isUnpacked := false
+				if p.tok.Type == token.T_ELLIPSIS {
+					isUnpacked = true
+					p.nextToken() // consume ...
+				}
+				arg := p.parseExpression()
+				if arg != nil {
+					if isUnpacked {
+						arg = &ast.UnpackedArgumentNode{
+							Expr: arg,
+							Pos:  arg.GetPos(),
+						}
+					}
+					args = append(args, arg)
+				}
+				if p.tok.Type == token.T_COMMA {
+					p.nextToken()
+					continue
+				} else if p.tok.Type == token.T_RPAREN {
+					break
+				} else if p.tok.Type == token.T_EOF {
+					break
+				} else {
+					continue
+				}
+			}
+			if p.tok.Type != token.T_RPAREN {
+				p.addError("line %d:%d: expected ) after arguments for function call on variable, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal)
+				return nil
+			}
+			p.nextToken() // consume )
+			return &ast.FunctionCallNode{
+				Name: varNode,
+				Args: args,
+				Pos:  varNode.Pos,
+			}
+		}
+		return varNode
 	default:
 		p.addError("line %d:%d: unexpected token %s in expression", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal)
 		p.nextToken()

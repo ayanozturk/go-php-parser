@@ -25,32 +25,66 @@ func TestParseFunctionWithUnionAndNamedParameters(t *testing.T) {
 	}
 
 	if len(nodes) > 0 {
-		if fn, ok := nodes[0].(*ast.FunctionNode); ok {
-			if fn.Name != "edgeCase" {
-				t.Errorf("Expected function name 'edgeCase', but got '%s'", fn.Name)
-			}
+		fn, ok := nodes[0].(*ast.FunctionNode)
+		if !ok || len(fn.Params) == 0 {
+			t.Errorf("Expected FunctionNode with parameters")
+			return
+		}
+		param0, ok0 := fn.Params[0].(*ast.ParamNode)
+		param1, ok1 := fn.Params[1].(*ast.ParamNode)
+		if !ok0 || !ok1 {
+			t.Errorf("Expected parameters to be *ast.ParamNode, got %T and %T", fn.Params[0], fn.Params[1])
+			return
+		}
+		if param0.Name != "mixed" {
+			t.Errorf("Expected parameter 1 name to be 'mixed', but got '%s'", param0.Name)
+		}
+		if param0.TypeHint != "mixed|null" {
+			t.Errorf("Expected parameter 1 type hint to be 'mixed|null', but got '%s'", param0.TypeHint)
+		}
+		if param1.Name != "string" {
+			t.Errorf("Expected parameter 2 name to be 'string', but got '%s'", param1.Name)
+		}
+		if param1.TypeHint != "string" {
+			t.Errorf("Expected parameter 2 type hint to be 'string', but got '%s'", param1.TypeHint)
+		}
+	}
+}
 
-			if len(fn.Params) != 2 {
-				t.Errorf("Expected 2 parameters, but got %d", len(fn.Params))
-			} else {
-				if p, ok := fn.Params[0].(*ast.ParamNode); ok {
-					if p.Name != "mixed" {
-						t.Errorf("Expected parameter 1 to be 'mixed', but got '%s'", p.Name)
-					}
-					if p.TypeHint != "mixed|null" {
-						t.Errorf("Expected parameter 1 type hint to be 'mixed|null', but got '%s'", p.TypeHint)
-					}
-				}
+func TestParseFunctionWithCallable(t *testing.T) {
+	input := `<?php
+	function edgeCase(callable $callable) {
+		return $callable();
+	}`
 
-				if p, ok := fn.Params[1].(*ast.ParamNode); ok {
-					if p.Name != "string" {
-						t.Errorf("Expected parameter 2 to be 'string', but got '%s'", p.Name)
-					}
-					if p.TypeHint != "string" {
-						t.Errorf("Expected parameter 2 type hint to be 'string', but got '%s'", p.TypeHint)
-					}
-				}
-			}
+	l := lexer.New(input)
+	p := New(l, true)
+	nodes := p.Parse()
+
+	if len(p.Errors()) > 0 {
+		t.Errorf("Parser returned errors: %v", p.Errors())
+	}
+
+	if len(nodes) == 0 {
+		t.Error("Expected at least one node, but got none")
+	}
+
+	if len(nodes) > 0 {
+		fn, ok := nodes[0].(*ast.FunctionNode)
+		if !ok || len(fn.Params) == 0 {
+			t.Errorf("Expected FunctionNode with parameters")
+			return
+		}
+		param0, ok0 := fn.Params[0].(*ast.ParamNode)
+		if !ok0 {
+			t.Errorf("Expected parameter to be *ast.ParamNode, got %T", fn.Params[0])
+			return
+		}
+		if param0.Name != "callable" {
+			t.Errorf("Expected parameter 1 name to be 'callable', but got '%s'", param0.Name)
+		}
+		if param0.TypeHint != "callable" {
+			t.Errorf("Expected parameter 1 type hint to be 'callable', but got '%s'", param0.TypeHint)
 		}
 	}
 }
