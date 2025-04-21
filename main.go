@@ -4,42 +4,28 @@ import (
 	"flag"
 	"fmt"
 	"go-phpcs/command"
+	"go-phpcs/config"
 	"go-phpcs/lexer"
 	"go-phpcs/parser"
 	"log"
 	"os"
-	"path/filepath"
 	"runtime"
 	"sync"
 	"time"
-
-	"gopkg.in/yaml.v2"
 )
-
-type Config struct {
-	Path       string   `yaml:"path"`
-	Extensions []string `yaml:"extensions"`
-	Ignore     []string `yaml:"ignore"`
-}
 
 func main() {
 	totalParseErrors := 0
-	// Load the configuration
-	config, err := loadConfig("config.yaml")
+
+	c, err := config.LoadConfig("config.yaml")
 	if err != nil {
 		log.Fatalf("Error loading config: %v", err)
 	}
 
-	filesToScan, err := getFilesToScan(config)
+	filesToScan, err := config.GetFilesToScan(c)
 	if err != nil {
 		log.Fatalf("Error scanning files: %v", err)
 	}
-
-	// Print the files to scan
-	// fmt.Println("Files to scan:")
-	// for _, file := range filesToScan {
-	// 	fmt.Println(file)
-	// }
 
 	debug := flag.Bool("debug", false, "Enable debug mode to show parsing errors")
 	parallelism := flag.Int("p", runtime.NumCPU(), "Number of files to process in parallel")
@@ -51,10 +37,12 @@ func main() {
 		os.Exit(1)
 	}
 
-	commandName := "style"
+	commandName := "ast"
 	if len(flag.Args()) > 0 {
 		commandName = flag.Args()[0]
 	}
+
+	fmt.Println("Command:", commandName)
 
 	start := time.Now()
 	totalLines := 0
@@ -237,51 +225,4 @@ func processFile(filePath, commandName string, debug bool) int {
 		command.PrintUsage()
 	}
 	return lineCount
-}
-
-func loadConfig(filename string) (*Config, error) {
-	file, err := os.Open(filename)
-	if err != nil {
-		return nil, err
-	}
-	defer file.Close()
-
-	var config Config
-	decoder := yaml.NewDecoder(file)
-	if err := decoder.Decode(&config); err != nil {
-		return nil, err
-	}
-
-	return &config, nil
-}
-
-func getFilesToScan(config *Config) ([]string, error) {
-	var filesToScan []string
-
-	err := filepath.Walk(config.Path, func(path string, info os.FileInfo, err error) error {
-		if err != nil {
-			return err
-		}
-
-		// Skip ignored directories
-		for _, ignore := range config.Ignore {
-			if info.IsDir() && info.Name() == ignore {
-				return filepath.SkipDir
-			}
-		}
-
-		// Check file extensions
-		if !info.IsDir() {
-			for _, ext := range config.Extensions {
-				if filepath.Ext(path) == "."+ext {
-					filesToScan = append(filesToScan, path)
-					break
-				}
-			}
-		}
-
-		return nil
-	})
-
-	return filesToScan, err
 }
