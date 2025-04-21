@@ -12,13 +12,37 @@ type ClassNameChecker struct{}
 
 func (c *ClassNameChecker) Check(nodes []ast.Node) {
 	for _, node := range nodes {
-		if fn, ok := node.(*ast.FunctionNode); ok {
-			if fn.Name != camelCase(fn.Name) {
-				fmt.Printf("Function '%s' should be camelCase\n", fn.Name)
+		if cls, ok := node.(*ast.ClassNode); ok {
+			if cls.Name != pascalCase(cls.Name) {
+				fmt.Printf("Class '%s' should be PascalCase\n", cls.Name)
 			}
 		}
 	}
 }
+
+// pascalCase returns the PascalCase version of the input name.
+// If the name is already PascalCase, it returns it unchanged.
+func pascalCase(name string) string {
+	if name == "" {
+		return name
+	}
+	result := ""
+	capitalizeNext := true
+	for _, r := range name {
+		if r == '_' {
+			capitalizeNext = true
+			continue
+		}
+		if capitalizeNext {
+			result += string(toUpper(r))
+			capitalizeNext = false
+		} else {
+			result += string(r)
+		}
+	}
+	return result
+}
+
 
 // camelCase returns the camelCase version of the input name.
 // If the name is already camelCase, it returns it unchanged.
@@ -61,5 +85,3 @@ func toUpper(r rune) rune {
 	}
 	return r
 }
-
-
