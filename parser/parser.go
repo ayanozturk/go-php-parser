@@ -41,7 +41,6 @@ func (p *Parser) Errors() []string {
 	return p.errors
 }
 
-
 func (p *Parser) Parse() []ast.Node {
 	// Add panic recovery
 	defer func() {
@@ -205,7 +204,7 @@ func (p *Parser) parseTypeHint() string {
 			p.nextToken()
 		}
 		typeSegment := ""
-		for (p.tok.Literal == "\\" || p.tok.Type == token.T_BACKSLASH) && p.peekToken().Type == token.T_STRING {
+		for (p.tok.Literal == "\\" || p.tok.Type == token.T_NS_SEPARATOR) && p.peekToken().Type == token.T_STRING {
 			typeSegment += "\\"
 			p.nextToken() // consume backslash
 			typeSegment += p.tok.Literal
@@ -381,10 +380,10 @@ var phpOperatorPrecedence = map[token.TokenType]int{
 	token.T_XOR_EQUAL:      1,
 	token.T_COALESCE_EQUAL: 1,
 
-	token.T_BOOLEAN_OR:     2, // ||
-	token.T_BOOLEAN_AND:    3, // &&
-	token.T_PIPE:           4, // |
-	token.T_AMPERSAND:      5, // &
+	token.T_BOOLEAN_OR:  2, // ||
+	token.T_BOOLEAN_AND: 3, // &&
+	token.T_PIPE:        4, // |
+	token.T_AMPERSAND:   5, // &
 	// token.T_XOR_EQUAL:   5, // ^ (already included as assignment above)
 	token.T_IS_EQUAL:         6,
 	token.T_IS_NOT_EQUAL:     6,
@@ -395,13 +394,13 @@ var phpOperatorPrecedence = map[token.TokenType]int{
 	token.T_SPACESHIP:        7,
 	token.T_INSTANCEOF:       8,
 
-	token.T_COALESCE:      9, // ??
-	token.T_PLUS:         10,
-	token.T_MINUS:        10,
-	token.T_DOT:          10,
-	token.T_MULTIPLY:     11,
-	token.T_DIVIDE:       11,
-	token.T_MODULO:       11,
+	token.T_COALESCE: 9, // ??
+	token.T_PLUS:     10,
+	token.T_MINUS:    10,
+	token.T_DOT:      10,
+	token.T_MULTIPLY: 11,
+	token.T_DIVIDE:   11,
+	token.T_MODULO:   11,
 }
 
 // operator associativity (true = right-associative)
@@ -460,7 +459,11 @@ func (p *Parser) parseExpressionWithPrecedence(minPrec int, validateAssignmentTa
 		p.nextToken()
 		var right ast.Node
 		if op == token.T_BOOLEAN_OR || op == token.T_BOOLEAN_AND {
+			// Logical operators
 			right = p.parseExpressionWithPrecedence(0, true)
+		} else if op == token.T_INSTANCEOF {
+			// For instanceof, right side must be a class name or FQCN
+			right = p.parseSimpleExpression()
 		} else {
 			right = p.parseExpressionWithPrecedence(nextMinPrec, false)
 		}
@@ -496,8 +499,6 @@ func (p *Parser) parseExpressionWithPrecedence(minPrec int, validateAssignmentTa
 	return left
 }
 
-
-
 // isAssignmentOperator returns true if the operator is an assignment
 func isAssignmentOperator(op token.TokenType) bool {
 	switch op {
@@ -525,11 +526,11 @@ func (p *Parser) isBinaryOperator(tokenType token.TokenType) bool {
 	switch tokenType {
 	case token.T_PLUS, token.T_MINUS, token.T_MULTIPLY, token.T_DIVIDE, token.T_MODULO,
 		token.T_IS_EQUAL, token.T_IS_NOT_EQUAL, token.T_IS_SMALLER, token.T_IS_GREATER,
-		token.T_DOT,        // Support string concatenation
-		token.T_COALESCE,   // Support null coalescing operator ??
-		token.T_BOOLEAN_OR, // Support double pipe || operator
+		token.T_DOT,         // Support string concatenation
+		token.T_COALESCE,    // Support null coalescing operator ??
+		token.T_BOOLEAN_OR,  // Support double pipe || operator
 		token.T_BOOLEAN_AND, // Support double ampersand && operator
-		token.T_PIPE: // Support single pipe | operator
+		token.T_PIPE:        // Support single pipe | operator
 		return true
 	case token.T_ASSIGN:
 		return true
@@ -558,12 +559,12 @@ func (p *Parser) parseArrayElement() ast.Node {
 	}
 
 	// Parse key if present (support class constant fetches as keys)
-	if p.tok.Type == token.T_STRING || p.tok.Type == token.T_BACKSLASH ||
+	if p.tok.Type == token.T_STRING || p.tok.Type == token.T_NS_SEPARATOR ||
 		p.tok.Type == token.T_SELF || p.tok.Type == token.T_PARENT || p.tok.Type == token.T_STATIC {
 		// Accumulate fully qualified class name
 		var className strings.Builder
 		classPos := p.tok.Pos
-		for p.tok.Type == token.T_STRING || p.tok.Type == token.T_BACKSLASH {
+		for p.tok.Type == token.T_STRING || p.tok.Type == token.T_NS_SEPARATOR {
 			className.WriteString(p.tok.Literal)
 			p.nextToken()
 		}
@@ -1130,14 +1131,45 @@ func (p *Parser) parseBlockStatement() []ast.Node {
 	return statements
 }
 
-
 // peekToken returns the next token without consuming it
 func (p *Parser) peekToken() token.Token {
 	return p.l.PeekToken()
 }
 
 // parseSimpleExpression parses a simple expression (identifier, literal, etc.)
+// parseFQCN parses a fully qualified class name, e.g. \Foo\Bar
+func (p *Parser) parseFQCN() ast.Node {
+	pos := p.tok.Pos
+	fqcn := ""
+	for {
+		if p.tok.Type == token.T_NS_SEPARATOR {
+			fqcn += "\\"
+			p.nextToken()
+		}
+		if p.tok.Type == token.T_STRING {
+			fqcn += p.tok.Literal
+			p.nextToken()
+		} else {
+			break
+		}
+	}
+	if fqcn == "" {
+		p.addError("line %d:%d: expected fully qualified class name, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal)
+		return nil
+	}
+	if p.debug {
+		fmt.Printf("[DEBUG] parseFQCN: parsed FQCN = %s\n", fqcn)
+	}
+	return &ast.IdentifierNode{
+		Value: fqcn,
+		Pos:   ast.Position(pos),
+	}
+}
+
 func (p *Parser) parseSimpleExpression() ast.Node {
+	if p.debug {
+		fmt.Printf("[DEBUG] parseSimpleExpression: entered with token type=%v, literal=%q\n", p.tok.Type, p.tok.Literal)
+	}
 	// Handle unary minus and plus
 	if p.tok.Type == token.T_MINUS || p.tok.Type == token.T_PLUS {
 		op := p.tok.Type
@@ -1408,7 +1440,12 @@ func (p *Parser) parseSimpleExpression() ast.Node {
 			}
 		}
 		return varNode
-	default:
+	case token.T_NS_SEPARATOR:
+		if p.debug {
+			fmt.Printf("[DEBUG] parseSimpleExpression: handling T_BACKSLASH\n")
+		}
+		return p.parseFQCN()
+default:
 		p.addError("line %d:%d: unexpected token %s in expression", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal)
 		p.nextToken()
 		return nil

@@ -55,3 +55,17 @@ func TestParserInfiniteLoopScenarios(t *testing.T) {
 		})
 	}
 }
+
+func TestInstanceOf(t *testing.T) {
+	l := lexer.New(`<?php
+		if ($a instanceof \Exception) {
+			echo "Exception";
+		}
+	`)
+	p := New(l, true)
+	_ = p.Parse()
+	hasErr := len(p.Errors()) > 0
+	if hasErr {
+		t.Errorf("Test 'InstanceOf': expected no error, got error=%v", p.Errors())
+	}
+}

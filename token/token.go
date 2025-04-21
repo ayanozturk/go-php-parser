@@ -4,8 +4,8 @@ type TokenType string
 
 const (
 	// Class fetch tokens
-	T_SELF         TokenType = "T_SELF"
-	T_PARENT       TokenType = "T_PARENT"
+	T_SELF   TokenType = "T_SELF"
+	T_PARENT TokenType = "T_PARENT"
 	// Special tokens
 	T_ILLEGAL       TokenType = "T_ILLEGAL"
 	T_EOF           TokenType = "T_EOF"
@@ -54,7 +54,7 @@ const (
 	T_COALESCE         TokenType = "T_COALESCE"
 	T_COALESCE_EQUAL   TokenType = "T_COALESCE_EQUAL"
 	T_QUESTION         TokenType = "T_QUESTION" // ? for nullable types
-	T_PIPE            TokenType = "T_PIPE" // | for union types
+	T_PIPE             TokenType = "T_PIPE"     // | for union types
 
 	// Delimiters
 	T_LPAREN                   TokenType = "T_LPAREN"
@@ -122,7 +122,7 @@ const (
 	T_ISSET        TokenType = "T_ISSET"
 	T_LIST         TokenType = "T_LIST"
 	T_MATCH        TokenType = "T_MATCH"
-	T_NAMESPACE    TokenType = "T_NAMESPACE"
+	T_NS_SEPARATOR TokenType = "T_NS_SEPARATOR"
 	T_NEW          TokenType = "T_NEW"
 	T_PRIVATE      TokenType = "T_PRIVATE"
 	T_PROTECTED    TokenType = "T_PROTECTED"

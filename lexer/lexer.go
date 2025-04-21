@@ -7,14 +7,20 @@ import (
 )
 
 type Lexer struct {
-	input   string
-	pos     int
-	readPos int
-	char    byte
-	line    int
-	column  int
+	input        string
+	pos          int
+	readPos      int
+	char         byte
+	line         int
+	column       int
+	inString bool // Tracks if currently inside a string
 	// For heredoc token queue
 	heredocTokens []token.Token
+}
+
+// inStringMode returns whether the lexer is currently inside a string.
+func (l *Lexer) inStringMode() bool {
+	return l.inString
 }
 
 func New(input string) *Lexer {
@@ -388,19 +394,36 @@ func (l *Lexer) NextToken() token.Token {
 		l.readChar()
 		return tok
 	case '"':
+		l.inString = true // Enter string mode
 		l.readChar() // consume opening quote
 		str := l.readString('"')
 		l.readChar() // consume closing quote
+		l.inString = false // Exit string mode
 		return token.Token{Type: token.T_CONSTANT_ENCAPSED_STRING, Literal: str, Pos: pos}
 	case '\'':
+		l.inString = true // Enter string mode
 		l.readChar() // consume opening quote
 		str := l.readString('\'')
 		l.readChar() // consume closing quote
+		l.inString = false // Exit string mode
 		return token.Token{Type: token.T_CONSTANT_STRING, Literal: str, Pos: pos}
 	case '\\':
-		tok := token.Token{Type: token.T_BACKSLASH, Literal: string(l.char), Pos: pos}
-		l.readChar()
-		return tok
+		if l.inStringMode() {
+			// Inside a string, treat as escape
+			tok := token.Token{Type: token.T_BACKSLASH, Literal: string(l.char), Pos: pos}
+			l.readChar()
+			return tok
+		} else if isIdentifierStart(l.peekChar()) {
+			// In code, and next is identifier, treat as namespace separator
+			tok := token.Token{Type: token.T_NS_SEPARATOR, Literal: string(l.char), Pos: pos}
+			l.readChar()
+			return tok
+		} else {
+			// Default fallback
+			tok := token.Token{Type: token.T_BACKSLASH, Literal: string(l.char), Pos: pos}
+			l.readChar()
+			return tok
+		}
 	case ':':
 		if l.peekChar() == ':' {
 			l.readChar() // consume first :
@@ -467,6 +490,8 @@ func (l *Lexer) NextToken() token.Token {
 			return token.Token{Type: token.T_EXTENDS, Literal: ident, Pos: pos}
 		case "interface":
 			return token.Token{Type: token.T_INTERFACE, Literal: ident, Pos: pos}
+		case "instanceof":
+			return token.Token{Type: token.T_INSTANCEOF, Literal: ident, Pos: pos}
 		case "implements":
 			return token.Token{Type: token.T_IMPLEMENTS, Literal: ident, Pos: pos}
 		case "echo":
@@ -551,6 +576,11 @@ func (l *Lexer) readBlockComment() string {
 
 func isLetter(ch byte) bool {
 	return unicode.IsLetter(rune(ch)) || ch == '_'
+}
+
+// isIdentifierStart returns true if the byte can start a PHP identifier (namespace, variable, etc.)
+func isIdentifierStart(ch byte) bool {
+	return isLetter(ch)
 }
 
 func isDigit(ch byte) bool {
