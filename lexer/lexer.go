@@ -4,13 +4,15 @@ import (
 	"go-phpcs/token"
 	"strings"
 	"unicode"
+	"unicode/utf8"
 )
 
 type Lexer struct {
 	input        string
 	pos          int
 	readPos      int
-	char         byte
+	char         rune // Unicode-aware current character
+	size         int  // Size of last rune read
 	line         int
 	column       int
 	inString bool // Tracks if currently inside a string
@@ -33,14 +35,16 @@ func New(input string) *Lexer {
 	return l
 }
 
+// readChar reads the next rune from input and advances position, supporting Unicode.
 func (l *Lexer) readChar() {
 	if l.readPos >= len(l.input) {
 		l.char = 0
+		l.size = 0
 	} else {
-		l.char = l.input[l.readPos]
+		l.char, l.size = utf8.DecodeRuneInString(l.input[l.readPos:])
 	}
 	l.pos = l.readPos
-	l.readPos++
+	l.readPos += l.size
 
 	if l.char == '\n' {
 		l.line++
@@ -50,11 +54,13 @@ func (l *Lexer) readChar() {
 	}
 }
 
-func (l *Lexer) peekChar() byte {
+// peekChar peeks the next rune without advancing position (Unicode-aware).
+func (l *Lexer) peekChar() rune {
 	if l.readPos >= len(l.input) {
 		return 0
 	}
-	return l.input[l.readPos]
+	r, _ := utf8.DecodeRuneInString(l.input[l.readPos:])
+	return r
 }
 
 func (l *Lexer) skipWhitespace() {
@@ -65,26 +71,26 @@ func (l *Lexer) skipWhitespace() {
 
 func (l *Lexer) readString(quote byte) string {
 	var out strings.Builder
-	for l.char != quote && l.char != 0 {
+	for l.char != rune(quote) && l.char != 0 {
 		if l.char == '\\' {
 			l.readChar()
 			switch l.char {
 			case 'n':
-				out.WriteByte('\n')
+				out.WriteRune('\n')
 			case 't':
-				out.WriteByte('\t')
+				out.WriteRune('\t')
 			case 'r':
-				out.WriteByte('\r')
-			case quote:
-				out.WriteByte(quote)
+				out.WriteRune('\r')
+			case rune(quote):
+				out.WriteRune(rune(quote))
 			case '\\':
-				out.WriteByte('\\')
+				out.WriteRune('\\')
 			default:
-				out.WriteByte('\\')
-				out.WriteByte(l.char)
+				out.WriteRune('\\')
+				out.WriteRune(l.char)
 			}
 		} else {
-			out.WriteByte(l.char)
+			out.WriteRune(l.char)
 		}
 		l.readChar()
 	}
@@ -128,19 +134,13 @@ func (l *Lexer) readNumber() (string, bool) {
 	return num, isFloat
 }
 
+// readIdentifier reads a PHP identifier (supports Unicode)
 func (l *Lexer) readIdentifier() string {
-	position := l.pos
+	start := l.pos
 	for isLetter(l.char) || isDigit(l.char) {
 		l.readChar()
 	}
-	// Prevent panic: ensure slice bounds are valid
-	if position > len(l.input) {
-		position = len(l.input)
-	}
-	if l.pos > len(l.input) {
-		return l.input[position:]
-	}
-	return l.input[position:l.pos]
+	return l.input[start:l.pos]
 }
 
 func (l *Lexer) NextToken() token.Token {
@@ -310,16 +310,23 @@ case '?':
 			for l.char != 0 {
 				lineStart := l.pos
 				// Only match ending identifier if it's at the start of a line
-				if l.char == identifier[0] {
+				identifierRunes := []rune(identifier)
+				if l.char == identifierRunes[0] {
 					match := true
-					for i := 0; i < len(identifier); i++ {
-						if l.input[l.pos+i] != identifier[i] {
+					inputRunes := []rune(l.input)
+					for i := 0; i < len(identifierRunes); i++ {
+						if l.pos+i >= len(inputRunes) || inputRunes[l.pos+i] != identifierRunes[i] {
 							match = false
 							break
 						}
 					}
 					if match {
-						nextChar := l.input[l.pos+len(identifier)]
+						var nextChar rune
+						if l.pos+len(identifierRunes) < len(inputRunes) {
+							nextChar = inputRunes[l.pos+len(identifierRunes)]
+						} else {
+							nextChar = 0
+						}
 						if nextChar == '\n' || nextChar == ';' || nextChar == 0 {
 							bodyEnd = lineStart
 							// Advance lexer past ending identifier
@@ -590,13 +597,14 @@ case '?':
 }
 
 func (l *Lexer) readLineComment() string {
+	// Read line comment
 	var out strings.Builder
-	out.WriteByte('/')
-	out.WriteByte('/')
+	out.WriteRune('/')
+	out.WriteRune('/')
 
 	l.readChar() // Move past second /
 	for l.char != '\n' && l.char != 0 {
-		out.WriteByte(l.char)
+		out.WriteRune(l.char)
 		l.readChar()
 	}
 
@@ -604,9 +612,10 @@ func (l *Lexer) readLineComment() string {
 }
 
 func (l *Lexer) readBlockComment() string {
+	// Read block comment
 	var out strings.Builder
-	out.WriteByte('/')
-	out.WriteByte('*')
+	out.WriteRune('/')
+	out.WriteRune('*')
 
 	l.readChar() // Move past *
 	for {
@@ -615,31 +624,34 @@ func (l *Lexer) readBlockComment() string {
 		}
 
 		if l.char == '*' && l.peekChar() == '/' {
-			out.WriteByte('*')
-			out.WriteByte('/')
+			out.WriteRune('*')
+			out.WriteRune('/')
 			l.readChar() // consume *
 			l.readChar() // consume /
 			break
 		}
 
-		out.WriteByte(l.char)
+		out.WriteRune(l.char)
 		l.readChar()
 	}
 
 	return out.String()
 }
 
-func isLetter(ch byte) bool {
-	return unicode.IsLetter(rune(ch)) || ch == '_'
+// isLetter returns true if the byte/rune can start or be part of a PHP identifier (supports Unicode)
+// isLetter returns true if the rune can start or be part of a PHP identifier (supports Unicode)
+func isLetter(ch rune) bool {
+	return ch == '_' || unicode.IsLetter(ch) || unicode.In(ch, unicode.Letter, unicode.Other_ID_Start)
 }
 
 // isIdentifierStart returns true if the byte can start a PHP identifier (namespace, variable, etc.)
-func isIdentifierStart(ch byte) bool {
+// isIdentifierStart returns true if the rune can start a PHP identifier (namespace, variable, etc.)
+func isIdentifierStart(ch rune) bool {
 	return isLetter(ch)
 }
 
-func isDigit(ch byte) bool {
-	return unicode.IsDigit(rune(ch))
+func isDigit(ch rune) bool {
+	return unicode.IsDigit(ch)
 }
 
 // nextHeredocToken emits the next queued heredoc token
@@ -677,27 +689,38 @@ func (l *Lexer) queueHeredocTokens(pos token.Position) {
 	if l.char == '\n' {
 		l.readChar()
 	}
-	// Read heredoc body
+	// Read heredoc body (Unicode-aware)
+	identifierRunes := []rune(identifier)
+	inputRunes := []rune(l.input)
 	bodyStart := l.pos
 	bodyEnd := -1
 	for l.char != 0 {
 		lineStart := l.pos
 		// Check for ending identifier at start of line
-		if l.char == identifier[0] {
+		if l.char == identifierRunes[0] {
 			match := true
-			for i := 0; i < len(identifier); i++ {
-				if l.input[l.pos+i] != identifier[i] {
+			for i := 0; i < len(identifierRunes); i++ {
+				if l.pos+i >= len(inputRunes) || inputRunes[l.pos+i] != identifierRunes[i] {
 					match = false
 					break
 				}
 			}
 			if match {
-				nextChar := l.input[l.pos+len(identifier)]
+				var nextChar rune
+				if l.pos+len(identifierRunes) < len(inputRunes) {
+					nextChar = inputRunes[l.pos+len(identifierRunes)]
+				} else {
+					nextChar = 0
+				}
 				if nextChar == '\n' || nextChar == ';' || nextChar == 0 {
 					bodyEnd = lineStart
-					l.pos += len(identifier)
+					l.pos += len(identifierRunes)
 					l.readPos = l.pos
-					l.char = l.input[l.readPos-1]
+					if l.pos > 0 && l.pos-1 < len(inputRunes) {
+						l.char = inputRunes[l.pos-1]
+					} else {
+						l.char = 0
+					}
 					break
 				}
 			}

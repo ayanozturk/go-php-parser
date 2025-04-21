@@ -183,6 +183,27 @@ func TestLexer_Punctuation(t *testing.T) {
 
 
 func TestLexer_IdentifiersAndKeywords(t *testing.T) {
+	cases := []struct {
+		input    string
+		typeWant token.TokenType
+		litWant  string
+	}{
+		{"$变量", token.T_VARIABLE, "$变量"},
+		{"π", token.T_STRING, "π"},
+		{"Café", token.T_STRING, "Café"},
+		{"function π() {}", token.T_FUNCTION, "function"}, // first token
+	}
+	for _, c := range cases {
+		lex := New(c.input)
+		tok := lex.NextToken()
+		if tok.Type != c.typeWant {
+			t.Errorf("input %q: expected %v, got %v", c.input, c.typeWant, tok.Type)
+		}
+		if tok.Literal != c.litWant {
+			t.Errorf("input %q: expected literal %q, got %q", c.input, c.litWant, tok.Literal)
+		}
+	}
+
 	input := `function myFunc() { return 42; }`
 	lex := New(input)
 	var foundFunc, foundReturn bool
