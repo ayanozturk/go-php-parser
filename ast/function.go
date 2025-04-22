@@ -75,5 +75,10 @@ type UnpackedArgumentNode struct {
 func (u *UnpackedArgumentNode) NodeType() string     { return "UnpackedArgument" }
 func (u *UnpackedArgumentNode) GetPos() Position     { return u.Pos }
 func (u *UnpackedArgumentNode) SetPos(pos Position)  { u.Pos = pos }
-func (u *UnpackedArgumentNode) String() string       { return fmt.Sprintf("...%s", u.Expr.String()) }
+func (u *UnpackedArgumentNode) String() string {
+	if u.Expr == nil {
+		return "...<nil>"
+	}
+	return fmt.Sprintf("...%s", u.Expr.String())
+}
 func (u *UnpackedArgumentNode) TokenLiteral() string { return "..." }
