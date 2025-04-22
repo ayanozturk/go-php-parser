@@ -8,6 +8,8 @@ import (
 
 // parseParameter parses a function or method parameter
 func (p *Parser) parseParameter() ast.Node {
+	fmt.Printf("[DEBUG] parseParameter: called, current token=%v\n", p.tok)
+
 	// Skip PHP attributes (#[...]) and comments before parameter, and allow attributes before any parameter element
 	for {
 		if p.tok.Type == token.T_ATTRIBUTE {
@@ -41,7 +43,17 @@ func (p *Parser) parseParameter() ast.Node {
 	pos := p.tok.Pos
 
 	// Parse type hint if present (support nullable type: ?Bar, union types: Foo|Bar, FQCNs)
-	typeHint := p.parseTypeHint()
+	var typeHint string
+	fmt.Printf("[DEBUG] parseParameter: before parseTypeHint, token=%v\n", p.tok)
+	switch p.tok.Type {
+	case token.T_NS_SEPARATOR, token.T_STRING, token.T_CALLABLE, token.T_ARRAY, token.T_STATIC, token.T_SELF, token.T_PARENT, token.T_NEW, token.T_QUESTION:
+		typeHint = p.parseTypeHint()
+	default:
+		// Also allow literal backslash for robustness
+		if p.tok.Literal == "\\" {
+			typeHint = p.parseTypeHint()
+		}
+	}
 
 	// Parse by-reference parameter (&$var)
 	isByRef := false

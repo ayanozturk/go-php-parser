@@ -205,23 +205,33 @@ func (p *Parser) parseTypeHint() string {
 		}
 		// Parse FQCN or namespaced type: (\|NS_SEPARATOR)*STRING (repeated)
 		typeSegment := ""
+		// Accept leading backslash
+		if p.tok.Type == token.T_NS_SEPARATOR || p.tok.Literal == "\\" {
+			typeSegment += "\\"
+			p.nextToken()
+		}
 		for {
-			if p.tok.Type == token.T_NS_SEPARATOR || p.tok.Literal == "\\" {
-				typeSegment += "\\"
-				p.nextToken()
-			}
 			if p.tok.Type == token.T_STRING || p.tok.Type == token.T_NEW {
 				typeSegment += p.tok.Literal
 				p.nextToken()
-			} else {
-				break
+				// Accept chained namespaces: \Foo\Bar
+				if p.tok.Type == token.T_NS_SEPARATOR || p.tok.Literal == "\\" {
+					typeSegment += "\\"
+					p.nextToken()
+					continue
+				}
 			}
-			// Accept chained namespaces: \Foo\Bar
-			if !(p.tok.Type == token.T_NS_SEPARATOR || p.tok.Literal == "\\") {
-				break
-			}
+			break
 		}
 		if typeSegment == "" {
+			// If we saw a type hint starter but couldn't form a valid segment, advance to avoid infinite loop
+			if p.tok.Type == token.T_NS_SEPARATOR || p.tok.Literal == "\\" {
+				if !isDocblockContext {
+					p.errors = append(p.errors, "unexpected namespace separator in type hint")
+				}
+				p.nextToken()
+				break
+			}
 			if p.tok.Type == token.T_CALLABLE {
 				callableType, err := p.parseCallableType()
 				typeSegment += callableType
@@ -234,7 +244,9 @@ func (p *Parser) parseTypeHint() string {
 			}
 		}
 		if typeSegment != "" {
+			fmt.Printf("[DEBUG] parseTypeHint: typeSegment='%s', typeHint(before)='%s'\n", typeSegment, typeHint)
 			typeHint += typeSegment
+			fmt.Printf("[DEBUG] parseTypeHint: typeHint(after)='%s'\n", typeHint)
 			segmentCount++
 			lastWasPipe = false
 			if p.tok.Type == token.T_LBRACKET {
@@ -279,6 +291,7 @@ func (p *Parser) parseTypeHint() string {
 			p.errors = append(p.errors, "empty union type")
 		}
 	}
+	fmt.Printf("[DEBUG] parseTypeHint: returning typeHint='%s', next token=%v\n", typeHint, p.tok)
 	return typeHint
 }
 

@@ -123,180 +123,18 @@ func (p *Parser) parseInterfaceMethod() ast.Node {
 
 	// Parse parameters
 	var params []ast.Node
-	// Handle parameter list
 	for p.tok.Type != token.T_RPAREN && p.tok.Type != token.T_EOF {
-
 		// Skip comments and commas before each parameter
 		for p.tok.Type == token.T_COMMENT || p.tok.Type == token.T_DOC_COMMENT || p.tok.Type == token.T_COMMA {
 			p.nextToken()
 		}
-		// After skipping, if next token is ')' or EOF, end the parameter list
 		if p.tok.Type == token.T_RPAREN || p.tok.Type == token.T_EOF {
 			break
 		}
-
-		// Now, expect a parameter
-
-		// --- FIX: skip PHP attributes before parameter (like in parseParameter) ---
-		for {
-			if p.tok.Type == token.T_ATTRIBUTE {
-				p.nextToken()
-				continue
-			}
-			if p.tok.Type == token.T_WHITESPACE || p.tok.Type == token.T_COMMENT || p.tok.Type == token.T_DOC_COMMENT {
-				p.nextToken()
-				continue
-			}
-			break
+		param := p.parseParameter()
+		if param != nil {
+			params = append(params, param)
 		}
-
-		// Handle nullable type hint (e.g. ?string)
-		var typeHint string
-		var unionTypeNode *ast.UnionTypeNode
-		typePos := p.tok.Pos
-
-		if p.tok.Type == token.T_QUESTION {
-			typeHint = "?"
-			p.nextToken()
-		}
-
-		// Handle callable type hint for parameter
-		if p.tok.Type == token.T_CALLABLE {
-			callableType, err := p.parseCallableType()
-			if err != nil {
-				p.errors = append(p.errors, fmt.Sprintf("line %d:%d: %v", p.tok.Pos.Line, p.tok.Pos.Column, err))
-				return nil
-			}
-			typeHint += callableType
-		} else if p.tok.Type == token.T_STRING || p.tok.Type == token.T_ARRAY || p.tok.Type == token.T_BACKSLASH || p.tok.Literal == "mixed" {
-			// Handle fully qualified class names with backslashes
-			var typeName strings.Builder
-			if p.tok.Literal == "mixed" {
-				typeName.WriteString("mixed")
-				p.nextToken()
-			} else if p.tok.Type == token.T_BACKSLASH {
-				typeName.WriteString(p.tok.Literal)
-				p.nextToken()
-			} else {
-				typeName.WriteString(p.tok.Literal)
-				p.nextToken()
-			}
-
-			// Continue collecting parts of a class name if we encounter backslashes
-			for p.tok.Type == token.T_STRING || p.tok.Type == token.T_BACKSLASH {
-				typeName.WriteString(p.tok.Literal)
-				p.nextToken()
-			}
-
-			typeHint += typeName.String()
-
-			// Handle array syntax
-			if p.tok.Type == token.T_LBRACKET {
-				typeHint += "[]"
-				p.nextToken()
-				if p.tok.Type != token.T_RBRACKET {
-					p.errors = append(p.errors, fmt.Sprintf("line %d:%d: expected ']' after array type in parameter, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal))
-					return nil
-				}
-				p.nextToken()
-			}
-
-			// Handle union types in parameters
-			if p.tok.Type == token.T_PIPE {
-				// Create a union type
-				unionTypes := []string{typeHint}
-				typeHint = "" // Clear the string-based type hint
-
-				for p.tok.Type == token.T_PIPE {
-					p.nextToken() // consume |
-
-					// Parse each union type member
-					if p.tok.Type == token.T_STRING || p.tok.Type == token.T_ARRAY ||
-						p.tok.Literal == "mixed" || p.tok.Literal == "null" ||
-						p.tok.Literal == "int" || p.tok.Literal == "float" ||
-						p.tok.Literal == "bool" || p.tok.Literal == "string" ||
-						p.tok.Type == token.T_BACKSLASH {
-
-						// Handle fully qualified class names with backslashes
-						var memberTypeName strings.Builder
-						if p.tok.Type == token.T_BACKSLASH {
-							memberTypeName.WriteString(p.tok.Literal)
-							p.nextToken()
-						} else {
-							memberTypeName.WriteString(p.tok.Literal)
-							p.nextToken()
-						}
-
-						// Continue collecting parts of a class name
-						for p.tok.Type == token.T_STRING || p.tok.Type == token.T_BACKSLASH {
-							memberTypeName.WriteString(p.tok.Literal)
-							p.nextToken()
-						}
-
-						unionTypes = append(unionTypes, memberTypeName.String())
-
-						// Handle array syntax for union type member
-						if p.tok.Type == token.T_LBRACKET {
-							unionTypes[len(unionTypes)-1] += "[]"
-							p.nextToken()
-							if p.tok.Type != token.T_RBRACKET {
-								p.errors = append(p.errors, fmt.Sprintf("line %d:%d: expected ']' after array type in parameter union type, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal))
-								return nil
-							}
-							p.nextToken()
-						}
-					} else {
-						p.errors = append(p.errors, fmt.Sprintf("line %d:%d: expected type name in parameter union type, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal))
-						return nil
-					}
-				}
-
-				unionTypeNode = &ast.UnionTypeNode{
-					Types: unionTypes,
-					Pos:   ast.Position(typePos),
-				}
-			}
-		}
-
-		// Parameter name
-		if p.tok.Type != token.T_VARIABLE {
-			// Allow end of parameter list after skipping comments/commas/trailing comments
-			if p.tok.Type == token.T_RPAREN {
-				break
-			}
-			// If we see a single trailing comment (e.g., /* , ... */) or comma before ')', skip and break
-			if (p.tok.Type == token.T_COMMENT || p.tok.Type == token.T_DOC_COMMENT) && (p.peekToken().Type == token.T_RPAREN) {
-				p.nextToken() // skip trailing comment
-				break
-			}
-			if p.tok.Type == token.T_COMMA && (p.peekToken().Type == token.T_RPAREN) {
-				p.nextToken() // skip trailing comma
-				break
-			}
-			p.errors = append(p.errors, fmt.Sprintf("line %d:%d: expected parameter name in parameter, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal))
-			return nil
-		}
-		varName := p.tok.Literal[1:] // Remove $ prefix
-		paramPos := p.tok.Pos
-		p.nextToken()
-
-		// Handle default value
-		var defaultValue ast.Node
-		if p.tok.Type == token.T_ASSIGN {
-			p.nextToken() // consume =
-			defaultValue = p.parseExpression()
-		}
-
-		param := &ast.ParamNode{
-			Name:         varName,
-			TypeHint:     typeHint,
-			UnionType:    unionTypeNode,
-			DefaultValue: defaultValue,
-			Pos:          ast.Position(paramPos),
-		}
-
-		params = append(params, param)
-
 		// After a parameter, skip any comments and commas before checking for next parameter or end
 		for p.tok.Type == token.T_COMMENT || p.tok.Type == token.T_DOC_COMMENT || p.tok.Type == token.T_COMMA {
 			p.nextToken()
@@ -307,9 +145,7 @@ func (p *Parser) parseInterfaceMethod() ast.Node {
 		if p.tok.Type == token.T_EOF {
 			break
 		}
-		// If not end, loop will skip comments/commas and try to parse next parameter
 	}
-
 	p.nextToken() // consume )
 
 	// Parse return type if present

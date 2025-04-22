@@ -69,3 +69,29 @@ func TestInstanceOf(t *testing.T) {
 		t.Errorf("Test 'InstanceOf': expected no error, got error=%v", p.Errors())
 	}
 }
+
+func TestInterfaceMethodParam(t *testing.T) {
+    src := `<?php
+interface AccessDecisionStrategyInterface
+{
+    public function decide(\Traversable $results): bool;
+}`
+    DebugPrintTokens(src)
+
+	l := lexer.New(`<?php
+interface AccessDecisionStrategyInterface
+{
+    public function decide(\Traversable $results): bool;
+}
+	`)
+	p := New(l, true)
+	nodes := p.Parse()
+
+	if len(p.Errors()) > 0 {
+		t.Errorf("Parser errors: %v", p.Errors())
+	}
+
+	if len(nodes) == 0 {
+		t.Fatal("Expected at least one node, got none")
+	}
+}
