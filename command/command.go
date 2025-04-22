@@ -2,6 +2,7 @@ package command
 
 import (
 	"fmt"
+	"go-phpcs/analyzer"
 	"go-phpcs/ast"
 	"go-phpcs/printer"
 	"go-phpcs/style"
@@ -36,6 +37,13 @@ var Commands = map[string]Command{
 		Execute: func(nodes []ast.Node) {
 			checker := &style.ClassNameChecker{}
 			checker.Check(nodes)
+		},
+	},
+	"analyse": {
+		Name:        "analyse",
+		Description: "Static analysis: unknown function calls (PoC)",
+		Execute: func(nodes []ast.Node) {
+			analyzer.AnalyzeUnknownFunctionCalls(nodes)
 		},
 	},
 }
