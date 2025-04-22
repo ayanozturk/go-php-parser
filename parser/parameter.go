@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"go-phpcs/ast"
 	"go-phpcs/token"
+	"strings"
 )
 
 // parseParameter parses a function or method parameter
@@ -40,16 +41,54 @@ func (p *Parser) parseParameter() ast.Node {
 	}
 	pos := p.tok.Pos
 
-	// Parse type hint if present (support nullable type: ?Bar, union types: Foo|Bar, FQCNs)
+	// Parse type hint if present (support nullable type: ?Bar, union types: Foo|Bar, FQCNs, parenthesized types)
 	var typeHint string
-
-	switch p.tok.Type {
-	case token.T_NS_SEPARATOR, token.T_STRING, token.T_CALLABLE, token.T_ARRAY, token.T_STATIC, token.T_SELF, token.T_PARENT, token.T_NEW, token.T_QUESTION, token.T_MIXED:
-		typeHint = p.parseTypeHint()
-	default:
-		// Also allow literal backslash for robustness
-		if p.tok.Literal == "\\" {
+	if p.tok.Type == token.T_LPAREN {
+		parenLevel := 0
+		typeHintBuilder := strings.Builder{}
+		for {
+			if p.tok.Type == token.T_LPAREN {
+				parenLevel++
+				typeHintBuilder.WriteString("(")
+				p.nextToken()
+				continue
+			}
+			if p.tok.Type == token.T_RPAREN {
+				parenLevel--
+				typeHintBuilder.WriteString(")")
+				p.nextToken()
+				if parenLevel == 0 {
+					// After the closing parenthesis, continue to parse |, &, ?, null, etc. as part of the type
+					for p.tok.Type == token.T_PIPE || p.tok.Type == token.T_AMPERSAND || p.tok.Type == token.T_QUESTION || p.tok.Type == token.T_STRING || p.tok.Type == token.T_NULL || p.tok.Type == token.T_NS_SEPARATOR {
+						typeHintBuilder.WriteString(p.tok.Literal)
+						p.nextToken()
+					}
+					break
+				}
+				continue
+			}
+			if p.tok.Type == token.T_PIPE || p.tok.Type == token.T_AMPERSAND || p.tok.Type == token.T_QUESTION {
+				typeHintBuilder.WriteString(p.tok.Literal)
+				p.nextToken()
+				continue
+			}
+			if p.tok.Type == token.T_NS_SEPARATOR || p.tok.Type == token.T_STRING || p.tok.Type == token.T_CALLABLE || p.tok.Type == token.T_ARRAY || p.tok.Type == token.T_STATIC || p.tok.Type == token.T_SELF || p.tok.Type == token.T_PARENT || p.tok.Type == token.T_NEW || p.tok.Type == token.T_MIXED || p.tok.Type == token.T_NULL {
+				typeHintBuilder.WriteString(p.tok.Literal)
+				p.nextToken()
+				continue
+			}
+			break
+		}
+		typeHint = typeHintBuilder.String()
+	} else {
+		switch p.tok.Type {
+		case token.T_NS_SEPARATOR, token.T_STRING, token.T_CALLABLE, token.T_ARRAY, token.T_STATIC, token.T_SELF, token.T_PARENT, token.T_NEW, token.T_QUESTION, token.T_MIXED:
 			typeHint = p.parseTypeHint()
+		default:
+			// Also allow literal backslash for robustness
+			if p.tok.Literal == "\\" {
+				typeHint = p.parseTypeHint()
+			}
 		}
 	}
 
