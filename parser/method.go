@@ -160,8 +160,15 @@ func (p *Parser) parseInterfaceMethod() ast.Node {
 			p.nextToken()
 		}
 
-		// Handle type hint (including 'mixed')
-		if p.tok.Type == token.T_STRING || p.tok.Type == token.T_ARRAY || p.tok.Type == token.T_BACKSLASH || p.tok.Literal == "mixed" {
+		// Handle callable type hint for parameter
+		if p.tok.Type == token.T_CALLABLE {
+			callableType, err := p.parseCallableType()
+			if err != nil {
+				p.errors = append(p.errors, fmt.Sprintf("line %d:%d: %v", p.tok.Pos.Line, p.tok.Pos.Column, err))
+				return nil
+			}
+			typeHint += callableType
+		} else if p.tok.Type == token.T_STRING || p.tok.Type == token.T_ARRAY || p.tok.Type == token.T_BACKSLASH || p.tok.Literal == "mixed" {
 			// Handle fully qualified class names with backslashes
 			var typeName strings.Builder
 			if p.tok.Literal == "mixed" {
@@ -310,15 +317,25 @@ func (p *Parser) parseInterfaceMethod() ast.Node {
 	if p.tok.Type == token.T_COLON {
 		p.nextToken() // consume :
 
-		// Support nullable return types (e.g. ?Node)
+		// Handle nullable return types (e.g. ?Node)
 		var nullable bool
 		if p.tok.Type == token.T_QUESTION {
 			nullable = true
 			p.nextToken()
 		}
 
-		// Check for valid return type token
-		if p.tok.Type == token.T_STRING || p.tok.Type == token.T_ARRAY ||
+		// Handle callable return type
+		if p.tok.Type == token.T_CALLABLE {
+			callableType, err := p.parseCallableType()
+			if err != nil {
+				p.errors = append(p.errors, fmt.Sprintf("line %d:%d: %v", p.tok.Pos.Line, p.tok.Pos.Column, err))
+				return nil
+			}
+			returnType = &ast.IdentifierNode{
+				Value: callableType,
+				Pos:   ast.Position(p.tok.Pos),
+			}
+		} else if p.tok.Type == token.T_STRING || p.tok.Type == token.T_ARRAY ||
 			p.tok.Literal == "mixed" || p.tok.Type == token.T_BACKSLASH {
 			typePos := p.tok.Pos
 
