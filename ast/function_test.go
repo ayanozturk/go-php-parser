@@ -1,6 +1,9 @@
 package ast
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestFunctionNodeMethods(t *testing.T) {
 	param := &Identifier{Name: "arg1", Pos: Position{Line: 2, Column: 3}}
@@ -92,5 +95,24 @@ func TestUnpackedArgumentNodeMethods(t *testing.T) {
 	}
 	if u.TokenLiteral() != "..." {
 		t.Errorf("TokenLiteral: got %q", u.TokenLiteral())
+	}
+}
+
+func TestStaticFunctionNode(t *testing.T) {
+	param := &Identifier{Name: "x", Pos: Position{Line: 2, Column: 1}}
+	fn := &FunctionNode{
+		Name:       "staticFunc",
+		Visibility: "public",
+		Modifiers:  []string{"static"},
+		ReturnType: "void",
+		Params:     []Node{param},
+		Body:       nil,
+		Pos:        Position{Line: 1, Column: 1},
+	}
+	if len(fn.Modifiers) == 0 || fn.Modifiers[0] != "static" {
+		t.Errorf("Expected 'static' modifier, got %+v", fn.Modifiers)
+	}
+	if !strings.Contains(fn.String(), "static") {
+		t.Errorf("String() should include 'static', got %q", fn.String())
 	}
 }

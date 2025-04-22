@@ -244,9 +244,9 @@ func (p *Parser) parseTypeHint() string {
 			}
 		}
 		if typeSegment != "" {
-			
+
 			typeHint += typeSegment
-			
+
 			segmentCount++
 			lastWasPipe = false
 			if p.tok.Type == token.T_LBRACKET {
@@ -291,7 +291,7 @@ func (p *Parser) parseTypeHint() string {
 			p.errors = append(p.errors, "empty union type")
 		}
 	}
-	
+
 	return typeHint
 }
 
@@ -331,7 +331,13 @@ func (p *Parser) parseFunction(modifiers []string) (ast.Node, error) {
 	var returnType string
 	if p.tok.Type == token.T_COLON {
 		p.nextToken()
-		returnType = p.parseTypeHint()
+		// Accept static, self, parent as return types
+		if p.tok.Type == token.T_STATIC || p.tok.Type == token.T_SELF || p.tok.Type == token.T_PARENT {
+			returnType = p.tok.Literal
+			p.nextToken()
+		} else {
+			returnType = p.parseTypeHint()
+		}
 	}
 
 	if p.tok.Type != token.T_LBRACE {
@@ -451,7 +457,7 @@ func (p *Parser) parseExpression() ast.Node {
 // parseExpressionWithPrecedence parses expressions with correct precedence. Only validateAssignmentTarget for top-level expressions.
 func (p *Parser) parseExpressionWithPrecedence(minPrec int, validateAssignmentTarget bool) ast.Node {
 	if p.debug {
-		
+
 	}
 
 	// Array literals
@@ -476,7 +482,7 @@ func (p *Parser) parseExpressionWithPrecedence(minPrec int, validateAssignmentTa
 		pos := p.tok.Pos
 		assocRight := phpOperatorRightAssoc[op]
 		if p.debug {
-			
+
 		}
 		nextMinPrec := prec + 1
 		if assocRight {
@@ -494,7 +500,7 @@ func (p *Parser) parseExpressionWithPrecedence(minPrec int, validateAssignmentTa
 			right = p.parseExpressionWithPrecedence(nextMinPrec, false)
 		}
 		if p.debug {
-			
+
 		}
 		if right == nil {
 			p.addError("line %d:%d: expected right operand after operator %s", pos.Line, pos.Column, operator)
@@ -1060,50 +1066,44 @@ func (p *Parser) parseClassDeclaration() (ast.Node, error) {
 	var properties []ast.Node
 	var methods []ast.Node
 	for p.tok.Type != token.T_RBRACE && p.tok.Type != token.T_EOF {
-		// Handle visibility modifiers for methods and properties
-		if p.tok.Type == token.T_PUBLIC || p.tok.Type == token.T_PRIVATE || p.tok.Type == token.T_PROTECTED {
-			visibility := p.tok.Literal
-			p.nextToken()
-
-			if p.tok.Type == token.T_FUNCTION {
-				if method, err := p.parseFunction(nil); method != nil {
-					if fn, ok := method.(*ast.FunctionNode); ok {
-						fn.Visibility = visibility
-					}
-					methods = append(methods, method)
-				} else if err != nil {
-					return nil, err
-				}
-			} else if p.tok.Type == token.T_VARIABLE {
-				if prop, err := p.parsePropertyDeclaration(); prop != nil {
-					if pn, ok := prop.(*ast.PropertyNode); ok {
-						pn.Visibility = visibility
-					}
-					properties = append(properties, prop)
-				} else if err != nil {
-					return nil, err
-				}
-			} else {
-				p.addError("line %d:%d: expected function or property declaration after visibility modifier %s, got %s", p.tok.Pos.Line, p.tok.Pos.Column, visibility, p.tok.Literal)
+		// Collect all modifiers (public, protected, private, static, final, abstract) and comments/docblocks before 'function'
+		var modifiers []string
+		for {
+			switch p.tok.Type {
+			case token.T_PUBLIC, token.T_PROTECTED, token.T_PRIVATE, token.T_STATIC, token.T_FINAL, token.T_ABSTRACT:
+				modifiers = append(modifiers, p.tok.Literal)
 				p.nextToken()
+				continue
+			case token.T_COMMENT, token.T_DOC_COMMENT:
+				p.nextToken()
+				continue
 			}
-		} else if p.tok.Type == token.T_FUNCTION {
-			if method, err := p.parseFunction(nil); method != nil {
+			break
+		}
+		if p.tok.Type == token.T_FUNCTION {
+			if method, err := p.parseFunction(modifiers); method != nil {
 				methods = append(methods, method)
 			} else if err != nil {
 				return nil, err
 			}
-		} else if p.tok.Type == token.T_VARIABLE {
-			// Parse property declaration
+			continue
+		}
+		if len(modifiers) > 0 {
+			// If we saw modifiers but not a function, emit error and skip
+			p.addError("line %d:%d: expected function after modifiers in class %s body, got %s", p.tok.Pos.Line, p.tok.Pos.Column, name, p.tok.Literal)
+			p.nextToken()
+			continue
+		}
+		if p.tok.Type == token.T_VARIABLE {
 			if prop, err := p.parsePropertyDeclaration(); prop != nil {
 				properties = append(properties, prop)
 			} else if err != nil {
 				return nil, err
 			}
-		} else {
-			p.addError("line %d:%d: unexpected token %s in class %s body", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal, name)
-			p.nextToken()
+			continue
 		}
+		p.addError("line %d:%d: unexpected token %s in class %s body", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal, name)
+		p.nextToken()
 	}
 
 	if p.tok.Type != token.T_RBRACE {
@@ -1184,7 +1184,7 @@ func (p *Parser) parseFQCN() ast.Node {
 		return nil
 	}
 	if p.debug {
-		
+
 	}
 	return &ast.IdentifierNode{
 		Value: fqcn,
@@ -1194,7 +1194,7 @@ func (p *Parser) parseFQCN() ast.Node {
 
 func (p *Parser) parseSimpleExpression() ast.Node {
 	if p.debug {
-		
+
 	}
 	// Handle unary minus and plus
 	if p.tok.Type == token.T_MINUS || p.tok.Type == token.T_PLUS {
@@ -1486,7 +1486,7 @@ func (p *Parser) parseSimpleExpression() ast.Node {
 		return varNode
 	case token.T_NS_SEPARATOR:
 		if p.debug {
-			
+
 		}
 		return p.parseFQCN()
 	default:

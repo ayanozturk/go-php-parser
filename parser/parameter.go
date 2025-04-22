@@ -44,42 +44,7 @@ func (p *Parser) parseParameter() ast.Node {
 	// Parse type hint if present (support nullable type: ?Bar, union types: Foo|Bar, FQCNs, parenthesized types)
 	var typeHint string
 	if p.tok.Type == token.T_LPAREN {
-		parenLevel := 0
-		typeHintBuilder := strings.Builder{}
-		for {
-			if p.tok.Type == token.T_LPAREN {
-				parenLevel++
-				typeHintBuilder.WriteString("(")
-				p.nextToken()
-				continue
-			}
-			if p.tok.Type == token.T_RPAREN {
-				parenLevel--
-				typeHintBuilder.WriteString(")")
-				p.nextToken()
-				if parenLevel == 0 {
-					// After the closing parenthesis, continue to parse |, &, ?, null, etc. as part of the type
-					for p.tok.Type == token.T_PIPE || p.tok.Type == token.T_AMPERSAND || p.tok.Type == token.T_QUESTION || p.tok.Type == token.T_STRING || p.tok.Type == token.T_NULL || p.tok.Type == token.T_NS_SEPARATOR {
-						typeHintBuilder.WriteString(p.tok.Literal)
-						p.nextToken()
-					}
-					break
-				}
-				continue
-			}
-			if p.tok.Type == token.T_PIPE || p.tok.Type == token.T_AMPERSAND || p.tok.Type == token.T_QUESTION {
-				typeHintBuilder.WriteString(p.tok.Literal)
-				p.nextToken()
-				continue
-			}
-			if p.tok.Type == token.T_NS_SEPARATOR || p.tok.Type == token.T_STRING || p.tok.Type == token.T_CALLABLE || p.tok.Type == token.T_ARRAY || p.tok.Type == token.T_STATIC || p.tok.Type == token.T_SELF || p.tok.Type == token.T_PARENT || p.tok.Type == token.T_NEW || p.tok.Type == token.T_MIXED || p.tok.Type == token.T_NULL {
-				typeHintBuilder.WriteString(p.tok.Literal)
-				p.nextToken()
-				continue
-			}
-			break
-		}
-		typeHint = typeHintBuilder.String()
+		typeHint = parseFullTypeHint(p)
 	} else {
 		switch p.tok.Type {
 		case token.T_NS_SEPARATOR, token.T_STRING, token.T_CALLABLE, token.T_ARRAY, token.T_STATIC, token.T_SELF, token.T_PARENT, token.T_NEW, token.T_QUESTION, token.T_MIXED:
@@ -131,4 +96,40 @@ func (p *Parser) parseParameter() ast.Node {
 		IsByRef:      isByRef,
 		Pos:          ast.Position(pos),
 	}
+}
+
+// parseFullTypeHint parses a type hint, including nested parentheses and unions/intersections, until a non-type token or variable is encountered
+func parseFullTypeHint(p *Parser) string {
+	parenLevel := 0
+	typeHintBuilder := strings.Builder{}
+	for {
+		if p.tok.Type == token.T_LPAREN {
+			parenLevel++
+			typeHintBuilder.WriteString("(")
+			p.nextToken()
+			continue
+		}
+		if p.tok.Type == token.T_RPAREN {
+			parenLevel--
+			typeHintBuilder.WriteString(")")
+			p.nextToken()
+			if parenLevel == 0 && (p.tok.Type != token.T_PIPE && p.tok.Type != token.T_AMPERSAND) {
+				break
+			}
+			continue
+		}
+		if p.tok.Type == token.T_PIPE || p.tok.Type == token.T_AMPERSAND || p.tok.Type == token.T_QUESTION {
+			typeHintBuilder.WriteString(p.tok.Literal)
+			p.nextToken()
+			continue
+		}
+		if p.tok.Type == token.T_NS_SEPARATOR || p.tok.Type == token.T_STRING || p.tok.Type == token.T_CALLABLE || p.tok.Type == token.T_ARRAY || p.tok.Type == token.T_STATIC || p.tok.Type == token.T_SELF || p.tok.Type == token.T_PARENT || p.tok.Type == token.T_NEW || p.tok.Type == token.T_MIXED || p.tok.Type == token.T_NULL {
+			typeHintBuilder.WriteString(p.tok.Literal)
+			p.nextToken()
+			continue
+		}
+		// Stop if we hit the variable name or anything that can't be part of a type
+		break
+	}
+	return typeHintBuilder.String()
 }

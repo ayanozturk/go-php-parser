@@ -88,3 +88,41 @@ func TestParseFunctionWithCallable(t *testing.T) {
 		}
 	}
 }
+
+func TestParseStaticMethodInClass(t *testing.T) {
+	input := `<?php
+class Foo {
+    public static function bar() {}
+}`
+	l := lexer.New(input)
+	p := New(l, true)
+	nodes := p.Parse()
+
+	if len(p.Errors()) > 0 {
+		t.Errorf("Parser returned errors: %v", p.Errors())
+	}
+
+	if len(nodes) == 0 {
+		t.Fatal("Expected at least one node, but got none")
+	}
+	classNode, ok := nodes[0].(*ast.ClassNode)
+	if !ok {
+		t.Fatalf("Expected ClassNode, got %T", nodes[0])
+	}
+	if len(classNode.Methods) == 0 {
+		t.Fatal("Expected at least one method in class")
+	}
+	method, ok := classNode.Methods[0].(*ast.FunctionNode)
+	if !ok {
+		t.Fatalf("Expected FunctionNode for method, got %T", classNode.Methods[0])
+	}
+	foundStatic := false
+	for _, m := range method.Modifiers {
+		if m == "static" {
+			foundStatic = true
+		}
+	}
+	if !foundStatic {
+		t.Errorf("Expected 'static' in method.Modifiers, got %+v", method.Modifiers)
+	}
+}
