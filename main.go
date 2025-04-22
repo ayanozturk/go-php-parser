@@ -73,6 +73,9 @@ func main() {
 		}
 
 		files := filesToScan
+		if len(files) > 100 {
+			files = files[:100]
+		}
 		var wg sync.WaitGroup
 		fileCh := make(chan string)
 		linesCh := make(chan int)
@@ -101,9 +104,8 @@ func main() {
 				defer wg.Done()
 				for filePath := range fileCh {
 					errList, lines := processFileWithErrors(filePath, commandName, *debug)
-					if len(errList) > 0 {
-						errDetailCh <- ParseErrorDetail{File: filePath, Errors: errList}
-					}
+					// Always send a value to errDetailCh, even if errList is empty
+					errDetailCh <- ParseErrorDetail{File: filePath, Errors: errList}
 					linesCh <- lines
 				}
 			}()
