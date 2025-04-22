@@ -8,13 +8,13 @@ import (
 )
 
 type Lexer struct {
-	input        string
-	pos          int
-	readPos      int
-	char         rune // Unicode-aware current character
-	size         int  // Size of last rune read
-	line         int
-	column       int
+	input    string
+	pos      int
+	readPos  int
+	char     rune // Unicode-aware current character
+	size     int  // Size of last rune read
+	line     int
+	column   int
 	inString bool // Tracks if currently inside a string
 	// For heredoc token queue
 	heredocTokens []token.Token
@@ -184,28 +184,28 @@ func (l *Lexer) NextToken() token.Token {
 	}
 
 	switch l.char {
-case '?':
-	// PHP 8: nullsafe object operator
-	if l.peekChar() == '-' && l.readPos+1 < len(l.input) && l.input[l.readPos+1] == '>' {
-		l.readChar() // consume ?
-		l.readChar() // consume -
-		l.readChar() // consume >
-		return token.Token{Type: token.T_NULLSAFE_OBJECT_OPERATOR, Literal: "?->", Pos: pos}
-	}
-	if l.peekChar() == '?' {
-		l.readChar() // consume first ?
-		if l.peekChar() == '=' {
-			l.readChar() // consume second ?
-			l.readChar() // consume =
-			return token.Token{Type: token.T_COALESCE_EQUAL, Literal: "??=", Pos: pos}
-		} else {
-			l.readChar() // consume second ?
-			return token.Token{Type: token.T_COALESCE, Literal: "??", Pos: pos}
+	case '?':
+		// PHP 8: nullsafe object operator
+		if l.peekChar() == '-' && l.readPos+1 < len(l.input) && l.input[l.readPos+1] == '>' {
+			l.readChar() // consume ?
+			l.readChar() // consume -
+			l.readChar() // consume >
+			return token.Token{Type: token.T_NULLSAFE_OBJECT_OPERATOR, Literal: "?->", Pos: pos}
 		}
-	}
-	tok = token.Token{Type: token.T_QUESTION, Literal: string(l.char), Pos: pos}
-	l.readChar()
-	return tok
+		if l.peekChar() == '?' {
+			l.readChar() // consume first ?
+			if l.peekChar() == '=' {
+				l.readChar() // consume second ?
+				l.readChar() // consume =
+				return token.Token{Type: token.T_COALESCE_EQUAL, Literal: "??=", Pos: pos}
+			} else {
+				l.readChar() // consume second ?
+				return token.Token{Type: token.T_COALESCE, Literal: "??", Pos: pos}
+			}
+		}
+		tok = token.Token{Type: token.T_QUESTION, Literal: string(l.char), Pos: pos}
+		l.readChar()
+		return tok
 	case 0:
 		return token.Token{Type: token.T_EOF, Literal: "", Pos: pos}
 	case '+':
@@ -244,7 +244,6 @@ case '?':
 			l.readChar()
 			return tok
 		}
-	
 
 		tok = token.Token{Type: token.T_QUESTION, Literal: string(l.char), Pos: pos}
 		l.readChar()
@@ -441,16 +440,16 @@ case '?':
 		return tok
 	case '"':
 		l.inString = true // Enter string mode
-		l.readChar() // consume opening quote
+		l.readChar()      // consume opening quote
 		str := l.readString('"')
-		l.readChar() // consume closing quote
+		l.readChar()       // consume closing quote
 		l.inString = false // Exit string mode
 		return token.Token{Type: token.T_CONSTANT_ENCAPSED_STRING, Literal: str, Pos: pos}
 	case '\'':
 		l.inString = true // Enter string mode
-		l.readChar() // consume opening quote
+		l.readChar()      // consume opening quote
 		str := l.readString('\'')
-		l.readChar() // consume closing quote
+		l.readChar()       // consume closing quote
 		l.inString = false // Exit string mode
 		return token.Token{Type: token.T_CONSTANT_STRING, Literal: str, Pos: pos}
 	case '\\':
@@ -564,6 +563,8 @@ case '?':
 			return token.Token{Type: token.T_CASE, Literal: ident, Pos: pos}
 		case "trait":
 			return token.Token{Type: token.T_TRAIT, Literal: ident, Pos: pos}
+		case "const":
+			return token.Token{Type: token.T_CONST, Literal: ident, Pos: pos}
 		default:
 			return token.Token{Type: token.T_STRING, Literal: ident, Pos: pos}
 		}
