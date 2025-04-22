@@ -563,6 +563,21 @@ type ArrayItemNode struct {
 	Pos    Position
 }
 
+// ArrayAccessNode represents array access expressions like $config['toolbar']
+type ArrayAccessNode struct {
+	Var   Node // The array variable being accessed
+	Index Node // The index/key being accessed
+	Pos   Position
+}
+
+func (a *ArrayAccessNode) NodeType() string    { return "ArrayAccess" }
+func (a *ArrayAccessNode) GetPos() Position    { return a.Pos }
+func (a *ArrayAccessNode) SetPos(pos Position) { a.Pos = pos }
+func (a *ArrayAccessNode) String() string {
+	return fmt.Sprintf("ArrayAccess(%s[%s]) @ %d:%d", a.Var.String(), a.Index.String(), a.Pos.Line, a.Pos.Column)
+}
+func (a *ArrayAccessNode) TokenLiteral() string { return "[" }
+
 func (a *ArrayItemNode) NodeType() string    { return "ArrayItem" }
 func (a *ArrayItemNode) GetPos() Position    { return a.Pos }
 func (a *ArrayItemNode) SetPos(pos Position) { a.Pos = pos }
