@@ -21,7 +21,6 @@ type ParseErrorDetail struct {
 
 func main() {
 	totalParseErrors := 0
-	var allParseErrors []ParseErrorDetail
 
 	c, err := config.LoadConfig("config.yaml")
 	if err != nil {
@@ -90,8 +89,11 @@ func main() {
 		go func() {
 			for errDetail := range errDetailCh {
 				if len(errDetail.Errors) > 0 {
-					allParseErrors = append(allParseErrors, errDetail)
 					totalParseErrors += len(errDetail.Errors)
+					fmt.Printf("\nParsing errors in %s (%d error(s)):\n", errDetail.File, len(errDetail.Errors))
+					for _, err := range errDetail.Errors {
+						fmt.Printf("\t%s\n", err)
+					}
 				}
 			}
 		}()
@@ -121,16 +123,7 @@ func main() {
 		close(errDetailCh)
 	}
 
-	// Print all errors together at the end
-	if totalParseErrors > 0 {
-		fmt.Printf("\n==== ALL PARSER ERRORS ====" + "\n")
-		for _, errDetail := range allParseErrors {
-			fmt.Printf("Parsing errors in %s (%d error(s)):\n", errDetail.File, len(errDetail.Errors))
-			for _, err := range errDetail.Errors {
-				fmt.Printf("\t%s\n", err)
-			}
-		}
-	}
+
 
 	elapsed := time.Since(start).Seconds()
 	fmt.Printf("\nScan completed in %.2f seconds\n", elapsed)
