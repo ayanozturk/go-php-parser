@@ -244,9 +244,9 @@ func (p *Parser) parseTypeHint() string {
 			}
 		}
 		if typeSegment != "" {
-			fmt.Printf("[DEBUG] parseTypeHint: typeSegment='%s', typeHint(before)='%s'\n", typeSegment, typeHint)
+			
 			typeHint += typeSegment
-			fmt.Printf("[DEBUG] parseTypeHint: typeHint(after)='%s'\n", typeHint)
+			
 			segmentCount++
 			lastWasPipe = false
 			if p.tok.Type == token.T_LBRACKET {
@@ -291,7 +291,7 @@ func (p *Parser) parseTypeHint() string {
 			p.errors = append(p.errors, "empty union type")
 		}
 	}
-	fmt.Printf("[DEBUG] parseTypeHint: returning typeHint='%s', next token=%v\n", typeHint, p.tok)
+	
 	return typeHint
 }
 
@@ -449,7 +449,7 @@ func (p *Parser) parseExpression() ast.Node {
 // parseExpressionWithPrecedence parses expressions with correct precedence. Only validateAssignmentTarget for top-level expressions.
 func (p *Parser) parseExpressionWithPrecedence(minPrec int, validateAssignmentTarget bool) ast.Node {
 	if p.debug {
-		fmt.Printf("[DEBUG] parseExpressionWithPrecedence: minPrec=%d, validateAssignmentTarget=%v, tok=%s\n", minPrec, validateAssignmentTarget, p.tok.Literal)
+		
 	}
 
 	// Array literals
@@ -474,7 +474,7 @@ func (p *Parser) parseExpressionWithPrecedence(minPrec int, validateAssignmentTa
 		pos := p.tok.Pos
 		assocRight := phpOperatorRightAssoc[op]
 		if p.debug {
-			fmt.Printf("[DEBUG] Operator: %s, prec=%d, assocRight=%v, leftType=%T\n", operator, prec, assocRight, left)
+			
 		}
 		nextMinPrec := prec + 1
 		if assocRight {
@@ -492,7 +492,7 @@ func (p *Parser) parseExpressionWithPrecedence(minPrec int, validateAssignmentTa
 			right = p.parseExpressionWithPrecedence(nextMinPrec, false)
 		}
 		if p.debug {
-			fmt.Printf("[DEBUG] After right expr: operator=%s, rightType=%T\n", operator, right)
+			
 		}
 		if right == nil {
 			p.addError("line %d:%d: expected right operand after operator %s", pos.Line, pos.Column, operator)
@@ -583,7 +583,7 @@ func (p *Parser) parseArrayElement() ast.Node {
 	}
 
 	// Parse key if present (support class constant fetches as keys)
-	if p.tok.Type == token.T_STRING || p.tok.Type == token.T_NS_SEPARATOR ||
+	if p.tok.Type == token.T_STRING || p.tok.Type == token.T_NS_SEPARATOR || p.tok.Type == token.T_MIXED ||
 		p.tok.Type == token.T_SELF || p.tok.Type == token.T_PARENT || p.tok.Type == token.T_STATIC {
 		// Accumulate fully qualified class name
 		var className strings.Builder
@@ -1182,7 +1182,7 @@ func (p *Parser) parseFQCN() ast.Node {
 		return nil
 	}
 	if p.debug {
-		fmt.Printf("[DEBUG] parseFQCN: parsed FQCN = %s\n", fqcn)
+		
 	}
 	return &ast.IdentifierNode{
 		Value: fqcn,
@@ -1192,7 +1192,7 @@ func (p *Parser) parseFQCN() ast.Node {
 
 func (p *Parser) parseSimpleExpression() ast.Node {
 	if p.debug {
-		fmt.Printf("[DEBUG] parseSimpleExpression: entered with token type=%v, literal=%q\n", p.tok.Type, p.tok.Literal)
+		
 	}
 	// Handle unary minus and plus
 	if p.tok.Type == token.T_MINUS || p.tok.Type == token.T_PLUS {
@@ -1466,7 +1466,7 @@ func (p *Parser) parseSimpleExpression() ast.Node {
 		return varNode
 	case token.T_NS_SEPARATOR:
 		if p.debug {
-			fmt.Printf("[DEBUG] parseSimpleExpression: handling T_BACKSLASH\n")
+			
 		}
 		return p.parseFQCN()
 	default:
