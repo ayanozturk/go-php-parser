@@ -33,7 +33,7 @@ func main() {
 	}
 
 	debug := flag.Bool("debug", false, "Enable debug mode to show parsing errors")
-	parallelism := flag.Int("p", runtime.NumCPU(), "Number of files to process in parallel")
+	parallelism := flag.Int("p", 2, "Number of files to process in parallel (default 2 for memory efficiency)")
 	flag.Parse()
 
 	if len(flag.Args()) < 2 && len(filesToScan) == 0 {
@@ -75,8 +75,8 @@ func main() {
 		}
 
 		files := filesToScan
-		if len(files) > 2000 {
-			files = files[:2000]
+		if len(files) > 3500 {
+			files = files[:3500]
 		}
 		var wg sync.WaitGroup
 		fileCh := make(chan string)
@@ -126,6 +126,7 @@ func main() {
 		close(errDetailCh)
 	}
 
+	runtime.GC()
 	runtime.ReadMemStats(&memEnd)
 	elapsed := time.Since(start).Seconds()
 	fmt.Printf("\nScan completed in %.2f seconds\n", elapsed)
@@ -137,8 +138,8 @@ func main() {
 		fmt.Printf("Lines per second: N/A (too fast to measure)\n")
 	}
 	fmt.Printf("Total parsing errors: %d\n", totalParseErrors)
-	memUsedMB := float64(memEnd.Alloc-memStart.Alloc) / (1024 * 1024)
-	fmt.Printf("Memory used: %.2f MB\n", memUsedMB)
+	fmt.Printf("HeapAlloc: %.2f MB\n", float64(memEnd.HeapAlloc)/(1024*1024))
+	fmt.Printf("Sys: %.2f MB\n", float64(memEnd.Sys)/(1024*1024))
 }
 
 // processFileWithErrors returns (errorCount, lineCount)
