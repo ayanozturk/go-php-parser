@@ -245,17 +245,7 @@ case '?':
 			return tok
 		}
 	
-		if l.peekChar() == '?' {
-			l.readChar() // consume first ?
-			if l.peekChar() == '=' {
-				l.readChar() // consume second ?
-				l.readChar() // consume =
-				return token.Token{Type: token.T_COALESCE_EQUAL, Literal: "??=", Pos: pos}
-			} else {
-				l.readChar() // consume second ?
-				return token.Token{Type: token.T_COALESCE, Literal: "??", Pos: pos}
-			}
-		}
+
 		tok = token.Token{Type: token.T_QUESTION, Literal: string(l.char), Pos: pos}
 		l.readChar()
 		return tok
