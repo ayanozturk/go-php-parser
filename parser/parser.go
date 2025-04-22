@@ -315,7 +315,9 @@ func (p *Parser) parseFunction(modifiers []string) (ast.Node, error) {
 	for p.tok.Type != token.T_RPAREN {
 		param := p.parseParameter()
 		if param == nil {
-			return nil, nil
+			// Ensure forward progress to avoid infinite loop
+			p.nextToken()
+			continue
 		}
 		params = append(params, param)
 

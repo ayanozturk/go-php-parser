@@ -52,6 +52,10 @@ func main() {
 	start := time.Now()
 	totalLines := 0
 
+	// Track memory usage
+	var memStart, memEnd runtime.MemStats
+	runtime.ReadMemStats(&memStart)
+
 	if len(flag.Args()) > 1 {
 		filePath := flag.Args()[1]
 		if filePath == "" {
@@ -61,7 +65,6 @@ func main() {
 		}
 		errList, lines := processFileWithErrors(filePath, commandName, *debug)
 		if len(errList) > 0 {
-			allParseErrors = append(allParseErrors, ParseErrorDetail{File: filePath, Errors: errList})
 			totalParseErrors += len(errList)
 		}
 		totalLines += lines
@@ -72,8 +75,8 @@ func main() {
 		}
 
 		files := filesToScan
-		if len(files) > 100 {
-			files = files[:100]
+		if len(files) > 2000 {
+			files = files[:2000]
 		}
 		var wg sync.WaitGroup
 		fileCh := make(chan string)
@@ -123,8 +126,7 @@ func main() {
 		close(errDetailCh)
 	}
 
-
-
+	runtime.ReadMemStats(&memEnd)
 	elapsed := time.Since(start).Seconds()
 	fmt.Printf("\nScan completed in %.2f seconds\n", elapsed)
 	if elapsed > 0 {
@@ -135,6 +137,8 @@ func main() {
 		fmt.Printf("Lines per second: N/A (too fast to measure)\n")
 	}
 	fmt.Printf("Total parsing errors: %d\n", totalParseErrors)
+	memUsedMB := float64(memEnd.Alloc-memStart.Alloc) / (1024 * 1024)
+	fmt.Printf("Memory used: %.2f MB\n", memUsedMB)
 }
 
 // processFileWithErrors returns (errorCount, lineCount)
