@@ -212,7 +212,7 @@ func (p *Parser) parseTypeHint() string {
 			p.nextToken()
 		}
 		for {
-			if p.tok.Type == token.T_STRING || p.tok.Type == token.T_NEW {
+			if p.tok.Type == token.T_STRING || p.tok.Type == token.T_NEW || (p.tok.Type == token.T_FALSE && p.tok.Literal == "false") {
 				typeSegment += p.tok.Literal
 				p.nextToken()
 				// Accept chained namespaces: \Foo\Bar
@@ -245,9 +245,7 @@ func (p *Parser) parseTypeHint() string {
 			}
 		}
 		if typeSegment != "" {
-
 			typeHint += typeSegment
-
 			segmentCount++
 			lastWasPipe = false
 			if p.tok.Type == token.T_LBRACKET {
@@ -262,7 +260,8 @@ func (p *Parser) parseTypeHint() string {
 				p.nextToken()
 			}
 		} else {
-			if lastWasPipe {
+			// Only emit error if the segment is truly empty and not just at start/end
+			if lastWasPipe && segmentCount > 0 {
 				if !isDocblockContext {
 					p.errors = append(p.errors, "empty type segment in union type")
 				}

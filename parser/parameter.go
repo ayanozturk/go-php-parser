@@ -57,6 +57,11 @@ func (p *Parser) parseParameter() ast.Node {
 		}
 	}
 
+	// After type hint, skip whitespace/comments before checking for & or ... or $var
+	for p.tok.Type == token.T_WHITESPACE || p.tok.Type == token.T_COMMENT || p.tok.Type == token.T_DOC_COMMENT {
+		p.nextToken()
+	}
+
 	// Parse by-reference parameter (&$var)
 	isByRef := false
 	if p.tok.Type == token.T_AMPERSAND {
@@ -64,11 +69,21 @@ func (p *Parser) parseParameter() ast.Node {
 		p.nextToken() // consume &
 	}
 
+	// After &, skip whitespace/comments
+	for p.tok.Type == token.T_WHITESPACE || p.tok.Type == token.T_COMMENT || p.tok.Type == token.T_DOC_COMMENT {
+		p.nextToken()
+	}
+
 	// Parse variadic parameter (...$var)
 	isVariadic := false
 	if p.tok.Type == token.T_ELLIPSIS {
 		isVariadic = true
 		p.nextToken() // consume ...
+	}
+
+	// After ..., skip whitespace/comments
+	for p.tok.Type == token.T_WHITESPACE || p.tok.Type == token.T_COMMENT || p.tok.Type == token.T_DOC_COMMENT {
+		p.nextToken()
 	}
 
 	// Parse variable name (must be $var)
