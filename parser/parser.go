@@ -189,8 +189,14 @@ func (p *Parser) parseStatement() (ast.Node, error) {
 				Pos:  expr.GetPos(),
 			}, nil
 		}
-		p.addError("line %d:%d: unexpected token %s in statement", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal)
-		p.nextToken()
+		// Enhanced error recovery: skip tokens until semicolon or closing paren to avoid cascading errors
+		p.addError("line %d:%d: unexpected token %s in statement (error recovery)", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal)
+		for p.tok.Type != token.T_SEMICOLON && p.tok.Type != token.T_RPAREN && p.tok.Type != token.T_EOF {
+			p.nextToken()
+		}
+		if p.tok.Type == token.T_SEMICOLON {
+			p.nextToken()
+		}
 		return nil, nil
 	}
 }
