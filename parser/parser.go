@@ -1291,34 +1291,45 @@ func (p *Parser) parseSimpleExpression() ast.Node {
 			Pos:       ast.Position(pos),
 		}
 	case token.T_STRING, token.T_STATIC, token.T_SELF, token.T_PARENT:
-		className := p.tok.Literal
-		pos := p.tok.Pos
-		p.nextToken()
-		// Class constant fetch: self::CONST, static::CONST, Foo::CONST, Foo::class
+		// Support fully qualified class names (FQCN) like \Symfony\Component\ClassName
+		fqcnPos := p.tok.Pos
+		fqcn := ""
+		for {
+			if p.tok.Type == token.T_NS_SEPARATOR {
+				fqcn += "\\"
+				p.nextToken()
+			} else if p.tok.Type == token.T_STRING || p.tok.Type == token.T_STATIC || p.tok.Type == token.T_SELF || p.tok.Type == token.T_PARENT {
+				fqcn += p.tok.Literal
+				p.nextToken()
+			} else {
+				break
+			}
+		}
+		// Class constant fetch: FQCN::CONST or FQCN::class
 		if p.tok.Type == token.T_DOUBLE_COLON {
 			p.nextToken() // consume '::'
 			if p.tok.Type == token.T_STRING {
 				constName := p.tok.Literal
 				p.nextToken()
 				return &ast.ClassConstFetchNode{
-					Class: className,
+					Class: fqcn,
 					Const: constName,
-					Pos:   ast.Position(pos),
+					Pos:   ast.Position(fqcnPos),
 				}
 			} else if p.tok.Type == token.T_CLASS_CONST {
-				// Support Foo::class
+				// Support FQCN::class
 				p.nextToken()
 				return &ast.ClassConstFetchNode{
-					Class: className,
+					Class: fqcn,
 					Const: "class",
-					Pos:   ast.Position(pos),
+					Pos:   ast.Position(fqcnPos),
 				}
 			} else {
 				p.addError("line %d:%d: expected constant name or 'class' after '::', got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal)
 				return nil
 			}
 		}
-		// Check for function call: identifier followed by '('
+		// Check for function call: FQCN(...)
 		if p.tok.Type == token.T_LPAREN {
 			p.nextToken() // consume '('
 			var args []ast.Node
@@ -1328,7 +1339,6 @@ func (p *Parser) parseSimpleExpression() ast.Node {
 					isUnpacked = true
 					p.nextToken() // consume ...
 				}
-				// Parse a full expression as argument
 				arg := p.parseExpression()
 				if arg != nil {
 					if isUnpacked {
@@ -1339,7 +1349,6 @@ func (p *Parser) parseSimpleExpression() ast.Node {
 					}
 					args = append(args, arg)
 				}
-				// Only break if next token is ')' (end of arguments)
 				if p.tok.Type == token.T_COMMA {
 					p.nextToken()
 					continue
@@ -1348,29 +1357,27 @@ func (p *Parser) parseSimpleExpression() ast.Node {
 				} else if p.tok.Type == token.T_EOF {
 					break
 				} else {
-					// If not a comma or parenthesis, it's likely a parse error, but allow parseExpression to consume as much as possible
-					// and rely on error handling
 					continue
 				}
 			}
 			if p.tok.Type != token.T_RPAREN {
-				p.addError("line %d:%d: expected ) after arguments for function call %s, got %s", p.tok.Pos.Line, p.tok.Pos.Column, className, p.tok.Literal)
+				p.addError("line %d:%d: expected ) after arguments for function call %s, got %s", p.tok.Pos.Line, p.tok.Pos.Column, fqcn, p.tok.Literal)
 				return nil
 			}
 			p.nextToken() // consume )
 			return &ast.FunctionCallNode{
 				Name: &ast.IdentifierNode{
-					Value: className,
-					Pos:   ast.Position(pos),
+					Value: fqcn,
+					Pos:   ast.Position(fqcnPos),
 				},
 				Args: args,
-				Pos:  ast.Position(pos),
+				Pos:  ast.Position(fqcnPos),
 			}
 		}
 		// Not a function call, just an identifier
 		return &ast.IdentifierNode{
-			Value: className,
-			Pos:   ast.Position(pos),
+			Value: fqcn,
+			Pos:   ast.Position(fqcnPos),
 		}
 	case token.T_CONSTANT_ENCAPSED_STRING:
 		// Handle string interpolation
