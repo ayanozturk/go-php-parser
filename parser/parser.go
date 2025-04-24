@@ -32,7 +32,8 @@ func (p *Parser) nextToken() {
 
 func (p *Parser) addError(format string, args ...interface{}) {
 	if p.debug {
-		p.errors = append(p.errors, fmt.Sprintf(format, args...))
+		errMsg := fmt.Sprintf(format, args...)
+		p.errors = append(p.errors, errMsg)
 	}
 }
 

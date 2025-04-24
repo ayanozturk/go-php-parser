@@ -66,6 +66,12 @@ func main() {
 		errList, lines := processFileWithErrors(filePath, commandName, *debug)
 		if len(errList) > 0 {
 			totalParseErrors += len(errList)
+			if *debug {
+				fmt.Printf("\nParsing errors in %s (%d error(s)):\n", filePath, len(errList))
+				for _, err := range errList {
+					fmt.Printf("\t%s\n", err)
+				}
+			}
 		}
 		totalLines += lines
 	} else {
