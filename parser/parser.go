@@ -514,7 +514,14 @@ func (p *Parser) parseExpressionWithPrecedence(minPrec int, validateAssignmentTa
 
 	left := p.parseSimpleExpression()
 	if left == nil {
-		p.addError("line %d:%d: expected left operand, got nil", p.tok.Pos.Line, p.tok.Pos.Column)
+		p.addError("line %d:%d: expected left operand, got nil (error recovery)", p.tok.Pos.Line, p.tok.Pos.Column)
+		// Error recovery: skip to next semicolon or closing parenthesis
+		for p.tok.Type != token.T_SEMICOLON && p.tok.Type != token.T_RPAREN && p.tok.Type != token.T_EOF {
+			p.nextToken()
+		}
+		if p.tok.Type == token.T_SEMICOLON {
+			p.nextToken()
+		}
 		return nil
 	}
 	for {
