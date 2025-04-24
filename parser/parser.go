@@ -473,6 +473,26 @@ func (p *Parser) parseExpressionWithPrecedence(minPrec int, validateAssignmentTa
 	if p.tok.Type == token.T_LBRACKET || p.tok.Type == token.T_ARRAY {
 		return p.parseArrayLiteral()
 	}
+
+	// Handle unary operators
+	switch p.tok.Type {
+	case token.T_STRING:
+		if p.tok.Literal == "!" || p.tok.Literal == "+" || p.tok.Literal == "-" {
+			opTok := p.tok
+			p.nextToken()
+			right := p.parseExpressionWithPrecedence(100, false)
+			if right == nil {
+				p.addError("line %d:%d: expected operand after unary operator %s", opTok.Pos.Line, opTok.Pos.Column, opTok.Literal)
+				return nil
+			}
+			return &ast.UnaryExpr{
+				Operator: opTok.Literal,
+				Operand:  right,
+				Pos:      ast.Position(opTok.Pos),
+			}
+		}
+	}
+
 	left := p.parseSimpleExpression()
 	if left == nil {
 		p.addError("line %d:%d: expected left operand, got nil", p.tok.Pos.Line, p.tok.Pos.Column)
