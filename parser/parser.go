@@ -87,6 +87,10 @@ func (p *Parser) Parse() []ast.Node {
 }
 
 func (p *Parser) parseStatement() (ast.Node, error) {
+	// Skip attributes before statement (PHP 8+)
+	for p.tok.Type == token.T_ATTRIBUTE {
+		p.nextToken()
+	}
 	if p.tok.Type == token.T_LBRACE {
 		pos := p.tok.Pos
 		p.nextToken() // consume {
@@ -338,6 +342,11 @@ func (p *Parser) parseFunction(modifiers []string) (ast.Node, error) {
 		} else {
 			returnType = p.parseTypeHint()
 		}
+	}
+
+	// Skip whitespace, comments, and attributes before function body
+	for p.tok.Type == token.T_WHITESPACE || p.tok.Type == token.T_COMMENT || p.tok.Type == token.T_DOC_COMMENT || p.tok.Type == token.T_ATTRIBUTE {
+		p.nextToken()
 	}
 
 	if p.tok.Type != token.T_LBRACE {
