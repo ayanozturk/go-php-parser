@@ -87,7 +87,7 @@ func (p *Parser) parseClassDeclarationWithModifier(modifier string) (ast.Node, e
 			continue
 		}
 		if p.tok.Type == token.T_VARIABLE {
-			if prop, err := p.parsePropertyDeclaration(); prop != nil {
+			if prop, err := p.parsePropertyDeclaration(modifiers, ""); prop != nil {
 				properties = append(properties, prop)
 			} else if err != nil {
 				return nil, err
@@ -167,11 +167,11 @@ func (p *Parser) parseClassDeclaration() (ast.Node, error) {
 	var properties []ast.Node
 	var methods []ast.Node
 	for p.tok.Type != token.T_RBRACE && p.tok.Type != token.T_EOF {
-		// Collect all modifiers (public, protected, private, static, final, abstract) and comments/docblocks before 'function'
+		// Collect all modifiers (public, protected, private, static, final, abstract, readonly) and comments/docblocks before 'function' or property
 		var modifiers []string
 		for {
 			switch p.tok.Type {
-			case token.T_PUBLIC, token.T_PROTECTED, token.T_PRIVATE, token.T_STATIC, token.T_FINAL, token.T_ABSTRACT:
+			case token.T_PUBLIC, token.T_PROTECTED, token.T_PRIVATE, token.T_STATIC, token.T_FINAL, token.T_ABSTRACT, token.T_READONLY:
 				modifiers = append(modifiers, p.tok.Literal)
 				p.nextToken()
 				continue
@@ -181,6 +181,11 @@ func (p *Parser) parseClassDeclaration() (ast.Node, error) {
 			}
 			break
 		}
+		// Parse type hint if present (for property)
+		var typeHint string
+		if p.tok.Type == token.T_STRING || p.tok.Type == token.T_NS_SEPARATOR || p.tok.Type == token.T_CALLABLE || p.tok.Type == token.T_ARRAY || p.tok.Type == token.T_QUESTION {
+			typeHint = p.parseTypeHint()
+		}
 		if p.tok.Type == token.T_FUNCTION {
 			if method, err := p.parseFunction(modifiers); method != nil {
 				methods = append(methods, method)
@@ -189,18 +194,18 @@ func (p *Parser) parseClassDeclaration() (ast.Node, error) {
 			}
 			continue
 		}
-		if len(modifiers) > 0 {
-			// If we saw modifiers but not a function, emit error and skip
-			p.addError("line %d:%d: expected function after modifiers in class %s body, got %s", p.tok.Pos.Line, p.tok.Pos.Column, name, p.tok.Literal)
-			p.nextToken()
-			continue
-		}
 		if p.tok.Type == token.T_VARIABLE {
-			if prop, err := p.parsePropertyDeclaration(); prop != nil {
+			if prop, err := p.parsePropertyDeclaration(modifiers, typeHint); prop != nil {
 				properties = append(properties, prop)
 			} else if err != nil {
 				return nil, err
 			}
+			continue
+		}
+		if len(modifiers) > 0 || typeHint != "" {
+			// If we saw modifiers or type hint but not a function/property, emit error and skip
+			p.addError("line %d:%d: expected property or function after modifiers/type in class %s body, got %s", p.tok.Pos.Line, p.tok.Pos.Column, name, p.tok.Literal)
+			p.nextToken()
 			continue
 		}
 		p.addError("line %d:%d: unexpected token %s in class %s body", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal, name)
@@ -223,19 +228,45 @@ func (p *Parser) parseClassDeclaration() (ast.Node, error) {
 	}, nil
 }
 
-func (p *Parser) parsePropertyDeclaration() (ast.Node, error) {
+func (p *Parser) parsePropertyDeclaration(modifiers []string, typeHint string) (ast.Node, error) {
 	pos := p.tok.Pos
-	name := p.tok.Literal[1:] // Remove $ prefix
+	// Interpret modifiers
+	var visibility string
+	var isStatic, isReadonly bool
+	for _, m := range modifiers {
+		switch m {
+		case "public", "protected", "private":
+			visibility = m
+		case "static":
+			isStatic = true
+		case "readonly":
+			isReadonly = true
+		}
+	}
+	if p.tok.Type != token.T_VARIABLE {
+		p.addError("line %d:%d: expected property name, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal)
+		return nil, nil
+	}
+	name := p.tok.Literal[1:]
 	p.nextToken()
-
+	// Default value
+	var defaultValue ast.Node
+	if p.tok.Type == token.T_ASSIGN {
+		p.nextToken() // consume =
+		defaultValue = p.parseExpression()
+	}
 	if p.tok.Type != token.T_SEMICOLON {
 		p.addError("line %d:%d: expected ; after property declaration $%s, got %s", p.tok.Pos.Line, p.tok.Pos.Column, name, p.tok.Literal)
 		return nil, nil
 	}
 	p.nextToken()
-
 	return &ast.PropertyNode{
-		Name: name,
-		Pos:  ast.Position(pos),
+		Name:         name,
+		TypeHint:     typeHint,
+		DefaultValue: defaultValue,
+		Visibility:   visibility,
+		IsStatic:     isStatic,
+		IsReadonly:   isReadonly,
+		Pos:          ast.Position(pos),
 	}, nil
 }

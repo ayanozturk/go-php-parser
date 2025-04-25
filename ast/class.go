@@ -25,9 +25,13 @@ func (c *ClassNode) TokenLiteral() string {
 
 // PropertyNode represents a class property
 type PropertyNode struct {
-	Name       string
-	Visibility string // public, private, protected
-	Pos        Position
+	Name         string
+	TypeHint     string
+	DefaultValue Node
+	Visibility   string // public, private, protected
+	IsStatic     bool
+	IsReadonly   bool
+	Pos          Position
 }
 
 func (n *PropertyNode) GetPos() Position {
