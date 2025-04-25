@@ -539,23 +539,6 @@ func (p *Parser) parseExpressionStatement() (ast.Node, error) {
 	}, nil
 }
 
-func (p *Parser) parsePropertyDeclaration() (ast.Node, error) {
-	pos := p.tok.Pos
-	name := p.tok.Literal[1:] // Remove $ prefix
-	p.nextToken()
-
-	if p.tok.Type != token.T_SEMICOLON {
-		p.addError("line %d:%d: expected ; after property declaration $%s, got %s", p.tok.Pos.Line, p.tok.Pos.Column, name, p.tok.Literal)
-		return nil, nil
-	}
-	p.nextToken()
-
-	return &ast.PropertyNode{
-		Name: name,
-		Pos:  ast.Position(pos),
-	}, nil
-}
-
 func (p *Parser) parseBlockStatement() []ast.Node {
 	var statements []ast.Node
 	for p.tok.Type != token.T_RBRACE && p.tok.Type != token.T_EOF {
