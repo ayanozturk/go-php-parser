@@ -309,56 +309,7 @@ func (p *Parser) parseVariableStatement() (ast.Node, error) {
 	}, nil
 }
 
-// precedence table for PHP operators (higher number = higher precedence)
-var phpOperatorPrecedence = map[token.TokenType]int{
-	token.T_ASSIGN:         1,
-	token.T_PLUS_EQUAL:     1,
-	token.T_MINUS_EQUAL:    1,
-	token.T_MUL_EQUAL:      1,
-	token.T_DIV_EQUAL:      1,
-	token.T_MOD_EQUAL:      1,
-	token.T_AND_EQUAL:      1,
-	token.T_CONCAT_EQUAL:   1,
-	token.T_XOR_EQUAL:      1,
-	token.T_COALESCE_EQUAL: 1,
-
-	token.T_BOOLEAN_OR:  2, // ||
-	token.T_BOOLEAN_AND: 3, // &&
-	token.T_PIPE:        4, // |
-	token.T_AMPERSAND:   5, // &
-	// token.T_XOR_EQUAL:   5, // ^ (already included as assignment above)
-	token.T_IS_EQUAL:         6,
-	token.T_IS_NOT_EQUAL:     6,
-	token.T_IS_IDENTICAL:     6,
-	token.T_IS_NOT_IDENTICAL: 6,
-	token.T_IS_SMALLER:       7,
-	token.T_IS_GREATER:       7,
-	token.T_SPACESHIP:        7,
-	token.T_INSTANCEOF:       8,
-
-	token.T_COALESCE: 9, // ??
-	token.T_PLUS:     10,
-	token.T_MINUS:    10,
-	token.T_DOT:      10,
-	token.T_MULTIPLY: 11,
-	token.T_DIVIDE:   11,
-	token.T_MODULO:   11,
-}
-
-// operator associativity (true = right-associative)
-var phpOperatorRightAssoc = map[token.TokenType]bool{
-	token.T_ASSIGN:         true,
-	token.T_PLUS_EQUAL:     true,
-	token.T_MINUS_EQUAL:    true,
-	token.T_MUL_EQUAL:      true,
-	token.T_DIV_EQUAL:      true,
-	token.T_MOD_EQUAL:      true,
-	token.T_AND_EQUAL:      true,
-	token.T_CONCAT_EQUAL:   true,
-	token.T_XOR_EQUAL:      true,
-	token.T_COALESCE_EQUAL: true,
-	token.T_COALESCE:       true,
-}
+// Use PhpOperatorPrecedence and PhpOperatorRightAssoc from domain.go
 
 func (p *Parser) parseExpression() ast.Node {
 	return p.parseExpressionWithPrecedence(0, true)
@@ -420,7 +371,7 @@ func (p *Parser) parseExpressionWithPrecedence(minPrec int, validateAssignmentTa
 		return nil
 	}
 	for {
-		prec, isOp := phpOperatorPrecedence[p.tok.Type]
+		prec, isOp := PhpOperatorPrecedence[p.tok.Type]
 		if !isOp || prec < minPrec {
 			break
 		}
@@ -430,7 +381,7 @@ func (p *Parser) parseExpressionWithPrecedence(minPrec int, validateAssignmentTa
 			operator = "||"
 		}
 		pos := p.tok.Pos
-		assocRight := phpOperatorRightAssoc[op]
+		assocRight := PhpOperatorRightAssoc[op]
 		if p.debug {
 
 		}
@@ -481,28 +432,7 @@ func (p *Parser) parseExpressionWithPrecedence(minPrec int, validateAssignmentTa
 	return left
 }
 
-// isAssignmentOperator returns true if the operator is an assignment
-func isAssignmentOperator(op token.TokenType) bool {
-	switch op {
-	case token.T_ASSIGN, token.T_PLUS_EQUAL, token.T_MINUS_EQUAL, token.T_MUL_EQUAL, token.T_DIV_EQUAL, token.T_MOD_EQUAL, token.T_AND_EQUAL, token.T_CONCAT_EQUAL, token.T_XOR_EQUAL, token.T_COALESCE_EQUAL:
-		return true
-	default:
-		return false
-	}
-}
-
-// isValidAssignmentTarget returns true if node is a valid assignment target (VariableNode only for now)
-func isValidAssignmentTarget(node ast.Node) bool {
-	if node == nil {
-		return false
-	}
-	switch node.(type) {
-	case *ast.VariableNode:
-		return true
-	default:
-		return false
-	}
-}
+// Remove isAssignmentOperator and isValidAssignmentTarget (now in domain.go)
 
 func (p *Parser) isBinaryOperator(tokenType token.TokenType) bool {
 	switch tokenType {
