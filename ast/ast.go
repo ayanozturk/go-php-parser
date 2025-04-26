@@ -51,6 +51,22 @@ func (d *DeclareNode) String() string {
 }
 func (d *DeclareNode) TokenLiteral() string { return "declare" }
 
+type DeclareDirective struct {
+	Name  string // e.g. "strict_types"
+	Value Node   // e.g. IntegerLiteral(1)
+	Pos   Position
+}
+
+func (d *DeclareDirective) NodeType() string    { return "DeclareDirective" }
+func (d *DeclareDirective) GetPos() Position    { return d.Pos }
+func (d *DeclareDirective) SetPos(pos Position) { d.Pos = pos }
+func (d *DeclareDirective) String() string {
+	return fmt.Sprintf("DeclareDirective(%s = %s) @ %d:%d", d.Name, d.Value.String(), d.Pos.Line, d.Pos.Column)
+}
+func (d *DeclareDirective) TokenLiteral() string {
+	return d.Name
+}
+
 // Identifier represents a name like variable or function name
 type Identifier struct {
 	Name string

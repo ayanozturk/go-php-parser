@@ -101,6 +101,11 @@ func (p *Parser) parseStatement() (ast.Node, error) {
 		p.nextToken() // consume }
 		return &ast.BlockNode{Statements: stmts, Pos: ast.Position(pos)}, nil
 	}
+	// Handle declare statement
+	if p.tok.Type == token.T_DECLARE {
+		p.nextToken() // consume 'declare'
+		return p.parseDeclare(), nil
+	}
 	switch p.tok.Type {
 	case token.T_TRAIT:
 		return p.parseTraitDeclaration()
@@ -336,6 +341,8 @@ func (p *Parser) parseExpressionWithPrecedence(minPrec int, validateAssignmentTa
 		// Only validate assignment target for the outermost assignment (not for nested assignments in logical expressions)
 		if isAssignmentOperator(op) && validateAssignmentTarget && minPrec == 0 {
 			if !isValidAssignmentTarget(left) {
+				fmt.Println("left:", left)
+				fmt.Println("right:", right)
 				p.addError("line %d:%d: invalid assignment target for operator %s", pos.Line, pos.Column, operator)
 				return nil
 			}
