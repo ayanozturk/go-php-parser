@@ -90,6 +90,9 @@ func (p *Parser) parseStatement() (ast.Node, error) {
 	for p.tok.Type == token.T_ATTRIBUTE {
 		p.nextToken()
 	}
+	if p.tok.Type == token.T_NAMESPACE {
+		return p.parseNamespaceDeclaration()
+	}
 	if p.tok.Type == token.T_LBRACE {
 		pos := p.tok.Pos
 		p.nextToken() // consume {

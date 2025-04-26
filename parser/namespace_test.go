@@ -251,3 +251,53 @@ func TestParserMathExpression(t *testing.T) {
 		})
 	}
 }
+
+func TestParseNamespaceDeclarations(t *testing.T) {
+	cases := []struct {
+		name     string
+		code     string
+		wantName string
+		wantBody bool
+		wantErr  bool
+	}{
+		{"inline namespace", "<?php\nnamespace Foo\\Bar; class X {}", "Foo\\Bar", false, false},
+		{"block namespace", "<?php\nnamespace Foo\\Bar { class X {} }", "Foo\\Bar", true, false},
+		{"global namespace inline", "<?php\nnamespace; class X {}", "", false, false},
+		{"global namespace block", "<?php\nnamespace { class X {} }", "", true, false},
+		{"missing semicolon or brace", "<?php\nnamespace Foo Bar class X {}", "Foo", false, true},
+		{"nested namespaces", "<?php\nnamespace A { namespace B { class X {} } }", "A", true, false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			l := lexer.New(tc.code)
+			p := New(l, true)
+			nodes := p.Parse()
+			errs := p.Errors()
+			if tc.wantErr && len(errs) == 0 {
+				t.Errorf("Expected error, got none")
+			}
+			if !tc.wantErr && len(errs) > 0 {
+				t.Errorf("Unexpected errors: %v", errs)
+			}
+			if len(nodes) == 0 && !tc.wantErr {
+				t.Errorf("Expected at least one node, got none")
+			}
+			if len(nodes) > 0 && !tc.wantErr {
+				ns, ok := nodes[0].(*ast.NamespaceNode)
+				if !ok {
+					t.Errorf("Expected NamespaceNode, got %T", nodes[0])
+					return
+				}
+				if ns.Name != tc.wantName {
+					t.Errorf("Expected namespace name '%s', got '%s'", tc.wantName, ns.Name)
+				}
+				if tc.wantBody && len(ns.Body) == 0 {
+					t.Errorf("Expected namespace body, got none")
+				}
+				if !tc.wantBody && ns.Body != nil && len(ns.Body) > 0 {
+					t.Errorf("Expected no namespace body, got one")
+				}
+			}
+		})
+	}
+}
