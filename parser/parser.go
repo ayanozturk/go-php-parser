@@ -85,131 +85,6 @@ func (p *Parser) Parse() []ast.Node {
 	return nodes
 }
 
-func (p *Parser) parseStatement() (ast.Node, error) {
-	// Skip attributes before statement (PHP 8+)
-	for p.tok.Type == token.T_ATTRIBUTE {
-		p.nextToken()
-	}
-	if p.tok.Type == token.T_NAMESPACE {
-		return p.parseNamespaceDeclaration()
-	}
-	if p.tok.Type == token.T_LBRACE {
-		pos := p.tok.Pos
-		p.nextToken() // consume {
-		stmts := p.parseBlockStatement()
-		if p.tok.Type != token.T_RBRACE {
-			p.addError("line %d:%d: expected } to close block, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal)
-			return nil, nil
-		}
-		p.nextToken() // consume }
-		return &ast.BlockNode{Statements: stmts, Pos: ast.Position(pos)}, nil
-	}
-	// Handle declare statement
-	if p.tok.Type == token.T_DECLARE {
-		p.nextToken() // consume 'declare'
-		return p.parseDeclare(), nil
-	}
-	switch p.tok.Type {
-	case token.T_TRAIT:
-		return p.parseTraitDeclaration()
-	case token.T_COMMENT:
-		pos := p.tok.Pos
-		comment := p.tok.Literal
-		p.nextToken() // consume comment
-		return &ast.CommentNode{
-			Value: comment,
-			Pos:   ast.Position(pos),
-		}, nil
-	case token.T_RETURN:
-		pos := p.tok.Pos
-		p.nextToken() // consume return
-		expr := p.parseExpression()
-		if expr == nil {
-			return nil, nil
-		}
-		if p.tok.Type != token.T_SEMICOLON {
-			p.addError("line %d:%d: expected ; after return statement, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal)
-			return nil, nil
-		}
-		p.nextToken() // consume ;
-		return &ast.ReturnNode{
-			Expr: expr,
-			Pos:  ast.Position(pos),
-		}, nil
-	case token.T_FUNCTION:
-		return p.parseFunction(nil)
-
-	case token.T_IF:
-		return p.parseIfStatement()
-	case token.T_STRING:
-		if p.tok.Literal == "final" || p.tok.Literal == "abstract" {
-			modifier := p.tok.Literal
-			p.nextToken()
-			if p.tok.Type == token.T_CLASS {
-				return p.parseClassDeclarationWithModifier(modifier)
-			}
-			p.addError("line %d:%d: expected 'class' after modifier %s, got %s", p.tok.Pos.Line, p.tok.Pos.Column, modifier, p.tok.Literal)
-			return nil, nil
-		}
-		return p.parseExpressionStatement()
-	case token.T_CLASS:
-		return p.parseClassDeclaration()
-	case token.T_INTERFACE:
-		node := p.parseInterfaceDeclaration()
-		if node == nil {
-			return nil, fmt.Errorf("failed to parse interface declaration")
-		}
-		return node, nil
-	case token.T_ECHO:
-		pos := p.tok.Pos
-		p.nextToken() // consume echo
-		expr := p.parseExpression()
-		if expr == nil {
-			return nil, nil
-		}
-		if p.tok.Type != token.T_SEMICOLON {
-			p.addError("line %d:%d: expected ; after echo statement, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal)
-			return nil, nil
-		}
-		p.nextToken() // consume ;
-		return &ast.ExpressionStmt{
-			Expr: expr,
-			Pos:  ast.Position(pos),
-		}, nil
-
-	case token.T_SEMICOLON:
-		p.nextToken() // skip empty statements
-		return nil, nil
-	case token.T_ENUM:
-		return p.parseEnum()
-	case token.T_FOREACH:
-		return p.parseForeachStatement()
-	default:
-		// Try parsing as expression statement
-		if expr := p.parseExpression(); expr != nil {
-			// Accept function calls as statements even if last token is ')', as long as next is semicolon
-			if p.tok.Type != token.T_SEMICOLON {
-				p.addError("line %d:%d: expected ; after expression, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal)
-				return nil, nil
-			}
-			p.nextToken() // consume ;
-			return &ast.ExpressionStmt{
-				Expr: expr,
-				Pos:  expr.GetPos(),
-			}, nil
-		}
-		// Enhanced error recovery: skip tokens until semicolon or closing paren to avoid cascading errors
-		p.addError("line %d:%d: unexpected token %s in statement (error recovery)", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal)
-		for p.tok.Type != token.T_SEMICOLON && p.tok.Type != token.T_RPAREN && p.tok.Type != token.T_EOF {
-			p.nextToken()
-		}
-		if p.tok.Type == token.T_SEMICOLON {
-			p.nextToken()
-		}
-		return nil, nil
-	}
-}
-
 func (p *Parser) parseVariableStatement() (ast.Node, error) {
 	varPos := p.tok.Pos
 	varName := p.tok.Literal[1:] // Remove leading $ from variable name
@@ -247,133 +122,6 @@ func (p *Parser) parseVariableStatement() (ast.Node, error) {
 
 // Use PhpOperatorPrecedence and PhpOperatorRightAssoc from domain.go
 
-func (p *Parser) parseExpression() ast.Node {
-	return p.parseExpressionWithPrecedence(0, true)
-}
-
-// parseExpressionWithPrecedence parses expressions with correct precedence. Only validateAssignmentTarget for top-level expressions.
-func (p *Parser) parseExpressionWithPrecedence(minPrec int, validateAssignmentTarget bool, stopTypes ...token.TokenType) ast.Node {
-	if p.debug {
-
-	}
-
-	// Array literals
-	if p.tok.Type == token.T_LBRACKET || p.tok.Type == token.T_ARRAY {
-		return p.parseArrayLiteral()
-	}
-
-	// Handle unary operators
-	switch p.tok.Type {
-	case token.T_PLUS, token.T_MINUS:
-		opTok := p.tok
-		p.nextToken()
-		right := p.parseExpressionWithPrecedence(100, false, stopTypes...)
-		if right == nil {
-			p.addError("line %d:%d: expected operand after unary operator %s", opTok.Pos.Line, opTok.Pos.Column, opTok.Literal)
-			return nil
-		}
-		return &ast.UnaryExpr{
-			Operator: opTok.Literal,
-			Operand:  right,
-			Pos:      ast.Position(opTok.Pos),
-		}
-	case token.T_STRING:
-		if p.tok.Literal == "!" {
-			opTok := p.tok
-			p.nextToken()
-			right := p.parseExpressionWithPrecedence(100, false, stopTypes...)
-			if right == nil {
-				p.addError("line %d:%d: expected operand after unary operator %s", opTok.Pos.Line, opTok.Pos.Column, opTok.Literal)
-				return nil
-			}
-			return &ast.UnaryExpr{
-				Operator: opTok.Literal,
-				Operand:  right,
-				Pos:      ast.Position(opTok.Pos),
-			}
-		}
-	}
-
-	left := p.parseSimpleExpression()
-	if left == nil {
-		p.addError("line %d:%d: expected left operand, got nil (error recovery)", p.tok.Pos.Line, p.tok.Pos.Column)
-		// Error recovery: skip to next semicolon or closing parenthesis
-		for p.tok.Type != token.T_SEMICOLON && p.tok.Type != token.T_RPAREN && p.tok.Type != token.T_EOF {
-			p.nextToken()
-		}
-		if p.tok.Type == token.T_SEMICOLON {
-			p.nextToken()
-		}
-		return nil
-	}
-	for {
-		// Check for stop tokens
-		for _, stop := range stopTypes {
-			if p.tok.Type == stop {
-				return left
-			}
-		}
-		prec, isOp := PhpOperatorPrecedence[p.tok.Type]
-		if !isOp || prec < minPrec {
-			break
-		}
-		op := p.tok.Type
-		operator := p.tok.Literal
-		if op == token.T_BOOLEAN_OR {
-			operator = "||"
-		}
-		pos := p.tok.Pos
-		assocRight := PhpOperatorRightAssoc[op]
-		if p.debug {
-
-		}
-		nextMinPrec := prec + 1
-		if assocRight {
-			nextMinPrec = prec
-		}
-		p.nextToken()
-		var right ast.Node
-		if op == token.T_BOOLEAN_OR || op == token.T_BOOLEAN_AND {
-			// Logical operators
-			right = p.parseExpressionWithPrecedence(0, true, stopTypes...)
-		} else if op == token.T_INSTANCEOF {
-			// For instanceof, right side must be a class name or FQCN
-			right = p.parseSimpleExpression()
-		} else {
-			right = p.parseExpressionWithPrecedence(nextMinPrec, false, stopTypes...)
-		}
-		if p.debug {
-
-		}
-		if right == nil {
-			p.addError("line %d:%d: expected right operand after operator %s", pos.Line, pos.Column, operator)
-			return nil
-		}
-		// Only validate assignment target for the outermost assignment (not for nested assignments in logical expressions)
-		if isAssignmentOperator(op) && validateAssignmentTarget && minPrec == 0 {
-			if !isValidAssignmentTarget(left) {
-				p.addError("line %d:%d: invalid assignment target for operator %s", pos.Line, pos.Column, operator)
-				return nil
-			}
-		}
-		if isAssignmentOperator(op) {
-			left = &ast.AssignmentNode{
-				Left:  left,
-				Right: right,
-				Pos:   ast.Position(pos),
-			}
-		} else {
-			left = &ast.BinaryExpr{
-				Left:     left,
-				Operator: operator,
-				Right:    right,
-				Pos:      ast.Position(pos),
-			}
-		}
-	}
-	return left
-}
-
 // Remove isAssignmentOperator and isValidAssignmentTarget (now in domain.go)
 
 func (p *Parser) isBinaryOperator(tokenType token.TokenType) bool {
@@ -393,42 +141,6 @@ func (p *Parser) isBinaryOperator(tokenType token.TokenType) bool {
 	default:
 		return false
 	}
-}
-
-func (p *Parser) parseExpressionStatement() (ast.Node, error) {
-	expr := p.parseExpressionWithPrecedence(0, true)
-	if expr == nil {
-		return nil, nil
-	}
-
-	if p.tok.Type != token.T_SEMICOLON {
-		p.addError("line %d:%d: expected ; after expression, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal)
-		return nil, nil
-	}
-	p.nextToken() // consume ;
-
-	return &ast.ExpressionStmt{
-		Expr: expr,
-		Pos:  expr.GetPos(),
-	}, nil
-}
-
-func (p *Parser) parseBlockStatement() []ast.Node {
-	var statements []ast.Node
-	for p.tok.Type != token.T_RBRACE && p.tok.Type != token.T_EOF {
-		stmt, err := p.parseStatement()
-		if err != nil {
-			p.addError(err.Error())
-			p.nextToken()
-			continue
-		} else if stmt != nil {
-			statements = append(statements, stmt)
-		}
-		if stmt == nil {
-			p.nextToken()
-		}
-	}
-	return statements
 }
 
 // peekToken returns the next token without consuming it
@@ -696,56 +408,72 @@ func (p *Parser) parseSimpleExpression() ast.Node {
 		p.nextToken()
 		return node
 	case token.T_VARIABLE:
-		varNode := &ast.VariableNode{
+		var expr ast.Node = &ast.VariableNode{
 			Name: p.tok.Literal[1:], // Remove $ prefix
 			Pos:  ast.Position(p.tok.Pos),
 		}
 		p.nextToken()
-		// Check for function call: $var()
-		if p.tok.Type == token.T_LPAREN {
-			p.nextToken() // consume '('
-			var args []ast.Node
-			for p.tok.Type != token.T_RPAREN && p.tok.Type != token.T_EOF {
-				isUnpacked := false
-				if p.tok.Type == token.T_ELLIPSIS {
-					isUnpacked = true
-					p.nextToken() // consume ...
+		for {
+			if p.tok.Type == token.T_OBJECT_OPERATOR {
+				objOpPos := p.tok.Pos
+				p.nextToken() // consume '->'
+				if p.tok.Type != token.T_STRING {
+					p.addError("line %d:%d: expected property/method name after ->, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal)
+					return nil
 				}
-				arg := p.parseExpression()
-				if arg != nil {
-					if isUnpacked {
-						arg = &ast.UnpackedArgumentNode{
-							Expr: arg,
-							Pos:  arg.GetPos(),
+				member := p.tok.Literal
+				p.nextToken() // consume property/method name
+				// Check for method call
+				if p.tok.Type == token.T_LPAREN {
+					p.nextToken() // consume '('
+					var args []ast.Node
+					for p.tok.Type != token.T_RPAREN && p.tok.Type != token.T_EOF {
+						isUnpacked := false
+						if p.tok.Type == token.T_ELLIPSIS {
+							isUnpacked = true
+							p.nextToken() // consume ...
+						}
+						arg := p.parseExpression()
+						if arg != nil {
+							if isUnpacked {
+								arg = &ast.UnpackedArgumentNode{
+									Expr: arg,
+									Pos:  arg.GetPos(),
+								}
+							}
+							args = append(args, arg)
+						}
+						if p.tok.Type == token.T_COMMA {
+							p.nextToken()
+							continue
+						} else if p.tok.Type == token.T_RPAREN {
+							break
+						} else if p.tok.Type == token.T_EOF {
+							break
+						} else {
+							continue
 						}
 					}
-					args = append(args, arg)
-				}
-				if p.tok.Type == token.T_COMMA {
-					p.nextToken()
-					continue
-				} else if p.tok.Type == token.T_RPAREN {
-					break
-				} else if p.tok.Type == token.T_EOF {
-					break
+					if p.tok.Type != token.T_RPAREN {
+						p.addError("line %d:%d: expected ) after arguments for method call %s, got %s", p.tok.Pos.Line, p.tok.Pos.Column, member, p.tok.Literal)
+						return nil
+					}
+					p.nextToken() // consume )
+					expr = &ast.MethodCallNode{
+						Object: expr,
+						Method: member,
+						Args:   args,
+						Pos:    ast.Position(objOpPos),
+					}
 				} else {
-					continue
+					expr = &ast.PropertyFetchNode{
+						Object:   expr,
+						Property: member,
+						Pos:      ast.Position(objOpPos),
+					}
 				}
+				continue // allow chaining: $foo->bar()->baz
 			}
-			if p.tok.Type != token.T_RPAREN {
-				p.addError("line %d:%d: expected ) after arguments for function call on variable, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal)
-				return nil
-			}
-			p.nextToken() // consume )
-			return &ast.FunctionCallNode{
-				Name: varNode,
-				Args: args,
-				Pos:  varNode.Pos,
-			}
-		}
-		// Support array access: $foo[0], $foo[$bar], etc.
-		var expr ast.Node = varNode
-		for {
 			if p.tok.Type == token.T_LBRACKET {
 				bracketPos := p.tok.Pos
 				p.nextToken() // consume [
@@ -760,24 +488,50 @@ func (p *Parser) parseSimpleExpression() ast.Node {
 					Index: index,
 					Pos:   ast.Position(bracketPos),
 				}
-				return expr
+				continue
 			}
-			// Support property fetch: $foo->bar
-			if p.tok.Type == token.T_OBJECT_OPERATOR {
-				objOpPos := p.tok.Pos
-				p.nextToken() // consume '->'
-				if p.tok.Type != token.T_STRING {
-					p.addError("line %d:%d: expected property name after ->, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal)
+			// Check for function call: $var()
+			if p.tok.Type == token.T_LPAREN {
+				p.nextToken() // consume '('
+				var args []ast.Node
+				for p.tok.Type != token.T_RPAREN && p.tok.Type != token.T_EOF {
+					isUnpacked := false
+					if p.tok.Type == token.T_ELLIPSIS {
+						isUnpacked = true
+						p.nextToken() // consume ...
+					}
+					arg := p.parseExpression()
+					if arg != nil {
+						if isUnpacked {
+							arg = &ast.UnpackedArgumentNode{
+								Expr: arg,
+								Pos:  arg.GetPos(),
+							}
+						}
+						args = append(args, arg)
+					}
+					if p.tok.Type == token.T_COMMA {
+						p.nextToken()
+						continue
+					} else if p.tok.Type == token.T_RPAREN {
+						break
+					} else if p.tok.Type == token.T_EOF {
+						break
+					} else {
+						continue
+					}
+				}
+				if p.tok.Type != token.T_RPAREN {
+					p.addError("line %d:%d: expected ) after arguments for function call on variable, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal)
 					return nil
 				}
-				property := p.tok.Literal
-				p.nextToken() // consume property name
-				expr = &ast.PropertyFetchNode{
-					Object:   expr,
-					Property: property,
-					Pos:      ast.Position(objOpPos),
+				p.nextToken() // consume )
+				expr = &ast.FunctionCallNode{
+					Name: expr,
+					Args: args,
+					Pos:  expr.GetPos(),
 				}
-				continue // allow chaining: $foo->bar->baz
+				continue
 			}
 			break
 		}
