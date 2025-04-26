@@ -81,9 +81,9 @@ func main() {
 		}
 
 		files := filesToScan
-		if len(files) > 3500 {
-			files = files[:3500]
-		}
+		// if len(files) > 5500 {
+		// files = files[:5500]
+		// }
 		var wg sync.WaitGroup
 		fileCh := make(chan string)
 		linesCh := make(chan int)
