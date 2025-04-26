@@ -734,23 +734,43 @@ func (p *Parser) parseSimpleExpression() ast.Node {
 		}
 		// Support array access: $foo[0], $foo[$bar], etc.
 		var expr ast.Node = varNode
-		for p.tok.Type == token.T_LBRACKET {
-			bracketPos := p.tok.Pos
-			p.nextToken() // consume [
-			index := p.parseExpression()
-			if p.tok.Type != token.T_RBRACKET {
-				p.addError("line %d:%d: expected ] after array index, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal)
-				return nil
+		for {
+			if p.tok.Type == token.T_LBRACKET {
+				bracketPos := p.tok.Pos
+				p.nextToken() // consume [
+				index := p.parseExpression()
+				if p.tok.Type != token.T_RBRACKET {
+					p.addError("line %d:%d: expected ] after array index, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal)
+					return nil
+				}
+				p.nextToken() // consume ]
+				expr = &ast.ArrayAccessNode{
+					Var:   expr,
+					Index: index,
+					Pos:   ast.Position(bracketPos),
+				}
+				return expr
 			}
-			p.nextToken() // consume ]
-			expr = &ast.ArrayAccessNode{
-				Var:   expr,
-				Index: index,
-				Pos:   ast.Position(bracketPos),
+			// Support property fetch: $foo->bar
+			if p.tok.Type == token.T_OBJECT_OPERATOR {
+				objOpPos := p.tok.Pos
+				p.nextToken() // consume '->'
+				if p.tok.Type != token.T_STRING {
+					p.addError("line %d:%d: expected property name after ->, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal)
+					return nil
+				}
+				property := p.tok.Literal
+				p.nextToken() // consume property name
+				expr = &ast.PropertyFetchNode{
+					Object:   expr,
+					Property: property,
+					Pos:      ast.Position(objOpPos),
+				}
+				continue // allow chaining: $foo->bar->baz
 			}
-			return expr
+			break
 		}
-		return varNode
+		return expr
 	case token.T_NS_SEPARATOR:
 		if p.debug {
 
