@@ -119,6 +119,44 @@ func (p *Parser) parseStatement() (ast.Node, error) {
 		return p.parseEnum()
 	case token.T_FOREACH:
 		return p.parseForeachStatement()
+	case token.T_UNSET:
+		pos := p.tok.Pos
+		p.nextToken() // consume 'unset'
+		if p.tok.Type != token.T_LPAREN {
+			p.addError("line %d:%d: expected ( after unset, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal)
+			return nil, nil
+		}
+		p.nextToken() // consume '('
+		var args []ast.Node
+		for {
+			arg := p.parseExpression()
+			if arg != nil {
+				args = append(args, arg)
+			}
+			if p.tok.Type == token.T_COMMA {
+				p.nextToken()
+				continue
+			}
+			break
+		}
+		if p.tok.Type != token.T_RPAREN {
+			p.addError("line %d:%d: expected ) after unset arguments, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal)
+			return nil, nil
+		}
+		p.nextToken() // consume ')'
+		if p.tok.Type != token.T_SEMICOLON {
+			p.addError("line %d:%d: expected ; after unset statement, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal)
+			return nil, nil
+		}
+		p.nextToken() // consume ;
+		return &ast.ExpressionStmt{
+			Expr: &ast.FunctionCallNode{
+				Name: &ast.IdentifierNode{Value: "unset", Pos: ast.Position(pos)},
+				Args: args,
+				Pos:  ast.Position(pos),
+			},
+			Pos: ast.Position(pos),
+		}, nil
 	default:
 		// Try parsing as expression statement
 		if expr := p.parseExpression(); expr != nil {
