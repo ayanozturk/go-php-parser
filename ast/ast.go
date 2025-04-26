@@ -790,3 +790,21 @@ func (h *HeredocNode) String() string {
 	return fmt.Sprintf("<<<'%s' @ %d:%d", h.Identifier, h.Pos.Line, h.Pos.Column)
 }
 func (h *HeredocNode) TokenLiteral() string { return h.Identifier }
+
+// PropertyFetchNode represents an object property fetch, e.g., $this->name or $obj->prop
+// Left is the object expression (usually a VariableNode), Property is the property name (string or IdentifierNode)
+type PropertyFetchNode struct {
+	Object   Node   // The object being accessed, e.g., VariableNode for $this
+	Property string // The property name being accessed, e.g., "name"
+	Pos      Position
+}
+
+func (p *PropertyFetchNode) NodeType() string    { return "PropertyFetch" }
+func (p *PropertyFetchNode) GetPos() Position    { return p.Pos }
+func (p *PropertyFetchNode) SetPos(pos Position) { p.Pos = pos }
+func (p *PropertyFetchNode) String() string {
+	return fmt.Sprintf("PropertyFetch(%s->%s) @ %d:%d", p.Object.String(), p.Property, p.Pos.Line, p.Pos.Column)
+}
+func (p *PropertyFetchNode) TokenLiteral() string {
+	return p.Property
+}
