@@ -18,32 +18,37 @@ func (p *Parser) parseDeclare() ast.Node {
 	}
 
 	for {
-		if p.tok.Type == token.T_RPAREN {
-			break
+		if p.tok.Type != token.T_STRING {
+			p.addError("line %d:%d: expected directive name in declare(), got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal)
+			return nil
+		}
+		key := p.tok.Literal
+		p.nextToken()
+
+		if !p.expect(token.T_ASSIGN) {
+			return nil
 		}
 
-		if p.tok.Type == token.T_STRING {
-			key := p.tok.Literal
-			p.nextToken()
-
-			if !p.expect(token.T_ASSIGN) {
-				return nil
-			}
-
-			value := p.parseExpression()
-			if value == nil {
-				return nil
-			}
-
-			declare.Directives[key] = value
-		} else {
-			p.nextToken()
+		value := p.parseExpression()
+		if value == nil {
+			return nil
 		}
+		declare.Directives[key] = value
+
+		if p.tok.Type == token.T_COMMA {
+			p.nextToken()
+			continue
+		}
+		break
 	}
 
 	if !p.expect(token.T_RPAREN) {
 		return nil
 	}
+
+	// Parse the statement or block after declare(...)
+	stmt, _ := p.parseStatement()
+	declare.Body = stmt
 
 	return declare
 }

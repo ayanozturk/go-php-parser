@@ -41,6 +41,7 @@ func (b *BlockNode) TokenLiteral() string { return "{" }
 type DeclareNode struct {
 	Directives map[string]Node // e.g. {"strict_types": IntegerLiteral(1)}
 	Pos        Position
+	Body       Node // The body of the declare statement (e.g., a block or a single statement)
 }
 
 func (d *DeclareNode) NodeType() string    { return "Declare" }
