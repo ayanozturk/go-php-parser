@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"go-phpcs/ast"
 	"go-phpcs/token"
+	"strings"
 )
 
 // parseParameter parses a function or method parameter
@@ -98,6 +99,16 @@ func (p *Parser) parseParameter() ast.Node {
 	if p.tok.Type == token.T_ASSIGN {
 		p.nextToken() // consume =
 		defaultValue = p.parseExpression()
+	}
+
+	// If we see a comment like /* ,... */ after a parameter, skip it (for commented-out trailing params)
+	for p.tok.Type == token.T_COMMENT || p.tok.Type == token.T_DOC_COMMENT {
+		// Only skip if the comment starts with '/* ,'
+		if strings.HasPrefix(p.tok.Literal, "/* ,") || strings.HasPrefix(p.tok.Literal, ",") {
+			p.nextToken()
+			continue
+		}
+		break
 	}
 
 	return &ast.ParamNode{
