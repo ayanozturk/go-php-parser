@@ -21,9 +21,7 @@ func isValidAssignmentTarget(node ast.Node) bool {
 		return false
 	}
 	switch node.(type) {
-	case *ast.VariableNode:
-		return true
-	case *ast.PropertyFetchNode:
+	case *ast.VariableNode, *ast.PropertyFetchNode, *ast.ArrayAccessNode:
 		return true
 	default:
 		return false
@@ -41,7 +39,7 @@ var PhpOperatorPrecedence = map[token.TokenType]int{
 	token.T_AND_EQUAL:      0,
 	token.T_CONCAT_EQUAL:   0,
 	token.T_XOR_EQUAL:      0,
-	token.T_COALESCE_EQUAL: 0,
+	token.T_COALESCE_EQUAL: 0, // ??= assignment
 
 	token.T_QUESTION:    1, // Ternary operator (just above assignment)
 	token.T_BOOLEAN_OR:  2, // ||

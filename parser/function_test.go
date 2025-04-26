@@ -238,3 +238,17 @@ function bar($x) {
 	}
 	// Optionally, check for ThrowNode in AST structure
 }
+
+func TestParseNullCoalescingAssignment(t *testing.T) {
+	php := `<?php $a ??= 1; $this->foo ??= 2;` // property fetch
+	l := lexer.New(php)
+	p := New(l, true)
+	nodes := p.Parse()
+	if len(p.Errors()) > 0 {
+		t.Fatalf("Parser errors: %v", p.Errors())
+	}
+	if len(nodes) < 2 {
+		t.Fatal("Expected at least two statements")
+	}
+	// Optionally, check for AssignmentNode with Operator "??="
+}
