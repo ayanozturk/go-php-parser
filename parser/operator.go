@@ -58,6 +58,7 @@ var PhpOperatorPrecedence = map[token.TokenType]int{
 	token.T_IS_SMALLER_OR_EQUAL: 7,
 	token.T_SPACESHIP:           7,
 	token.T_INSTANCEOF:          8,
+	token.T_QUESTION:            8, // Ternary operator
 
 	token.T_COALESCE: 9, // ??
 	token.T_PLUS:     10,
