@@ -199,3 +199,22 @@ class X {
 		t.Error("Expected at least one node, but got none")
 	}
 }
+
+func TestParseTernaryWithFuncNumArgs(t *testing.T) {
+	php := `<?php
+class Foo {
+    public function bar($a) {
+        $nbToken = 1 < \func_num_args() ? func_get_arg(1) : 1;
+    }
+}`
+	l := lexer.New(php)
+	p := New(l, true)
+	nodes := p.Parse()
+	if len(p.Errors()) > 0 {
+		t.Fatalf("Parser errors: %v", p.Errors())
+	}
+	if len(nodes) == 0 {
+		t.Fatal("No nodes returned from parser")
+	}
+	// Optionally, check for the expected structure (class, method, assignment, ternary, function calls)
+}

@@ -537,10 +537,50 @@ func (p *Parser) parseSimpleExpression() ast.Node {
 		}
 		return expr
 	case token.T_NS_SEPARATOR:
-		if p.debug {
-
+		fqcnNode := p.parseFQCN()
+		// Check for function call: \FQCN(...)
+		if p.tok.Type == token.T_LPAREN {
+			p.nextToken() // consume '('
+			var args []ast.Node
+			for p.tok.Type != token.T_RPAREN && p.tok.Type != token.T_EOF {
+				isUnpacked := false
+				if p.tok.Type == token.T_ELLIPSIS {
+					isUnpacked = true
+					p.nextToken() // consume ...
+				}
+				arg := p.parseExpression()
+				if arg != nil {
+					if isUnpacked {
+						arg = &ast.UnpackedArgumentNode{
+							Expr: arg,
+							Pos:  arg.GetPos(),
+						}
+					}
+					args = append(args, arg)
+				}
+				if p.tok.Type == token.T_COMMA {
+					p.nextToken()
+					continue
+				} else if p.tok.Type == token.T_RPAREN {
+					break
+				} else if p.tok.Type == token.T_EOF {
+					break
+				} else {
+					continue
+				}
+			}
+			if p.tok.Type != token.T_RPAREN {
+				p.addError("line %d:%d: expected ) after arguments for function call %s, got %s", p.tok.Pos.Line, p.tok.Pos.Column, fqcnNode.TokenLiteral(), p.tok.Literal)
+				return nil
+			}
+			p.nextToken() // consume )
+			return &ast.FunctionCallNode{
+				Name: fqcnNode,
+				Args: args,
+				Pos:  fqcnNode.GetPos(),
+			}
 		}
-		return p.parseFQCN()
+		return fqcnNode
 	default:
 		p.addError("line %d:%d: unexpected token %s in expression", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal)
 		p.nextToken()
