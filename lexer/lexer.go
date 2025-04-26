@@ -558,6 +558,8 @@ func (l *Lexer) NextToken() token.Token {
 			return token.Token{Type: token.T_STATIC, Literal: ident, Pos: pos}
 		case "return":
 			return token.Token{Type: token.T_RETURN, Literal: ident, Pos: pos}
+		case "declare":
+			return token.Token{Type: token.T_DECLARE, Literal: ident, Pos: pos}
 		case "enum":
 			return token.Token{Type: token.T_ENUM, Literal: ident, Pos: pos}
 		case "match":
