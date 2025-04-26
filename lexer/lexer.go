@@ -530,6 +530,10 @@ func (l *Lexer) NextToken() token.Token {
 		tok = token.Token{Type: token.T_RBRACKET, Literal: string(l.char), Pos: pos}
 		l.readChar()
 		return tok
+	case '!':
+		tok = token.Token{Type: token.T_NOT, Literal: string(l.char), Pos: pos}
+		l.readChar()
+		return tok
 	}
 
 	if isLetter(l.char) {

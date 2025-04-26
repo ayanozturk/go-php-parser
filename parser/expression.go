@@ -35,6 +35,19 @@ func (p *Parser) parseExpressionWithPrecedence(minPrec int, validateAssignmentTa
 			Operand:  right,
 			Pos:      ast.Position(opTok.Pos),
 		}
+	case token.T_NOT:
+		notTok := p.tok
+		p.nextToken()
+		right := p.parseExpressionWithPrecedence(100, false, stopTypes...)
+		if right == nil {
+			p.addError("line %d:%d: expected operand after unary operator !", notTok.Pos.Line, notTok.Pos.Column)
+			return nil
+		}
+		return &ast.UnaryExpr{
+			Operator: "!",
+			Operand:  right,
+			Pos:      ast.Position(notTok.Pos),
+		}
 	case token.T_THROW:
 		throwTok := p.tok
 		p.nextToken() // consume 'throw'

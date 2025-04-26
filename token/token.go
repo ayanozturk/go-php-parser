@@ -65,6 +65,7 @@ const (
 	T_COALESCE_EQUAL      TokenType = "T_COALESCE_EQUAL"
 	T_QUESTION            TokenType = "T_QUESTION" // ? for nullable types
 	T_PIPE                TokenType = "T_PIPE"     // | for union types
+	T_NOT                 TokenType = "T_NOT"      // ! logical not
 
 	// Delimiters
 	T_LPAREN          TokenType = "T_LPAREN"
