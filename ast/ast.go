@@ -202,19 +202,20 @@ func (n *NullLiteral) GetValue() interface{} { return nil }
 
 // AssignmentNode represents a variable assignment
 type AssignmentNode struct {
-	Left  Node
-	Right Node
-	Pos   Position
+	Left     Node
+	Operator string // e.g., "=", "+=", ".="
+	Right    Node
+	Pos      Position
 }
 
 func (a *AssignmentNode) NodeType() string    { return "Assignment" }
 func (a *AssignmentNode) GetPos() Position    { return a.Pos }
 func (a *AssignmentNode) SetPos(pos Position) { a.Pos = pos }
 func (a *AssignmentNode) String() string {
-	return fmt.Sprintf("Assignment(%s = %s) @ %d:%d", a.Left.String(), a.Right.String(), a.Pos.Line, a.Pos.Column)
+	return fmt.Sprintf("Assignment(%s %s %s) @ %d:%d", a.Left.String(), a.Operator, a.Right.String(), a.Pos.Line, a.Pos.Column)
 }
 func (a *AssignmentNode) TokenLiteral() string {
-	return "="
+	return a.Operator
 }
 
 // ReturnNode represents a return statement
@@ -383,6 +384,23 @@ func (f *FunctionCall) String() string {
 }
 func (f *FunctionCall) TokenLiteral() string {
 	return f.Name
+}
+
+// TraitNode represents a trait definition
+type TraitNode struct {
+	Name  *Identifier // The name of the trait
+	Body  []Node      // Statements within the trait block (methods, properties)
+	Pos   Position    // The position of the 'trait' keyword
+}
+
+func (t *TraitNode) NodeType() string    { return "Trait" }
+func (t *TraitNode) GetPos() Position    { return t.Pos }
+func (t *TraitNode) SetPos(pos Position) { t.Pos = pos }
+func (t *TraitNode) String() string {
+	return fmt.Sprintf("Trait(%s) @ %d:%d", t.Name.String(), t.Pos.Line, t.Pos.Column)
+}
+func (t *TraitNode) TokenLiteral() string {
+	return "trait"
 }
 
 // ClassNode represents a PHP class definition
@@ -681,21 +699,6 @@ func (u *UseNode) String() string {
 }
 func (u *UseNode) TokenLiteral() string { return "use" }
 
-// TraitNode represents a PHP trait definition
-type TraitNode struct {
-	Name    string
-	Methods []Node
-	Pos     Position
-}
-
-func (t *TraitNode) NodeType() string    { return "Trait" }
-func (t *TraitNode) GetPos() Position    { return t.Pos }
-func (t *TraitNode) SetPos(pos Position) { t.Pos = pos }
-func (t *TraitNode) String() string {
-	return fmt.Sprintf("trait %s @ %d:%d", t.Name, t.Pos.Line, t.Pos.Column)
-}
-func (t *TraitNode) TokenLiteral() string { return "trait" }
-
 // MatchNode represents a PHP 8.0+ match expression
 type MatchNode struct {
 	Condition Node
@@ -790,6 +793,22 @@ func (h *HeredocNode) String() string {
 	return fmt.Sprintf("<<<'%s' @ %d:%d", h.Identifier, h.Pos.Line, h.Pos.Column)
 }
 func (h *HeredocNode) TokenLiteral() string { return h.Identifier }
+
+// TernaryExpr represents a ternary conditional expression (e.g., $condition ? $ifTrue : $ifFalse)
+type TernaryExpr struct {
+	Condition Node
+	IfTrue    Node
+	IfFalse   Node
+	Pos       Position
+}
+
+func (t *TernaryExpr) NodeType() string    { return "TernaryExpr" }
+func (t *TernaryExpr) GetPos() Position    { return t.Pos }
+func (t *TernaryExpr) SetPos(pos Position) { t.Pos = pos }
+func (t *TernaryExpr) String() string {
+	return fmt.Sprintf("TernaryExpr @ %d:%d", t.Pos.Line, t.Pos.Column)
+}
+func (t *TernaryExpr) TokenLiteral() string { return "?" }
 
 // PropertyFetchNode represents an object property fetch, e.g., $this->name or $obj->prop
 // Left is the object expression (usually a VariableNode), Property is the property name (string or IdentifierNode)
