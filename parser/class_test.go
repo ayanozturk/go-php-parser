@@ -106,3 +106,23 @@ class Bar {
 		t.Fatalf("Expected 4 parameters, got %d", len(params))
 	}
 }
+
+func TestParseClassWithMultipleModifiers(t *testing.T) {
+	php := `<?php
+class Foo {
+    public int $a = 1;
+    protected static string $b;
+    private function bar() {}
+    public function baz() {}
+}`
+	l := lexer.New(php)
+	p := New(l, true)
+	nodes := p.Parse()
+	if len(p.Errors()) > 0 {
+		t.Fatalf("Parser errors: %v", p.Errors())
+	}
+	if len(nodes) == 0 {
+		t.Fatal("No nodes returned from parser")
+	}
+	// Optionally, check for ClassNode with correct methods and properties
+}

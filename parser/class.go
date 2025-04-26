@@ -57,8 +57,9 @@ func (p *Parser) parseClassDeclarationWithModifier(modifier string) (ast.Node, e
 
 	var properties []ast.Node
 	var methods []ast.Node
+	// Parse class body
 	for p.tok.Type != token.T_RBRACE && p.tok.Type != token.T_EOF {
-		// Collect all modifiers (public, protected, private, static, final, abstract) and comments/docblocks before 'function'
+		// Collect all modifiers before method/property
 		var modifiers []string
 		for {
 			switch p.tok.Type {
@@ -73,10 +74,14 @@ func (p *Parser) parseClassDeclarationWithModifier(modifier string) (ast.Node, e
 			break
 		}
 		if p.tok.Type == token.T_FUNCTION {
-			if method, err := p.parseFunction(modifiers); method != nil {
-				methods = append(methods, method)
-			} else if err != nil {
-				return nil, err
+			fn, err := p.parseFunction(modifiers)
+			if err != nil {
+				p.addError(err.Error())
+				p.nextToken()
+				continue
+			}
+			if fn != nil {
+				methods = append(methods, fn)
 			}
 			continue
 		}
@@ -86,14 +91,7 @@ func (p *Parser) parseClassDeclarationWithModifier(modifier string) (ast.Node, e
 			p.nextToken()
 			continue
 		}
-		if p.tok.Type == token.T_VARIABLE {
-			if prop, err := p.parsePropertyDeclaration(modifiers, ""); prop != nil {
-				properties = append(properties, prop)
-			} else if err != nil {
-				return nil, err
-			}
-			continue
-		}
+		// Skip unexpected tokens inside class body
 		p.addError("line %d:%d: unexpected token %s in class %s body", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal, name)
 		p.nextToken()
 	}
@@ -166,12 +164,13 @@ func (p *Parser) parseClassDeclaration() (ast.Node, error) {
 
 	var properties []ast.Node
 	var methods []ast.Node
+	// Parse class body
 	for p.tok.Type != token.T_RBRACE && p.tok.Type != token.T_EOF {
-		// Collect all modifiers (public, protected, private, static, final, abstract, readonly) and comments/docblocks before 'function' or property
+		// Collect all modifiers before method/property
 		var modifiers []string
 		for {
 			switch p.tok.Type {
-			case token.T_PUBLIC, token.T_PROTECTED, token.T_PRIVATE, token.T_STATIC, token.T_FINAL, token.T_ABSTRACT, token.T_READONLY:
+			case token.T_PUBLIC, token.T_PROTECTED, token.T_PRIVATE, token.T_STATIC, token.T_FINAL, token.T_ABSTRACT:
 				modifiers = append(modifiers, p.tok.Literal)
 				p.nextToken()
 				continue
