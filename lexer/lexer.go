@@ -214,6 +214,11 @@ func (l *Lexer) NextToken() token.Token {
 	case 0:
 		return token.Token{Type: token.T_EOF, Literal: "", Pos: pos}
 	case '+':
+		if l.peekChar() == '=' {
+			l.readChar() // consume '+'
+			l.readChar() // consume '='
+			return token.Token{Type: token.T_PLUS_EQUAL, Literal: "+=", Pos: pos}
+		}
 		tok = token.Token{Type: token.T_PLUS, Literal: string(l.char), Pos: pos}
 		l.readChar()
 		return tok
