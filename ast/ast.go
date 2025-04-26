@@ -808,3 +808,29 @@ func (p *PropertyFetchNode) String() string {
 func (p *PropertyFetchNode) TokenLiteral() string {
 	return p.Property
 }
+
+// ForeachNode represents a PHP foreach statement
+// Example: foreach ($array as $key => $value) { ... }
+type ForeachNode struct {
+	Expr     Node     // The array/expression being iterated
+	KeyVar   Node     // The key variable (can be nil)
+	ValueVar Node     // The value variable
+	ByRef    bool     // Whether value is by reference
+	Body     []Node   // The statements inside the foreach
+	Pos      Position // Position of 'foreach' keyword
+}
+
+func (f *ForeachNode) NodeType() string    { return "Foreach" }
+func (f *ForeachNode) GetPos() Position    { return f.Pos }
+func (f *ForeachNode) SetPos(pos Position) { f.Pos = pos }
+func (f *ForeachNode) String() string {
+	return fmt.Sprintf("Foreach(%s as %s%s) @ %d:%d", f.Expr.String(),
+		func() string {
+			if f.KeyVar != nil {
+				return f.KeyVar.String() + " => "
+			}
+			return ""
+		}(),
+		f.ValueVar.String(), f.Pos.Line, f.Pos.Column)
+}
+func (f *ForeachNode) TokenLiteral() string { return "foreach" }
