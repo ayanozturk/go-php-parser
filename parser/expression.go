@@ -35,6 +35,18 @@ func (p *Parser) parseExpressionWithPrecedence(minPrec int, validateAssignmentTa
 			Operand:  right,
 			Pos:      ast.Position(opTok.Pos),
 		}
+	case token.T_THROW:
+		throwTok := p.tok
+		p.nextToken() // consume 'throw'
+		expr := p.parseExpressionWithPrecedence(100, false, stopTypes...)
+		if expr == nil {
+			p.addError("line %d:%d: expected expression after throw, got %s", throwTok.Pos.Line, throwTok.Pos.Column, p.tok.Literal)
+			return nil
+		}
+		return &ast.ThrowNode{
+			Expr: expr,
+			Pos:  ast.Position(throwTok.Pos),
+		}
 	case token.T_STRING:
 		if p.tok.Literal == "!" {
 			opTok := p.tok

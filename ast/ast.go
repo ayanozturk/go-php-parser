@@ -388,9 +388,9 @@ func (f *FunctionCall) TokenLiteral() string {
 
 // TraitNode represents a trait definition
 type TraitNode struct {
-	Name  *Identifier // The name of the trait
-	Body  []Node      // Statements within the trait block (methods, properties)
-	Pos   Position    // The position of the 'trait' keyword
+	Name *Identifier // The name of the trait
+	Body []Node      // Statements within the trait block (methods, properties)
+	Pos  Position    // The position of the 'trait' keyword
 }
 
 func (t *TraitNode) NodeType() string    { return "Trait" }
@@ -853,3 +853,18 @@ func (f *ForeachNode) String() string {
 		f.ValueVar.String(), f.Pos.Line, f.Pos.Column)
 }
 func (f *ForeachNode) TokenLiteral() string { return "foreach" }
+
+// ThrowNode represents a throw statement or expression
+// (PHP 7.4+ allows throw as an expression)
+type ThrowNode struct {
+	Expr Node
+	Pos  Position
+}
+
+func (t *ThrowNode) NodeType() string    { return "Throw" }
+func (t *ThrowNode) GetPos() Position    { return t.Pos }
+func (t *ThrowNode) SetPos(pos Position) { t.Pos = pos }
+func (t *ThrowNode) String() string {
+	return "Throw(" + t.Expr.String() + ") @ " + fmt.Sprintf("%d:%d", t.Pos.Line, t.Pos.Column)
+}
+func (t *ThrowNode) TokenLiteral() string { return "throw" }

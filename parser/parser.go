@@ -207,12 +207,19 @@ func (p *Parser) parseSimpleExpression() ast.Node {
 		pos := p.tok.Pos
 		p.nextToken() // consume 'new'
 
-		if p.tok.Type != token.T_STRING {
+		// Accept T_STRING or T_NS_SEPARATOR for FQCN
+		if p.tok.Type != token.T_STRING && p.tok.Type != token.T_NS_SEPARATOR {
 			p.addError("line %d:%d: expected class name after new, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal)
 			return nil
 		}
-		className := p.tok.Literal
-		p.nextToken()
+		classNameNode := p.parseFQCN()
+		className := ""
+		if id, ok := classNameNode.(*ast.IdentifierNode); ok {
+			className = id.Value
+		} else {
+			p.addError("line %d:%d: expected identifier node for class name after new", p.tok.Pos.Line, p.tok.Pos.Column)
+			return nil
+		}
 
 		if p.tok.Type != token.T_LPAREN {
 			p.addError("line %d:%d: expected ( after class name %s, got %s", p.tok.Pos.Line, p.tok.Pos.Column, className, p.tok.Literal)

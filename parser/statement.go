@@ -59,7 +59,6 @@ func (p *Parser) parseStatement() (ast.Node, error) {
 		}, nil
 	case token.T_FUNCTION:
 		return p.parseFunction(nil)
-
 	case token.T_IF:
 		return p.parseIfStatement()
 	case token.T_STRING:
@@ -97,7 +96,22 @@ func (p *Parser) parseStatement() (ast.Node, error) {
 			Expr: expr,
 			Pos:  ast.Position(pos),
 		}, nil
-
+	case token.T_THROW:
+		pos := p.tok.Pos
+		p.nextToken() // consume throw
+		expr := p.parseExpression()
+		if expr == nil {
+			return nil, nil
+		}
+		if p.tok.Type != token.T_SEMICOLON {
+			p.addError("line %d:%d: expected ; after throw statement, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal)
+			return nil, nil
+		}
+		p.nextToken() // consume ;
+		return &ast.ThrowNode{
+			Expr: expr,
+			Pos:  ast.Position(pos),
+		}, nil
 	case token.T_SEMICOLON:
 		p.nextToken() // skip empty statements
 		return nil, nil

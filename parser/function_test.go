@@ -218,3 +218,23 @@ class Foo {
 	}
 	// Optionally, check for the expected structure (class, method, assignment, ternary, function calls)
 }
+
+func TestParseThrowStatementAndExpression(t *testing.T) {
+	php := `<?php
+function foo() {
+    throw new \Exception("fail");
+}
+function bar($x) {
+    $y = $x ?? throw new \Exception("fail");
+}`
+	l := lexer.New(php)
+	p := New(l, true)
+	nodes := p.Parse()
+	if len(p.Errors()) > 0 {
+		t.Fatalf("Parser errors: %v", p.Errors())
+	}
+	if len(nodes) < 2 {
+		t.Fatal("Expected at least two function nodes")
+	}
+	// Optionally, check for ThrowNode in AST structure
+}
