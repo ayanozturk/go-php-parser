@@ -614,8 +614,8 @@ func (p *Parser) parseTraitDeclaration() (ast.Node, error) {
 	p.nextToken() // consume }
 
 	return &ast.TraitNode{
-		Name:    name,
-		Methods: methods,
-		Pos:     ast.Position(pos),
+		Name: &ast.Identifier{Name: name, Pos: ast.Position(pos)},
+		Body: methods,
+		Pos:  ast.Position(pos),
 	}, nil
 }

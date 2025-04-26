@@ -33,7 +33,7 @@ trait Mixin {
 	for _, node := range nodes {
 		if trait, ok := node.(*ast.TraitNode); ok {
 			traitFound = true
-			for _, m := range trait.Methods {
+			for _, m := range trait.Body {
 				if fn, ok := m.(*ast.FunctionNode); ok && fn.Name == "nullOrString" {
 					methodFound = true
 					if len(fn.Params) != 2 {
