@@ -48,14 +48,16 @@ var PhpOperatorPrecedence = map[token.TokenType]int{
 	token.T_PIPE:        4, // |
 	token.T_AMPERSAND:   5, // &
 	// token.T_XOR_EQUAL:   5, // ^ (already included as assignment above)
-	token.T_IS_EQUAL:         6,
-	token.T_IS_NOT_EQUAL:     6,
-	token.T_IS_IDENTICAL:     6,
-	token.T_IS_NOT_IDENTICAL: 6,
-	token.T_IS_SMALLER:       7,
-	token.T_IS_GREATER:       7,
-	token.T_SPACESHIP:        7,
-	token.T_INSTANCEOF:       8,
+	token.T_IS_EQUAL:            6,
+	token.T_IS_NOT_EQUAL:        6,
+	token.T_IS_IDENTICAL:        6,
+	token.T_IS_NOT_IDENTICAL:    6,
+	token.T_IS_SMALLER:          7,
+	token.T_IS_GREATER:          7,
+	token.T_IS_GREATER_OR_EQUAL: 7,
+	token.T_IS_SMALLER_OR_EQUAL: 7,
+	token.T_SPACESHIP:           7,
+	token.T_INSTANCEOF:          8,
 
 	token.T_COALESCE: 9, // ??
 	token.T_PLUS:     10,

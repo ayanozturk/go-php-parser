@@ -379,6 +379,8 @@ func (p *Parser) isBinaryOperator(tokenType token.TokenType) bool {
 		return true
 	case token.T_ASSIGN:
 		return true
+	case token.T_IS_GREATER_OR_EQUAL, token.T_IS_SMALLER_OR_EQUAL:
+		return true
 	default:
 		return false
 	}

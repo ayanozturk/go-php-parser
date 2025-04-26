@@ -262,7 +262,21 @@ func (l *Lexer) NextToken() token.Token {
 		tok = token.Token{Type: token.T_PIPE, Literal: string(l.char), Pos: pos}
 		l.readChar()
 		return tok
+	case '>':
+		if l.peekChar() == '=' {
+			l.readChar() // consume '>'
+			l.readChar() // consume '='
+			return token.Token{Type: token.T_IS_GREATER_OR_EQUAL, Literal: ">=", Pos: pos}
+		}
+		tok = token.Token{Type: token.T_IS_GREATER, Literal: string(l.char), Pos: pos}
+		l.readChar()
+		return tok
 	case '<':
+		if l.peekChar() == '=' {
+			l.readChar() // consume '<'
+			l.readChar() // consume '='
+			return token.Token{Type: token.T_IS_SMALLER_OR_EQUAL, Literal: "<=", Pos: pos}
+		}
 		// Heredoc detection
 		if l.peekChar() == '<' && l.input[l.readPos+1] == '<' {
 			l.readChar() // consume first <
