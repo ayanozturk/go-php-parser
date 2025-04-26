@@ -32,17 +32,18 @@ func isValidAssignmentTarget(node ast.Node) bool {
 
 // Precedence table for PHP operators (higher number = higher precedence)
 var PhpOperatorPrecedence = map[token.TokenType]int{
-	token.T_ASSIGN:         1,
-	token.T_PLUS_EQUAL:     1,
-	token.T_MINUS_EQUAL:    1,
-	token.T_MUL_EQUAL:      1,
-	token.T_DIV_EQUAL:      1,
-	token.T_MOD_EQUAL:      1,
-	token.T_AND_EQUAL:      1,
-	token.T_CONCAT_EQUAL:   1,
-	token.T_XOR_EQUAL:      1,
-	token.T_COALESCE_EQUAL: 1,
+	token.T_ASSIGN:         0,
+	token.T_PLUS_EQUAL:     0,
+	token.T_MINUS_EQUAL:    0,
+	token.T_MUL_EQUAL:      0,
+	token.T_DIV_EQUAL:      0,
+	token.T_MOD_EQUAL:      0,
+	token.T_AND_EQUAL:      0,
+	token.T_CONCAT_EQUAL:   0,
+	token.T_XOR_EQUAL:      0,
+	token.T_COALESCE_EQUAL: 0,
 
+	token.T_QUESTION:    1, // Ternary operator (just above assignment)
 	token.T_BOOLEAN_OR:  2, // ||
 	token.T_BOOLEAN_AND: 3, // &&
 	token.T_PIPE:        4, // |
@@ -58,7 +59,6 @@ var PhpOperatorPrecedence = map[token.TokenType]int{
 	token.T_IS_SMALLER_OR_EQUAL: 7,
 	token.T_SPACESHIP:           7,
 	token.T_INSTANCEOF:          8,
-	token.T_QUESTION:            8, // Ternary operator
 
 	token.T_COALESCE: 9, // ??
 	token.T_PLUS:     10,

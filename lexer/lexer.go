@@ -380,8 +380,16 @@ func (l *Lexer) NextToken() token.Token {
 						return token.Token{Type: token.T_OPEN_TAG, Literal: "<?php", Pos: pos}
 					}
 				}
+				// If none of the above, emit T_IS_SMALLER for single '<'
+				tok = token.Token{Type: token.T_IS_SMALLER, Literal: string(l.char), Pos: pos}
+				l.readChar()
+				return tok
 			}
 		}
+		// If none of the above, emit T_IS_SMALLER for single '<'
+		tok = token.Token{Type: token.T_IS_SMALLER, Literal: string(l.char), Pos: pos}
+		l.readChar()
+		return tok
 	case '$':
 		l.readChar()
 		if isLetter(l.char) {

@@ -65,6 +65,26 @@ func (p *Parser) parseExpressionWithPrecedence(minPrec int, validateAssignmentTa
 		return nil
 	}
 	for {
+		// Only parse ternary if minPrec <= precedence of ternary
+		ternaryPrec := PhpOperatorPrecedence[token.T_QUESTION]
+		if p.tok.Type == token.T_QUESTION && minPrec <= ternaryPrec {
+			qPos := p.tok.Pos
+			p.nextToken() // consume '?'
+			ifTrue := p.parseExpressionWithPrecedence(0, false)
+			if p.tok.Type != token.T_COLON {
+				p.addError("line %d:%d: expected ':' in ternary expression, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal)
+				return nil
+			}
+			p.nextToken() // consume ':'
+			ifFalse := p.parseExpressionWithPrecedence(ternaryPrec, false)
+			left = &ast.TernaryExpr{
+				Condition: left,
+				IfTrue:    ifTrue,
+				IfFalse:   ifFalse,
+				Pos:       ast.Position(qPos),
+			}
+			continue
+		}
 		// Check for stop tokens
 		for _, stop := range stopTypes {
 			if p.tok.Type == stop {
