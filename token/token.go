@@ -132,6 +132,10 @@ const (
 	T_ISSET        TokenType = "T_ISSET"
 	T_LIST         TokenType = "T_LIST"
 
+	T_DIE       TokenType = "T_DIE"
+	T_EXIT      TokenType = "T_EXIT"
+	T_NAMESPACE TokenType = "T_NAMESPACE"
+
 	T_NS_SEPARATOR TokenType = "T_NS_SEPARATOR"
 	T_NEW          TokenType = "T_NEW"
 	T_PRIVATE      TokenType = "T_PRIVATE"

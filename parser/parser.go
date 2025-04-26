@@ -179,6 +179,8 @@ func (p *Parser) parseStatement() (ast.Node, error) {
 		return nil, nil
 	case token.T_ENUM:
 		return p.parseEnum()
+	case token.T_FOREACH:
+		return p.parseForeachStatement()
 	default:
 		// Try parsing as expression statement
 		if expr := p.parseExpression(); expr != nil {
@@ -247,7 +249,7 @@ func (p *Parser) parseExpression() ast.Node {
 }
 
 // parseExpressionWithPrecedence parses expressions with correct precedence. Only validateAssignmentTarget for top-level expressions.
-func (p *Parser) parseExpressionWithPrecedence(minPrec int, validateAssignmentTarget bool) ast.Node {
+func (p *Parser) parseExpressionWithPrecedence(minPrec int, validateAssignmentTarget bool, stopTypes ...token.TokenType) ast.Node {
 	if p.debug {
 
 	}
@@ -262,7 +264,7 @@ func (p *Parser) parseExpressionWithPrecedence(minPrec int, validateAssignmentTa
 	case token.T_PLUS, token.T_MINUS:
 		opTok := p.tok
 		p.nextToken()
-		right := p.parseExpressionWithPrecedence(100, false)
+		right := p.parseExpressionWithPrecedence(100, false, stopTypes...)
 		if right == nil {
 			p.addError("line %d:%d: expected operand after unary operator %s", opTok.Pos.Line, opTok.Pos.Column, opTok.Literal)
 			return nil
@@ -276,7 +278,7 @@ func (p *Parser) parseExpressionWithPrecedence(minPrec int, validateAssignmentTa
 		if p.tok.Literal == "!" {
 			opTok := p.tok
 			p.nextToken()
-			right := p.parseExpressionWithPrecedence(100, false)
+			right := p.parseExpressionWithPrecedence(100, false, stopTypes...)
 			if right == nil {
 				p.addError("line %d:%d: expected operand after unary operator %s", opTok.Pos.Line, opTok.Pos.Column, opTok.Literal)
 				return nil
@@ -302,6 +304,12 @@ func (p *Parser) parseExpressionWithPrecedence(minPrec int, validateAssignmentTa
 		return nil
 	}
 	for {
+		// Check for stop tokens
+		for _, stop := range stopTypes {
+			if p.tok.Type == stop {
+				return left
+			}
+		}
 		prec, isOp := PhpOperatorPrecedence[p.tok.Type]
 		if !isOp || prec < minPrec {
 			break
@@ -324,12 +332,12 @@ func (p *Parser) parseExpressionWithPrecedence(minPrec int, validateAssignmentTa
 		var right ast.Node
 		if op == token.T_BOOLEAN_OR || op == token.T_BOOLEAN_AND {
 			// Logical operators
-			right = p.parseExpressionWithPrecedence(0, true)
+			right = p.parseExpressionWithPrecedence(0, true, stopTypes...)
 		} else if op == token.T_INSTANCEOF {
 			// For instanceof, right side must be a class name or FQCN
 			right = p.parseSimpleExpression()
 		} else {
-			right = p.parseExpressionWithPrecedence(nextMinPrec, false)
+			right = p.parseExpressionWithPrecedence(nextMinPrec, false, stopTypes...)
 		}
 		if p.debug {
 
@@ -341,8 +349,6 @@ func (p *Parser) parseExpressionWithPrecedence(minPrec int, validateAssignmentTa
 		// Only validate assignment target for the outermost assignment (not for nested assignments in logical expressions)
 		if isAssignmentOperator(op) && validateAssignmentTarget && minPrec == 0 {
 			if !isValidAssignmentTarget(left) {
-				fmt.Println("left:", left)
-				fmt.Println("right:", right)
 				p.addError("line %d:%d: invalid assignment target for operator %s", pos.Line, pos.Column, operator)
 				return nil
 			}

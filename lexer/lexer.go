@@ -522,75 +522,7 @@ func (l *Lexer) NextToken() token.Token {
 	if isLetter(l.char) {
 		ident := l.readIdentifier()
 
-		// Check for keywords
-		switch ident {
-		case "function":
-			return token.Token{Type: token.T_FUNCTION, Literal: ident, Pos: pos}
-		case "if":
-			return token.Token{Type: token.T_IF, Literal: ident, Pos: pos}
-		case "else":
-			return token.Token{Type: token.T_ELSE, Literal: ident, Pos: pos}
-		case "elseif":
-			return token.Token{Type: token.T_ELSEIF, Literal: ident, Pos: pos}
-		case "endif":
-			return token.Token{Type: token.T_ENDIF, Literal: ident, Pos: pos}
-		case "array":
-			return token.Token{Type: token.T_ARRAY, Literal: ident, Pos: pos}
-		case "mixed":
-			return token.Token{Type: token.T_MIXED, Literal: ident, Pos: pos}
-		case "string":
-			return token.Token{Type: token.T_STRING, Literal: ident, Pos: pos}
-		case "callable":
-			return token.Token{Type: token.T_CALLABLE, Literal: ident, Pos: pos}
-		case "true":
-			return token.Token{Type: token.T_TRUE, Literal: ident, Pos: pos}
-		case "false":
-			return token.Token{Type: token.T_FALSE, Literal: ident, Pos: pos}
-		case "null":
-			return token.Token{Type: token.T_NULL, Literal: ident, Pos: pos}
-		case "class":
-			return token.Token{Type: token.T_CLASS, Literal: ident, Pos: pos}
-		case "extends":
-			return token.Token{Type: token.T_EXTENDS, Literal: ident, Pos: pos}
-		case "interface":
-			return token.Token{Type: token.T_INTERFACE, Literal: ident, Pos: pos}
-		case "instanceof":
-			return token.Token{Type: token.T_INSTANCEOF, Literal: ident, Pos: pos}
-		case "implements":
-			return token.Token{Type: token.T_IMPLEMENTS, Literal: ident, Pos: pos}
-		case "echo":
-			return token.Token{Type: token.T_ECHO, Literal: ident, Pos: pos}
-		case "new":
-			return token.Token{Type: token.T_NEW, Literal: ident, Pos: pos}
-		case "public":
-			return token.Token{Type: token.T_PUBLIC, Literal: ident, Pos: pos}
-		case "private":
-			return token.Token{Type: token.T_PRIVATE, Literal: ident, Pos: pos}
-		case "protected":
-			return token.Token{Type: token.T_PROTECTED, Literal: ident, Pos: pos}
-		case "static":
-			return token.Token{Type: token.T_STATIC, Literal: ident, Pos: pos}
-		case "return":
-			return token.Token{Type: token.T_RETURN, Literal: ident, Pos: pos}
-		case "declare":
-			return token.Token{Type: token.T_DECLARE, Literal: ident, Pos: pos}
-		case "enum":
-			return token.Token{Type: token.T_ENUM, Literal: ident, Pos: pos}
-		case "match":
-			return token.Token{Type: token.T_MATCH, Literal: ident, Pos: pos}
-		case "fn":
-			return token.Token{Type: token.T_FN, Literal: ident, Pos: pos}
-		case "readonly":
-			return token.Token{Type: token.T_READONLY, Literal: ident, Pos: pos}
-		case "case":
-			return token.Token{Type: token.T_CASE, Literal: ident, Pos: pos}
-		case "trait":
-			return token.Token{Type: token.T_TRAIT, Literal: ident, Pos: pos}
-		case "const":
-			return token.Token{Type: token.T_CONST, Literal: ident, Pos: pos}
-		default:
-			return token.Token{Type: token.T_STRING, Literal: ident, Pos: pos}
-		}
+		return LookupKeyword(ident, pos)
 	}
 
 	if isDigit(l.char) {
