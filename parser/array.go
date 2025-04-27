@@ -1,6 +1,7 @@
 package parser
 
 import (
+	"errors"
 	"go-phpcs/ast"
 	"go-phpcs/token"
 	"strings"
@@ -8,76 +9,20 @@ import (
 
 func (p *Parser) parseArrayElement() ast.Node {
 	pos := p.tok.Pos
-	var key ast.Node
+	byRef, unpack := p.parseArrayElementFlags()
+	key, keyErr := p.parseArrayElementKey()
+	if keyErr != nil {
+		return nil
+	}
+
 	var value ast.Node
-	var byRef bool
-	var unpack bool
-
-	// Check for spread operator (...)
-	if p.tok.Type == token.T_ELLIPSIS {
-		unpack = true
-		p.nextToken()
-	}
-
-	// Check for by-reference operator (&)
-	if p.tok.Type == token.T_AMPERSAND {
-		byRef = true
-		p.nextToken()
-	}
-
-	// Parse key if present (support class constant fetches as keys)
-	if p.tok.Type == token.T_STRING || p.tok.Type == token.T_NS_SEPARATOR || p.tok.Type == token.T_MIXED ||
-		p.tok.Type == token.T_SELF || p.tok.Type == token.T_PARENT || p.tok.Type == token.T_STATIC {
-		// Accumulate fully qualified class name
-		var className strings.Builder
-		classPos := p.tok.Pos
-		for p.tok.Type == token.T_STRING || p.tok.Type == token.T_NS_SEPARATOR {
-			className.WriteString(p.tok.Literal)
-			p.nextToken()
-		}
-		if p.tok.Type == token.T_DOUBLE_COLON {
-			p.nextToken() // consume ::
-			if p.tok.Type == token.T_STRING {
-				constName := p.tok.Literal
-				key = &ast.ClassConstFetchNode{
-					Class: className.String(),
-					Const: constName,
-					Pos:   ast.Position(classPos),
-				}
-				p.nextToken()
-			} else if p.tok.Type == token.T_CLASS_CONST || p.tok.Type == token.T_CLASS {
-				// Support Foo::class
-				key = &ast.ClassConstFetchNode{
-					Class: className.String(),
-					Const: "class",
-					Pos:   ast.Position(classPos),
-				}
-				p.nextToken()
-			} else {
-				p.addError("line %d:%d: expected constant name after :: in array key, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal)
-				return nil
-			}
-		} else {
-			// Not a class constant fetch, fallback to fully qualified name
-			fqdn := className.String()
-			key = &ast.IdentifierNode{
-				Value: fqdn,
-				Pos:   ast.Position(classPos),
-			}
-		}
-	} else if p.tok.Type == token.T_CONSTANT_STRING {
-		key = p.parseSimpleExpression()
-	}
-
 	if p.tok.Type == token.T_DOUBLE_ARROW {
 		p.nextToken() // consume =>
 	} else {
-		// If no =>, treat the expression as a value
 		value = key
 		key = nil
 	}
 
-	// Parse value if not already set
 	if value == nil {
 		if byRef && p.tok.Type != token.T_VARIABLE {
 			p.addError("line %d:%d: by-reference must be followed by a variable", p.tok.Pos.Line, p.tok.Pos.Column)
@@ -97,6 +42,69 @@ func (p *Parser) parseArrayElement() ast.Node {
 		Pos:    ast.Position(pos),
 	}
 }
+
+// parseArrayElementFlags parses the unpack and byRef flags for an array element.
+func (p *Parser) parseArrayElementFlags() (byRef, unpack bool) {
+	if p.tok.Type == token.T_ELLIPSIS {
+		unpack = true
+		p.nextToken()
+	}
+	if p.tok.Type == token.T_AMPERSAND {
+		byRef = true
+		p.nextToken()
+	}
+	return
+}
+
+// parseArrayElementKey parses the key for an array element, including class constant fetches and identifiers.
+func (p *Parser) parseArrayElementKey() (ast.Node, error) {
+	tok := p.tok.Type
+	if tok == token.T_STRING || tok == token.T_NS_SEPARATOR || tok == token.T_MIXED ||
+		tok == token.T_SELF || tok == token.T_PARENT || tok == token.T_STATIC {
+		var className strings.Builder
+		classPos := p.tok.Pos
+		for p.tok.Type == token.T_STRING || p.tok.Type == token.T_NS_SEPARATOR {
+			className.WriteString(p.tok.Literal)
+			p.nextToken()
+		}
+		if p.tok.Type == token.T_DOUBLE_COLON {
+			p.nextToken() // consume ::
+			if p.tok.Type == token.T_STRING {
+				constName := p.tok.Literal
+				key := &ast.ClassConstFetchNode{
+					Class: className.String(),
+					Const: constName,
+					Pos:   ast.Position(classPos),
+				}
+				p.nextToken()
+				return key, nil
+			} else if p.tok.Type == token.T_CLASS_CONST || p.tok.Type == token.T_CLASS {
+				key := &ast.ClassConstFetchNode{
+					Class: className.String(),
+					Const: "class",
+					Pos:   ast.Position(classPos),
+				}
+				p.nextToken()
+				return key, nil
+			} else {
+				p.addError("line %d:%d: expected constant name after :: in array key, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal)
+				return nil, ErrInvalidArrayKey
+			}
+		} else {
+			fqdn := className.String()
+			key := &ast.IdentifierNode{
+				Value: fqdn,
+				Pos:   ast.Position(classPos),
+			}
+			return key, nil
+		}
+	} else if tok == token.T_CONSTANT_STRING {
+		return p.parseSimpleExpression(), nil
+	}
+	return nil, nil
+}
+
+var ErrInvalidArrayKey = errors.New("invalid array key")
 
 func (p *Parser) parseArrayLiteral() ast.Node {
 	pos := p.tok.Pos
