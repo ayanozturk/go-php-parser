@@ -43,3 +43,34 @@ interface C extends A, B {}
 		t.Errorf("interface C should extend [A B], got %v", c.Extends)
 	}
 }
+
+func TestParseInterfaceWithStaticReturnType(t *testing.T) {
+	php := `<?php
+interface StaticReturnTypeInterface {
+    public function foo(): static;
+}`
+	l := lexer.New(php)
+	p := New(l, true)
+	nodes := p.Parse()
+	if len(p.Errors()) > 0 {
+		t.Fatalf("Parser errors: %v", p.Errors())
+	}
+	if len(nodes) == 0 {
+		t.Fatal("No nodes returned from parser")
+	}
+	iface, ok := nodes[0].(*ast.InterfaceNode)
+	if !ok {
+		t.Fatalf("Expected InterfaceNode, got %T", nodes[0])
+	}
+	if len(iface.Methods) == 0 {
+		t.Fatal("Expected at least one method in interface")
+	}
+	method, ok := iface.Methods[0].(*ast.InterfaceMethodNode)
+	if !ok {
+		t.Fatalf("Expected InterfaceMethodNode, got %T", iface.Methods[0])
+	}
+	retType, ok := method.ReturnType.(*ast.IdentifierNode)
+	if !ok || retType.Value != "static" {
+		t.Errorf("Expected return type 'static', got %v", method.ReturnType)
+	}
+}

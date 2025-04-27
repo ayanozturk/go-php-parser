@@ -172,7 +172,8 @@ func (p *Parser) parseInterfaceMethod() ast.Node {
 				Pos:   ast.Position(p.tok.Pos),
 			}
 		} else if p.tok.Type == token.T_STRING || p.tok.Type == token.T_ARRAY ||
-			p.tok.Literal == "mixed" || p.tok.Type == token.T_BACKSLASH {
+			p.tok.Literal == "mixed" || p.tok.Type == token.T_BACKSLASH ||
+			p.tok.Type == token.T_STATIC || p.tok.Type == token.T_SELF || p.tok.Type == token.T_PARENT {
 			typePos := p.tok.Pos
 
 			// Handle fully qualified class names with backslashes
@@ -220,7 +221,8 @@ func (p *Parser) parseInterfaceMethod() ast.Node {
 						p.tok.Literal == "mixed" || p.tok.Literal == "null" ||
 						p.tok.Literal == "int" || p.tok.Literal == "float" ||
 						p.tok.Literal == "bool" || p.tok.Literal == "string" ||
-						p.tok.Type == token.T_BACKSLASH {
+						p.tok.Type == token.T_BACKSLASH ||
+						p.tok.Type == token.T_STATIC || p.tok.Type == token.T_SELF || p.tok.Type == token.T_PARENT {
 
 						// Handle fully qualified class names with backslashes
 						var memberTypeName strings.Builder
