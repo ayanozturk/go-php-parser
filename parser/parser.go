@@ -158,7 +158,7 @@ func (p *Parser) parseFQCN() ast.Node {
 			fqcn += "\\"
 			p.nextToken()
 		}
-		if p.tok.Type == token.T_STRING {
+		if p.tok.Type == token.T_STRING || p.tok.Type == token.T_STATIC || p.tok.Type == token.T_SELF || p.tok.Type == token.T_PARENT {
 			fqcn += p.tok.Literal
 			p.nextToken()
 		} else {
@@ -207,8 +207,8 @@ func (p *Parser) parseSimpleExpression() ast.Node {
 		pos := p.tok.Pos
 		p.nextToken() // consume 'new'
 
-		// Accept T_STRING or T_NS_SEPARATOR for FQCN
-		if p.tok.Type != token.T_STRING && p.tok.Type != token.T_NS_SEPARATOR {
+		// Accept T_STRING, T_STATIC, T_SELF, T_PARENT, or T_NS_SEPARATOR for FQCN
+		if p.tok.Type != token.T_STRING && p.tok.Type != token.T_STATIC && p.tok.Type != token.T_SELF && p.tok.Type != token.T_PARENT && p.tok.Type != token.T_NS_SEPARATOR {
 			p.addError("line %d:%d: expected class name after new, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal)
 			return nil
 		}

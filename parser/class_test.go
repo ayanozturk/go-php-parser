@@ -155,3 +155,35 @@ class Broken {
 		t.Fatalf("Expected 2 methods, got %d", len(classNode.Methods))
 	}
 }
+
+func TestParseFunctionWithStaticReturnType(t *testing.T) {
+	php := `<?php
+class Foo {
+    public function bar(): static {
+        return new static();
+    }
+}`
+	l := lexer.New(php)
+	p := New(l, true)
+	nodes := p.Parse()
+	if len(p.Errors()) > 0 {
+		t.Fatalf("Parser errors: %v", p.Errors())
+	}
+	if len(nodes) == 0 {
+		t.Fatal("No nodes returned from parser")
+	}
+	classNode, ok := nodes[0].(*ast.ClassNode)
+	if !ok {
+		t.Fatalf("Expected ClassNode, got %T", nodes[0])
+	}
+	if len(classNode.Methods) == 0 {
+		t.Fatal("Expected at least one method in class")
+	}
+	method, ok := classNode.Methods[0].(*ast.FunctionNode)
+	if !ok {
+		t.Fatalf("Expected FunctionNode for method, got %T", classNode.Methods[0])
+	}
+	if method.ReturnType != "static" {
+		t.Errorf("Expected return type 'static', got %q", method.ReturnType)
+	}
+}
