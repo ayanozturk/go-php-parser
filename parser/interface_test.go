@@ -74,3 +74,34 @@ interface StaticReturnTypeInterface {
 		t.Errorf("Expected return type 'static', got %v", method.ReturnType)
 	}
 }
+
+func TestParseInterfaceWithUnionTypeAndFQCN(t *testing.T) {
+	php := `<?php
+interface Foo {
+    public function bar(): string|\Stringable;
+}`
+	l := lexer.New(php)
+	p := New(l, true)
+	nodes := p.Parse()
+	if len(p.Errors()) > 0 {
+		t.Fatalf("Parser errors: %v", p.Errors())
+	}
+	iface, ok := nodes[0].(*ast.InterfaceNode)
+	if !ok {
+		t.Fatalf("Expected InterfaceNode, got %T", nodes[0])
+	}
+	if len(iface.Methods) == 0 {
+		t.Fatal("Expected at least one method in interface")
+	}
+	method, ok := iface.Methods[0].(*ast.InterfaceMethodNode)
+	if !ok {
+		t.Fatalf("Expected InterfaceMethodNode, got %T", iface.Methods[0])
+	}
+	union, ok := method.ReturnType.(*ast.UnionTypeNode)
+	if !ok {
+		t.Fatalf("Expected UnionTypeNode, got %T", method.ReturnType)
+	}
+	if len(union.Types) != 2 || union.Types[0] != "string" || union.Types[1] != "\\Stringable" {
+		t.Errorf("Expected union types [string \\Stringable], got %v", union.Types)
+	}
+}

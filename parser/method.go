@@ -172,7 +172,8 @@ func (p *Parser) parseInterfaceMethod() ast.Node {
 				Pos:   ast.Position(p.tok.Pos),
 			}
 		} else if p.tok.Type == token.T_STRING || p.tok.Type == token.T_ARRAY ||
-			p.tok.Literal == "mixed" || p.tok.Type == token.T_BACKSLASH ||
+			p.tok.Literal == "mixed" || p.tok.Literal == "null" ||
+			p.tok.Type == token.T_BACKSLASH ||
 			p.tok.Type == token.T_STATIC || p.tok.Type == token.T_SELF || p.tok.Type == token.T_PARENT {
 			typePos := p.tok.Pos
 
@@ -221,28 +222,31 @@ func (p *Parser) parseInterfaceMethod() ast.Node {
 						p.tok.Literal == "mixed" || p.tok.Literal == "null" ||
 						p.tok.Literal == "int" || p.tok.Literal == "float" ||
 						p.tok.Literal == "bool" || p.tok.Literal == "string" ||
-						p.tok.Type == token.T_BACKSLASH ||
+						p.tok.Type == token.T_BACKSLASH || p.tok.Type == token.T_NS_SEPARATOR ||
 						p.tok.Type == token.T_STATIC || p.tok.Type == token.T_SELF || p.tok.Type == token.T_PARENT {
-
-						// Handle fully qualified class names with backslashes
 						var memberTypeName strings.Builder
-						if p.tok.Type == token.T_BACKSLASH {
-							memberTypeName.WriteString(p.tok.Literal)
+						if p.tok.Literal == "null" {
+							memberTypeName.WriteString("null")
 							p.nextToken()
 						} else {
-							memberTypeName.WriteString(p.tok.Literal)
-							p.nextToken()
+							for p.tok.Type == token.T_BACKSLASH || p.tok.Type == token.T_NS_SEPARATOR {
+								memberTypeName.WriteString("\\")
+								p.nextToken()
+							}
+							if p.tok.Type == token.T_STRING || p.tok.Type == token.T_STATIC || p.tok.Type == token.T_SELF || p.tok.Type == token.T_PARENT {
+								memberTypeName.WriteString(p.tok.Literal)
+								p.nextToken()
+								for p.tok.Type == token.T_STRING || p.tok.Type == token.T_BACKSLASH || p.tok.Type == token.T_NS_SEPARATOR {
+									if p.tok.Type == token.T_BACKSLASH || p.tok.Type == token.T_NS_SEPARATOR {
+										memberTypeName.WriteString("\\")
+									} else {
+										memberTypeName.WriteString(p.tok.Literal)
+									}
+									p.nextToken()
+								}
+							}
 						}
-
-						// Continue collecting parts of a class name
-						for p.tok.Type == token.T_STRING || p.tok.Type == token.T_BACKSLASH {
-							memberTypeName.WriteString(p.tok.Literal)
-							p.nextToken()
-						}
-
 						unionTypes = append(unionTypes, memberTypeName.String())
-
-						// Handle array syntax for union type member
 						if p.tok.Type == token.T_LBRACKET {
 							unionTypes[len(unionTypes)-1] += "[]"
 							p.nextToken()
