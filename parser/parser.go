@@ -149,35 +149,6 @@ func (p *Parser) peekToken() token.Token {
 }
 
 // parseSimpleExpression parses a simple expression (identifier, literal, etc.)
-// parseFQCN parses a fully qualified class name, e.g. \Foo\Bar
-func (p *Parser) parseFQCN() ast.Node {
-	pos := p.tok.Pos
-	fqcn := ""
-	for {
-		if p.tok.Type == token.T_NS_SEPARATOR {
-			fqcn += "\\"
-			p.nextToken()
-		}
-		if p.tok.Type == token.T_STRING {
-			fqcn += p.tok.Literal
-			p.nextToken()
-		} else {
-			break
-		}
-	}
-	if fqcn == "" {
-		p.addError("line %d:%d: expected fully qualified class name, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal)
-		return nil
-	}
-	if p.debug {
-
-	}
-	return &ast.IdentifierNode{
-		Value: fqcn,
-		Pos:   ast.Position(pos),
-	}
-}
-
 func (p *Parser) parseSimpleExpression() ast.Node {
 	// Handle unary minus and plus
 	if p.tok.Type == token.T_MINUS || p.tok.Type == token.T_PLUS {
@@ -204,300 +175,269 @@ func (p *Parser) parseSimpleExpression() ast.Node {
 	}
 	switch p.tok.Type {
 	case token.T_NEW:
-		pos := p.tok.Pos
-		p.nextToken() // consume 'new'
+		return p.parseNewExpression()
+	case token.T_STRING, token.T_STATIC, token.T_SELF, token.T_PARENT:
+		return p.parseFQCNExpression()
+	case token.T_CONSTANT_ENCAPSED_STRING:
+		return p.parseStringInterpolation()
+	case token.T_CONSTANT_STRING:
+		return p.parseStringLiteral()
+	case token.T_LNUMBER:
+		return p.parseIntegerLiteral()
+	case token.T_DNUMBER:
+		return p.parseFloatLiteral()
+	case token.T_TRUE:
+		return p.parseBooleanLiteral(true)
+	case token.T_FALSE:
+		return p.parseBooleanLiteral(false)
+	case token.T_NULL:
+		return p.parseNullLiteral()
+	case token.T_VARIABLE:
+		return p.parseVariableExpression()
+	case token.T_NS_SEPARATOR:
+		return p.parseFQCNExpression()
+	default:
+		p.addError("line %d:%d: unexpected token %s in expression", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal)
+		p.nextToken()
+		return nil
+	}
+}
 
-		// Accept T_STRING or T_NS_SEPARATOR for FQCN
-		if p.tok.Type != token.T_STRING && p.tok.Type != token.T_NS_SEPARATOR {
-			p.addError("line %d:%d: expected class name after new, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal)
-			return nil
+func (p *Parser) parseNewExpression() ast.Node {
+	pos := p.tok.Pos
+	p.nextToken() // consume 'new'
+
+	// Accept T_STRING or T_NS_SEPARATOR for FQCN
+	if p.tok.Type != token.T_STRING && p.tok.Type != token.T_NS_SEPARATOR {
+		p.addError("line %d:%d: expected class name after new, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal)
+		return nil
+	}
+	classNameNode := p.parseFQCN()
+	className := ""
+	if id, ok := classNameNode.(*ast.IdentifierNode); ok {
+		className = id.Value
+	} else {
+		p.addError("line %d:%d: expected identifier node for class name after new", p.tok.Pos.Line, p.tok.Pos.Column)
+		return nil
+	}
+
+	if p.tok.Type != token.T_LPAREN {
+		p.addError("line %d:%d: expected ( after class name %s, got %s", p.tok.Pos.Line, p.tok.Pos.Column, className, p.tok.Literal)
+		return nil
+	}
+	p.nextToken() // consume (
+
+	var args []ast.Node
+	for p.tok.Type != token.T_RPAREN && p.tok.Type != token.T_EOF {
+		if arg := p.parseExpression(); arg != nil {
+			args = append(args, arg)
 		}
-		classNameNode := p.parseFQCN()
-		className := ""
-		if id, ok := classNameNode.(*ast.IdentifierNode); ok {
-			className = id.Value
+
+		if p.tok.Type == token.T_COMMA {
+			p.nextToken()
+			continue
+		}
+		break
+	}
+
+	if p.tok.Type != token.T_RPAREN {
+		p.addError("line %d:%d: expected ) after arguments for %s, got %s", p.tok.Pos.Line, p.tok.Pos.Column, className, p.tok.Literal)
+		return nil
+	}
+	p.nextToken() // consume )
+
+	return &ast.NewNode{
+		ClassName: className,
+		Args:      args,
+		Pos:       ast.Position(pos),
+	}
+}
+
+func (p *Parser) parseFQCNExpression() ast.Node {
+	fqcnPos := p.tok.Pos
+	fqcn := ""
+	for {
+		if p.tok.Type == token.T_NS_SEPARATOR {
+			fqcn += "\\"
+			p.nextToken()
+		} else if p.tok.Type == token.T_STRING || p.tok.Type == token.T_STATIC || p.tok.Type == token.T_SELF || p.tok.Type == token.T_PARENT {
+			fqcn += p.tok.Literal
+			p.nextToken()
 		} else {
-			p.addError("line %d:%d: expected identifier node for class name after new", p.tok.Pos.Line, p.tok.Pos.Column)
+			break
+		}
+	}
+	// Class constant fetch: FQCN::CONST or FQCN::class
+	if p.tok.Type == token.T_DOUBLE_COLON {
+		p.nextToken() // consume '::'
+		if p.tok.Type == token.T_STRING {
+			constName := p.tok.Literal
+			p.nextToken()
+			return &ast.ClassConstFetchNode{
+				Class: fqcn,
+				Const: constName,
+				Pos:   ast.Position(fqcnPos),
+			}
+		} else if p.tok.Type == token.T_CLASS_CONST {
+			// Support FQCN::class
+			p.nextToken()
+			return &ast.ClassConstFetchNode{
+				Class: fqcn,
+				Const: "class",
+				Pos:   ast.Position(fqcnPos),
+			}
+		} else {
+			p.addError("line %d:%d: expected constant name or 'class' after '::', got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal)
 			return nil
 		}
-
-		if p.tok.Type != token.T_LPAREN {
-			p.addError("line %d:%d: expected ( after class name %s, got %s", p.tok.Pos.Line, p.tok.Pos.Column, className, p.tok.Literal)
-			return nil
-		}
-		p.nextToken() // consume (
-
+	}
+	// Check for function call: FQCN(...)
+	if p.tok.Type == token.T_LPAREN {
+		p.nextToken() // consume '('
 		var args []ast.Node
 		for p.tok.Type != token.T_RPAREN && p.tok.Type != token.T_EOF {
-			if arg := p.parseExpression(); arg != nil {
+			isUnpacked := false
+			if p.tok.Type == token.T_ELLIPSIS {
+				isUnpacked = true
+				p.nextToken() // consume ...
+			}
+			arg := p.parseExpression()
+			if arg != nil {
+				if isUnpacked {
+					arg = &ast.UnpackedArgumentNode{
+						Expr: arg,
+						Pos:  arg.GetPos(),
+					}
+				}
 				args = append(args, arg)
 			}
-
 			if p.tok.Type == token.T_COMMA {
 				p.nextToken()
 				continue
+			} else if p.tok.Type == token.T_RPAREN {
+				break
+			} else if p.tok.Type == token.T_EOF {
+				break
+			} else {
+				continue
 			}
-			break
 		}
-
 		if p.tok.Type != token.T_RPAREN {
-			p.addError("line %d:%d: expected ) after arguments for %s, got %s", p.tok.Pos.Line, p.tok.Pos.Column, className, p.tok.Literal)
+			p.addError("line %d:%d: expected ) after arguments for function call %s, got %s", p.tok.Pos.Line, p.tok.Pos.Column, fqcn, p.tok.Literal)
 			return nil
 		}
 		p.nextToken() // consume )
+		return &ast.FunctionCallNode{
+			Name: &ast.IdentifierNode{
+				Value: fqcn,
+				Pos:   ast.Position(fqcnPos),
+			},
+			Args: args,
+			Pos:  ast.Position(fqcnPos),
+		}
+	}
+	// Not a function call, just an identifier
+	return &ast.IdentifierNode{
+		Value: fqcn,
+		Pos:   ast.Position(fqcnPos),
+	}
+}
 
-		return &ast.NewNode{
-			ClassName: className,
-			Args:      args,
-			Pos:       ast.Position(pos),
-		}
-	case token.T_STRING, token.T_STATIC, token.T_SELF, token.T_PARENT:
-		// Support fully qualified class names (FQCN) like \Symfony\Component\ClassName
-		fqcnPos := p.tok.Pos
-		fqcn := ""
-		for {
-			if p.tok.Type == token.T_NS_SEPARATOR {
-				fqcn += "\\"
-				p.nextToken()
-			} else if p.tok.Type == token.T_STRING || p.tok.Type == token.T_STATIC || p.tok.Type == token.T_SELF || p.tok.Type == token.T_PARENT {
-				fqcn += p.tok.Literal
-				p.nextToken()
-			} else {
-				break
-			}
-		}
-		// Class constant fetch: FQCN::CONST or FQCN::class
-		if p.tok.Type == token.T_DOUBLE_COLON {
-			p.nextToken() // consume '::'
-			if p.tok.Type == token.T_STRING {
-				constName := p.tok.Literal
-				p.nextToken()
-				return &ast.ClassConstFetchNode{
-					Class: fqcn,
-					Const: constName,
-					Pos:   ast.Position(fqcnPos),
-				}
-			} else if p.tok.Type == token.T_CLASS_CONST {
-				// Support FQCN::class
-				p.nextToken()
-				return &ast.ClassConstFetchNode{
-					Class: fqcn,
-					Const: "class",
-					Pos:   ast.Position(fqcnPos),
-				}
-			} else {
-				p.addError("line %d:%d: expected constant name or 'class' after '::', got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal)
-				return nil
-			}
-		}
-		// Check for function call: FQCN(...)
-		if p.tok.Type == token.T_LPAREN {
-			p.nextToken() // consume '('
-			var args []ast.Node
-			for p.tok.Type != token.T_RPAREN && p.tok.Type != token.T_EOF {
-				isUnpacked := false
-				if p.tok.Type == token.T_ELLIPSIS {
-					isUnpacked = true
-					p.nextToken() // consume ...
-				}
-				arg := p.parseExpression()
-				if arg != nil {
-					if isUnpacked {
-						arg = &ast.UnpackedArgumentNode{
-							Expr: arg,
-							Pos:  arg.GetPos(),
-						}
-					}
-					args = append(args, arg)
-				}
-				if p.tok.Type == token.T_COMMA {
-					p.nextToken()
-					continue
-				} else if p.tok.Type == token.T_RPAREN {
-					break
-				} else if p.tok.Type == token.T_EOF {
-					break
-				} else {
-					continue
-				}
-			}
-			if p.tok.Type != token.T_RPAREN {
-				p.addError("line %d:%d: expected ) after arguments for function call %s, got %s", p.tok.Pos.Line, p.tok.Pos.Column, fqcn, p.tok.Literal)
-				return nil
-			}
-			p.nextToken() // consume )
-			return &ast.FunctionCallNode{
-				Name: &ast.IdentifierNode{
-					Value: fqcn,
-					Pos:   ast.Position(fqcnPos),
-				},
-				Args: args,
-				Pos:  ast.Position(fqcnPos),
-			}
-		}
-		// Not a function call, just an identifier
-		return &ast.IdentifierNode{
-			Value: fqcn,
-			Pos:   ast.Position(fqcnPos),
-		}
-	case token.T_CONSTANT_ENCAPSED_STRING:
-		// Handle string interpolation
-		pos := p.tok.Pos
-		value := p.tok.Literal
-		p.nextToken()
+func (p *Parser) parseStringInterpolation() ast.Node {
+	pos := p.tok.Pos
+	value := p.tok.Literal
+	p.nextToken()
 
-		// Check for variable interpolation
-		if p.tok.Type == token.T_VARIABLE {
-			var parts []ast.Node
-			parts = append(parts, &ast.StringNode{
-				Value: value,
-				Pos:   ast.Position(pos),
-			})
-			for p.tok.Type == token.T_VARIABLE {
-				varNode := &ast.VariableNode{
-					Name: p.tok.Literal[1:], // Remove $ prefix
-					Pos:  ast.Position(p.tok.Pos),
-				}
-				parts = append(parts, varNode)
-				p.nextToken()
-			}
-			return &ast.ConcatNode{
-				Parts: parts,
-				Pos:   ast.Position(pos),
-			}
-		}
-
-		return &ast.StringNode{
+	// Check for variable interpolation
+	if p.tok.Type == token.T_VARIABLE {
+		var parts []ast.Node
+		parts = append(parts, &ast.StringNode{
 			Value: value,
 			Pos:   ast.Position(pos),
-		}
-	case token.T_CONSTANT_STRING:
-		node := &ast.StringLiteral{
-			Value: p.tok.Literal,
-			Pos:   ast.Position(p.tok.Pos),
-		}
-		p.nextToken()
-		return node
-	case token.T_LNUMBER:
-		val, _ := strconv.ParseInt(p.tok.Literal, 10, 64)
-		node := &ast.IntegerNode{
-			Value: val,
-			Pos:   ast.Position(p.tok.Pos),
-		}
-		p.nextToken()
-		return node
-	case token.T_DNUMBER:
-		val, _ := strconv.ParseFloat(p.tok.Literal, 64)
-		node := &ast.FloatNode{
-			Value: val,
-			Pos:   ast.Position(p.tok.Pos),
-		}
-		p.nextToken()
-		return node
-	case token.T_TRUE:
-		node := &ast.BooleanNode{
-			Value: true,
-			Pos:   ast.Position(p.tok.Pos),
-		}
-		p.nextToken()
-		return node
-	case token.T_FALSE:
-		node := &ast.BooleanNode{
-			Value: false,
-			Pos:   ast.Position(p.tok.Pos),
-		}
-		p.nextToken()
-		return node
-	case token.T_NULL:
-		node := &ast.NullNode{
-			Pos: ast.Position(p.tok.Pos),
-		}
-		p.nextToken()
-		return node
-	case token.T_VARIABLE:
-		var expr ast.Node = &ast.VariableNode{
-			Name: p.tok.Literal[1:], // Remove $ prefix
-			Pos:  ast.Position(p.tok.Pos),
-		}
-		p.nextToken()
-		for {
-			if p.tok.Type == token.T_OBJECT_OPERATOR {
-				objOpPos := p.tok.Pos
-				p.nextToken() // consume '->'
-				if p.tok.Type != token.T_STRING {
-					p.addError("line %d:%d: expected property/method name after ->, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal)
-					return nil
-				}
-				member := p.tok.Literal
-				p.nextToken() // consume property/method name
-				// Check for method call
-				if p.tok.Type == token.T_LPAREN {
-					p.nextToken() // consume '('
-					var args []ast.Node
-					for p.tok.Type != token.T_RPAREN && p.tok.Type != token.T_EOF {
-						isUnpacked := false
-						if p.tok.Type == token.T_ELLIPSIS {
-							isUnpacked = true
-							p.nextToken() // consume ...
-						}
-						arg := p.parseExpression()
-						if arg != nil {
-							if isUnpacked {
-								arg = &ast.UnpackedArgumentNode{
-									Expr: arg,
-									Pos:  arg.GetPos(),
-								}
-							}
-							args = append(args, arg)
-						}
-						if p.tok.Type == token.T_COMMA {
-							p.nextToken()
-							continue
-						} else if p.tok.Type == token.T_RPAREN {
-							break
-						} else if p.tok.Type == token.T_EOF {
-							break
-						} else {
-							continue
-						}
-					}
-					if p.tok.Type != token.T_RPAREN {
-						p.addError("line %d:%d: expected ) after arguments for method call %s, got %s", p.tok.Pos.Line, p.tok.Pos.Column, member, p.tok.Literal)
-						return nil
-					}
-					p.nextToken() // consume )
-					expr = &ast.MethodCallNode{
-						Object: expr,
-						Method: member,
-						Args:   args,
-						Pos:    ast.Position(objOpPos),
-					}
-				} else {
-					expr = &ast.PropertyFetchNode{
-						Object:   expr,
-						Property: member,
-						Pos:      ast.Position(objOpPos),
-					}
-				}
-				continue // allow chaining: $foo->bar()->baz
+		})
+		for p.tok.Type == token.T_VARIABLE {
+			varNode := &ast.VariableNode{
+				Name: p.tok.Literal[1:], // Remove $ prefix
+				Pos:  ast.Position(p.tok.Pos),
 			}
-			if p.tok.Type == token.T_LBRACKET {
-				bracketPos := p.tok.Pos
-				p.nextToken() // consume [
-				index := p.parseExpression()
-				if p.tok.Type != token.T_RBRACKET {
-					p.addError("line %d:%d: expected ] after array index, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal)
-					return nil
-				}
-				p.nextToken() // consume ]
-				expr = &ast.ArrayAccessNode{
-					Var:   expr,
-					Index: index,
-					Pos:   ast.Position(bracketPos),
-				}
-				continue
+			parts = append(parts, varNode)
+			p.nextToken()
+		}
+		return &ast.ConcatNode{
+			Parts: parts,
+			Pos:   ast.Position(pos),
+		}
+	}
+
+	return &ast.StringNode{
+		Value: value,
+		Pos:   ast.Position(pos),
+	}
+}
+
+func (p *Parser) parseStringLiteral() ast.Node {
+	node := &ast.StringLiteral{
+		Value: p.tok.Literal,
+		Pos:   ast.Position(p.tok.Pos),
+	}
+	p.nextToken()
+	return node
+}
+
+func (p *Parser) parseIntegerLiteral() ast.Node {
+	val, _ := strconv.ParseInt(p.tok.Literal, 10, 64)
+	node := &ast.IntegerNode{
+		Value: val,
+		Pos:   ast.Position(p.tok.Pos),
+	}
+	p.nextToken()
+	return node
+}
+
+func (p *Parser) parseFloatLiteral() ast.Node {
+	val, _ := strconv.ParseFloat(p.tok.Literal, 64)
+	node := &ast.FloatNode{
+		Value: val,
+		Pos:   ast.Position(p.tok.Pos),
+	}
+	p.nextToken()
+	return node
+}
+
+func (p *Parser) parseBooleanLiteral(value bool) ast.Node {
+	node := &ast.BooleanNode{
+		Value: value,
+		Pos:   ast.Position(p.tok.Pos),
+	}
+	p.nextToken()
+	return node
+}
+
+func (p *Parser) parseNullLiteral() ast.Node {
+	node := &ast.NullNode{
+		Pos: ast.Position(p.tok.Pos),
+	}
+	p.nextToken()
+	return node
+}
+
+func (p *Parser) parseVariableExpression() ast.Node {
+	var expr ast.Node = &ast.VariableNode{
+		Name: p.tok.Literal[1:], // Remove $ prefix
+		Pos:  ast.Position(p.tok.Pos),
+	}
+	p.nextToken()
+	for {
+		if p.tok.Type == token.T_OBJECT_OPERATOR {
+			objOpPos := p.tok.Pos
+			p.nextToken() // consume '->'
+			if p.tok.Type != token.T_STRING {
+				p.addError("line %d:%d: expected property/method name after ->, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal)
+				return nil
 			}
-			// Check for function call: $var()
+			member := p.tok.Literal
+			p.nextToken() // consume property/method name
+			// Check for method call
 			if p.tok.Type == token.T_LPAREN {
 				p.nextToken() // consume '('
 				var args []ast.Node
@@ -529,23 +469,42 @@ func (p *Parser) parseSimpleExpression() ast.Node {
 					}
 				}
 				if p.tok.Type != token.T_RPAREN {
-					p.addError("line %d:%d: expected ) after arguments for function call on variable, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal)
+					p.addError("line %d:%d: expected ) after arguments for method call %s, got %s", p.tok.Pos.Line, p.tok.Pos.Column, member, p.tok.Literal)
 					return nil
 				}
 				p.nextToken() // consume )
-				expr = &ast.FunctionCallNode{
-					Name: expr,
-					Args: args,
-					Pos:  expr.GetPos(),
+				expr = &ast.MethodCallNode{
+					Object: expr,
+					Method: member,
+					Args:   args,
+					Pos:    ast.Position(objOpPos),
 				}
-				continue
+			} else {
+				expr = &ast.PropertyFetchNode{
+					Object:   expr,
+					Property: member,
+					Pos:      ast.Position(objOpPos),
+				}
 			}
-			break
+			continue // allow chaining: $foo->bar()->baz
 		}
-		return expr
-	case token.T_NS_SEPARATOR:
-		fqcnNode := p.parseFQCN()
-		// Check for function call: \FQCN(...)
+		if p.tok.Type == token.T_LBRACKET {
+			bracketPos := p.tok.Pos
+			p.nextToken() // consume [
+			index := p.parseExpression()
+			if p.tok.Type != token.T_RBRACKET {
+				p.addError("line %d:%d: expected ] after array index, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal)
+				return nil
+			}
+			p.nextToken() // consume ]
+			expr = &ast.ArrayAccessNode{
+				Var:   expr,
+				Index: index,
+				Pos:   ast.Position(bracketPos),
+			}
+			continue
+		}
+		// Check for function call: $var()
 		if p.tok.Type == token.T_LPAREN {
 			p.nextToken() // consume '('
 			var args []ast.Node
@@ -577,21 +536,48 @@ func (p *Parser) parseSimpleExpression() ast.Node {
 				}
 			}
 			if p.tok.Type != token.T_RPAREN {
-				p.addError("line %d:%d: expected ) after arguments for function call %s, got %s", p.tok.Pos.Line, p.tok.Pos.Column, fqcnNode.TokenLiteral(), p.tok.Literal)
+				p.addError("line %d:%d: expected ) after arguments for function call on variable, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal)
 				return nil
 			}
 			p.nextToken() // consume )
-			return &ast.FunctionCallNode{
-				Name: fqcnNode,
+			expr = &ast.FunctionCallNode{
+				Name: expr,
 				Args: args,
-				Pos:  fqcnNode.GetPos(),
+				Pos:  expr.GetPos(),
 			}
+			continue
 		}
-		return fqcnNode
-	default:
-		p.addError("line %d:%d: unexpected token %s in expression", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal)
-		p.nextToken()
+		break
+	}
+	return expr
+}
+
+// parseFQCN parses a fully qualified class name, e.g. \Foo\Bar
+func (p *Parser) parseFQCN() ast.Node {
+	pos := p.tok.Pos
+	fqcn := ""
+	for {
+		if p.tok.Type == token.T_NS_SEPARATOR {
+			fqcn += "\\"
+			p.nextToken()
+		}
+		if p.tok.Type == token.T_STRING {
+			fqcn += p.tok.Literal
+			p.nextToken()
+		} else {
+			break
+		}
+	}
+	if fqcn == "" {
+		p.addError("line %d:%d: expected fully qualified class name, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal)
 		return nil
+	}
+	if p.debug {
+
+	}
+	return &ast.IdentifierNode{
+		Value: fqcn,
+		Pos:   ast.Position(pos),
 	}
 }
 

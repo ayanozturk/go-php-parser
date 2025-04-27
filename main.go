@@ -148,7 +148,6 @@ func main() {
 	fmt.Printf("Sys: %.2f MB\n", float64(memEnd.Sys)/(1024*1024))
 }
 
-// processFileWithErrors returns (errorCount, lineCount)
 // processFileWithErrors returns (errorList, lineCount)
 func processFileWithErrors(filePath, commandName string, debug bool) ([]string, int) {
 	input, err := os.ReadFile(filePath)
@@ -156,6 +155,20 @@ func processFileWithErrors(filePath, commandName string, debug bool) ([]string, 
 		fmt.Printf("Error reading file: %s\n", err)
 		return nil, 0
 	}
+	lineCount := countLines(input)
+	l := lexer.New(string(input))
+	p := parser.New(l, debug)
+	nodes := p.Parse()
+	errList := p.Errors()
+	if len(errList) > 0 {
+		// Do not print here; errors will be printed at the end
+		return errList, lineCount
+	}
+	executeCommand(commandName, nodes, input)
+	return nil, lineCount
+}
+
+func countLines(input []byte) int {
 	lineCount := 0
 	for _, b := range input {
 		if b == '\n' {
@@ -165,14 +178,10 @@ func processFileWithErrors(filePath, commandName string, debug bool) ([]string, 
 	if len(input) > 0 && input[len(input)-1] != '\n' {
 		lineCount++
 	}
-	l := lexer.New(string(input))
-	p := parser.New(l, debug)
-	nodes := p.Parse()
-	errList := p.Errors()
-	if len(errList) > 0 {
-		// Do not print here; errors will be printed at the end
-		return errList, lineCount
-	}
+	return lineCount
+}
+
+func executeCommand(commandName string, nodes []parser.Node, input []byte) {
 	if cmd, exists := command.Commands[commandName]; exists {
 		if commandName == "tokens" {
 			l := lexer.New(string(input))
@@ -190,7 +199,6 @@ func processFileWithErrors(filePath, commandName string, debug bool) ([]string, 
 		fmt.Printf("Unknown command: %s\n", commandName)
 		command.PrintUsage()
 	}
-	return nil, lineCount
 }
 
 // --- Helper function to process a file ---

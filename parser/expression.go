@@ -23,57 +23,14 @@ func (p *Parser) parseExpressionWithPrecedence(minPrec int, validateAssignmentTa
 	// Handle unary operators
 	switch p.tok.Type {
 	case token.T_PLUS, token.T_MINUS:
-		opTok := p.tok
-		p.nextToken()
-		right := p.parseExpressionWithPrecedence(100, false, stopTypes...)
-		if right == nil {
-			p.addError("line %d:%d: expected operand after unary operator %s", opTok.Pos.Line, opTok.Pos.Column, opTok.Literal)
-			return nil
-		}
-		return &ast.UnaryExpr{
-			Operator: opTok.Literal,
-			Operand:  right,
-			Pos:      ast.Position(opTok.Pos),
-		}
+		return p.parseUnaryExpression()
 	case token.T_NOT:
-		notTok := p.tok
-		p.nextToken()
-		right := p.parseExpressionWithPrecedence(100, false, stopTypes...)
-		if right == nil {
-			p.addError("line %d:%d: expected operand after unary operator !", notTok.Pos.Line, notTok.Pos.Column)
-			return nil
-		}
-		return &ast.UnaryExpr{
-			Operator: "!",
-			Operand:  right,
-			Pos:      ast.Position(notTok.Pos),
-		}
+		return p.parseNotExpression()
 	case token.T_THROW:
-		throwTok := p.tok
-		p.nextToken() // consume 'throw'
-		expr := p.parseExpressionWithPrecedence(100, false, stopTypes...)
-		if expr == nil {
-			p.addError("line %d:%d: expected expression after throw, got %s", throwTok.Pos.Line, throwTok.Pos.Column, p.tok.Literal)
-			return nil
-		}
-		return &ast.ThrowNode{
-			Expr: expr,
-			Pos:  ast.Position(throwTok.Pos),
-		}
+		return p.parseThrowExpression()
 	case token.T_STRING:
 		if p.tok.Literal == "!" {
-			opTok := p.tok
-			p.nextToken()
-			right := p.parseExpressionWithPrecedence(100, false, stopTypes...)
-			if right == nil {
-				p.addError("line %d:%d: expected operand after unary operator %s", opTok.Pos.Line, opTok.Pos.Column, opTok.Literal)
-				return nil
-			}
-			return &ast.UnaryExpr{
-				Operator: opTok.Literal,
-				Operand:  right,
-				Pos:      ast.Position(opTok.Pos),
-			}
+			return p.parseUnaryExpression()
 		}
 	}
 
@@ -93,21 +50,7 @@ func (p *Parser) parseExpressionWithPrecedence(minPrec int, validateAssignmentTa
 		// Only parse ternary if minPrec <= precedence of ternary
 		ternaryPrec := PhpOperatorPrecedence[token.T_QUESTION]
 		if p.tok.Type == token.T_QUESTION && minPrec <= ternaryPrec {
-			qPos := p.tok.Pos
-			p.nextToken() // consume '?'
-			ifTrue := p.parseExpressionWithPrecedence(0, false)
-			if p.tok.Type != token.T_COLON {
-				p.addError("line %d:%d: expected ':' in ternary expression, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal)
-				return nil
-			}
-			p.nextToken() // consume ':'
-			ifFalse := p.parseExpressionWithPrecedence(ternaryPrec, false)
-			left = &ast.TernaryExpr{
-				Condition: left,
-				IfTrue:    ifTrue,
-				IfFalse:   ifFalse,
-				Pos:       ast.Position(qPos),
-			}
+			left = p.parseTernaryExpression(left, ternaryPrec)
 			continue
 		}
 		// Check for stop tokens
@@ -175,4 +118,66 @@ func (p *Parser) parseExpressionWithPrecedence(minPrec int, validateAssignmentTa
 		}
 	}
 	return left
+}
+
+func (p *Parser) parseUnaryExpression() ast.Node {
+	opTok := p.tok
+	p.nextToken()
+	right := p.parseExpressionWithPrecedence(100, false)
+	if right == nil {
+		p.addError("line %d:%d: expected operand after unary operator %s", opTok.Pos.Line, opTok.Pos.Column, opTok.Literal)
+		return nil
+	}
+	return &ast.UnaryExpr{
+		Operator: opTok.Literal,
+		Operand:  right,
+		Pos:      ast.Position(opTok.Pos),
+	}
+}
+
+func (p *Parser) parseNotExpression() ast.Node {
+	notTok := p.tok
+	p.nextToken()
+	right := p.parseExpressionWithPrecedence(100, false)
+	if right == nil {
+		p.addError("line %d:%d: expected operand after unary operator !", notTok.Pos.Line, notTok.Pos.Column)
+		return nil
+	}
+	return &ast.UnaryExpr{
+		Operator: "!",
+		Operand:  right,
+		Pos:      ast.Position(notTok.Pos),
+	}
+}
+
+func (p *Parser) parseThrowExpression() ast.Node {
+	throwTok := p.tok
+	p.nextToken() // consume 'throw'
+	expr := p.parseExpressionWithPrecedence(100, false)
+	if expr == nil {
+		p.addError("line %d:%d: expected expression after throw, got %s", throwTok.Pos.Line, throwTok.Pos.Column, p.tok.Literal)
+		return nil
+	}
+	return &ast.ThrowNode{
+		Expr: expr,
+		Pos:  ast.Position(throwTok.Pos),
+	}
+}
+
+func (p *Parser) parseTernaryExpression(left ast.Node, ternaryPrec int) ast.Node {
+	qPos := p.tok.Pos
+	p.nextToken() // consume '?'
+	ifTrue := p.parseExpressionWithPrecedence(0, false)
+	if p.tok.Type != token.T_COLON {
+		p.addError("line %d:%d: expected ':' in ternary expression, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal)
+		return nil
+	}
+	p.nextToken() // consume ':'
+	ifFalse := p.parseExpressionWithPrecedence(ternaryPrec, false)
+	return &ast.TernaryExpr{
+		Condition: left,
+		IfTrue:    ifTrue,
+		IfFalse:   ifFalse,
+		Pos:       ast.Position(qPos),
+	}
 }

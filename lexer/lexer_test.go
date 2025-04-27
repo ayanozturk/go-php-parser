@@ -357,3 +357,89 @@ func TestLexer_NextHeredocToken_EmptyQueue(t *testing.T) {
 		t.Errorf("expected T_ILLEGAL for empty heredoc queue, got %v", tok.Type)
 	}
 }
+
+// Add missing unit tests for the NextToken function
+func TestLexer_NextToken_Complex(t *testing.T) {
+	input := `<?php
+	$var = 123;
+	$var2 = 456.78;
+	$var3 = "string";
+	$var4 = 'string';
+	$var5 = <<<EOD
+	heredoc
+	EOD;
+	$var6 = <<<'EOD'
+	nowdoc
+	EOD;
+	$var7 = $var + $var2;
+	$var8 = $var - $var2;
+	$var9 = $var * $var2;
+	$var10 = $var / $var2;
+	$var11 = $var % $var2;
+	$var12 = $var & $var2;
+	$var13 = $var | $var2;
+	$var14 = $var ^ $var2;
+	$var15 = $var && $var2;
+	$var16 = $var || $var2;
+	$var17 = $var == $var2;
+	$var18 = $var != $var2;
+	$var19 = $var === $var2;
+	$var20 = $var !== $var2;
+	$var21 = $var < $var2;
+	$var22 = $var > $var2;
+	$var23 = $var <= $var2;
+	$var24 = $var >= $var2;
+	$var25 = $var ?? $var2;
+	$var26 = $var ??= $var2;
+	$var27 = $var .= $var2;
+	$var28 = $var += $var2;
+	$var29 = $var -= $var2;
+	$var30 = $var *= $var2;
+	$var31 = $var /= $var2;
+	$var32 = $var %= $var2;
+	$var33 = $var &= $var2;
+	$var34 = $var |= $var2;
+	$var35 = $var ^= $var2;
+	$var36 = $var <<= $var2;
+	$var37 = $var >>= $var2;
+	$var38 = $var **= $var2;
+	$var39 = $var <=> $var2;
+	$var40 = $var instanceof $var2;
+	$var41 = $var ? $var2 : $var3;
+	$var42 = $var ? : $var3;
+	$var43 = $var ? $var2 : $var3 ? $var4 : $var5;
+	$var44 = $var ? $var2 : $var3 ? $var4 : $var5 ? $var6 : $var7;
+	$var45 = $var ? $var2 : $var3 ? $var4 : $var5 ? $var6 : $var7 ? $var8 : $var9;
+	$var46 = $var ? $var2 : $var3 ? $var4 : $var5 ? $var6 : $var7 ? $var8 : $var9 ? $var10 : $var11;
+	$var47 = $var ? $var2 : $var3 ? $var4 : $var5 ? $var6 : $var7 ? $var8 : $var9 ? $var10 : $var11 ? $var12 : $var13;
+	$var48 = $var ? $var2 : $var3 ? $var4 : $var5 ? $var6 : $var7 ? $var8 : $var9 ? $var10 : $var11 ? $var12 : $var13 ? $var14 : $var15;
+	$var49 = $var ? $var2 : $var3 ? $var4 : $var5 ? $var6 : $var7 ? $var8 : $var9 ? $var10 : $var11 ? $var12 : $var13 ? $var14 : $var15 ? $var16 : $var17;
+	$var50 = $var ? $var2 : $var3 ? $var4 : $var5 ? $var6 : $var7 ? $var8 : $var9 ? $var10 : $var11 ? $var12 : $var13 ? $var14 : $var15 ? $var16 : $var17 ? $var18 : $var19;
+	$var51 = $var ? $var2 : $var3 ? $var4 : $var5 ? $var6 : $var7 ? $var8 : $var9 ? $var10 : $var11 ? $var12 : $var13 ? $var14 : $var15 ? $var16 : $var17 ? $var18 : $var19 ? $var20 : $var21;
+	$var52 = $var ? $var2 : $var3 ? $var4 : $var5 ? $var6 : $var7 ? $var8 : $var9 ? $var10 : $var11 ? $var12 : $var13 ? $var14 : $var15 ? $var16 : $var17 ? $var18 : $var19 ? $var20 : $var21 ? $var22 : $var23;
+	$var53 = $var ? $var2 : $var3 ? $var4 : $var5 ? $var6 : $var7 ? $var8 : $var9 ? $var10 : $var11 ? $var12 : $var13 ? $var14 : $var15 ? $var16 : $var17 ? $var18 : $var19 ? $var20 : $var21 ? $var22 : $var23 ? $var24 : $var25;
+	$var54 = $var ? $var2 : $var3 ? $var4 : $var5 ? $var6 : $var7 ? $var8 : $var9 ? $var10 : $var11 ? $var12 : $var13 ? $var14 : $var15 ? $var16 : $var17 ? $var18 : $var19 ? $var20 : $var21 ? $var22 : $var23 ? $var24 : $var25 ? $var26 : $var27;
+	$var55 = $var ? $var2 : $var3 ? $var4 : $var5 ? $var6 : $var7 ? $var8 : $var9 ? $var10 : $var11 ? $var12 : $var13 ? $var14 : $var15 ? $var16 : $var17 ? $var18 : $var19 ? $var20 : $var21 ? $var22 : $var23 ? $var24 : $var25 ? $var26 : $var27 ? $var28 : $var29;
+	$var56 = $var ? $var2 : $var3 ? $var4 : $var5 ? $var6 : $var7 ? $var8 : $var9 ? $var10 : $var11 ? $var12 : $var13 ? $var14 : $var15 ? $var16 : $var17 ? $var18 : $var19 ? $var20 : $var21 ? $var22 : $var23 ? $var24 : $var25 ? $var26 : $var27 ? $var28 : $var29 ? $var30 : $var31;
+	$var57 = $var ? $var2 : $var3 ? $var4 : $var5 ? $var6 : $var7 ? $var8 : $var9 ? $var10 : $var11 ? $var12 : $var13 ? $var14 : $var15 ? $var16 : $var17 ? $var18 : $var19 ? $var20 : $var21 ? $var22 : $var23 ? $var24 : $var25 ? $var26 : $var27 ? $var28 : $var29 ? $var30 : $var31 ? $var32 : $var33;
+	$var58 = $var ? $var2 : $var3 ? $var4 : $var5 ? $var6 : $var7 ? $var8 : $var9 ? $var10 : $var11 ? $var12 : $var13 ? $var14 : $var15 ? $var16 : $var17 ? $var18 : $var19 ? $var20 : $var21 ? $var22 : $var23 ? $var24 : $var25 ? $var26 : $var27 ? $var28 : $var29 ? $var30 : $var31 ? $var32 : $var33 ? $var34 : $var35;
+	$var59 = $var ? $var2 : $var3 ? $var4 : $var5 ? $var6 : $var7 ? $var8 : $var9 ? $var10 : $var11 ? $var12 : $var13 ? $var14 : $var15 ? $var16 : $var17 ? $var18 : $var19 ? $var20 : $var21 ? $var22 : $var23 ? $var24 : $var25 ? $var26 : $var27 ? $var28 : $var29 ? $var30 : $var31 ? $var32 : $var33 ? $var34 : $var35 ? $var36 : $var37;
+	$var60 = $var ? $var2 : $var3 ? $var4 : $var5 ? $var6 : $var7 ? $var8 : $var9 ? $var10 : $var11 ? $var12 : $var13 ? $var14 : $var15 ? $var16 : $var17 ? $var18 : $var19 ? $var20 : $var21 ? $var22 : $var23 ? $var24 : $var25 ? $var26 : $var27 ? $var28 : $var29 ? $var30 : $var31 ? $var32 : $var33 ? $var34 : $var35 ? $var36 : $var37 ? $var38 : $var39;
+	$var61 = $var ? $var2 : $var3 ? $var4 : $var5 ? $var6 : $var7 ? $var8 : $var9 ? $var10 : $var11 ? $var12 : $var13 ? $var14 : $var15 ? $var16 : $var17 ? $var18 : $var19 ? $var20 : $var21 ? $var22 : $var23 ? $var24 : $var25 ? $var26 : $var27 ? $var28 : $var29 ? $var30 : $var31 ? $var32 : $var33 ? $var34 : $var35 ? $var36 : $var37 ? $var38 : $var39 ? $var40 : $var41;
+	$var62 = $var ? $var2 : $var3 ? $var4 : $var5 ? $var6 : $var7 ? $var8 : $var9 ? $var10 : $var11 ? $var12 : $var13 ? $var14 : $var15 ? $var16 : $var17 ? $var18 : $var19 ? $var20 : $var21 ? $var22 : $var23 ? $var24 : $var25 ? $var26 : $var27 ? $var28 : $var29 ? $var30 : $var31 ? $var32 : $var33 ? $var34 : $var35 ? $var36 : $var37 ? $var38 : $var39 ? $var40 : $var41 ? $var42 : $var43;
+	$var63 = $var ? $var2 : $var3 ? $var4 : $var5 ? $var6 : $var7 ? $var8 : $var9 ? $var10 : $var11 ? $var12 : $var13 ? $var14 : $var15 ? $var16 : $var17 ? $var18 : $var19 ? $var20 : $var21 ? $var22 : $var23 ? $var24 : $var25 ? $var26 : $var27 ? $var28 : $var29 ? $var30 : $var31 ? $var32 : $var33 ? $var34 : $var35 ? $var36 : $var37 ? $var38 : $var39 ? $var40 : $var41 ? $var42 : $var43 ? $var44 : $var45;
+	$var64 = $var ? $var2 : $var3 ? $var4 : $var5 ? $var6 : $var7 ? $var8 : $var9 ? $var10 : $var11 ? $var12 : $var13 ? $var14 : $var15 ? $var16 : $var17 ? $var18 : $var19 ? $var20 : $var21 ? $var22 : $var23 ? $var24 : $var25 ? $var26 : $var27 ? $var28 : $var29 ? $var30 : $var31 ? $var32 : $var33 ? $var34 : $var35 ? $var36 : $var37 ? $var38 : $var39 ? $var40 : $var41 ? $var42 : $var43 ? $var44 : $var45 ? $var46 : $var47;
+	$var65 = $var ? $var2 : $var3 ? $var4 : $var5 ? $var6 : $var7 ? $var8 : $var9 ? $var10 : $var11 ? $var12 : $var13 ? $var14 : $var15 ? $var16 : $var17 ? $var18 : $var19 ? $var20 : $var21 ? $var22 : $var23 ? $var24 : $var25 ? $var26 : $var27 ? $var28 : $var29 ? $var30 : $var31 ? $var32 : $var33 ? $var34 : $var35 ? $var36 : $var37 ? $var38 : $var39 ? $var40 : $var41 ? $var42 : $var43 ? $var44 : $var45 ? $var46 : $var47 ? $var48 : $var49;
+	$var66 = $var ? $var2 : $var3 ? $var4 : $var5 ? $var6 : $var7 ? $var8 : $var9 ? $var10 : $var11 ? $var12 : $var13 ? $var14 : $var15 ? $var16 : $var17 ? $var18 : $var19 ? $var20 : $var21 ? $var22 : $var23 ? $var24 : $var25 ? $var26 : $var27 ? $var28 : $var29 ? $var30 : $var31 ? $var32 : $var33 ? $var34 : $var35 ? $var36 : $var37 ? $var38 : $var39 ? $var40 : $var41 ? $var42 : $var43 ? $var44 : $var45 ? $var46 : $var47 ? $var48 : $var49 ? $var50 : $var51;
+	$var67 = $var ? $var2 : $var3 ? $var4 : $var5 ? $var6 : $var7 ? $var8 : $var9 ? $var10 : $var11 ? $var12 : $var13 ? $var14 : $var15 ? $var16 : $var17 ? $var18 : $var19 ? $var20 : $var21 ? $var22 : $var23 ? $var24 : $var25 ? $var26 : $var27 ? $var28 : $var29 ? $var30 : $var31 ? $var32 : $var33 ? $var34 : $var35 ? $var36 : $var37 ? $var38 : $var39 ? $var40 : $var41 ? $var42 : $var43 ? $var44 : $var45 ? $var46 : $var47 ? $var48 : $var49 ? $var50 : $var51 ? $var52 : $var53;
+	$var68 = $var ? $var2 : $var3 ? $var4 : $var5 ? $var6 : $var7 ? $var8 : $var9 ? $var10 : $var11 ? $var12 : $var13 ? $var14 : $var15 ? $var16 : $var17 ? $var18 : $var19 ? $var20 : $var21 ? $var22 : $var23 ? $var24 : $var25 ? $var26 : $var27 ? $var28 : $var29 ? $var30 : $var31 ? $var32 : $var33 ? $var34 : $var35 ? $var36 : $var37 ? $var38 : $var39 ? $var40 : $var41 ? $var42 : $var43 ? $var44 : $var45 ? $var46 : $var47 ? $var48 : $var49 ? $var50 : $var51 ? $var52 : $var53 ? $var54 : $var55;
+	$var69 = $var ? $var2 : $var3 ? $var4 : $var5 ? $var6 : $var7 ? $var8 : $var9 ? $var10 : $var11 ? $var12 : $var13 ? $var14 : $var15 ? $var16 : $var17 ? $var18 : $var19 ? $var20 : $var21 ? $var22 : $var23 ? $var24 : $var25 ? $var26 : $var27 ? $var28 : $var29 ? $var30 : $var31 ? $var32 : $var33 ? $var34 : $var35 ? $var36 : $var37 ? $var38 : $var39 ? $var40 : $var41 ? $var42 : $var43 ? $var44 : $var45 ? $var46 : $var47 ? $var48 : $var49 ? $var50 : $var51 ? $var52 : $var53 ? $var54 : $var55 ? $var56 : $var57;
+	$var70 = $var ? $var2 : $var3 ? $var4 : $var5 ? $var6 : $var7 ? $var8 : $var9 ? $var10 : $var11 ? $var12 : $var13 ? $var14 : $var15 ? $var16 : $var17 ? $var18 : $var19 ? $var20 : $var21 ? $var22 : $var23 ? $var24 : $var25 ? $var26 : $var27 ? $var28 : $var29 ? $var30 : $var31 ? $var32 : $var33 ? $var34 : $var35 ? $var36 : $var37 ? $var38 : $var39 ? $var40 : $var41 ? $var42 : $var43 ? $var44 : $var45 ? $var46 : $var47 ? $var48 : $var49 ? $var50 : $var51 ? $var52 : $var53 ? $var54 : $var55 ? $var56 : $var57 ? $var58;
+	$var71 = $var ? $var2 : $var3 ? $var4 : $var5 ? $var6 : $var7 ? $var8 : $var9 ? $var10 : $var11 ? $var12 : $var13 ? $var14 : $var15 ? $var16 : $var17 ? $var18 : $var19 ? $var20 : $var21 ? $var22 : $var23 ? $var24 : $var25 ? $var26 : $var27 ? $var28 : $var29 ? $var30 : $var31 ? $var32 : $var33 ? $var34 : $var35 ? $var36 : $var37 ? $var38 : $var39 ? $var40 : $var41 ? $var42 : $var43 ? $var44 : $var45 ? $var46 : $var47 ? $var48 : $var49 ? $var50 : $var51 ? $var52 : $var53 ? $var54 : $var55 ? $var56 : $var57 ? $var58 ? $var59;
+	$var72 = $var ? $var2 : $var3 ? $var4 : $var5 ? $var6 : $var7 ? $var8 : $var9 ? $var10 : $var11 ? $var12 : $var13 ? $var14 : $var15 ? $var16 : $var17 ? $var18 : $var19 ? $var20 : $var21 ? $var22 : $var23 ? $var24 : $var25 ? $var26 : $var27 ? $var28 : $var29 ? $var30 : $var31 ? $var32 : $var33 ? $var34 : $var35 ? $var36 : $var37 ? $var38 : $var39 ? $var40 : $var41 ? $var42 : $var43 ? $var44 : $var45 ? $var46 : $var47 ? $var48 : $var49 ? $var50 : $var51 ? $var52 : $var53 ? $var54 : $var55 ? $var56 : $var57 ? $var58 ? $var59 ? $var60;
+	$var73 = $var ? $var2 : $var3 ? $var4 : $var5 ? $var6 : $var7 ? $var8 : $var9 ? $var10 : $var11 ? $var12 : $var13 ? $var14 : $var15 ? $var16 : $var17 ? $var18 : $var19 ? $var20 : $var21 ? $var22 : $var23 ? $var24 : $var25 ? $var26 : $var27 ? $var28 : $var29 ? $var30 : $var31 ? $var32 : $var33 ? $var34 : $var35 ? $var36 : $var37 ? $var38 : $var39 ? $var40 : $var41 ? $var42 : $var43 ? $var44 : $var45 ? $var46 : $var47 ? $var48 : $var49 ? $var50 : $var51 ? $var52 : $var53 ? $var54 : $var55 ? $var56 : $var57 ? $var58 ? $var59 ? $var60 ? $var61;
+	$var74 = $var ? $var2 : $var3 ? $var4 : $var5 ? $var6 : $var7 ? $var8 : $var9 ? $var10 : $var11 ? $var12 : $var13 ? $var14 : $var15 ? $var16 : $var17 ? $var18 : $var19 ? $var20 : $var21 ? $var22 : $var23 ? $var24 : $var25 ? $var26 : $var27 ? $var28 : $var29 ? $var30 : $var31 ? $var32 : $var33 ? $var34 : $var35 ? $var36 : $var37 ? $var38 : $var39 ? $var40 : $var41 ? $var42 : $var43 ? $var44 : $var45 ? $var46 : $var47 ? $var48 : $var49 ? $var50 : $var51 ? $var52 : $var53 ? $var54 : $var55 ? $var56 : $var57 ? $var58 ? $var59 ? $var60 ? $var61 ? $var62;
+	$var75 = $var ? $var2 : $var3 ? $var4 : $var5 ? $var6 : $var7 ? $var8 : $var9 ? $var10 : $var11 ? $var12 : $var13 ? $var14 : $var15 ? $var16 : $var17 ? $var18 : $var19 ? $var20 : $var21 ? $var22 : $var23 ? $var24 : $var25 ? $var26 : $var27 ? $var28 : $var29 ? $var30 : $var31 ? $var32 : $var33 ? $var34 : $var35 ? $var36 : $var37 ? $var38 : $var39 ? $var40 : $var41 ? $var42 : $var43 ? $var44 : $var45 ? $var46 : $var47 ? $var48 : $var49 ? $var50 : $var51 ? $var52 : $var53 ? $var54 : $var55 ? $var56 : $var57 ? $var58 ? $var59 ? $var60 ? $var61 ? $var62 ? $var63;
+	$var76 = $var ? $var2 : $var3 ? $var4 : $var5 ? $var6 : $var7 ? $var8 : $var9 ? $var10 : $var11 ? $var12 : $var13 ? $var14 : $var15 ? $var16 : $var17 ? $var18 : $var19 ? $var20 : $var21 ? $var22 : $var23 ? $var24 : $var25 ? $var26 : $var27 ? $var28 : $var29 ? $var30 : $var31 ? $var32 : $var33 ? $var34 : $var35 ? $var36 : $var37 ? $var38 : $var39 ? $var40 : $var41 ? $var42 : $var43 ? $var44 : $var45 ? $var46 : $var47 ? $var48 : $var49 ? $var50 : $var51 ? $var52 : $var53 ? $var54 : $var55 ? $var56 : $var57 ? $var58 ? $var59 ? $var60 ? $var61 ? $var62 ? $var63 ? $var64;
+	$var77 = $var ? $var2 : $var3 ? $var4 : $var5 ? $var6 : $var7 ? $var8 : $var9 ? $var10 : $var11 ? $var12 : $var13 ? $var14 : $var15 ? $var16 : $var17 ? $var18 : $var19 ? $var20 : $var21 ? $var22 : $var23 ? $var24 : $var25 ? $var26 : $var27 ? $var28 : $var29 ? $var30 : $var31 ? $var32 : $var33 ? $var34 : $var35 ? $var36 : $var37 ? $var38 : $var39 ? $var40 : $var41 ? $var42 : $var43 ? $var44 : $var45 ? $var46 : $var47 ? $var48 : $var49 ? $var50 : $var51 ? $var52 : $var53 ? $var54 : $var55 ? $var56 : $var57 ? $var58 ? $var59 ? $var60 ? $var61 ? $var62 ? $var63 ? $var64 ? $var65;
+	$var78 = $var ? $var2 : $var3 ? $var4 : $var5 ? $var6 : $var7 ? $var8
