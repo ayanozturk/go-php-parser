@@ -7,16 +7,15 @@ import (
 
 // ParamNode represents a function or method parameter
 type ParamNode struct {
-	Name             string
-	TypeHint         string
-	UnionType        *UnionTypeNode        // For PHP 8.0+ union types
-	IntersectionType *IntersectionTypeNode // For PHP 8.1+ intersection types
-	DefaultValue     Node
-	Visibility       string // public, protected, private (for promoted constructor params)
-	IsPromoted       bool   // true if this param is promoted to a property
-	IsVariadic       bool   // true if this param is variadic (...$values)
-	IsByRef          bool   // true if this param is passed by reference (&$data)
-	Pos              Position
+	Name         string
+	TypeHint     string
+	UnionType    *UnionTypeNode // For PHP 8.0+ union types
+	DefaultValue Node
+	Visibility   string // public, protected, private (for promoted constructor params)
+	IsPromoted   bool   // true if this param is promoted to a property
+	IsVariadic   bool   // true if this param is variadic (...$values)
+	IsByRef      bool   // true if this param is passed by reference (&$data)
+	Pos          Position
 }
 
 func (p *ParamNode) NodeType() string    { return "Param" }
