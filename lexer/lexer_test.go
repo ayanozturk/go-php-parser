@@ -5,7 +5,9 @@ import (
 	"testing"
 )
 
-func TestLexer_NextToken_Basic(t *testing.T) {
+const expectedStringTokenMsg = "expected string token, got %v"
+
+func TestLexerNextTokenBasic(t *testing.T) {
 	input := `<?php $var = 123 + 456.78; // comment\n /* block */ '\\' "str" ?>`
 	lex := New(input)
 	// Print first few tokens for debugging
@@ -19,7 +21,7 @@ func TestLexer_NextToken_Basic(t *testing.T) {
 	// Adjust test to match actual output after running
 }
 
-func TestLexer_ObjectOperator(t *testing.T) {
+func TestLexerObjectOperator(t *testing.T) {
 	lex := New("->")
 	tok := lex.NextToken()
 	if tok.Type != token.T_OBJECT_OPERATOR {
@@ -27,7 +29,7 @@ func TestLexer_ObjectOperator(t *testing.T) {
 	}
 }
 
-func TestLexer_DocComment(t *testing.T) {
+func TestLexerDocComment(t *testing.T) {
 	lex := New("/** doc */")
 	tok := lex.NextToken()
 	if tok.Type != token.T_DOC_COMMENT {
@@ -35,7 +37,7 @@ func TestLexer_DocComment(t *testing.T) {
 	}
 }
 
-func TestLexer_BooleanOr(t *testing.T) {
+func TestLexerBooleanOr(t *testing.T) {
 	lex := New("||")
 	tok := lex.NextToken()
 	if tok.Type != token.T_BOOLEAN_OR {
@@ -43,7 +45,7 @@ func TestLexer_BooleanOr(t *testing.T) {
 	}
 }
 
-func TestLexer_Coalesce(t *testing.T) {
+func TestLexerCoalesce(t *testing.T) {
 	lex := New("??")
 	tok := lex.NextToken()
 	if tok.Type != token.T_COALESCE {
@@ -51,7 +53,7 @@ func TestLexer_Coalesce(t *testing.T) {
 	}
 }
 
-func TestLexer_CoalesceEqual(t *testing.T) {
+func TestLexerCoalesceEqual(t *testing.T) {
 	lex := New("??=")
 	tok := lex.NextToken()
 	if tok.Type != token.T_COALESCE_EQUAL {
@@ -59,7 +61,7 @@ func TestLexer_CoalesceEqual(t *testing.T) {
 	}
 }
 
-func TestLexer_Pipe(t *testing.T) {
+func TestLexerPipe(t *testing.T) {
 	lex := New("|")
 	tok := lex.NextToken()
 	if tok.Type != token.T_PIPE {
@@ -67,7 +69,7 @@ func TestLexer_Pipe(t *testing.T) {
 	}
 }
 
-func TestLexer_Question(t *testing.T) {
+func TestLexerQuestion(t *testing.T) {
 	lex := New("?")
 	tok := lex.NextToken()
 	if tok.Type != token.T_QUESTION {
@@ -75,7 +77,7 @@ func TestLexer_Question(t *testing.T) {
 	}
 }
 
-func TestLexer_IllegalToken(t *testing.T) {
+func TestLexerIllegalToken(t *testing.T) {
 	lex := New("\x01") // Non-printable, non-PHP token
 	tok := lex.NextToken()
 	if tok.Type != token.T_ILLEGAL {
@@ -83,7 +85,7 @@ func TestLexer_IllegalToken(t *testing.T) {
 	}
 }
 
-func TestHelper_isIdentifierStart(t *testing.T) {
+func TestHelperIsIdentifierStart(t *testing.T) {
 	if !isIdentifierStart('a') || !isIdentifierStart('_') {
 		t.Error("isIdentifierStart failed for valid identifier start")
 	}
@@ -92,7 +94,7 @@ func TestHelper_isIdentifierStart(t *testing.T) {
 	}
 }
 
-func TestHelper_isDigit(t *testing.T) {
+func TestHelperIsDigit(t *testing.T) {
 	if !isDigit('0') || !isDigit('9') {
 		t.Error("isDigit failed for digit")
 	}
@@ -101,7 +103,7 @@ func TestHelper_isDigit(t *testing.T) {
 	}
 }
 
-func TestLexer_StringEscapes(t *testing.T) {
+func TestLexerStringEscapes(t *testing.T) {
 	cases := []struct {
 		input    string
 		expected string
@@ -117,7 +119,7 @@ func TestLexer_StringEscapes(t *testing.T) {
 		lex := New(c.input)
 		tok := lex.NextToken()
 		if tok.Type != token.T_CONSTANT_STRING && tok.Type != token.T_CONSTANT_ENCAPSED_STRING {
-			t.Errorf("expected string token, got %v", tok.Type)
+			t.Errorf(expectedStringTokenMsg, tok.Type)
 		}
 		if tok.Literal != c.expected {
 			t.Errorf("expected %q, got %q", c.expected, tok.Literal)
@@ -125,7 +127,7 @@ func TestLexer_StringEscapes(t *testing.T) {
 	}
 }
 
-func TestLexer_FloatAndDot(t *testing.T) {
+func TestLexerFloatAndDot(t *testing.T) {
 	lex := New("1.23 . ...")
 	tok := lex.NextToken()
 	if tok.Type != token.T_DNUMBER || tok.Literal != "1.23" {
@@ -141,18 +143,18 @@ func TestLexer_FloatAndDot(t *testing.T) {
 	}
 }
 
-func TestLexer_Keywords(t *testing.T) {
+func TestLexerKeywords(t *testing.T) {
 	keywords := map[string]token.TokenType{
-		"echo": token.T_ECHO,
-		"new": token.T_NEW,
-		"private": token.T_PRIVATE,
-		"enum": token.T_ENUM,
-		"case": token.T_CASE,
-		"trait": token.T_TRAIT,
-		"callable": token.T_CALLABLE,
-		"true": token.T_TRUE,
-		"false": token.T_FALSE,
-		"null": token.T_NULL,
+		"echo":       token.T_ECHO,
+		"new":        token.T_NEW,
+		"private":    token.T_PRIVATE,
+		"enum":       token.T_ENUM,
+		"case":       token.T_CASE,
+		"trait":      token.T_TRAIT,
+		"callable":   token.T_CALLABLE,
+		"true":       token.T_TRUE,
+		"false":      token.T_FALSE,
+		"null":       token.T_NULL,
 		"instanceof": token.T_INSTANCEOF,
 		"implements": token.T_IMPLEMENTS,
 	}
@@ -165,7 +167,7 @@ func TestLexer_Keywords(t *testing.T) {
 	}
 }
 
-func TestLexer_Punctuation(t *testing.T) {
+func TestLexerPunctuation(t *testing.T) {
 	lex := New("]\\")
 	tok := lex.NextToken()
 	if tok.Type != token.T_RBRACKET {
@@ -177,12 +179,7 @@ func TestLexer_Punctuation(t *testing.T) {
 	}
 }
 
-
-
-
-
-
-func TestLexer_IdentifiersAndKeywords(t *testing.T) {
+func TestLexerIdentifiersAndKeywords(t *testing.T) {
 	cases := []struct {
 		input    string
 		typeWant token.TokenType
@@ -221,22 +218,21 @@ func TestLexer_IdentifiersAndKeywords(t *testing.T) {
 	}
 }
 
-func TestLexer_StringLiteral(t *testing.T) {
+func TestLexerStringLiteral(t *testing.T) {
 	input := `'foo\'bar' "baz\"qux"`
 	lex := New(input)
 	tok1 := lex.NextToken()
 	tok2 := lex.NextToken()
 	// Accept both T_CONSTANT_ENCAPSED_STRING and T_CONSTANT_STRING for compatibility
 	if tok1.Type != token.T_CONSTANT_ENCAPSED_STRING && tok1.Type != token.T_CONSTANT_STRING {
-		t.Errorf("expected string token, got %v", tok1.Type)
+		t.Errorf(expectedStringTokenMsg, tok1.Type)
 	}
 	if tok2.Type != token.T_CONSTANT_ENCAPSED_STRING && tok2.Type != token.T_CONSTANT_STRING {
-		t.Errorf("expected string token, got %v", tok2.Type)
+		t.Errorf(expectedStringTokenMsg, tok2.Type)
 	}
 }
 
-
-func TestLexer_NumberLiteral(t *testing.T) {
+func TestLexerNumberLiteral(t *testing.T) {
 	cases := []struct {
 		input    string
 		typeWant token.TokenType
@@ -264,7 +260,7 @@ func TestLexer_NumberLiteral(t *testing.T) {
 	}
 }
 
-func TestLexer_CommentModes(t *testing.T) {
+func TestLexerCommentModes(t *testing.T) {
 	lex := New("// line\n/* block */")
 	tok1 := lex.NextToken()
 	tok2 := lex.NextToken()
@@ -276,7 +272,7 @@ func TestLexer_CommentModes(t *testing.T) {
 	}
 }
 
-func TestLexer_Operators(t *testing.T) {
+func TestLexerOperators(t *testing.T) {
 	lex := New("+ - * /")
 	types := []token.TokenType{token.T_PLUS, token.T_MINUS, token.T_MULTIPLY, token.T_DIVIDE}
 	for _, want := range types {
@@ -287,16 +283,14 @@ func TestLexer_Operators(t *testing.T) {
 	}
 }
 
-
-
-func TestLexer_inStringMode(t *testing.T) {
+func TestLexerInStringMode(t *testing.T) {
 	lex := New("'foo'")
 	if lex.inStringMode() {
 		t.Error("expected inStringMode to be false at start")
 	}
 }
 
-func TestLexer_PeekToken(t *testing.T) {
+func TestLexerPeekToken(t *testing.T) {
 	lex := New("a")
 	tok1 := lex.PeekToken()
 	tok2 := lex.NextToken()
@@ -305,10 +299,7 @@ func TestLexer_PeekToken(t *testing.T) {
 	}
 }
 
-
-
-
-func TestLexer_EOF(t *testing.T) {
+func TestLexerEOF(t *testing.T) {
 	lex := New("")
 	tok := lex.NextToken()
 	if tok.Type != token.T_EOF {
@@ -316,7 +307,7 @@ func TestLexer_EOF(t *testing.T) {
 	}
 }
 
-func TestLexer_HeredocQueueAndNext(t *testing.T) {
+func TestLexerHeredocQueueAndNext(t *testing.T) {
 	lex := New("<<<EOD\nhello\nEOD\n")
 	lex.queueHeredocTokens(token.Position{Line: 1, Column: 1, Offset: 0})
 	t1 := lex.nextHeredocToken()
@@ -334,7 +325,7 @@ func TestLexer_HeredocQueueAndNext(t *testing.T) {
 }
 
 // Covers NextToken's heredocTokens path
-func TestLexer_NextToken_HeredocQueue(t *testing.T) {
+func TestLexerNextTokenHeredocQueue(t *testing.T) {
 	lex := New("")
 	lex.heredocTokens = []token.Token{
 		{Type: token.T_START_HEREDOC, Literal: "EOD", Pos: token.Position{Line: 1, Column: 1, Offset: 0}},
@@ -350,7 +341,7 @@ func TestLexer_NextToken_HeredocQueue(t *testing.T) {
 	}
 }
 
-func TestLexer_NextHeredocToken_EmptyQueue(t *testing.T) {
+func TestLexerNextHeredocTokenEmptyQueue(t *testing.T) {
 	lex := New("")
 	tok := lex.nextHeredocToken()
 	if tok.Type != token.T_ILLEGAL {
