@@ -10,6 +10,9 @@ func parseFullTypeHint(p *Parser) string {
 	parenLevel := 0
 	typeHintBuilder := strings.Builder{}
 	for {
+		if p.tok.Type == token.T_VARIABLE || p.tok.Type == token.T_COMMA || (p.tok.Type == token.T_RPAREN && parenLevel == 0) || p.tok.Type == token.T_ASSIGN || p.tok.Type == token.T_EOF {
+			break
+		}
 		if p.tok.Type == token.T_LPAREN {
 			parenLevel++
 			typeHintBuilder.WriteString("(")
@@ -20,9 +23,6 @@ func parseFullTypeHint(p *Parser) string {
 			parenLevel--
 			typeHintBuilder.WriteString(")")
 			p.nextToken()
-			if parenLevel == 0 && (p.tok.Type != token.T_PIPE && p.tok.Type != token.T_AMPERSAND) {
-				break
-			}
 			continue
 		}
 		if p.tok.Type == token.T_PIPE || p.tok.Type == token.T_AMPERSAND || p.tok.Type == token.T_QUESTION {
@@ -35,7 +35,6 @@ func parseFullTypeHint(p *Parser) string {
 			p.nextToken()
 			continue
 		}
-		// Stop if we hit the variable name or anything that can't be part of a type
 		break
 	}
 	return typeHintBuilder.String()

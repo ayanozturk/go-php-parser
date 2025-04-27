@@ -43,18 +43,10 @@ func (p *Parser) parseParameter() ast.Node {
 
 	// Parse type hint if present (support nullable type: ?Bar, union types: Foo|Bar, FQCNs, parenthesized types)
 	var typeHint string
-	if p.tok.Type == token.T_LPAREN {
+	if p.tok.Type == token.T_LPAREN || p.tok.Type == token.T_NS_SEPARATOR || p.tok.Type == token.T_STRING || p.tok.Type == token.T_CALLABLE || p.tok.Type == token.T_ARRAY || p.tok.Type == token.T_STATIC || p.tok.Type == token.T_SELF || p.tok.Type == token.T_PARENT || p.tok.Type == token.T_NEW || p.tok.Type == token.T_QUESTION || p.tok.Type == token.T_MIXED {
 		typeHint = parseFullTypeHint(p)
-	} else {
-		switch p.tok.Type {
-		case token.T_NS_SEPARATOR, token.T_STRING, token.T_CALLABLE, token.T_ARRAY, token.T_STATIC, token.T_SELF, token.T_PARENT, token.T_NEW, token.T_QUESTION, token.T_MIXED:
-			typeHint = p.parseTypeHint()
-		default:
-			// Also allow literal backslash for robustness
-			if p.tok.Literal == "\\" {
-				typeHint = p.parseTypeHint()
-			}
-		}
+	} else if p.tok.Literal == "\\" {
+		typeHint = parseFullTypeHint(p)
 	}
 
 	// After type hint, skip whitespace/comments before checking for & or ... or $var
@@ -111,7 +103,7 @@ func (p *Parser) parseParameter() ast.Node {
 		break
 	}
 
-	return &ast.ParamNode{
+	paramNode := &ast.ParamNode{
 		Name:         name,
 		TypeHint:     typeHint,
 		DefaultValue: defaultValue,
@@ -121,4 +113,47 @@ func (p *Parser) parseParameter() ast.Node {
 		IsByRef:      isByRef,
 		Pos:          ast.Position(pos),
 	}
+	// Attach AST node for union/intersection/single type
+	typeNode := parseTypeHintAST(typeHint, ast.Position(pos))
+	switch t := typeNode.(type) {
+	case *ast.UnionTypeNode:
+		paramNode.UnionType = t
+	case *ast.IntersectionTypeNode:
+		paramNode.IntersectionType = t
+	}
+	return paramNode
+}
+
+// parseTypeHintAST parses a type hint string and returns the appropriate AST node (IdentifierNode, UnionTypeNode, IntersectionTypeNode)
+func parseTypeHintAST(typeHint string, pos ast.Position) ast.Node {
+	typeHint = strings.TrimSpace(typeHint)
+	if typeHint == "" {
+		return nil
+	}
+	// Intersection type (has & and not |)
+	if strings.Contains(typeHint, "&") && !strings.Contains(typeHint, "|") {
+		parts := strings.Split(typeHint, "&")
+		var types []string
+		for _, part := range parts {
+			t := strings.TrimSpace(part)
+			if t != "" {
+				types = append(types, t)
+			}
+		}
+		return &ast.IntersectionTypeNode{Types: types, Pos: pos}
+	}
+	// Union type (has |)
+	if strings.Contains(typeHint, "|") {
+		parts := strings.Split(typeHint, "|")
+		var types []string
+		for _, part := range parts {
+			t := strings.TrimSpace(part)
+			if t != "" {
+				types = append(types, t)
+			}
+		}
+		return &ast.UnionTypeNode{Types: types, Pos: pos}
+	}
+	// Single type
+	return &ast.IdentifierNode{Value: typeHint, Pos: pos}
 }
