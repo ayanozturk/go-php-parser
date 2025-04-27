@@ -564,9 +564,34 @@ func (l *Lexer) queueHeredocTokens(pos token.Position) {
 	l.readChar() // consume second <
 	l.readChar() // consume third <
 	l.skipWhitespace()
-	// Read heredoc/nowdoc identifier (quoted or unquoted)
-	var identifier string
-	var isNowdoc bool
+
+	identifier, isNowdoc := l.readHeredocIdentifier()
+	if identifier == "" {
+		l.heredocTokens = []token.Token{{Type: token.T_ILLEGAL, Literal: "Missing heredoc/nowdoc identifier", Pos: pos}}
+		return
+	}
+
+	startType := token.T_START_HEREDOC
+	if isNowdoc {
+		startType = token.T_START_NOWDOC
+	}
+	startToken := token.Token{Type: startType, Literal: identifier, Pos: pos}
+
+	l.skipToNextLine()
+
+	body := l.readHeredocBody(identifier)
+	bodyToken := token.Token{Type: token.T_ENCAPSED_AND_WHITESPACE, Literal: body, Pos: pos}
+
+	endType := token.T_END_HEREDOC
+	if isNowdoc {
+		endType = token.T_END_NOWDOC
+	}
+	endToken := token.Token{Type: endType, Literal: identifier, Pos: pos}
+
+	l.heredocTokens = []token.Token{startToken, bodyToken, endToken}
+}
+
+func (l *Lexer) readHeredocIdentifier() (string, bool) {
 	if l.char == '\'' || l.char == '"' {
 		quote := l.char
 		l.readChar() // consume opening quote
@@ -574,91 +599,72 @@ func (l *Lexer) queueHeredocTokens(pos token.Position) {
 		for l.char != quote && l.char != 0 {
 			l.readChar()
 		}
-		identifier = l.input[start:l.pos]
-		isNowdoc = (quote == '\'')
+		identifier := l.input[start:l.pos]
+		isNowdoc := (quote == '\'')
 		if l.char == quote {
 			l.readChar() // consume closing quote
 		}
-	} else {
-		start := l.pos
-		for isLetter(l.char) || isDigit(l.char) || l.char == '_' {
-			l.readChar()
-		}
-		identifier = l.input[start:l.pos]
-		isNowdoc = false
+		return identifier, isNowdoc
 	}
-	if identifier == "" {
-		l.heredocTokens = []token.Token{{Type: token.T_ILLEGAL, Literal: "Missing heredoc/nowdoc identifier", Pos: pos}}
-		return
+	start := l.pos
+	for isLetter(l.char) || isDigit(l.char) || l.char == '_' {
+		l.readChar()
 	}
-	// Emit start heredoc/nowdoc token
-	startType := token.T_START_HEREDOC
-	if isNowdoc {
-		startType = token.T_START_NOWDOC
-	}
-	startToken := token.Token{Type: startType, Literal: identifier, Pos: pos}
-	// Skip to next line
+	identifier := l.input[start:l.pos]
+	return identifier, false
+}
+
+func (l *Lexer) skipToNextLine() {
 	for l.char != '\n' && l.char != 0 {
 		l.readChar()
 	}
 	if l.char == '\n' {
 		l.readChar()
 	}
-	// Read heredoc/nowdoc body (Unicode-aware)
+}
+
+func (l *Lexer) readHeredocBody(identifier string) string {
 	identifierRunes := []rune(identifier)
 	inputRunes := []rune(l.input)
 	bodyStart := l.pos
 	bodyEnd := -1
 	for l.char != 0 {
 		lineStart := l.pos
-		// Check for ending identifier at start of line
-		if l.char == identifierRunes[0] {
-			match := true
-			for i := 0; i < len(identifierRunes); i++ {
-				if l.pos+i >= len(inputRunes) || inputRunes[l.pos+i] != identifierRunes[i] {
-					match = false
-					break
-				}
+		if l.isEndOfHeredocLine(identifierRunes, inputRunes) {
+			bodyEnd = lineStart
+			l.pos += len(identifierRunes)
+			l.readPos = l.pos
+			if l.pos > 0 && l.pos-1 < len(inputRunes) {
+				l.char = inputRunes[l.pos-1]
+			} else {
+				l.char = 0
 			}
-			if match {
-				var nextChar rune
-				if l.pos+len(identifierRunes) < len(inputRunes) {
-					nextChar = inputRunes[l.pos+len(identifierRunes)]
-				} else {
-					nextChar = 0
-				}
-				if nextChar == '\n' || nextChar == ';' || nextChar == 0 {
-					bodyEnd = lineStart
-					l.pos += len(identifierRunes)
-					l.readPos = l.pos
-					if l.pos > 0 && l.pos-1 < len(inputRunes) {
-						l.char = inputRunes[l.pos-1]
-					} else {
-						l.char = 0
-					}
-					break
-				}
-			}
+			break
 		}
-		// Skip to next line
-		for l.char != '\n' && l.char != 0 {
-			l.readChar()
-		}
-		if l.char == '\n' {
-			l.readChar()
-		}
+		l.skipToNextLine()
 	}
 	if bodyEnd == -1 {
 		bodyEnd = l.pos
 	}
-	body := l.input[bodyStart:bodyEnd]
-	bodyToken := token.Token{Type: token.T_ENCAPSED_AND_WHITESPACE, Literal: body, Pos: pos}
-	endType := token.T_END_HEREDOC
-	if isNowdoc {
-		endType = token.T_END_NOWDOC
+	return l.input[bodyStart:bodyEnd]
+}
+
+func (l *Lexer) isEndOfHeredocLine(identifierRunes, inputRunes []rune) bool {
+	if l.char != identifierRunes[0] {
+		return false
 	}
-	endToken := token.Token{Type: endType, Literal: identifier, Pos: pos}
-	l.heredocTokens = []token.Token{startToken, bodyToken, endToken}
+	for i := 0; i < len(identifierRunes); i++ {
+		if l.pos+i >= len(inputRunes) || inputRunes[l.pos+i] != identifierRunes[i] {
+			return false
+		}
+	}
+	var nextChar rune
+	if l.pos+len(identifierRunes) < len(inputRunes) {
+		nextChar = inputRunes[l.pos+len(identifierRunes)]
+	} else {
+		nextChar = 0
+	}
+	return nextChar == '\n' || nextChar == ';' || nextChar == 0
 }
 
 // PeekToken returns the next token without consuming it
