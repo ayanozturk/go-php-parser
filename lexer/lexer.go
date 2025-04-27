@@ -149,414 +149,322 @@ func (l *Lexer) readIdentifier() string {
 }
 
 func (l *Lexer) NextToken() token.Token {
-	// If we have heredoc tokens queued, emit them first
 	if len(l.heredocTokens) > 0 {
 		return l.nextHeredocToken()
 	}
-	var tok token.Token
-
 	l.skipWhitespace()
+	pos := token.Position{Line: l.line, Column: l.column, Offset: l.pos}
 
-	pos := token.Position{
-		Line:   l.line,
-		Column: l.column,
-		Offset: l.pos,
-	}
-
-	// PHP 8 attribute: #[...]
+	// Attributes
 	if l.char == '#' && l.peekChar() == '[' {
-		startPos := l.pos
-		startLine := l.line
-		startCol := l.column
-		l.readChar() // consume '#'
-		l.readChar() // consume '['
-		depth := 1
-		for l.char != 0 && depth > 0 {
-			if l.char == '[' {
-				depth++
-			} else if l.char == ']' {
-				depth--
-			}
-			l.readChar()
-		}
-		endPos := l.pos
-		attrLiteral := l.input[startPos:endPos]
-		return token.Token{
-			Type:    token.T_ATTRIBUTE,
-			Literal: attrLiteral,
-			Pos:     token.Position{Line: startLine, Column: startCol, Offset: startPos},
-		}
+		return l.lexAttribute(pos)
 	}
 
 	switch l.char {
 	case '?':
-		// PHP 8: nullsafe object operator
-		if l.peekChar() == '-' && l.readPos+1 < len(l.input) && l.input[l.readPos+1] == '>' {
-			l.readChar() // consume ?
-			l.readChar() // consume -
-			l.readChar() // consume >
-			return token.Token{Type: token.T_NULLSAFE_OBJECT_OPERATOR, Literal: "?->", Pos: pos}
-		}
-		if l.peekChar() == '?' {
-			l.readChar() // consume first ?
-			if l.peekChar() == '=' {
-				l.readChar() // consume second ?
-				l.readChar() // consume =
-				return token.Token{Type: token.T_COALESCE_EQUAL, Literal: "??=", Pos: pos}
-			} else {
-				l.readChar() // consume second ?
-				return token.Token{Type: token.T_COALESCE, Literal: "??", Pos: pos}
-			}
-		}
-		tok = token.Token{Type: token.T_QUESTION, Literal: string(l.char), Pos: pos}
-		l.readChar()
-		return tok
+		return l.lexQuestion(pos)
 	case 0:
 		return token.Token{Type: token.T_EOF, Literal: "", Pos: pos}
+	case '+', '-', '*', '/', '|', '>', '<', '$', '=', '(', ')', '{', '}', ';', ',', '&', '.', '"', '\'', '\\', ':', '[', ']', '!':
+		return l.lexSymbol(pos)
+	}
+
+	if isLetter(l.char) {
+		return l.lexIdentifier(pos)
+	}
+	if isDigit(l.char) {
+		return l.lexNumber(pos)
+	}
+
+	tok := token.Token{Type: token.T_ILLEGAL, Literal: string(l.char), Pos: pos}
+	l.readChar()
+	return tok
+}
+
+// --- Helper methods for NextToken ---
+
+func (l *Lexer) lexAttribute(pos token.Position) token.Token {
+	startPos := l.pos
+	startLine := l.line
+	startCol := l.column
+	l.readChar() // '#'
+	l.readChar() // '['
+	depth := 1
+	for l.char != 0 && depth > 0 {
+		if l.char == '[' {
+			depth++
+		} else if l.char == ']' {
+			depth--
+		}
+		l.readChar()
+	}
+	endPos := l.pos
+	attrLiteral := l.input[startPos:endPos]
+	return token.Token{Type: token.T_ATTRIBUTE, Literal: attrLiteral, Pos: token.Position{Line: startLine, Column: startCol, Offset: startPos}}
+}
+
+func (l *Lexer) lexQuestion(pos token.Position) token.Token {
+	if l.peekChar() == '-' && l.readPos+1 < len(l.input) && l.input[l.readPos+1] == '>' {
+		l.readChar()
+		l.readChar()
+		l.readChar()
+		return token.Token{Type: token.T_NULLSAFE_OBJECT_OPERATOR, Literal: "?->", Pos: pos}
+	}
+	if l.peekChar() == '?' {
+		l.readChar()
+		if l.peekChar() == '=' {
+			l.readChar()
+			l.readChar()
+			return token.Token{Type: token.T_COALESCE_EQUAL, Literal: "??=", Pos: pos}
+		}
+		l.readChar()
+		return token.Token{Type: token.T_COALESCE, Literal: "??", Pos: pos}
+	}
+	tok := token.Token{Type: token.T_QUESTION, Literal: string(l.char), Pos: pos}
+	l.readChar()
+	return tok
+}
+
+func (l *Lexer) lexSymbol(pos token.Position) token.Token {
+	switch l.char {
 	case '+':
 		if l.peekChar() == '=' {
-			l.readChar() // consume '+'
-			l.readChar() // consume '='
+			l.readChar()
+			l.readChar()
 			return token.Token{Type: token.T_PLUS_EQUAL, Literal: "+=", Pos: pos}
 		}
-		tok = token.Token{Type: token.T_PLUS, Literal: string(l.char), Pos: pos}
+		tok := token.Token{Type: token.T_PLUS, Literal: string(l.char), Pos: pos}
 		l.readChar()
 		return tok
 	case '-':
 		if l.peekChar() == '>' {
-			l.readChar() // consume -
-			l.readChar() // consume >
+			l.readChar()
+			l.readChar()
 			return token.Token{Type: token.T_OBJECT_OPERATOR, Literal: "->", Pos: pos}
 		}
-		tok = token.Token{Type: token.T_MINUS, Literal: string(l.char), Pos: pos}
+		tok := token.Token{Type: token.T_MINUS, Literal: string(l.char), Pos: pos}
 		l.readChar()
 		return tok
 	case '*':
-		tok = token.Token{Type: token.T_MULTIPLY, Literal: string(l.char), Pos: pos}
+		tok := token.Token{Type: token.T_MULTIPLY, Literal: string(l.char), Pos: pos}
 		l.readChar()
 		return tok
 	case '/':
-		if l.peekChar() == '/' {
-			l.readChar() // consume second /
-			comment := l.readLineComment()
-			return token.Token{Type: token.T_COMMENT, Literal: comment, Pos: pos}
-		} else if l.peekChar() == '*' {
-			l.readChar() // consume *
-			if l.peekChar() == '*' {
-				l.readChar()                                // consume second *
-				comment := "/**" + l.readBlockComment()[2:] // include both asterisks
-				return token.Token{Type: token.T_DOC_COMMENT, Literal: comment, Pos: pos}
-			}
-			comment := l.readBlockComment()
-			return token.Token{Type: token.T_COMMENT, Literal: comment, Pos: pos}
-		} else {
-			tok = token.Token{Type: token.T_DIVIDE, Literal: string(l.char), Pos: pos}
-			l.readChar()
-			return tok
-		}
-
-		tok = token.Token{Type: token.T_QUESTION, Literal: string(l.char), Pos: pos}
-		l.readChar()
-		return tok
+		return l.lexSlash(pos)
 	case '|':
 		if l.peekChar() == '|' {
-			l.readChar() // consume first |
-			l.readChar() // consume second |
+			l.readChar()
+			l.readChar()
 			return token.Token{Type: token.T_BOOLEAN_OR, Literal: "||", Pos: pos}
 		}
-		tok = token.Token{Type: token.T_PIPE, Literal: string(l.char), Pos: pos}
+		tok := token.Token{Type: token.T_PIPE, Literal: string(l.char), Pos: pos}
 		l.readChar()
 		return tok
 	case '>':
 		if l.peekChar() == '=' {
-			l.readChar() // consume '>'
-			l.readChar() // consume '='
+			l.readChar()
+			l.readChar()
 			return token.Token{Type: token.T_IS_GREATER_OR_EQUAL, Literal: ">=", Pos: pos}
 		}
-		tok = token.Token{Type: token.T_IS_GREATER, Literal: string(l.char), Pos: pos}
+		tok := token.Token{Type: token.T_IS_GREATER, Literal: string(l.char), Pos: pos}
 		l.readChar()
 		return tok
 	case '<':
-		if l.peekChar() == '=' {
-			l.readChar() // consume '<'
-			l.readChar() // consume '='
-			return token.Token{Type: token.T_IS_SMALLER_OR_EQUAL, Literal: "<=", Pos: pos}
-		}
-		// Heredoc detection
-		if l.peekChar() == '<' && l.input[l.readPos+1] == '<' {
-			l.readChar() // consume first <
-			l.readChar() // consume second <
-			l.readChar() // consume third <
-			l.skipWhitespace()
-			// Read heredoc/nowdoc identifier (quoted or unquoted)
-			var identifier string
-			if l.char == '\'' || l.char == '"' {
-				quote := l.char
-				l.readChar() // consume opening quote
-				start := l.pos
-				for l.char != quote && l.char != 0 {
-					l.readChar()
-				}
-				identifier = l.input[start:l.pos]
-				if l.char == quote {
-					l.readChar() // consume closing quote
-				}
-			} else {
-				start := l.pos
-				for isLetter(l.char) || isDigit(l.char) || l.char == '_' {
-					l.readChar()
-				}
-				identifier = l.input[start:l.pos]
-			}
-			if identifier == "" {
-				return token.Token{Type: token.T_ILLEGAL, Literal: "Missing heredoc/nowdoc identifier", Pos: pos}
-			}
-			// Skip to next line after identifier
-			for l.char != '\n' && l.char != 0 {
-				l.readChar()
-			}
-			if l.char == '\n' {
-				l.readChar()
-			}
-			bodyStart := l.pos
-			bodyEnd := -1
-			for l.char != 0 {
-				lineStart := l.pos
-				// Only match ending identifier if it's at the start of a line
-				identifierRunes := []rune(identifier)
-				if l.char == identifierRunes[0] {
-					match := true
-					inputRunes := []rune(l.input)
-					for i := 0; i < len(identifierRunes); i++ {
-						if l.pos+i >= len(inputRunes) || inputRunes[l.pos+i] != identifierRunes[i] {
-							match = false
-							break
-						}
-					}
-					if match {
-						var nextChar rune
-						if l.pos+len(identifierRunes) < len(inputRunes) {
-							nextChar = inputRunes[l.pos+len(identifierRunes)]
-						} else {
-							nextChar = 0
-						}
-						if nextChar == '\n' || nextChar == ';' || nextChar == 0 {
-							bodyEnd = lineStart
-							// Advance lexer past ending identifier
-							for i := 0; i < len(identifier); i++ {
-								l.readChar()
-							}
-							// If next char is semicolon, skip it
-							if l.char == ';' {
-								l.readChar()
-							}
-							// If next char is newline, skip it
-							if l.char == '\n' {
-								l.readChar()
-							}
-							break
-						}
-					}
-				}
-				// Skip to next line
-				for l.char != '\n' && l.char != 0 {
-					l.readChar()
-				}
-				if l.char == '\n' {
-					l.readChar()
-				}
-			}
-			if bodyEnd == -1 {
-				bodyEnd = l.pos
-			}
-			body := l.input[bodyStart:bodyEnd]
-			return token.Token{Type: token.T_ENCAPSED_AND_WHITESPACE, Literal: body, Pos: pos}
-		}
-		// Open tag detection
-		if l.peekChar() == '?' {
-			l.readChar() // consume ?
-			if l.peekChar() == 'p' {
-				l.readChar()
-				if l.peekChar() == 'h' {
-					l.readChar()
-					if l.peekChar() == 'p' {
-						l.readChar()
-						l.readChar() // consume last char
-						return token.Token{Type: token.T_OPEN_TAG, Literal: "<?php", Pos: pos}
-					}
-				}
-				// If none of the above, emit T_IS_SMALLER for single '<'
-				tok = token.Token{Type: token.T_IS_SMALLER, Literal: string(l.char), Pos: pos}
-				l.readChar()
-				return tok
-			}
-		}
-		// If none of the above, emit T_IS_SMALLER for single '<'
-		tok = token.Token{Type: token.T_IS_SMALLER, Literal: string(l.char), Pos: pos}
-		l.readChar()
-		return tok
+		return l.lexLess(pos)
 	case '$':
 		l.readChar()
 		if isLetter(l.char) {
-			tok = token.Token{
-				Type:    token.T_VARIABLE,
-				Literal: "$" + l.readIdentifier(),
-				Pos:     pos,
-			}
-			return tok
+			return token.Token{Type: token.T_VARIABLE, Literal: "$" + l.readIdentifier(), Pos: pos}
 		}
 	case '=':
-		// Longest match first: ===, ==, =>
-		if l.peekChar() == '=' && l.input[l.readPos+1] == '=' {
-			// ===
-			l.readChar() // consume first =
-			l.readChar() // consume second =
-			l.readChar() // consume third =
-			return token.Token{Type: token.T_IS_IDENTICAL, Literal: "===", Pos: pos}
-		} else if l.peekChar() == '=' {
-			// ==
-			l.readChar() // consume first =
-			l.readChar() // consume second =
-			return token.Token{Type: token.T_IS_EQUAL, Literal: "==", Pos: pos}
-		} else if l.peekChar() == '>' {
-			// =>
-			ch := l.char
-			l.readChar()
-			tok = token.Token{Type: token.T_DOUBLE_ARROW, Literal: string(ch) + string(l.char), Pos: pos}
-			l.readChar()
-			return tok
-		} else {
-			tok = token.Token{Type: token.T_ASSIGN, Literal: string(l.char), Pos: pos}
-			l.readChar()
-			return tok
-		}
+		return l.lexEquals(pos)
 	case '(':
-		tok = token.Token{Type: token.T_LPAREN, Literal: string(l.char), Pos: pos}
+		tok := token.Token{Type: token.T_LPAREN, Literal: string(l.char), Pos: pos}
 		l.readChar()
 		return tok
 	case ')':
-		tok = token.Token{Type: token.T_RPAREN, Literal: string(l.char), Pos: pos}
+		tok := token.Token{Type: token.T_RPAREN, Literal: string(l.char), Pos: pos}
 		l.readChar()
 		return tok
 	case '{':
-		tok = token.Token{Type: token.T_LBRACE, Literal: string(l.char), Pos: pos}
+		tok := token.Token{Type: token.T_LBRACE, Literal: string(l.char), Pos: pos}
 		l.readChar()
 		return tok
 	case '}':
-		tok = token.Token{Type: token.T_RBRACE, Literal: string(l.char), Pos: pos}
+		tok := token.Token{Type: token.T_RBRACE, Literal: string(l.char), Pos: pos}
 		l.readChar()
 		return tok
 	case ';':
-		tok = token.Token{Type: token.T_SEMICOLON, Literal: string(l.char), Pos: pos}
+		tok := token.Token{Type: token.T_SEMICOLON, Literal: string(l.char), Pos: pos}
 		l.readChar()
 		return tok
 	case ',':
-		tok = token.Token{Type: token.T_COMMA, Literal: string(l.char), Pos: pos}
+		tok := token.Token{Type: token.T_COMMA, Literal: string(l.char), Pos: pos}
 		l.readChar()
 		return tok
 	case '&':
-		tok = token.Token{Type: token.T_AMPERSAND, Literal: string(l.char), Pos: pos}
+		tok := token.Token{Type: token.T_AMPERSAND, Literal: string(l.char), Pos: pos}
 		l.readChar()
 		return tok
 	case '.':
 		if l.peekChar() == '.' && l.input[l.readPos+1] == '.' {
-			l.readChar() // consume second .
-			l.readChar() // consume third .
-			tok = token.Token{Type: token.T_ELLIPSIS, Literal: "...", Pos: pos}
+			l.readChar()
+			l.readChar()
+			tok := token.Token{Type: token.T_ELLIPSIS, Literal: "...", Pos: pos}
 			l.readChar()
 			return tok
 		}
-		// Emit dot operator for string concatenation
-		tok = token.Token{Type: token.T_DOT, Literal: string(l.char), Pos: pos}
+		tok := token.Token{Type: token.T_DOT, Literal: string(l.char), Pos: pos}
 		l.readChar()
 		return tok
 	case '"':
-		l.inString = true // Enter string mode
-		l.readChar()      // consume opening quote
+		l.inString = true
+		l.readChar()
 		str := l.readString('"')
-		l.readChar()       // consume closing quote
-		l.inString = false // Exit string mode
+		l.readChar()
+		l.inString = false
 		return token.Token{Type: token.T_CONSTANT_ENCAPSED_STRING, Literal: str, Pos: pos}
 	case '\'':
-		l.inString = true // Enter string mode
-		l.readChar()      // consume opening quote
+		l.inString = true
+		l.readChar()
 		str := l.readString('\'')
-		l.readChar()       // consume closing quote
-		l.inString = false // Exit string mode
+		l.readChar()
+		l.inString = false
 		return token.Token{Type: token.T_CONSTANT_STRING, Literal: str, Pos: pos}
 	case '\\':
 		if l.inStringMode() {
-			// Inside a string, treat as escape
 			tok := token.Token{Type: token.T_BACKSLASH, Literal: string(l.char), Pos: pos}
 			l.readChar()
 			return tok
-		} else if isIdentifierStart(l.peekChar()) {
-			// In code, and next is identifier, treat as namespace separator
+		}
+		if isIdentifierStart(l.peekChar()) {
 			tok := token.Token{Type: token.T_NS_SEPARATOR, Literal: string(l.char), Pos: pos}
 			l.readChar()
 			return tok
-		} else {
-			// Default fallback
-			tok := token.Token{Type: token.T_BACKSLASH, Literal: string(l.char), Pos: pos}
-			l.readChar()
-			return tok
 		}
+		tok := token.Token{Type: token.T_BACKSLASH, Literal: string(l.char), Pos: pos}
+		l.readChar()
+		return tok
 	case ':':
 		if l.peekChar() == ':' {
-			l.readChar() // consume first :
-			l.readChar() // consume second :
-
-			// Check if "class" follows "::"
+			l.readChar()
+			l.readChar()
 			if l.peekChar() == 'c' && strings.HasPrefix(l.input[l.readPos:], "class") {
-				l.readChar() // consume 'c'
-				l.readChar() // consume 'l'
-				l.readChar() // consume 'a'
-				l.readChar() // consume 's'
-				l.readChar() // consume 's'
+				l.readChar()
+				l.readChar()
+				l.readChar()
+				l.readChar()
+				l.readChar()
 				return token.Token{Type: token.T_CLASS_CONST, Literal: "::class", Pos: pos}
 			}
-
 			return token.Token{Type: token.T_DOUBLE_COLON, Literal: "::", Pos: pos}
-		} else {
-			tok = token.Token{Type: token.T_COLON, Literal: string(l.char), Pos: pos}
-			l.readChar()
-			return tok
 		}
+		tok := token.Token{Type: token.T_COLON, Literal: string(l.char), Pos: pos}
+		l.readChar()
+		return tok
 	case '[':
-		tok = token.Token{Type: token.T_LBRACKET, Literal: string(l.char), Pos: pos}
+		tok := token.Token{Type: token.T_LBRACKET, Literal: string(l.char), Pos: pos}
 		l.readChar()
 		return tok
 	case ']':
-		tok = token.Token{Type: token.T_RBRACKET, Literal: string(l.char), Pos: pos}
+		tok := token.Token{Type: token.T_RBRACKET, Literal: string(l.char), Pos: pos}
 		l.readChar()
 		return tok
 	case '!':
-		tok = token.Token{Type: token.T_NOT, Literal: string(l.char), Pos: pos}
+		tok := token.Token{Type: token.T_NOT, Literal: string(l.char), Pos: pos}
 		l.readChar()
 		return tok
 	}
+	return token.Token{Type: token.T_ILLEGAL, Literal: string(l.char), Pos: pos}
+}
 
-	if isLetter(l.char) {
-		ident := l.readIdentifier()
-
-		return LookupKeyword(ident, pos)
-	}
-
-	if isDigit(l.char) {
-		num, isFloat := l.readNumber()
-		if isFloat {
-			return token.Token{Type: token.T_DNUMBER, Literal: num, Pos: pos}
+func (l *Lexer) lexSlash(pos token.Position) token.Token {
+	if l.peekChar() == '/' {
+		l.readChar()
+		comment := l.readLineComment()
+		return token.Token{Type: token.T_COMMENT, Literal: comment, Pos: pos}
+	} else if l.peekChar() == '*' {
+		l.readChar()
+		if l.peekChar() == '*' {
+			l.readChar()
+			comment := "/**" + l.readBlockComment()[2:]
+			return token.Token{Type: token.T_DOC_COMMENT, Literal: comment, Pos: pos}
 		}
-		return token.Token{Type: token.T_LNUMBER, Literal: num, Pos: pos}
+		comment := l.readBlockComment()
+		return token.Token{Type: token.T_COMMENT, Literal: comment, Pos: pos}
 	}
-
-	tok = token.Token{
-		Type:    token.T_ILLEGAL,
-		Literal: string(l.char),
-		Pos:     pos,
-	}
+	tok := token.Token{Type: token.T_DIVIDE, Literal: string(l.char), Pos: pos}
 	l.readChar()
 	return tok
+}
+
+func (l *Lexer) lexLess(pos token.Position) token.Token {
+	if l.peekChar() == '=' {
+		l.readChar()
+		l.readChar()
+		return token.Token{Type: token.T_IS_SMALLER_OR_EQUAL, Literal: "<=", Pos: pos}
+	}
+	if l.peekChar() == '<' && l.input[l.readPos+1] == '<' {
+		l.queueHeredocTokens(pos)
+		return l.nextHeredocToken()
+	}
+	if l.peekChar() == '?' {
+		l.readChar()
+		if l.peekChar() == 'p' {
+			l.readChar()
+			if l.peekChar() == 'h' {
+				l.readChar()
+				if l.peekChar() == 'p' {
+					l.readChar()
+					l.readChar()
+					return token.Token{Type: token.T_OPEN_TAG, Literal: "<?php", Pos: pos}
+				}
+			}
+		}
+		tok := token.Token{Type: token.T_IS_SMALLER, Literal: string(l.char), Pos: pos}
+		l.readChar()
+		return tok
+	}
+	tok := token.Token{Type: token.T_IS_SMALLER, Literal: string(l.char), Pos: pos}
+	l.readChar()
+	return tok
+}
+
+func (l *Lexer) lexEquals(pos token.Position) token.Token {
+	if l.peekChar() == '=' && l.input[l.readPos+1] == '=' {
+		l.readChar()
+		l.readChar()
+		l.readChar()
+		return token.Token{Type: token.T_IS_IDENTICAL, Literal: "===", Pos: pos}
+	}
+	if l.peekChar() == '=' {
+		l.readChar()
+		l.readChar()
+		return token.Token{Type: token.T_IS_EQUAL, Literal: "==", Pos: pos}
+	}
+	if l.peekChar() == '>' {
+		ch := l.char
+		l.readChar()
+		tok := token.Token{Type: token.T_DOUBLE_ARROW, Literal: string(ch) + string(l.char), Pos: pos}
+		l.readChar()
+		return tok
+	}
+	tok := token.Token{Type: token.T_ASSIGN, Literal: string(l.char), Pos: pos}
+	l.readChar()
+	return tok
+}
+
+func (l *Lexer) lexIdentifier(pos token.Position) token.Token {
+	ident := l.readIdentifier()
+	return LookupKeyword(ident, pos)
+}
+
+func (l *Lexer) lexNumber(pos token.Position) token.Token {
+	num, isFloat := l.readNumber()
+	if isFloat {
+		return token.Token{Type: token.T_DNUMBER, Literal: num, Pos: pos}
+	}
+	return token.Token{Type: token.T_LNUMBER, Literal: num, Pos: pos}
 }
 
 func (l *Lexer) readLineComment() string {
@@ -633,18 +541,39 @@ func (l *Lexer) queueHeredocTokens(pos token.Position) {
 	l.readChar() // consume second <
 	l.readChar() // consume third <
 	l.skipWhitespace()
-	// Read heredoc identifier
-	start := l.pos
-	for isLetter(l.char) || isDigit(l.char) || l.char == '_' {
-		l.readChar()
+	// Read heredoc/nowdoc identifier (quoted or unquoted)
+	var identifier string
+	var isNowdoc bool
+	if l.char == '\'' || l.char == '"' {
+		quote := l.char
+		l.readChar() // consume opening quote
+		start := l.pos
+		for l.char != quote && l.char != 0 {
+			l.readChar()
+		}
+		identifier = l.input[start:l.pos]
+		isNowdoc = (quote == '\'')
+		if l.char == quote {
+			l.readChar() // consume closing quote
+		}
+	} else {
+		start := l.pos
+		for isLetter(l.char) || isDigit(l.char) || l.char == '_' {
+			l.readChar()
+		}
+		identifier = l.input[start:l.pos]
+		isNowdoc = false
 	}
-	identifier := l.input[start:l.pos]
 	if identifier == "" {
-		l.heredocTokens = []token.Token{{Type: token.T_ILLEGAL, Literal: "Missing heredoc identifier", Pos: pos}}
+		l.heredocTokens = []token.Token{{Type: token.T_ILLEGAL, Literal: "Missing heredoc/nowdoc identifier", Pos: pos}}
 		return
 	}
-	// Emit start heredoc token
-	startHeredocToken := token.Token{Type: token.T_START_HEREDOC, Literal: identifier, Pos: pos}
+	// Emit start heredoc/nowdoc token
+	startType := token.T_START_HEREDOC
+	if isNowdoc {
+		startType = token.T_START_NOWDOC
+	}
+	startToken := token.Token{Type: startType, Literal: identifier, Pos: pos}
 	// Skip to next line
 	for l.char != '\n' && l.char != 0 {
 		l.readChar()
@@ -652,7 +581,7 @@ func (l *Lexer) queueHeredocTokens(pos token.Position) {
 	if l.char == '\n' {
 		l.readChar()
 	}
-	// Read heredoc body (Unicode-aware)
+	// Read heredoc/nowdoc body (Unicode-aware)
 	identifierRunes := []rune(identifier)
 	inputRunes := []rune(l.input)
 	bodyStart := l.pos
@@ -700,12 +629,13 @@ func (l *Lexer) queueHeredocTokens(pos token.Position) {
 		bodyEnd = l.pos
 	}
 	body := l.input[bodyStart:bodyEnd]
-	// Emit heredoc body as string (no interpolation)
 	bodyToken := token.Token{Type: token.T_ENCAPSED_AND_WHITESPACE, Literal: body, Pos: pos}
-	// Emit end heredoc token
-	endHeredocToken := token.Token{Type: token.T_END_HEREDOC, Literal: identifier, Pos: pos}
-	// Queue tokens
-	l.heredocTokens = []token.Token{startHeredocToken, bodyToken, endHeredocToken}
+	endType := token.T_END_HEREDOC
+	if isNowdoc {
+		endType = token.T_END_NOWDOC
+	}
+	endToken := token.Token{Type: endType, Literal: identifier, Pos: pos}
+	l.heredocTokens = []token.Token{startToken, bodyToken, endToken}
 }
 
 // PeekToken returns the next token without consuming it

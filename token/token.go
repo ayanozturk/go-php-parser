@@ -185,6 +185,8 @@ const (
 	// Heredoc/Nowdoc
 	T_START_HEREDOC            TokenType = "T_START_HEREDOC"
 	T_END_HEREDOC              TokenType = "T_END_HEREDOC"
+	T_START_NOWDOC             TokenType = "T_START_NOWDOC"
+	T_END_NOWDOC               TokenType = "T_END_NOWDOC"
 	T_DOLLAR_OPEN_CURLY_BRACES TokenType = "T_DOLLAR_OPEN_CURLY_BRACES"
 	T_CURLY_OPEN               TokenType = "T_CURLY_OPEN"
 
