@@ -73,27 +73,36 @@ func (p *Parser) parseClassDeclarationWithModifier(modifier string) (ast.Node, e
 			}
 			break
 		}
+		// Parse type hint if present (for property)
+		var typeHint string
+		if p.tok.Type == token.T_STRING || p.tok.Type == token.T_NS_SEPARATOR || p.tok.Type == token.T_CALLABLE || p.tok.Type == token.T_ARRAY || p.tok.Type == token.T_QUESTION {
+			typeHint = p.parseTypeHint()
+		}
 		if p.tok.Type == token.T_FUNCTION {
-			fn, err := p.parseFunction(modifiers)
-			if err != nil {
-				p.addError(err.Error())
-				p.nextToken()
-				continue
-			}
-			if fn != nil {
-				methods = append(methods, fn)
+			if method, err := p.parseFunction(modifiers); method != nil {
+				methods = append(methods, method)
+			} else if err != nil {
+				return nil, err
 			}
 			continue
 		}
-		if len(modifiers) > 0 {
-			// If we saw modifiers but not a function, emit error and skip
-			p.addError("line %d:%d: expected function after modifiers in class %s body, got %s", p.tok.Pos.Line, p.tok.Pos.Column, name, p.tok.Literal)
-			p.nextToken()
+		if p.tok.Type == token.T_VARIABLE {
+			if prop, err := p.parsePropertyDeclaration(modifiers, typeHint); prop != nil {
+				properties = append(properties, prop)
+			} else if err != nil {
+				return nil, err
+			}
+			continue
+		}
+		if len(modifiers) > 0 || typeHint != "" {
+			// If we saw modifiers or type hint but not a function/property, emit error and skip
+			p.addError("line %d:%d: expected property or function after modifiers/type in class %s body, got %s", p.tok.Pos.Line, p.tok.Pos.Column, name, p.tok.Literal)
+			p.syncToNextClassMember()
 			continue
 		}
 		// Skip unexpected tokens inside class body
 		p.addError("line %d:%d: unexpected token %s in class %s body", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal, name)
-		p.nextToken()
+		p.syncToNextClassMember()
 	}
 
 	if p.tok.Type != token.T_RBRACE {
@@ -204,11 +213,11 @@ func (p *Parser) parseClassDeclaration() (ast.Node, error) {
 		if len(modifiers) > 0 || typeHint != "" {
 			// If we saw modifiers or type hint but not a function/property, emit error and skip
 			p.addError("line %d:%d: expected property or function after modifiers/type in class %s body, got %s", p.tok.Pos.Line, p.tok.Pos.Column, name, p.tok.Literal)
-			p.nextToken()
+			p.syncToNextClassMember()
 			continue
 		}
 		p.addError("line %d:%d: unexpected token %s in class %s body", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal, name)
-		p.nextToken()
+		p.syncToNextClassMember()
 	}
 
 	if p.tok.Type != token.T_RBRACE {
@@ -225,6 +234,17 @@ func (p *Parser) parseClassDeclaration() (ast.Node, error) {
 		Methods:    methods,
 		Pos:        ast.Position(pos),
 	}, nil
+}
+
+// Helper: skip to next class member or end of class on parse error
+func (p *Parser) syncToNextClassMember() {
+	for {
+		switch p.tok.Type {
+		case token.T_PUBLIC, token.T_PROTECTED, token.T_PRIVATE, token.T_STATIC, token.T_FINAL, token.T_ABSTRACT, token.T_FUNCTION, token.T_VARIABLE, token.T_RBRACE, token.T_EOF:
+			return
+		}
+		p.nextToken()
+	}
 }
 
 func (p *Parser) parsePropertyDeclaration(modifiers []string, typeHint string) (ast.Node, error) {

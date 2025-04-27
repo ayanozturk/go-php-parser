@@ -126,3 +126,32 @@ class Foo {
 	}
 	// Optionally, check for ClassNode with correct methods and properties
 }
+
+func TestParseClassErrorRecovery_TypedProperties(t *testing.T) {
+	php := `<?php
+class Broken {
+    public int $a = 1;
+    public function foo() {}
+    public string $b = 2;
+    public function bar() {}
+}`
+	l := lexer.New(php)
+	p := New(l, true)
+	nodes := p.Parse()
+	if len(p.Errors()) > 0 {
+		t.Fatalf("Parser errors: %v", p.Errors())
+	}
+	if len(nodes) == 0 {
+		t.Fatal("No nodes returned from parser")
+	}
+	classNode, ok := nodes[0].(*ast.ClassNode)
+	if !ok {
+		t.Fatalf("Expected ClassNode, got %T", nodes[0])
+	}
+	if len(classNode.Properties) != 2 {
+		t.Fatalf("Expected 2 properties, got %d", len(classNode.Properties))
+	}
+	if len(classNode.Methods) != 2 {
+		t.Fatalf("Expected 2 methods, got %d", len(classNode.Methods))
+	}
+}
