@@ -66,32 +66,49 @@ func (p *Parser) parseFunction(modifiers []string) (ast.Node, error) {
 	}
 	p.nextToken() // consume {
 
+	var body []ast.Node
 	braceDepth := 1
 	for braceDepth > 0 && p.tok.Type != token.T_EOF {
-		p.debugTokenContext("parseFunction body loop")
 		if p.tok.Type == token.T_LBRACE {
 			braceDepth++
-		} else if p.tok.Type == token.T_RBRACE {
-			braceDepth--
+			p.nextToken()
+			continue
 		}
-		if braceDepth > 0 {
+		if p.tok.Type == token.T_RBRACE {
+			braceDepth--
+			if braceDepth == 0 {
+				break
+			}
+			p.nextToken()
+			continue
+		}
+		stmt, err := p.parseStatement()
+		if stmt != nil {
+			body = append(body, stmt)
+		}
+		if err != nil {
+			p.addError(err.Error())
+		}
+		if stmt == nil {
 			p.nextToken()
 		}
 	}
 
-	if p.tok.Type != token.T_RBRACE {
+	if p.tok.Type == token.T_RBRACE {
+		p.nextToken() // consume }
+	} else {
 		p.debugTokenContext("parseFunction missing closing brace, resyncing")
 		p.addError("line %d:%d: expected } to close function %s body, got %s", p.tok.Pos.Line, p.tok.Pos.Column, name, p.tok.Literal)
 		p.syncToNextClassMember()
 		return nil, nil
 	}
-	p.nextToken() // consume }
 
 	return &ast.FunctionNode{
 		Name:       name,
 		Params:     params,
 		ReturnType: returnType,
 		Modifiers:  modifiers,
+		Body:       body,
 		Pos:        ast.Position(pos),
 	}, nil
 }

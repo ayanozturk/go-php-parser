@@ -206,7 +206,14 @@ class Foo {
     public function bar($a) {
         $nbToken = 1 < \func_num_args() ? func_get_arg(1) : 1;
     }
-}`
+
+    public function baz(): void {
+        if (\func_num_args() > 2) {
+            $eventSourceOptions = func_get_arg(2);
+        }
+    }
+}
+`
 	l := lexer.New(php)
 	p := New(l, true)
 	nodes := p.Parse()
