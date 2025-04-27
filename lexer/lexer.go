@@ -228,154 +228,177 @@ func (l *Lexer) lexQuestion(pos token.Position) token.Token {
 func (l *Lexer) lexSymbol(pos token.Position) token.Token {
 	switch l.char {
 	case '+':
-		if l.peekChar() == '=' {
-			l.readChar()
-			l.readChar()
-			return token.Token{Type: token.T_PLUS_EQUAL, Literal: "+=", Pos: pos}
-		}
-		tok := token.Token{Type: token.T_PLUS, Literal: string(l.char), Pos: pos}
-		l.readChar()
-		return tok
+		return l.lexPlus(pos)
 	case '-':
-		if l.peekChar() == '>' {
-			l.readChar()
-			l.readChar()
-			return token.Token{Type: token.T_OBJECT_OPERATOR, Literal: "->", Pos: pos}
-		}
-		tok := token.Token{Type: token.T_MINUS, Literal: string(l.char), Pos: pos}
-		l.readChar()
-		return tok
+		return l.lexMinus(pos)
 	case '*':
-		tok := token.Token{Type: token.T_MULTIPLY, Literal: string(l.char), Pos: pos}
-		l.readChar()
-		return tok
+		return l.lexSingleChar(token.T_MULTIPLY, pos)
 	case '/':
 		return l.lexSlash(pos)
 	case '|':
-		if l.peekChar() == '|' {
-			l.readChar()
-			l.readChar()
-			return token.Token{Type: token.T_BOOLEAN_OR, Literal: "||", Pos: pos}
-		}
-		tok := token.Token{Type: token.T_PIPE, Literal: string(l.char), Pos: pos}
-		l.readChar()
-		return tok
+		return l.lexPipe(pos)
 	case '>':
-		if l.peekChar() == '=' {
-			l.readChar()
-			l.readChar()
-			return token.Token{Type: token.T_IS_GREATER_OR_EQUAL, Literal: ">=", Pos: pos}
-		}
-		tok := token.Token{Type: token.T_IS_GREATER, Literal: string(l.char), Pos: pos}
-		l.readChar()
-		return tok
+		return l.lexGreater(pos)
 	case '<':
 		return l.lexLess(pos)
 	case '$':
-		l.readChar()
-		if isLetter(l.char) {
-			return token.Token{Type: token.T_VARIABLE, Literal: "$" + l.readIdentifier(), Pos: pos}
-		}
+		return l.lexDollar(pos)
 	case '=':
 		return l.lexEquals(pos)
-	case '(':
-		tok := token.Token{Type: token.T_LPAREN, Literal: string(l.char), Pos: pos}
-		l.readChar()
-		return tok
+	case '(': // ...single char tokens...
+		return l.lexSingleChar(token.T_LPAREN, pos)
 	case ')':
-		tok := token.Token{Type: token.T_RPAREN, Literal: string(l.char), Pos: pos}
-		l.readChar()
-		return tok
+		return l.lexSingleChar(token.T_RPAREN, pos)
 	case '{':
-		tok := token.Token{Type: token.T_LBRACE, Literal: string(l.char), Pos: pos}
-		l.readChar()
-		return tok
+		return l.lexSingleChar(token.T_LBRACE, pos)
 	case '}':
-		tok := token.Token{Type: token.T_RBRACE, Literal: string(l.char), Pos: pos}
-		l.readChar()
-		return tok
+		return l.lexSingleChar(token.T_RBRACE, pos)
 	case ';':
-		tok := token.Token{Type: token.T_SEMICOLON, Literal: string(l.char), Pos: pos}
-		l.readChar()
-		return tok
+		return l.lexSingleChar(token.T_SEMICOLON, pos)
 	case ',':
-		tok := token.Token{Type: token.T_COMMA, Literal: string(l.char), Pos: pos}
-		l.readChar()
-		return tok
+		return l.lexSingleChar(token.T_COMMA, pos)
 	case '&':
-		tok := token.Token{Type: token.T_AMPERSAND, Literal: string(l.char), Pos: pos}
-		l.readChar()
-		return tok
+		return l.lexSingleChar(token.T_AMPERSAND, pos)
 	case '.':
-		if l.peekChar() == '.' && l.input[l.readPos+1] == '.' {
-			l.readChar()
-			l.readChar()
-			tok := token.Token{Type: token.T_ELLIPSIS, Literal: "...", Pos: pos}
-			l.readChar()
-			return tok
-		}
-		tok := token.Token{Type: token.T_DOT, Literal: string(l.char), Pos: pos}
-		l.readChar()
-		return tok
+		return l.lexDot(pos)
 	case '"':
-		l.inString = true
-		l.readChar()
-		str := l.readString('"')
-		l.readChar()
-		l.inString = false
-		return token.Token{Type: token.T_CONSTANT_ENCAPSED_STRING, Literal: str, Pos: pos}
-	case '\'':
-		l.inString = true
-		l.readChar()
-		str := l.readString('\'')
-		l.readChar()
-		l.inString = false
-		return token.Token{Type: token.T_CONSTANT_STRING, Literal: str, Pos: pos}
+		return l.lexDoubleQuote(pos)
 	case '\\':
-		if l.inStringMode() {
-			tok := token.Token{Type: token.T_BACKSLASH, Literal: string(l.char), Pos: pos}
-			l.readChar()
-			return tok
-		}
-		if isIdentifierStart(l.peekChar()) {
-			tok := token.Token{Type: token.T_NS_SEPARATOR, Literal: string(l.char), Pos: pos}
-			l.readChar()
-			return tok
-		}
+		return l.lexBackslash(pos)
+	case '\'':
+		return l.lexSingleQuote(pos)
+	case ':':
+		return l.lexColon(pos)
+	case '[':
+		return l.lexSingleChar(token.T_LBRACKET, pos)
+	case ']':
+		return l.lexSingleChar(token.T_RBRACKET, pos)
+	case '!':
+		return l.lexSingleChar(token.T_NOT, pos)
+	}
+	return token.Token{Type: token.T_ILLEGAL, Literal: string(l.char), Pos: pos}
+}
+
+// --- lexSymbol helpers ---
+func (l *Lexer) lexPlus(pos token.Position) token.Token {
+	if l.peekChar() == '=' {
+		l.readChar()
+		l.readChar()
+		return token.Token{Type: token.T_PLUS_EQUAL, Literal: "+=", Pos: pos}
+	}
+	tok := token.Token{Type: token.T_PLUS, Literal: string(l.char), Pos: pos}
+	l.readChar()
+	return tok
+}
+
+func (l *Lexer) lexMinus(pos token.Position) token.Token {
+	if l.peekChar() == '>' {
+		l.readChar()
+		l.readChar()
+		return token.Token{Type: token.T_OBJECT_OPERATOR, Literal: "->", Pos: pos}
+	}
+	tok := token.Token{Type: token.T_MINUS, Literal: string(l.char), Pos: pos}
+	l.readChar()
+	return tok
+}
+
+func (l *Lexer) lexPipe(pos token.Position) token.Token {
+	if l.peekChar() == '|' {
+		l.readChar()
+		l.readChar()
+		return token.Token{Type: token.T_BOOLEAN_OR, Literal: "||", Pos: pos}
+	}
+	tok := token.Token{Type: token.T_PIPE, Literal: string(l.char), Pos: pos}
+	l.readChar()
+	return tok
+}
+
+func (l *Lexer) lexGreater(pos token.Position) token.Token {
+	if l.peekChar() == '=' {
+		l.readChar()
+		l.readChar()
+		return token.Token{Type: token.T_IS_GREATER_OR_EQUAL, Literal: ">=", Pos: pos}
+	}
+	tok := token.Token{Type: token.T_IS_GREATER, Literal: string(l.char), Pos: pos}
+	l.readChar()
+	return tok
+}
+
+func (l *Lexer) lexDollar(pos token.Position) token.Token {
+	l.readChar()
+	if isLetter(l.char) {
+		return token.Token{Type: token.T_VARIABLE, Literal: "$" + l.readIdentifier(), Pos: pos}
+	}
+	return token.Token{Type: token.T_ILLEGAL, Literal: "$", Pos: pos}
+}
+
+func (l *Lexer) lexDot(pos token.Position) token.Token {
+	if l.peekChar() == '.' && l.input[l.readPos+1] == '.' {
+		l.readChar()
+		l.readChar()
+		l.readChar()
+		return token.Token{Type: token.T_ELLIPSIS, Literal: "...", Pos: pos}
+	}
+	tok := token.Token{Type: token.T_DOT, Literal: string(l.char), Pos: pos}
+	l.readChar()
+	return tok
+}
+
+func (l *Lexer) lexDoubleQuote(pos token.Position) token.Token {
+	l.inString = true
+	l.readChar()
+	str := l.readString('"')
+	l.readChar()
+	l.inString = false
+	return token.Token{Type: token.T_CONSTANT_ENCAPSED_STRING, Literal: str, Pos: pos}
+}
+
+func (l *Lexer) lexSingleQuote(pos token.Position) token.Token {
+	l.inString = true
+	l.readChar()
+	str := l.readString('\'')
+	l.readChar()
+	l.inString = false
+	return token.Token{Type: token.T_CONSTANT_STRING, Literal: str, Pos: pos}
+}
+
+func (l *Lexer) lexBackslash(pos token.Position) token.Token {
+	if l.inStringMode() {
 		tok := token.Token{Type: token.T_BACKSLASH, Literal: string(l.char), Pos: pos}
 		l.readChar()
 		return tok
-	case ':':
-		if l.peekChar() == ':' {
-			l.readChar()
-			l.readChar()
-			if l.peekChar() == 'c' && strings.HasPrefix(l.input[l.readPos:], "class") {
-				l.readChar()
-				l.readChar()
-				l.readChar()
-				l.readChar()
-				l.readChar()
-				return token.Token{Type: token.T_CLASS_CONST, Literal: "::class", Pos: pos}
-			}
-			return token.Token{Type: token.T_DOUBLE_COLON, Literal: "::", Pos: pos}
-		}
-		tok := token.Token{Type: token.T_COLON, Literal: string(l.char), Pos: pos}
-		l.readChar()
-		return tok
-	case '[':
-		tok := token.Token{Type: token.T_LBRACKET, Literal: string(l.char), Pos: pos}
-		l.readChar()
-		return tok
-	case ']':
-		tok := token.Token{Type: token.T_RBRACKET, Literal: string(l.char), Pos: pos}
-		l.readChar()
-		return tok
-	case '!':
-		tok := token.Token{Type: token.T_NOT, Literal: string(l.char), Pos: pos}
+	}
+	if isIdentifierStart(l.peekChar()) {
+		tok := token.Token{Type: token.T_NS_SEPARATOR, Literal: string(l.char), Pos: pos}
 		l.readChar()
 		return tok
 	}
-	return token.Token{Type: token.T_ILLEGAL, Literal: string(l.char), Pos: pos}
+	tok := token.Token{Type: token.T_BACKSLASH, Literal: string(l.char), Pos: pos}
+	l.readChar()
+	return tok
+}
+
+func (l *Lexer) lexColon(pos token.Position) token.Token {
+	if l.peekChar() == ':' {
+		l.readChar()
+		l.readChar()
+		if l.peekChar() == 'c' && strings.HasPrefix(l.input[l.readPos:], "class") {
+			for i := 0; i < 5; i++ {
+				l.readChar()
+			}
+			return token.Token{Type: token.T_CLASS_CONST, Literal: "::class", Pos: pos}
+		}
+		return token.Token{Type: token.T_DOUBLE_COLON, Literal: "::", Pos: pos}
+	}
+	tok := token.Token{Type: token.T_COLON, Literal: string(l.char), Pos: pos}
+	l.readChar()
+	return tok
+}
+
+func (l *Lexer) lexSingleChar(t token.TokenType, pos token.Position) token.Token {
+	tok := token.Token{Type: t, Literal: string(l.char), Pos: pos}
+	l.readChar()
+	return tok
 }
 
 func (l *Lexer) lexSlash(pos token.Position) token.Token {
