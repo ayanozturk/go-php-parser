@@ -7,6 +7,7 @@ import (
 
 // parseFunction parses a PHP function declaration
 func (p *Parser) parseFunction(modifiers []string) (ast.Node, error) {
+	p.debugTokenContext("parseFunction entry")
 	pos := p.tok.Pos
 	p.nextToken() // consume 'function'
 
@@ -18,6 +19,7 @@ func (p *Parser) parseFunction(modifiers []string) (ast.Node, error) {
 
 	if p.tok.Type != token.T_LPAREN {
 		p.addError("line %d:%d: expected ( after function name %s, got %s", p.tok.Pos.Line, p.tok.Pos.Column, name, p.tok.Literal)
+		p.syncToNextClassMember()
 		return nil, nil
 	}
 	p.nextToken() // consume (
@@ -56,16 +58,31 @@ func (p *Parser) parseFunction(modifiers []string) (ast.Node, error) {
 		p.nextToken()
 	}
 
+	// Parse function body
 	if p.tok.Type != token.T_LBRACE {
 		p.addError("line %d:%d: expected { to start function body for %s, got %s", p.tok.Pos.Line, p.tok.Pos.Column, name, p.tok.Literal)
+		p.syncToNextClassMember()
 		return nil, nil
 	}
 	p.nextToken() // consume {
 
-	body := p.parseBlockStatement()
+	braceDepth := 1
+	for braceDepth > 0 && p.tok.Type != token.T_EOF {
+		p.debugTokenContext("parseFunction body loop")
+		if p.tok.Type == token.T_LBRACE {
+			braceDepth++
+		} else if p.tok.Type == token.T_RBRACE {
+			braceDepth--
+		}
+		if braceDepth > 0 {
+			p.nextToken()
+		}
+	}
 
 	if p.tok.Type != token.T_RBRACE {
+		p.debugTokenContext("parseFunction missing closing brace, resyncing")
 		p.addError("line %d:%d: expected } to close function %s body, got %s", p.tok.Pos.Line, p.tok.Pos.Column, name, p.tok.Literal)
+		p.syncToNextClassMember()
 		return nil, nil
 	}
 	p.nextToken() // consume }
@@ -74,7 +91,6 @@ func (p *Parser) parseFunction(modifiers []string) (ast.Node, error) {
 		Name:       name,
 		Params:     params,
 		ReturnType: returnType,
-		Body:       body,
 		Modifiers:  modifiers,
 		Pos:        ast.Position(pos),
 	}, nil

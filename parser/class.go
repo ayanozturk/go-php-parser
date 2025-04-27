@@ -122,11 +122,16 @@ func (p *Parser) parseClassDeclarationWithModifier(modifier string) (ast.Node, e
 	}, nil
 }
 
+func (p *Parser) debugTokenContext(context string) {
+	// fmt.Printf("[DEBUG] %s: token=%v, literal=%q, line=%d\n", context, p.tok.Type, p.tok.Literal, p.tok.Pos.Line)
+}
+
 func (p *Parser) parseClassDeclaration() (ast.Node, error) {
 	pos := p.tok.Pos
 	p.nextToken() // consume 'class'
 
 	if p.tok.Type != token.T_STRING {
+		p.debugTokenContext("expected class name")
 		p.addError("line %d:%d: expected class name, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal)
 		return nil, nil
 	}
@@ -175,6 +180,7 @@ func (p *Parser) parseClassDeclaration() (ast.Node, error) {
 	var methods []ast.Node
 	// Parse class body
 	for p.tok.Type != token.T_RBRACE && p.tok.Type != token.T_EOF {
+		p.debugTokenContext("class body loop entry")
 		// Collect all modifiers before method/property
 		var modifiers []string
 		for {
@@ -195,27 +201,32 @@ func (p *Parser) parseClassDeclaration() (ast.Node, error) {
 			typeHint = p.parseTypeHint()
 		}
 		if p.tok.Type == token.T_FUNCTION {
+			p.debugTokenContext("parsing function")
 			if method, err := p.parseFunction(modifiers); method != nil {
 				methods = append(methods, method)
 			} else if err != nil {
+				p.debugTokenContext("parseFunction error")
 				return nil, err
 			}
 			continue
 		}
 		if p.tok.Type == token.T_VARIABLE {
+			p.debugTokenContext("parsing property")
 			if prop, err := p.parsePropertyDeclaration(modifiers, typeHint); prop != nil {
 				properties = append(properties, prop)
 			} else if err != nil {
+				p.debugTokenContext("parsePropertyDeclaration error")
 				return nil, err
 			}
 			continue
 		}
 		if len(modifiers) > 0 || typeHint != "" {
-			// If we saw modifiers or type hint but not a function/property, emit error and skip
+			p.debugTokenContext("unexpected after modifiers/typeHint")
 			p.addError("line %d:%d: expected property or function after modifiers/type in class %s body, got %s", p.tok.Pos.Line, p.tok.Pos.Column, name, p.tok.Literal)
 			p.syncToNextClassMember()
 			continue
 		}
+		p.debugTokenContext("unexpected token in class body")
 		p.addError("line %d:%d: unexpected token %s in class %s body", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal, name)
 		p.syncToNextClassMember()
 	}
@@ -248,6 +259,7 @@ func (p *Parser) syncToNextClassMember() {
 }
 
 func (p *Parser) parsePropertyDeclaration(modifiers []string, typeHint string) (ast.Node, error) {
+	p.debugTokenContext("parsePropertyDeclaration entry")
 	pos := p.tok.Pos
 	// Interpret modifiers
 	var visibility string
@@ -263,6 +275,7 @@ func (p *Parser) parsePropertyDeclaration(modifiers []string, typeHint string) (
 		}
 	}
 	if p.tok.Type != token.T_VARIABLE {
+		p.debugTokenContext("expected property name")
 		p.addError("line %d:%d: expected property name, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal)
 		return nil, nil
 	}
@@ -275,6 +288,7 @@ func (p *Parser) parsePropertyDeclaration(modifiers []string, typeHint string) (
 		defaultValue = p.parseExpression()
 	}
 	if p.tok.Type != token.T_SEMICOLON {
+		p.debugTokenContext("expected semicolon after property")
 		p.addError("line %d:%d: expected ; after property declaration $%s, got %s", p.tok.Pos.Line, p.tok.Pos.Column, name, p.tok.Literal)
 		return nil, nil
 	}
