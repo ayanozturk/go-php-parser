@@ -26,18 +26,24 @@ func (p *Parser) parseInterfaceDeclaration() ast.Node {
 		p.nextToken() // consume 'extends'
 		for {
 			fqcn := ""
-			// Accept one or more leading backslashes for FQCN
-			for p.tok.Literal == "\\" {
-				fqcn += p.tok.Literal
-				p.nextToken()
+			// Loop to collect full FQCN: (T_NS_SEPARATOR T_STRING)+
+			for {
+				if p.tok.Type == token.T_NS_SEPARATOR || p.tok.Literal == "\\" {
+					fqcn += "\\"
+					p.nextToken()
+				}
+				if p.tok.Type == token.T_STRING {
+					fqcn += p.tok.Literal
+					p.nextToken()
+				} else {
+					break
+				}
 			}
-			if p.tok.Type != token.T_STRING {
+			if fqcn == "" {
 				p.errors = append(p.errors, fmt.Sprintf("line %d:%d: expected interface name after extends, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal))
 				return nil
 			}
-			fqcn += p.tok.Literal
 			extends = append(extends, fqcn)
-			p.nextToken()
 			if p.tok.Type != token.T_COMMA {
 				break
 			}
