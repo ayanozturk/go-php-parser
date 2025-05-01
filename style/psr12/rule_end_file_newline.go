@@ -20,7 +20,8 @@ func (c *EndFileNewlineChecker) CheckIssues(lines []string, filename string) []s
 		secondLast = lines[secondLastIdx]
 	}
 
-	if last != "" || secondLast == "" {
+	// PSR-12: Files must end with a single blank line
+	if last != "" || secondLast == "" || (secondLastIdx > 0 && lines[secondLastIdx-1] == "") {
 		issues = append(issues, style.StyleIssue{
 			Filename: filename,
 			Line:     len(lines),

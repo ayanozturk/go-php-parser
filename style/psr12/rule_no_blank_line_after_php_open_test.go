@@ -6,14 +6,14 @@ func TestNoBlankLineAfterPHPOpeningTagChecker(t *testing.T) {
 	checker := &NoBlankLineAfterPHPOpeningTagChecker{}
 	filename := "test.php"
 	cases := []struct {
-		lines   []string
+		lines    []string
 		expected int
 		msg      string
 	}{
-		{[]string{"<?php", "$a = 1;"}, 0, "no blank line after opening"},
-		{[]string{"<?php", "", "$a = 1;"}, 1, "blank line after opening"},
-		{[]string{"<?php", "// comment"}, 0, "comment after opening"},
-		{[]string{"<?php", "", "", "$a = 1;"}, 1, "multiple blank lines after opening (only first)"},
+		{[]string{"<?php", "$a = 1;"}, 1, "missing blank line after opening"},
+		{[]string{"<?php", "", "$a = 1;"}, 0, "blank line after opening"},
+		{[]string{"<?php", "// comment"}, 1, "missing blank line before comment after opening"},
+		{[]string{"<?php", "", "", "$a = 1;"}, 0, "multiple blank lines after opening (only first)"},
 		{[]string{"<?php $a = 1;"}, 0, "code on same line as opening"},
 		{[]string{"$a = 1;"}, 0, "no opening tag"},
 	}
