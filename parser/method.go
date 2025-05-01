@@ -156,140 +156,31 @@ func (p *Parser) parseInterfaceMethod() ast.Node {
 	var returnType ast.Node
 	if p.tok.Type == token.T_COLON {
 		p.nextToken() // consume :
-
-		// Handle nullable return types (e.g. ?Node)
-		var nullable bool
-		if p.tok.Type == token.T_QUESTION {
-			nullable = true
-			p.nextToken()
-		}
-
-		// Handle callable return type
-		if p.tok.Type == token.T_CALLABLE {
-			callableType, err := p.parseCallableType()
-			if err != nil {
-				p.errors = append(p.errors, fmt.Sprintf("line %d:%d: %v", p.tok.Pos.Line, p.tok.Pos.Column, err))
-				return nil
-			}
-			returnType = &ast.IdentifierNode{
-				Value: callableType,
-				Pos:   ast.Position(p.tok.Pos),
-			}
-		} else if p.tok.Type == token.T_STRING || p.tok.Type == token.T_ARRAY ||
-			p.tok.Literal == "mixed" || p.tok.Literal == "null" ||
-			p.tok.Type == token.T_BACKSLASH ||
-			p.tok.Type == token.T_STATIC || p.tok.Type == token.T_SELF || p.tok.Type == token.T_PARENT {
-			typePos := p.tok.Pos
-
-			// Handle fully qualified class names with backslashes
-			var typeName strings.Builder
-			if p.tok.Literal == "mixed" {
-				typeName.WriteString("mixed")
-				p.nextToken()
-			} else if p.tok.Type == token.T_BACKSLASH {
-				typeName.WriteString(p.tok.Literal)
-				p.nextToken()
-			} else {
-				typeName.WriteString(p.tok.Literal)
-				p.nextToken()
-			}
-
-			// Continue collecting parts of a class name
-			for p.tok.Type == token.T_STRING || p.tok.Type == token.T_BACKSLASH {
-				typeName.WriteString(p.tok.Literal)
-				p.nextToken()
-			}
-
-			// Handle array type
-			if p.tok.Type == token.T_LBRACKET {
-				typeName.WriteString("[]")
-				p.nextToken()
-				if p.tok.Type != token.T_RBRACKET {
-					p.errors = append(p.errors, fmt.Sprintf("line %d:%d: expected ']' after array type in return type for method %s, got %s", p.tok.Pos.Line, p.tok.Pos.Column, name, p.tok.Literal))
-					return nil
+		typePos := p.tok.Pos
+		typeStr := p.parseTypeHint()
+		if typeStr != "" {
+			if strings.Contains(typeStr, "|") {
+				parts := strings.Split(typeStr, "|")
+				for i := range parts {
+					parts[i] = strings.TrimSpace(parts[i])
 				}
-				p.nextToken()
-			}
-
-			// Check for union type (|)
-			if p.tok.Type == token.T_PIPE {
-				// Create a union type
-				unionPos := typePos
-				unionTypes := []string{typeName.String()}
-
-				// Continue collecting types until we don't see more pipes
-				for p.tok.Type == token.T_PIPE {
-					p.nextToken() // consume |
-
-					// Parse each union type member
-					if p.tok.Type == token.T_STRING || p.tok.Type == token.T_ARRAY ||
-						p.tok.Literal == "mixed" || p.tok.Literal == "null" ||
-						p.tok.Literal == "int" || p.tok.Literal == "float" ||
-						p.tok.Literal == "bool" || p.tok.Literal == "string" ||
-						p.tok.Type == token.T_BACKSLASH || p.tok.Type == token.T_NS_SEPARATOR ||
-						p.tok.Type == token.T_STATIC || p.tok.Type == token.T_SELF || p.tok.Type == token.T_PARENT {
-						var memberTypeName strings.Builder
-						if p.tok.Literal == "null" {
-							memberTypeName.WriteString("null")
-							p.nextToken()
-						} else {
-							for p.tok.Type == token.T_BACKSLASH || p.tok.Type == token.T_NS_SEPARATOR {
-								memberTypeName.WriteString("\\")
-								p.nextToken()
-							}
-							if p.tok.Type == token.T_STRING || p.tok.Type == token.T_STATIC || p.tok.Type == token.T_SELF || p.tok.Type == token.T_PARENT {
-								memberTypeName.WriteString(p.tok.Literal)
-								p.nextToken()
-								for p.tok.Type == token.T_STRING || p.tok.Type == token.T_BACKSLASH || p.tok.Type == token.T_NS_SEPARATOR {
-									if p.tok.Type == token.T_BACKSLASH || p.tok.Type == token.T_NS_SEPARATOR {
-										memberTypeName.WriteString("\\")
-									} else {
-										memberTypeName.WriteString(p.tok.Literal)
-									}
-									p.nextToken()
-								}
-							}
-						}
-						unionTypes = append(unionTypes, memberTypeName.String())
-						if p.tok.Type == token.T_LBRACKET {
-							unionTypes[len(unionTypes)-1] += "[]"
-							p.nextToken()
-							if p.tok.Type != token.T_RBRACKET {
-								p.errors = append(p.errors, fmt.Sprintf("line %d:%d: expected ']' after array type in union type for method %s, got %s", p.tok.Pos.Line, p.tok.Pos.Column, name, p.tok.Literal))
-								return nil
-							}
-							p.nextToken()
-						}
-					} else {
-						p.errors = append(p.errors, fmt.Sprintf("line %d:%d: expected type name in union type for method %s, got %s", p.tok.Pos.Line, p.tok.Pos.Column, name, p.tok.Literal))
-						return nil
-					}
-				}
-
-				// Create the union type node
 				returnType = &ast.UnionTypeNode{
-					Types: unionTypes,
-					Pos:   ast.Position(unionPos),
-				}
-			} else {
-				// Create a simple type node
-				returnType = &ast.IdentifierNode{
-					Value: typeName.String(),
+					Types: parts,
 					Pos:   ast.Position(typePos),
 				}
-			}
-
-			// If nullable, wrap the type in a nullable type node
-			if nullable {
-				// If it's already a union type, just add null to it
-				if ut, ok := returnType.(*ast.UnionTypeNode); ok {
-					ut.Types = append(ut.Types, "null")
-				} else {
-					// Otherwise, create a union type with the base type and null
-					returnType = &ast.UnionTypeNode{
-						Types: []string{returnType.TokenLiteral(), "null"},
-						Pos:   ast.Position(typePos),
-					}
+			} else if strings.Contains(typeStr, "&") {
+				parts := strings.Split(typeStr, "&")
+				for i := range parts {
+					parts[i] = strings.TrimSpace(parts[i])
+				}
+				returnType = &ast.IntersectionTypeNode{
+					Types: parts,
+					Pos:   ast.Position(typePos),
+				}
+			} else {
+				returnType = &ast.IdentifierNode{
+					Value: typeStr,
+					Pos:   ast.Position(typePos),
 				}
 			}
 		} else {
