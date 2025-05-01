@@ -48,6 +48,7 @@ This parser implements several PSR-12 style checks, including:
 - **File must end with a single blank line** (`PSR12.Files.EndFileNewline`): Ensures files end with exactly one blank line.
 - **No multiple statements per line** (`PSR12.Files.NoMultipleStatementsPerLine`): Disallows more than one statement (semicolon) per line.
 - **No space before semicolon** (`PSR12.Files.NoSpaceBeforeSemicolon`): Disallows any space or tab before a semicolon at the end of a statement.
+- **No blank line after opening <?php tag** (`PSR12.Files.NoBlankLineAfterPHPOpeningTag`): Disallows blank lines immediately after the opening PHP tag.
 
 Style issues are reported per file and line, and can be extended by adding new checkers in the `style/psr12` package.
 
@@ -64,6 +65,7 @@ You can enable or disable specific code style rules using the `rules:` key in yo
 | PSR12.Files.EndFileNewline                | File must end with a single blank line      |
 | PSR12.Files.NoMultipleStatementsPerLine   | Disallows more than one statement (semicolon) per line |
 | PSR12.Files.NoSpaceBeforeSemicolon        | Disallows any space or tab before a semicolon at the end of a statement |
+| PSR12.Files.NoBlankLineAfterPHPOpeningTag | Disallows blank lines after the opening <?php tag |
 | PSR1.Classes.ClassDeclaration.PascalCase | Enforces PascalCase for class names        |
 
 **Example config.yaml:**
@@ -73,6 +75,7 @@ rules:
   - PSR12.Files.EndFileNewline
   - PSR12.Files.NoMultipleStatementsPerLine
   - PSR12.Files.NoSpaceBeforeSemicolon
+  - PSR12.Files.NoBlankLineAfterPHPOpeningTag
   - PSR1.Classes.ClassDeclaration.PascalCase
 ```
 
