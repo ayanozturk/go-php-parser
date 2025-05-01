@@ -117,7 +117,11 @@ func main() {
 			var allIssues []style.StyleIssue
 			totalParseErrors = 0
 			totalLines = 0
-			for _, file := range filesToScan {
+			nFiles := len(filesToScan)
+			if isatty(os.Stdout.Fd()) {
+				fmt.Fprintf(os.Stdout, "Scanning %d files...\n", nFiles)
+			}
+			for i, file := range filesToScan {
 				input, err := os.ReadFile(file)
 				if err != nil {
 					fmt.Fprintf(outWriter, "Could not read file %s: %v\n", file, err)
@@ -136,6 +140,17 @@ func main() {
 				issueWriter := &style.IssueCollector{Issues: &fileIssues}
 				command.Commands["style"].ExecuteWithRules(nodes, file, issueWriter, c.Rules)
 				allIssues = append(allIssues, fileIssues...)
+				// Progress bar (1-100%)
+				if isatty(os.Stdout.Fd()) {
+					percent := int(float64(i+1) / float64(nFiles) * 100)
+					barLen := 40
+					filled := int(float64(barLen) * float64(percent) / 100.0)
+					bar := repeat('=', filled) + repeat(' ', barLen-filled)
+					fmt.Fprintf(os.Stdout, "\r[%s] %3d%% (%d/%d)", bar, percent, i+1, nFiles)
+					if i+1 == nFiles {
+						fmt.Fprintln(os.Stdout)
+					}
+				}
 			}
 			// Print grouped output and summary
 			style.PrintPHPCSStyleOutputToWriter(outWriter, allIssues)
@@ -148,3 +163,27 @@ func main() {
 	elapsed := time.Since(start).Seconds()
 	printSummary(outWriter, totalParseErrors, totalLines, elapsed, mem)
 }
+
+// repeat returns a string consisting of n copies of the rune r
+func repeat(r rune, n int) string {
+	if n <= 0 {
+		return ""
+	}
+	out := make([]rune, n)
+	for i := range out {
+		out[i] = r
+	}
+	return string(out)
+}
+
+
+// isatty returns true if the given file descriptor is a terminal
+func isatty(fd uintptr) bool {
+	// Only works on unix-like systems; for cross-platform use, consider a third-party lib
+	fi, err := os.Stdout.Stat()
+	if err != nil {
+		return false
+	}
+	return (fi.Mode() & os.ModeCharDevice) != 0
+}
+

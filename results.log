@@ -58737,9 +58737,9 @@ FOUND 1 ERRORS AND 0 WARNINGS AFFECTING 1 LINE
      |         |     (PSR12.Files.EndFileNewline)
 
 
-Scan completed in 2.84 seconds
+Scan completed in 3.26 seconds
 Total lines scanned: 1651689
-Lines per second: 581250.84
+Lines per second: 506464.70
 Total parsing errors: 0
-HeapAlloc: 0.17 MB
-Sys: 16.58 MB
+HeapAlloc: 0.18 MB
+Sys: 16.77 MB
