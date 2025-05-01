@@ -62,12 +62,19 @@ interface StaticReturnTypeInterface {
 	if !ok {
 		t.Fatalf("Expected InterfaceNode, got %T", nodes[0])
 	}
-	if len(iface.Methods) == 0 {
+	if len(iface.Members) == 0 {
 		t.Fatal("Expected at least one method in interface")
 	}
-	method, ok := iface.Methods[0].(*ast.InterfaceMethodNode)
+	var method *ast.InterfaceMethodNode
+	for _, m := range iface.Members {
+		if mm, ok := m.(*ast.InterfaceMethodNode); ok {
+			method = mm
+			break
+		}
+	}
+	ok = method != nil
 	if !ok {
-		t.Fatalf("Expected InterfaceMethodNode, got %T", iface.Methods[0])
+		t.Fatalf("Expected InterfaceMethodNode, got %T", iface.Members[0])
 	}
 	retType, ok := method.ReturnType.(*ast.IdentifierNode)
 	if !ok || retType.Value != "static" {
@@ -90,12 +97,19 @@ interface Foo {
 	if !ok {
 		t.Fatalf("Expected InterfaceNode, got %T", nodes[0])
 	}
-	if len(iface.Methods) == 0 {
+	if len(iface.Members) == 0 {
 		t.Fatal("Expected at least one method in interface")
 	}
-	method, ok := iface.Methods[0].(*ast.InterfaceMethodNode)
+	var method *ast.InterfaceMethodNode
+	for _, m := range iface.Members {
+		if mm, ok := m.(*ast.InterfaceMethodNode); ok {
+			method = mm
+			break
+		}
+	}
+	ok = method != nil
 	if !ok {
-		t.Fatalf("Expected InterfaceMethodNode, got %T", iface.Methods[0])
+		t.Fatalf("Expected InterfaceMethodNode, got %T", iface.Members[0])
 	}
 	union, ok := method.ReturnType.(*ast.UnionTypeNode)
 	if !ok {

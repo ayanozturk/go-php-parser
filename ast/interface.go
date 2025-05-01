@@ -9,7 +9,7 @@ import (
 type InterfaceNode struct {
 	Name    string
 	Extends []string
-	Methods []Node
+	Members []Node // Can contain InterfaceMethodNode and ConstantNode
 	Pos     Position
 }
 
@@ -22,10 +22,10 @@ func (i *InterfaceNode) String() string {
 	if len(i.Extends) > 0 {
 		parts = append(parts, fmt.Sprintf("Extends: %s", strings.Join(i.Extends, ", ")))
 	}
-	if len(i.Methods) > 0 {
-		parts = append(parts, "Methods:")
-		for _, method := range i.Methods {
-			parts = append(parts, "  "+method.String())
+	if len(i.Members) > 0 {
+		parts = append(parts, "Members:")
+		for _, member := range i.Members {
+			parts = append(parts, "  "+member.String())
 		}
 	}
 	return fmt.Sprintf("%s @ %d:%d", strings.Join(parts, "\n"), i.Pos.Line, i.Pos.Column)

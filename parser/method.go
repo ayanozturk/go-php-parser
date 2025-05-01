@@ -51,17 +51,21 @@ func (p *Parser) parseInterfaceDeclaration() ast.Node {
 	}
 	p.nextToken() // consume {
 
-	var methods []ast.Node
+	var members []ast.Node
 	for p.tok.Type != token.T_RBRACE && p.tok.Type != token.T_EOF {
 		// Skip doc comments and regular comments in interface body
 		if p.tok.Type == token.T_DOC_COMMENT || p.tok.Type == token.T_COMMENT {
 			p.nextToken()
 			continue
 		}
-		// Interface methods can have visibility modifiers
+		// Interface members: methods and constants
 		if p.tok.Type == token.T_PUBLIC || p.tok.Type == token.T_PRIVATE || p.tok.Type == token.T_PROTECTED || p.tok.Type == token.T_FUNCTION {
 			if method := p.parseInterfaceMethod(); method != nil {
-				methods = append(methods, method)
+				members = append(members, method)
+			}
+		} else if p.tok.Type == token.T_CONST {
+			if constant := p.parseConstant(); constant != nil {
+				members = append(members, constant)
 			}
 		} else {
 			p.errors = append(p.errors, fmt.Sprintf("line %d:%d: unexpected token %s in interface %s body", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal, name))
@@ -78,7 +82,7 @@ func (p *Parser) parseInterfaceDeclaration() ast.Node {
 	return &ast.InterfaceNode{
 		Name:    name,
 		Extends: extends,
-		Methods: methods,
+		Members: members,
 		Pos:     ast.Position(pos),
 	}
 }

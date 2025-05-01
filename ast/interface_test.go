@@ -13,7 +13,7 @@ func TestInterfaceNodeMethods(t *testing.T) {
 	iface := &InterfaceNode{
 		Name:    "MyInterface",
 		Extends: []string{"BaseInterface"},
-		Methods: []Node{method},
+		Members: []Node{method},
 		Pos:     Position{Line: 1, Column: 1},
 	}
 	if iface.NodeType() != "Interface" {
@@ -33,8 +33,8 @@ func TestInterfaceNodeMethods(t *testing.T) {
 	if iface.TokenLiteral() != "interface" {
 		t.Errorf("TokenLiteral: got %q", iface.TokenLiteral())
 	}
-	if len(iface.Methods) != 1 || iface.Methods[0] != method {
-		t.Errorf("Methods: got %+v", iface.Methods)
+	if len(iface.Members) != 1 || iface.Members[0] != method {
+		t.Errorf("Members: got %+v", iface.Members)
 	}
 }
 

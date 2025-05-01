@@ -28,12 +28,20 @@ interface CallableInterface {
 	if interfaceNode.Name != "CallableInterface" {
 		t.Errorf("Expected interface name to be 'CallableInterface', got '%s'", interfaceNode.Name)
 	}
-	if len(interfaceNode.Methods) != 1 {
-		t.Fatalf("Expected 1 method, got %d", len(interfaceNode.Methods))
+	if len(interfaceNode.Members) != 1 {
+		t.Fatalf("Expected 1 method, got %d", len(interfaceNode.Members))
 	}
-	method, ok := interfaceNode.Methods[0].(*ast.InterfaceMethodNode)
+	// Find the first InterfaceMethodNode
+	var method *ast.InterfaceMethodNode
+	for _, m := range interfaceNode.Members {
+		if mm, ok := m.(*ast.InterfaceMethodNode); ok {
+			method = mm
+			break
+		}
+	}
+	ok = method != nil
 	if !ok {
-		t.Fatalf("Expected method to be InterfaceMethodNode, got %T", interfaceNode.Methods[0])
+		t.Fatalf("Expected method to be InterfaceMethodNode, got %T", interfaceNode.Members[0])
 	}
 	if method.Name != "setHandler" {
 		t.Errorf("Expected method name to be 'setHandler', got '%s'", method.Name)
@@ -82,12 +90,20 @@ interface CallableReturnTypeInterface {
 	if interfaceNode.Name != "CallableReturnTypeInterface" {
 		t.Errorf("Expected interface name to be 'CallableReturnTypeInterface', got '%s'", interfaceNode.Name)
 	}
-	if len(interfaceNode.Methods) != 1 {
-		t.Fatalf("Expected 1 method, got %d", len(interfaceNode.Methods))
+	if len(interfaceNode.Members) != 1 {
+		t.Fatalf("Expected 1 method, got %d", len(interfaceNode.Members))
 	}
-	method, ok := interfaceNode.Methods[0].(*ast.InterfaceMethodNode)
+	// Find the first InterfaceMethodNode
+	var method *ast.InterfaceMethodNode
+	for _, m := range interfaceNode.Members {
+		if mm, ok := m.(*ast.InterfaceMethodNode); ok {
+			method = mm
+			break
+		}
+	}
+	ok = method != nil
 	if !ok {
-		t.Fatalf("Expected method to be InterfaceMethodNode, got %T", interfaceNode.Methods[0])
+		t.Fatalf("Expected method to be InterfaceMethodNode, got %T", interfaceNode.Members[0])
 	}
 	if method.Name != "getHandler" {
 		t.Errorf("Expected method name to be 'getHandler', got '%s'", method.Name)

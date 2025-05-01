@@ -49,13 +49,28 @@ interface TestInterface
 		t.Errorf("Expected interface name 'TestInterface', got '%s'", interfaceNode.Name)
 	}
 
-	if len(interfaceNode.Methods) != 1 {
-		t.Fatalf("Expected interface to have 1 method, got %d", len(interfaceNode.Methods))
+	// Only count InterfaceMethodNode members
+	methodCount := 0
+	for _, m := range interfaceNode.Members {
+		if _, ok := m.(*ast.InterfaceMethodNode); ok {
+			methodCount++
+		}
+	}
+	if methodCount != 1 {
+		t.Fatalf("Expected interface to have 1 method, got %d", len(interfaceNode.Members))
 	}
 
-	methodNode, ok := interfaceNode.Methods[0].(*ast.InterfaceMethodNode)
+	// Find the first InterfaceMethodNode
+	var methodNode *ast.InterfaceMethodNode
+	for _, m := range interfaceNode.Members {
+		if mm, ok := m.(*ast.InterfaceMethodNode); ok {
+			methodNode = mm
+			break
+		}
+	}
+	ok = methodNode != nil
 	if !ok {
-		t.Fatalf("Expected method to be InterfaceMethodNode, got %T", interfaceNode.Methods[0])
+		t.Fatalf("Expected method to be InterfaceMethodNode, got %T", interfaceNode.Members[0])
 	}
 
 	if methodNode.Name != "testMethod" {
