@@ -183,6 +183,11 @@ func (p *Parser) parseInterfaceMethod() ast.Node {
 	}
 	p.nextToken() // consume )
 
+	// Skip comments after parameter list (e.g., /* : self */)
+	for p.tok.Type == token.T_COMMENT || p.tok.Type == token.T_DOC_COMMENT {
+		p.nextToken()
+	}
+
 	// Parse return type if present
 	var returnType ast.Node
 	if p.tok.Type == token.T_COLON {
@@ -219,6 +224,11 @@ func (p *Parser) parseInterfaceMethod() ast.Node {
 			p.syncToNextClassMember()
 			return nil
 		}
+	}
+
+	// Skip comments before semicolon (defensive, in case comments appear here)
+	for p.tok.Type == token.T_COMMENT || p.tok.Type == token.T_DOC_COMMENT {
+		p.nextToken()
 	}
 
 	// Parse semicolon
