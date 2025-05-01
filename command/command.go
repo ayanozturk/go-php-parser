@@ -1,6 +1,7 @@
 package command
 
 import (
+	"flag"
 	"fmt"
 	"go-phpcs/analyzer"
 	"go-phpcs/ast"
@@ -8,6 +9,7 @@ import (
 	"go-phpcs/printer"
 	"go-phpcs/style"
 	stylepsr12 "go-phpcs/style/psr12"
+	"os"
 	"sync"
 )
 
@@ -38,14 +40,31 @@ var Commands = map[string]Command{
 		Name:        "style",
 		Description: "Check code style (e.g., function naming)",
 		Execute: func(nodes []ast.Node, filename string) {
+			// Parse os.Args for output flag (since main.go may not use flag package for subcommands)
+			outputFile := ""
+			for i, arg := range os.Args {
+				if (arg == "--output" || arg == "-o") && i+1 < len(os.Args) {
+					outputFile = os.Args[i+1]
+				}
+			}
+
 			var allIssues []style.StyleIssue
 			checker := &style.ClassNameChecker{}
 			allIssues = append(allIssues, checker.CheckIssues(nodes, filename)...)
-
-			// Run PSR-12 checks
 			allIssues = append(allIssues, stylepsr12.RunAllPSR12Checks(filename)...)
 
-			style.PrintPHPCSStyleOutput(allIssues)
+			if outputFile != "" {
+				f, err := os.Create(outputFile)
+				if err != nil {
+					fmt.Fprintf(os.Stderr, "Could not create output file %s: %v\n", outputFile, err)
+					return
+				}
+				defer f.Close()
+				style.PrintPHPCSStyleOutputToWriter(f, allIssues)
+				fmt.Fprintf(os.Stderr, "PHPCS-style report written to %s\n", outputFile)
+			} else {
+				style.PrintPHPCSStyleOutput(allIssues)
+			}
 		},
 	},
 	"analyse": {
