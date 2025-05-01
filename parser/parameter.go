@@ -41,21 +41,17 @@ func (p *Parser) parseParameter() ast.Node {
 	}
 	pos := p.tok.Pos
 
-	// Parse type hint if present (support nullable type: ?Bar, union types: Foo|Bar, FQCNs, parenthesized types)
+	// Parse type hint if present (support nullable, union, intersection, FQCNs, parenthesized types)
 	var typeHint string
-	if p.tok.Type == token.T_LPAREN {
+	switch p.tok.Type {
+	case token.T_LPAREN, token.T_NS_SEPARATOR, token.T_STRING, token.T_CALLABLE, token.T_ARRAY, token.T_STATIC, token.T_SELF, token.T_PARENT, token.T_NEW, token.T_QUESTION, token.T_MIXED:
 		typeHint = parseFullTypeHint(p)
-	} else {
-		switch p.tok.Type {
-		case token.T_NS_SEPARATOR, token.T_STRING, token.T_CALLABLE, token.T_ARRAY, token.T_STATIC, token.T_SELF, token.T_PARENT, token.T_NEW, token.T_QUESTION, token.T_MIXED:
-			typeHint = p.parseTypeHint()
-		default:
-			// Also allow literal backslash for robustness
-			if p.tok.Literal == "\\" {
-				typeHint = p.parseTypeHint()
-			}
+	default:
+		if p.tok.Literal == "\\" {
+			typeHint = parseFullTypeHint(p)
 		}
 	}
+
 
 	// After type hint, skip whitespace/comments before checking for & or ... or $var
 	for p.tok.Type == token.T_WHITESPACE || p.tok.Type == token.T_COMMENT || p.tok.Type == token.T_DOC_COMMENT {
@@ -89,6 +85,7 @@ func (p *Parser) parseParameter() ast.Node {
 	// Parse variable name (must be $var)
 	if p.tok.Type != token.T_VARIABLE {
 		p.errors = append(p.errors, fmt.Sprintf("line %d:%d: expected variable name in parameter, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal))
+		p.nextToken() // Advance to avoid infinite loop
 		return nil
 	}
 	name := p.tok.Literal[1:] // Remove $ prefix
