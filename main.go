@@ -5,9 +5,7 @@ import (
 	"fmt"
 	"go-phpcs/command"
 	"go-phpcs/config"
-	"go-phpcs/lexer"
 	"go-phpcs/style"
-	"go-phpcs/parser"
 	"io"
 	"log"
 	"os"
@@ -121,39 +119,11 @@ func main() {
 			if isatty(os.Stdout.Fd()) {
 				fmt.Fprintf(os.Stdout, "Scanning %d files...\n", nFiles)
 			}
-			for i, file := range filesToScan {
-				input, err := os.ReadFile(file)
-				if err != nil {
-					fmt.Fprintf(outWriter, "Could not read file %s: %v\n", file, err)
-					continue
-				}
-				// Count lines in this file
-				totalLines += command.CountLines(input)
-				lex := lexer.New(string(input))
-				p := parser.New(lex, false)
-				nodes := p.Parse()
-				if len(p.Errors()) > 0 {
-					totalParseErrors += len(p.Errors())
-				}
-				// Collect issues for this file
-				var fileIssues []style.StyleIssue
-				issueWriter := &style.IssueCollector{Issues: &fileIssues}
-				command.Commands["style"].ExecuteWithRules(nodes, file, issueWriter, c.Rules)
-				allIssues = append(allIssues, fileIssues...)
-				// Progress bar (1-100%)
-				if isatty(os.Stdout.Fd()) {
-					percent := int(float64(i+1) / float64(nFiles) * 100)
-					barLen := 40
-					filled := int(float64(barLen) * float64(percent) / 100.0)
-					bar := repeat('=', filled) + repeat(' ', barLen-filled)
-					fmt.Fprintf(os.Stdout, "\r[%s] %3d%% (%d/%d)", bar, percent, i+1, nFiles)
-					if i+1 == nFiles {
-						fmt.Fprintln(os.Stdout)
-					}
-				}
-			}
-			// Print grouped output and summary
+
+			// Parallel file-level scan for style command
+			allIssues, totalParseErrors, totalLines = command.ProcessStyleFilesParallel(filesToScan, c.Rules, *parallelism)
 			style.PrintPHPCSStyleOutputToWriter(outWriter, allIssues)
+
 		} else {
 			totalParseErrors, totalLines = command.ProcessMultipleFiles(filesToScan, commandName, *debug, *parallelism, outWriter)
 		}
