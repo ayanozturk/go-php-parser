@@ -129,13 +129,15 @@ func (p *Parser) parseInterfaceMethod() ast.Node {
 	// Parse function keyword
 	if p.tok.Type != token.T_FUNCTION {
 		p.errors = append(p.errors, fmt.Sprintf("line %d:%d: expected 'function' keyword, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal))
+		p.syncToNextClassMember()
 		return nil
 	}
 	p.nextToken()
 
-	// Parse method name
-	if p.tok.Type != token.T_STRING {
+	// Accept PHP keywords as method names (not just T_STRING)
+	if !isValidMethodNameToken(p.tok.Type) {
 		p.errors = append(p.errors, fmt.Sprintf("line %d:%d: expected method name, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal))
+		p.syncToNextClassMember()
 		return nil
 	}
 	name := p.tok.Literal
@@ -144,6 +146,7 @@ func (p *Parser) parseInterfaceMethod() ast.Node {
 	// Parse opening parenthesis
 	if p.tok.Type != token.T_LPAREN {
 		p.errors = append(p.errors, fmt.Sprintf("line %d:%d: expected '(' after method name %s, got %s", p.tok.Pos.Line, p.tok.Pos.Column, name, p.tok.Literal))
+		p.syncToNextClassMember()
 		return nil
 	}
 	p.nextToken()
@@ -172,6 +175,11 @@ func (p *Parser) parseInterfaceMethod() ast.Node {
 		if p.tok.Type == token.T_EOF {
 			break
 		}
+	}
+	if p.tok.Type != token.T_RPAREN {
+		p.errors = append(p.errors, fmt.Sprintf("line %d:%d: expected ')' after parameter list for method %s, got %s", p.tok.Pos.Line, p.tok.Pos.Column, name, p.tok.Literal))
+		p.syncToNextClassMember()
+		return nil
 	}
 	p.nextToken() // consume )
 
@@ -208,6 +216,7 @@ func (p *Parser) parseInterfaceMethod() ast.Node {
 			}
 		} else {
 			p.errors = append(p.errors, fmt.Sprintf("line %d:%d: expected return type for method %s, got %s", p.tok.Pos.Line, p.tok.Pos.Column, name, p.tok.Literal))
+			p.syncToNextClassMember()
 			return nil
 		}
 	}
@@ -215,6 +224,7 @@ func (p *Parser) parseInterfaceMethod() ast.Node {
 	// Parse semicolon
 	if p.tok.Type != token.T_SEMICOLON {
 		p.errors = append(p.errors, fmt.Sprintf("line %d:%d: expected ';' after method declaration %s, got %s", p.tok.Pos.Line, p.tok.Pos.Column, name, p.tok.Literal))
+		p.syncToNextClassMember()
 		return nil
 	}
 	p.nextToken()
