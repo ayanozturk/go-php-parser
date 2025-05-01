@@ -102,10 +102,10 @@ func (p *Parser) parseParameter() ast.Node {
 		}
 	}
 
-	// If we see a comment like /* ,... */ after a parameter, skip it (for commented-out trailing params)
+	// If we see a comment after a parameter, skip it (for commented-out or inline params)
 	for p.tok.Type == token.T_COMMENT || p.tok.Type == token.T_DOC_COMMENT {
-		// Only skip if the comment starts with '/* ,'
-		if strings.HasPrefix(p.tok.Literal, "/* ,") || strings.HasPrefix(p.tok.Literal, ",") {
+		// Skip any comment that looks like a commented-out parameter or is inline
+		if strings.HasPrefix(p.tok.Literal, "/*") || strings.HasPrefix(p.tok.Literal, "//") || strings.HasPrefix(p.tok.Literal, ",") {
 			p.nextToken()
 			continue
 		}
