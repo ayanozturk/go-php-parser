@@ -40,6 +40,27 @@ go mod download
 
 ## Usage
 
+## Available Style Rules
+
+You can enable or disable specific code style rules using the `rules:` key in your `config.yaml`. If no rules are specified, all available rules are run.
+
+**List of Available Rules:**
+
+| Rule Code                                 | Description                                |
+|-------------------------------------------|--------------------------------------------|
+| PSR12.Files.EndFileNoTrailingWhitespace   | Enforces no trailing whitespace on lines    |
+| PSR1.Classes.ClassDeclaration.PascalCase | Enforces PascalCase for class names        |
+
+**Example config.yaml:**
+```yaml
+rules:
+  - PSR12.Files.EndFileNoTrailingWhitespace
+  - PSR1.Classes.ClassDeclaration.PascalCase
+```
+
+Add or remove rule codes under `rules:` to control which checks are performed.
+
+
 ### Basic Usage
 
 ```bash

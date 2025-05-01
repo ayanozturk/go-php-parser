@@ -1,0 +1,92 @@
+Command: style
+  10 | ERROR   | Class name should be PascalCase
+     |         |     (PSR1.Classes.ClassDeclaration.PascalCase)
+   7 | ERROR   | Class name should be PascalCase
+     |         |     (PSR1.Classes.ClassDeclaration.PascalCase)
+   8 | ERROR   | Class name should be PascalCase
+     |         |     (PSR1.Classes.ClassDeclaration.PascalCase)
+   7 | ERROR   | Class name should be PascalCase
+     |         |     (PSR1.Classes.ClassDeclaration.PascalCase)
+   7 | ERROR   | Class name should be PascalCase
+     |         |     (PSR1.Classes.ClassDeclaration.PascalCase)
+   7 | ERROR   | Class name should be PascalCase
+     |         |     (PSR1.Classes.ClassDeclaration.PascalCase)
+   7 | ERROR   | Class name should be PascalCase
+     |         |     (PSR1.Classes.ClassDeclaration.PascalCase)
+   7 | ERROR   | Class name should be PascalCase
+     |         |     (PSR1.Classes.ClassDeclaration.PascalCase)
+   7 | ERROR   | Class name should be PascalCase
+     |         |     (PSR1.Classes.ClassDeclaration.PascalCase)
+   7 | ERROR   | Class name should be PascalCase
+     |         |     (PSR1.Classes.ClassDeclaration.PascalCase)
+   7 | ERROR   | Class name should be PascalCase
+     |         |     (PSR1.Classes.ClassDeclaration.PascalCase)
+   7 | ERROR   | Class name should be PascalCase
+     |         |     (PSR1.Classes.ClassDeclaration.PascalCase)
+   7 | ERROR   | Class name should be PascalCase
+     |         |     (PSR1.Classes.ClassDeclaration.PascalCase)
+   7 | ERROR   | Class name should be PascalCase
+     |         |     (PSR1.Classes.ClassDeclaration.PascalCase)
+   7 | ERROR   | Class name should be PascalCase
+     |         |     (PSR1.Classes.ClassDeclaration.PascalCase)
+   8 | ERROR   | Class name should be PascalCase
+     |         |     (PSR1.Classes.ClassDeclaration.PascalCase)
+   7 | ERROR   | Class name should be PascalCase
+     |         |     (PSR1.Classes.ClassDeclaration.PascalCase)
+   7 | ERROR   | Class name should be PascalCase
+     |         |     (PSR1.Classes.ClassDeclaration.PascalCase)
+   7 | ERROR   | Class name should be PascalCase
+     |         |     (PSR1.Classes.ClassDeclaration.PascalCase)
+   7 | ERROR   | Class name should be PascalCase
+     |         |     (PSR1.Classes.ClassDeclaration.PascalCase)
+   7 | ERROR   | Class name should be PascalCase
+     |         |     (PSR1.Classes.ClassDeclaration.PascalCase)
+   7 | ERROR   | Class name should be PascalCase
+     |         |     (PSR1.Classes.ClassDeclaration.PascalCase)
+   7 | ERROR   | Class name should be PascalCase
+     |         |     (PSR1.Classes.ClassDeclaration.PascalCase)
+   8 | ERROR   | Class name should be PascalCase
+     |         |     (PSR1.Classes.ClassDeclaration.PascalCase)
+   8 | ERROR   | Class name should be PascalCase
+     |         |     (PSR1.Classes.ClassDeclaration.PascalCase)
+   7 | ERROR   | Class name should be PascalCase
+     |         |     (PSR1.Classes.ClassDeclaration.PascalCase)
+   8 | ERROR   | Class name should be PascalCase
+     |         |     (PSR1.Classes.ClassDeclaration.PascalCase)
+  27 | ERROR   | Class name should be PascalCase
+     |         |     (PSR1.Classes.ClassDeclaration.PascalCase)
+  27 | ERROR   | Class name should be PascalCase
+     |         |     (PSR1.Classes.ClassDeclaration.PascalCase)
+  23 | ERROR   | Class name should be PascalCase
+     |         |     (PSR1.Classes.ClassDeclaration.PascalCase)
+  23 | ERROR   | Class name should be PascalCase
+     |         |     (PSR1.Classes.ClassDeclaration.PascalCase)
+  21 | ERROR   | Class name should be PascalCase
+     |         |     (PSR1.Classes.ClassDeclaration.PascalCase)
+  23 | ERROR   | Class name should be PascalCase
+     |         |     (PSR1.Classes.ClassDeclaration.PascalCase)
+  26 | ERROR   | Class name should be PascalCase
+     |         |     (PSR1.Classes.ClassDeclaration.PascalCase)
+  23 | ERROR   | Class name should be PascalCase
+     |         |     (PSR1.Classes.ClassDeclaration.PascalCase)
+  25 | ERROR   | Class name should be PascalCase
+     |         |     (PSR1.Classes.ClassDeclaration.PascalCase)
+  23 | ERROR   | Class name should be PascalCase
+     |         |     (PSR1.Classes.ClassDeclaration.PascalCase)
+  25 | ERROR   | Class name should be PascalCase
+     |         |     (PSR1.Classes.ClassDeclaration.PascalCase)
+  30 | ERROR   | Class name should be PascalCase
+     |         |     (PSR1.Classes.ClassDeclaration.PascalCase)
+  23 | ERROR   | Class name should be PascalCase
+     |         |     (PSR1.Classes.ClassDeclaration.PascalCase)
+  26 | ERROR   | Class name should be PascalCase
+     |         |     (PSR1.Classes.ClassDeclaration.PascalCase)
+  27 | ERROR   | Class name should be PascalCase
+     |         |     (PSR1.Classes.ClassDeclaration.PascalCase)
+
+Scan completed in 2.00 seconds
+Total lines scanned: 0
+Lines per second: 0.00
+Total parsing errors: 0
+HeapAlloc: 0.23 MB
+Sys: 16.27 MB
