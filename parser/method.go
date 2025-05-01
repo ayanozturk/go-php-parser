@@ -62,9 +62,13 @@ func (p *Parser) parseInterfaceDeclaration() ast.Node {
 		if p.tok.Type == token.T_PUBLIC || p.tok.Type == token.T_PRIVATE || p.tok.Type == token.T_PROTECTED {
 			// Advance past visibility
 			p.nextToken()
-			// Skip comments and whitespace
-			for p.tok.Type == token.T_DOC_COMMENT || p.tok.Type == token.T_COMMENT || p.tok.Type == token.T_WHITESPACE {
-				p.nextToken()
+			// Skip any number of 'static', comments, and whitespace
+			for {
+				if p.tok.Type == token.T_STATIC || p.tok.Type == token.T_DOC_COMMENT || p.tok.Type == token.T_COMMENT || p.tok.Type == token.T_WHITESPACE {
+					p.nextToken()
+				} else {
+					break
+				}
 			}
 			if p.tok.Type == token.T_CONST {
 				if constant := p.parseConstant(); constant != nil {
