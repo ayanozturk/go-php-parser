@@ -76,6 +76,26 @@ var psr12RuleRegistry = map[string]PSR12RuleFunc{
 		checker := &NoMultipleStatementsPerLineChecker{}
 		return checker.CheckIssues(lines, filename)
 	},
+	"PSR12.Files.NoSpaceBeforeSemicolon": func(filename string) []style.StyleIssue {
+		file, err := os.Open(filename)
+		if err != nil {
+			return []style.StyleIssue{{
+				Filename: filename,
+				Line:     0,
+				Type:     style.Error,
+				Message:  "[PSR12] Could not open file: " + err.Error(),
+				Code:     "PSR12.Files.FileOpenError",
+			}}
+		}
+		defer file.Close()
+		scanner := bufio.NewScanner(file)
+		var lines []string
+		for scanner.Scan() {
+			lines = append(lines, scanner.Text())
+		}
+		checker := &NoSpaceBeforeSemicolonChecker{}
+		return checker.CheckIssues(lines, filename)
+	},
 }
 
 // RunSelectedPSR12Checks runs only the selected PSR-12 rules by code. If rules is nil or empty, runs all rules.

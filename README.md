@@ -47,6 +47,7 @@ This parser implements several PSR-12 style checks, including:
 - **No trailing whitespace** (`PSR12.Files.EndFileNoTrailingWhitespace`): Disallows trailing whitespace at the end of lines.
 - **File must end with a single blank line** (`PSR12.Files.EndFileNewline`): Ensures files end with exactly one blank line.
 - **No multiple statements per line** (`PSR12.Files.NoMultipleStatementsPerLine`): Disallows more than one statement (semicolon) per line.
+- **No space before semicolon** (`PSR12.Files.NoSpaceBeforeSemicolon`): Disallows any space or tab before a semicolon at the end of a statement.
 
 Style issues are reported per file and line, and can be extended by adding new checkers in the `style/psr12` package.
 
@@ -62,6 +63,7 @@ You can enable or disable specific code style rules using the `rules:` key in yo
 | PSR12.Files.EndFileNoTrailingWhitespace   | Enforces no trailing whitespace on lines    |
 | PSR12.Files.EndFileNewline                | File must end with a single blank line      |
 | PSR12.Files.NoMultipleStatementsPerLine   | Disallows more than one statement (semicolon) per line |
+| PSR12.Files.NoSpaceBeforeSemicolon        | Disallows any space or tab before a semicolon at the end of a statement |
 | PSR1.Classes.ClassDeclaration.PascalCase | Enforces PascalCase for class names        |
 
 **Example config.yaml:**
@@ -70,6 +72,7 @@ rules:
   - PSR12.Files.EndFileNoTrailingWhitespace
   - PSR12.Files.EndFileNewline
   - PSR12.Files.NoMultipleStatementsPerLine
+  - PSR12.Files.NoSpaceBeforeSemicolon
   - PSR1.Classes.ClassDeclaration.PascalCase
 ```
 
