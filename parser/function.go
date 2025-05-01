@@ -26,16 +26,40 @@ func (p *Parser) parseFunction(modifiers []string) (ast.Node, error) {
 
 	var params []ast.Node
 	for p.tok.Type != token.T_RPAREN {
+		// Skip comments before parameter or after trailing comma
+		for p.tok.Type == token.T_COMMENT || p.tok.Type == token.T_DOC_COMMENT || p.tok.Type == token.T_WHITESPACE {
+			p.nextToken()
+		}
+		// If after skipping comments we see a closing parenthesis, allow it (trailing comma or comment)
+		if p.tok.Type == token.T_RPAREN {
+			break
+		}
 		param := p.parseParameter()
 		if param == nil {
-			// Ensure forward progress to avoid infinite loop
-			p.nextToken()
+			// Enhanced error recovery: skip to next comma, closing parenthesis, or opening brace
+			for p.tok.Type != token.T_COMMA && p.tok.Type != token.T_RPAREN && p.tok.Type != token.T_LBRACE && p.tok.Type != token.T_EOF {
+				p.nextToken()
+			}
+			if p.tok.Type == token.T_COMMA {
+				p.nextToken()
+				continue
+			}
+			if p.tok.Type == token.T_RPAREN || p.tok.Type == token.T_LBRACE {
+				break
+			}
 			continue
 		}
 		params = append(params, param)
 
 		if p.tok.Type == token.T_COMMA {
 			p.nextToken()
+			// Allow trailing comma before )
+			for p.tok.Type == token.T_COMMENT || p.tok.Type == token.T_DOC_COMMENT || p.tok.Type == token.T_WHITESPACE {
+				p.nextToken()
+			}
+			if p.tok.Type == token.T_RPAREN {
+				break
+			}
 		}
 	}
 	p.nextToken() // consume )
