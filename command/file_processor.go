@@ -37,7 +37,7 @@ func ProcessFile(filePath, commandName string, debug bool) int {
 				fmt.Printf("%s: %s @ %d:%d\n", tok.Type, tok.Literal, tok.Pos.Line, tok.Pos.Column)
 			}
 		} else {
-			cmd.Execute(nodes)
+			cmd.Execute(nodes, filePath)
 		}
 	} else {
 		fmt.Printf("Unknown command: %s\n", commandName)
@@ -60,7 +60,7 @@ func ProcessFileWithErrors(filePath, commandName string, debug bool) ([]string, 
 	if len(errList) > 0 {
 		return errList, lineCount
 	}
-	ExecuteCommand(commandName, nodes, input)
+	ExecuteCommand(commandName, nodes, input, filePath)
 	return nil, lineCount
 }
 

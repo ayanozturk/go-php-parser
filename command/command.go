@@ -14,7 +14,7 @@ import (
 type Command struct {
 	Name        string
 	Description string
-	Execute     func([]ast.Node)
+	Execute     func([]ast.Node, string)
 }
 
 // Commands maps command names to their implementations
@@ -22,29 +22,29 @@ var Commands = map[string]Command{
 	"ast": {
 		Name:        "ast",
 		Description: "Print the Abstract Syntax Tree",
-		Execute: func(nodes []ast.Node) {
+		Execute: func(nodes []ast.Node, filename string) {
 			printer.PrintAST(nodes, 0)
 		},
 	},
 	"tokens": {
 		Name:        "tokens",
 		Description: "Print the tokens from the lexer",
-		Execute: func(nodes []ast.Node) {
+		Execute: func(nodes []ast.Node, filename string) {
 			// This is a placeholder - the actual implementation is in main.go
 		},
 	},
 	"style": {
 		Name:        "style",
 		Description: "Check code style (e.g., function naming)",
-		Execute: func(nodes []ast.Node) {
+		Execute: func(nodes []ast.Node, filename string) {
 			checker := &style.ClassNameChecker{}
-			checker.Check(nodes)
+			checker.Check(nodes, filename)
 		},
 	},
 	"analyse": {
 		Name:        "analyse",
 		Description: "Static analysis: unknown function calls (PoC)",
-		Execute: func(nodes []ast.Node) {
+		Execute: func(nodes []ast.Node, filename string) {
 			analyzer.AnalyzeUnknownFunctionCalls(nodes)
 		},
 	},
@@ -127,7 +127,7 @@ func CountLines(input []byte) int {
 	return lineCount
 }
 
-func ExecuteCommand(commandName string, nodes []ast.Node, input []byte) {
+func ExecuteCommand(commandName string, nodes []ast.Node, input []byte, filename string) {
 	if cmd, exists := Commands[commandName]; exists {
 		if commandName == "tokens" {
 			l := lexer.New(string(input))
@@ -139,7 +139,7 @@ func ExecuteCommand(commandName string, nodes []ast.Node, input []byte) {
 				fmt.Printf("%s: %s @ %d:%d\n", tok.Type, tok.Literal, tok.Pos.Line, tok.Pos.Column)
 			}
 		} else {
-			cmd.Execute(nodes)
+			cmd.Execute(nodes, filename)
 		}
 	} else {
 		fmt.Printf("Unknown command: %s\n", commandName)

@@ -10,11 +10,26 @@ import (
 
 type ClassNameChecker struct{}
 
-func (c *ClassNameChecker) Check(nodes []ast.Node) {
+func (c *ClassNameChecker) Check(nodes []ast.Node, filename string) {
 	for _, node := range nodes {
 		if cls, ok := node.(*ast.ClassNode); ok {
 			if cls.Name != pascalCase(cls.Name) {
-				fmt.Printf("Class '%s' should be PascalCase\n", cls.Name)
+				// ANSI color codes for pretty output
+				const (
+					red    = "\033[31m"
+					green  = "\033[32m"
+					yellow = "\033[33m"
+					blue   = "\033[34m"
+					reset  = "\033[0m"
+					bold   = "\033[1m"
+				)
+
+				fmt.Printf("\n%s%sClass Name Style Error%s\n", bold, red, reset)
+				fmt.Printf("  %sFile   :%s %s\n", blue, reset, filename)
+				fmt.Printf("  %sClass  :%s %s\n", blue, reset, cls.Name)
+				fmt.Printf("  %sLine   :%s %d\n", blue, reset, cls.Pos.Line)
+				fmt.Printf("  %sColumn :%s %d\n", blue, reset, cls.Pos.Column)
+				fmt.Printf("  %sReason :%s Class name should be PascalCase\n\n", yellow, reset)
 			}
 		}
 	}
