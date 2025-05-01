@@ -10,6 +10,11 @@ func parseFullTypeHint(p *Parser) string {
 	parenLevel := 0
 	typeHintBuilder := strings.Builder{}
 	for {
+		// Skip whitespace and comments between type tokens
+		if p.tok.Type == token.T_WHITESPACE || p.tok.Type == token.T_COMMENT || p.tok.Type == token.T_DOC_COMMENT {
+			p.nextToken()
+			continue
+		}
 		if p.tok.Type == token.T_LPAREN {
 			parenLevel++
 			typeHintBuilder.WriteString("(")
@@ -30,7 +35,15 @@ func parseFullTypeHint(p *Parser) string {
 			p.nextToken()
 			continue
 		}
-		if p.tok.Type == token.T_NS_SEPARATOR || p.tok.Type == token.T_STRING || p.tok.Type == token.T_CALLABLE || p.tok.Type == token.T_ARRAY || p.tok.Type == token.T_STATIC || p.tok.Type == token.T_SELF || p.tok.Type == token.T_PARENT || p.tok.Type == token.T_NEW || p.tok.Type == token.T_MIXED || p.tok.Type == token.T_NULL {
+		if p.tok.Type == token.T_NS_SEPARATOR || p.tok.Type == token.T_CALLABLE || p.tok.Type == token.T_ARRAY ||
+		   p.tok.Type == token.T_STATIC || p.tok.Type == token.T_SELF || p.tok.Type == token.T_PARENT ||
+		   p.tok.Type == token.T_NEW || p.tok.Type == token.T_MIXED || p.tok.Type == token.T_NULL ||
+		   p.tok.Type == token.T_FALSE {
+			typeHintBuilder.WriteString(p.tok.Literal)
+			p.nextToken()
+			continue
+		}
+		if p.tok.Type == token.T_STRING {
 			typeHintBuilder.WriteString(p.tok.Literal)
 			p.nextToken()
 			continue
