@@ -1,5 +1,8 @@
+# Usage:
+#   make run ARGS="-o results.log"
+#   make run ARGS="--output=results.log"
 run:
-	go run main.go
+	go run main.go $(ARGS)
 
 ast:
 	go run main.go ast
