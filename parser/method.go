@@ -59,7 +59,26 @@ func (p *Parser) parseInterfaceDeclaration() ast.Node {
 			continue
 		}
 		// Interface members: methods and constants
-		if p.tok.Type == token.T_PUBLIC || p.tok.Type == token.T_PRIVATE || p.tok.Type == token.T_PROTECTED || p.tok.Type == token.T_FUNCTION {
+		if p.tok.Type == token.T_PUBLIC || p.tok.Type == token.T_PRIVATE || p.tok.Type == token.T_PROTECTED {
+			// Advance past visibility
+			p.nextToken()
+			// Skip comments and whitespace
+			for p.tok.Type == token.T_DOC_COMMENT || p.tok.Type == token.T_COMMENT || p.tok.Type == token.T_WHITESPACE {
+				p.nextToken()
+			}
+			if p.tok.Type == token.T_CONST {
+				if constant := p.parseConstant(); constant != nil {
+					members = append(members, constant)
+				}
+			} else if p.tok.Type == token.T_FUNCTION {
+				if method := p.parseInterfaceMethod(); method != nil {
+					members = append(members, method)
+				}
+			} else {
+				p.errors = append(p.errors, fmt.Sprintf("line %d:%d: unexpected token %s after visibility modifier in interface %s body", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal, name))
+				p.nextToken()
+			}
+		} else if p.tok.Type == token.T_FUNCTION {
 			if method := p.parseInterfaceMethod(); method != nil {
 				members = append(members, method)
 			}
