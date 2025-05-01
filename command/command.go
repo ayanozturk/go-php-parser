@@ -7,7 +7,7 @@ import (
 	"go-phpcs/lexer"
 	"go-phpcs/printer"
 	"go-phpcs/style"
-	stylepsr12 "go-phpcs/style/psr12"
+	// stylepsr12 "go-phpcs/style/psr12"
 	"sync"
 )
 
@@ -42,12 +42,12 @@ var Commands = map[string]Command{
 			checker.Check(nodes, filename)
 
 			// Run PSR-12 checks
-			psr12Errors := stylepsr12.RunAllPSR12Checks(filename)
-			for _, err := range psr12Errors {
-				if err != "" {
-					fmt.Println(err)
-				}
-			}
+			// psr12Errors := stylepsr12.RunAllPSR12Checks(filename)
+			// for _, err := range psr12Errors {
+			// 	if err != "" {
+			// 		fmt.Println(err)
+			// 	}
+			// }
 		},
 	},
 	"analyse": {
