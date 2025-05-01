@@ -40,6 +40,17 @@ go mod download
 
 ## Usage
 
+## PSR-12 Style Checks
+
+This parser implements several PSR-12 style checks, including:
+
+- **No trailing whitespace** (`PSR12.Files.EndFileNoTrailingWhitespace`): Disallows trailing whitespace at the end of lines.
+- **File must end with a single blank line** (`PSR12.Files.EndFileNewline`): Ensures files end with exactly one blank line.
+- **No multiple statements per line** (`PSR12.Files.NoMultipleStatementsPerLine`): Disallows more than one statement (semicolon) per line.
+
+Style issues are reported per file and line, and can be extended by adding new checkers in the `style/psr12` package.
+
+
 ## Available Style Rules
 
 You can enable or disable specific code style rules using the `rules:` key in your `config.yaml`. If no rules are specified, all available rules are run.
@@ -50,12 +61,15 @@ You can enable or disable specific code style rules using the `rules:` key in yo
 |-------------------------------------------|--------------------------------------------|
 | PSR12.Files.EndFileNoTrailingWhitespace   | Enforces no trailing whitespace on lines    |
 | PSR12.Files.EndFileNewline                | File must end with a single blank line      |
+| PSR12.Files.NoMultipleStatementsPerLine   | Disallows more than one statement (semicolon) per line |
 | PSR1.Classes.ClassDeclaration.PascalCase | Enforces PascalCase for class names        |
 
 **Example config.yaml:**
 ```yaml
 rules:
   - PSR12.Files.EndFileNoTrailingWhitespace
+  - PSR12.Files.EndFileNewline
+  - PSR12.Files.NoMultipleStatementsPerLine
   - PSR1.Classes.ClassDeclaration.PascalCase
 ```
 
