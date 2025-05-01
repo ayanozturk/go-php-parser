@@ -6,12 +6,13 @@ import (
 	"go-phpcs/parser"
 	"os"
 	"sync"
+	"io"
 )
 
-func ProcessFile(filePath, commandName string, debug bool) int {
+func ProcessFile(filePath, commandName string, debug bool, w io.Writer) int {
 	input, err := os.ReadFile(filePath)
 	if err != nil {
-		fmt.Printf("Error reading file: %s\n", err)
+		fmt.Fprintf(w, "Error reading file: %s\n", err)
 		return 0
 	}
 	lineCount := CountLines(input)
@@ -20,9 +21,9 @@ func ProcessFile(filePath, commandName string, debug bool) int {
 	nodes := p.Parse()
 	if len(p.Errors()) > 0 {
 		errCount := len(p.Errors())
-		fmt.Printf("Parsing errors in %s (%d error(s)):\n", filePath, errCount)
+		fmt.Fprintf(w, "Parsing errors in %s (%d error(s)):\n", filePath, errCount)
 		for _, err := range p.Errors() {
-			fmt.Printf(ErrorLineFormat, err)
+			fmt.Fprintf(w, ErrorLineFormat, err)
 		}
 		return lineCount
 	}
@@ -34,22 +35,22 @@ func ProcessFile(filePath, commandName string, debug bool) int {
 				if tok.Type == "T_EOF" {
 					break
 				}
-				fmt.Printf("%s: %s @ %d:%d\n", tok.Type, tok.Literal, tok.Pos.Line, tok.Pos.Column)
+				fmt.Fprintf(w, "%s: %s @ %d:%d\n", tok.Type, tok.Literal, tok.Pos.Line, tok.Pos.Column)
 			}
 		} else {
-			cmd.Execute(nodes, filePath)
+			cmd.Execute(nodes, filePath, w)
 		}
 	} else {
-		fmt.Printf("Unknown command: %s\n", commandName)
+		fmt.Fprintf(w, "Unknown command: %s\n", commandName)
 		PrintUsage()
 	}
 	return lineCount
 }
 
-func ProcessFileWithErrors(filePath, commandName string, debug bool) ([]string, int) {
+func ProcessFileWithErrors(filePath, commandName string, debug bool, w io.Writer) ([]string, int) {
 	input, err := os.ReadFile(filePath)
 	if err != nil {
-		fmt.Printf("Error reading file: %s\n", err)
+		fmt.Fprintf(w, "Error reading file: %s\n", err)
 		return nil, 0
 	}
 	lineCount := CountLines(input)
@@ -60,11 +61,11 @@ func ProcessFileWithErrors(filePath, commandName string, debug bool) ([]string, 
 	if len(errList) > 0 {
 		return errList, lineCount
 	}
-	ExecuteCommand(commandName, nodes, input, filePath)
+	ExecuteCommand(commandName, nodes, input, filePath, w)
 	return nil, lineCount
 }
 
-func ProcessMultipleFiles(files []string, commandName string, debug bool, parallelism int) (int, int) {
+func ProcessMultipleFiles(files []string, commandName string, debug bool, parallelism int, w io.Writer) (int, int) {
 	totalParseErrors := 0
 	totalLines := 0
 	var wg sync.WaitGroup
@@ -75,11 +76,11 @@ func ProcessMultipleFiles(files []string, commandName string, debug bool, parall
 	errorsDone := make(chan struct{})
 
 	go CollectLines(linesCh, &totalLines, linesDone)
-	go CollectErrors(errDetailCh, &totalParseErrors, errorsDone)
+	go CollectErrors(errDetailCh, &totalParseErrors, errorsDone, w)
 
 	for i := 0; i < parallelism; i++ {
 		wg.Add(1)
-		go Worker(fileCh, errDetailCh, linesCh, commandName, debug, &wg)
+		go Worker(fileCh, errDetailCh, linesCh, commandName, debug, &wg, w)
 	}
 
 	for _, filePath := range files {
@@ -93,4 +94,26 @@ func ProcessMultipleFiles(files []string, commandName string, debug bool, parall
 	<-errorsDone
 
 	return totalParseErrors, totalLines
+}
+
+func CollectErrors(errDetailCh <-chan ParseErrorDetail, totalParseErrors *int, done chan<- struct{}, w io.Writer) {
+	for errDetail := range errDetailCh {
+		if len(errDetail.Errors) > 0 {
+			*totalParseErrors += len(errDetail.Errors)
+			fmt.Fprintf(w, "\nParsing errors in %s (%d error(s)):\n", errDetail.File, len(errDetail.Errors))
+			for _, err := range errDetail.Errors {
+				fmt.Fprintf(w, ErrorLineFormat, err)
+			}
+		}
+	}
+	done <- struct{}{}
+}
+
+func Worker(fileCh <-chan string, errDetailCh chan<- ParseErrorDetail, linesCh chan<- int, commandName string, debug bool, wg *sync.WaitGroup, w io.Writer) {
+	defer wg.Done()
+	for filePath := range fileCh {
+		errList, lines := ProcessFileWithErrors(filePath, commandName, debug, w)
+		errDetailCh <- ParseErrorDetail{File: filePath, Errors: errList}
+		linesCh <- lines
+	}
 }

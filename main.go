@@ -103,13 +103,13 @@ func main() {
 			command.PrintUsage()
 			os.Exit(1)
 		}
-		totalParseErrors, totalLines = command.ProcessSingleFile(filePath, commandName, *debug)
+		totalParseErrors, totalLines = command.ProcessFile(filePath, commandName, *debug, outWriter), 0
 	} else {
 		if len(filesToScan) == 0 {
 			fmt.Fprintln(outWriter, "No files to scan.")
 			os.Exit(1)
 		}
-		totalParseErrors, totalLines = command.ProcessMultipleFiles(filesToScan, commandName, *debug, *parallelism)
+		totalParseErrors, totalLines = command.ProcessMultipleFiles(filesToScan, commandName, *debug, *parallelism, outWriter)
 	}
 
 	trackMemoryUsage(&mem, false)

@@ -8,15 +8,16 @@ import (
 	"go-phpcs/printer"
 	"go-phpcs/style"
 	stylepsr12 "go-phpcs/style/psr12"
-	"os"
-	"sync"
+	"go-phpcs/parser"
+	"io"
+	"io/ioutil"
 )
 
-// Command represents a command that can be executed
+
 type Command struct {
 	Name        string
 	Description string
-	Execute     func([]ast.Node, string)
+	Execute     func([]ast.Node, string, io.Writer)
 }
 
 // Commands maps command names to their implementations
@@ -24,54 +25,37 @@ var Commands = map[string]Command{
 	"ast": {
 		Name:        "ast",
 		Description: "Print the Abstract Syntax Tree",
-		Execute: func(nodes []ast.Node, filename string) {
+		Execute: func(nodes []ast.Node, filename string, w io.Writer) {
 			printer.PrintAST(nodes, 0)
 		},
+
 	},
 	"tokens": {
 		Name:        "tokens",
 		Description: "Print the tokens from the lexer",
-		Execute: func(nodes []ast.Node, filename string) {
+		Execute: func(nodes []ast.Node, filename string, w io.Writer) {
 			// This is a placeholder - the actual implementation is in main.go
 		},
+
 	},
 	"style": {
 		Name:        "style",
 		Description: "Check code style (e.g., function naming)",
-		Execute: func(nodes []ast.Node, filename string) {
-			// Parse os.Args for output flag (since main.go may not use flag package for subcommands)
-			outputFile := ""
-			for i, arg := range os.Args {
-				if (arg == "--output" || arg == "-o") && i+1 < len(os.Args) {
-					outputFile = os.Args[i+1]
-				}
-			}
-
+		Execute: func(nodes []ast.Node, filename string, w io.Writer) {
 			var allIssues []style.StyleIssue
 			checker := &style.ClassNameChecker{}
 			allIssues = append(allIssues, checker.CheckIssues(nodes, filename)...)
 			allIssues = append(allIssues, stylepsr12.RunAllPSR12Checks(filename)...)
-
-			if outputFile != "" {
-				f, err := os.Create(outputFile)
-				if err != nil {
-					fmt.Fprintf(os.Stderr, "Could not create output file %s: %v\n", outputFile, err)
-					return
-				}
-				defer f.Close()
-				style.PrintPHPCSStyleOutputToWriter(f, allIssues)
-				fmt.Fprintf(os.Stderr, "PHPCS-style report written to %s\n", outputFile)
-			} else {
-				style.PrintPHPCSStyleOutput(allIssues)
-			}
+			style.PrintPHPCSStyleOutputToWriter(w, allIssues)
 		},
 	},
 	"analyse": {
 		Name:        "analyse",
 		Description: "Static analysis: unknown function calls (PoC)",
-		Execute: func(nodes []ast.Node, filename string) {
+		Execute: func(nodes []ast.Node, filename string, w io.Writer) {
 			analyzer.AnalyzeUnknownFunctionCalls(nodes)
 		},
+
 	},
 }
 
@@ -95,20 +79,32 @@ type MemStats struct {
 	Start, End interface{}
 }
 
-func ProcessSingleFile(filePath, commandName string, debug bool) (int, int) {
-	errList, lines := ProcessFileWithErrors(filePath, commandName, debug)
-	totalParseErrors := 0
-	if len(errList) > 0 {
-		totalParseErrors += len(errList)
-		if debug {
-			fmt.Printf("\nParsing errors in %s (%d error(s)):\n", filePath, len(errList))
-			for _, err := range errList {
-				fmt.Printf(ErrorLineFormat, err)
-			}
-		}
+
+
+func ProcessSingleFileWithWriter(filePath, commandName string, debug bool, w io.Writer) (int, int) {
+	input, err := ioutil.ReadFile(filePath)
+	if err != nil {
+		fmt.Fprintf(w, "Could not read file %s: %v\n", filePath, err)
+		return 1, 0
 	}
-	return totalParseErrors, lines
+	lex := lexer.New(string(input))
+	p := parser.New(lex, false)
+	nodes := p.Parse()
+	ExecuteCommand(commandName, nodes, input, filePath, w)
+	return 0, CountLines(input)
 }
+
+func ProcessMultipleFilesWithWriter(files []string, commandName string, debug bool, parallelism int, w io.Writer) (int, int) {
+	totalParseErrors := 0
+	totalLines := 0
+	for _, file := range files {
+		err, lines := ProcessSingleFileWithWriter(file, commandName, debug, w)
+		totalParseErrors += err
+		totalLines += lines
+	}
+	return totalParseErrors, totalLines
+}
+
 
 func CollectLines(linesCh <-chan int, totalLines *int, done chan<- struct{}) {
 	for lines := range linesCh {
@@ -117,27 +113,9 @@ func CollectLines(linesCh <-chan int, totalLines *int, done chan<- struct{}) {
 	done <- struct{}{}
 }
 
-func CollectErrors(errDetailCh <-chan ParseErrorDetail, totalParseErrors *int, done chan<- struct{}) {
-	for errDetail := range errDetailCh {
-		if len(errDetail.Errors) > 0 {
-			*totalParseErrors += len(errDetail.Errors)
-			fmt.Printf("\nParsing errors in %s (%d error(s)):\n", errDetail.File, len(errDetail.Errors))
-			for _, err := range errDetail.Errors {
-				fmt.Printf(ErrorLineFormat, err)
-			}
-		}
-	}
-	done <- struct{}{}
-}
 
-func Worker(fileCh <-chan string, errDetailCh chan<- ParseErrorDetail, linesCh chan<- int, commandName string, debug bool, wg *sync.WaitGroup) {
-	defer wg.Done()
-	for filePath := range fileCh {
-		errList, lines := ProcessFileWithErrors(filePath, commandName, debug)
-		errDetailCh <- ParseErrorDetail{File: filePath, Errors: errList}
-		linesCh <- lines
-	}
-}
+
+
 
 func CountLines(input []byte) int {
 	lineCount := 0
@@ -152,22 +130,8 @@ func CountLines(input []byte) int {
 	return lineCount
 }
 
-func ExecuteCommand(commandName string, nodes []ast.Node, input []byte, filename string) {
+func ExecuteCommand(commandName string, nodes []ast.Node, input []byte, filename string, w io.Writer) {
 	if cmd, exists := Commands[commandName]; exists {
-		if commandName == "tokens" {
-			l := lexer.New(string(input))
-			for {
-				tok := l.NextToken()
-				if tok.Type == "T_EOF" {
-					break
-				}
-				fmt.Printf("%s: %s @ %d:%d\n", tok.Type, tok.Literal, tok.Pos.Line, tok.Pos.Column)
-			}
-		} else {
-			cmd.Execute(nodes, filename)
-		}
-	} else {
-		fmt.Printf("Unknown command: %s\n", commandName)
-		PrintUsage()
+		cmd.Execute(nodes, filename, w)
 	}
 }
