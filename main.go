@@ -115,15 +115,22 @@ func main() {
 		// If command is style, use ExecuteWithRules to allow rule filtering
 		if commandName == "style" {
 			var allIssues []style.StyleIssue
+			totalParseErrors = 0
+			totalLines = 0
 			for _, file := range filesToScan {
 				input, err := os.ReadFile(file)
 				if err != nil {
 					fmt.Fprintf(outWriter, "Could not read file %s: %v\n", file, err)
 					continue
 				}
+				// Count lines in this file
+				totalLines += command.CountLines(input)
 				lex := lexer.New(string(input))
 				p := parser.New(lex, false)
 				nodes := p.Parse()
+				if len(p.Errors()) > 0 {
+					totalParseErrors += len(p.Errors())
+				}
 				// Collect issues for this file
 				var fileIssues []style.StyleIssue
 				issueWriter := &style.IssueCollector{Issues: &fileIssues}
@@ -132,8 +139,6 @@ func main() {
 			}
 			// Print grouped output and summary
 			style.PrintPHPCSStyleOutputToWriter(outWriter, allIssues)
-			totalParseErrors = 0 // Not tracked in streaming mode
-			totalLines = 0      // Not tracked in streaming mode
 		} else {
 			totalParseErrors, totalLines = command.ProcessMultipleFiles(filesToScan, commandName, *debug, *parallelism, outWriter)
 		}

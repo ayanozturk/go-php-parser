@@ -294,9 +294,9 @@ FOUND 1 ERRORS AND 0 WARNINGS AFFECTING 1 LINE
      |         |     (PSR1.Classes.ClassDeclaration.PascalCase)
 
 
-Scan completed in 1.98 seconds
-Total lines scanned: 0
-Lines per second: 0.00
+Scan completed in 2.08 seconds
+Total lines scanned: 1651689
+Lines per second: 792341.32
 Total parsing errors: 0
-HeapAlloc: 0.17 MB
-Sys: 16.27 MB
+HeapAlloc: 0.18 MB
+Sys: 17.02 MB
