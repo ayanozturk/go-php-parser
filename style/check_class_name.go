@@ -10,6 +10,28 @@ import (
 
 type ClassNameChecker struct{}
 
+// CheckIssues returns a list of style issues for class names in the given nodes.
+func (c *ClassNameChecker) CheckIssues(nodes []ast.Node, filename string) []StyleIssue {
+	var issues []StyleIssue
+	for _, node := range nodes {
+		if cls, ok := node.(*ast.ClassNode); ok {
+			if cls.Name != pascalCase(cls.Name) {
+				issues = append(issues, StyleIssue{
+					Filename: filename,
+					Line:     cls.Pos.Line,
+					Column:   cls.Pos.Column,
+					Type:     Error,
+					Fixable:  false,
+					Message:  "Class name should be PascalCase",
+					Code:     "PSR1.Classes.ClassDeclaration.PascalCase",
+				})
+			}
+		}
+	}
+	return issues
+}
+
+// Deprecated: use CheckIssues for structured output.
 func (c *ClassNameChecker) Check(nodes []ast.Node, filename string) {
 	for _, node := range nodes {
 		if cls, ok := node.(*ast.ClassNode); ok {

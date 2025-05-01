@@ -6,13 +6,21 @@ import (
 )
 
 // RunAllPSR12Checks runs all PSR-12 style checks on the given file.
-// Returns a slice of error strings.
-func RunAllPSR12Checks(filename string) []string {
-	var errors []string
+// Returns a slice of style.StyleIssue.
+import "go-phpcs/style"
+
+func RunAllPSR12Checks(filename string) []style.StyleIssue {
+	var issues []style.StyleIssue
 	file, err := os.Open(filename)
 	if err != nil {
-		errors = append(errors, "[PSR12] Could not open file: "+err.Error())
-		return errors
+		issues = append(issues, style.StyleIssue{
+			Filename: filename,
+			Line:     0,
+			Type:     style.Error,
+			Message:  "[PSR12] Could not open file: " + err.Error(),
+			Code:     "PSR12.Files.FileOpenError",
+		})
+		return issues
 	}
 	defer file.Close()
 
@@ -23,6 +31,6 @@ func RunAllPSR12Checks(filename string) []string {
 	}
 
 	checker := &NoTrailingWhitespaceChecker{}
-	errors = append(errors, checker.Check(lines, filename)...)
-	return errors
+	issues = append(issues, checker.CheckIssues(lines, filename)...)
+	return issues
 }

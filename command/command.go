@@ -7,7 +7,7 @@ import (
 	"go-phpcs/lexer"
 	"go-phpcs/printer"
 	"go-phpcs/style"
-	// stylepsr12 "go-phpcs/style/psr12"
+	stylepsr12 "go-phpcs/style/psr12"
 	"sync"
 )
 
@@ -38,16 +38,14 @@ var Commands = map[string]Command{
 		Name:        "style",
 		Description: "Check code style (e.g., function naming)",
 		Execute: func(nodes []ast.Node, filename string) {
+			var allIssues []style.StyleIssue
 			checker := &style.ClassNameChecker{}
-			checker.Check(nodes, filename)
+			allIssues = append(allIssues, checker.CheckIssues(nodes, filename)...)
 
 			// Run PSR-12 checks
-			// psr12Errors := stylepsr12.RunAllPSR12Checks(filename)
-			// for _, err := range psr12Errors {
-			// 	if err != "" {
-			// 		fmt.Println(err)
-			// 	}
-			// }
+			allIssues = append(allIssues, stylepsr12.RunAllPSR12Checks(filename)...)
+
+			style.PrintPHPCSStyleOutput(allIssues)
 		},
 	},
 	"analyse": {

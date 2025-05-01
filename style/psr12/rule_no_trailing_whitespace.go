@@ -1,23 +1,32 @@
 package psr12
 
 import (
-	"fmt"
+	"go-phpcs/style"
 )
 
 // NoTrailingWhitespaceChecker checks for trailing whitespace at the end of lines (PSR-12 2.2)
 type NoTrailingWhitespaceChecker struct{}
 
-// Check scans each line of the file for trailing whitespace.
-// It returns a slice of error messages with line numbers.
-func (c *NoTrailingWhitespaceChecker) Check(lines []string, filename string) []string {
-	var errors []string
+// CheckIssues returns a list of style issues for trailing whitespace.
+func (c *NoTrailingWhitespaceChecker) CheckIssues(lines []string, filename string) []style.StyleIssue {
+	var issues []style.StyleIssue
 	for i, line := range lines {
 		if len(line) > 0 && (line[len(line)-1] == ' ' || line[len(line)-1] == '\t') {
-			errors = append(errors, fmt.Sprintf(
-				"[PSR12:NoTrailingWhitespace] File: %s | Line: %d | Error: Trailing whitespace detected",
-				filename, i+1,
-			))
+			issues = append(issues, style.StyleIssue{
+				Filename: filename,
+				Line:     i + 1,
+				Column:   len(line),
+				Type:     style.Error,
+				Fixable:  true,
+				Message:  "Trailing whitespace detected",
+				Code:     "PSR12.Files.EndFileNoTrailingWhitespace",
+			})
 		}
 	}
-	return errors
+	return issues
+}
+
+// Deprecated: use CheckIssues for structured output.
+func (c *NoTrailingWhitespaceChecker) Check(lines []string, filename string) []string {
+	return nil
 }
