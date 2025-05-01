@@ -1,92 +1,302 @@
 Command: style
-  10 | ERROR   | Class name should be PascalCase
-     |         |     (PSR1.Classes.ClassDeclaration.PascalCase)
-   7 | ERROR   | Class name should be PascalCase
-     |         |     (PSR1.Classes.ClassDeclaration.PascalCase)
-   8 | ERROR   | Class name should be PascalCase
-     |         |     (PSR1.Classes.ClassDeclaration.PascalCase)
-   7 | ERROR   | Class name should be PascalCase
-     |         |     (PSR1.Classes.ClassDeclaration.PascalCase)
-   7 | ERROR   | Class name should be PascalCase
-     |         |     (PSR1.Classes.ClassDeclaration.PascalCase)
-   7 | ERROR   | Class name should be PascalCase
-     |         |     (PSR1.Classes.ClassDeclaration.PascalCase)
-   7 | ERROR   | Class name should be PascalCase
-     |         |     (PSR1.Classes.ClassDeclaration.PascalCase)
-   7 | ERROR   | Class name should be PascalCase
-     |         |     (PSR1.Classes.ClassDeclaration.PascalCase)
-   7 | ERROR   | Class name should be PascalCase
-     |         |     (PSR1.Classes.ClassDeclaration.PascalCase)
-   7 | ERROR   | Class name should be PascalCase
-     |         |     (PSR1.Classes.ClassDeclaration.PascalCase)
-   7 | ERROR   | Class name should be PascalCase
-     |         |     (PSR1.Classes.ClassDeclaration.PascalCase)
-   7 | ERROR   | Class name should be PascalCase
-     |         |     (PSR1.Classes.ClassDeclaration.PascalCase)
-   7 | ERROR   | Class name should be PascalCase
-     |         |     (PSR1.Classes.ClassDeclaration.PascalCase)
-   7 | ERROR   | Class name should be PascalCase
-     |         |     (PSR1.Classes.ClassDeclaration.PascalCase)
-   7 | ERROR   | Class name should be PascalCase
-     |         |     (PSR1.Classes.ClassDeclaration.PascalCase)
-   8 | ERROR   | Class name should be PascalCase
-     |         |     (PSR1.Classes.ClassDeclaration.PascalCase)
-   7 | ERROR   | Class name should be PascalCase
-     |         |     (PSR1.Classes.ClassDeclaration.PascalCase)
-   7 | ERROR   | Class name should be PascalCase
-     |         |     (PSR1.Classes.ClassDeclaration.PascalCase)
-   7 | ERROR   | Class name should be PascalCase
-     |         |     (PSR1.Classes.ClassDeclaration.PascalCase)
-   7 | ERROR   | Class name should be PascalCase
-     |         |     (PSR1.Classes.ClassDeclaration.PascalCase)
-   7 | ERROR   | Class name should be PascalCase
-     |         |     (PSR1.Classes.ClassDeclaration.PascalCase)
-   7 | ERROR   | Class name should be PascalCase
-     |         |     (PSR1.Classes.ClassDeclaration.PascalCase)
-   7 | ERROR   | Class name should be PascalCase
-     |         |     (PSR1.Classes.ClassDeclaration.PascalCase)
-   8 | ERROR   | Class name should be PascalCase
-     |         |     (PSR1.Classes.ClassDeclaration.PascalCase)
-   8 | ERROR   | Class name should be PascalCase
-     |         |     (PSR1.Classes.ClassDeclaration.PascalCase)
-   7 | ERROR   | Class name should be PascalCase
-     |         |     (PSR1.Classes.ClassDeclaration.PascalCase)
-   8 | ERROR   | Class name should be PascalCase
-     |         |     (PSR1.Classes.ClassDeclaration.PascalCase)
-  27 | ERROR   | Class name should be PascalCase
-     |         |     (PSR1.Classes.ClassDeclaration.PascalCase)
-  27 | ERROR   | Class name should be PascalCase
-     |         |     (PSR1.Classes.ClassDeclaration.PascalCase)
-  23 | ERROR   | Class name should be PascalCase
-     |         |     (PSR1.Classes.ClassDeclaration.PascalCase)
-  23 | ERROR   | Class name should be PascalCase
-     |         |     (PSR1.Classes.ClassDeclaration.PascalCase)
-  21 | ERROR   | Class name should be PascalCase
-     |         |     (PSR1.Classes.ClassDeclaration.PascalCase)
-  23 | ERROR   | Class name should be PascalCase
-     |         |     (PSR1.Classes.ClassDeclaration.PascalCase)
-  26 | ERROR   | Class name should be PascalCase
-     |         |     (PSR1.Classes.ClassDeclaration.PascalCase)
-  23 | ERROR   | Class name should be PascalCase
-     |         |     (PSR1.Classes.ClassDeclaration.PascalCase)
-  25 | ERROR   | Class name should be PascalCase
-     |         |     (PSR1.Classes.ClassDeclaration.PascalCase)
-  23 | ERROR   | Class name should be PascalCase
-     |         |     (PSR1.Classes.ClassDeclaration.PascalCase)
-  25 | ERROR   | Class name should be PascalCase
-     |         |     (PSR1.Classes.ClassDeclaration.PascalCase)
-  30 | ERROR   | Class name should be PascalCase
-     |         |     (PSR1.Classes.ClassDeclaration.PascalCase)
-  23 | ERROR   | Class name should be PascalCase
-     |         |     (PSR1.Classes.ClassDeclaration.PascalCase)
-  26 | ERROR   | Class name should be PascalCase
-     |         |     (PSR1.Classes.ClassDeclaration.PascalCase)
-  27 | ERROR   | Class name should be PascalCase
+FILE: demo_project/vendor/nikic/php-parser/lib/PhpParser/Builder/Function_.php
+--------------------------------------------------------------------------------
+FOUND 1 ERRORS AND 0 WARNINGS AFFECTING 1 LINE
+--------------------------------------------------------------------------------
+  10 | ERROR   | [ ] Class name should be PascalCase
      |         |     (PSR1.Classes.ClassDeclaration.PascalCase)
 
-Scan completed in 2.00 seconds
+FILE: demo_project/vendor/nikic/php-parser/lib/PhpParser/Node/Const_.php
+--------------------------------------------------------------------------------
+FOUND 1 ERRORS AND 0 WARNINGS AFFECTING 1 LINE
+--------------------------------------------------------------------------------
+   7 | ERROR   | [ ] Class name should be PascalCase
+     |         |     (PSR1.Classes.ClassDeclaration.PascalCase)
+
+FILE: demo_project/vendor/nikic/php-parser/lib/PhpParser/Node/Expr/Array_.php
+--------------------------------------------------------------------------------
+FOUND 1 ERRORS AND 0 WARNINGS AFFECTING 1 LINE
+--------------------------------------------------------------------------------
+   8 | ERROR   | [ ] Class name should be PascalCase
+     |         |     (PSR1.Classes.ClassDeclaration.PascalCase)
+
+FILE: demo_project/vendor/nikic/php-parser/lib/PhpParser/Node/Expr/Cast/Array_.php
+--------------------------------------------------------------------------------
+FOUND 1 ERRORS AND 0 WARNINGS AFFECTING 1 LINE
+--------------------------------------------------------------------------------
+   7 | ERROR   | [ ] Class name should be PascalCase
+     |         |     (PSR1.Classes.ClassDeclaration.PascalCase)
+
+FILE: demo_project/vendor/nikic/php-parser/lib/PhpParser/Node/Expr/Cast/Bool_.php
+--------------------------------------------------------------------------------
+FOUND 1 ERRORS AND 0 WARNINGS AFFECTING 1 LINE
+--------------------------------------------------------------------------------
+   7 | ERROR   | [ ] Class name should be PascalCase
+     |         |     (PSR1.Classes.ClassDeclaration.PascalCase)
+
+FILE: demo_project/vendor/nikic/php-parser/lib/PhpParser/Node/Expr/Cast/Int_.php
+--------------------------------------------------------------------------------
+FOUND 1 ERRORS AND 0 WARNINGS AFFECTING 1 LINE
+--------------------------------------------------------------------------------
+   7 | ERROR   | [ ] Class name should be PascalCase
+     |         |     (PSR1.Classes.ClassDeclaration.PascalCase)
+
+FILE: demo_project/vendor/nikic/php-parser/lib/PhpParser/Node/Expr/Cast/Object_.php
+--------------------------------------------------------------------------------
+FOUND 1 ERRORS AND 0 WARNINGS AFFECTING 1 LINE
+--------------------------------------------------------------------------------
+   7 | ERROR   | [ ] Class name should be PascalCase
+     |         |     (PSR1.Classes.ClassDeclaration.PascalCase)
+
+FILE: demo_project/vendor/nikic/php-parser/lib/PhpParser/Node/Expr/Cast/String_.php
+--------------------------------------------------------------------------------
+FOUND 1 ERRORS AND 0 WARNINGS AFFECTING 1 LINE
+--------------------------------------------------------------------------------
+   7 | ERROR   | [ ] Class name should be PascalCase
+     |         |     (PSR1.Classes.ClassDeclaration.PascalCase)
+
+FILE: demo_project/vendor/nikic/php-parser/lib/PhpParser/Node/Expr/Cast/Unset_.php
+--------------------------------------------------------------------------------
+FOUND 1 ERRORS AND 0 WARNINGS AFFECTING 1 LINE
+--------------------------------------------------------------------------------
+   7 | ERROR   | [ ] Class name should be PascalCase
+     |         |     (PSR1.Classes.ClassDeclaration.PascalCase)
+
+FILE: demo_project/vendor/nikic/php-parser/lib/PhpParser/Node/Expr/Clone_.php
+--------------------------------------------------------------------------------
+FOUND 1 ERRORS AND 0 WARNINGS AFFECTING 1 LINE
+--------------------------------------------------------------------------------
+   7 | ERROR   | [ ] Class name should be PascalCase
+     |         |     (PSR1.Classes.ClassDeclaration.PascalCase)
+
+FILE: demo_project/vendor/nikic/php-parser/lib/PhpParser/Node/Expr/Empty_.php
+--------------------------------------------------------------------------------
+FOUND 1 ERRORS AND 0 WARNINGS AFFECTING 1 LINE
+--------------------------------------------------------------------------------
+   7 | ERROR   | [ ] Class name should be PascalCase
+     |         |     (PSR1.Classes.ClassDeclaration.PascalCase)
+
+FILE: demo_project/vendor/nikic/php-parser/lib/PhpParser/Node/Expr/Eval_.php
+--------------------------------------------------------------------------------
+FOUND 1 ERRORS AND 0 WARNINGS AFFECTING 1 LINE
+--------------------------------------------------------------------------------
+   7 | ERROR   | [ ] Class name should be PascalCase
+     |         |     (PSR1.Classes.ClassDeclaration.PascalCase)
+
+FILE: demo_project/vendor/nikic/php-parser/lib/PhpParser/Node/Expr/Exit_.php
+--------------------------------------------------------------------------------
+FOUND 1 ERRORS AND 0 WARNINGS AFFECTING 1 LINE
+--------------------------------------------------------------------------------
+   7 | ERROR   | [ ] Class name should be PascalCase
+     |         |     (PSR1.Classes.ClassDeclaration.PascalCase)
+
+FILE: demo_project/vendor/nikic/php-parser/lib/PhpParser/Node/Expr/Include_.php
+--------------------------------------------------------------------------------
+FOUND 1 ERRORS AND 0 WARNINGS AFFECTING 1 LINE
+--------------------------------------------------------------------------------
+   7 | ERROR   | [ ] Class name should be PascalCase
+     |         |     (PSR1.Classes.ClassDeclaration.PascalCase)
+
+FILE: demo_project/vendor/nikic/php-parser/lib/PhpParser/Node/Expr/Isset_.php
+--------------------------------------------------------------------------------
+FOUND 1 ERRORS AND 0 WARNINGS AFFECTING 1 LINE
+--------------------------------------------------------------------------------
+   7 | ERROR   | [ ] Class name should be PascalCase
+     |         |     (PSR1.Classes.ClassDeclaration.PascalCase)
+
+FILE: demo_project/vendor/nikic/php-parser/lib/PhpParser/Node/Expr/List_.php
+--------------------------------------------------------------------------------
+FOUND 1 ERRORS AND 0 WARNINGS AFFECTING 1 LINE
+--------------------------------------------------------------------------------
+   8 | ERROR   | [ ] Class name should be PascalCase
+     |         |     (PSR1.Classes.ClassDeclaration.PascalCase)
+
+FILE: demo_project/vendor/nikic/php-parser/lib/PhpParser/Node/Expr/Print_.php
+--------------------------------------------------------------------------------
+FOUND 1 ERRORS AND 0 WARNINGS AFFECTING 1 LINE
+--------------------------------------------------------------------------------
+   7 | ERROR   | [ ] Class name should be PascalCase
+     |         |     (PSR1.Classes.ClassDeclaration.PascalCase)
+
+FILE: demo_project/vendor/nikic/php-parser/lib/PhpParser/Node/Expr/Yield_.php
+--------------------------------------------------------------------------------
+FOUND 1 ERRORS AND 0 WARNINGS AFFECTING 1 LINE
+--------------------------------------------------------------------------------
+   7 | ERROR   | [ ] Class name should be PascalCase
+     |         |     (PSR1.Classes.ClassDeclaration.PascalCase)
+
+FILE: demo_project/vendor/nikic/php-parser/lib/PhpParser/Node/Scalar/Float_.php
+--------------------------------------------------------------------------------
+FOUND 1 ERRORS AND 0 WARNINGS AFFECTING 1 LINE
+--------------------------------------------------------------------------------
+   7 | ERROR   | [ ] Class name should be PascalCase
+     |         |     (PSR1.Classes.ClassDeclaration.PascalCase)
+
+FILE: demo_project/vendor/nikic/php-parser/lib/PhpParser/Node/Scalar/MagicConst/Class_.php
+--------------------------------------------------------------------------------
+FOUND 1 ERRORS AND 0 WARNINGS AFFECTING 1 LINE
+--------------------------------------------------------------------------------
+   7 | ERROR   | [ ] Class name should be PascalCase
+     |         |     (PSR1.Classes.ClassDeclaration.PascalCase)
+
+FILE: demo_project/vendor/nikic/php-parser/lib/PhpParser/Node/Scalar/MagicConst/Function_.php
+--------------------------------------------------------------------------------
+FOUND 1 ERRORS AND 0 WARNINGS AFFECTING 1 LINE
+--------------------------------------------------------------------------------
+   7 | ERROR   | [ ] Class name should be PascalCase
+     |         |     (PSR1.Classes.ClassDeclaration.PascalCase)
+
+FILE: demo_project/vendor/nikic/php-parser/lib/PhpParser/Node/Scalar/MagicConst/Namespace_.php
+--------------------------------------------------------------------------------
+FOUND 1 ERRORS AND 0 WARNINGS AFFECTING 1 LINE
+--------------------------------------------------------------------------------
+   7 | ERROR   | [ ] Class name should be PascalCase
+     |         |     (PSR1.Classes.ClassDeclaration.PascalCase)
+
+FILE: demo_project/vendor/nikic/php-parser/lib/PhpParser/Node/Scalar/MagicConst/Trait_.php
+--------------------------------------------------------------------------------
+FOUND 1 ERRORS AND 0 WARNINGS AFFECTING 1 LINE
+--------------------------------------------------------------------------------
+   7 | ERROR   | [ ] Class name should be PascalCase
+     |         |     (PSR1.Classes.ClassDeclaration.PascalCase)
+
+FILE: demo_project/vendor/nikic/php-parser/lib/PhpParser/Node/Stmt/Goto_.php
+--------------------------------------------------------------------------------
+FOUND 1 ERRORS AND 0 WARNINGS AFFECTING 1 LINE
+--------------------------------------------------------------------------------
+   8 | ERROR   | [ ] Class name should be PascalCase
+     |         |     (PSR1.Classes.ClassDeclaration.PascalCase)
+
+FILE: demo_project/vendor/nikic/php-parser/lib/PhpParser/Node/Stmt/Static_.php
+--------------------------------------------------------------------------------
+FOUND 1 ERRORS AND 0 WARNINGS AFFECTING 1 LINE
+--------------------------------------------------------------------------------
+   8 | ERROR   | [ ] Class name should be PascalCase
+     |         |     (PSR1.Classes.ClassDeclaration.PascalCase)
+
+FILE: demo_project/vendor/nikic/php-parser/lib/PhpParser/Node/Stmt/Trait_.php
+--------------------------------------------------------------------------------
+FOUND 1 ERRORS AND 0 WARNINGS AFFECTING 1 LINE
+--------------------------------------------------------------------------------
+   7 | ERROR   | [ ] Class name should be PascalCase
+     |         |     (PSR1.Classes.ClassDeclaration.PascalCase)
+
+FILE: demo_project/vendor/nikic/php-parser/lib/PhpParser/Node/Stmt/Use_.php
+--------------------------------------------------------------------------------
+FOUND 1 ERRORS AND 0 WARNINGS AFFECTING 1 LINE
+--------------------------------------------------------------------------------
+   8 | ERROR   | [ ] Class name should be PascalCase
+     |         |     (PSR1.Classes.ClassDeclaration.PascalCase)
+
+FILE: demo_project/vendor/phpdocumentor/type-resolver/src/PseudoTypes/List_.php
+--------------------------------------------------------------------------------
+FOUND 1 ERRORS AND 0 WARNINGS AFFECTING 1 LINE
+--------------------------------------------------------------------------------
+  27 | ERROR   | [ ] Class name should be PascalCase
+     |         |     (PSR1.Classes.ClassDeclaration.PascalCase)
+
+FILE: demo_project/vendor/phpdocumentor/type-resolver/src/Types/Array_.php
+--------------------------------------------------------------------------------
+FOUND 1 ERRORS AND 0 WARNINGS AFFECTING 1 LINE
+--------------------------------------------------------------------------------
+  27 | ERROR   | [ ] Class name should be PascalCase
+     |         |     (PSR1.Classes.ClassDeclaration.PascalCase)
+
+FILE: demo_project/vendor/phpdocumentor/type-resolver/src/Types/Callable_.php
+--------------------------------------------------------------------------------
+FOUND 1 ERRORS AND 0 WARNINGS AFFECTING 1 LINE
+--------------------------------------------------------------------------------
+  23 | ERROR   | [ ] Class name should be PascalCase
+     |         |     (PSR1.Classes.ClassDeclaration.PascalCase)
+
+FILE: demo_project/vendor/phpdocumentor/type-resolver/src/Types/Float_.php
+--------------------------------------------------------------------------------
+FOUND 1 ERRORS AND 0 WARNINGS AFFECTING 1 LINE
+--------------------------------------------------------------------------------
+  23 | ERROR   | [ ] Class name should be PascalCase
+     |         |     (PSR1.Classes.ClassDeclaration.PascalCase)
+
+FILE: demo_project/vendor/phpdocumentor/type-resolver/src/Types/Iterable_.php
+--------------------------------------------------------------------------------
+FOUND 1 ERRORS AND 0 WARNINGS AFFECTING 1 LINE
+--------------------------------------------------------------------------------
+  21 | ERROR   | [ ] Class name should be PascalCase
+     |         |     (PSR1.Classes.ClassDeclaration.PascalCase)
+
+FILE: demo_project/vendor/phpdocumentor/type-resolver/src/Types/Mixed_.php
+--------------------------------------------------------------------------------
+FOUND 1 ERRORS AND 0 WARNINGS AFFECTING 1 LINE
+--------------------------------------------------------------------------------
+  23 | ERROR   | [ ] Class name should be PascalCase
+     |         |     (PSR1.Classes.ClassDeclaration.PascalCase)
+
+FILE: demo_project/vendor/phpdocumentor/type-resolver/src/Types/Never_.php
+--------------------------------------------------------------------------------
+FOUND 1 ERRORS AND 0 WARNINGS AFFECTING 1 LINE
+--------------------------------------------------------------------------------
+  26 | ERROR   | [ ] Class name should be PascalCase
+     |         |     (PSR1.Classes.ClassDeclaration.PascalCase)
+
+FILE: demo_project/vendor/phpdocumentor/type-resolver/src/Types/Null_.php
+--------------------------------------------------------------------------------
+FOUND 1 ERRORS AND 0 WARNINGS AFFECTING 1 LINE
+--------------------------------------------------------------------------------
+  23 | ERROR   | [ ] Class name should be PascalCase
+     |         |     (PSR1.Classes.ClassDeclaration.PascalCase)
+
+FILE: demo_project/vendor/phpdocumentor/type-resolver/src/Types/Parent_.php
+--------------------------------------------------------------------------------
+FOUND 1 ERRORS AND 0 WARNINGS AFFECTING 1 LINE
+--------------------------------------------------------------------------------
+  25 | ERROR   | [ ] Class name should be PascalCase
+     |         |     (PSR1.Classes.ClassDeclaration.PascalCase)
+
+FILE: demo_project/vendor/phpdocumentor/type-resolver/src/Types/Resource_.php
+--------------------------------------------------------------------------------
+FOUND 1 ERRORS AND 0 WARNINGS AFFECTING 1 LINE
+--------------------------------------------------------------------------------
+  23 | ERROR   | [ ] Class name should be PascalCase
+     |         |     (PSR1.Classes.ClassDeclaration.PascalCase)
+
+FILE: demo_project/vendor/phpdocumentor/type-resolver/src/Types/Self_.php
+--------------------------------------------------------------------------------
+FOUND 1 ERRORS AND 0 WARNINGS AFFECTING 1 LINE
+--------------------------------------------------------------------------------
+  25 | ERROR   | [ ] Class name should be PascalCase
+     |         |     (PSR1.Classes.ClassDeclaration.PascalCase)
+
+FILE: demo_project/vendor/phpdocumentor/type-resolver/src/Types/Static_.php
+--------------------------------------------------------------------------------
+FOUND 1 ERRORS AND 0 WARNINGS AFFECTING 1 LINE
+--------------------------------------------------------------------------------
+  30 | ERROR   | [ ] Class name should be PascalCase
+     |         |     (PSR1.Classes.ClassDeclaration.PascalCase)
+
+FILE: demo_project/vendor/phpdocumentor/type-resolver/src/Types/String_.php
+--------------------------------------------------------------------------------
+FOUND 1 ERRORS AND 0 WARNINGS AFFECTING 1 LINE
+--------------------------------------------------------------------------------
+  23 | ERROR   | [ ] Class name should be PascalCase
+     |         |     (PSR1.Classes.ClassDeclaration.PascalCase)
+
+FILE: demo_project/vendor/phpdocumentor/type-resolver/src/Types/Void_.php
+--------------------------------------------------------------------------------
+FOUND 1 ERRORS AND 0 WARNINGS AFFECTING 1 LINE
+--------------------------------------------------------------------------------
+  26 | ERROR   | [ ] Class name should be PascalCase
+     |         |     (PSR1.Classes.ClassDeclaration.PascalCase)
+
+FILE: demo_project/vendor/symfony/symfony/src/Symfony/Component/Console/Command/LazyCommand.php
+--------------------------------------------------------------------------------
+FOUND 1 ERRORS AND 0 WARNINGS AFFECTING 1 LINE
+--------------------------------------------------------------------------------
+  27 | ERROR   | [ ] Class name should be PascalCase
+     |         |     (PSR1.Classes.ClassDeclaration.PascalCase)
+
+
+Scan completed in 1.98 seconds
 Total lines scanned: 0
 Lines per second: 0.00
 Total parsing errors: 0
-HeapAlloc: 0.23 MB
+HeapAlloc: 0.17 MB
 Sys: 16.27 MB

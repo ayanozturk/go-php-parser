@@ -11,7 +11,6 @@ import (
 	"go-phpcs/parser"
 	"io"
 	"io/ioutil"
-	"sync"
 )
 
 
@@ -45,37 +44,21 @@ var Commands = map[string]Command{
 		Description: "Check code style (e.g., function naming)",
 		// Refactored for concurrent streaming: checkers run in goroutines, issues are streamed to output
 		ExecuteWithRules: func(nodes []ast.Node, filename string, w io.Writer, allowedRules []string) {
-			issues := make(chan style.StyleIssue, 100)
-			var wg sync.WaitGroup
+			var allIssues []style.StyleIssue
+			checker := &style.ClassNameChecker{}
+			allIssues = append(allIssues, checker.CheckIssues(nodes, filename)...)
+			allIssues = append(allIssues, stylepsr12.RunSelectedPSR12Checks(filename, allowedRules)...)
 
-			// Consumer: stream issues to output
-			done := make(chan struct{})
-			go func() {
-				for iss := range issues {
+			// If w is an IssueCollector, append to it; else, print immediately
+			if collector, ok := w.(*style.IssueCollector); ok {
+				for _, iss := range allIssues {
+					collector.Append(iss)
+				}
+			} else {
+				for _, iss := range allIssues {
 					style.PrintPHPCSStyleIssueToWriter(w, iss)
 				}
-				done <- struct{}{}
-			}()
-
-			// Producers: run checkers concurrently
-			wg.Add(2)
-			go func() {
-				defer wg.Done()
-				checker := &style.ClassNameChecker{}
-				for _, iss := range checker.CheckIssues(nodes, filename) {
-					issues <- iss
-				}
-			}()
-			go func() {
-				defer wg.Done()
-				for _, iss := range stylepsr12.RunSelectedPSR12Checks(filename, allowedRules) {
-					issues <- iss
-				}
-			}()
-
-			wg.Wait()
-			close(issues)
-			<-done
+			}
 		},
 		// Execute will be assigned after map initialization to avoid cycle
 		Execute: nil,

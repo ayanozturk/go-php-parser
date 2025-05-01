@@ -6,6 +6,7 @@ import (
 	"go-phpcs/command"
 	"go-phpcs/config"
 	"go-phpcs/lexer"
+	"go-phpcs/style"
 	"go-phpcs/parser"
 	"io"
 	"log"
@@ -113,6 +114,7 @@ func main() {
 		}
 		// If command is style, use ExecuteWithRules to allow rule filtering
 		if commandName == "style" {
+			var allIssues []style.StyleIssue
 			for _, file := range filesToScan {
 				input, err := os.ReadFile(file)
 				if err != nil {
@@ -122,8 +124,14 @@ func main() {
 				lex := lexer.New(string(input))
 				p := parser.New(lex, false)
 				nodes := p.Parse()
-				command.Commands["style"].ExecuteWithRules(nodes, file, outWriter, c.Rules)
+				// Collect issues for this file
+				var fileIssues []style.StyleIssue
+				issueWriter := &style.IssueCollector{Issues: &fileIssues}
+				command.Commands["style"].ExecuteWithRules(nodes, file, issueWriter, c.Rules)
+				allIssues = append(allIssues, fileIssues...)
 			}
+			// Print grouped output and summary
+			style.PrintPHPCSStyleOutputToWriter(outWriter, allIssues)
 			totalParseErrors = 0 // Not tracked in streaming mode
 			totalLines = 0      // Not tracked in streaming mode
 		} else {
