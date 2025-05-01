@@ -114,8 +114,22 @@ func (l *Lexer) readNumber() (string, bool) {
 	isFloat := false
 
 	// PHP 8 octal literal: 0o or 0O
-	if l.char == '0' && (l.peekChar() == 'o' || l.peekChar() == 'O') {
-		return l.readOctalNumber()
+	if l.char == '0' {
+		switch l.peekChar() {
+		case 'o', 'O':
+			return l.readOctalNumber()
+		case 'x', 'X':
+			// Hexadecimal literal
+			l.readChar() // consume '0'
+			l.readChar() // consume 'x' or 'X'
+			start := l.pos
+			for (l.char >= '0' && l.char <= '9') || (l.char >= 'a' && l.char <= 'f') || (l.char >= 'A' && l.char <= 'F') || l.char == '_' {
+				l.readChar()
+			}
+			// Remove underscores
+			hex := strings.ReplaceAll(l.input[start:l.pos], "_", "")
+			return "0x" + hex, false
+		}
 	}
 
 	for isDigit(l.char) || l.char == '.' || l.char == '_' {
