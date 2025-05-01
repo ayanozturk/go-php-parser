@@ -64,7 +64,7 @@ func TestCommandStructFields(t *testing.T) {
 	cmd := Command{
 		Name:        "test",
 		Description: "desc",
-		Execute:     func(nodes []ast.Node) {},
+		Execute:     func(nodes []ast.Node, filename string) {},
 	}
 	if cmd.Name != "test" {
 		t.Errorf("unexpected Name: %q", cmd.Name)

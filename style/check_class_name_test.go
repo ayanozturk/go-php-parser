@@ -2,7 +2,7 @@ package style
 
 import (
 	"bytes"
-	"fmt"
+
 	"go-phpcs/ast"
 	"os"
 	"testing"
@@ -16,14 +16,19 @@ func TestClassNameChecker_Check_PrintsWarning(t *testing.T) {
 	r, w, _ := os.Pipe()
 	os.Stdout = w
 
-	checker.Check([]ast.Node{class})
+	checker.Check([]ast.Node{class}, "test.php")
 
 	w.Close()
 	os.Stdout = saved
 	buf.ReadFrom(r)
 	output := buf.String()
 
-	expected := fmt.Sprintf("Class '%s' should be PascalCase\n", class.Name)
+	expected := "\n\033[1m\033[31mClass Name Style Error\033[0m\n" +
+		"  \033[34mFile   :\033[0m test.php\n" +
+		"  \033[34mClass  :\033[0m not_PascalCase\n" +
+		"  \033[34mLine   :\033[0m 0\n" +
+		"  \033[34mColumn :\033[0m 0\n" +
+		"  \033[33mReason :\033[0m Class name should be PascalCase\n\n"
 	if output != expected {
 		t.Errorf("unexpected output: got %q, want %q", output, expected)
 	}
@@ -37,7 +42,7 @@ func TestClassNameChecker_Check_NoWarning(t *testing.T) {
 	r, w, _ := os.Pipe()
 	os.Stdout = w
 
-	checker.Check([]ast.Node{class})
+	checker.Check([]ast.Node{class}, "test.php")
 
 	w.Close()
 	os.Stdout = saved
