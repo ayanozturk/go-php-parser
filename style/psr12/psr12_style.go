@@ -3,6 +3,7 @@ package psr12
 import (
 	"bufio"
 	"os"
+	"sync"
 )
 
 // RunAllPSR12Checks runs all PSR-12 style checks on the given file.
@@ -59,18 +60,39 @@ var psr12RuleRegistry = map[string]PSR12RuleFunc{
 
 // RunSelectedPSR12Checks runs only the selected PSR-12 rules by code. If rules is nil or empty, runs all rules.
 func RunSelectedPSR12Checks(filename string, rules []string) []style.StyleIssue {
-	var issues []style.StyleIssue
+	var wg sync.WaitGroup
+	issueCh := make(chan []style.StyleIssue)
+	var ruleFns []PSR12RuleFunc
+
 	if len(rules) == 0 {
-		// Run all rules in the registry
 		for _, ruleFn := range psr12RuleRegistry {
-			issues = append(issues, ruleFn(filename)...)
+			ruleFns = append(ruleFns, ruleFn)
 		}
 	} else {
 		for _, ruleCode := range rules {
 			if ruleFn, ok := psr12RuleRegistry[ruleCode]; ok {
-				issues = append(issues, ruleFn(filename)...)
+				ruleFns = append(ruleFns, ruleFn)
 			}
 		}
+	}
+
+	for _, ruleFn := range ruleFns {
+		wg.Add(1)
+		go func(fn PSR12RuleFunc) {
+			defer wg.Done()
+			issueCh <- fn(filename)
+		}(ruleFn)
+	}
+
+	// Close the channel when all goroutines are done
+	go func() {
+		wg.Wait()
+		close(issueCh)
+	}()
+
+	var issues []style.StyleIssue
+	for iss := range issueCh {
+		issues = append(issues, iss...)
 	}
 	return issues
 }

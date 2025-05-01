@@ -15,14 +15,14 @@ func TestNoTrailingWhitespaceChecker(t *testing.T) {
 		"    }",
 		"}",
 	}
-	errors := checker.Check(lines, filename)
-	if len(errors) != 2 {
-		t.Errorf("expected 2 errors, got %d: %v", len(errors), errors)
+	issues := checker.CheckIssues(lines, filename)
+	if len(issues) != 2 {
+		t.Errorf("expected 2 issues, got %d: %+v", len(issues), issues)
 	}
-	if len(errors) > 0 && errors[0] != "[PSR12:NoTrailingWhitespace] File: test.php | Line: 2 | Error: Trailing whitespace detected" {
-		t.Errorf("unexpected error message: %s", errors[0])
+	if len(issues) > 0 && (issues[0].Line != 2 || issues[0].Message != "Trailing whitespace detected") {
+		t.Errorf("unexpected issue: %+v", issues[0])
 	}
-	if len(errors) > 1 && errors[1] != "[PSR12:NoTrailingWhitespace] File: test.php | Line: 3 | Error: Trailing whitespace detected" {
-		t.Errorf("unexpected error message: %s", errors[1])
+	if len(issues) > 1 && (issues[1].Line != 3 || issues[1].Message != "Trailing whitespace detected") {
+		t.Errorf("unexpected issue: %+v", issues[1])
 	}
 }

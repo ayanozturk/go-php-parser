@@ -3,6 +3,7 @@ package command
 import (
 	"bytes"
 	"go-phpcs/ast"
+	"io"
 	"os"
 	"strings"
 	"testing"
@@ -64,7 +65,7 @@ func TestCommandStructFields(t *testing.T) {
 	cmd := Command{
 		Name:        "test",
 		Description: "desc",
-		Execute:     func(nodes []ast.Node, filename string) {},
+		Execute: func(nodes []ast.Node, filename string, w io.Writer) {},
 	}
 	if cmd.Name != "test" {
 		t.Errorf("unexpected Name: %q", cmd.Name)

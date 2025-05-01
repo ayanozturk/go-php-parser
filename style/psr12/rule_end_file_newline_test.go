@@ -2,7 +2,6 @@ package psr12
 
 import (
 	"testing"
-	"go-phpcs/style"
 )
 
 func TestEndFileNewlineChecker(t *testing.T) {
