@@ -55,11 +55,7 @@ func PrintPHPCSStyleOutputToWriter(w io.Writer, issues []StyleIssue) {
 			return fileIssues[i].Line < fileIssues[j].Line
 		})
 		for _, iss := range fileIssues {
-			fix := "[ ]"
-			if iss.Fixable {
-				fix = "[x]"
-			}
-			fmt.Fprintf(w, "%4d | %-7s | %s %s\n", iss.Line, iss.Type, fix, iss.Message)
+			fmt.Fprintf(w, "%4d | %-7s | %s\n", iss.Line, iss.Type, iss.Message)
 			if iss.Code != "" {
 				fmt.Fprintf(w, "     |         |     (%s)\n", iss.Code)
 			}

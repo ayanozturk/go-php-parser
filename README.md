@@ -49,6 +49,7 @@ You can enable or disable specific code style rules using the `rules:` key in yo
 | Rule Code                                 | Description                                |
 |-------------------------------------------|--------------------------------------------|
 | PSR12.Files.EndFileNoTrailingWhitespace   | Enforces no trailing whitespace on lines    |
+| PSR12.Files.EndFileNewline                | File must end with a single blank line      |
 | PSR1.Classes.ClassDeclaration.PascalCase | Enforces PascalCase for class names        |
 
 **Example config.yaml:**
