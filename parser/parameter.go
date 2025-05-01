@@ -96,6 +96,10 @@ func (p *Parser) parseParameter() ast.Node {
 	if p.tok.Type == token.T_ASSIGN {
 		p.nextToken() // consume =
 		defaultValue = p.parseExpression()
+		// DEBUG: Log next token after parsing default value
+		if p.debug {
+			fmt.Printf("[DEBUG] After parsing default value, next token: %v (%q) at %d\n", p.tok.Type, p.tok.Literal, p.tok.Pos.Line)
+		}
 	}
 
 	// If we see a comment like /* ,... */ after a parameter, skip it (for commented-out trailing params)

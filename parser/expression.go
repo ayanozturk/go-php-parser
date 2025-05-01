@@ -205,7 +205,7 @@ func (p *Parser) parseSimpleExpression() ast.Node {
 	switch p.tok.Type {
 	case token.T_NEW:
 		return p.parseSimpleNew()
-	case token.T_STRING, token.T_STATIC, token.T_SELF, token.T_PARENT:
+	case token.T_STRING, token.T_STATIC, token.T_SELF, token.T_PARENT, token.T_NS_SEPARATOR:
 		return p.parseSimpleFQCNOrFunctionCall()
 	case token.T_CONSTANT_ENCAPSED_STRING:
 		return p.parseSimpleStringOrConcat()
@@ -219,8 +219,7 @@ func (p *Parser) parseSimpleExpression() ast.Node {
 		return p.parseSimpleBoolOrNull()
 	case token.T_VARIABLE:
 		return p.parseSimpleVariable()
-	case token.T_NS_SEPARATOR:
-		return p.parseSimpleNSSeparator()
+	// case token.T_NS_SEPARATOR: (now handled above)
 	default:
 		return p.parseSimpleUnexpected()
 	}
@@ -295,7 +294,13 @@ func (p *Parser) parseSimpleNew() ast.Node {
 
 func (p *Parser) parseSimpleFQCNOrFunctionCall() ast.Node {
 	fqcnPos := p.tok.Pos
-	fqcn := p.collectFQCNString()
+	fqcn := ""
+	// Handle leading \ for fully qualified names
+	if p.tok.Type == token.T_NS_SEPARATOR {
+		fqcn += "\\"
+		p.nextToken()
+	}
+	fqcn += p.collectFQCNString()
 	if p.tok.Type == token.T_DOUBLE_COLON {
 		return p.parseSimpleClassConstFetch(fqcn, fqcnPos)
 	}
