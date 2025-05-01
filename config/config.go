@@ -11,6 +11,7 @@ type Config struct {
 	Path       string   `yaml:"path"`
 	Extensions []string `yaml:"extensions"`
 	Ignore     []string `yaml:"ignore"`
+	Rules      []string `yaml:"rules"`
 }
 
 func LoadConfig(filename string) (*Config, error) {

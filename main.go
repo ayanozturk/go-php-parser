@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"go-phpcs/command"
 	"go-phpcs/config"
+	"go-phpcs/lexer"
+	"go-phpcs/parser"
 	"io"
 	"log"
 	"os"
@@ -109,7 +111,24 @@ func main() {
 			fmt.Fprintln(outWriter, "No files to scan.")
 			os.Exit(1)
 		}
-		totalParseErrors, totalLines = command.ProcessMultipleFiles(filesToScan, commandName, *debug, *parallelism, outWriter)
+		// If command is style, use ExecuteWithRules to allow rule filtering
+		if commandName == "style" {
+			for _, file := range filesToScan {
+				input, err := os.ReadFile(file)
+				if err != nil {
+					fmt.Fprintf(outWriter, "Could not read file %s: %v\n", file, err)
+					continue
+				}
+				lex := lexer.New(string(input))
+				p := parser.New(lex, false)
+				nodes := p.Parse()
+				command.Commands["style"].ExecuteWithRules(nodes, file, outWriter, c.Rules)
+			}
+			totalParseErrors = 0 // Not tracked in streaming mode
+			totalLines = 0      // Not tracked in streaming mode
+		} else {
+			totalParseErrors, totalLines = command.ProcessMultipleFiles(filesToScan, commandName, *debug, *parallelism, outWriter)
+		}
 	}
 
 	trackMemoryUsage(&mem, false)

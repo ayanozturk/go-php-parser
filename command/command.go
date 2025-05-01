@@ -16,9 +16,10 @@ import (
 
 
 type Command struct {
-	Name        string
-	Description string
-	Execute     func([]ast.Node, string, io.Writer)
+	Name             string
+	Description      string
+	Execute          func([]ast.Node, string, io.Writer)
+	ExecuteWithRules func([]ast.Node, string, io.Writer, []string)
 }
 
 // Commands maps command names to their implementations
@@ -43,7 +44,7 @@ var Commands = map[string]Command{
 		Name:        "style",
 		Description: "Check code style (e.g., function naming)",
 		// Refactored for concurrent streaming: checkers run in goroutines, issues are streamed to output
-		Execute: func(nodes []ast.Node, filename string, w io.Writer) {
+		ExecuteWithRules: func(nodes []ast.Node, filename string, w io.Writer, allowedRules []string) {
 			issues := make(chan style.StyleIssue, 100)
 			var wg sync.WaitGroup
 
@@ -67,7 +68,7 @@ var Commands = map[string]Command{
 			}()
 			go func() {
 				defer wg.Done()
-				for _, iss := range stylepsr12.RunAllPSR12Checks(filename) {
+				for _, iss := range stylepsr12.RunSelectedPSR12Checks(filename, allowedRules) {
 					issues <- iss
 				}
 			}()
@@ -76,6 +77,8 @@ var Commands = map[string]Command{
 			close(issues)
 			<-done
 		},
+		// Execute will be assigned after map initialization to avoid cycle
+		Execute: nil,
 	},
 	"analyse": {
 		Name:        "analyse",
@@ -97,6 +100,15 @@ func PrintUsage() {
 }
 
 const ErrorLineFormat = "\t%s\n"
+
+// Assign Execute for style after map initialization to avoid cycle
+func init() {
+	styleCmd := Commands["style"]
+	styleCmd.Execute = func(nodes []ast.Node, filename string, w io.Writer) {
+		styleCmd.ExecuteWithRules(nodes, filename, w, nil)
+	}
+	Commands["style"] = styleCmd
+}
 
 type ParseErrorDetail struct {
 	File   string
