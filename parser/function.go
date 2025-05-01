@@ -12,7 +12,7 @@ func (p *Parser) parseFunction(modifiers []string) (ast.Node, error) {
 	p.nextToken() // consume 'function'
 
 	var name string
-	if p.tok.Type == token.T_STRING {
+	if isValidMethodNameToken(p.tok.Type) {
 		name = p.tok.Literal
 		p.nextToken()
 	}
