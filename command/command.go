@@ -1,7 +1,6 @@
 package command
 
 import (
-	"flag"
 	"fmt"
 	"go-phpcs/analyzer"
 	"go-phpcs/ast"
