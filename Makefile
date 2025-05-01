@@ -15,3 +15,6 @@ coverage:
 
 style:
 	go run main.go style
+
+build:
+	go build -o go-phpcs

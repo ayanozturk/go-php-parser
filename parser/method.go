@@ -45,6 +45,10 @@ func (p *Parser) parseInterfaceDeclaration() ast.Node {
 		}
 	}
 
+	// Skip comments and whitespace before opening brace
+	for p.tok.Type == token.T_COMMENT || p.tok.Type == token.T_DOC_COMMENT || p.tok.Type == token.T_WHITESPACE {
+		p.nextToken()
+	}
 	if p.tok.Type != token.T_LBRACE {
 		p.errors = append(p.errors, fmt.Sprintf("line %d:%d: expected { after interface name %s, got %s", p.tok.Pos.Line, p.tok.Pos.Column, name, p.tok.Literal))
 		return nil

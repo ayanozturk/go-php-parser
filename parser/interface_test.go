@@ -7,6 +7,25 @@ import (
 )
 
 func TestInterfaceExtends(t *testing.T) {
+	// New test: comment between interface and brace
+	codeWithComment := `<?php
+interface TestInterface // comment
+{
+}`
+	lexComment := lexer.New(codeWithComment)
+	pComment := New(lexComment, false)
+	nodesComment := pComment.Parse()
+	if len(pComment.Errors()) > 0 {
+		t.Fatalf("unexpected parser errors: %v", pComment.Errors())
+	}
+	if len(nodesComment) == 0 {
+		t.Fatal("No nodes parsed from codeWithComment")
+	}
+	ifaceComment, ok := nodesComment[0].(*ast.InterfaceNode)
+	if !ok || ifaceComment.Name != "TestInterface" {
+		t.Errorf("Expected TestInterface, got %T %v", nodesComment[0], nodesComment[0])
+	}
+
 	code := `<?php
 interface A {}
 interface B extends A {}
