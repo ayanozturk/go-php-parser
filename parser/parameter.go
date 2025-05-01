@@ -44,7 +44,7 @@ func (p *Parser) parseParameter() ast.Node {
 	// Parse type hint if present (support nullable, union, intersection, FQCNs, parenthesized types)
 	var typeHint string
 	switch p.tok.Type {
-	case token.T_LPAREN, token.T_NS_SEPARATOR, token.T_STRING, token.T_CALLABLE, token.T_ARRAY, token.T_STATIC, token.T_SELF, token.T_PARENT, token.T_NEW, token.T_QUESTION, token.T_MIXED:
+	case token.T_LPAREN, token.T_NS_SEPARATOR, token.T_STRING, token.T_CALLABLE, token.T_ARRAY, token.T_STATIC, token.T_SELF, token.T_PARENT, token.T_NEW, token.T_QUESTION, token.T_MIXED, token.T_NULL, token.T_FALSE:
 		typeHint = parseFullTypeHint(p)
 	default:
 		if p.tok.Literal == "\\" {
