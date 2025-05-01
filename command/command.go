@@ -11,6 +11,7 @@ import (
 	"go-phpcs/parser"
 	"io"
 	"io/ioutil"
+	"sync"
 )
 
 
@@ -41,12 +42,39 @@ var Commands = map[string]Command{
 	"style": {
 		Name:        "style",
 		Description: "Check code style (e.g., function naming)",
+		// Refactored for concurrent streaming: checkers run in goroutines, issues are streamed to output
 		Execute: func(nodes []ast.Node, filename string, w io.Writer) {
-			var allIssues []style.StyleIssue
-			checker := &style.ClassNameChecker{}
-			allIssues = append(allIssues, checker.CheckIssues(nodes, filename)...)
-			allIssues = append(allIssues, stylepsr12.RunAllPSR12Checks(filename)...)
-			style.PrintPHPCSStyleOutputToWriter(w, allIssues)
+			issues := make(chan style.StyleIssue, 100)
+			var wg sync.WaitGroup
+
+			// Consumer: stream issues to output
+			done := make(chan struct{})
+			go func() {
+				for iss := range issues {
+					style.PrintPHPCSStyleIssueToWriter(w, iss)
+				}
+				done <- struct{}{}
+			}()
+
+			// Producers: run checkers concurrently
+			wg.Add(2)
+			go func() {
+				defer wg.Done()
+				checker := &style.ClassNameChecker{}
+				for _, iss := range checker.CheckIssues(nodes, filename) {
+					issues <- iss
+				}
+			}()
+			go func() {
+				defer wg.Done()
+				for _, iss := range stylepsr12.RunAllPSR12Checks(filename) {
+					issues <- iss
+				}
+			}()
+
+			wg.Wait()
+			close(issues)
+			<-done
 		},
 	},
 	"analyse": {

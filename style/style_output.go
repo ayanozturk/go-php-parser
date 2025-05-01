@@ -68,6 +68,18 @@ func PrintPHPCSStyleOutputToWriter(w io.Writer, issues []StyleIssue) {
 	}
 }
 
+// PrintPHPCSStyleIssueToWriter prints a single StyleIssue in PHPCS format to the provided writer.
+func PrintPHPCSStyleIssueToWriter(w io.Writer, iss StyleIssue) {
+	fix := "[ ]"
+	if iss.Fixable {
+		fix = "[x]"
+	}
+	fmt.Fprintf(w, "%4d | %-7s | %s %s\n", iss.Line, iss.Type, fix, iss.Message)
+	if iss.Code != "" {
+		fmt.Fprintf(w, "     |         |     (%s)\n", iss.Code)
+	}
+}
+
 func plural(n int) string {
 	if n == 1 {
 		return ""
