@@ -1,7 +1,6 @@
 package parser
 
 import (
-	"fmt"
 	"go-phpcs/ast"
 	"go-phpcs/token"
 	"strings"
@@ -13,7 +12,7 @@ func (p *Parser) parseInterfaceDeclaration() ast.Node {
 	p.nextToken() // consume 'interface'
 
 	if p.tok.Type != token.T_STRING {
-		p.errors = append(p.errors, fmt.Sprintf("line %d:%d: expected interface name, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal))
+		p.addError("line %d:%d: expected interface name, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal)
 		return nil
 	}
 
@@ -40,7 +39,7 @@ func (p *Parser) parseInterfaceDeclaration() ast.Node {
 				}
 			}
 			if fqcn == "" {
-				p.errors = append(p.errors, fmt.Sprintf("line %d:%d: expected interface name after extends, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal))
+				p.addError("line %d:%d: expected interface name after extends, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal)
 				return nil
 			}
 			extends = append(extends, fqcn)
@@ -56,7 +55,7 @@ func (p *Parser) parseInterfaceDeclaration() ast.Node {
 		p.nextToken()
 	}
 	if p.tok.Type != token.T_LBRACE {
-		p.errors = append(p.errors, fmt.Sprintf("line %d:%d: expected { after interface name %s, got %s", p.tok.Pos.Line, p.tok.Pos.Column, name, p.tok.Literal))
+		p.addError("line %d:%d: expected { after interface name %s, got %s", p.tok.Pos.Line, p.tok.Pos.Column, name, p.tok.Literal)
 		return nil
 	}
 	p.nextToken() // consume {
@@ -89,7 +88,7 @@ func (p *Parser) parseInterfaceDeclaration() ast.Node {
 					members = append(members, method)
 				}
 			} else {
-				p.errors = append(p.errors, fmt.Sprintf("line %d:%d: unexpected token %s after visibility modifier in interface %s body", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal, name))
+				p.addError("line %d:%d: unexpected token %s after visibility modifier in interface %s body", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal, name)
 				p.nextToken()
 			}
 		} else if p.tok.Type == token.T_FUNCTION {
@@ -101,13 +100,13 @@ func (p *Parser) parseInterfaceDeclaration() ast.Node {
 				members = append(members, constant)
 			}
 		} else {
-			p.errors = append(p.errors, fmt.Sprintf("line %d:%d: unexpected token %s in interface %s body", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal, name))
+			p.addError("line %d:%d: unexpected token %s in interface %s body", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal, name)
 			p.nextToken()
 		}
 	}
 
 	if p.tok.Type != token.T_RBRACE {
-		p.errors = append(p.errors, fmt.Sprintf("line %d:%d: expected } to close interface %s body, got %s", p.tok.Pos.Line, p.tok.Pos.Column, name, p.tok.Literal))
+		p.addError("line %d:%d: expected } to close interface %s body, got %s", p.tok.Pos.Line, p.tok.Pos.Column, name, p.tok.Literal)
 		return nil
 	}
 	p.nextToken() // consume }
@@ -138,7 +137,7 @@ func (p *Parser) parseInterfaceMethod() ast.Node {
 
 	// Parse function keyword
 	if p.tok.Type != token.T_FUNCTION {
-		p.errors = append(p.errors, fmt.Sprintf("line %d:%d: expected 'function' keyword, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal))
+		p.addError("line %d:%d: expected 'function' keyword, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal)
 		p.syncToNextClassMember()
 		return nil
 	}
@@ -146,7 +145,7 @@ func (p *Parser) parseInterfaceMethod() ast.Node {
 
 	// Accept PHP keywords as method names (not just T_STRING)
 	if !isValidMethodNameToken(p.tok.Type) {
-		p.errors = append(p.errors, fmt.Sprintf("line %d:%d: expected method name, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal))
+		p.addError("line %d:%d: expected method name, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal)
 		p.syncToNextClassMember()
 		return nil
 	}
@@ -155,7 +154,7 @@ func (p *Parser) parseInterfaceMethod() ast.Node {
 
 	// Parse opening parenthesis
 	if p.tok.Type != token.T_LPAREN {
-		p.errors = append(p.errors, fmt.Sprintf("line %d:%d: expected '(' after method name %s, got %s", p.tok.Pos.Line, p.tok.Pos.Column, name, p.tok.Literal))
+		p.addError("line %d:%d: expected '(' after method name %s, got %s", p.tok.Pos.Line, p.tok.Pos.Column, name, p.tok.Literal)
 		p.syncToNextClassMember()
 		return nil
 	}
@@ -187,7 +186,7 @@ func (p *Parser) parseInterfaceMethod() ast.Node {
 		}
 	}
 	if p.tok.Type != token.T_RPAREN {
-		p.errors = append(p.errors, fmt.Sprintf("line %d:%d: expected ')' after parameter list for method %s, got %s", p.tok.Pos.Line, p.tok.Pos.Column, name, p.tok.Literal))
+		p.addError("line %d:%d: expected ')' after parameter list for method %s, got %s", p.tok.Pos.Line, p.tok.Pos.Column, name, p.tok.Literal)
 		p.syncToNextClassMember()
 		return nil
 	}
@@ -230,7 +229,7 @@ func (p *Parser) parseInterfaceMethod() ast.Node {
 				}
 			}
 		} else {
-			p.errors = append(p.errors, fmt.Sprintf("line %d:%d: expected return type for method %s, got %s", p.tok.Pos.Line, p.tok.Pos.Column, name, p.tok.Literal))
+			p.addError("line %d:%d: expected return type for method %s, got %s", p.tok.Pos.Line, p.tok.Pos.Column, name, p.tok.Literal)
 			p.syncToNextClassMember()
 			return nil
 		}
@@ -243,7 +242,7 @@ func (p *Parser) parseInterfaceMethod() ast.Node {
 
 	// Parse semicolon
 	if p.tok.Type != token.T_SEMICOLON {
-		p.errors = append(p.errors, fmt.Sprintf("line %d:%d: expected ';' after method declaration %s, got %s", p.tok.Pos.Line, p.tok.Pos.Column, name, p.tok.Literal))
+		p.addError("line %d:%d: expected ';' after method declaration %s, got %s", p.tok.Pos.Line, p.tok.Pos.Column, name, p.tok.Literal)
 		p.syncToNextClassMember()
 		return nil
 	}

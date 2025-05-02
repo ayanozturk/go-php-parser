@@ -84,7 +84,7 @@ func (p *Parser) parseParameter() ast.Node {
 
 	// Parse variable name (must be $var)
 	if p.tok.Type != token.T_VARIABLE {
-		p.errors = append(p.errors, fmt.Sprintf("line %d:%d: expected variable name in parameter, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal))
+		p.addError("line %d:%d: expected variable name in parameter, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal)
 		// Enhanced error recovery: skip to next comma or closing parenthesis
 		for p.tok.Type != token.T_COMMA && p.tok.Type != token.T_RPAREN && p.tok.Type != token.T_EOF {
 			p.nextToken()

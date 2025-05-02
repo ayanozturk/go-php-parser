@@ -42,7 +42,7 @@ func (p *Parser) parseTypeHint() string {
 			// If we saw a type hint starter but couldn't form a valid segment, advance to avoid infinite loop
 			if p.tok.Type == token.T_NS_SEPARATOR || p.tok.Literal == "\\" {
 				if !isDocblockContext {
-					p.errors = append(p.errors, "unexpected namespace separator in type hint")
+					p.addError("unexpected namespace separator in type hint")
 				}
 				p.nextToken()
 				break
@@ -51,7 +51,7 @@ func (p *Parser) parseTypeHint() string {
 				callableType, err := p.parseCallableType()
 				typeSegment += callableType
 				if err != nil && !isDocblockContext {
-					p.errors = append(p.errors, err.Error())
+					p.addError(err.Error())
 				}
 			} else if p.tok.Type == token.T_ARRAY || p.tok.Type == token.T_NULL || p.tok.Type == token.T_MIXED || p.tok.Literal == "mixed" {
 				typeSegment += p.tok.Literal
@@ -67,7 +67,7 @@ func (p *Parser) parseTypeHint() string {
 				p.nextToken()
 				if p.tok.Type != token.T_RBRACKET {
 					if !isDocblockContext {
-						p.errors = append(p.errors, "expected ']' after array type in type hint")
+						p.addError("expected ']' after array type in type hint")
 					}
 					return typeHint
 				}
@@ -77,7 +77,7 @@ func (p *Parser) parseTypeHint() string {
 			// Only emit error if the segment is truly empty and not just at start/end
 			if lastWasPipe && segmentCount > 0 {
 				if !isDocblockContext {
-					p.errors = append(p.errors, "empty type segment in union type")
+					p.addError("empty type segment in union type")
 				}
 			}
 			break
@@ -85,7 +85,7 @@ func (p *Parser) parseTypeHint() string {
 		if p.tok.Type == token.T_PIPE {
 			if lastWasPipe {
 				if !isDocblockContext {
-					p.errors = append(p.errors, "consecutive '|' in union type")
+					p.addError("consecutive '|' in union type")
 				}
 			}
 			typeHint += "|"
@@ -97,12 +97,12 @@ func (p *Parser) parseTypeHint() string {
 	}
 	if lastWasPipe {
 		if !isDocblockContext {
-			p.errors = append(p.errors, "union type ends with '|' or has empty segment")
+			p.addError("union type ends with '|' or has empty segment")
 		}
 	}
 	if segmentCount == 0 && lastWasPipe {
 		if !isDocblockContext {
-			p.errors = append(p.errors, "empty union type")
+			p.addError("empty union type")
 		}
 	}
 

@@ -1,7 +1,6 @@
 package parser
 
 import (
-	"fmt"
 	"go-phpcs/ast"
 	"go-phpcs/lexer"
 	"go-phpcs/token"
@@ -10,14 +9,14 @@ import (
 type Parser struct {
 	l      *lexer.Lexer
 	tok    token.Token
-	errors []string
+	errors []error
 	debug  bool
 }
 
 func New(l *lexer.Lexer, debug bool) *Parser {
 	p := &Parser{
 		l:      l,
-		errors: []string{},
+		errors: []error{},
 		debug:  debug,
 	}
 	p.nextToken() // Initialize first token
@@ -30,14 +29,17 @@ func (p *Parser) nextToken() {
 
 func (p *Parser) addError(format string, args ...interface{}) {
 	if p.debug {
-		errMsg := fmt.Sprintf(format, args...)
-		p.errors = append(p.errors, errMsg)
+		p.errors = append(p.errors, ErrorDeferred{Format: format, Args: args})
 	}
 }
 
 // Errors returns the list of errors encountered during parsing
 func (p *Parser) Errors() []string {
-	return p.errors
+	res := make([]string, len(p.errors))
+	for i, err := range p.errors {
+		res[i] = err.Error()
+	}
+	return res
 }
 
 func (p *Parser) Parse() []ast.Node {

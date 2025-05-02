@@ -28,10 +28,20 @@ var psr12RuleRegistry = map[string]PSR12RuleFunc{
 			}}
 		}
 		defer file.Close()
-		scanner := bufio.NewScanner(file)
+		reader := bufio.NewReader(file)
 		var lines []string
-		for scanner.Scan() {
-			lines = append(lines, scanner.Text())
+		for {
+			line, err := reader.ReadString('\n')
+			if err != nil && err.Error() != "EOF" {
+				break
+			}
+			if len(line) > 0 && line[len(line)-1] == '\n' {
+				line = line[:len(line)-1]
+			}
+			lines = append(lines, line)
+			if err != nil {
+				break
+			}
 		}
 		checker := &NoTrailingWhitespaceChecker{}
 		return checker.CheckIssues(lines, filename)
@@ -71,10 +81,20 @@ var psr12RuleRegistry = map[string]PSR12RuleFunc{
 			}}
 		}
 		defer file.Close()
-		scanner := bufio.NewScanner(file)
+		reader := bufio.NewReader(file)
 		var lines []string
-		for scanner.Scan() {
-			lines = append(lines, scanner.Text())
+		for {
+			line, err := reader.ReadString('\n')
+			if err != nil && err.Error() != "EOF" {
+				break
+			}
+			if len(line) > 0 && line[len(line)-1] == '\n' {
+				line = line[:len(line)-1]
+			}
+			lines = append(lines, line)
+			if err != nil {
+				break
+			}
 		}
 		checker := &NoMultipleStatementsPerLineChecker{}
 		return checker.CheckIssues(lines, filename)
@@ -91,10 +111,20 @@ var psr12RuleRegistry = map[string]PSR12RuleFunc{
 			}}
 		}
 		defer file.Close()
-		scanner := bufio.NewScanner(file)
+		reader := bufio.NewReader(file)
 		var lines []string
-		for scanner.Scan() {
-			lines = append(lines, scanner.Text())
+		for {
+			line, err := reader.ReadString('\n')
+			if err != nil && err.Error() != "EOF" {
+				break
+			}
+			if len(line) > 0 && line[len(line)-1] == '\n' {
+				line = line[:len(line)-1]
+			}
+			lines = append(lines, line)
+			if err != nil {
+				break
+			}
 		}
 		checker := &NoSpaceBeforeSemicolonChecker{}
 		return checker.CheckIssues(lines, filename)
@@ -111,10 +141,20 @@ var psr12RuleRegistry = map[string]PSR12RuleFunc{
 			}}
 		}
 		defer file.Close()
-		scanner := bufio.NewScanner(file)
+		reader := bufio.NewReader(file)
 		var lines []string
-		for scanner.Scan() {
-			lines = append(lines, scanner.Text())
+		for {
+			line, err := reader.ReadString('\n')
+			if err != nil && err.Error() != "EOF" {
+				break
+			}
+			if len(line) > 0 && line[len(line)-1] == '\n' {
+				line = line[:len(line)-1]
+			}
+			lines = append(lines, line)
+			if err != nil {
+				break
+			}
 		}
 		checker := &NoBlankLineAfterPHPOpeningTagChecker{}
 		return checker.CheckIssues(lines, filename)
@@ -131,10 +171,20 @@ var psr12RuleRegistry = map[string]PSR12RuleFunc{
 			}}
 		}
 		defer file.Close()
-		scanner := bufio.NewScanner(file)
+		reader := bufio.NewReader(file)
 		var lines []string
-		for scanner.Scan() {
-			lines = append(lines, scanner.Text())
+		for {
+			line, err := reader.ReadString('\n')
+			if err != nil && err.Error() != "EOF" {
+				break
+			}
+			if len(line) > 0 && line[len(line)-1] == '\n' {
+				line = line[:len(line)-1]
+			}
+			lines = append(lines, line)
+			if err != nil {
+				break
+			}
 		}
 		checker := &ClassBraceOnOwnLineChecker{}
 		return checker.CheckIssues(lines, filename)
@@ -151,10 +201,20 @@ var psr12RuleRegistry = map[string]PSR12RuleFunc{
 			}}
 		}
 		defer file.Close()
-		scanner := bufio.NewScanner(file)
+		reader := bufio.NewReader(file)
 		var lines []string
-		for scanner.Scan() {
-			lines = append(lines, scanner.Text())
+		for {
+			line, err := reader.ReadString('\n')
+			if err != nil && err.Error() != "EOF" {
+				break
+			}
+			if len(line) > 0 && line[len(line)-1] == '\n' {
+				line = line[:len(line)-1]
+			}
+			lines = append(lines, line)
+			if err != nil {
+				break
+			}
 		}
 		checker := &MethodVisibilityDeclaredChecker{}
 		return checker.CheckIssues(lines, filename)
