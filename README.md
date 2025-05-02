@@ -49,6 +49,7 @@ This parser implements several PSR-12 style checks, including:
 - **No multiple statements per line** (`PSR12.Files.NoMultipleStatementsPerLine`): Disallows more than one statement (semicolon) per line.
 - **No space before semicolon** (`PSR12.Files.NoSpaceBeforeSemicolon`): Disallows any space or tab before a semicolon at the end of a statement.
 - **No blank line after opening <?php tag** (`PSR12.Files.NoBlankLineAfterPHPOpeningTag`): Disallows blank lines immediately after the opening PHP tag.
+- **Class opening brace on its own line** (`PSR12.Classes.OpenBraceOnOwnLine`): Requires that the opening brace for a class, interface, trait, or enum must appear on its own line, with no leading or trailing whitespace.
 
 Style issues are reported per file and line, and can be extended by adding new checkers in the `style/psr12` package.
 
@@ -58,6 +59,13 @@ Style issues are reported per file and line, and can be extended by adding new c
 You can enable or disable specific code style rules using the `rules:` key in your `config.yaml`. If no rules are specified, all available rules are run.
 
 **List of Available Rules:**
+
+- `PSR12.Files.EndFileNoTrailingWhitespace`
+- `PSR12.Files.EndFileNewline`
+- `PSR12.Files.NoMultipleStatementsPerLine`
+- `PSR12.Files.NoSpaceBeforeSemicolon`
+- `PSR12.Files.NoBlankLineAfterPHPOpeningTag`
+- `PSR12.Classes.OpenBraceOnOwnLine`
 
 | Rule Code                                 | Description                                |
 |-------------------------------------------|--------------------------------------------|
