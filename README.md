@@ -50,6 +50,7 @@ This parser implements several PSR-12 style checks, including:
 - **No space before semicolon** (`PSR12.Files.NoSpaceBeforeSemicolon`): Disallows any space or tab before a semicolon at the end of a statement.
 - **No blank line after opening <?php tag** (`PSR12.Files.NoBlankLineAfterPHPOpeningTag`): Disallows blank lines immediately after the opening PHP tag.
 - **Class opening brace on its own line** (`PSR12.Classes.OpenBraceOnOwnLine`): Requires that the opening brace for a class, interface, trait, or enum must appear on its own line, with no leading or trailing whitespace.
+- **Method visibility must be declared** (`PSR12.Methods.VisibilityDeclared`): Requires that every class method explicitly declares its visibility (`public`, `protected`, or `private`).
 
 Style issues are reported per file and line, and can be extended by adding new checkers in the `style/psr12` package.
 
@@ -66,6 +67,7 @@ You can enable or disable specific code style rules using the `rules:` key in yo
 - `PSR12.Files.NoSpaceBeforeSemicolon`
 - `PSR12.Files.NoBlankLineAfterPHPOpeningTag`
 - `PSR12.Classes.OpenBraceOnOwnLine`
+- `PSR12.Methods.VisibilityDeclared`
 
 | Rule Code                                 | Description                                |
 |-------------------------------------------|--------------------------------------------|
