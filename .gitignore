@@ -2,3 +2,5 @@ parser-test.log
 demo_project
 results.log
 go-phpcs
+cpu.prof
+mem.prof

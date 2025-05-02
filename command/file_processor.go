@@ -67,6 +67,21 @@ func ProcessFileWithErrors(filePath, commandName string, debug bool, w io.Writer
 }
 
 // ProcessStyleFilesParallelWithCallback scans files in parallel, parses once per file, applies all rules, collects issues, and calls the callback after each file.
+
+var fileContentCache sync.Map
+
+func getCachedFileContent(filename string) ([]byte, error) {
+	if val, ok := fileContentCache.Load(filename); ok {
+		return val.([]byte), nil
+	}
+	content, err := os.ReadFile(filename)
+	if err != nil {
+		return nil, err
+	}
+	fileContentCache.Store(filename, content)
+	return content, nil
+}
+
 func ProcessStyleFilesParallelWithCallback(files []string, rules []string, parallelism int, callback func()) ([]style.StyleIssue, int, int) {
 	var (
 		wg sync.WaitGroup
@@ -83,7 +98,7 @@ func ProcessStyleFilesParallelWithCallback(files []string, rules []string, paral
 		go func() {
 			defer wg.Done()
 			for file := range fileCh {
-				input, err := os.ReadFile(file)
+				input, err := getCachedFileContent(file)
 				if err != nil {
 					continue
 				}
@@ -146,7 +161,7 @@ func ProcessStyleFilesParallel(files []string, rules []string, parallelism int) 
 		go func() {
 			defer wg.Done()
 			for file := range fileCh {
-				input, err := os.ReadFile(file)
+				input, err := getCachedFileContent(file)
 				if err != nil {
 					// Could report error as an issue, but for now just skip
 					continue
