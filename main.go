@@ -10,6 +10,7 @@ import (
 	"log"
 	"os"
 	"runtime"
+	"runtime/pprof"
 	"time"
 	"go-phpcs/utils"
 )
@@ -44,6 +45,7 @@ func trackMemoryUsage(mem *memStats, atStart bool) {
 }
 
 func main() {
+	profile := flag.Bool("profile", false, "Enable CPU and memory profiling (cpu.prof, mem.prof)")
 	outputFile := flag.String("output", "", "Write all output (including summary) to this file")
 	outputFileShort := flag.String("o", "", "Write all output (including summary) to this file (shorthand)")
 
@@ -60,6 +62,24 @@ func main() {
 	debug := flag.Bool("debug", false, "Enable debug mode to show parsing errors")
 	parallelism := flag.Int("p", 2, "Number of files to process in parallel (default 2 for memory efficiency)")
 	flag.Parse()
+
+	// Profiling support: only enabled if --profile is set
+	if *profile {
+		f, err := os.Create("cpu.prof")
+		if err != nil {
+			log.Fatalf("could not create CPU profile: %v", err)
+		}
+		pprof.StartCPUProfile(f)
+		defer func() {
+			pprof.StopCPUProfile()
+			f.Close()
+			mf, err := os.Create("mem.prof")
+			if err == nil {
+				pprof.WriteHeapProfile(mf)
+				mf.Close()
+			}
+		}()
+	}
 
 	var outWriter io.Writer = os.Stdout
 	if *outputFile != "" {
