@@ -45,8 +45,35 @@ func (c *MethodVisibilityDeclaredChecker) CheckIssues(lines []string, filename s
 }
 
 func isMethodDeclaration(line string) bool {
-	// Simple heuristic: look for function keyword
-	return len(line) > 8 && line[len(line)-8:] != "function" && containsWord(line, "function")
+	// Look for 'function', but not anonymous (closures):
+	idx := indexOfWord(line, "function")
+	if idx == -1 {
+		return false
+	}
+	// Find what's after 'function'
+	n := idx + len("function")
+	for n < len(line) && (line[n] == ' ' || line[n] == '\t') {
+		n++
+	}
+	if n < len(line) && line[n] == '(' {
+		// anonymous function: function (...) { ... }
+		return false
+	}
+	return true // named function
+}
+
+// indexOfWord finds the index of 'word' as a standalone word in line, or -1 if not found
+func indexOfWord(line, word string) int {
+	for i := 0; i+len(word) <= len(line); i++ {
+		if line[i:i+len(word)] == word {
+			before := i == 0 || !isWordChar(line[i-1])
+			after := i+len(word) == len(line) || !isWordChar(line[i+len(word)])
+			if before && after {
+				return i
+			}
+		}
+	}
+	return -1
 }
 
 func hasVisibility(line string) bool {

@@ -17,7 +17,12 @@ func TestMethodVisibilityDeclaredChecker(t *testing.T) {
 		{[]string{"class Foo", "{", "function bar() {}", "function baz() {}", "}"}, 2, "two methods missing visibility"},
 		// Correct: not a class
 		{[]string{"function bar() {}"}, 0, "function outside class"},
+		// Correct: anonymous function inside class (should not flag)
+		{[]string{"class Foo", "{", "$cb = function ($x) { return $x; };", "}"}, 0, "anonymous function inside class should not flag"},
+		// Correct: static anonymous function inside class
+		{[]string{"class Foo", "{", "$cb = static function ($x) { return $x; };", "}"}, 0, "static anonymous function inside class should not flag"},
 	}
+
 	for _, tc := range cases {
 		issues := checker.CheckIssues(tc.lines, filename)
 		if len(issues) != tc.expected {
