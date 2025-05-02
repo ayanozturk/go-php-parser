@@ -580,3 +580,145 @@ func TestFunctionCall(t *testing.T) {
 		t.Errorf(errTokenLiteral, fc.TokenLiteral())
 	}
 }
+
+func TestIdentifierNode2(t *testing.T) {
+	id := &IdentifierNode{Value: "foo", Pos: Position{Line: 1, Column: 2}}
+	if id.NodeType() != "Identifier" {
+		t.Errorf(errNodeType, id.NodeType())
+	}
+	if id.GetPos().Line != 1 || id.GetPos().Column != 2 {
+		t.Errorf(errGetPos, id.GetPos())
+	}
+	id.SetPos(Position{Line: 3, Column: 4})
+	if id.GetPos().Line != 3 || id.GetPos().Column != 4 {
+		t.Errorf(errSetPos, id.GetPos())
+	}
+	if id.String() == "" {
+		t.Error(errStringEmpty)
+	}
+	if id.TokenLiteral() != "foo" {
+		t.Errorf(errTokenLiteral, id.TokenLiteral())
+	}
+}
+
+func TestBooleanNode(t *testing.T) {
+	b := &BooleanNode{Value: true, Pos: Position{Line: 1, Column: 1}}
+	if b.NodeType() != "Boolean" {
+		t.Errorf(errNodeType, b.NodeType())
+	}
+	if b.GetPos().Line != 1 || b.GetPos().Column != 1 {
+		t.Errorf(errGetPos, b.GetPos())
+	}
+	b.SetPos(Position{Line: 2, Column: 2})
+	if b.GetPos().Line != 2 || b.GetPos().Column != 2 {
+		t.Errorf(errSetPos, b.GetPos())
+	}
+	if b.String() == "" {
+		t.Error(errStringEmpty)
+	}
+	if b.TokenLiteral() != "true" {
+		t.Errorf(errTokenLiteral, b.TokenLiteral())
+	}
+}
+
+func TestNullNode(t *testing.T) {
+	n := &NullNode{Pos: Position{Line: 1, Column: 1}}
+	if n.NodeType() != "Null" {
+		t.Errorf(errNodeType, n.NodeType())
+	}
+	if n.GetPos().Line != 1 || n.GetPos().Column != 1 {
+		t.Errorf(errGetPos, n.GetPos())
+	}
+	n.SetPos(Position{Line: 2, Column: 2})
+	if n.GetPos().Line != 2 || n.GetPos().Column != 2 {
+		t.Errorf(errSetPos, n.GetPos())
+	}
+	if n.String() == "" {
+		t.Error(errStringEmpty)
+	}
+	if n.TokenLiteral() != "null" {
+		t.Errorf(errTokenLiteral, n.TokenLiteral())
+	}
+}
+
+func TestConcatNode(t *testing.T) {
+	part1 := &StringLiteral{Value: "a", Pos: Position{Line: 1, Column: 1}}
+	part2 := &StringLiteral{Value: "b", Pos: Position{Line: 1, Column: 2}}
+	c := &ConcatNode{Parts: []Node{part1, part2}, Pos: Position{Line: 2, Column: 2}}
+	if c.NodeType() != "Concat" {
+		t.Errorf(errNodeType, c.NodeType())
+	}
+	if c.GetPos().Line != 2 || c.GetPos().Column != 2 {
+		t.Errorf(errGetPos, c.GetPos())
+	}
+	c.SetPos(Position{Line: 3, Column: 3})
+	if c.GetPos().Line != 3 || c.GetPos().Column != 3 {
+		t.Errorf(errSetPos, c.GetPos())
+	}
+	if c.String() == "" {
+		t.Error(errStringEmpty)
+	}
+	if c.TokenLiteral() != "." {
+		t.Errorf(errTokenLiteral, c.TokenLiteral())
+	}
+}
+
+func TestAttributeNode(t *testing.T) {
+	a := &AttributeNode{Name: "MyAttr", Arguments: nil, Pos: Position{Line: 1, Column: 1}}
+	if a.NodeType() != "Attribute" {
+		t.Errorf(errNodeType, a.NodeType())
+	}
+	if a.GetPos().Line != 1 || a.GetPos().Column != 1 {
+		t.Errorf(errGetPos, a.GetPos())
+	}
+	a.SetPos(Position{Line: 2, Column: 2})
+	if a.GetPos().Line != 2 || a.GetPos().Column != 2 {
+		t.Errorf(errSetPos, a.GetPos())
+	}
+	if a.String() == "" {
+		t.Error(errStringEmpty)
+	}
+	if a.TokenLiteral() != "MyAttr" {
+		t.Errorf(errTokenLiteral, a.TokenLiteral())
+	}
+}
+
+func TestNamespaceNode(t *testing.T) {
+	n := &NamespaceNode{Name: "Foo\\Bar", Body: nil, Pos: Position{Line: 1, Column: 1}}
+	if n.NodeType() != "Namespace" {
+		t.Errorf(errNodeType, n.NodeType())
+	}
+	if n.GetPos().Line != 1 || n.GetPos().Column != 1 {
+		t.Errorf(errGetPos, n.GetPos())
+	}
+	n.SetPos(Position{Line: 2, Column: 2})
+	if n.GetPos().Line != 2 || n.GetPos().Column != 2 {
+		t.Errorf(errSetPos, n.GetPos())
+	}
+	if n.String() == "" {
+		t.Error(errStringEmpty)
+	}
+	if n.TokenLiteral() != "namespace" {
+		t.Errorf(errTokenLiteral, n.TokenLiteral())
+	}
+}
+
+func TestUseNode(t *testing.T) {
+	u := &UseNode{Path: "Foo\\Bar", Alias: "Bar", Type: "class", Pos: Position{Line: 1, Column: 1}}
+	if u.NodeType() != "Use" {
+		t.Errorf(errNodeType, u.NodeType())
+	}
+	if u.GetPos().Line != 1 || u.GetPos().Column != 1 {
+		t.Errorf(errGetPos, u.GetPos())
+	}
+	u.SetPos(Position{Line: 2, Column: 2})
+	if u.GetPos().Line != 2 || u.GetPos().Column != 2 {
+		t.Errorf(errSetPos, u.GetPos())
+	}
+	if u.String() == "" {
+		t.Error(errStringEmpty)
+	}
+	if u.TokenLiteral() != "use" {
+		t.Errorf(errTokenLiteral, u.TokenLiteral())
+	}
+}
