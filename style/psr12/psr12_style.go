@@ -1,9 +1,9 @@
 package psr12
 
 import (
-	"bufio"
-	"os"
+	"strings"
 	"sync"
+	"go-phpcs/sharedcache"
 )
 
 // RunAllPSR12Checks runs all PSR-12 style checks on the given file.
@@ -12,51 +12,16 @@ import "go-phpcs/style"
 
 // PSR12RuleFunc defines the signature for a PSR-12 rule function
 // that returns style issues for a file.
-type PSR12RuleFunc func(filename string) []style.StyleIssue
+type PSR12RuleFunc func(filename string, content []byte) []style.StyleIssue
 
 // psr12RuleRegistry maps rule codes to their implementation functions
 var psr12RuleRegistry = map[string]PSR12RuleFunc{
-	"PSR12.Files.EndFileNoTrailingWhitespace": func(filename string) []style.StyleIssue {
-		file, err := os.Open(filename)
-		if err != nil {
-			return []style.StyleIssue{{
-				Filename: filename,
-				Line:     0,
-				Type:     style.Error,
-				Message:  "[PSR12] Could not open file: " + err.Error(),
-				Code:     "PSR12.Files.FileOpenError",
-			}}
-		}
-		defer file.Close()
-		reader := bufio.NewReader(file)
-		var lines []string
-		for {
-			line, err := reader.ReadString('\n')
-			if err != nil && err.Error() != "EOF" {
-				break
-			}
-			if len(line) > 0 && line[len(line)-1] == '\n' {
-				line = line[:len(line)-1]
-			}
-			lines = append(lines, line)
-			if err != nil {
-				break
-			}
-		}
+	"PSR12.Files.EndFileNoTrailingWhitespace": func(filename string, content []byte) []style.StyleIssue {
+		lines := strings.Split(string(content), "\n")
 		checker := &NoTrailingWhitespaceChecker{}
 		return checker.CheckIssues(lines, filename)
 	},
-	"PSR12.Files.EndFileNewline": func(filename string) []style.StyleIssue {
-		content, err := os.ReadFile(filename)
-		if err != nil {
-			return []style.StyleIssue{{
-				Filename: filename,
-				Line:     0,
-				Type:     style.Error,
-				Message:  "[PSR12] Could not open file: " + err.Error(),
-				Code:     "PSR12.Files.FileOpenError",
-			}}
-		}
+	"PSR12.Files.EndFileNewline": func(filename string, content []byte) []style.StyleIssue {
 		if len(content) == 0 || content[len(content)-1] != '\n' {
 			return []style.StyleIssue{{
 				Filename: filename,
@@ -69,160 +34,35 @@ var psr12RuleRegistry = map[string]PSR12RuleFunc{
 		}
 		return nil
 	},
-	"PSR12.Files.NoMultipleStatementsPerLine": func(filename string) []style.StyleIssue {
-		file, err := os.Open(filename)
-		if err != nil {
-			return []style.StyleIssue{{
-				Filename: filename,
-				Line:     0,
-				Type:     style.Error,
-				Message:  "[PSR12] Could not open file: " + err.Error(),
-				Code:     "PSR12.Files.FileOpenError",
-			}}
-		}
-		defer file.Close()
-		reader := bufio.NewReader(file)
-		var lines []string
-		for {
-			line, err := reader.ReadString('\n')
-			if err != nil && err.Error() != "EOF" {
-				break
-			}
-			if len(line) > 0 && line[len(line)-1] == '\n' {
-				line = line[:len(line)-1]
-			}
-			lines = append(lines, line)
-			if err != nil {
-				break
-			}
-		}
+	"PSR12.Files.NoMultipleStatementsPerLine": func(filename string, content []byte) []style.StyleIssue {
+		lines := strings.Split(string(content), "\n")
 		checker := &NoMultipleStatementsPerLineChecker{}
 		return checker.CheckIssues(lines, filename)
 	},
-	"PSR12.Files.NoSpaceBeforeSemicolon": func(filename string) []style.StyleIssue {
-		file, err := os.Open(filename)
-		if err != nil {
-			return []style.StyleIssue{{
-				Filename: filename,
-				Line:     0,
-				Type:     style.Error,
-				Message:  "[PSR12] Could not open file: " + err.Error(),
-				Code:     "PSR12.Files.FileOpenError",
-			}}
-		}
-		defer file.Close()
-		reader := bufio.NewReader(file)
-		var lines []string
-		for {
-			line, err := reader.ReadString('\n')
-			if err != nil && err.Error() != "EOF" {
-				break
-			}
-			if len(line) > 0 && line[len(line)-1] == '\n' {
-				line = line[:len(line)-1]
-			}
-			lines = append(lines, line)
-			if err != nil {
-				break
-			}
-		}
+	"PSR12.Files.NoSpaceBeforeSemicolon": func(filename string, content []byte) []style.StyleIssue {
+		lines := strings.Split(string(content), "\n")
 		checker := &NoSpaceBeforeSemicolonChecker{}
 		return checker.CheckIssues(lines, filename)
 	},
-	"PSR12.Files.NoBlankLineAfterPHPOpeningTag": func(filename string) []style.StyleIssue {
-		file, err := os.Open(filename)
-		if err != nil {
-			return []style.StyleIssue{{
-				Filename: filename,
-				Line:     0,
-				Type:     style.Error,
-				Message:  "[PSR12] Could not open file: " + err.Error(),
-				Code:     "PSR12.Files.FileOpenError",
-			}}
-		}
-		defer file.Close()
-		reader := bufio.NewReader(file)
-		var lines []string
-		for {
-			line, err := reader.ReadString('\n')
-			if err != nil && err.Error() != "EOF" {
-				break
-			}
-			if len(line) > 0 && line[len(line)-1] == '\n' {
-				line = line[:len(line)-1]
-			}
-			lines = append(lines, line)
-			if err != nil {
-				break
-			}
-		}
+	"PSR12.Files.NoBlankLineAfterPHPOpeningTag": func(filename string, content []byte) []style.StyleIssue {
+		lines := strings.Split(string(content), "\n")
 		checker := &NoBlankLineAfterPHPOpeningTagChecker{}
 		return checker.CheckIssues(lines, filename)
 	},
-	"PSR12.Classes.OpenBraceOnOwnLine": func(filename string) []style.StyleIssue {
-		file, err := os.Open(filename)
-		if err != nil {
-			return []style.StyleIssue{{
-				Filename: filename,
-				Line:     0,
-				Type:     style.Error,
-				Message:  "[PSR12] Could not open file: " + err.Error(),
-				Code:     "PSR12.Files.FileOpenError",
-			}}
-		}
-		defer file.Close()
-		reader := bufio.NewReader(file)
-		var lines []string
-		for {
-			line, err := reader.ReadString('\n')
-			if err != nil && err.Error() != "EOF" {
-				break
-			}
-			if len(line) > 0 && line[len(line)-1] == '\n' {
-				line = line[:len(line)-1]
-			}
-			lines = append(lines, line)
-			if err != nil {
-				break
-			}
-		}
+	"PSR12.Classes.OpenBraceOnOwnLine": func(filename string, content []byte) []style.StyleIssue {
+		lines := strings.Split(string(content), "\n")
 		checker := &ClassBraceOnOwnLineChecker{}
 		return checker.CheckIssues(lines, filename)
 	},
-	"PSR12.Methods.VisibilityDeclared": func(filename string) []style.StyleIssue {
-		file, err := os.Open(filename)
-		if err != nil {
-			return []style.StyleIssue{{
-				Filename: filename,
-				Line:     0,
-				Type:     style.Error,
-				Message:  "[PSR12] Could not open file: " + err.Error(),
-				Code:     "PSR12.Files.FileOpenError",
-			}}
-		}
-		defer file.Close()
-		reader := bufio.NewReader(file)
-		var lines []string
-		for {
-			line, err := reader.ReadString('\n')
-			if err != nil && err.Error() != "EOF" {
-				break
-			}
-			if len(line) > 0 && line[len(line)-1] == '\n' {
-				line = line[:len(line)-1]
-			}
-			lines = append(lines, line)
-			if err != nil {
-				break
-			}
-		}
+	"PSR12.Methods.VisibilityDeclared": func(filename string, content []byte) []style.StyleIssue {
+		lines := strings.Split(string(content), "\n")
 		checker := &MethodVisibilityDeclaredChecker{}
 		return checker.CheckIssues(lines, filename)
 	},
 }
 
 // RunSelectedPSR12Checks runs only the selected PSR-12 rules by code. If rules is nil or empty, runs all rules.
-func RunSelectedPSR12Checks(filename string, rules []string) []style.StyleIssue {
+func RunSelectedPSR12Checks(filename string, content []byte, rules []string) []style.StyleIssue {
 	var wg sync.WaitGroup
 	issueCh := make(chan []style.StyleIssue)
 	var ruleFns []PSR12RuleFunc
@@ -243,7 +83,7 @@ func RunSelectedPSR12Checks(filename string, rules []string) []style.StyleIssue 
 		wg.Add(1)
 		go func(fn PSR12RuleFunc) {
 			defer wg.Done()
-			issueCh <- fn(filename)
+			issueCh <- fn(filename, content)
 		}(ruleFn)
 	}
 
@@ -262,5 +102,15 @@ func RunSelectedPSR12Checks(filename string, rules []string) []style.StyleIssue 
 
 // Existing function for backward compatibility
 func RunAllPSR12Checks(filename string) []style.StyleIssue {
-	return RunSelectedPSR12Checks(filename, nil)
+	content, err := sharedcache.GetCachedFileContent(filename)
+	if err != nil {
+		return []style.StyleIssue{{
+			Filename: filename,
+			Line:     0,
+			Type:     style.Error,
+			Message:  "[PSR12] Could not load file content: " + err.Error(),
+			Code:     "PSR12.Files.FileOpenError",
+		}}
+	}
+	return RunSelectedPSR12Checks(filename, content, nil)
 }

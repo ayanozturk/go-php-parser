@@ -5,14 +5,14 @@ import (
 	"go-phpcs/analyzer"
 	"go-phpcs/ast"
 	"go-phpcs/lexer"
+	"go-phpcs/parser"
 	"go-phpcs/printer"
+	"go-phpcs/sharedcache"
 	"go-phpcs/style"
 	stylepsr12 "go-phpcs/style/psr12"
-	"go-phpcs/parser"
 	"io"
 	"io/ioutil"
 )
-
 
 type Command struct {
 	Name             string
@@ -29,7 +29,6 @@ var Commands = map[string]Command{
 		Execute: func(nodes []ast.Node, filename string, w io.Writer) {
 			printer.PrintAST(nodes, 0)
 		},
-
 	},
 	"tokens": {
 		Name:        "tokens",
@@ -37,7 +36,6 @@ var Commands = map[string]Command{
 		Execute: func(nodes []ast.Node, filename string, w io.Writer) {
 			// This is a placeholder - the actual implementation is in main.go
 		},
-
 	},
 	"style": {
 		Name:        "style",
@@ -47,7 +45,18 @@ var Commands = map[string]Command{
 			var allIssues []style.StyleIssue
 			checker := &style.ClassNameChecker{}
 			allIssues = append(allIssues, checker.CheckIssues(nodes, filename)...)
-			allIssues = append(allIssues, stylepsr12.RunSelectedPSR12Checks(filename, allowedRules)...)
+			content, err := sharedcache.GetCachedFileContent(filename)
+			if err != nil {
+				allIssues = append(allIssues, style.StyleIssue{
+					Filename: filename,
+					Line:     0,
+					Type:     style.Error,
+					Message:  "[PSR12] Could not load file content: " + err.Error(),
+					Code:     "PSR12.Files.FileOpenError",
+				})
+			} else {
+				allIssues = append(allIssues, stylepsr12.RunSelectedPSR12Checks(filename, content, allowedRules)...)
+			}
 
 			// If w is an IssueCollector, append to it; else, print immediately
 			if collector, ok := w.(*style.IssueCollector); ok {
@@ -69,7 +78,6 @@ var Commands = map[string]Command{
 		Execute: func(nodes []ast.Node, filename string, w io.Writer) {
 			analyzer.AnalyzeUnknownFunctionCalls(nodes)
 		},
-
 	},
 }
 
@@ -102,8 +110,6 @@ type MemStats struct {
 	Start, End interface{}
 }
 
-
-
 func ProcessSingleFileWithWriter(filePath, commandName string, debug bool, w io.Writer) (int, int) {
 	input, err := ioutil.ReadFile(filePath)
 	if err != nil {
@@ -128,17 +134,12 @@ func ProcessMultipleFilesWithWriter(files []string, commandName string, debug bo
 	return totalParseErrors, totalLines
 }
 
-
 func CollectLines(linesCh <-chan int, totalLines *int, done chan<- struct{}) {
 	for lines := range linesCh {
 		*totalLines += lines
 	}
 	done <- struct{}{}
 }
-
-
-
-
 
 func CountLines(input []byte) int {
 	lineCount := 0
