@@ -5,6 +5,7 @@ import (
 	"go-phpcs/lexer"
 	"go-phpcs/parser"
 	"go-phpcs/style"
+	"go-phpcs/sharedcache"
 	"os"
 	"sync"
 	"io"
@@ -189,6 +190,15 @@ func ProcessStyleFilesParallelWithCallback(files []string, rules []string, paral
 
 // ProcessStyleFilesParallel scans files in parallel, parses once per file, applies all rules, and collects issues.
 func ProcessStyleFilesParallel(files []string, rules []string, parallelism int) ([]style.StyleIssue, int, int) {
+	// Batch tokenize all files and cache tokens for rules
+	fileContents := make(map[string][]byte, len(files))
+	for _, file := range files {
+		content, err := getCachedFileContent(file)
+		if err == nil {
+			fileContents[file] = content
+		}
+	}
+	sharedcache.BatchTokenizeFiles(fileContents)
 	if err := PreloadFilesParallel(files, 16); err != nil {
 		return nil, 0, 0
 	}
