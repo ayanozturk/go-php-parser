@@ -4,3 +4,5 @@ results.log
 go-phpcs
 cpu.prof
 mem.prof
+coverage.out
+coverage.html
