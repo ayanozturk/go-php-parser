@@ -298,3 +298,285 @@ func TestThrowNode(t *testing.T) {
 		t.Errorf(errTokenLiteral, throw.TokenLiteral())
 	}
 }
+
+func TestBooleanLiteralNode(t *testing.T) {
+	b := &BooleanLiteral{Value: true, Pos: Position{Line: 1, Column: 2}}
+	if b.NodeType() != "BooleanLiteral" {
+		t.Errorf(errNodeType, b.NodeType())
+	}
+	if b.GetPos().Line != 1 || b.GetPos().Column != 2 {
+		t.Errorf(errGetPos, b.GetPos())
+	}
+	b.SetPos(Position{Line: 3, Column: 4})
+	if b.GetPos().Line != 3 || b.GetPos().Column != 4 {
+		t.Errorf(errSetPos, b.GetPos())
+	}
+	if b.String() == "" {
+		t.Error(errStringEmpty)
+	}
+	if b.TokenLiteral() != "true" {
+		t.Errorf(errTokenLiteral, b.TokenLiteral())
+	}
+	if val, ok := b.GetValue().(bool); !ok || val != true {
+		t.Errorf(errGetValue, b.GetValue())
+	}
+}
+
+func TestNullLiteralNode(t *testing.T) {
+	n := &NullLiteral{Pos: Position{Line: 2, Column: 3}}
+	if n.NodeType() != "NullLiteral" {
+		t.Errorf(errNodeType, n.NodeType())
+	}
+	if n.GetPos().Line != 2 || n.GetPos().Column != 3 {
+		t.Errorf(errGetPos, n.GetPos())
+	}
+	n.SetPos(Position{Line: 4, Column: 5})
+	if n.GetPos().Line != 4 || n.GetPos().Column != 5 {
+		t.Errorf(errSetPos, n.GetPos())
+	}
+	if n.String() == "" {
+		t.Error(errStringEmpty)
+	}
+	if n.TokenLiteral() != "null" {
+		t.Errorf(errTokenLiteral, n.TokenLiteral())
+	}
+	if n.GetValue() != nil {
+		t.Errorf(errGetValue, n.GetValue())
+	}
+}
+
+func TestAssignmentNode(t *testing.T) {
+	left := &VariableNode{Name: "foo", Pos: Position{Line: 1, Column: 1}}
+	right := &IntegerLiteral{Value: 42, Pos: Position{Line: 1, Column: 2}}
+	a := &AssignmentNode{Left: left, Operator: "=", Right: right, Pos: Position{Line: 3, Column: 4}}
+	if a.NodeType() != "Assignment" {
+		t.Errorf(errNodeType, a.NodeType())
+	}
+	if a.GetPos().Line != 3 || a.GetPos().Column != 4 {
+		t.Errorf(errGetPos, a.GetPos())
+	}
+	a.SetPos(Position{Line: 5, Column: 6})
+	if a.GetPos().Line != 5 || a.GetPos().Column != 6 {
+		t.Errorf(errSetPos, a.GetPos())
+	}
+	if a.String() == "" {
+		t.Error(errStringEmpty)
+	}
+	if a.TokenLiteral() != "=" {
+		t.Errorf(errTokenLiteral, a.TokenLiteral())
+	}
+}
+
+func TestReturnNode(t *testing.T) {
+	expr := &IntegerLiteral{Value: 123, Pos: Position{Line: 1, Column: 1}}
+	r := &ReturnNode{Expr: expr, Pos: Position{Line: 2, Column: 2}}
+	if r.NodeType() != "Return" {
+		t.Errorf(errNodeType, r.NodeType())
+	}
+	if r.GetPos().Line != 2 || r.GetPos().Column != 2 {
+		t.Errorf(errGetPos, r.GetPos())
+	}
+	r.SetPos(Position{Line: 3, Column: 3})
+	if r.GetPos().Line != 3 || r.GetPos().Column != 3 {
+		t.Errorf(errSetPos, r.GetPos())
+	}
+	if r.String() == "" {
+		t.Error(errStringEmpty)
+	}
+	if r.TokenLiteral() != "return" {
+		t.Errorf(errTokenLiteral, r.TokenLiteral())
+	}
+}
+
+func TestExpressionStmt(t *testing.T) {
+	expr := &StringLiteral{Value: "hello", Pos: Position{Line: 1, Column: 1}}
+	e := &ExpressionStmt{Expr: expr, Pos: Position{Line: 2, Column: 2}}
+	if e.NodeType() != "ExpressionStmt" {
+		t.Errorf(errNodeType, e.NodeType())
+	}
+	if e.GetPos().Line != 2 || e.GetPos().Column != 2 {
+		t.Errorf(errGetPos, e.GetPos())
+	}
+	e.SetPos(Position{Line: 3, Column: 3})
+	if e.GetPos().Line != 3 || e.GetPos().Column != 3 {
+		t.Errorf(errSetPos, e.GetPos())
+	}
+	if e.String() == "" {
+		t.Error(errStringEmpty)
+	}
+	if e.TokenLiteral() != "hello" {
+		t.Errorf(errTokenLiteral, e.TokenLiteral())
+	}
+}
+
+func TestBinaryExpr(t *testing.T) {
+	left := &IntegerLiteral{Value: 1, Pos: Position{Line: 1, Column: 1}}
+	right := &IntegerLiteral{Value: 2, Pos: Position{Line: 1, Column: 2}}
+	b := &BinaryExpr{Left: left, Operator: "+", Right: right, Pos: Position{Line: 2, Column: 2}}
+	if b.NodeType() != "BinaryExpr" {
+		t.Errorf(errNodeType, b.NodeType())
+	}
+	if b.GetPos().Line != 2 || b.GetPos().Column != 2 {
+		t.Errorf(errGetPos, b.GetPos())
+	}
+	b.SetPos(Position{Line: 3, Column: 3})
+	if b.GetPos().Line != 3 || b.GetPos().Column != 3 {
+		t.Errorf(errSetPos, b.GetPos())
+	}
+	if b.String() == "" {
+		t.Error(errStringEmpty)
+	}
+	if b.TokenLiteral() != "+" {
+		t.Errorf(errTokenLiteral, b.TokenLiteral())
+	}
+}
+
+func TestIfNode(t *testing.T) {
+	cond := &BooleanLiteral{Value: true, Pos: Position{Line: 1, Column: 1}}
+	body := []Node{&ExpressionStmt{Expr: &StringLiteral{Value: "body", Pos: Position{Line: 2, Column: 2}}, Pos: Position{Line: 2, Column: 2}}}
+	ifNode := &IfNode{Condition: cond, Body: body, ElseIfs: nil, Else: nil, Pos: Position{Line: 3, Column: 3}}
+	if ifNode.NodeType() != "If" {
+		t.Errorf(errNodeType, ifNode.NodeType())
+	}
+	if ifNode.GetPos().Line != 3 || ifNode.GetPos().Column != 3 {
+		t.Errorf(errGetPos, ifNode.GetPos())
+	}
+	ifNode.SetPos(Position{Line: 4, Column: 4})
+	if ifNode.GetPos().Line != 4 || ifNode.GetPos().Column != 4 {
+		t.Errorf(errSetPos, ifNode.GetPos())
+	}
+	if ifNode.String() == "" {
+		t.Error(errStringEmpty)
+	}
+	if ifNode.TokenLiteral() != "if" {
+		t.Errorf(errTokenLiteral, ifNode.TokenLiteral())
+	}
+}
+
+func TestElseIfNode(t *testing.T) {
+	cond := &BooleanLiteral{Value: false, Pos: Position{Line: 1, Column: 1}}
+	body := []Node{&ExpressionStmt{Expr: &StringLiteral{Value: "elseif", Pos: Position{Line: 2, Column: 2}}, Pos: Position{Line: 2, Column: 2}}}
+	elseif := &ElseIfNode{Condition: cond, Body: body, Pos: Position{Line: 3, Column: 3}}
+	if elseif.NodeType() != "ElseIf" {
+		t.Errorf(errNodeType, elseif.NodeType())
+	}
+	if elseif.GetPos().Line != 3 || elseif.GetPos().Column != 3 {
+		t.Errorf(errGetPos, elseif.GetPos())
+	}
+	elseif.SetPos(Position{Line: 4, Column: 4})
+	if elseif.GetPos().Line != 4 || elseif.GetPos().Column != 4 {
+		t.Errorf(errSetPos, elseif.GetPos())
+	}
+	if elseif.String() == "" {
+		t.Error(errStringEmpty)
+	}
+	if elseif.TokenLiteral() != "elseif" {
+		t.Errorf(errTokenLiteral, elseif.TokenLiteral())
+	}
+}
+
+func TestElseNode(t *testing.T) {
+	body := []Node{&ExpressionStmt{Expr: &StringLiteral{Value: "else", Pos: Position{Line: 2, Column: 2}}, Pos: Position{Line: 2, Column: 2}}}
+	elseNode := &ElseNode{Body: body, Pos: Position{Line: 3, Column: 3}}
+	if elseNode.NodeType() != "Else" {
+		t.Errorf(errNodeType, elseNode.NodeType())
+	}
+	if elseNode.GetPos().Line != 3 || elseNode.GetPos().Column != 3 {
+		t.Errorf(errGetPos, elseNode.GetPos())
+	}
+	elseNode.SetPos(Position{Line: 4, Column: 4})
+	if elseNode.GetPos().Line != 4 || elseNode.GetPos().Column != 4 {
+		t.Errorf(errSetPos, elseNode.GetPos())
+	}
+	if elseNode.String() == "" {
+		t.Error(errStringEmpty)
+	}
+	if elseNode.TokenLiteral() != "else" {
+		t.Errorf(errTokenLiteral, elseNode.TokenLiteral())
+	}
+}
+
+func TestWhileNode(t *testing.T) {
+	cond := &BooleanLiteral{Value: true, Pos: Position{Line: 1, Column: 1}}
+	body := []Node{&ExpressionStmt{Expr: &StringLiteral{Value: "while", Pos: Position{Line: 2, Column: 2}}, Pos: Position{Line: 2, Column: 2}}}
+	whileNode := &WhileNode{Condition: cond, Body: body, Pos: Position{Line: 3, Column: 3}}
+	if whileNode.NodeType() != "While" {
+		t.Errorf(errNodeType, whileNode.NodeType())
+	}
+	if whileNode.GetPos().Line != 3 || whileNode.GetPos().Column != 3 {
+		t.Errorf(errGetPos, whileNode.GetPos())
+	}
+	whileNode.SetPos(Position{Line: 4, Column: 4})
+	if whileNode.GetPos().Line != 4 || whileNode.GetPos().Column != 4 {
+		t.Errorf(errSetPos, whileNode.GetPos())
+	}
+	if whileNode.String() == "" {
+		t.Error(errStringEmpty)
+	}
+	if whileNode.TokenLiteral() != "while" {
+		t.Errorf(errTokenLiteral, whileNode.TokenLiteral())
+	}
+}
+
+func TestFunctionDecl(t *testing.T) {
+	params := []*Variable{{Name: "a", Pos: Position{Line: 1, Column: 2}}}
+	body := []Node{&ExpressionStmt{Expr: &StringLiteral{Value: "body", Pos: Position{Line: 2, Column: 2}}, Pos: Position{Line: 2, Column: 2}}}
+	fn := &FunctionDecl{Name: "myFunc", Params: params, Body: body, Pos: Position{Line: 3, Column: 3}}
+	if fn.NodeType() != "Function" {
+		t.Errorf(errNodeType, fn.NodeType())
+	}
+	if fn.GetPos().Line != 3 || fn.GetPos().Column != 3 {
+		t.Errorf(errGetPos, fn.GetPos())
+	}
+	fn.SetPos(Position{Line: 4, Column: 4})
+	if fn.GetPos().Line != 4 || fn.GetPos().Column != 4 {
+		t.Errorf(errSetPos, fn.GetPos())
+	}
+	if fn.String() == "" {
+		t.Error(errStringEmpty)
+	}
+	if fn.TokenLiteral() != "function" {
+		t.Errorf(errTokenLiteral, fn.TokenLiteral())
+	}
+}
+
+func TestVariable(t *testing.T) {
+	v := &Variable{Name: "foo", Pos: Position{Line: 1, Column: 2}}
+	if v.NodeType() != "Variable" {
+		t.Errorf(errNodeType, v.NodeType())
+	}
+	if v.GetPos().Line != 1 || v.GetPos().Column != 2 {
+		t.Errorf(errGetPos, v.GetPos())
+	}
+	v.SetPos(Position{Line: 3, Column: 4})
+	if v.GetPos().Line != 3 || v.GetPos().Column != 4 {
+		t.Errorf(errSetPos, v.GetPos())
+	}
+	if v.String() == "" {
+		t.Error(errStringEmpty)
+	}
+	if v.TokenLiteral() != "foo" {
+		t.Errorf(errTokenLiteral, v.TokenLiteral())
+	}
+}
+
+func TestFunctionCall(t *testing.T) {
+	args := []Node{&IntegerLiteral{Value: 1, Pos: Position{Line: 1, Column: 1}}}
+	fc := &FunctionCall{Name: "myFunc", Arguments: args, Pos: Position{Line: 2, Column: 2}}
+	if fc.NodeType() != "FunctionCall" {
+		t.Errorf(errNodeType, fc.NodeType())
+	}
+	if fc.GetPos().Line != 2 || fc.GetPos().Column != 2 {
+		t.Errorf(errGetPos, fc.GetPos())
+	}
+	fc.SetPos(Position{Line: 3, Column: 3})
+	if fc.GetPos().Line != 3 || fc.GetPos().Column != 3 {
+		t.Errorf(errSetPos, fc.GetPos())
+	}
+	if fc.String() == "" {
+		t.Error(errStringEmpty)
+	}
+	if fc.TokenLiteral() != "myFunc" {
+		t.Errorf(errTokenLiteral, fc.TokenLiteral())
+	}
+}

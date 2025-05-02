@@ -54,3 +54,67 @@ func TestPropertyNodeMethods(t *testing.T) {
 		t.Errorf("TokenLiteral: got %q", p.TokenLiteral())
 	}
 }
+func TestNewNode(t *testing.T) {
+	args := []Node{&StringLiteral{Value: "arg1", Pos: Position{Line: 1, Column: 1}}}
+	n := &NewNode{ClassName: "MyClass", Args: args, Pos: Position{Line: 2, Column: 2}}
+	if n.NodeType() != "New" {
+		t.Errorf(errNodeType, n.NodeType())
+	}
+	if n.GetPos().Line != 2 || n.GetPos().Column != 2 {
+		t.Errorf(errGetPos, n.GetPos())
+	}
+	n.SetPos(Position{Line: 3, Column: 3})
+	if n.GetPos().Line != 3 || n.GetPos().Column != 3 {
+		t.Errorf(errSetPos, n.GetPos())
+	}
+	if n.String() == "" {
+		t.Error(errStringEmpty)
+	}
+	if n.TokenLiteral() != "new" {
+		t.Errorf(errTokenLiteral, n.TokenLiteral())
+	}
+}
+
+func TestMethodCallNode(t *testing.T) {
+	obj := &VariableNode{Name: "obj", Pos: Position{Line: 1, Column: 1}}
+	args := []Node{&IntegerLiteral{Value: 42, Pos: Position{Line: 1, Column: 2}}}
+	m := &MethodCallNode{Object: obj, Method: "doSomething", Args: args, Pos: Position{Line: 2, Column: 2}}
+	if m.NodeType() != "MethodCall" {
+		t.Errorf(errNodeType, m.NodeType())
+	}
+	if m.GetPos().Line != 2 || m.GetPos().Column != 2 {
+		t.Errorf(errGetPos, m.GetPos())
+	}
+	m.SetPos(Position{Line: 3, Column: 3})
+	if m.GetPos().Line != 3 || m.GetPos().Column != 3 {
+		t.Errorf(errSetPos, m.GetPos())
+	}
+	if m.String() == "" {
+		t.Error(errStringEmpty)
+	}
+	if m.TokenLiteral() != "doSomething" {
+		t.Errorf(errTokenLiteral, m.TokenLiteral())
+	}
+}
+
+func TestTraitNode(t *testing.T) {
+	name := &Identifier{Name: "MyTrait", Pos: Position{Line: 1, Column: 1}}
+	body := []Node{&StringLiteral{Value: "body", Pos: Position{Line: 2, Column: 2}}}
+	trait := &TraitNode{Name: name, Body: body, Pos: Position{Line: 3, Column: 3}}
+	if trait.NodeType() != "Trait" {
+		t.Errorf(errNodeType, trait.NodeType())
+	}
+	if trait.GetPos().Line != 3 || trait.GetPos().Column != 3 {
+		t.Errorf(errGetPos, trait.GetPos())
+	}
+	trait.SetPos(Position{Line: 4, Column: 4})
+	if trait.GetPos().Line != 4 || trait.GetPos().Column != 4 {
+		t.Errorf(errSetPos, trait.GetPos())
+	}
+	if trait.String() == "" {
+		t.Error(errStringEmpty)
+	}
+	if trait.TokenLiteral() != "trait" {
+		t.Errorf(errTokenLiteral, trait.TokenLiteral())
+	}
+}

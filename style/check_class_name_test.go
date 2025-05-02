@@ -8,7 +8,7 @@ import (
 	"testing"
 )
 
-func TestClassNameChecker_Check_PrintsWarning(t *testing.T) {
+func TestClassNameCheckerCheckPrintsWarning(t *testing.T) {
 	checker := &ClassNameChecker{}
 	class := &ast.ClassNode{Name: "not_PascalCase"}
 	var buf bytes.Buffer
@@ -34,7 +34,7 @@ func TestClassNameChecker_Check_PrintsWarning(t *testing.T) {
 	}
 }
 
-func TestClassNameChecker_Check_NoWarning(t *testing.T) {
+func TestClassNameCheckerCheckNoWarning(t *testing.T) {
 	checker := &ClassNameChecker{}
 	class := &ast.ClassNode{Name: "PascalCase"}
 	var buf bytes.Buffer
@@ -56,11 +56,11 @@ func TestClassNameChecker_Check_NoWarning(t *testing.T) {
 
 func TestPascalCase(t *testing.T) {
 	cases := map[string]string{
-		"my_class":    "MyClass",
-		"anotherTest": "AnotherTest",
-		"":            "",
-		"snake_case":  "SnakeCase",
-		"Pascal":      "Pascal",
+		"my_class":      "MyClass",
+		"anotherTest":   "AnotherTest",
+		"":              "",
+		"snake_case":    "SnakeCase",
+		"Pascal":        "Pascal",
 		"AlreadyPascal": "AlreadyPascal",
 	}
 	for input, want := range cases {
@@ -73,11 +73,11 @@ func TestPascalCase(t *testing.T) {
 
 func TestCamelCase(t *testing.T) {
 	cases := map[string]string{
-		"My_Class":    "myClass",
+		"My_Class":     "myClass",
 		"Another_Test": "anotherTest",
-		"":            "",
-		"snake_case":  "snakeCase",
-		"Camel":       "camel",
+		"":             "",
+		"snake_case":   "snakeCase",
+		"Camel":        "camel",
 		"alreadyCamel": "alreadyCamel",
 	}
 	for input, want := range cases {

@@ -5,18 +5,19 @@ import (
 )
 
 func TestEndFileNewlineChecker(t *testing.T) {
+	const fooClass = "class Foo {}"
 	checker := &EndFileNewlineChecker{}
 	filename := "test.php"
 
 	// Case 1: File ends with a single blank line (correct)
-	lines := []string{"<?php", "class Foo {}", ""}
+	lines := []string{"<?php", fooClass, ""}
 	issues := checker.CheckIssues(lines, filename)
 	if len(issues) != 0 {
 		t.Errorf("expected no issues, got %d: %+v", len(issues), issues)
 	}
 
 	// Case 2: File does not end with a blank line (incorrect)
-	lines = []string{"<?php", "class Foo {}"}
+	lines = []string{"<?php", fooClass}
 	issues = checker.CheckIssues(lines, filename)
 	if len(issues) != 1 {
 		t.Errorf("expected 1 issue, got %d: %+v", len(issues), issues)
@@ -25,7 +26,7 @@ func TestEndFileNewlineChecker(t *testing.T) {
 	}
 
 	// Case 3: File ends with multiple blank lines (incorrect)
-	lines = []string{"<?php", "class Foo {}", "", ""}
+	lines = []string{"<?php", fooClass, "", ""}
 	issues = checker.CheckIssues(lines, filename)
 	if len(issues) != 1 {
 		t.Errorf("expected 1 issue, got %d: %+v", len(issues), issues)
