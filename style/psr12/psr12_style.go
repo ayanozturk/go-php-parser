@@ -37,7 +37,7 @@ var psr12RuleRegistry = map[string]PSR12RuleFunc{
 		return checker.CheckIssues(lines, filename)
 	},
 	"PSR12.Files.EndFileNewline": func(filename string) []style.StyleIssue {
-		file, err := os.Open(filename)
+		content, err := os.ReadFile(filename)
 		if err != nil {
 			return []style.StyleIssue{{
 				Filename: filename,
@@ -47,14 +47,17 @@ var psr12RuleRegistry = map[string]PSR12RuleFunc{
 				Code:     "PSR12.Files.FileOpenError",
 			}}
 		}
-		defer file.Close()
-		scanner := bufio.NewScanner(file)
-		var lines []string
-		for scanner.Scan() {
-			lines = append(lines, scanner.Text())
+		if len(content) == 0 || content[len(content)-1] != '\n' {
+			return []style.StyleIssue{{
+				Filename: filename,
+				Line:     0,
+				Type:     style.Error,
+				Fixable:  true,
+				Message:  "File must end with a single blank line (newline)",
+				Code:     "PSR12.Files.EndFileNewline",
+			}}
 		}
-		checker := &EndFileNewlineChecker{}
-		return checker.CheckIssues(lines, filename)
+		return nil
 	},
 	"PSR12.Files.NoMultipleStatementsPerLine": func(filename string) []style.StyleIssue {
 		file, err := os.Open(filename)
