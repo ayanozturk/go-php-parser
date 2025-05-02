@@ -1,14 +1,15 @@
 package psr12
 
 import (
+	"go-phpcs/sharedcache"
+	"go-phpcs/style"
+	"go-phpcs/style/generic/functions"
 	"strings"
 	"sync"
-	"go-phpcs/sharedcache"
 )
 
 // RunAllPSR12Checks runs all PSR-12 style checks on the given file.
 // Returns a slice of style.StyleIssue.
-import "go-phpcs/style"
 
 // PSR12RuleFunc defines the signature for a PSR-12 rule function
 // that returns style issues for a file.
@@ -34,9 +35,9 @@ var psr12RuleRegistry = map[string]PSR12RuleFunc{
 		}
 		return nil
 	},
-	"PSR12.Files.NoMultipleStatementsPerLine": func(filename string, content []byte) []style.StyleIssue {
+	"Generic.Functions.DisallowMultipleStatementsSniff": func(filename string, content []byte) []style.StyleIssue {
 		lines := strings.Split(string(content), "\n")
-		checker := &NoMultipleStatementsPerLineChecker{}
+		checker := &functions.DisallowMultipleStatementsSniff{}
 		return checker.CheckIssues(lines, filename)
 	},
 	"PSR12.Files.NoSpaceBeforeSemicolon": func(filename string, content []byte) []style.StyleIssue {

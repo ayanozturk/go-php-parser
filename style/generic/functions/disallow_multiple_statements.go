@@ -1,13 +1,13 @@
-package psr12
+package functions
 
 import (
 	"go-phpcs/style"
 )
 
-// NoMultipleStatementsPerLineChecker checks that there is at most one statement per line (PSR-12 2.3)
-type NoMultipleStatementsPerLineChecker struct{}
+// DisallowMultipleStatementsSniff checks that there is at most one statement per line (Generic.Formatting.DisallowMultipleStatements)
+type DisallowMultipleStatementsSniff struct{}
 
-func (c *NoMultipleStatementsPerLineChecker) CheckIssues(lines []string, filename string) []style.StyleIssue {
+func (s *DisallowMultipleStatementsSniff) CheckIssues(lines []string, filename string) []style.StyleIssue {
 	var issues []style.StyleIssue
 	inBlockComment := false
 	inHeredoc := false
@@ -39,7 +39,9 @@ func (c *NoMultipleStatementsPerLineChecker) CheckIssues(lines []string, filenam
 			if inHeredoc {
 				// Heredoc/nowdoc ends only if the line (after optional whitespace) matches the marker
 				k := 0
-				for k < len(line) && (line[k] == ' ' || line[k] == '\t') { k++ }
+				for k < len(line) && (line[k] == ' ' || line[k] == '\t') {
+					k++
+				}
 				if heredocEnd != "" && line[k:] == heredocEnd {
 					inHeredoc = false
 					heredocEnd = ""
@@ -63,9 +65,13 @@ func (c *NoMultipleStatementsPerLineChecker) CheckIssues(lines []string, filenam
 				// Heredoc/Nowdoc start
 				if j+2 < len(line) && line[j] == '<' && line[j+1] == '<' && line[j+2] == '<' {
 					k := j + 3
-					for k < len(line) && (line[k] == ' ' || line[k] == '\t') { k++ }
+					for k < len(line) && (line[k] == ' ' || line[k] == '\t') {
+						k++
+					}
 					start := k
-					for k < len(line) && ((line[k] >= 'a' && line[k] <= 'z') || (line[k] >= 'A' && line[k] <= 'Z') || (line[k] >= '0' && line[k] <= '9') || line[k] == '_' || line[k] == '\'' || line[k] == '"') { k++ }
+					for k < len(line) && ((line[k] >= 'a' && line[k] <= 'z') || (line[k] >= 'A' && line[k] <= 'Z') || (line[k] >= '0' && line[k] <= '9') || line[k] == '_' || line[k] == '\'' || line[k] == '"') {
+						k++
+					}
 					heredocEnd = line[start:k]
 					if heredocEnd != "" {
 						inHeredoc = true
@@ -100,7 +106,7 @@ func (c *NoMultipleStatementsPerLineChecker) CheckIssues(lines []string, filenam
 				Type:     style.Error,
 				Fixable:  false,
 				Message:  "Multiple statements detected on the same line",
-				Code:     "PSR12.Files.NoMultipleStatementsPerLine",
+				Code:     "Generic.Formatting.DisallowMultipleStatements",
 			})
 		}
 	}

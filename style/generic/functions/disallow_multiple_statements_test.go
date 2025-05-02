@@ -1,13 +1,13 @@
-package psr12
+package functions
 
 import "testing"
 
-func TestNoMultipleStatementsPerLineChecker(t *testing.T) {
-	checker := &NoMultipleStatementsPerLineChecker{}
+func TestDisallowMultipleStatementsSniff(t *testing.T) {
+	sniff := &DisallowMultipleStatementsSniff{}
 	filename := "test.php"
 
 	cases := []struct {
-		lines   []string
+		lines    []string
 		expected int
 		msg      string
 	}{
@@ -20,7 +20,7 @@ func TestNoMultipleStatementsPerLineChecker(t *testing.T) {
 	}
 
 	for _, tc := range cases {
-		issues := checker.CheckIssues(tc.lines, filename)
+		issues := sniff.CheckIssues(tc.lines, filename)
 		if len(issues) != tc.expected {
 			t.Errorf("%s: expected %d issues, got %d: %+v", tc.msg, tc.expected, len(issues), issues)
 		}
