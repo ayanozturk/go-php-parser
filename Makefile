@@ -10,6 +10,7 @@ profile:
 
 # Visualize the cpu.prof profile in the browser (pprof web UI)
 profile-web:
+	lsof -ti :8080 | xargs kill || true
 	go tool pprof -http=:8080 go-phpcs cpu.prof
 
 ast:

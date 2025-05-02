@@ -70,6 +70,45 @@ func ProcessFileWithErrors(filePath, commandName string, debug bool, w io.Writer
 
 var fileContentCache sync.Map
 
+// PreloadFilesParallel reads all files in parallel and stores their contents in fileContentCache.
+func PreloadFilesParallel(files []string, parallelism int) error {
+	var wg sync.WaitGroup
+	fileCh := make(chan string)
+	errCh := make(chan error, parallelism)
+
+	for i := 0; i < parallelism; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for file := range fileCh {
+				if _, ok := fileContentCache.Load(file); ok {
+					continue
+				}
+				content, err := os.ReadFile(file)
+				if err != nil {
+					errCh <- err
+					continue
+				}
+				fileContentCache.Store(file, content)
+			}
+		}()
+	}
+
+	go func() {
+		for _, file := range files {
+			fileCh <- file
+		}
+		close(fileCh)
+	}()
+
+	wg.Wait()
+	close(errCh)
+	if len(errCh) > 0 {
+		return <-errCh
+	}
+	return nil
+}
+
 func getCachedFileContent(filename string) ([]byte, error) {
 	if val, ok := fileContentCache.Load(filename); ok {
 		return val.([]byte), nil
@@ -83,6 +122,10 @@ func getCachedFileContent(filename string) ([]byte, error) {
 }
 
 func ProcessStyleFilesParallelWithCallback(files []string, rules []string, parallelism int, callback func()) ([]style.StyleIssue, int, int) {
+	if err := PreloadFilesParallel(files, 16); err != nil {
+		return nil, 0, 0
+	}
+
 	var (
 		wg sync.WaitGroup
 		fileCh = make(chan string)
@@ -146,6 +189,10 @@ func ProcessStyleFilesParallelWithCallback(files []string, rules []string, paral
 
 // ProcessStyleFilesParallel scans files in parallel, parses once per file, applies all rules, and collects issues.
 func ProcessStyleFilesParallel(files []string, rules []string, parallelism int) ([]style.StyleIssue, int, int) {
+	if err := PreloadFilesParallel(files, 16); err != nil {
+		return nil, 0, 0
+	}
+
 	var (
 		wg sync.WaitGroup
 		fileCh = make(chan string)
