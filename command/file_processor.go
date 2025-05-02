@@ -66,6 +66,69 @@ func ProcessFileWithErrors(filePath, commandName string, debug bool, w io.Writer
 	return nil, lineCount
 }
 
+// ProcessStyleFilesParallelWithCallback scans files in parallel, parses once per file, applies all rules, collects issues, and calls the callback after each file.
+func ProcessStyleFilesParallelWithCallback(files []string, rules []string, parallelism int, callback func()) ([]style.StyleIssue, int, int) {
+	var (
+		wg sync.WaitGroup
+		fileCh = make(chan string)
+		issueCh = make(chan []style.StyleIssue, parallelism)
+		linesCh = make(chan int, parallelism)
+		errCh = make(chan int, parallelism)
+	)
+
+	nFiles := len(files)
+
+	for i := 0; i < parallelism; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for file := range fileCh {
+				input, err := os.ReadFile(file)
+				if err != nil {
+					continue
+				}
+				linesCh <- CountLines(input)
+				lex := lexer.New(string(input))
+				p := parser.New(lex, false)
+				nodes := p.Parse()
+				if len(p.Errors()) > 0 {
+					errCh <- len(p.Errors())
+				} else {
+					errCh <- 0
+				}
+				var fileIssues []style.StyleIssue
+				issueWriter := &style.IssueCollector{Issues: &fileIssues}
+				Commands["style"].ExecuteWithRules(nodes, file, issueWriter, rules)
+				issueCh <- fileIssues
+				if callback != nil {
+					callback()
+				}
+			}
+		}()
+	}
+
+	go func() {
+		for _, file := range files {
+			fileCh <- file
+		}
+		close(fileCh)
+	}()
+
+	allIssues := make([]style.StyleIssue, 0, nFiles*2)
+	totalLines := 0
+	totalParseErrors := 0
+	for i := 0; i < nFiles; i++ {
+		allIssues = append(allIssues, <-issueCh...)
+		totalLines += <-linesCh
+		totalParseErrors += <-errCh
+	}
+	close(issueCh)
+	close(linesCh)
+	close(errCh)
+	wg.Wait()
+	return allIssues, totalParseErrors, totalLines
+}
+
 // ProcessStyleFilesParallel scans files in parallel, parses once per file, applies all rules, and collects issues.
 func ProcessStyleFilesParallel(files []string, rules []string, parallelism int) ([]style.StyleIssue, int, int) {
 	var (

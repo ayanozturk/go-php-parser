@@ -11,6 +11,7 @@ import (
 	"os"
 	"runtime"
 	"time"
+	"go-phpcs/utils"
 )
 
 const errorLineFormat = "\t%s\n"
@@ -116,12 +117,14 @@ func main() {
 			totalParseErrors = 0
 			totalLines = 0
 			nFiles := len(filesToScan)
-			if isatty(os.Stdout.Fd()) {
-				fmt.Fprintf(os.Stdout, "Scanning %d files...\n", nFiles)
-			}
+			progressBar := utils.NewProgressBar(nFiles, "Scanning")
 
-			// Parallel file-level scan for style command
-			allIssues, totalParseErrors, totalLines = command.ProcessStyleFilesParallel(filesToScan, c.Rules, *parallelism)
+			var processed int
+			// Wrap the callback to update the progress bar for each file
+			allIssues, totalParseErrors, totalLines = command.ProcessStyleFilesParallelWithCallback(filesToScan, c.Rules, *parallelism, func() {
+				processed++
+				progressBar.Print(processed)
+			})
 			style.PrintPHPCSStyleOutputToWriter(outWriter, allIssues)
 
 		} else {
