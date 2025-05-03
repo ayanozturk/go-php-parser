@@ -18,47 +18,7 @@ func (s *DisallowMultipleStatementsSniff) CheckIssues(lines []string, filename s
 		if helper.HandleHeredocEnd(line, commentState) {
 			continue
 		}
-		count := 0
-		qs := &helper.QuoteState{}
-		j := 0
-		for j < len(line) {
-			// Block comment
-			j2 := helper.HandleBlockComment(line, j, commentState)
-			if j2 != j {
-				j = j2
-				continue
-			}
-			if commentState.InBlockComment {
-				j++
-				continue
-			}
-			// Heredoc/Nowdoc start
-			j2 = helper.HandleHeredocStart(line, j, commentState)
-			if j2 != j {
-				break // rest of line is part of heredoc start
-			}
-			if commentState.InHeredoc {
-				break // skip the rest of this line
-			}
-			// Line comments
-			if !qs.InSingle && !qs.InDouble {
-				if j+1 < len(line) && line[j] == '/' && line[j+1] == '/' {
-					break
-				}
-				if line[j] == '#' {
-					break
-				}
-			}
-			j2 = helper.HandleQuotes(line, j, qs)
-			if j2 != j {
-				j = j2
-				continue
-			}
-			if !qs.InSingle && !qs.InDouble && !commentState.InBlockComment && !commentState.InHeredoc && line[j] == ';' {
-				count++
-			}
-			j++
-		}
+		count := s.countStatements(line, commentState)
 		if count > 1 {
 			issues = append(issues, style.StyleIssue{
 				Filename: filename,
@@ -71,4 +31,74 @@ func (s *DisallowMultipleStatementsSniff) CheckIssues(lines []string, filename s
 		}
 	}
 	return issues
+}
+
+func (s *DisallowMultipleStatementsSniff) countStatements(line string, commentState *helper.CommentState) int {
+	count := 0
+	qs := &helper.QuoteState{}
+	j := 0
+	for j < len(line) {
+		if s.handleBlockComment(line, &j, commentState) {
+			continue
+		}
+		if commentState.InBlockComment {
+			j++
+			continue
+		}
+		if s.handleHeredocStart(line, &j, commentState) {
+			break
+		}
+		if commentState.InHeredoc {
+			break
+		}
+		if s.handleLineComment(line, &j, qs) {
+			break
+		}
+		if s.handleQuotes(line, &j, qs) {
+			continue
+		}
+		if !qs.InSingle && !qs.InDouble && !commentState.InBlockComment && !commentState.InHeredoc && line[j] == ';' {
+			count++
+		}
+		j++
+	}
+	return count
+}
+
+func (s *DisallowMultipleStatementsSniff) handleBlockComment(line string, j *int, commentState *helper.CommentState) bool {
+	j2 := helper.HandleBlockComment(line, *j, commentState)
+	if j2 != *j {
+		*j = j2
+		return true
+	}
+	return false
+}
+
+func (s *DisallowMultipleStatementsSniff) handleHeredocStart(line string, j *int, commentState *helper.CommentState) bool {
+	j2 := helper.HandleHeredocStart(line, *j, commentState)
+	if j2 != *j {
+		return true
+	}
+	return false
+}
+
+func (s *DisallowMultipleStatementsSniff) handleLineComment(line string, j *int, qs *helper.QuoteState) bool {
+	if !qs.InSingle && !qs.InDouble {
+		if *j+1 < len(line) && line[*j] == '/' && line[*j+1] == '/' {
+			return true
+		}
+		if line[*j] == '#' {
+			return true
+		}
+	}
+	return false
+}
+
+func (s *DisallowMultipleStatementsSniff) handleQuotes(line string, j *int, qs *helper.QuoteState) bool {
+	j2 := helper.HandleQuotes(line, *j, qs)
+	if j2 != *j {
+		*j = j2
+		return true
+	}
+	return false
 }

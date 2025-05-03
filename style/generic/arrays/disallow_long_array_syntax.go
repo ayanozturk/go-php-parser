@@ -32,33 +32,52 @@ func (s *DisallowLongArraySyntaxSniff) checkNode(node ast.Node, filename string)
 				Code:     "Generic.Arrays.DisallowLongArraySyntax",
 			})
 		}
+		s.checkArrayNodeChildren(arr, filename)
+		return
 	}
-	// Recursively check child nodes
-	switch n := node.(type) {
-	case *ast.ArrayNode:
-		for _, el := range n.Elements {
-			s.checkNode(el, filename)
-		}
-	case *ast.ArrayItemNode:
-		if n.Key != nil {
-			s.checkNode(n.Key, filename)
-		}
-		if n.Value != nil {
-			s.checkNode(n.Value, filename)
-		}
-	case *ast.KeyValueNode:
-		if n.Key != nil {
-			s.checkNode(n.Key, filename)
-		}
-		if n.Value != nil {
-			s.checkNode(n.Value, filename)
-		}
-	case *ast.ArrayAccessNode:
-		if n.Var != nil {
-			s.checkNode(n.Var, filename)
-		}
-		if n.Index != nil {
-			s.checkNode(n.Index, filename)
-		}
+	if item, ok := node.(*ast.ArrayItemNode); ok {
+		s.checkArrayItemNodeChildren(item, filename)
+		return
+	}
+	if kv, ok := node.(*ast.KeyValueNode); ok {
+		s.checkKeyValueNodeChildren(kv, filename)
+		return
+	}
+	if acc, ok := node.(*ast.ArrayAccessNode); ok {
+		s.checkArrayAccessNodeChildren(acc, filename)
+		return
+	}
+}
+
+func (s *DisallowLongArraySyntaxSniff) checkArrayNodeChildren(n *ast.ArrayNode, filename string) {
+	for _, el := range n.Elements {
+		s.checkNode(el, filename)
+	}
+}
+
+func (s *DisallowLongArraySyntaxSniff) checkArrayItemNodeChildren(n *ast.ArrayItemNode, filename string) {
+	if n.Key != nil {
+		s.checkNode(n.Key, filename)
+	}
+	if n.Value != nil {
+		s.checkNode(n.Value, filename)
+	}
+}
+
+func (s *DisallowLongArraySyntaxSniff) checkKeyValueNodeChildren(n *ast.KeyValueNode, filename string) {
+	if n.Key != nil {
+		s.checkNode(n.Key, filename)
+	}
+	if n.Value != nil {
+		s.checkNode(n.Value, filename)
+	}
+}
+
+func (s *DisallowLongArraySyntaxSniff) checkArrayAccessNodeChildren(n *ast.ArrayAccessNode, filename string) {
+	if n.Var != nil {
+		s.checkNode(n.Var, filename)
+	}
+	if n.Index != nil {
+		s.checkNode(n.Index, filename)
 	}
 }
