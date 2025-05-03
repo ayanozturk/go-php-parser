@@ -4,6 +4,7 @@ import (
 	"bytes"
 
 	"go-phpcs/ast"
+	"go-phpcs/style/helper"
 	"os"
 	"testing"
 )
@@ -64,9 +65,9 @@ func TestPascalCase(t *testing.T) {
 		"AlreadyPascal": "AlreadyPascal",
 	}
 	for input, want := range cases {
-		got := pascalCase(input)
+		got := helper.PascalCase(input)
 		if got != want {
-			t.Errorf("pascalCase(%q) = %q, want %q", input, got, want)
+			t.Errorf("PascalCase(%q) = %q, want %q", input, got, want)
 		}
 	}
 }
@@ -81,18 +82,18 @@ func TestCamelCase(t *testing.T) {
 		"alreadyCamel": "alreadyCamel",
 	}
 	for input, want := range cases {
-		got := camelCase(input)
+		got := helper.CamelCase(input)
 		if got != want {
-			t.Errorf("camelCase(%q) = %q, want %q", input, got, want)
+			t.Errorf("CamelCase(%q) = %q, want %q", input, got, want)
 		}
 	}
 }
 
 func TestToLowerToUpper(t *testing.T) {
-	if toLower('A') != 'a' || toLower('Z') != 'z' || toLower('a') != 'a' {
-		t.Error("toLower failed")
+	if helper.ToLower('A') != 'a' || helper.ToLower('Z') != 'z' || helper.ToLower('a') != 'a' {
+		t.Error("ToLower failed")
 	}
-	if toUpper('a') != 'A' || toUpper('z') != 'Z' || toUpper('A') != 'A' {
-		t.Error("toUpper failed")
+	if helper.ToUpper('a') != 'A' || helper.ToUpper('z') != 'Z' || helper.ToUpper('A') != 'A' {
+		t.Error("ToUpper failed")
 	}
 }

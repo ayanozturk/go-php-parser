@@ -3,6 +3,7 @@ package style
 import (
 	"fmt"
 	"go-phpcs/ast"
+	"go-phpcs/style/helper"
 )
 
 // StyleChecker interface is defined in style_checker.go
@@ -15,7 +16,7 @@ func (c *ClassNameChecker) CheckIssues(nodes []ast.Node, filename string) []Styl
 	var issues []StyleIssue
 	for _, node := range nodes {
 		if cls, ok := node.(*ast.ClassNode); ok {
-			if cls.Name != pascalCase(cls.Name) {
+			if cls.Name != helper.PascalCase(cls.Name) {
 				issues = append(issues, StyleIssue{
 					Filename: filename,
 					Line:     cls.Pos.Line,
@@ -35,7 +36,7 @@ func (c *ClassNameChecker) CheckIssues(nodes []ast.Node, filename string) []Styl
 func (c *ClassNameChecker) Check(nodes []ast.Node, filename string) {
 	for _, node := range nodes {
 		if cls, ok := node.(*ast.ClassNode); ok {
-			if cls.Name != pascalCase(cls.Name) {
+			if cls.Name != helper.PascalCase(cls.Name) {
 				// ANSI color codes for pretty output
 				const (
 					red    = "\033[31m"
@@ -55,70 +56,4 @@ func (c *ClassNameChecker) Check(nodes []ast.Node, filename string) {
 			}
 		}
 	}
-}
-
-// pascalCase returns the PascalCase version of the input name.
-// If the name is already PascalCase, it returns it unchanged.
-func pascalCase(name string) string {
-	if name == "" {
-		return name
-	}
-	result := ""
-	capitalizeNext := true
-	for _, r := range name {
-		if r == '_' {
-			capitalizeNext = true
-			continue
-		}
-		if capitalizeNext {
-			result += string(toUpper(r))
-			capitalizeNext = false
-		} else {
-			result += string(r)
-		}
-	}
-	return result
-}
-
-
-// camelCase returns the camelCase version of the input name.
-// If the name is already camelCase, it returns it unchanged.
-func camelCase(name string) string {
-	if name == "" {
-		return name
-	}
-	// Remove underscores and capitalize following letter
-	result := ""
-	capitalizeNext := false
-	for i, r := range name {
-		if r == '_' {
-			capitalizeNext = true
-			continue
-		}
-		if i == 0 {
-			result += string(toLower(r))
-			continue
-		}
-		if capitalizeNext {
-			result += string(toUpper(r))
-			capitalizeNext = false
-		} else {
-			result += string(r)
-		}
-	}
-	return result
-}
-
-func toLower(r rune) rune {
-	if 'A' <= r && r <= 'Z' {
-		return r + ('a' - 'A')
-	}
-	return r
-}
-
-func toUpper(r rune) rune {
-	if 'a' <= r && r <= 'z' {
-		return r - ('a' - 'A')
-	}
-	return r
 }

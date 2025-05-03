@@ -2,6 +2,7 @@ package psr12
 
 import (
 	"go-phpcs/style"
+	"go-phpcs/style/helper"
 )
 
 // MethodVisibilityDeclaredChecker checks that all class methods declare visibility (PSR-12 4.2)
@@ -12,25 +13,17 @@ func (c *MethodVisibilityDeclaredChecker) CheckIssues(lines []string, filename s
 	inClass := false
 	braceDepth := 0
 	for i, line := range lines {
-		trimmed := trimWhitespace(line)
-		// Skip PHPDoc and comment lines
-		if len(trimmed) > 0 && (trimmed[0] == '/' || trimmed[0] == '*') {
+		trimmed := helper.TrimWhitespace(line)
+		if shouldSkipLine(trimmed) {
 			continue
 		}
-		if isClassDeclaration(trimmed) {
+		if helper.IsClassDeclaration(trimmed) {
 			inClass = true
 			continue
 		}
 		if inClass {
-			if trimmed == "{" {
-				braceDepth++
-				continue
-			}
-			if trimmed == "}" {
-				braceDepth--
-				if braceDepth <= 0 {
-					inClass = false
-				}
+			braceDepth, inClass = updateBraceState(trimmed, braceDepth, inClass)
+			if !inClass {
 				continue
 			}
 			if isMethodDeclaration(trimmed) && !hasVisibility(trimmed) {
@@ -46,6 +39,25 @@ func (c *MethodVisibilityDeclaredChecker) CheckIssues(lines []string, filename s
 		}
 	}
 	return issues
+}
+
+func shouldSkipLine(line string) bool {
+	return len(line) > 0 && (line[0] == '/' || line[0] == '*')
+}
+
+func updateBraceState(line string, braceDepth int, inClass bool) (int, bool) {
+	if line == "{" {
+		braceDepth++
+		return braceDepth, inClass
+	}
+	if line == "}" {
+		braceDepth--
+		if braceDepth <= 0 {
+			return braceDepth, false
+		}
+		return braceDepth, inClass
+	}
+	return braceDepth, inClass
 }
 
 func isMethodDeclaration(line string) bool {

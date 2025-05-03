@@ -38,26 +38,40 @@ func (s *DisallowMultipleStatementsSniff) countStatements(line string, commentSt
 	qs := &helper.QuoteState{}
 	j := 0
 	for j < len(line) {
-		if s.handleBlockComment(line, &j, commentState) {
+		// Block comment
+		j2 := helper.HandleBlockComment(line, j, commentState)
+		if j2 != j {
+			j = j2
 			continue
 		}
 		if commentState.InBlockComment {
 			j++
 			continue
 		}
-		if s.handleHeredocStart(line, &j, commentState) {
+		// Heredoc start
+		j2 = helper.HandleHeredocStart(line, j, commentState)
+		if j2 != j {
 			break
 		}
 		if commentState.InHeredoc {
 			break
 		}
-		if s.handleLineComment(line, &j, qs) {
-			break
+		// Line comment
+		if !qs.InSingle && !qs.InDouble {
+			if j+1 < len(line) && line[j] == '/' && line[j+1] == '/' {
+				break
+			}
+			if line[j] == '#' {
+				break
+			}
 		}
-		if s.handleQuotes(line, &j, qs) {
+		// Quotes
+		j2 = helper.HandleQuotes(line, j, qs)
+		if j2 != j {
+			j = j2
 			continue
 		}
-		if !qs.InSingle && !qs.InDouble && !commentState.InBlockComment && !commentState.InHeredoc && line[j] == ';' {
+		if s.isStatementSeparator(line, j, qs, commentState) {
 			count++
 		}
 		j++
@@ -65,40 +79,6 @@ func (s *DisallowMultipleStatementsSniff) countStatements(line string, commentSt
 	return count
 }
 
-func (s *DisallowMultipleStatementsSniff) handleBlockComment(line string, j *int, commentState *helper.CommentState) bool {
-	j2 := helper.HandleBlockComment(line, *j, commentState)
-	if j2 != *j {
-		*j = j2
-		return true
-	}
-	return false
-}
-
-func (s *DisallowMultipleStatementsSniff) handleHeredocStart(line string, j *int, commentState *helper.CommentState) bool {
-	j2 := helper.HandleHeredocStart(line, *j, commentState)
-	if j2 != *j {
-		return true
-	}
-	return false
-}
-
-func (s *DisallowMultipleStatementsSniff) handleLineComment(line string, j *int, qs *helper.QuoteState) bool {
-	if !qs.InSingle && !qs.InDouble {
-		if *j+1 < len(line) && line[*j] == '/' && line[*j+1] == '/' {
-			return true
-		}
-		if line[*j] == '#' {
-			return true
-		}
-	}
-	return false
-}
-
-func (s *DisallowMultipleStatementsSniff) handleQuotes(line string, j *int, qs *helper.QuoteState) bool {
-	j2 := helper.HandleQuotes(line, *j, qs)
-	if j2 != *j {
-		*j = j2
-		return true
-	}
-	return false
+func (s *DisallowMultipleStatementsSniff) isStatementSeparator(line string, j int, qs *helper.QuoteState, commentState *helper.CommentState) bool {
+	return !qs.InSingle && !qs.InDouble && !commentState.InBlockComment && !commentState.InHeredoc && line[j] == ';'
 }
