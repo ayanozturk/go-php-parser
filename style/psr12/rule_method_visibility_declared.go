@@ -61,59 +61,20 @@ func updateBraceState(line string, braceDepth int, inClass bool) (int, bool) {
 }
 
 func isMethodDeclaration(line string) bool {
-	// Look for 'function', but not anonymous (closures):
-	idx := indexOfWord(line, "function")
+	idx := helper.IndexOfWord(line, "function")
 	if idx == -1 {
 		return false
 	}
-	// Find what's after 'function'
 	n := idx + len("function")
 	for n < len(line) && (line[n] == ' ' || line[n] == '\t') {
 		n++
 	}
 	if n < len(line) && line[n] == '(' {
-		// anonymous function: function (...) { ... }
 		return false
 	}
-	return true // named function
-}
-
-// indexOfWord finds the index of 'word' as a standalone word in line, or -1 if not found
-func indexOfWord(line, word string) int {
-	for i := 0; i+len(word) <= len(line); i++ {
-		if line[i:i+len(word)] == word {
-			before := i == 0 || !isWordChar(line[i-1])
-			after := i+len(word) == len(line) || !isWordChar(line[i+len(word)])
-			if before && after {
-				return i
-			}
-		}
-	}
-	return -1
+	return true
 }
 
 func hasVisibility(line string) bool {
-	return hasWord(line, "public") || hasWord(line, "protected") || hasWord(line, "private")
-}
-
-func containsWord(line, word string) bool {
-	// Check that word is surrounded by non-word chars
-	for i := 0; i+len(word) <= len(line); i++ {
-		if line[i:i+len(word)] == word {
-			before := i == 0 || !isWordChar(line[i-1])
-			after := i+len(word) == len(line) || !isWordChar(line[i+len(word)])
-			if before && after {
-				return true
-			}
-		}
-	}
-	return false
-}
-
-func hasWord(line, word string) bool {
-	return containsWord(line, word)
-}
-
-func isWordChar(c byte) bool {
-	return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '_'
+	return helper.HasWord(line, "public") || helper.HasWord(line, "protected") || helper.HasWord(line, "private")
 }
