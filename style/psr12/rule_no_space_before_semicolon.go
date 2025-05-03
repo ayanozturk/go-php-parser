@@ -2,6 +2,7 @@ package psr12
 
 import (
 	"go-phpcs/style"
+	"strings"
 )
 
 // NoSpaceBeforeSemicolonChecker checks that there are no spaces before semicolons (PSR-12 2.4)
@@ -32,4 +33,12 @@ func (c *NoSpaceBeforeSemicolonChecker) CheckIssues(lines []string, filename str
 		}
 	}
 	return issues
+}
+
+func init() {
+	RegisterPSR12Rule("PSR12.Files.NoSpaceBeforeSemicolon", func(filename string, content []byte) []style.StyleIssue {
+		lines := strings.Split(string(content), "\n")
+		checker := &NoSpaceBeforeSemicolonChecker{}
+		return checker.CheckIssues(lines, filename)
+	})
 }

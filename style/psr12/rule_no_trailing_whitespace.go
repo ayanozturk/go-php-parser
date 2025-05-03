@@ -2,6 +2,7 @@ package psr12
 
 import (
 	"go-phpcs/style"
+	"strings"
 )
 
 // NoTrailingWhitespaceChecker checks for trailing whitespace at the end of lines (PSR-12 2.2)
@@ -29,4 +30,12 @@ func (c *NoTrailingWhitespaceChecker) CheckIssues(lines []string, filename strin
 // Deprecated: use CheckIssues for structured output.
 func (c *NoTrailingWhitespaceChecker) Check(lines []string, filename string) []string {
 	return nil
+}
+
+func init() {
+	RegisterPSR12Rule("PSR12.Files.EndFileNoTrailingWhitespace", func(filename string, content []byte) []style.StyleIssue {
+		lines := strings.Split(string(content), "\n")
+		checker := &NoTrailingWhitespaceChecker{}
+		return checker.CheckIssues(lines, filename)
+	})
 }

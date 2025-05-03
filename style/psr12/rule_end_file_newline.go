@@ -33,3 +33,19 @@ func (c *EndFileNewlineChecker) CheckIssues(lines []string, filename string) []s
 	}
 	return issues
 }
+
+func init() {
+	RegisterPSR12Rule("PSR12.Files.EndFileNewline", func(filename string, content []byte) []style.StyleIssue {
+		if len(content) == 0 || content[len(content)-1] != '\n' {
+			return []style.StyleIssue{{
+				Filename: filename,
+				Line:     0,
+				Type:     style.Error,
+				Fixable:  true,
+				Message:  "File must end with a single blank line (newline)",
+				Code:     "PSR12.Files.EndFileNewline",
+			}}
+		}
+		return nil
+	})
+}

@@ -3,6 +3,7 @@ package psr12
 import (
 	"go-phpcs/style"
 	"go-phpcs/style/helper"
+	"strings"
 )
 
 // MethodVisibilityDeclaredChecker checks that all class methods declare visibility (PSR-12 4.2)
@@ -77,4 +78,12 @@ func isMethodDeclaration(line string) bool {
 
 func hasVisibility(line string) bool {
 	return helper.HasWord(line, "public") || helper.HasWord(line, "protected") || helper.HasWord(line, "private")
+}
+
+func init() {
+	RegisterPSR12Rule("PSR12.Methods.VisibilityDeclared", func(filename string, content []byte) []style.StyleIssue {
+		lines := strings.Split(string(content), "\n")
+		checker := &MethodVisibilityDeclaredChecker{}
+		return checker.CheckIssues(lines, filename)
+	})
 }

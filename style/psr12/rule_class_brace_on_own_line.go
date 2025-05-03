@@ -2,6 +2,7 @@ package psr12
 
 import (
 	"go-phpcs/style"
+	"strings"
 )
 
 // ClassBraceOnOwnLineChecker checks that class opening braces are on their own line (PSR-12 4.1)
@@ -68,7 +69,6 @@ func indexOf(s, substr string) int {
 	return -1
 }
 
-
 // isClassDeclaration checks if a line looks like a class/interface/trait/enum declaration
 func isClassDeclaration(line string) bool {
 	line = trimWhitespace(line)
@@ -94,4 +94,12 @@ func trimWhitespace(s string) string {
 		end--
 	}
 	return s[start:end]
+}
+
+func init() {
+	RegisterPSR12Rule("PSR12.Classes.OpenBraceOnOwnLine", func(filename string, content []byte) []style.StyleIssue {
+		lines := strings.Split(string(content), "\n")
+		checker := &ClassBraceOnOwnLineChecker{}
+		return checker.CheckIssues(lines, filename)
+	})
 }

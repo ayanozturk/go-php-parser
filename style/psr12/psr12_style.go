@@ -16,13 +16,25 @@ import (
 type PSR12RuleFunc func(filename string, content []byte) []style.StyleIssue
 
 // psr12RuleRegistry maps rule codes to their implementation functions
-var psr12RuleRegistry = map[string]PSR12RuleFunc{
-	"PSR12.Files.EndFileNoTrailingWhitespace": func(filename string, content []byte) []style.StyleIssue {
+var (
+	psr12RuleRegistryMu sync.RWMutex
+	psr12RuleRegistry   = make(map[string]PSR12RuleFunc)
+)
+
+// RegisterPSR12Rule registers a PSR-12 rule by code.
+func RegisterPSR12Rule(code string, fn PSR12RuleFunc) {
+	psr12RuleRegistryMu.Lock()
+	defer psr12RuleRegistryMu.Unlock()
+	psr12RuleRegistry[code] = fn
+}
+
+func init() {
+	RegisterPSR12Rule("PSR12.Files.EndFileNoTrailingWhitespace", func(filename string, content []byte) []style.StyleIssue {
 		lines := strings.Split(string(content), "\n")
 		checker := &NoTrailingWhitespaceChecker{}
 		return checker.CheckIssues(lines, filename)
-	},
-	"PSR12.Files.EndFileNewline": func(filename string, content []byte) []style.StyleIssue {
+	})
+	RegisterPSR12Rule("PSR12.Files.EndFileNewline", func(filename string, content []byte) []style.StyleIssue {
 		if len(content) == 0 || content[len(content)-1] != '\n' {
 			return []style.StyleIssue{{
 				Filename: filename,
@@ -34,32 +46,32 @@ var psr12RuleRegistry = map[string]PSR12RuleFunc{
 			}}
 		}
 		return nil
-	},
-	"Generic.Functions.DisallowMultipleStatementsSniff": func(filename string, content []byte) []style.StyleIssue {
+	})
+	RegisterPSR12Rule("Generic.Functions.DisallowMultipleStatementsSniff", func(filename string, content []byte) []style.StyleIssue {
 		lines := strings.Split(string(content), "\n")
 		checker := &functions.DisallowMultipleStatementsSniff{}
 		return checker.CheckIssues(lines, filename)
-	},
-	"PSR12.Files.NoSpaceBeforeSemicolon": func(filename string, content []byte) []style.StyleIssue {
+	})
+	RegisterPSR12Rule("PSR12.Files.NoSpaceBeforeSemicolon", func(filename string, content []byte) []style.StyleIssue {
 		lines := strings.Split(string(content), "\n")
 		checker := &NoSpaceBeforeSemicolonChecker{}
 		return checker.CheckIssues(lines, filename)
-	},
-	"PSR12.Files.NoBlankLineAfterPHPOpeningTag": func(filename string, content []byte) []style.StyleIssue {
+	})
+	RegisterPSR12Rule("PSR12.Files.NoBlankLineAfterPHPOpeningTag", func(filename string, content []byte) []style.StyleIssue {
 		lines := strings.Split(string(content), "\n")
 		checker := &NoBlankLineAfterPHPOpeningTagChecker{}
 		return checker.CheckIssues(lines, filename)
-	},
-	"PSR12.Classes.OpenBraceOnOwnLine": func(filename string, content []byte) []style.StyleIssue {
+	})
+	RegisterPSR12Rule("PSR12.Classes.OpenBraceOnOwnLine", func(filename string, content []byte) []style.StyleIssue {
 		lines := strings.Split(string(content), "\n")
 		checker := &ClassBraceOnOwnLineChecker{}
 		return checker.CheckIssues(lines, filename)
-	},
-	"PSR12.Methods.VisibilityDeclared": func(filename string, content []byte) []style.StyleIssue {
+	})
+	RegisterPSR12Rule("PSR12.Methods.VisibilityDeclared", func(filename string, content []byte) []style.StyleIssue {
 		lines := strings.Split(string(content), "\n")
 		checker := &MethodVisibilityDeclaredChecker{}
 		return checker.CheckIssues(lines, filename)
-	},
+	})
 }
 
 // RunSelectedPSR12Checks runs only the selected PSR-12 rules by code. If rules is nil or empty, runs all rules.
@@ -69,15 +81,19 @@ func RunSelectedPSR12Checks(filename string, content []byte, rules []string) []s
 	var ruleFns []PSR12RuleFunc
 
 	if len(rules) == 0 {
+		psr12RuleRegistryMu.RLock()
 		for _, ruleFn := range psr12RuleRegistry {
 			ruleFns = append(ruleFns, ruleFn)
 		}
+		psr12RuleRegistryMu.RUnlock()
 	} else {
+		psr12RuleRegistryMu.RLock()
 		for _, ruleCode := range rules {
 			if ruleFn, ok := psr12RuleRegistry[ruleCode]; ok {
 				ruleFns = append(ruleFns, ruleFn)
 			}
 		}
+		psr12RuleRegistryMu.RUnlock()
 	}
 
 	for _, ruleFn := range ruleFns {

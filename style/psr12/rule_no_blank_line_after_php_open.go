@@ -2,6 +2,7 @@ package psr12
 
 import (
 	"go-phpcs/style"
+	"strings"
 )
 
 // NoBlankLineAfterPHPOpeningTagChecker checks that there is a blank line after the opening <?php tag (PSR-12 2.2)
@@ -25,4 +26,12 @@ func (c *NoBlankLineAfterPHPOpeningTagChecker) CheckIssues(lines []string, filen
 		}
 	}
 	return issues
+}
+
+func init() {
+	RegisterPSR12Rule("PSR12.Files.NoBlankLineAfterPHPOpeningTag", func(filename string, content []byte) []style.StyleIssue {
+		lines := strings.Split(string(content), "\n")
+		checker := &NoBlankLineAfterPHPOpeningTagChecker{}
+		return checker.CheckIssues(lines, filename)
+	})
 }
