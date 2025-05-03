@@ -2,6 +2,7 @@ package psr12
 
 import (
 	"go-phpcs/style"
+	"go-phpcs/style/helper"
 	"strings"
 )
 
@@ -12,7 +13,7 @@ func (c *ClassBraceOnOwnLineChecker) CheckIssues(lines []string, filename string
 	var issues []style.StyleIssue
 	for i := 0; i < len(lines); i++ {
 		trimmed := lines[i]
-		if isClassDeclaration(trimmed) {
+		if helper.IsClassDeclaration(trimmed) {
 			// If the same line contains a brace, it's an error
 			if containsBraceOnSameLine(trimmed) {
 				issues = append(issues, style.StyleIssue{
@@ -67,33 +68,6 @@ func indexOf(s, substr string) int {
 		}
 	}
 	return -1
-}
-
-// isClassDeclaration checks if a line looks like a class/interface/trait/enum declaration
-func isClassDeclaration(line string) bool {
-	line = trimWhitespace(line)
-	if len(line) == 0 || line[0] == '/' || line[0] == '#' {
-		return false
-	}
-	keywords := []string{"class ", "interface ", "trait ", "enum "}
-	for _, k := range keywords {
-		if len(line) >= len(k) && line[:len(k)] == k {
-			return true
-		}
-	}
-	return false
-}
-
-func trimWhitespace(s string) string {
-	start := 0
-	end := len(s)
-	for start < end && (s[start] == ' ' || s[start] == '\t') {
-		start++
-	}
-	for end > start && (s[end-1] == ' ' || s[end-1] == '\t') {
-		end--
-	}
-	return s[start:end]
 }
 
 func init() {
