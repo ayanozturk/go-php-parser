@@ -13,6 +13,10 @@ func (c *MethodVisibilityDeclaredChecker) CheckIssues(lines []string, filename s
 	braceDepth := 0
 	for i, line := range lines {
 		trimmed := trimWhitespace(line)
+		// Skip PHPDoc and comment lines
+		if len(trimmed) > 0 && (trimmed[0] == '/' || trimmed[0] == '*') {
+			continue
+		}
 		if isClassDeclaration(trimmed) {
 			inClass = true
 			continue
