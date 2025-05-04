@@ -1,4 +1,4 @@
-package psr12
+package style
 
 import (
 	"testing"

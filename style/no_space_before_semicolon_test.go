@@ -1,4 +1,4 @@
-package psr12
+package style
 
 import "testing"
 
@@ -6,7 +6,7 @@ func TestNoSpaceBeforeSemicolonChecker(t *testing.T) {
 	checker := &NoSpaceBeforeSemicolonChecker{}
 	filename := "test.php"
 	cases := []struct {
-		lines   []string
+		lines    []string
 		expected int
 		msg      string
 	}{

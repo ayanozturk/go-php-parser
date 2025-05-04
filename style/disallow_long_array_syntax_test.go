@@ -1,4 +1,4 @@
-package arrays
+package style
 
 import (
 	"go-phpcs/ast"

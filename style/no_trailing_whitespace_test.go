@@ -1,4 +1,4 @@
-package psr12
+package style
 
 import (
 	"testing"
@@ -9,7 +9,7 @@ func TestNoTrailingWhitespaceChecker(t *testing.T) {
 	filename := "test.php"
 	lines := []string{
 		"<?php",
-		"class Foo { ", // trailing space
+		"class Foo { ",                  // trailing space
 		"    public function bar() {\t", // trailing tab
 		"        return 42;",
 		"    }",
