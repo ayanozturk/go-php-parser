@@ -25,9 +25,10 @@ func (s *DisallowLongArraySyntaxSniff) checkNode(node ast.Node, filename string)
 				Line:     arr.GetPos().Line,
 				Column:   arr.GetPos().Column,
 				Type:     Error,
-				Fixable:  true,
+				Fixable:  false, // not auto-fixable yet
 				Message:  "Usage of long array syntax (array(...)) is disallowed; use short syntax ([...]) instead.",
 				Code:     "Generic.Arrays.DisallowLongArraySyntax",
+				// FixCode: "" // explicitly empty for non-fixable
 			})
 		}
 		s.checkArrayNodeChildren(arr, filename)

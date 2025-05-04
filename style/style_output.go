@@ -74,7 +74,11 @@ func printFileIssues(w io.Writer, file string, fileIssues []StyleIssue, errCount
 		return fileIssues[i].Line < fileIssues[j].Line
 	})
 	for _, iss := range fileIssues {
-		fmt.Fprintf(w, "%4d | %-7s | %s\n", iss.Line, iss.Type, iss.Message)
+		fixMark := ""
+		if iss.Fixable {
+			fixMark = "[x] "
+		}
+		fmt.Fprintf(w, "%4d | %-7s | %s%s\n", iss.Line, iss.Type, fixMark, iss.Message)
 		if iss.Code != "" {
 			fmt.Fprintf(w, "     |         |     (%s)\n", iss.Code)
 		}
@@ -84,7 +88,11 @@ func printFileIssues(w io.Writer, file string, fileIssues []StyleIssue, errCount
 
 // PrintPHPCSStyleIssueToWriter prints a single StyleIssue in PHPCS format to the provided writer.
 func PrintPHPCSStyleIssueToWriter(w io.Writer, iss StyleIssue) {
-	fmt.Fprintf(w, "%4d | %-7s | %s\n", iss.Line, iss.Type, iss.Message)
+	fixMark := ""
+	if iss.Fixable {
+		fixMark = "[x] "
+	}
+	fmt.Fprintf(w, "%4d | %-7s | %s%s\n", iss.Line, iss.Type, fixMark, iss.Message)
 	if iss.Code != "" {
 		fmt.Fprintf(w, "     |         |     (%s)\n", iss.Code)
 	}

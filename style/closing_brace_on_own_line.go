@@ -63,7 +63,7 @@ func (c *ClosingBraceOnOwnLineChecker) CheckIssues(lines []string, filename stri
 							Filename: filename,
 							Line:     i + 1,
 							Type:     Error,
-							Fixable:  false,
+							Fixable:  true,
 							Message:  "Class closing brace must be on its own line with nothing before or after",
 							Code:     closingBraceOnOwnLineCode,
 						})
@@ -76,7 +76,7 @@ func (c *ClosingBraceOnOwnLineChecker) CheckIssues(lines []string, filename stri
 								Filename: filename,
 								Line:     i + 2,
 								Type:     Error,
-								Fixable:  false,
+								Fixable:  true,
 								Message:  "Code must not follow class closing brace on the next line (should be blank or another closing brace)",
 								Code:     closingBraceOnOwnLineCode,
 							})
@@ -91,10 +91,87 @@ func (c *ClosingBraceOnOwnLineChecker) CheckIssues(lines []string, filename stri
 	return issues
 }
 
+// FixClassClosingBraceOnOwnLine moves the class closing brace to its own line and ensures a blank line after it.
+func FixClassClosingBraceOnOwnLine(content string) string {
+	lines := strings.Split(content, "\n")
+	var out []string
+	inClass := false
+	braceDepth := 0
+	for i := 0; i < len(lines); i++ {
+		line := lines[i]
+		trimmed := helper.TrimWhitespace(line)
+		if helper.IsClassDeclaration(trimmed) {
+			inClass = true
+			braceDepth = 0
+			out = append(out, line)
+			continue
+		}
+		if inClass {
+			openCount := strings.Count(line, "{")
+			closeCount := strings.Count(line, "}")
+			braceDepth += openCount
+			braceDepth -= closeCount
+			if braceDepth < 0 {
+				inClass = false
+				out = append(out, line)
+				continue
+			}
+			if closeCount > 0 && braceDepth == 0 {
+				// Find all positions of closing braces
+				indices := make([]int, 0)
+				for idx := 0; ; {
+					pos := strings.Index(line[idx:], "}")
+					if pos == -1 {
+						break
+					}
+					indices = append(indices, idx+pos)
+					idx += pos + 1
+				}
+				if len(indices) > 0 {
+					lastIdx := indices[len(indices)-1]
+					before := strings.TrimRight(line[:lastIdx], " \t")
+					after := strings.TrimSpace(line[lastIdx+1:])
+					// Move class closing brace to its own line
+					if before != "" {
+						out = append(out, before)
+						out = append(out, "}")
+					} else {
+						out = append(out, "}")
+					}
+					// If there is code after the class closing brace, put it on a new line
+					if after != "" && after != "?>" {
+						out = append(out, after)
+					}
+					// Ensure next line is blank (unless EOF, another closing brace, or PHP close tag)
+					if i+1 < len(lines) {
+						nextTrimmed := helper.TrimWhitespace(lines[i+1])
+						if nextTrimmed != "" && nextTrimmed != "}" && nextTrimmed != "?>" {
+							out = append(out, "")
+						}
+					}
+				}
+				inClass = false
+				continue
+			}
+		}
+		out = append(out, line)
+	}
+	return strings.Join(out, "\n")
+}
+
+// ClosingBraceOnOwnLineFixer implements StyleFixer for autofix support.
+type ClosingBraceOnOwnLineFixer struct{}
+
+func (f ClosingBraceOnOwnLineFixer) Code() string { return closingBraceOnOwnLineCode }
+func (f ClosingBraceOnOwnLineFixer) Fix(content string) string {
+	return FixClassClosingBraceOnOwnLine(content)
+}
+
 func init() {
 	RegisterRule(closingBraceOnOwnLineCode, func(filename string, content []byte, _ []ast.Node) []StyleIssue {
 		lines := strings.Split(string(content), "\n")
 		checker := &ClosingBraceOnOwnLineChecker{}
 		return checker.CheckIssues(lines, filename)
 	})
+	RegisterFixer(ClosingBraceOnOwnLineFixer{})
 }

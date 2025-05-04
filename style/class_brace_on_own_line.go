@@ -86,11 +86,17 @@ func FixClassBraceOnOwnLine(content string) string {
 	return strings.Join(lines, "\n")
 }
 
+// ClassBraceOnOwnLineFixer implements StyleFixer for autofix support.
+type ClassBraceOnOwnLineFixer struct{}
+
+func (f ClassBraceOnOwnLineFixer) Code() string              { return classBraceOnOwnLineCode }
+func (f ClassBraceOnOwnLineFixer) Fix(content string) string { return FixClassBraceOnOwnLine(content) }
+
 func init() {
 	RegisterRule(classBraceOnOwnLineCode, func(filename string, content []byte, _ []ast.Node) []StyleIssue {
 		lines := strings.Split(string(content), "\n")
 		checker := &ClassBraceOnOwnLineChecker{}
 		return checker.CheckIssues(lines, filename)
 	})
-	// TODO: Add fix registration infrastructure here if/when available.
+	RegisterFixer(ClassBraceOnOwnLineFixer{})
 }

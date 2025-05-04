@@ -139,11 +139,16 @@ func RunScanOrCommand(args CliArgs, c *config.Config, filesToScan []string, outW
 						continue
 					}
 					content := string(input)
+					applied := map[string]bool{}
 					for _, iss := range issues {
-						if iss.Code == "PSR12.Classes.OpenBraceOnOwnLine" {
-							content = style.FixClassBraceOnOwnLine(content)
+						if applied[iss.Code] {
+							continue
+						} // Only apply each fix once per file
+						fixer := style.GetFixer(iss.Code)
+						if fixer != nil {
+							content = fixer.Fix(content)
+							applied[iss.Code] = true
 						}
-						// Add more rules here as needed
 					}
 					err = os.WriteFile(file, []byte(content), 0644)
 					if err != nil {
