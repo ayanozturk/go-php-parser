@@ -55,6 +55,37 @@ func TestClassNameCheckerCheckNoWarning(t *testing.T) {
 	}
 }
 
+func TestClassNameCheckerCheckIssues(t *testing.T) {
+	checker := &ClassNameChecker{}
+	badClass := &ast.ClassNode{Name: "not_PascalCase", Pos: ast.Position{Line: 10, Column: 5}}
+	goodClass := &ast.ClassNode{Name: "PascalCase", Pos: ast.Position{Line: 20, Column: 2}}
+	filename := "test.php"
+
+	issues := checker.CheckIssues([]ast.Node{badClass, goodClass}, filename)
+	if len(issues) != 1 {
+		t.Fatalf("expected 1 issue, got %d", len(issues))
+	}
+	issue := issues[0]
+	if issue.Filename != filename {
+		t.Errorf("expected filename %q, got %q", filename, issue.Filename)
+	}
+	if issue.Line != 10 || issue.Column != 5 {
+		t.Errorf("expected line 10, column 5, got line %d, column %d", issue.Line, issue.Column)
+	}
+	if issue.Message != "Class name should be PascalCase" {
+		t.Errorf("unexpected message: %q", issue.Message)
+	}
+	if issue.Code != "PSR1.Classes.ClassDeclaration.PascalCase" {
+		t.Errorf("unexpected code: %q", issue.Code)
+	}
+
+	// Should not report issues for correct class name
+	issues = checker.CheckIssues([]ast.Node{goodClass}, filename)
+	if len(issues) != 0 {
+		t.Errorf("expected 0 issues for PascalCase class, got %d", len(issues))
+	}
+}
+
 func TestPascalCase(t *testing.T) {
 	cases := map[string]string{
 		"my_class":      "MyClass",
