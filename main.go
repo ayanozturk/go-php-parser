@@ -24,6 +24,10 @@ func main() {
 
 	args := helper.ParseCLIArgs(filesToScan)
 	outWriter := helper.SetupOutputFile(args)
+	if args.CommandName == "list-style-rules" {
+		command.Commands["list-style-rules"].Execute(nil, "", outWriter)
+		os.Exit(0)
+	}
 	defer func() {
 		if f, ok := outWriter.(*os.File); ok && f != os.Stdout {
 			f.Close()
