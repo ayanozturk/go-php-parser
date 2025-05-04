@@ -9,7 +9,6 @@ import (
 	"go-phpcs/printer"
 	"go-phpcs/sharedcache"
 	"go-phpcs/style"
-	stylepsr12 "go-phpcs/style/psr12"
 	"io"
 	"io/ioutil"
 )
@@ -55,7 +54,7 @@ var Commands = map[string]Command{
 					Code:     "PSR12.Files.FileOpenError",
 				})
 			} else {
-				allIssues = append(allIssues, stylepsr12.RunSelectedPSR12Checks(filename, content, allowedRules)...)
+				allIssues = append(allIssues, style.RunSelectedRules(filename, content, nodes, allowedRules)...) // Unified registry
 			}
 
 			// If w is an IssueCollector, append to it; else, print immediately
