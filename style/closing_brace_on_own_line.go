@@ -11,6 +11,58 @@ const closingBraceOnOwnLineCode = "PSR12.Classes.ClosingBraceOnOwnLine"
 
 type ClosingBraceOnOwnLineChecker struct{}
 
+// Helper struct to track class parsing state
+type classState struct {
+	inClass    bool
+	braceDepth int
+}
+
+// Helper: Check and report issues for a class closing brace line
+func checkClassClosingBraceIssues(line string, nextLine string, lineNum int, filename string, issues *[]StyleIssue) {
+	indices := findClosingBraceIndices(line)
+	if len(indices) == 0 {
+		return
+	}
+	lastIdx := indices[len(indices)-1]
+	before := strings.TrimSpace(line[:lastIdx])
+	after := strings.TrimSpace(line[lastIdx+1:])
+	if before != "" || (after != "" && after != "?>") {
+		*issues = append(*issues, StyleIssue{
+			Filename: filename,
+			Line:     lineNum,
+			Type:     Error,
+			Fixable:  true,
+			Message:  "Class closing brace must be on its own line with nothing before or after",
+			Code:     closingBraceOnOwnLineCode,
+		})
+	}
+	if nextLine != "" && nextLine != "}" && nextLine != "?>" {
+		*issues = append(*issues, StyleIssue{
+			Filename: filename,
+			Line:     lineNum + 1,
+			Type:     Error,
+			Fixable:  true,
+			Message:  "Code must not follow class closing brace on the next line (should be blank or another closing brace)",
+			Code:     closingBraceOnOwnLineCode,
+		})
+	}
+}
+
+// Helper: Process a line when inside a class for CheckIssues
+func processInClassCheckIssues(line string, nextLine string, lineNum int, filename string, state *classState, issues *[]StyleIssue) bool {
+	updateClassState(line, state)
+	if state.braceDepth < 0 {
+		state.inClass = false
+		return true
+	}
+	if isClassClosingBraceLine(line, state.braceDepth) {
+		checkClassClosingBraceIssues(line, nextLine, lineNum, filename, issues)
+		state.inClass = false
+		return true
+	}
+	return false
+}
+
 func (c *ClosingBraceOnOwnLineChecker) CheckIssues(lines []string, filename string) []StyleIssue {
 	var issues []StyleIssue
 	if len(lines) == 1 && helper.TrimWhitespace(lines[0]) == "}" {
@@ -24,66 +76,20 @@ func (c *ClosingBraceOnOwnLineChecker) CheckIssues(lines []string, filename stri
 		})
 		return issues
 	}
-	inClass := false
-	braceDepth := 0
+	state := classState{}
 	for i, line := range lines {
 		trimmed := helper.TrimWhitespace(line)
 		if helper.IsClassDeclaration(trimmed) {
-			inClass = true
-			braceDepth = 0
+			state.inClass = true
+			state.braceDepth = 0
 			continue
 		}
-		if inClass {
-			// Count braces to find the matching closing brace for the class
-			openCount := strings.Count(line, "{")
-			closeCount := strings.Count(line, "}")
-			braceDepth += openCount
-			braceDepth -= closeCount
-			if braceDepth < 0 {
-				inClass = false
-				continue
+		if state.inClass {
+			nextLine := ""
+			if i+1 < len(lines) {
+				nextLine = helper.TrimWhitespace(lines[i+1])
 			}
-			if closeCount > 0 && braceDepth == 0 {
-				// Find all positions of closing braces
-				indices := make([]int, 0)
-				for idx := 0; ; {
-					pos := strings.Index(line[idx:], "}")
-					if pos == -1 {
-						break
-					}
-					indices = append(indices, idx+pos)
-					idx += pos + 1
-				}
-				if len(indices) > 0 {
-					lastIdx := indices[len(indices)-1]
-					before := strings.TrimSpace(line[:lastIdx])
-					after := strings.TrimSpace(line[lastIdx+1:])
-					if before != "" || (after != "" && after != "?>") {
-						issues = append(issues, StyleIssue{
-							Filename: filename,
-							Line:     i + 1,
-							Type:     Error,
-							Fixable:  true,
-							Message:  "Class closing brace must be on its own line with nothing before or after",
-							Code:     closingBraceOnOwnLineCode,
-						})
-					}
-					// Always check next line for code after class closing brace
-					if i+1 < len(lines) {
-						nextTrimmed := helper.TrimWhitespace(lines[i+1])
-						if nextTrimmed != "" && nextTrimmed != "}" && nextTrimmed != "?>" {
-							issues = append(issues, StyleIssue{
-								Filename: filename,
-								Line:     i + 2,
-								Type:     Error,
-								Fixable:  true,
-								Message:  "Code must not follow class closing brace on the next line (should be blank or another closing brace)",
-								Code:     closingBraceOnOwnLineCode,
-							})
-						}
-					}
-				}
-				inClass = false
+			if processInClassCheckIssues(line, nextLine, i+1, filename, &state, &issues) {
 				continue
 			}
 		}
@@ -91,7 +97,77 @@ func (c *ClosingBraceOnOwnLineChecker) CheckIssues(lines []string, filename stri
 	return issues
 }
 
-// FixClassClosingBraceOnOwnLine moves the class closing brace to its own line and ensures a blank line after it.
+// Helper: Update class state with brace counts
+func updateClassState(line string, state *classState) {
+	openCount := strings.Count(line, "{")
+	closeCount := strings.Count(line, "}")
+	state.braceDepth += openCount
+	state.braceDepth -= closeCount
+}
+
+// Helper: Determine if this line is the class closing brace line
+func isClassClosingBraceLine(line string, braceDepth int) bool {
+	closeCount := strings.Count(line, "}")
+	return closeCount > 0 && braceDepth == 0
+}
+
+// Helper: Find all indices of '}' in a line
+func findClosingBraceIndices(line string) []int {
+	indices := make([]int, 0)
+	for idx := 0; ; {
+		pos := strings.Index(line[idx:], "}")
+		if pos == -1 {
+			break
+		}
+		indices = append(indices, idx+pos)
+		idx += pos + 1
+	}
+	return indices
+}
+
+// Helper: Handle a line with a class closing brace
+func handleClassClosingBraceLine(line string, out *[]string) {
+	indices := findClosingBraceIndices(line)
+	if len(indices) == 0 {
+		*out = append(*out, line)
+		return
+	}
+	lastIdx := indices[len(indices)-1]
+	before := strings.TrimRight(line[:lastIdx], " \t")
+	after := strings.TrimSpace(line[lastIdx+1:])
+	if before != "" {
+		*out = append(*out, before)
+		*out = append(*out, "}")
+	} else {
+		*out = append(*out, "}")
+	}
+	if after != "" && after != "?>" {
+		*out = append(*out, after)
+	}
+}
+
+// Helper: Process a line when inside a class for FixClassClosingBraceOnOwnLine
+func processInClassFix(line string, nextLine string, braceDepth *int, inClass *bool, out *[]string) bool {
+	openCount := strings.Count(line, "{")
+	closeCount := strings.Count(line, "}")
+	*braceDepth += openCount
+	*braceDepth -= closeCount
+	if *braceDepth < 0 {
+		*inClass = false
+		*out = append(*out, line)
+		return true
+	}
+	if closeCount > 0 && *braceDepth == 0 {
+		handleClassClosingBraceLine(line, out)
+		if nextLine != "" && nextLine != "}" && nextLine != "?>" {
+			*out = append(*out, "")
+		}
+		*inClass = false
+		return true
+	}
+	return false
+}
+
 func FixClassClosingBraceOnOwnLine(content string) string {
 	lines := strings.Split(content, "\n")
 	var out []string
@@ -107,50 +183,11 @@ func FixClassClosingBraceOnOwnLine(content string) string {
 			continue
 		}
 		if inClass {
-			openCount := strings.Count(line, "{")
-			closeCount := strings.Count(line, "}")
-			braceDepth += openCount
-			braceDepth -= closeCount
-			if braceDepth < 0 {
-				inClass = false
-				out = append(out, line)
-				continue
+			nextLine := ""
+			if i+1 < len(lines) {
+				nextLine = helper.TrimWhitespace(lines[i+1])
 			}
-			if closeCount > 0 && braceDepth == 0 {
-				// Find all positions of closing braces
-				indices := make([]int, 0)
-				for idx := 0; ; {
-					pos := strings.Index(line[idx:], "}")
-					if pos == -1 {
-						break
-					}
-					indices = append(indices, idx+pos)
-					idx += pos + 1
-				}
-				if len(indices) > 0 {
-					lastIdx := indices[len(indices)-1]
-					before := strings.TrimRight(line[:lastIdx], " \t")
-					after := strings.TrimSpace(line[lastIdx+1:])
-					// Move class closing brace to its own line
-					if before != "" {
-						out = append(out, before)
-						out = append(out, "}")
-					} else {
-						out = append(out, "}")
-					}
-					// If there is code after the class closing brace, put it on a new line
-					if after != "" && after != "?>" {
-						out = append(out, after)
-					}
-					// Ensure next line is blank (unless EOF, another closing brace, or PHP close tag)
-					if i+1 < len(lines) {
-						nextTrimmed := helper.TrimWhitespace(lines[i+1])
-						if nextTrimmed != "" && nextTrimmed != "}" && nextTrimmed != "?>" {
-							out = append(out, "")
-						}
-					}
-				}
-				inClass = false
+			if processInClassFix(line, nextLine, &braceDepth, &inClass, &out) {
 				continue
 			}
 		}
