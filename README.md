@@ -162,9 +162,12 @@ go run main.go -p 4   # Use 4 workers in parallel
 After scanning, the tool will print performance statistics:
 
 ```
-Scan completed in 0.92 seconds
+Scan completed in 1.55 seconds
 Total lines scanned: 1653877
-Lines per second: 1790022.29
+Lines per second: 1063784.86
+Total parsing errors: 0
+HeapAlloc: 148.56 MB
+Sys: 298.92 MB
 ```
 
 ### Configuration
