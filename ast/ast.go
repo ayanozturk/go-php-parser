@@ -617,14 +617,10 @@ func (f *ForeachNode) NodeType() string    { return "Foreach" }
 func (f *ForeachNode) GetPos() Position    { return f.Pos }
 func (f *ForeachNode) SetPos(pos Position) { f.Pos = pos }
 func (f *ForeachNode) String() string {
-	return fmt.Sprintf("Foreach(%s as %s%s) @ %d:%d", f.Expr.String(),
-		func() string {
-			if f.KeyVar != nil {
-				return f.KeyVar.String() + " => "
-			}
-			return ""
-		}(),
-		f.ValueVar.String(), f.Pos.Line, f.Pos.Column)
+	if f.KeyVar != nil {
+		return fmt.Sprintf("Foreach(%s as %s => %s) @ %d:%d", f.Expr.TokenLiteral(), f.KeyVar.TokenLiteral(), f.ValueVar.TokenLiteral(), f.Pos.Line, f.Pos.Column)
+	}
+	return fmt.Sprintf("Foreach(%s as %s) @ %d:%d", f.Expr.TokenLiteral(), f.ValueVar.TokenLiteral(), f.Pos.Line, f.Pos.Column)
 }
 func (f *ForeachNode) TokenLiteral() string { return "foreach" }
 

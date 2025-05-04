@@ -279,6 +279,34 @@ func TestForeachNode(t *testing.T) {
 	}
 }
 
+func TestForeachNodeKeyVarNil(t *testing.T) {
+	expr := &Identifier{Name: "arr"}
+	val := &Identifier{Name: "v"}
+	body := []Node{&Identifier{Name: "stmt"}}
+	foreach := &ForeachNode{Expr: expr, KeyVar: nil, ValueVar: val, ByRef: false, Body: body, Pos: Position{Line: 1, Column: 1}}
+	str := foreach.String()
+	if foreach.NodeType() != "Foreach" {
+		t.Errorf(errNodeType, foreach.NodeType())
+	}
+	if foreach.GetPos().Line != 1 {
+		t.Errorf(errGetPos, foreach.GetPos())
+	}
+	foreach.SetPos(Position{Line: 2, Column: 2})
+	if foreach.GetPos().Line != 2 {
+		t.Errorf(errSetPos, foreach.GetPos())
+	}
+	if str == "" {
+		t.Error(errStringEmpty)
+	}
+	if foreach.TokenLiteral() != "foreach" {
+		t.Errorf(errTokenLiteral, foreach.TokenLiteral())
+	}
+	// Ensure the string does not contain "=>" when KeyVar is nil
+	if got := str; got != "Foreach(arr as v) @ 2:2" && got != "Foreach(arr as v) @ 1:1" {
+		t.Errorf("unexpected String() output: %q", got)
+	}
+}
+
 func TestThrowNode(t *testing.T) {
 	throw := &ThrowNode{Expr: &Identifier{Name: "ex"}, Pos: Position{Line: 1, Column: 1}}
 	if throw.NodeType() != "Throw" {
@@ -319,6 +347,26 @@ func TestBooleanLiteralNode(t *testing.T) {
 	}
 	if val, ok := b.GetValue().(bool); !ok || val != true {
 		t.Errorf(errGetValue, b.GetValue())
+	}
+}
+
+func TestBooleanNodeFalse(t *testing.T) {
+	b := &BooleanNode{Value: false, Pos: Position{Line: 1, Column: 1}}
+	if b.NodeType() != "Boolean" {
+		t.Errorf(errNodeType, b.NodeType())
+	}
+	if b.GetPos().Line != 1 || b.GetPos().Column != 1 {
+		t.Errorf(errGetPos, b.GetPos())
+	}
+	b.SetPos(Position{Line: 2, Column: 2})
+	if b.GetPos().Line != 2 || b.GetPos().Column != 2 {
+		t.Errorf(errSetPos, b.GetPos())
+	}
+	if b.String() == "" {
+		t.Error(errStringEmpty)
+	}
+	if b.TokenLiteral() != "false" {
+		t.Errorf(errTokenLiteral, b.TokenLiteral())
 	}
 }
 
@@ -720,5 +768,92 @@ func TestUseNode(t *testing.T) {
 	}
 	if u.TokenLiteral() != "use" {
 		t.Errorf(errTokenLiteral, u.TokenLiteral())
+	}
+}
+
+func TestUseNodeNoAlias(t *testing.T) {
+	u := &UseNode{Path: "Foo\\Bar", Alias: "", Type: "class", Pos: Position{Line: 1, Column: 1}}
+	if u.NodeType() != "Use" {
+		t.Errorf(errNodeType, u.NodeType())
+	}
+	if u.GetPos().Line != 1 || u.GetPos().Column != 1 {
+		t.Errorf(errGetPos, u.GetPos())
+	}
+	u.SetPos(Position{Line: 2, Column: 2})
+	if u.GetPos().Line != 2 || u.GetPos().Column != 2 {
+		t.Errorf(errSetPos, u.GetPos())
+	}
+	if u.String() != "use Foo\\Bar @ 2:2" && u.String() != "use Foo\\Bar @ 1:1" {
+		t.Errorf("unexpected String() output: %q", u.String())
+	}
+	if u.TokenLiteral() != "use" {
+		t.Errorf(errTokenLiteral, u.TokenLiteral())
+	}
+}
+
+func TestArrowFunctionNode(t *testing.T) {
+	param := &Variable{Name: "x", Pos: Position{Line: 1, Column: 2}}
+	expr := &IntegerLiteral{Value: 42, Pos: Position{Line: 2, Column: 3}}
+	a := &ArrowFunctionNode{Params: []Node{param}, ReturnType: "int", Expr: expr, Pos: Position{Line: 3, Column: 4}}
+	if a.NodeType() != "ArrowFunction" {
+		t.Errorf(errNodeType, a.NodeType())
+	}
+	if a.GetPos().Line != 3 || a.GetPos().Column != 4 {
+		t.Errorf(errGetPos, a.GetPos())
+	}
+	a.SetPos(Position{Line: 5, Column: 6})
+	if a.GetPos().Line != 5 || a.GetPos().Column != 6 {
+		t.Errorf(errSetPos, a.GetPos())
+	}
+	if a.String() == "" {
+		t.Error(errStringEmpty)
+	}
+	if a.TokenLiteral() != "fn" {
+		t.Errorf(errTokenLiteral, a.TokenLiteral())
+	}
+}
+
+func TestMatchArmNode(t *testing.T) {
+	cond := &IntegerLiteral{Value: 1, Pos: Position{Line: 1, Column: 1}}
+	body := &StringLiteral{Value: "one", Pos: Position{Line: 2, Column: 2}}
+	arm := &MatchArmNode{Conditions: []Node{cond}, Body: body, Pos: Position{Line: 3, Column: 3}}
+	if arm.NodeType() != "MatchArm" {
+		t.Errorf(errNodeType, arm.NodeType())
+	}
+	if arm.GetPos().Line != 3 || arm.GetPos().Column != 3 {
+		t.Errorf(errGetPos, arm.GetPos())
+	}
+	arm.SetPos(Position{Line: 4, Column: 4})
+	if arm.GetPos().Line != 4 || arm.GetPos().Column != 4 {
+		t.Errorf(errSetPos, arm.GetPos())
+	}
+	if arm.String() == "" {
+		t.Error(errStringEmpty)
+	}
+	if arm.TokenLiteral() != "=>" {
+		t.Errorf(errTokenLiteral, arm.TokenLiteral())
+	}
+}
+
+func TestMatchNode(t *testing.T) {
+	cond := &Variable{Name: "foo", Pos: Position{Line: 1, Column: 1}}
+	arm1 := MatchArmNode{Conditions: []Node{&IntegerLiteral{Value: 1}}, Body: &StringLiteral{Value: "one"}, Pos: Position{Line: 2, Column: 2}}
+	arm2 := MatchArmNode{Conditions: []Node{&IntegerLiteral{Value: 2}}, Body: &StringLiteral{Value: "two"}, Pos: Position{Line: 3, Column: 3}}
+	match := &MatchNode{Condition: cond, Arms: []MatchArmNode{arm1, arm2}, Pos: Position{Line: 4, Column: 4}}
+	if match.NodeType() != "Match" {
+		t.Errorf(errNodeType, match.NodeType())
+	}
+	if match.GetPos().Line != 4 || match.GetPos().Column != 4 {
+		t.Errorf(errGetPos, match.GetPos())
+	}
+	match.SetPos(Position{Line: 5, Column: 5})
+	if match.GetPos().Line != 5 || match.GetPos().Column != 5 {
+		t.Errorf(errSetPos, match.GetPos())
+	}
+	if match.String() == "" {
+		t.Error(errStringEmpty)
+	}
+	if match.TokenLiteral() != "match" {
+		t.Errorf(errTokenLiteral, match.TokenLiteral())
 	}
 }
