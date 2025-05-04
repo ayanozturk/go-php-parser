@@ -48,6 +48,23 @@ func TestKeyValueNode(t *testing.T) {
 	}
 }
 
+func TestKeyValueNodeValueOnlyString(t *testing.T) {
+	val := &StringLiteral{Value: "valueOnly", Pos: Position{Line: 1, Column: 2}}
+	kv := &KeyValueNode{Key: nil, Value: val, Pos: Position{Line: 2, Column: 2}}
+	if got := kv.String(); got != val.String() {
+		t.Errorf("KeyValueNode.String() with nil Key: got %q, want %q", got, val.String())
+	}
+}
+
+func TestKeyValueNodeStringValueOnly(t *testing.T) {
+	val := &StringLiteral{Value: "valueOnly", Pos: Position{Line: 1, Column: 2}}
+	kv := &KeyValueNode{Key: nil, Value: val, Pos: Position{Line: 2, Column: 2}}
+	// Check that TokenLiteral returns the expected value for value-only KeyValueNode
+	if got := kv.TokenLiteral(); got != "=>" && got != "" {
+		t.Errorf("KeyValueNode.TokenLiteral() with nil Key: got %q, want \"=>\" or \"\"", got)
+	}
+}
+
 func TestArrayAccessNode(t *testing.T) {
 	v := &VariableNode{Name: "arr", Pos: Position{Line: 1, Column: 1}}
 	idx := &IntegerLiteral{Value: 0, Pos: Position{Line: 1, Column: 2}}
@@ -93,5 +110,23 @@ func TestArrayItemNode(t *testing.T) {
 	item2 := &ArrayItemNode{Key: nil, Value: val, ByRef: false, Unpack: false, Pos: Position{Line: 4, Column: 4}}
 	if item2.TokenLiteral() != "" {
 		t.Errorf("TokenLiteral: expected empty, got %q", item2.TokenLiteral())
+	}
+}
+
+func TestArrayItemNode_String_ValueOnly(t *testing.T) {
+	val := &StringLiteral{Value: "foo", Pos: Position{Line: 3, Column: 4}}
+	item := &ArrayItemNode{Key: nil, Value: val, ByRef: false, Unpack: false, Pos: Position{Line: 4, Column: 5}}
+	expected := "ArrayItem(foo) @ 4:5"
+	if got := item.String(); got != expected {
+		t.Errorf("ArrayItemNode.String() with nil Key: got %q, want %q", got, expected)
+	}
+}
+
+func TestArrayItemNode_String_ValueOnly_ByRefUnpack(t *testing.T) {
+	val := &StringLiteral{Value: "foo", Pos: Position{Line: 3, Column: 4}}
+	item := &ArrayItemNode{Key: nil, Value: val, ByRef: true, Unpack: true, Pos: Position{Line: 4, Column: 5}}
+	expected := "ArrayItem(&...foo) @ 4:5"
+	if got := item.String(); got != expected {
+		t.Errorf("ArrayItemNode.String() with ByRef/Unpack: got %q, want %q", got, expected)
 	}
 }
