@@ -20,7 +20,7 @@ func (c *ClassBraceOnOwnLineChecker) CheckIssues(lines []string, filename string
 					Filename: filename,
 					Line:     i + 1,
 					Type:     Error,
-					Fixable:  false,
+					Fixable:  true,
 					Message:  "Opening brace for class-like declaration must be on its own line",
 					Code:     classBraceOnOwnLineCode,
 				})
@@ -33,7 +33,7 @@ func (c *ClassBraceOnOwnLineChecker) CheckIssues(lines []string, filename string
 						Filename: filename,
 						Line:     i + 2,
 						Type:     Error,
-						Fixable:  false,
+						Fixable:  false, // Only the same-line case is auto-fixable
 						Message:  "Opening brace for class-like declaration must be on its own line",
 						Code:     classBraceOnOwnLineCode,
 					})
@@ -67,10 +67,30 @@ func indexOf(s, substr string) int {
 	return -1
 }
 
+// FixClassBraceOnOwnLine moves the opening brace to its own line for class-like declarations.
+func FixClassBraceOnOwnLine(content string) string {
+	lines := strings.Split(content, "\n")
+	for i, line := range lines {
+		if helper.IsClassDeclaration(line) && containsBraceOnSameLine(line) {
+			// Find the position of the brace
+			idx := strings.Index(line, "{")
+			if idx != -1 {
+				before := strings.TrimRight(line[:idx], " \t")
+				// Insert a new line with just the brace after the declaration
+				lines[i] = before
+				// Insert the brace line after
+				lines = append(lines[:i+1], append([]string{"{"}, lines[i+1:]...)...)
+			}
+		}
+	}
+	return strings.Join(lines, "\n")
+}
+
 func init() {
 	RegisterRule(classBraceOnOwnLineCode, func(filename string, content []byte, _ []ast.Node) []StyleIssue {
 		lines := strings.Split(string(content), "\n")
 		checker := &ClassBraceOnOwnLineChecker{}
 		return checker.CheckIssues(lines, filename)
 	})
+	// TODO: Add fix registration infrastructure here if/when available.
 }
