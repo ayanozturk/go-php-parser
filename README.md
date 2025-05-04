@@ -1,10 +1,11 @@
 # Go PHP Parser
 
-A PHP parser written in Go that generates an Abstract Syntax Tree (AST) from PHP source code.
+A PHP parser and code style checker written in Go that generates an Abstract Syntax Tree (AST) from PHP source code and applies style rules to generate a report.
 
 ## Features
 
 ### Language Support
+
 - PHP 8+ syntax
 - Function declarations with parameters
 - Variable declarations and assignments
@@ -18,6 +19,7 @@ A PHP parser written in Go that generates an Abstract Syntax Tree (AST) from PHP
 - Basic expressions and operators
 
 ### AST Features
+
 - Detailed position tracking (line, column, offset)
 - Hierarchical node structure
 - Support for:
@@ -39,6 +41,42 @@ go mod download
 ```
 
 ## Usage
+
+### Option 1
+
+To use the style checker against your codebase, first build a the project
+
+```bash
+make build
+```
+
+This will generate a binary named `go-phpcs`
+
+- Copy this binary, together with `config.yaml` file in this repository into your project.
+- Modify `config.yaml` file to target the directory you need PHP style checks.
+- Run the style checker
+
+```bash
+./go-phpcs
+```
+
+Optionally export the report into a file
+
+```bash
+./go-phpcs -o report.log
+```
+
+### Option 2
+
+Clone your project into a folder within this project.
+
+Update `config.yaml` with your folder name.
+
+Run the style checks:
+
+```bash
+make run
+```
 
 ## PSR-12 Style Checks
 
@@ -79,7 +117,13 @@ You can enable or disable specific code style rules using the `rules:` key in yo
 | PSR1.Classes.ClassDeclaration.PascalCase | Enforces PascalCase for class names        |
 
 **Example config.yaml:**
+
 ```yaml
+path: ./src
+extensions:
+  - php
+ignore:
+   - vendor
 rules:
   - PSR12.Files.EndFileNoTrailingWhitespace
   - PSR12.Files.EndFileNewline
@@ -89,8 +133,7 @@ rules:
   - PSR1.Classes.ClassDeclaration.PascalCase
 ```
 
-Add or remove rule codes under `rules:` to control which checks are performed.
-
+Add or remove rule codes under `rules:` to control which checks are performed. If you don't specify `rules` it will execute all rules available.
 
 ### Basic Usage
 
@@ -195,10 +238,12 @@ go-php-parser/
 ## AST Node Types
 
 ### Core Nodes
+
 - `Node` - Base interface for all AST nodes
 - `Position` - Line/column/offset information
 
 ### Expression Nodes
+
 - `Identifier` - Variable or function names
 - `VariableNode` - PHP variables ($var)
 - `StringLiteral` - String literals
@@ -211,6 +256,7 @@ go-php-parser/
 - `FunctionCall` - Function calls
 
 ### Statement Nodes
+
 - `FunctionNode` - Function declarations
 - `ParameterNode` - Function parameters
 - `AssignmentNode` - Variable assignments
