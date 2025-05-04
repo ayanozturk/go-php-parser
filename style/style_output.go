@@ -16,6 +16,7 @@ func PrintPHPCSStyleOutput(issues []StyleIssue) {
 // PrintPHPCSStyleOutputToWriter prints grouped style issues in PHPCS format to the given io.Writer
 func PrintPHPCSStyleOutputToWriter(w io.Writer, issues []StyleIssue) {
 	if len(issues) == 0 {
+		fmt.Fprintln(w, "\033[32;1mNo style errors or warnings found. Your code is clean!\033[0m")
 		return
 	}
 	fileMap := groupIssuesByFile(issues)

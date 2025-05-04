@@ -6,13 +6,13 @@ import (
 	"go-phpcs/command"
 	"go-phpcs/config"
 	"go-phpcs/style"
+	"go-phpcs/utils"
 	"io"
 	"log"
 	"os"
 	"runtime"
 	"runtime/pprof"
 	"time"
-	"go-phpcs/utils"
 )
 
 const errorLineFormat = "\t%s\n"
@@ -22,17 +22,17 @@ type memStats struct {
 }
 
 func printSummary(w io.Writer, totalParseErrors, totalLines int, elapsed float64, mem memStats) {
-	fmt.Fprintf(w, "\nScan completed in %.2f seconds\n", elapsed)
+	fmt.Fprintln(w, "\033[36;1m\n========== PERFORMANCE METRICS =========="+"\033[0m")
 	if elapsed > 0 {
-		fmt.Fprintf(w, "Total lines scanned: %d\n", totalLines)
-		fmt.Fprintf(w, "Lines per second: %.2f\n", float64(totalLines)/elapsed)
+		fmt.Fprintf(w, "Total lines scanned: \033[32;1m%d\033[0m\n", totalLines)
+		fmt.Fprintf(w, "Lines per second: \033[32;1m%.2f\033[0m\n", float64(totalLines)/elapsed)
 	} else {
-		fmt.Fprintf(w, "Total lines scanned: %d\n", totalLines)
+		fmt.Fprintf(w, "Total lines scanned: \033[32;1m%d\033[0m\n", totalLines)
 		fmt.Fprintf(w, "Lines per second: N/A (too fast to measure)\n")
 	}
-	fmt.Fprintf(w, "Total parsing errors: %d\n", totalParseErrors)
-	fmt.Fprintf(w, "HeapAlloc: %.2f MB\n", float64(mem.end.HeapAlloc)/(1024*1024))
-	fmt.Fprintf(w, "Sys: %.2f MB\n", float64(mem.end.Sys)/(1024*1024))
+	fmt.Fprintf(w, "Total parsing errors: \033[31;1m%d\033[0m\n", totalParseErrors)
+	fmt.Fprintf(w, "HeapAlloc: \033[35m%.2f MB\033[0m\n", float64(mem.end.HeapAlloc)/(1024*1024))
+	fmt.Fprintf(w, "Sys: \033[35m%.2f MB\033[0m\n", float64(mem.end.Sys)/(1024*1024))
 }
 
 func trackMemoryUsage(mem *memStats, atStart bool) {
@@ -145,8 +145,8 @@ func main() {
 				processed++
 				progressBar.Print(processed)
 			})
+			fmt.Fprintln(outWriter, "\033[36;1m\n========== SCAN RESULTS =========="+"\033[0m")
 			style.PrintPHPCSStyleOutputToWriter(outWriter, allIssues)
-
 		} else {
 			totalParseErrors, totalLines = command.ProcessMultipleFiles(filesToScan, commandName, *debug, *parallelism, outWriter)
 		}
@@ -169,7 +169,6 @@ func repeat(r rune, n int) string {
 	return string(out)
 }
 
-
 // isatty returns true if the given file descriptor is a terminal
 func isatty(fd uintptr) bool {
 	// Only works on unix-like systems; for cross-platform use, consider a third-party lib
@@ -179,4 +178,3 @@ func isatty(fd uintptr) bool {
 	}
 	return (fi.Mode() & os.ModeCharDevice) != 0
 }
-
