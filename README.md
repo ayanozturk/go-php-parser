@@ -100,6 +100,7 @@ PSR12.Files.NoBlankLineAfterPHPOpeningTag
 PSR12.Classes.OpenBraceOnOwnLine
 PSR12.Methods.VisibilityDeclared
 PSR1.Classes.ClassDeclaration.PascalCase
+PSR12.Classes.ClosingBraceOnOwnLine
 ...
 ```
 
@@ -133,6 +134,7 @@ You can enable or disable specific code style rules using the `rules:` key in yo
 - `PSR12.Files.NoBlankLineAfterPHPOpeningTag`
 - `PSR12.Classes.OpenBraceOnOwnLine`
 - `PSR12.Methods.VisibilityDeclared`
+- `PSR12.Classes.ClosingBraceOnOwnLine`
 
 | Rule Code                                 | Description                                |
 |-------------------------------------------|--------------------------------------------|
@@ -142,6 +144,7 @@ You can enable or disable specific code style rules using the `rules:` key in yo
 | PSR12.Files.NoSpaceBeforeSemicolon        | Disallows any space or tab before a semicolon at the end of a statement |
 | PSR12.Files.NoBlankLineAfterPHPOpeningTag | Disallows blank lines after the opening <?php tag |
 | PSR1.Classes.ClassDeclaration.PascalCase | Enforces PascalCase for class names        |
+| PSR12.Classes.ClosingBraceOnOwnLine         | Closing brace must be on its own line, and not followed by code or comments. Reports a syntax error if the file contains only a closing brace |
 
 **Example config.yaml:**
 
@@ -158,6 +161,7 @@ rules:
   - PSR12.Files.NoSpaceBeforeSemicolon
   - PSR12.Files.NoBlankLineAfterPHPOpeningTag
   - PSR1.Classes.ClassDeclaration.PascalCase
+  - PSR12.Classes.ClosingBraceOnOwnLine
 ```
 
 Add or remove rule codes under `rules:` to control which checks are performed. If you don't specify `rules` it will execute all rules available.
