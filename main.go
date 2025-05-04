@@ -15,8 +15,6 @@ import (
 	"time"
 )
 
-const errorLineFormat = "\t%s\n"
-
 type memStats struct {
 	start, end runtime.MemStats
 }
@@ -155,26 +153,4 @@ func main() {
 	trackMemoryUsage(&mem, false)
 	elapsed := time.Since(start).Seconds()
 	printSummary(outWriter, totalParseErrors, totalLines, elapsed, mem)
-}
-
-// repeat returns a string consisting of n copies of the rune r
-func repeat(r rune, n int) string {
-	if n <= 0 {
-		return ""
-	}
-	out := make([]rune, n)
-	for i := range out {
-		out[i] = r
-	}
-	return string(out)
-}
-
-// isatty returns true if the given file descriptor is a terminal
-func isatty(fd uintptr) bool {
-	// Only works on unix-like systems; for cross-platform use, consider a third-party lib
-	fi, err := os.Stdout.Stat()
-	if err != nil {
-		return false
-	}
-	return (fi.Mode() & os.ModeCharDevice) != 0
 }
