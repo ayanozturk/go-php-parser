@@ -78,6 +78,33 @@ Run the style checks:
 make run
 ```
 
+### Listing All Style Rules
+
+You can list all available style rule codes supported by this tool using the `list-style-rules` command. This is useful for discovering which rules you can enable or disable in your `config.yaml`.
+
+Run the following command:
+
+```bash
+./go-phpcs list-style-rules
+```
+
+This will print a list of all registered style rule codes, for example:
+
+```
+Available style rule codes:
+PSR12.Files.EndFileNoTrailingWhitespace
+PSR12.Files.EndFileNewline
+PSR12.Files.NoMultipleStatementsPerLine
+PSR12.Files.NoSpaceBeforeSemicolon
+PSR12.Files.NoBlankLineAfterPHPOpeningTag
+PSR12.Classes.OpenBraceOnOwnLine
+PSR12.Methods.VisibilityDeclared
+PSR1.Classes.ClassDeclaration.PascalCase
+...
+```
+
+You can then copy any of these codes into your `config.yaml` under the `rules:` section to customize which checks are performed.
+
 ## PSR-12 Style Checks
 
 This parser implements several PSR-12 style checks, including:
@@ -277,4 +304,4 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 
 ## License
 
-This project is licensed under the MIT License - see the LICENSE file for details. 
+This project is licensed under the MIT License - see the LICENSE file for details.

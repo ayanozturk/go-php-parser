@@ -3,6 +3,7 @@ package style
 
 import (
 	"go-phpcs/ast"
+	"sort"
 	"sync"
 )
 
@@ -41,4 +42,16 @@ func RunSelectedRules(filename string, content []byte, nodes []ast.Node, rules [
 		issues = append(issues, fn(filename, content, nodes)...)
 	}
 	return issues
+}
+
+// ListRegisteredRuleCodes returns a sorted list of all registered rule codes.
+func ListRegisteredRuleCodes() []string {
+	ruleRegistryMu.RLock()
+	defer ruleRegistryMu.RUnlock()
+	codes := make([]string, 0, len(ruleRegistry))
+	for code := range ruleRegistry {
+		codes = append(codes, code)
+	}
+	sort.Strings(codes)
+	return codes
 }

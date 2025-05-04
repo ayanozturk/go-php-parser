@@ -78,6 +78,17 @@ var Commands = map[string]Command{
 			analyzer.AnalyzeUnknownFunctionCalls(nodes)
 		},
 	},
+	"list-style-rules": {
+		Name:        "list-style-rules",
+		Description: "List all available style check rule codes",
+		Execute: func(_ []ast.Node, _ string, w io.Writer) {
+			codes := style.ListRegisteredRuleCodes()
+			fmt.Fprintln(w, "Available style rule codes:")
+			for _, code := range codes {
+				fmt.Fprintln(w, "  -", code)
+			}
+		},
+	},
 }
 
 // PrintUsage prints the usage information for all available commands

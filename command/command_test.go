@@ -3,6 +3,7 @@ package command
 import (
 	"bytes"
 	"go-phpcs/ast"
+	"go-phpcs/style"
 	"io"
 	"os"
 	"strings"
@@ -65,7 +66,7 @@ func TestCommandStructFields(t *testing.T) {
 	cmd := Command{
 		Name:        "test",
 		Description: "desc",
-		Execute: func(nodes []ast.Node, filename string, w io.Writer) {},
+		Execute:     func(nodes []ast.Node, filename string, w io.Writer) {},
 	}
 	if cmd.Name != "test" {
 		t.Errorf("unexpected Name: %q", cmd.Name)
@@ -75,5 +76,25 @@ func TestCommandStructFields(t *testing.T) {
 	}
 	if cmd.Execute == nil {
 		t.Error("Execute should not be nil")
+	}
+}
+
+func TestListStyleRulesCommand(t *testing.T) {
+	// Register a fake rule for testing
+	fakeRuleCode := "FAKE.TEST.RULE"
+	style.RegisterRule(fakeRuleCode, func(filename string, content []byte, nodes []ast.Node) []style.StyleIssue {
+		return nil
+	})
+
+	var buf bytes.Buffer
+	cmd := Commands["list-style-rules"]
+	cmd.Execute(nil, "", &buf)
+	output := buf.String()
+
+	if !strings.Contains(output, fakeRuleCode) {
+		t.Errorf("list-style-rules output missing registered rule code %q", fakeRuleCode)
+	}
+	if !strings.Contains(output, "Available style rule codes:") {
+		t.Error("list-style-rules output missing header")
 	}
 }
