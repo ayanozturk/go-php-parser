@@ -102,5 +102,4 @@ class Marking
     public function getContext(): ?array
     {
         return $this->context;
-    }
-}
+    }}

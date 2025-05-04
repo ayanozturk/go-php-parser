@@ -24,32 +24,67 @@ func (c *ClosingBraceOnOwnLineChecker) CheckIssues(lines []string, filename stri
 		})
 		return issues
 	}
+	inClass := false
+	braceDepth := 0
 	for i, line := range lines {
 		trimmed := helper.TrimWhitespace(line)
-		if trimmed == "}" {
-			// Check if next line exists and is not blank (should be blank or EOF)
-			if i+1 < len(lines) && helper.TrimWhitespace(lines[i+1]) != "" {
-				issues = append(issues, StyleIssue{
-					Filename: filename,
-					Line:     i + 2,
-					Type:     Error,
-					Fixable:  false,
-					Message:  "Code must not follow closing brace on the same or next line",
-					Code:     closingBraceOnOwnLineCode,
-				})
+		if helper.IsClassDeclaration(trimmed) {
+			inClass = true
+			braceDepth = 0
+			continue
+		}
+		if inClass {
+			// Count braces to find the matching closing brace for the class
+			openCount := strings.Count(line, "{")
+			closeCount := strings.Count(line, "}")
+			braceDepth += openCount
+			braceDepth -= closeCount
+			if braceDepth < 0 {
+				inClass = false
+				continue
 			}
-			// Check if there is code or comment after the brace on the same line
-		} else if idx := strings.Index(line, "}"); idx != -1 {
-			after := strings.TrimSpace(line[idx+1:])
-			if after != "" {
-				issues = append(issues, StyleIssue{
-					Filename: filename,
-					Line:     i + 1,
-					Type:     Error,
-					Fixable:  false,
-					Message:  "Closing brace must be on its own line with nothing after",
-					Code:     closingBraceOnOwnLineCode,
-				})
+			if closeCount > 0 && braceDepth == 0 {
+				// Find all positions of closing braces
+				indices := make([]int, 0)
+				for idx := 0; ; {
+					pos := strings.Index(line[idx:], "}")
+					if pos == -1 {
+						break
+					}
+					indices = append(indices, idx+pos)
+					idx += pos + 1
+				}
+				if len(indices) > 0 {
+					lastIdx := indices[len(indices)-1]
+					before := strings.TrimSpace(line[:lastIdx])
+					after := strings.TrimSpace(line[lastIdx+1:])
+					if before != "" || (after != "" && after != "?>") {
+						issues = append(issues, StyleIssue{
+							Filename: filename,
+							Line:     i + 1,
+							Type:     Error,
+							Fixable:  false,
+							Message:  "Class closing brace must be on its own line with nothing before or after",
+							Code:     closingBraceOnOwnLineCode,
+						})
+					}
+					// Always check next line for code after class closing brace
+					if i+1 < len(lines) {
+						nextTrimmed := helper.TrimWhitespace(lines[i+1])
+						if nextTrimmed != "" && nextTrimmed != "}" && nextTrimmed != "?>" {
+							issues = append(issues, StyleIssue{
+								Filename: filename,
+								Line:     i + 2,
+								Type:     Error,
+								Fixable:  false,
+								Message:  "Code must not follow class closing brace on the next line (should be blank or another closing brace)",
+								Code:     closingBraceOnOwnLineCode,
+							})
+						}
+					}
+				}
+				inClass = false
+				continue
 			}
 		}
 	}

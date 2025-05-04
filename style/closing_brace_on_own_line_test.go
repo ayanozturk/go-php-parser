@@ -13,20 +13,20 @@ func TestClosingBraceOnOwnLineChecker(t *testing.T) {
 		expected int
 		msg      string
 	}{
-		// Correct: closing brace on its own line, followed by blank or EOF
-		{[]string{"class Foo", "{", "    $a = 1;", "}", ""}, 0, "brace on own line, blank after"},
-		{[]string{"function bar() {", "    return 1;", "}"}, 0, "brace on own line, EOF after"},
-		// Incorrect: code after closing brace on same line
-		{[]string{"class Foo", "{", "    $a = 1;", "} $b = 2;"}, 1, "code after closing brace on same line"},
-		{[]string{"function bar() {", "    return 1;", "} // comment"}, 1, "comment after closing brace on same line"},
-		// Incorrect: code on line after closing brace
-		{[]string{"class Foo", "{", "    $a = 1;", "}", "$b = 2;"}, 1, "code after closing brace on next line"},
+		// Correct: class closing brace on its own line, followed by blank or EOF
+		{[]string{"class Foo", "{", "    $a = 1;", "}", ""}, 0, "class brace on own line, blank after"},
+		// Incorrect: code after class closing brace on same line
+		{[]string{"class Foo", "{", "    $a = 1;", "} $b = 2;"}, 1, "code after class closing brace on same line"},
+		// Incorrect: code on line after class closing brace
+		{[]string{"class Foo", "{", "    $a = 1;", "}", "$b = 2;"}, 1, "code after class closing brace on next line"},
+		// Correct: function closing brace on same line as code (should not flag)
+		{[]string{"function bar() {", "    return 1;", "} // comment"}, 0, "function brace with comment after (not class)"},
 		// Correct: multiple closing braces, all on own line
 		{[]string{"class Foo", "{", "    function bar() { return 1; }", "}", ""}, 0, "inner function brace on same line is allowed"},
 		// Correct: closing brace with whitespace
 		{[]string{"    }", ""}, 0, "brace with leading spaces, blank after"},
-		// Incorrect: closing brace with trailing code, then blank
-		{[]string{"    } $x = 1;", ""}, 1, "brace with trailing code, blank after"},
+		// Incorrect: class closing brace with trailing code, then blank
+		{[]string{"class Foo", "{", "    $a = 1;", "    } $x = 1;", ""}, 1, "class brace with trailing code, blank after"},
 	}
 	for _, tc := range cases {
 		issues := checker.CheckIssues(tc.lines, filename)

@@ -1,8 +1,8 @@
-path: ./demo_project
+path: ./debug
 extensions:
   - php
 ignore:
   # - vendor
   - node_modules
 rules:
-  - PSR12.Files.MissingBlankLineAfterPHPOpeningTag
+  - PSR12.Classes.ClosingBraceOnOwnLine

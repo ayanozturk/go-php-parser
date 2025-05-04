@@ -22,6 +22,7 @@ type CliArgs struct {
 	debug           bool
 	parallelism     int
 	filePath        string
+	Fix             bool
 }
 
 func ParseCLIArgs(filesToScan []string) CliArgs {
@@ -30,6 +31,7 @@ func ParseCLIArgs(filesToScan []string) CliArgs {
 	outputFileShort := flag.String("o", "", "Write all output (including summary) to this file (shorthand)")
 	debug := flag.Bool("debug", false, "Enable debug mode to show parsing errors")
 	parallelism := flag.Int("p", 2, "Number of files to process in parallel (default 2 for memory efficiency)")
+	fix := flag.Bool("fix", false, "Automatically fix fixable style issues")
 	flag.Parse()
 
 	commandName := "style"
@@ -48,6 +50,7 @@ func ParseCLIArgs(filesToScan []string) CliArgs {
 		debug:           *debug,
 		parallelism:     *parallelism,
 		filePath:        filePath,
+		Fix:             *fix,
 	}
 }
 
@@ -120,6 +123,37 @@ func RunScanOrCommand(args CliArgs, c *config.Config, filesToScan []string, outW
 				processed++
 				progressBar.Print(processed)
 			})
+
+			if args.Fix {
+				// Group issues by file
+				fileToIssues := map[string][]style.StyleIssue{}
+				for _, iss := range allIssues {
+					if iss.Fixable {
+						fileToIssues[iss.Filename] = append(fileToIssues[iss.Filename], iss)
+					}
+				}
+				for file, issues := range fileToIssues {
+					input, err := os.ReadFile(file)
+					if err != nil {
+						fmt.Fprintf(outWriter, "[fix] Could not read file %s: %v\n", file, err)
+						continue
+					}
+					content := string(input)
+					for _, iss := range issues {
+						if iss.Code == "PSR12.Classes.OpenBraceOnOwnLine" {
+							content = style.FixClassBraceOnOwnLine(content)
+						}
+						// Add more rules here as needed
+					}
+					err = os.WriteFile(file, []byte(content), 0644)
+					if err != nil {
+						fmt.Fprintf(outWriter, "[fix] Could not write file %s: %v\n", file, err)
+					} else {
+						fmt.Fprintf(outWriter, "[fix] Applied fixes to %s\n", file)
+					}
+				}
+			}
+
 			fmt.Fprintln(outWriter, "\033[36;1m\n========== SCAN RESULTS =========="+"\033[0m")
 			style.PrintPHPCSStyleOutputToWriter(outWriter, allIssues)
 		} else {
