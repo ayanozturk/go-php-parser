@@ -4,5 +4,5 @@ extensions:
 ignore:
   # - vendor
   - node_modules
-# rules:
-  # - PSR1.Classes.ClassDeclaration.PascalCase
+rules:
+  - PSR12.Files.MissingBlankLineAfterPHPOpeningTag

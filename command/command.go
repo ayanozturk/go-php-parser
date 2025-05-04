@@ -42,8 +42,8 @@ var Commands = map[string]Command{
 		// Refactored for concurrent streaming: checkers run in goroutines, issues are streamed to output
 		ExecuteWithRules: func(nodes []ast.Node, filename string, w io.Writer, allowedRules []string) {
 			var allIssues []style.StyleIssue
-			checker := &style.ClassNameChecker{}
-			allIssues = append(allIssues, checker.CheckIssues(nodes, filename)...)
+			// checker := &style.ClassNameChecker{}
+			// allIssues = append(allIssues, checker.CheckIssues(nodes, filename)...)
 			content, err := sharedcache.GetCachedFileContent(filename)
 			if err != nil {
 				allIssues = append(allIssues, style.StyleIssue{

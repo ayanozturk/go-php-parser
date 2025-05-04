@@ -30,6 +30,8 @@ func PrintPHPCSStyleOutputToWriter(w io.Writer, issues []StyleIssue) {
 	}
 	sort.Strings(files)
 
+	totalErrors := 0
+
 	for _, file := range files {
 		fileIssues := fileMap[file]
 		errCount, warnCount := 0, 0
@@ -43,6 +45,7 @@ func PrintPHPCSStyleOutputToWriter(w io.Writer, issues []StyleIssue) {
 			lineSet[iss.Line] = struct{}{}
 		}
 		totalLines := len(lineSet)
+		totalErrors += errCount
 		fmt.Fprintf(w, "FILE: %s\n", file)
 		fmt.Fprintln(w, strings.Repeat("-", 80))
 		fmt.Fprintf(w, "FOUND %d ERRORS AND %d WARNING%s AFFECTING %d LINE%s\n", errCount, warnCount, plural(warnCount), totalLines, plural(totalLines))
@@ -62,6 +65,8 @@ func PrintPHPCSStyleOutputToWriter(w io.Writer, issues []StyleIssue) {
 		}
 		fmt.Fprintln(w)
 	}
+	// Print run summary
+	fmt.Fprintf(w, "Run summary: total style errors found: %d\n", totalErrors)
 }
 
 // PrintPHPCSStyleIssueToWriter prints a single StyleIssue in PHPCS format to the provided writer.

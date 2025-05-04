@@ -57,3 +57,10 @@ func (c *ClassNameChecker) Check(nodes []ast.Node, filename string) {
 		}
 	}
 }
+
+func init() {
+	RegisterRule("PSR1.Classes.ClassDeclaration.PascalCase", func(filename string, _ []byte, nodes []ast.Node) []StyleIssue {
+		checker := &ClassNameChecker{}
+		return checker.CheckIssues(nodes, filename)
+	})
+}
