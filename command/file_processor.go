@@ -4,11 +4,11 @@ import (
 	"fmt"
 	"go-phpcs/lexer"
 	"go-phpcs/parser"
-	"go-phpcs/style"
 	"go-phpcs/sharedcache"
+	"go-phpcs/style"
+	"io"
 	"os"
 	"sync"
-	"io"
 )
 
 func ProcessFile(filePath, commandName string, debug bool, w io.Writer) int {
@@ -123,68 +123,83 @@ func getCachedFileContent(filename string) ([]byte, error) {
 }
 
 func ProcessStyleFilesParallelWithCallback(files []string, rules []string, parallelism int, callback func()) ([]style.StyleIssue, int, int) {
-	if err := PreloadFilesParallel(files, 16); err != nil {
-		return nil, 0, 0
-	}
-
-	var (
-		wg sync.WaitGroup
-		fileCh = make(chan string)
-		issueCh = make(chan []style.StyleIssue, parallelism)
-		linesCh = make(chan int, parallelism)
-		errCh = make(chan int, parallelism)
-	)
-
+	batchSize := 100
 	nFiles := len(files)
-
-	for i := 0; i < parallelism; i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			for file := range fileCh {
-				input, err := getCachedFileContent(file)
-				if err != nil {
-					continue
-				}
-				linesCh <- CountLines(input)
-				lex := lexer.New(string(input))
-				p := parser.New(lex, false)
-				nodes := p.Parse()
-				if len(p.Errors()) > 0 {
-					errCh <- len(p.Errors())
-				} else {
-					errCh <- 0
-				}
-				var fileIssues []style.StyleIssue
-				issueWriter := &style.IssueCollector{Issues: &fileIssues}
-				Commands["style"].ExecuteWithRules(nodes, file, issueWriter, rules)
-				issueCh <- fileIssues
-				if callback != nil {
-					callback()
-				}
-			}
-		}()
-	}
-
-	go func() {
-		for _, file := range files {
-			fileCh <- file
-		}
-		close(fileCh)
-	}()
-
 	allIssues := make([]style.StyleIssue, 0, nFiles*2)
 	totalLines := 0
 	totalParseErrors := 0
-	for i := 0; i < nFiles; i++ {
-		allIssues = append(allIssues, <-issueCh...)
-		totalLines += <-linesCh
-		totalParseErrors += <-errCh
+
+	for i := 0; i < nFiles; i += batchSize {
+		end := i + batchSize
+		if end > nFiles {
+			end = nFiles
+		}
+		batch := files[i:end]
+
+		if err := PreloadFilesParallel(batch, parallelism); err != nil {
+			return nil, 0, 0
+		}
+
+		var (
+			wg      sync.WaitGroup
+			fileCh  = make(chan string)
+			issueCh = make(chan []style.StyleIssue, parallelism)
+			linesCh = make(chan int, parallelism)
+			errCh   = make(chan int, parallelism)
+		)
+
+		for j := 0; j < parallelism; j++ {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				for file := range fileCh {
+					input, err := getCachedFileContent(file)
+					if err != nil {
+						continue
+					}
+					linesCh <- CountLines(input)
+					lex := lexer.New(string(input))
+					p := parser.New(lex, false)
+					nodes := p.Parse()
+					if len(p.Errors()) > 0 {
+						errCh <- len(p.Errors())
+					} else {
+						errCh <- 0
+					}
+					var fileIssues []style.StyleIssue
+					issueWriter := &style.IssueCollector{Issues: &fileIssues}
+					Commands["style"].ExecuteWithRules(nodes, file, issueWriter, rules)
+					issueCh <- fileIssues
+					if callback != nil {
+						callback()
+					}
+				}
+			}()
+		}
+
+		go func() {
+			for _, file := range batch {
+				fileCh <- file
+			}
+			close(fileCh)
+		}()
+
+		for j := 0; j < len(batch); j++ {
+			allIssues = append(allIssues, <-issueCh...)
+			totalLines += <-linesCh
+			totalParseErrors += <-errCh
+		}
+		close(issueCh)
+		close(linesCh)
+		close(errCh)
+		wg.Wait()
+
+		// Clear cache for this batch
+		for _, file := range batch {
+			fileContentCache.Delete(file)
+		}
 	}
-	close(issueCh)
-	close(linesCh)
-	close(errCh)
-	wg.Wait()
+
 	return allIssues, totalParseErrors, totalLines
 }
 
@@ -204,11 +219,11 @@ func ProcessStyleFilesParallel(files []string, rules []string, parallelism int) 
 	}
 
 	var (
-		wg sync.WaitGroup
-		fileCh = make(chan string)
+		wg      sync.WaitGroup
+		fileCh  = make(chan string)
 		issueCh = make(chan []style.StyleIssue, parallelism)
 		linesCh = make(chan int, parallelism)
-		errCh = make(chan int, parallelism)
+		errCh   = make(chan int, parallelism)
 	)
 
 	nFiles := len(files)
