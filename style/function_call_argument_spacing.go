@@ -51,51 +51,48 @@ func (f FunctionCallArgumentSpacingFixer) Fix(content string) string {
 	return strings.Join(lines, "\n")
 }
 
+// Parenthesis-aware function call fixer for a line
 func fixFunctionCallSpacingInLine(line string) string {
-	// Preserve all leading/trailing whitespace
-	leading := ""
-	trailing := ""
-	core := line
-	for len(core) > 0 && (core[0] == ' ' || core[0] == '\t') {
-		leading += string(core[0])
-		core = core[1:]
-	}
-	for len(core) > 0 && (core[len(core)-1] == ' ' || core[len(core)-1] == '\t') {
-		trailing = string(core[len(core)-1]) + trailing
-		core = core[:len(core)-1]
-	}
-	// First, recursively fix all nested calls
-	core = fixAllFunctionCallArgumentSpacing(core)
-	// Then, fix all top-level calls in the line
-	core = funcCallRegex.ReplaceAllStringFunc(core, func(match string) string {
-		parts := funcCallRegex.FindStringSubmatch(match)
-		if len(parts) < 3 {
-			return match
+	var out strings.Builder
+	for i := 0; i < len(line); {
+		// Find function name
+		start := i
+		for i < len(line) && (isIdentChar(line[i]) || (i > start && isDigit(line[i]))) {
+			i++
 		}
-		funcName := parts[1]
-		args := parts[2]
-		args = fixArgumentSpacing(args)
-		return funcName + "(" + args + ")"
-	})
-	return leading + core + trailing
+		if i < len(line) && line[i] == '(' && start != i {
+			funcName := line[start:i]
+			// Find matching closing parenthesis
+			parenDepth := 1
+			j := i + 1
+			for ; j < len(line) && parenDepth > 0; j++ {
+				if line[j] == '(' {
+					parenDepth++
+				} else if line[j] == ')' {
+					parenDepth--
+				}
+			}
+			if parenDepth == 0 {
+				args := line[i+1 : j-1]
+				fixedArgs := fixArgumentSpacing(args)
+				out.WriteString(funcName + "(" + fixedArgs + ")")
+				i = j
+				continue
+			}
+		}
+		// Not a function call, just copy
+		out.WriteByte(line[i])
+		i++
+	}
+	return out.String()
 }
 
-// Recursively fix all function call argument spacing in a string
-func fixAllFunctionCallArgumentSpacing(s string) string {
-	// Recursively fix all nested calls, then fix the outer call's arguments
-	return funcCallRegex.ReplaceAllStringFunc(s, func(match string) string {
-		parts := funcCallRegex.FindStringSubmatch(match)
-		if len(parts) < 3 {
-			return match
-		}
-		funcName := parts[1]
-		args := parts[2]
-		// Recursively fix nested calls in the arguments
-		args = fixAllFunctionCallArgumentSpacing(args)
-		// Now fix the argument spacing at this (outer) level
-		args = fixArgumentSpacing(args)
-		return funcName + "(" + args + ")"
-	})
+func isIdentChar(ch byte) bool {
+	return (ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z') || ch == '_'
+}
+
+func isDigit(ch byte) bool {
+	return ch >= '0' && ch <= '9'
 }
 
 // Splits arguments at the top level, respecting parentheses and unpacked arguments

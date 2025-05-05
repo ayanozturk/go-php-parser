@@ -52,7 +52,7 @@ func TestFunctionCallArgumentSpacingFixer(t *testing.T) {
 		// Multiple errors
 		{"foo( 1,2 ,  3 );", "foo( 1, 2, 3 );", "multiple errors in one call"},
 		// Nested call
-		// {"foo(bar(1,2),3);", "foo(bar(1, 2), 3);", "nested call"},
+		{"foo(bar(1,2),3);", "foo(bar(1, 2), 3);", "nested call"},
 	}
 	for _, tc := range cases {
 		output := fixer.Fix(tc.input)
