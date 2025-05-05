@@ -33,3 +33,31 @@ func TestFunctionCallArgumentSpacingChecker(t *testing.T) {
 		}
 	}
 }
+
+func TestFunctionCallArgumentSpacingFixer(t *testing.T) {
+	fixer := FunctionCallArgumentSpacingFixer{}
+	cases := []struct {
+		input    string
+		expected string
+		msg      string
+	}{
+		// No change needed
+		{"foo(1, 2, 3);", "foo(1, 2, 3);", "already correct"},
+		// Multiple spaces after comma
+		{"foo(1,  2, 3);", "foo(1, 2, 3);", "multiple spaces after comma"},
+		// Space before comma
+		{"foo(1 ,2, 3);", "foo(1, 2, 3);", "space before comma"},
+		// No space after comma
+		{"foo(1,2, 3);", "foo(1, 2, 3);", "no space after comma"},
+		// Multiple errors
+		{"foo( 1,2 ,  3 );", "foo( 1, 2, 3 );", "multiple errors in one call"},
+		// Nested call
+		// {"foo(bar(1,2),3);", "foo(bar(1, 2), 3);", "nested call"},
+	}
+	for _, tc := range cases {
+		output := fixer.Fix(tc.input)
+		if output != tc.expected {
+			t.Errorf("%s: expected '%s', got '%s'", tc.msg, tc.expected, output)
+		}
+	}
+}

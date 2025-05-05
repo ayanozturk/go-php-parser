@@ -1,8 +1,8 @@
-path: ./debug
+path: ./demo_project
 extensions:
   - php
 ignore:
   # - vendor
   - node_modules
-rules:
-  - PSR12.Classes.ClosingBraceOnOwnLine
+# rules:
+  # - PSR12.Classes.ClosingBraceOnOwnLine
