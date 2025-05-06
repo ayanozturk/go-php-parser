@@ -11,27 +11,60 @@ import (
 type FunctionCallArgumentSpacingChecker struct{}
 
 var (
-	funcCallRegex   = regexp.MustCompile(`([a-zA-Z_][a-zA-Z0-9_]*)\s*\(([^)]*)\)`)
+	// funcCallRegex   = regexp.MustCompile(`([a-zA-Z_][a-zA-Z0-9_]*)\s*\(([^)]*)\)`)
 	badCommaSpacing = regexp.MustCompile(`,\s{2,}|\s+,|,\S`)
 )
 
 func (c *FunctionCallArgumentSpacingChecker) CheckIssues(lines []string, filename string) []StyleIssue {
 	var issues []StyleIssue
 	for i, line := range lines {
-		matches := funcCallRegex.FindAllStringSubmatchIndex(line, -1)
-		for _, m := range matches {
-			argsStart, argsEnd := m[4], m[5]
-			args := line[argsStart:argsEnd]
-			if badCommaSpacing.MatchString(args) {
-				issues = append(issues, StyleIssue{
-					Filename: filename,
-					Line:     i + 1,
-					Type:     Error,
-					Fixable:  true,
-					Message:  "Incorrect spacing between function call arguments",
-					Code:     "Generic.Functions.FunctionCallArgumentSpacing",
-				})
+		// Fast skip: only check lines that have both '(' and ','
+		if !strings.Contains(line, "(") || !strings.Contains(line, ",") {
+			continue
+		}
+		// Fast scan for function calls (no regex)
+		for idx := 0; idx < len(line); {
+			// Find function name
+			start := idx
+			for idx < len(line) && (isIdentChar(line[idx]) || (idx > start && isDigit(line[idx]))) {
+				idx++
 			}
+			if idx < len(line) && line[idx] == '(' && start != idx {
+				// Found function call
+				parenDepth := 1
+				j := idx + 1
+				for ; j < len(line) && parenDepth > 0; j++ {
+					if line[j] == '(' {
+						parenDepth++
+					} else if line[j] == ')' {
+						parenDepth--
+					}
+				}
+				if parenDepth == 0 {
+					argsStart := idx + 1
+					argsEnd := j - 1
+					if argsEnd >= argsStart && argsEnd <= len(line) {
+						args := line[argsStart:argsEnd]
+						if badCommaSpacing.MatchString(args) {
+							issues = append(issues, StyleIssue{
+								Filename: filename,
+								Line:     i + 1,
+								Type:     Error,
+								Fixable:  true,
+								Message:  "Incorrect spacing between function call arguments",
+								Code:     "Generic.Functions.FunctionCallArgumentSpacing",
+							})
+						}
+					}
+					idx = j
+					continue
+				} else {
+					// No matching closing parenthesis, skip rest
+					break
+				}
+			}
+			// Not a function call, move to next char
+			idx++
 		}
 	}
 	return issues

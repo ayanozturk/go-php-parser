@@ -20,6 +20,10 @@ func (s *DisallowMultipleStatementsSniff) CheckIssues(lines []string, filename s
 		if helper.HandleHeredocEnd(line, commentState) {
 			continue
 		}
+		// Fast pre-check: skip lines with 0 or 1 semicolon
+		if strings.Count(line, ";") <= 1 {
+			continue
+		}
 		count := s.countStatements(line, commentState)
 		if count > 1 {
 			issues = append(issues, StyleIssue{
