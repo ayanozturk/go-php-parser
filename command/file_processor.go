@@ -2,6 +2,7 @@ package command
 
 import (
 	"fmt"
+	"go-phpcs/analyse"
 	"go-phpcs/lexer"
 	"go-phpcs/parser"
 	"go-phpcs/sharedcache"
@@ -144,7 +145,21 @@ func processFileForStyle(file string, rules []string, issueCh chan<- []style.Sty
 	} else {
 		errCh <- 0
 	}
+	// Run analysis rules on the parsed AST and collect issues
+	analysisIssues := analyse.RunAnalysisRules(file, nodes)
 	var fileIssues []style.StyleIssue
+	for _, iss := range analysisIssues {
+		// Convert AnalysisIssue to StyleIssue for unified reporting
+		fileIssues = append(fileIssues, style.StyleIssue{
+			Filename: iss.Filename,
+			Line:     iss.Line,
+			Column:   iss.Column,
+			Type:     style.Error,
+			Fixable:  false,
+			Message:  iss.Message,
+			Code:     iss.Code,
+		})
+	}
 	issueWriter := &style.IssueCollector{Issues: &fileIssues}
 	Commands["style"].ExecuteWithRules(nodes, file, issueWriter, rules)
 	issueCh <- fileIssues
