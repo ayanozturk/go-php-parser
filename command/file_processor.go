@@ -32,7 +32,7 @@ func handleTokensCommand(input []byte, w io.Writer) {
 }
 
 func ProcessFile(filePath, commandName string, debug bool, w io.Writer) int {
-	input, err := os.ReadFile(filePath)
+	input, err := getCachedFileContent(filePath)
 	if err != nil {
 		fmt.Fprintf(w, "Error reading file: %s\n", err)
 		return 0
@@ -58,7 +58,7 @@ func ProcessFile(filePath, commandName string, debug bool, w io.Writer) int {
 }
 
 func ProcessFileWithErrors(filePath, commandName string, debug bool, w io.Writer) ([]string, int) {
-	input, err := os.ReadFile(filePath)
+	input, err := getCachedFileContent(filePath)
 	if err != nil {
 		fmt.Fprintf(w, "Error reading file: %s\n", err)
 		return nil, 0
