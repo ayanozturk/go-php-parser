@@ -2,7 +2,6 @@ package command
 
 import (
 	"fmt"
-	"go-phpcs/analyzer"
 	"go-phpcs/ast"
 	"go-phpcs/lexer"
 	"go-phpcs/parser"
@@ -70,13 +69,6 @@ var Commands = map[string]Command{
 		},
 		// Execute will be assigned after map initialization to avoid cycle
 		Execute: nil,
-	},
-	"analyse": {
-		Name:        "analyse",
-		Description: "Static analysis: unknown function calls (PoC)",
-		Execute: func(nodes []ast.Node, filename string, w io.Writer) {
-			analyzer.AnalyzeUnknownFunctionCalls(nodes)
-		},
 	},
 	"list-style-rules": {
 		Name:        "list-style-rules",

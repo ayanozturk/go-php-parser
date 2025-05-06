@@ -14,10 +14,9 @@ func TestCommandsMapIntegrity(t *testing.T) {
 	expected := map[string]struct {
 		Description string
 	}{
-		"ast":     {"Print the Abstract Syntax Tree"},
-		"tokens":  {"Print the tokens from the lexer"},
-		"style":   {"Check code style (e.g., function naming)"},
-		"analyse": {"Static analysis: unknown function calls (PoC)"},
+		"ast":    {"Print the Abstract Syntax Tree"},
+		"tokens": {"Print the tokens from the lexer"},
+		"style":  {"Check code style (e.g., function naming)"},
 	}
 	for name, meta := range expected {
 		cmd, ok := Commands[name]
@@ -37,7 +36,7 @@ func TestCommandsMapIntegrity(t *testing.T) {
 	}
 }
 
-func TestPrintUsage_Output(t *testing.T) {
+func TestPrintUsageOutput(t *testing.T) {
 	// Capture stdout
 	old := os.Stdout
 	r, w, _ := os.Pipe()
