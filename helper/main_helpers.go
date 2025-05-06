@@ -73,7 +73,9 @@ func SetupOutputFile(args CliArgs) io.Writer {
 
 func SetupProfiling(enabled bool) func() {
 	if !enabled {
-		return func() {}
+		return func() {
+			// Profiling is disabled, so return a no-op cleanup function.
+		}
 	}
 	f, err := os.Create("cpu.prof")
 	if err != nil {
@@ -127,6 +129,7 @@ func RunScanOrCommand(args CliArgs, c *config.Config, filesToScan []string, outW
 			if args.Fix {
 				// Group issues by file
 				fileToIssues := map[string][]style.StyleIssue{}
+				var appliedFixes []style.StyleIssue
 				for _, iss := range allIssues {
 					if iss.Fixable {
 						fileToIssues[iss.Filename] = append(fileToIssues[iss.Filename], iss)
@@ -148,6 +151,7 @@ func RunScanOrCommand(args CliArgs, c *config.Config, filesToScan []string, outW
 						if fixer != nil {
 							content = fixer.Fix(content)
 							applied[iss.Code] = true
+							appliedFixes = append(appliedFixes, iss)
 						}
 					}
 					err = os.WriteFile(file, []byte(content), 0644)
@@ -157,6 +161,8 @@ func RunScanOrCommand(args CliArgs, c *config.Config, filesToScan []string, outW
 						fmt.Fprintf(outWriter, "[fix] Applied fixes to %s\n", file)
 					}
 				}
+				fmt.Fprintf(outWriter, "\n\033[36;1mFixed %d issue(s).\033[0m\n", len(appliedFixes))
+				return totalParseErrors, totalLines
 			}
 
 			fmt.Fprintln(outWriter, "\033[36;1m\n========== SCAN RESULTS =========="+"\033[0m")

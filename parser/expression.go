@@ -437,21 +437,6 @@ func (p *Parser) parseSimpleMethodCall(expr ast.Node, member string, objOpPos to
 	}
 }
 
-func (p *Parser) parseSimpleNSFunctionCall(fqcnNode ast.Node) ast.Node {
-	p.nextToken() // consume '('
-	args := p.parseFunctionCallArguments()
-	if p.tok.Type != token.T_RPAREN {
-		p.addError(errExpectedRParenFunctionCall, p.tok.Pos.Line, p.tok.Pos.Column, fqcnNode.TokenLiteral(), p.tok.Literal)
-		return nil
-	}
-	p.nextToken() // consume )
-	return &ast.FunctionCallNode{
-		Name: fqcnNode,
-		Args: args,
-		Pos:  fqcnNode.GetPos(),
-	}
-}
-
 func (p *Parser) parseSimpleStringOrConcat() ast.Node {
 	pos := p.tok.Pos
 	value := p.tok.Literal
