@@ -33,6 +33,21 @@ func (c *EndFileNewlineChecker) CheckIssues(lines []string, filename string) []S
 	return issues
 }
 
+type EndFileNewlineFixer struct{}
+
+func (f EndFileNewlineFixer) Code() string {
+	return endFileNewlineCode
+}
+
+func (f EndFileNewlineFixer) Fix(content string) string {
+	// Remove trailing blank lines and ensure exactly one newline at the end
+	trimmed := content
+	for len(trimmed) > 0 && (trimmed[len(trimmed)-1] == '\n' || trimmed[len(trimmed)-1] == '\r') {
+		trimmed = trimmed[:len(trimmed)-1]
+	}
+	return trimmed + "\n"
+}
+
 func init() {
 	RegisterRule(endFileNewlineCode, func(filename string, content []byte, _ []ast.Node) []StyleIssue {
 		if len(content) == 0 || content[len(content)-1] != '\n' {
@@ -47,4 +62,5 @@ func init() {
 		}
 		return nil
 	})
+	RegisterFixer(EndFileNewlineFixer{})
 }
