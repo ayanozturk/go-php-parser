@@ -10,7 +10,7 @@ import (
 	"go-phpcs/sharedcache"
 	"go-phpcs/style"
 	"io"
-	"io/ioutil"
+	"os"
 )
 
 type Command struct {
@@ -121,7 +121,7 @@ type MemStats struct {
 }
 
 func ProcessSingleFileWithWriter(filePath, commandName string, debug bool, w io.Writer) (int, int) {
-	input, err := ioutil.ReadFile(filePath)
+	input, err := os.ReadFile(filePath)
 	if err != nil {
 		fmt.Fprintf(w, "Could not read file %s: %v\n", filePath, err)
 		return 1, 0
