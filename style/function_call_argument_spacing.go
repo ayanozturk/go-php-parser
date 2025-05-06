@@ -1,7 +1,9 @@
 package style
 
 import (
+	"fmt"
 	"go-phpcs/ast"
+	"os"
 	"regexp"
 	"strings"
 )
@@ -44,9 +46,20 @@ func (f FunctionCallArgumentSpacingFixer) Code() string {
 }
 
 func (f FunctionCallArgumentSpacingFixer) Fix(content string) string {
+	defer func() {
+		if r := recover(); r != nil {
+			fmt.Fprintf(os.Stderr, "[PANIC] in FunctionCallArgumentSpacingFixer.Fix: %v\n", r)
+			fmt.Fprintf(os.Stderr, "[PANIC] content: %q\n", content)
+		}
+	}()
 	lines := strings.Split(content, "\n")
 	for i, line := range lines {
-		lines[i] = fixFunctionCallSpacingInLine(line)
+		fixed := fixFunctionCallSpacingInLine(line)
+		if fixed != line {
+			// Debug print to stderr with file and line info
+			fmt.Fprintf(os.Stderr, "[DEBUG] FunctionCallArgumentSpacingFixer: line %d changed in Fix\nOriginal: %q\nFixed:   %q\n", i+1, line, fixed)
+		}
+		lines[i] = fixed
 	}
 	return strings.Join(lines, "\n")
 }
@@ -73,11 +86,21 @@ func fixFunctionCallSpacingInLine(line string) string {
 				}
 			}
 			if parenDepth == 0 {
-				args := line[i+1 : j-1]
+				// Only extract args if j-1 >= i+1 and j-1 <= len(line)
+				var args string
+				if j-1 >= i+1 && j-1 <= len(line) {
+					args = line[i+1 : j-1]
+				} else {
+					args = ""
+				}
 				fixedArgs := fixArgumentSpacing(args)
 				out.WriteString(funcName + "(" + fixedArgs + ")")
 				i = j
 				continue
+			} else {
+				// No matching closing parenthesis, copy the rest and break
+				out.WriteString(line[start:])
+				break
 			}
 		}
 		// Not a function call, just copy
