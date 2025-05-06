@@ -5,7 +5,7 @@ import (
 	"testing"
 )
 
-func TestIntersectionTypeNode_Basic(t *testing.T) {
+func TestIntersectionTypeNodeBasic(t *testing.T) {
 	types := []string{"A", "B", "C"}
 	pos := Position{Line: 7, Column: 3}
 	n := &IntersectionTypeNode{Types: types, Pos: pos}

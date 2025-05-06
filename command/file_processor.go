@@ -11,6 +11,26 @@ import (
 	"sync"
 )
 
+func handleParsingErrors(p *parser.Parser, filePath string, w io.Writer, lineCount int) int {
+	errCount := len(p.Errors())
+	fmt.Fprintf(w, "Parsing errors in %s (%d error(s)):\n", filePath, errCount)
+	for _, err := range p.Errors() {
+		fmt.Fprintf(w, ErrorLineFormat, err)
+	}
+	return lineCount
+}
+
+func handleTokensCommand(input []byte, w io.Writer) {
+	l := lexer.New(string(input))
+	for {
+		tok := l.NextToken()
+		if tok.Type == "T_EOF" {
+			break
+		}
+		fmt.Fprintf(w, "%s: %s @ %d:%d\n", tok.Type, tok.Literal, tok.Pos.Line, tok.Pos.Column)
+	}
+}
+
 func ProcessFile(filePath, commandName string, debug bool, w io.Writer) int {
 	input, err := os.ReadFile(filePath)
 	if err != nil {
@@ -22,23 +42,11 @@ func ProcessFile(filePath, commandName string, debug bool, w io.Writer) int {
 	p := parser.New(l, debug)
 	nodes := p.Parse()
 	if len(p.Errors()) > 0 {
-		errCount := len(p.Errors())
-		fmt.Fprintf(w, "Parsing errors in %s (%d error(s)):\n", filePath, errCount)
-		for _, err := range p.Errors() {
-			fmt.Fprintf(w, ErrorLineFormat, err)
-		}
-		return lineCount
+		return handleParsingErrors(p, filePath, w, lineCount)
 	}
 	if cmd, exists := Commands[commandName]; exists {
 		if commandName == "tokens" {
-			l := lexer.New(string(input))
-			for {
-				tok := l.NextToken()
-				if tok.Type == "T_EOF" {
-					break
-				}
-				fmt.Fprintf(w, "%s: %s @ %d:%d\n", tok.Type, tok.Literal, tok.Pos.Line, tok.Pos.Column)
-			}
+			handleTokensCommand(input, w)
 		} else {
 			cmd.Execute(nodes, filePath, w)
 		}
@@ -122,6 +130,74 @@ func getCachedFileContent(filename string) ([]byte, error) {
 	return content, nil
 }
 
+func processFileForStyle(file string, rules []string, issueCh chan<- []style.StyleIssue, linesCh chan<- int, errCh chan<- int, callback func()) {
+	input, err := getCachedFileContent(file)
+	if err != nil {
+		return
+	}
+	linesCh <- CountLines(input)
+	lex := lexer.New(string(input))
+	p := parser.New(lex, false)
+	nodes := p.Parse()
+	if len(p.Errors()) > 0 {
+		errCh <- len(p.Errors())
+	} else {
+		errCh <- 0
+	}
+	var fileIssues []style.StyleIssue
+	issueWriter := &style.IssueCollector{Issues: &fileIssues}
+	Commands["style"].ExecuteWithRules(nodes, file, issueWriter, rules)
+	issueCh <- fileIssues
+	if callback != nil {
+		callback()
+	}
+}
+
+// Helper to process a batch of files in parallel
+func processStyleBatch(batch []string, rules []string, parallelism int, callback func()) ([]style.StyleIssue, int, int) {
+	var (
+		wg      sync.WaitGroup
+		fileCh  = make(chan string)
+		issueCh = make(chan []style.StyleIssue, parallelism)
+		linesCh = make(chan int, parallelism)
+		errCh   = make(chan int, parallelism)
+	)
+
+	// Worker setup
+	for j := 0; j < parallelism; j++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for file := range fileCh {
+				processFileForStyle(file, rules, issueCh, linesCh, errCh, callback)
+			}
+		}()
+	}
+
+	// Feed files
+	go func() {
+		for _, file := range batch {
+			fileCh <- file
+		}
+		close(fileCh)
+	}()
+
+	allIssues := make([]style.StyleIssue, 0, len(batch)*2)
+	totalLines := 0
+	totalParseErrors := 0
+	for j := 0; j < len(batch); j++ {
+		allIssues = append(allIssues, <-issueCh...)
+		totalLines += <-linesCh
+		totalParseErrors += <-errCh
+	}
+	close(issueCh)
+	close(linesCh)
+	close(errCh)
+	wg.Wait()
+
+	return allIssues, totalParseErrors, totalLines
+}
+
 func ProcessStyleFilesParallelWithCallback(files []string, rules []string, parallelism int, callback func()) ([]style.StyleIssue, int, int) {
 	batchSize := 100
 	nFiles := len(files)
@@ -140,61 +216,11 @@ func ProcessStyleFilesParallelWithCallback(files []string, rules []string, paral
 			return nil, 0, 0
 		}
 
-		var (
-			wg      sync.WaitGroup
-			fileCh  = make(chan string)
-			issueCh = make(chan []style.StyleIssue, parallelism)
-			linesCh = make(chan int, parallelism)
-			errCh   = make(chan int, parallelism)
-		)
+		batchIssues, batchParseErrors, batchLines := processStyleBatch(batch, rules, parallelism, callback)
+		allIssues = append(allIssues, batchIssues...)
+		totalParseErrors += batchParseErrors
+		totalLines += batchLines
 
-		for j := 0; j < parallelism; j++ {
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
-				for file := range fileCh {
-					input, err := getCachedFileContent(file)
-					if err != nil {
-						continue
-					}
-					linesCh <- CountLines(input)
-					lex := lexer.New(string(input))
-					p := parser.New(lex, false)
-					nodes := p.Parse()
-					if len(p.Errors()) > 0 {
-						errCh <- len(p.Errors())
-					} else {
-						errCh <- 0
-					}
-					var fileIssues []style.StyleIssue
-					issueWriter := &style.IssueCollector{Issues: &fileIssues}
-					Commands["style"].ExecuteWithRules(nodes, file, issueWriter, rules)
-					issueCh <- fileIssues
-					if callback != nil {
-						callback()
-					}
-				}
-			}()
-		}
-
-		go func() {
-			for _, file := range batch {
-				fileCh <- file
-			}
-			close(fileCh)
-		}()
-
-		for j := 0; j < len(batch); j++ {
-			allIssues = append(allIssues, <-issueCh...)
-			totalLines += <-linesCh
-			totalParseErrors += <-errCh
-		}
-		close(issueCh)
-		close(linesCh)
-		close(errCh)
-		wg.Wait()
-
-		// Clear cache for this batch
 		for _, file := range batch {
 			fileContentCache.Delete(file)
 		}
@@ -203,9 +229,7 @@ func ProcessStyleFilesParallelWithCallback(files []string, rules []string, paral
 	return allIssues, totalParseErrors, totalLines
 }
 
-// ProcessStyleFilesParallel scans files in parallel, parses once per file, applies all rules, and collects issues.
 func ProcessStyleFilesParallel(files []string, rules []string, parallelism int) ([]style.StyleIssue, int, int) {
-	// Batch tokenize all files and cache tokens for rules
 	fileContents := make(map[string][]byte, len(files))
 	for _, file := range files {
 		content, err := getCachedFileContent(file)
@@ -233,24 +257,7 @@ func ProcessStyleFilesParallel(files []string, rules []string, parallelism int) 
 		go func() {
 			defer wg.Done()
 			for file := range fileCh {
-				input, err := getCachedFileContent(file)
-				if err != nil {
-					// Could report error as an issue, but for now just skip
-					continue
-				}
-				linesCh <- CountLines(input)
-				lex := lexer.New(string(input))
-				p := parser.New(lex, false)
-				nodes := p.Parse()
-				if len(p.Errors()) > 0 {
-					errCh <- len(p.Errors())
-				} else {
-					errCh <- 0
-				}
-				var fileIssues []style.StyleIssue
-				issueWriter := &style.IssueCollector{Issues: &fileIssues}
-				Commands["style"].ExecuteWithRules(nodes, file, issueWriter, rules)
-				issueCh <- fileIssues
+				processFileForStyle(file, rules, issueCh, linesCh, errCh, nil)
 			}
 		}()
 	}

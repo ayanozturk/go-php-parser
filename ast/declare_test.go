@@ -5,7 +5,7 @@ import (
 	"testing"
 )
 
-func TestDeclareNode_Basic(t *testing.T) {
+func TestDeclareNodeBasic(t *testing.T) {
 	directives := map[string]Node{"strict_types": &IntegerLiteral{Value: 1}}
 	pos := Position{Line: 1, Column: 2}
 	body := &BlockNode{Statements: []Node{}, Pos: pos}
@@ -35,7 +35,7 @@ func TestDeclareNode_Basic(t *testing.T) {
 	}
 }
 
-func TestDeclareDirective_Basic(t *testing.T) {
+func TestDeclareDirectiveBasic(t *testing.T) {
 	val := &IntegerLiteral{Value: 1}
 	pos := Position{Line: 4, Column: 5}
 	d := &DeclareDirective{Name: "strict_types", Value: val, Pos: pos}
