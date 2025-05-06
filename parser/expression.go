@@ -437,14 +437,6 @@ func (p *Parser) parseSimpleMethodCall(expr ast.Node, member string, objOpPos to
 	}
 }
 
-func (p *Parser) parseSimpleNSSeparator() ast.Node {
-	fqcnNode := p.parseFQCN()
-	if p.tok.Type == token.T_LPAREN {
-		return p.parseSimpleNSFunctionCall(fqcnNode)
-	}
-	return fqcnNode
-}
-
 func (p *Parser) parseSimpleNSFunctionCall(fqcnNode ast.Node) ast.Node {
 	p.nextToken() // consume '('
 	args := p.parseFunctionCallArguments()
