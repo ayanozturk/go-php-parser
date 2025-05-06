@@ -113,7 +113,7 @@ func TestArrayItemNode(t *testing.T) {
 	}
 }
 
-func TestArrayItemNode_String_ValueOnly(t *testing.T) {
+func TestArrayItemNodeStringValueOnly(t *testing.T) {
 	val := &StringLiteral{Value: "foo", Pos: Position{Line: 3, Column: 4}}
 	item := &ArrayItemNode{Key: nil, Value: val, ByRef: false, Unpack: false, Pos: Position{Line: 4, Column: 5}}
 	expected := "ArrayItem(foo) @ 4:5"
@@ -122,7 +122,7 @@ func TestArrayItemNode_String_ValueOnly(t *testing.T) {
 	}
 }
 
-func TestArrayItemNode_String_ValueOnly_ByRefUnpack(t *testing.T) {
+func TestArrayItemNodeStringValueOnlyByRefUnpack(t *testing.T) {
 	val := &StringLiteral{Value: "foo", Pos: Position{Line: 3, Column: 4}}
 	item := &ArrayItemNode{Key: nil, Value: val, ByRef: true, Unpack: true, Pos: Position{Line: 4, Column: 5}}
 	expected := "ArrayItem(&...foo) @ 4:5"
