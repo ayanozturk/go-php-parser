@@ -16,81 +16,70 @@ type ElseIfDeclarationChecker struct {
 
 // NewElseIfDeclarationChecker creates a new checker with proper initialization
 func NewElseIfDeclarationChecker() *ElseIfDeclarationChecker {
-	// Match "else" followed by whitespace and then "if"
-	// This regex captures the whitespace between "else" and "if"
-	elseIfRegex := regexp.MustCompile(`\belse(\s+)if\b`)
-	
-	return &ElseIfDeclarationChecker{
-		elseIfRegex: elseIfRegex,
-	}
+	// Keep a simple matcher for compatibility; primary path uses linear scan
+	elseIfRegex := regexp.MustCompile(`\belse\s+if\b`)
+	return &ElseIfDeclarationChecker{elseIfRegex: elseIfRegex}
 }
 
 // CheckIssues analyzes the code for else if declaration violations
 func (c *ElseIfDeclarationChecker) CheckIssues(lines []string, filename string) []StyleIssue {
 	var issues []StyleIssue
-	
+
 	for i, line := range lines {
 		trimmed := strings.TrimSpace(line)
-		
+
 		// Skip empty lines and comments
 		if len(trimmed) == 0 || strings.HasPrefix(trimmed, "//") || strings.HasPrefix(trimmed, "#") || strings.HasPrefix(trimmed, "/*") || strings.HasPrefix(trimmed, "*") {
 			continue
 		}
-		
+
 		// Check for "else if" patterns
 		issues = append(issues, c.checkElseIfDeclaration(line, filename, i+1)...)
 	}
-	
+
 	return issues
 }
 
 // checkElseIfDeclaration finds instances of "else if" and reports them as violations
 func (c *ElseIfDeclarationChecker) checkElseIfDeclaration(line, filename string, lineNum int) []StyleIssue {
 	var issues []StyleIssue
-	
+
 	// Skip if line contains string literals that might contain "else if"
 	if c.isInStringLiteral(line) {
 		return issues
 	}
-	
-	matches := c.elseIfRegex.FindAllStringSubmatchIndex(line, -1)
-	for _, match := range matches {
-		// match[0] is start of entire match, match[1] is end of entire match
-		// match[2] is start of whitespace capture group, match[3] is end of whitespace capture group
-		
-		if len(match) >= 4 {
-			elseStart := match[0]
-			elseEnd := match[0] + 4 // "else" is 4 characters
-			whitespaceStart := match[2]
-			whitespaceEnd := match[3]
-			ifStart := whitespaceEnd
-			
-			// Check if this match is inside a string literal
-			if c.isPositionInString(line, elseStart) {
+
+	// Fast linear scan to avoid regex backtracking hot paths
+	for i := 0; i+6 <= len(line); i++ {
+		if line[i] != 'e' {
+			continue
+		}
+		// word boundary before else
+		if i > 0 && (isAlphaNumeric(line[i-1]) || line[i-1] == '_') {
+			continue
+		}
+		if i+4 > len(line) || line[i:i+4] != "else" {
+			continue
+		}
+		j := i + 4
+		if j >= len(line) {
+			break
+		}
+		k := j
+		for k < len(line) && (line[k] == ' ' || line[k] == '\t') {
+			k++
+		}
+		if k == j { // no whitespace
+			continue
+		}
+		if k+2 <= len(line) && line[k:k+2] == "if" {
+			if c.isPositionInString(line, i) {
 				continue
 			}
-			
-			// Verify this is actually "else" followed by "if"
-			if elseEnd <= len(line) && ifStart+2 <= len(line) {
-				elseWord := line[elseStart:elseEnd]
-				ifWord := line[ifStart:ifStart+2]
-				whitespace := line[whitespaceStart:whitespaceEnd]
-				
-				if elseWord == "else" && ifWord == "if" {
-					issues = append(issues, StyleIssue{
-						Filename: filename,
-						Line:     lineNum,
-						Column:   elseStart + 1, // 1-based column
-						Type:     Error,
-						Fixable:  true,
-						Message:  "Use 'elseif' instead of 'else if'. Found " + strings.ReplaceAll(whitespace, "\t", "\\t") + " between 'else' and 'if'",
-						Code:     elseIfDeclarationCode,
-					})
-				}
-			}
+			issues = append(issues, StyleIssue{Filename: filename, Line: lineNum, Column: i + 1, Type: Error, Fixable: true, Message: "Use 'elseif' instead of 'else if'", Code: elseIfDeclarationCode})
 		}
 	}
-	
+
 	return issues
 }
 
@@ -98,7 +87,7 @@ func (c *ElseIfDeclarationChecker) checkElseIfDeclaration(line, filename string,
 func (c *ElseIfDeclarationChecker) isInStringLiteral(line string) bool {
 	// Simple check for common string patterns that contain "else if"
 	return strings.Contains(line, `"`) && strings.Contains(line, "else if") ||
-		   strings.Contains(line, `'`) && strings.Contains(line, "else if")
+		strings.Contains(line, `'`) && strings.Contains(line, "else if")
 }
 
 // isPositionInString checks if a specific position in the line is inside a string literal
@@ -106,27 +95,27 @@ func (c *ElseIfDeclarationChecker) isPositionInString(line string, pos int) bool
 	inSingleQuote := false
 	inDoubleQuote := false
 	escaped := false
-	
+
 	for i := 0; i < pos && i < len(line); i++ {
 		char := line[i]
-		
+
 		if escaped {
 			escaped = false
 			continue
 		}
-		
+
 		if char == '\\' {
 			escaped = true
 			continue
 		}
-		
+
 		if char == '"' && !inSingleQuote {
 			inDoubleQuote = !inDoubleQuote
 		} else if char == '\'' && !inDoubleQuote {
 			inSingleQuote = !inSingleQuote
 		}
 	}
-	
+
 	return inSingleQuote || inDoubleQuote
 }
 

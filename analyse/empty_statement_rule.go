@@ -2,8 +2,8 @@ package analyse
 
 import (
 	"go-phpcs/ast"
+	"go-phpcs/sharedcache"
 	"go-phpcs/style/helper"
-	"os"
 	"strings"
 	"unicode"
 )
@@ -237,7 +237,7 @@ func (r *EmptyStatementRule) CheckIssuesWithSource(filename string, content []by
 
 // CheckIssues reads the source file and delegates to CheckIssuesWithSource.
 func (r *EmptyStatementRule) CheckIssues(nodes []ast.Node, filename string) []AnalysisIssue {
-	content, err := os.ReadFile(filename)
+	content, err := sharedcache.GetCachedFileContent(filename)
 	if err != nil {
 		// Fail closed: if we cannot read file, do not report issues for this rule
 		return nil

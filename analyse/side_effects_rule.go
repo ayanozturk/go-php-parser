@@ -2,7 +2,7 @@ package analyse
 
 import (
 	"go-phpcs/ast"
-	"os"
+	"go-phpcs/sharedcache"
 	"strings"
 )
 
@@ -33,7 +33,7 @@ func (r *SideEffectsRule) CheckIssuesWithSource(filename string, content []byte,
 
 // CheckIssues analyzes the entire file to detect both symbol declarations and side effects
 func (r *SideEffectsRule) CheckIssues(nodes []ast.Node, filename string) []AnalysisIssue {
-	content, err := os.ReadFile(filename)
+	content, err := sharedcache.GetCachedFileContent(filename)
 	if err != nil {
 		return nil
 	}

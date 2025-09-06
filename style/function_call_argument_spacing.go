@@ -4,16 +4,39 @@ import (
 	"fmt"
 	"go-phpcs/ast"
 	"os"
-	"regexp"
 	"strings"
 )
 
 type FunctionCallArgumentSpacingChecker struct{}
 
-var (
-	// funcCallRegex   = regexp.MustCompile(`([a-zA-Z_][a-zA-Z0-9_]*)\s*\(([^)]*)\)`)
-	badCommaSpacing = regexp.MustCompile(`,\s{2,}|\s+,|,\S`)
-)
+// Detects bad comma spacing without regex: any of
+// 1) one or more spaces before comma
+// 2) two or more spaces after comma
+// 3) no space after comma (next is non-space)
+func hasBadCommaSpacing(args string) bool {
+	for i := 0; i < len(args); i++ {
+		if args[i] == ',' {
+			// Check space before comma
+			if i > 0 && (args[i-1] == ' ' || args[i-1] == '\t') {
+				return true
+			}
+			// Count spaces after comma
+			j := i + 1
+			spaceCount := 0
+			for j < len(args) && (args[j] == ' ' || args[j] == '\t') {
+				spaceCount++
+				j++
+			}
+			if spaceCount >= 2 { // two or more spaces after comma
+				return true
+			}
+			if j < len(args) && spaceCount == 0 { // no space after comma before next token
+				return true
+			}
+		}
+	}
+	return false
+}
 
 func (c *FunctionCallArgumentSpacingChecker) CheckIssues(lines []string, filename string) []StyleIssue {
 	var issues []StyleIssue
@@ -45,7 +68,7 @@ func (c *FunctionCallArgumentSpacingChecker) CheckIssues(lines []string, filenam
 					argsEnd := j - 1
 					if argsEnd >= argsStart && argsEnd <= len(line) {
 						args := line[argsStart:argsEnd]
-						if badCommaSpacing.MatchString(args) {
+						if hasBadCommaSpacing(args) {
 							issues = append(issues, StyleIssue{
 								Filename: filename,
 								Line:     i + 1,

@@ -30,7 +30,7 @@ func ParseCLIArgs(filesToScan []string) CliArgs {
 	outputFile := flag.String("output", "", "Write all output (including summary) to this file")
 	outputFileShort := flag.String("o", "", "Write all output (including summary) to this file (shorthand)")
 	debug := flag.Bool("debug", false, "Enable debug mode to show parsing errors")
-	parallelism := flag.Int("p", 2, "Number of files to process in parallel (default 2 for memory efficiency)")
+	parallelism := flag.Int("p", 0, "Number of files to process in parallel (0=auto: NumCPU)")
 	fix := flag.Bool("fix", false, "Automatically fix fixable style issues")
 	flag.Parse()
 
@@ -48,9 +48,14 @@ func ParseCLIArgs(filesToScan []string) CliArgs {
 		outputFile:      *outputFile,
 		outputFileShort: *outputFileShort,
 		debug:           *debug,
-		parallelism:     *parallelism,
-		filePath:        filePath,
-		Fix:             *fix,
+		parallelism: func() int {
+			if *parallelism <= 0 {
+				return runtime.NumCPU()
+			}
+			return *parallelism
+		}(),
+		filePath: filePath,
+		Fix:      *fix,
 	}
 }
 

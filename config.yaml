@@ -1,9 +1,8 @@
-path: ./demo_project
+path: ./test_projects/symfony
 extensions:
   - php
 ignore:
   # - vendor
   - node_modules
-# rules:
-#   - PSR12.Classes.ClosingBraceOnOwnLine
-#   - all  # Special rule to run all available rules
+rules:
+  - all
