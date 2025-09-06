@@ -1,0 +1,19 @@
+{
+  "enabled": true,
+  "name": "PSR12 Rule Implementation",
+  "description": "After an agent finishes working and a prompt is fully complete, implement and test the next PSR12 rule using robust code with SOLID principles",
+  "version": "1",
+  "when": {
+    "type": "fileEdited",
+    "patterns": [
+      "style/*.go",
+      "style/*_test.go",
+      "analyse/*.go",
+      "analyse/*_test.go"
+    ]
+  },
+  "then": {
+    "type": "askAgent",
+    "prompt": "The previous agent work is complete. Now implement and test the next PSR12 rule that hasn't been implemented yet. Generate robust code using SOLID principles. Focus on the style/ and analyse/ directories. Create both the rule implementation and comprehensive tests. Follow the existing patterns in the codebase for consistency."
+  }
+}
