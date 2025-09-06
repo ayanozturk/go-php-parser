@@ -111,10 +111,12 @@ func (p *Parser) parseInterfaceDeclaration() ast.Node {
 	}
 	p.nextToken() // consume }
 
+	phpdoc := p.consumeCurrentDoc(pos)
 	return &ast.InterfaceNode{
 		Name:    name,
 		Extends: extends,
 		Members: members,
+		PHPDoc:  phpdoc,
 		Pos:     ast.Position(pos),
 	}
 }
@@ -125,6 +127,9 @@ func (p *Parser) parseInterfaceMethod() ast.Node {
 
 	// Skip doc comments and regular comments before method signature
 	for p.tok.Type == token.T_DOC_COMMENT || p.tok.Type == token.T_COMMENT {
+		if p.tok.Type == token.T_DOC_COMMENT {
+			p.currentDoc = p.tok.Literal
+		}
 		p.nextToken()
 	}
 
@@ -253,6 +258,7 @@ func (p *Parser) parseInterfaceMethod() ast.Node {
 		Visibility: visibility,
 		ReturnType: returnType,
 		Params:     params,
+		PHPDoc:     p.consumeCurrentDoc(pos),
 		Pos:        ast.Position(pos),
 	}
 }

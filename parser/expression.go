@@ -307,7 +307,40 @@ func (p *Parser) parseSimpleFQCNOrFunctionCall() ast.Node {
 		return p.parseSimpleClassConstFetch(fqcn, fqcnPos)
 	}
 	if p.tok.Type == token.T_LPAREN {
-		return p.parseSimpleFunctionCall(fqcn, fqcnPos)
+		// Check if this is first-class callable syntax: name(...)
+		p.nextToken() // consume '('
+		if p.tok.Type == token.T_ELLIPSIS {
+			p.nextToken() // consume '...'
+			if p.tok.Type == token.T_RPAREN {
+				p.nextToken() // consume ')'
+				return &ast.FirstClassCallableNode{
+					Name: &ast.IdentifierNode{
+						Value: fqcn,
+						Pos:   ast.Position(fqcnPos),
+					},
+					Pos: ast.Position(fqcnPos),
+				}
+			} else {
+				p.addError("line %d:%d: expected ')' after '...' in first-class callable", p.tok.Pos.Line, p.tok.Pos.Column)
+				return nil
+			}
+		} else {
+			// Not first-class callable, parse as regular function call
+			args := p.parseFunctionCallArguments()
+			if p.tok.Type != token.T_RPAREN {
+				p.addError(errExpectedRParenFunctionCall, p.tok.Pos.Line, p.tok.Pos.Column, fqcn, p.tok.Literal)
+				return nil
+			}
+			p.nextToken() // consume )
+			return &ast.FunctionCallNode{
+				Name: &ast.IdentifierNode{
+					Value: fqcn,
+					Pos:   ast.Position(fqcnPos),
+				},
+				Args: args,
+				Pos:  ast.Position(fqcnPos),
+			}
+		}
 	}
 	return &ast.IdentifierNode{
 		Value: fqcn,
@@ -356,6 +389,24 @@ func (p *Parser) parseSimpleClassConstFetch(fqcn string, fqcnPos token.Position)
 
 func (p *Parser) parseSimpleFunctionCall(fqcn string, fqcnPos token.Position) ast.Node {
 	p.nextToken() // consume '('
+	args := p.parseFunctionCallArguments()
+	if p.tok.Type != token.T_RPAREN {
+		p.addError(errExpectedRParenFunctionCall, p.tok.Pos.Line, p.tok.Pos.Column, fqcn, p.tok.Literal)
+		return nil
+	}
+	p.nextToken() // consume )
+	return &ast.FunctionCallNode{
+		Name: &ast.IdentifierNode{
+			Value: fqcn,
+			Pos:   ast.Position(fqcnPos),
+		},
+		Args: args,
+		Pos:  ast.Position(fqcnPos),
+	}
+}
+
+// parseSimpleFunctionCallWithConsumedParen parses a function call when '(' has already been consumed
+func (p *Parser) parseSimpleFunctionCallWithConsumedParen(fqcn string, fqcnPos token.Position) ast.Node {
 	args := p.parseFunctionCallArguments()
 	if p.tok.Type != token.T_RPAREN {
 		p.addError(errExpectedRParenFunctionCall, p.tok.Pos.Line, p.tok.Pos.Column, fqcn, p.tok.Literal)

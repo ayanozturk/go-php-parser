@@ -13,6 +13,7 @@ type FunctionNode struct {
 	ReturnType string
 	Params     []Node
 	Body       []Node
+	PHPDoc     *PHPDocNode // Associated PHPDoc comment
 	Pos        Position
 }
 

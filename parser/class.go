@@ -119,6 +119,7 @@ func (p *Parser) parseClassDeclarationWithModifier(modifier string) (ast.Node, e
 		Methods:    methods,
 		Pos:        ast.Position(pos),
 		Modifier:   modifier,
+		PHPDoc:     p.consumeCurrentDoc(pos),
 	}, nil
 }
 
@@ -244,6 +245,7 @@ func (p *Parser) parseClassDeclaration() (ast.Node, error) {
 		Properties: properties,
 		Methods:    methods,
 		Pos:        ast.Position(pos),
+		PHPDoc:     p.consumeCurrentDoc(pos),
 	}, nil
 }
 

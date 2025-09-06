@@ -180,19 +180,35 @@ func TestParseArrayWithClassKey(t *testing.T) {
 
 func TestParseMultilineDocCommentInInterface(t *testing.T) {
 	php := `<?php
+/**
+ * Interface for visiting nodes
+ * @author Test Author
+ */
 interface NodeVisitorInterface {
-    /**
-     * Called before child nodes are visited.
-     *
-     * @return Node The modified node
-     */
-    public function enterNode(Node $node, Environment $env): Node;
 }`
 	l := lexer.New(php)
 	p := New(l, false)
-	p.Parse()
+	nodes := p.Parse()
 	if len(p.Errors()) > 0 {
 		t.Errorf("Parser errors: %v", p.Errors())
+	}
+
+	if len(nodes) == 0 {
+		t.Fatal("No nodes parsed")
+	}
+
+	iface, ok := nodes[0].(*ast.InterfaceNode)
+	if !ok {
+		t.Fatalf("Expected InterfaceNode, got %T", nodes[0])
+	}
+
+	// Check interface PHPDoc
+	if iface.PHPDoc == nil {
+		t.Error("Expected PHPDoc for interface, got nil")
+	} else {
+		if iface.PHPDoc.Description != "Interface for visiting nodes" {
+			t.Errorf("Expected interface description 'Interface for visiting nodes', got %q", iface.PHPDoc.Description)
+		}
 	}
 }
 

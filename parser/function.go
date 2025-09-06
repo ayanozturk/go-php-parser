@@ -133,6 +133,7 @@ func (p *Parser) parseFunction(modifiers []string) (ast.Node, error) {
 		ReturnType: returnType,
 		Modifiers:  modifiers,
 		Body:       body,
+		PHPDoc:     p.consumeCurrentDoc(pos),
 		Pos:        ast.Position(pos),
 	}, nil
 }

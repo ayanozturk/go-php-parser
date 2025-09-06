@@ -30,6 +30,7 @@ func (p *Parser) parseStatement() (ast.Node, error) {
 		p.nextToken() // consume 'declare'
 		return p.parseDeclare(), nil
 	}
+retry:
 	switch p.tok.Type {
 	case token.T_TRAIT:
 		return p.parseTraitDeclaration()
@@ -41,6 +42,12 @@ func (p *Parser) parseStatement() (ast.Node, error) {
 			Value: comment,
 			Pos:   ast.Position(pos),
 		}, nil
+	case token.T_DOC_COMMENT:
+		// Store PHPDoc comment for next node, don't return it as a separate statement
+		p.currentDoc = p.tok.Literal
+		p.nextToken() // consume doc comment
+		// Continue parsing with the current token
+		goto retry
 	case token.T_RETURN:
 		pos := p.tok.Pos
 		p.nextToken() // consume return

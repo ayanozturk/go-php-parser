@@ -187,3 +187,39 @@ class Foo {
 		t.Errorf("Expected return type 'static', got %q", method.ReturnType)
 	}
 }
+
+func TestParsePHPDocInClass(t *testing.T) {
+	input := `<?php
+/**
+ * Interface for visiting nodes
+ * @author Test Author
+ */
+class TestClass {
+}`
+
+	l := lexer.New(input)
+	p := New(l, false)
+	nodes := p.Parse()
+
+	if len(p.Errors()) > 0 {
+		t.Errorf("Parser errors: %v", p.Errors())
+	}
+
+	if len(nodes) == 0 {
+		t.Fatal("No nodes parsed")
+	}
+
+	classNode, ok := nodes[0].(*ast.ClassNode)
+	if !ok {
+		t.Fatalf("Expected ClassNode, got %T", nodes[0])
+	}
+
+	// Check class PHPDoc
+	if classNode.PHPDoc == nil {
+		t.Error("Expected PHPDoc for class, got nil")
+	} else {
+		if classNode.PHPDoc.Description != "Interface for visiting nodes" {
+			t.Errorf("Expected class description 'Interface for visiting nodes', got %q", classNode.PHPDoc.Description)
+		}
+	}
+}

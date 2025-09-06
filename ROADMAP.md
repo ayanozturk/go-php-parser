@@ -26,16 +26,15 @@ This document outlines the major milestones and features required to achieve rob
 - [x] **Readonly Properties**: Parse `readonly` properties and parameters.
 - [x] **Enums**: Parse `enum` declarations and cases.
 - [ ] **Fibers**: Parse `Fiber`-related syntax if needed.
-- [ ] **Throw Expressions**: Support `throw` as an expression.
+- [x] **Throw Expressions**: Support `throw` as an expression.
 - [ ] **New Function Signatures**: Support mixed, never, and other new types.
 - [x] **Interface Inheritance**: Parse `interface Foo extends Bar`.
 - [x] **Class Constants Visibility**: Support `public|protected|private const`.
-- [ ] **First-class Callable Syntax**: Parse `$fn(...)` and `foo(...)`.
+- [x] **First-class Callable Syntax**: Parse `$fn(...)` and `foo(...)`.
 - [ ] **Static Variables in Functions**: Parse `static $x = ...` inside functions.
 
 ## 4. PHPDoc and Comments
-- [ ] Robustly skip or parse PHPDoc blocks inside interfaces, classes, and functions.
-- [ ] Optionally, parse PHPDoc for type and param extraction.
+- [x] Robustly parse PHPDoc blocks inside interfaces, classes, and functions for type and param extraction.
 
 ## 5. Error Recovery & Reporting
 - [ ] Improve parser error messages for incomplete or invalid PHP 8+ constructs.
@@ -72,3 +71,4 @@ This document outlines the major milestones and features required to achieve rob
 ### Status
 
 - [x] Full PHP 8+ support: _Completed_
+- [x] PHPDoc parsing: _Completed_

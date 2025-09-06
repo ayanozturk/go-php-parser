@@ -13,7 +13,8 @@ type ClassNode struct {
 	Properties []Node
 	Methods    []Node
 	Pos        Position
-	Modifier   string // final, abstract, or ""
+	Modifier   string      // final, abstract, or ""
+	PHPDoc     *PHPDocNode // Associated PHPDoc comment
 }
 
 func (c *ClassNode) NodeType() string    { return "Class" }

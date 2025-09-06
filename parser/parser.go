@@ -7,10 +7,11 @@ import (
 )
 
 type Parser struct {
-	l      *lexer.Lexer
-	tok    token.Token
-	errors []error
-	debug  bool
+	l          *lexer.Lexer
+	tok        token.Token
+	errors     []error
+	debug      bool
+	currentDoc string // Current PHPDoc comment being tracked
 }
 
 func New(l *lexer.Lexer, debug bool) *Parser {
@@ -42,6 +43,19 @@ func (p *Parser) Errors() []string {
 	return res
 }
 
+// consumeCurrentDoc consumes the current PHPDoc comment and returns a PHPDocNode
+func (p *Parser) consumeCurrentDoc(pos token.Position) *ast.PHPDocNode {
+	if p.currentDoc == "" {
+		return nil
+	}
+	phpdoc := ast.ExtractPHPDocFromComment(p.currentDoc)
+	if phpdoc != nil {
+		phpdoc.Pos = ast.Position(pos)
+	}
+	p.currentDoc = "" // Clear the current doc
+	return phpdoc
+}
+
 func (p *Parser) Parse() []ast.Node {
 	// Add panic recovery
 	defer func() {
@@ -59,14 +73,14 @@ func (p *Parser) Parse() []ast.Node {
 	}
 	p.nextToken()
 
-	// Skip whitespace/comments/doc comments after open tag
-	for p.tok.Type == token.T_WHITESPACE || p.tok.Type == token.T_COMMENT || p.tok.Type == token.T_DOC_COMMENT {
+	// Skip whitespace/comments after open tag (but not doc comments - let statement parsing handle them)
+	for p.tok.Type == token.T_WHITESPACE || p.tok.Type == token.T_COMMENT {
 		p.nextToken()
 	}
 
 	for p.tok.Type != token.T_EOF {
-		// Also skip whitespace/comments/doc comments between statements
-		for p.tok.Type == token.T_WHITESPACE || p.tok.Type == token.T_COMMENT || p.tok.Type == token.T_DOC_COMMENT {
+		// Skip whitespace/comments between statements (but not doc comments - let statement parsing handle them)
+		for p.tok.Type == token.T_WHITESPACE || p.tok.Type == token.T_COMMENT {
 			p.nextToken()
 		}
 		if p.tok.Type == token.T_EOF {

@@ -370,6 +370,20 @@ func (i *IdentifierNode) TokenLiteral() string {
 	return i.Value
 }
 
+// FirstClassCallableNode represents PHP 8.1 first-class callable syntax (foo(...))
+type FirstClassCallableNode struct {
+	Name *IdentifierNode
+	Pos  Position
+}
+
+func (f *FirstClassCallableNode) NodeType() string    { return "FirstClassCallable" }
+func (f *FirstClassCallableNode) GetPos() Position    { return f.Pos }
+func (f *FirstClassCallableNode) SetPos(pos Position) { f.Pos = pos }
+func (f *FirstClassCallableNode) String() string {
+	return fmt.Sprintf("FirstClassCallable(%s) @ %d:%d", f.Name.Value, f.Pos.Line, f.Pos.Column)
+}
+func (f *FirstClassCallableNode) TokenLiteral() string { return f.Name.Value }
+
 // BooleanNode represents a boolean literal
 type BooleanNode struct {
 	Value bool

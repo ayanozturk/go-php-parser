@@ -9,7 +9,8 @@ import (
 type InterfaceNode struct {
 	Name    string
 	Extends []string
-	Members []Node // Can contain InterfaceMethodNode and ConstantNode
+	Members []Node      // Can contain InterfaceMethodNode and ConstantNode
+	PHPDoc  *PHPDocNode // Associated PHPDoc comment
 	Pos     Position
 }
 
@@ -40,6 +41,7 @@ type InterfaceMethodNode struct {
 	Visibility string // public, private, protected
 	ReturnType Node   // Changed from string to Node to support union types
 	Params     []Node
+	PHPDoc     *PHPDocNode // Associated PHPDoc comment
 	Pos        Position
 }
 
