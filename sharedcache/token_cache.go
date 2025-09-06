@@ -1,8 +1,8 @@
 package sharedcache
 
 import (
-	"go-phpcs/token"
 	"go-phpcs/lexer"
+	"go-phpcs/token"
 	"sync"
 )
 

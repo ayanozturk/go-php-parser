@@ -1,8 +1,8 @@
 package parser
 
 import (
-	"go-phpcs/lexer"
 	"go-phpcs/ast"
+	"go-phpcs/lexer"
 	"testing"
 )
 

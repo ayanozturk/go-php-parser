@@ -10,26 +10,26 @@ This document outlines the major milestones and features required to achieve rob
 - [x] Support for PHPDoc and inline comments as tokens (for docblock parsing or skipping).
 
 ## 2. Parser: Core Syntax
-- [ ] **Attributes**: Parse and attach attributes to functions, classes, properties, and parameters.
-- [ ] **Constructor Property Promotion**: Support `public|protected|private [readonly] type $name` in constructor parameters.
-- [ ] **Named Arguments**: Parse named arguments in function/method calls.
-- [ ] **Union Types**: Parse union types (`TypeA|TypeB`) everywhere type hints are allowed.
-- [ ] **Intersection Types**: Parse intersection types (`TypeA&TypeB`).
-- [ ] **Nullable Types**: Parse `?Type` for all type hint positions.
-- [ ] **Static Return Type**: Support `static` as a return type.
-- [ ] **Trailing Commas**: Allow trailing commas in parameter and argument lists, arrays, etc.
-- [ ] **Match Expression**: Parse `match` expressions.
-- [ ] **Nullsafe Operator**: Parse `$foo?->bar()`.
-- [ ] **Named Parameters in Calls**: Parse and represent named arguments in calls.
+- [x] **Attributes**: Parse and attach attributes to functions, classes, properties, and parameters.
+- [x] **Constructor Property Promotion**: Support `public|protected|private [readonly] type $name` in constructor parameters.
+- [x] **Named Arguments**: Parse named arguments in function/method calls.
+- [x] **Union Types**: Parse union types (`TypeA|TypeB`) everywhere type hints are allowed.
+- [x] **Intersection Types**: Parse intersection types (`TypeA&TypeB`).
+- [x] **Nullable Types**: Parse `?Type` for all type hint positions.
+- [x] **Static Return Type**: Support `static` as a return type.
+- [x] **Trailing Commas**: Allow trailing commas in parameter and argument lists, arrays, etc.
+- [x] **Match Expression**: Parse `match` expressions.
+- [x] **Nullsafe Operator**: Parse `$foo?->bar()`.
+- [x] **Named Parameters in Calls**: Parse and represent named arguments in calls.
 
 ## 3. Parser: Advanced Features
-- [ ] **Readonly Properties**: Parse `readonly` properties and parameters.
-- [ ] **Enums**: Parse `enum` declarations and cases.
+- [x] **Readonly Properties**: Parse `readonly` properties and parameters.
+- [x] **Enums**: Parse `enum` declarations and cases.
 - [ ] **Fibers**: Parse `Fiber`-related syntax if needed.
 - [ ] **Throw Expressions**: Support `throw` as an expression.
 - [ ] **New Function Signatures**: Support mixed, never, and other new types.
-- [ ] **Interface Inheritance**: Parse `interface Foo extends Bar`.
-- [ ] **Class Constants Visibility**: Support `public|protected|private const`.
+- [x] **Interface Inheritance**: Parse `interface Foo extends Bar`.
+- [x] **Class Constants Visibility**: Support `public|protected|private const`.
 - [ ] **First-class Callable Syntax**: Parse `$fn(...)` and `foo(...)`.
 - [ ] **Static Variables in Functions**: Parse `static $x = ...` inside functions.
 

@@ -14,5 +14,5 @@ type StyleIssue struct {
 	Type     IssueType // ERROR or WARNING
 	Fixable  bool      // true if autofix is possible
 	Message  string
-	Code     string    // e.g. PEAR.Commenting.FileComment.Missing
+	Code     string // e.g. PEAR.Commenting.FileComment.Missing
 }

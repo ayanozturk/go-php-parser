@@ -47,4 +47,3 @@ func (e *EnumCaseNode) String() string {
 func (e *EnumCaseNode) TokenLiteral() string {
 	return e.Name
 }
-

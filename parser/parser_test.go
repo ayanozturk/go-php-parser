@@ -71,12 +71,12 @@ func TestInstanceOf(t *testing.T) {
 }
 
 func TestInterfaceMethodParam(t *testing.T) {
-    src := `<?php
+	src := `<?php
 interface AccessDecisionStrategyInterface
 {
     public function decide(\Traversable $results): bool;
 }`
-    DebugPrintTokens(src)
+	DebugPrintTokens(src)
 
 	l := lexer.New(`<?php
 interface AccessDecisionStrategyInterface

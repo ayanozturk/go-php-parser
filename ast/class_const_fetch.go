@@ -25,6 +25,3 @@ func (n *ClassConstFetchNode) String() string {
 func (n *ClassConstFetchNode) TokenLiteral() string {
 	return n.Class + "::" + n.Const
 }
-
-
-

@@ -72,9 +72,9 @@ type UnpackedArgumentNode struct {
 	Pos  Position
 }
 
-func (u *UnpackedArgumentNode) NodeType() string     { return "UnpackedArgument" }
-func (u *UnpackedArgumentNode) GetPos() Position     { return u.Pos }
-func (u *UnpackedArgumentNode) SetPos(pos Position)  { u.Pos = pos }
+func (u *UnpackedArgumentNode) NodeType() string    { return "UnpackedArgument" }
+func (u *UnpackedArgumentNode) GetPos() Position    { return u.Pos }
+func (u *UnpackedArgumentNode) SetPos(pos Position) { u.Pos = pos }
 func (u *UnpackedArgumentNode) String() string {
 	if u.Expr == nil {
 		return "...<nil>"
