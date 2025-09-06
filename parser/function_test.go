@@ -370,3 +370,40 @@ function displayMessage($message, $count) {
 		}
 	}
 }
+
+func TestParseStaticVariablesInFunction(t *testing.T) {
+	input := `<?php
+function foo() {
+    static $x = 1, $y;
+    echo $x;
+}`
+	l := lexer.New(input)
+	p := New(l, false)
+	nodes := p.Parse()
+	if len(p.Errors()) > 0 {
+		t.Fatalf("Parser errors: %v", p.Errors())
+	}
+	if len(nodes) == 0 {
+		t.Fatal("No nodes parsed")
+	}
+	fn, ok := nodes[0].(*ast.FunctionNode)
+	if !ok {
+		t.Fatalf("Expected FunctionNode, got %T", nodes[0])
+	}
+	if len(fn.Body) < 1 {
+		t.Fatalf("Expected function body statements, got %d", len(fn.Body))
+	}
+	decl, ok := fn.Body[0].(*ast.StaticVarDeclNode)
+	if !ok {
+		t.Fatalf("Expected first statement to be StaticVarDeclNode, got %T", fn.Body[0])
+	}
+	if len(decl.Vars) != 2 {
+		t.Fatalf("Expected 2 static vars, got %d", len(decl.Vars))
+	}
+	if decl.Vars[0].Name != "x" || decl.Vars[1].Name != "y" {
+		t.Fatalf("Expected static var names x,y got %q,%q", decl.Vars[0].Name, decl.Vars[1].Name)
+	}
+	if decl.Vars[0].Init == nil || decl.Vars[0].Init.TokenLiteral() != "1" {
+		t.Fatalf("Expected initializer 1 for x, got %v", decl.Vars[0].Init)
+	}
+}

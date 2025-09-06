@@ -64,6 +64,40 @@ retry:
 			Expr: expr,
 			Pos:  ast.Position(pos),
 		}, nil
+	case token.T_STATIC:
+		// static $x = 1, $y; inside functions
+		pos := p.tok.Pos
+		p.nextToken() // consume 'static'
+		var entries []ast.StaticVarEntry
+		for {
+			if p.tok.Type != token.T_VARIABLE {
+				p.addError("line %d:%d: expected variable name after static, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal)
+				return nil, nil
+			}
+			name := p.tok.Literal
+			vpos := p.tok.Pos
+			p.nextToken() // consume $var
+			var init ast.Node
+			if p.tok.Type == token.T_ASSIGN {
+				p.nextToken() // consume '='
+				init = p.parseExpression()
+				if init == nil {
+					p.addError("line %d:%d: expected initializer after = in static declaration", p.tok.Pos.Line, p.tok.Pos.Column)
+					return nil, nil
+				}
+			}
+			entries = append(entries, ast.StaticVarEntry{Name: name[1:], Init: init, Pos: ast.Position(vpos)})
+			if p.tok.Type != token.T_COMMA {
+				break
+			}
+			p.nextToken() // consume ','
+		}
+		if p.tok.Type != token.T_SEMICOLON {
+			p.addError("line %d:%d: expected ; after static declaration, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal)
+			return nil, nil
+		}
+		p.nextToken() // consume ';'
+		return &ast.StaticVarDeclNode{Vars: entries, Pos: ast.Position(pos)}, nil
 	case token.T_FUNCTION:
 		return p.parseFunction(nil)
 	case token.T_IF:

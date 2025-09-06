@@ -31,7 +31,7 @@ This document outlines the major milestones and features required to achieve rob
 - [x] **Interface Inheritance**: Parse `interface Foo extends Bar`.
 - [x] **Class Constants Visibility**: Support `public|protected|private const`.
 - [x] **First-class Callable Syntax**: Parse `$fn(...)` and `foo(...)`.
-- [ ] **Static Variables in Functions**: Parse `static $x = ...` inside functions.
+- [x] **Static Variables in Functions**: Parse `static $x = ...` inside functions.
 
 ## 4. PHPDoc and Comments
 - [x] Robustly parse PHPDoc blocks inside interfaces, classes, and functions for type and param extraction.
