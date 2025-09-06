@@ -219,6 +219,8 @@ func (p *Parser) parseSimpleExpression() ast.Node {
 		return p.parseSimpleBoolOrNull()
 	case token.T_VARIABLE:
 		return p.parseSimpleVariable()
+	case token.T_MATCH:
+		return p.parseMatchExpression()
 	// case token.T_NS_SEPARATOR: (now handled above)
 	default:
 		return p.parseSimpleUnexpected()
