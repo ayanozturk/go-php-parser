@@ -10,6 +10,7 @@ const (
 	T_ATTRIBUTE                TokenType = "T_ATTRIBUTE"
 	T_READONLY                 TokenType = "T_READONLY"
 	T_ENUM                     TokenType = "T_ENUM"
+	T_NEVER                    TokenType = "T_NEVER"
 	T_TRAILING_COMMA           TokenType = "T_TRAILING_COMMA"
 	// Class fetch tokens
 	T_SELF   TokenType = "T_SELF"

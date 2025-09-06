@@ -157,6 +157,8 @@ func TestLexerKeywords(t *testing.T) {
 		"null":       token.T_NULL,
 		"instanceof": token.T_INSTANCEOF,
 		"implements": token.T_IMPLEMENTS,
+		"never":      token.T_NEVER,
+		"default":    token.T_DEFAULT,
 	}
 	for kw, typ := range keywords {
 		lex := New(kw)

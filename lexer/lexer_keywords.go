@@ -31,6 +31,7 @@ var keywordTokenMap = map[string]token.TokenType{
 	"static":       token.T_STATIC,
 	"return":       token.T_RETURN,
 	"declare":      token.T_DECLARE,
+	"default":      token.T_DEFAULT,
 	"enum":         token.T_ENUM,
 	"match":        token.T_MATCH,
 	"fn":           token.T_FN,
@@ -63,6 +64,7 @@ var keywordTokenMap = map[string]token.TokenType{
 	"global":       token.T_GLOBAL,
 	"list":         token.T_LIST,
 	"namespace":    token.T_NAMESPACE,
+	"never":        token.T_NEVER,
 }
 
 // LookupKeyword returns the token.Token for a given identifier if it's a keyword, else returns T_STRING.
