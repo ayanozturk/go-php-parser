@@ -126,6 +126,8 @@ retry:
 		return p.parseEnum()
 	case token.T_FOREACH:
 		return p.parseForeachStatement()
+	case token.T_FOR:
+		return p.parseForStatement()
 	case token.T_UNSET:
 		pos := p.tok.Pos
 		p.nextToken() // consume 'unset'
