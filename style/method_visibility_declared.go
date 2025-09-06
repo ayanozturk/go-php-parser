@@ -3,7 +3,6 @@ package style
 import (
 	"go-phpcs/ast"
 	"go-phpcs/style/helper"
-	"strings"
 )
 
 const methodVisibilityDeclaredCode = "PSR12.Methods.VisibilityDeclared"
@@ -83,7 +82,7 @@ func hasVisibility(line string) bool {
 
 func init() {
 	RegisterRule(methodVisibilityDeclaredCode, func(filename string, content []byte, _ []ast.Node) []StyleIssue {
-		lines := strings.Split(string(content), "\n")
+		lines := SplitLinesCached(content)
 		checker := &MethodVisibilityDeclaredChecker{}
 		return checker.CheckIssues(lines, filename)
 	})

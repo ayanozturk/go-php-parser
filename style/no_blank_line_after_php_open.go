@@ -2,7 +2,6 @@ package style
 
 import (
 	"go-phpcs/ast"
-	"strings"
 )
 
 type NoBlankLineAfterPHPOpeningTagChecker struct{}
@@ -29,7 +28,7 @@ func (c *NoBlankLineAfterPHPOpeningTagChecker) CheckIssues(lines []string, filen
 
 func init() {
 	RegisterRule("PSR12.Files.NoBlankLineAfterPHPOpeningTag", func(filename string, content []byte, _ []ast.Node) []StyleIssue {
-		lines := strings.Split(string(content), "\n")
+		lines := SplitLinesCached(content)
 		checker := &NoBlankLineAfterPHPOpeningTagChecker{}
 		return checker.CheckIssues(lines, filename)
 	})

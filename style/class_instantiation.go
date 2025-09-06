@@ -14,7 +14,7 @@ const psr1ClassInstantiationCode = "PSR1.Classes.ClassInstantiation"
 type ClassInstantiationSniff struct{}
 
 func (s *ClassInstantiationSniff) CheckIssues(content []byte, filename string) []StyleIssue {
-	lines := strings.Split(string(content), "\n")
+	lines := SplitLinesCached(content)
 	var issues []StyleIssue
 
 	commentState := &helper.CommentState{}
@@ -30,6 +30,30 @@ func (s *ClassInstantiationSniff) CheckIssues(content []byte, filename string) [
 
 	isWordBoundary := func(b byte) bool {
 		return !(unicode.IsLetter(rune(b)) || unicode.IsDigit(rune(b)) || b == '_')
+	}
+
+	skipSpacesAndInlineComments := func(line string, idx int) int {
+		i := idx
+		for i < len(line) {
+			// skip spaces/tabs
+			for i < len(line) && (line[i] == ' ' || line[i] == '\t') {
+				i++
+			}
+			// inline block comment /* ... */
+			if i+1 < len(line) && line[i] == '/' && line[i+1] == '*' {
+				end := i + 2
+				for end+1 < len(line) && !(line[end] == '*' && line[end+1] == '/') {
+					end++
+				}
+				if end+1 >= len(line) {
+					return len(line)
+				}
+				i = end + 2
+				continue
+			}
+			break
+		}
+		return i
 	}
 
 	for i, line := range lines {
@@ -78,115 +102,58 @@ func (s *ClassInstantiationSniff) CheckIssues(content []byte, filename string) [
 
 			// If we had a pending new ... ClassName and now see a significant char
 			if p.active {
-				if unicode.IsSpace(rune(line[j])) {
-					// wait for next significant char
-					j++
+				pos := skipSpacesAndInlineComments(line, j)
+				if pos >= len(line) {
+					break
+				}
+				if line[pos] == '(' {
+					p = pending{}
+					j = pos + 1
 					continue
 				}
-				if line[j] == '(' {
-					// parentheses present across lines; ok
-					p.active = false
-					j++
-					continue
+				if line[pos] == '/' && pos+1 < len(line) && line[pos+1] == '/' {
+					break
 				}
-				// If next is ';' or any other non-'(' significant char, this is a violation
-				issues = append(issues, StyleIssue{
-					Filename: filename,
-					Line:     p.line,
-					Column:   p.col,
-					Type:     Error,
-					Fixable:  false,
-					Message:  "Class instantiation must use parentheses",
-					Code:     psr1ClassInstantiationCode,
-				})
-				p.active = false
-				// continue scanning current position without consuming
+				// any other significant token -> issue
+				issues = append(issues, StyleIssue{Filename: filename, Line: p.line, Column: p.col, Type: Error, Fixable: true, Message: "Missing parentheses for class instantiation", Code: psr1ClassInstantiationCode})
+				p = pending{}
+				j = pos + 1
+				continue
 			}
 
-			// Detect "new" keyword at word boundaries
-			if j+3 <= len(line) && strings.EqualFold(line[j:j+3], "new") && (j == 0 || isWordBoundary(line[j-1])) && (j+3 == len(line) || isWordBoundary(line[j+3])) {
-				// Remember start for reporting
-				startCol := j + 1
+			// Detect "new ClassName" without immediate parentheses
+			if j+3 < len(line) && line[j:j+3] == "new" && (j == 0 || isWordBoundary(line[j-1])) {
 				k := j + 3
-				// skip whitespace
-				for k < len(line) && unicode.IsSpace(rune(line[k])) {
+				for k < len(line) && (line[k] == ' ' || line[k] == '\t') {
 					k++
 				}
-				// If next word is "class", treat as anonymous class and skip
-				if k+5 <= len(line) && strings.EqualFold(line[k:k+5], "class") && (k == 0 || isWordBoundary(line[k-1])) && (k+5 == len(line) || isWordBoundary(line[k+5])) {
+				// Anonymous class: new class ... -> ignore
+				if strings.HasPrefix(line[k:], "class") && (k+5 >= len(line) || isWordBoundary(line[k+5])) {
 					j = k + 5
 					continue
 				}
-				// parse FQCN: leading \? and segments of [A-Za-z0-9_]
-				if k < len(line) && line[k] == '\\' {
+				startName := k
+				for k < len(line) && (unicode.IsLetter(rune(line[k])) || unicode.IsDigit(rune(line[k])) || line[k] == '_' || line[k] == '\\') {
 					k++
 				}
-				segStart := k
-				for k < len(line) {
-					c := line[k]
-					if c == '\\' {
-						// require at least one char in segment
-						if k == segStart {
-							break
-						}
-						k++
-						segStart = k
-						continue
+				if startName < k {
+					// Found a likely class name; now check for whitespace/comments then '('
+					n := skipSpacesAndInlineComments(line, k)
+					if n >= len(line) {
+						// defer check to next line
+						p = pending{active: true, line: i + 1, col: j + 1}
+						break
 					}
-					if unicode.IsLetter(rune(c)) || unicode.IsDigit(rune(c)) || c == '_' {
-						k++
-						continue
+					if line[n] != '(' {
+						issues = append(issues, StyleIssue{Filename: filename, Line: i + 1, Column: j + 1, Type: Error, Fixable: true, Message: "Missing parentheses for class instantiation", Code: psr1ClassInstantiationCode})
 					}
-					break
 				}
-				// No class name parsed
-				if k == segStart {
-					j++
-					continue
-				}
-				// skip whitespace/comments between name and next token
 				j = k
-				for j < len(line) {
-					// skip spaces
-					if unicode.IsSpace(rune(line[j])) {
-						j++
-						continue
-					}
-					// skip inline block comments if any
-					j3 := helper.HandleBlockComment(line, j, commentState)
-					if j3 != j {
-						j = j3
-						continue
-					}
-					break
-				}
-				if j < len(line) && line[j] == '(' {
-					// ok
-					j++
-					continue
-				}
-				if j >= len(line) {
-					// Possibly parentheses on next line; set pending
-					p = pending{active: true, line: i + 1, col: startCol}
-					continue
-				}
-				// Not followed by '(' => violation
-				issues = append(issues, StyleIssue{
-					Filename: filename,
-					Line:     i + 1,
-					Column:   startCol,
-					Type:     Error,
-					Fixable:  false,
-					Message:  "Class instantiation must use parentheses",
-					Code:     psr1ClassInstantiationCode,
-				})
 				continue
 			}
 
 			j++
 		}
-		// handle heredoc end transitions
-		_ = helper.HandleHeredocEnd(line, commentState)
 	}
 
 	return issues

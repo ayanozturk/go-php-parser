@@ -122,7 +122,7 @@ func (f FunctionCallArgumentSpacingFixer) Fix(content string) string {
 
 // Parenthesis-aware function call fixer for a line
 func fixFunctionCallSpacingInLine(line string) string {
-	var out strings.Builder
+	out := getBuilder()
 	for i := 0; i < len(line); {
 		// Find function name
 		start := i
@@ -163,7 +163,9 @@ func fixFunctionCallSpacingInLine(line string) string {
 		out.WriteByte(line[i])
 		i++
 	}
-	return out.String()
+	result := out.String()
+	putBuilder(out)
+	return result
 }
 
 func isIdentChar(ch byte) bool {

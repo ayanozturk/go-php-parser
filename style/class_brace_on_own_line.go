@@ -94,7 +94,7 @@ func (f ClassBraceOnOwnLineFixer) Fix(content string) string { return FixClassBr
 
 func init() {
 	RegisterRule(classBraceOnOwnLineCode, func(filename string, content []byte, _ []ast.Node) []StyleIssue {
-		lines := strings.Split(string(content), "\n")
+		lines := SplitLinesCached(content)
 		checker := &ClassBraceOnOwnLineChecker{}
 		return checker.CheckIssues(lines, filename)
 	})

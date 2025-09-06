@@ -115,7 +115,7 @@ func (s *DisallowMultipleStatementsSniff) isStatementSeparator(line string, j in
 
 func init() {
 	RegisterRule(disallowMultipleStatementsCode, func(filename string, content []byte, _ []ast.Node) []StyleIssue {
-		lines := strings.Split(string(content), "\n")
+		lines := SplitLinesCached(content)
 		sniff := &DisallowMultipleStatementsSniff{}
 		return sniff.CheckIssues(lines, filename)
 	})

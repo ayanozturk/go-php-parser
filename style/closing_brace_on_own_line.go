@@ -206,7 +206,7 @@ func (f ClosingBraceOnOwnLineFixer) Fix(content string) string {
 
 func init() {
 	RegisterRule(closingBraceOnOwnLineCode, func(filename string, content []byte, _ []ast.Node) []StyleIssue {
-		lines := strings.Split(string(content), "\n")
+		lines := SplitLinesCached(content)
 		checker := &ClosingBraceOnOwnLineChecker{}
 		return checker.CheckIssues(lines, filename)
 	})
