@@ -7,7 +7,7 @@ This document outlines the major milestones and features required to achieve rob
 ## 1. Lexer Enhancements
 - [x] Support all PHP 8+ tokens: attributes (`#[...]`), match, nullsafe operator (`?->`), named arguments, promoted properties, etc.
 - [x] Recognize PHP 8+ keywords and contextual keywords.
-- [ ] Support for PHPDoc and inline comments as tokens (for docblock parsing or skipping).
+- [x] Support for PHPDoc and inline comments as tokens (for docblock parsing or skipping).
 
 ## 2. Parser: Core Syntax
 - [ ] **Attributes**: Parse and attach attributes to functions, classes, properties, and parameters.
