@@ -7,14 +7,14 @@ This document compares the available rules in PHP CodeSniffer (PHPCS) with the r
 ## Statistics Summary
 
 - **PHPCS Rules Available**: ~300+ rules across 50+ standards
-- **Project Rules Implemented**: 13 total
-  - Style Rules: 11
-  - Analysis Rules: 2
+- **Project Rules Implemented**: 15 total
+  - Style Rules: 12
+  - Analysis Rules: 3
 
 ## PHPCS Standards and Categories
 
 ### Core Standards
-- **PSR-1**: Basic Coding Standard (implemented: 1/5 rules)
+- **PSR-1**: Basic Coding Standard (implemented: 3/5 rules)
 - **PSR-2**: Coding Style Guide (implemented: 2/15+ rules)
 - **PSR-12**: Extended Coding Style Guide (implemented: 8/25+ rules)
 
@@ -28,22 +28,24 @@ This document compares the available rules in PHP CodeSniffer (PHPCS) with the r
 
 ### Implemented Rules in Go Project
 
-#### Style Rules (11 rules)
+#### Style Rules (12 rules)
 1. `Generic.Arrays.DisallowLongArraySyntax` - ✅ Implemented
 2. `Generic.Formatting.DisallowMultipleStatements` - ✅ Implemented
 3. `Generic.Functions.FunctionCallArgumentSpacing` - ✅ Implemented
 4. `PSR1.Classes.ClassDeclaration.PascalCase` - ✅ Implemented
-5. `PSR12.Classes.ClosingBraceOnOwnLine` - ✅ Implemented
-6. `PSR12.Classes.OpenBraceOnOwnLine` - ✅ Implemented
-7. `PSR12.Files.EndFileNewline` - ✅ Implemented
-8. `PSR12.Files.EndFileNoTrailingWhitespace` - ✅ Implemented
-9. `PSR12.Files.NoBlankLineAfterPHPOpeningTag` - ✅ Implemented
-10. `PSR12.Files.NoSpaceBeforeSemicolon` - ✅ Implemented
-11. `PSR12.Methods.VisibilityDeclared` - ✅ Implemented
+5. `PSR1.Classes.ClassInstantiation` - ✅ Implemented
+6. `PSR12.Classes.ClosingBraceOnOwnLine` - ✅ Implemented
+7. `PSR12.Classes.OpenBraceOnOwnLine` - ✅ Implemented
+8. `PSR12.Files.EndFileNewline` - ✅ Implemented
+9. `PSR12.Files.EndFileNoTrailingWhitespace` - ✅ Implemented
+10. `PSR12.Files.NoBlankLineAfterPHPOpeningTag` - ✅ Implemented
+11. `PSR12.Files.NoSpaceBeforeSemicolon` - ✅ Implemented
+12. `PSR12.Methods.VisibilityDeclared` - ✅ Implemented
 
-#### Analysis Rules (2 rules)
+#### Analysis Rules (3 rules)
 1. `A.RETURN.TYPE` - ✅ Implemented (Return type checking)
 2. `Generic.CodeAnalysis.AssignmentInCondition` - ✅ Implemented
+3. `PSR1.Files.SideEffects` - ✅ Implemented
 
 ### Major PHPCS Rules NOT Implemented
 
@@ -79,7 +81,6 @@ This document compares the available rules in PHP CodeSniffer (PHPCS) with the r
 
 #### Class Rules
 - `Generic.Classes.DuplicateClassName`
-- `PSR1.Classes.ClassInstantiation`
 - `PSR2.Classes.ClassDeclaration`
 - `PSR2.Classes.PropertyDeclaration`
 - `Squiz.Classes.ValidClassName`
@@ -169,16 +170,16 @@ This document compares the available rules in PHP CodeSniffer (PHPCS) with the r
 
 ### By Category
 - **Files**: ~20% implemented (2/10 major rules)
-- **Classes**: ~10% implemented (2/20 major rules)
+- **Classes**: ~15% implemented (3/20 major rules)
 - **Functions**: ~5% implemented (1/20 major rules)
 - **Control Structures**: 0% implemented (0/15 major rules)
 - **Naming**: ~5% implemented (1/20 major rules)
 - **Documentation**: 0% implemented (0/15 major rules)
 - **Security**: 0% implemented (0/10 major rules)
-- **Code Quality**: ~10% implemented (2/20 major rules)
+- **Code Quality**: ~15% implemented (3/20 major rules)
 
 ### By PSR Standard
-- **PSR-1**: 20% implemented (1/5 rules)
+- **PSR-1**: 60% implemented (3/5 rules)
 - **PSR-2**: ~13% implemented (2/15+ rules)
 - **PSR-12**: ~32% implemented (8/25+ rules)
 
