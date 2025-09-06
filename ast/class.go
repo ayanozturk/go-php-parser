@@ -12,6 +12,7 @@ type ClassNode struct {
 	Implements []string
 	Properties []Node
 	Methods    []Node
+	Constants  []Node // Class constants
 	Pos        Position
 	Modifier   string      // final, abstract, or ""
 	PHPDoc     *PHPDocNode // Associated PHPDoc comment

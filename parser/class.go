@@ -179,10 +179,11 @@ func (p *Parser) parseClassDeclaration() (ast.Node, error) {
 
 	var properties []ast.Node
 	var methods []ast.Node
+	var constants []ast.Node
 	// Parse class body
 	for p.tok.Type != token.T_RBRACE && p.tok.Type != token.T_EOF {
 		p.debugTokenContext("class body loop entry")
-		// Collect all modifiers before method/property
+		// Collect all modifiers before method/property/constant
 		var modifiers []string
 		for {
 			switch p.tok.Type {
@@ -221,6 +222,13 @@ func (p *Parser) parseClassDeclaration() (ast.Node, error) {
 			}
 			continue
 		}
+		if p.tok.Type == token.T_CONST {
+			p.debugTokenContext("parsing constant")
+			if constant := p.parseConstant(); constant != nil {
+				constants = append(constants, constant)
+			}
+			continue
+		}
 		if len(modifiers) > 0 || typeHint != "" {
 			p.debugTokenContext("unexpected after modifiers/typeHint")
 			p.addError("line %d:%d: expected property or function after modifiers/type in class %s body, got %s", p.tok.Pos.Line, p.tok.Pos.Column, name, p.tok.Literal)
@@ -244,6 +252,7 @@ func (p *Parser) parseClassDeclaration() (ast.Node, error) {
 		Implements: implements,
 		Properties: properties,
 		Methods:    methods,
+		Constants:  constants,
 		Pos:        ast.Position(pos),
 		PHPDoc:     p.consumeCurrentDoc(pos),
 	}, nil

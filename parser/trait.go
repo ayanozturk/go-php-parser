@@ -24,10 +24,10 @@ func (p *Parser) parseTraitDeclaration() (ast.Node, error) {
 	}
 	p.nextToken() // consume {
 
-	// Parse methods inside the trait
-	var methods []ast.Node
+	// Parse methods and constants inside the trait
+	var body []ast.Node
 	for p.tok.Type != token.T_RBRACE && p.tok.Type != token.T_EOF {
-		// Collect all modifiers (public, protected, private, static, final, abstract) and comments/docblocks before 'function'
+		// Collect all modifiers (public, protected, private, static, final, abstract) and comments/docblocks before 'function' or 'const'
 		var modifiers []string
 		for {
 			switch p.tok.Type {
@@ -49,7 +49,13 @@ func (p *Parser) parseTraitDeclaration() (ast.Node, error) {
 				continue
 			}
 			if fn != nil {
-				methods = append(methods, fn)
+				body = append(body, fn)
+			}
+			continue
+		}
+		if p.tok.Type == token.T_CONST {
+			if constant := p.parseConstant(); constant != nil {
+				body = append(body, constant)
 			}
 			continue
 		}
@@ -72,7 +78,7 @@ func (p *Parser) parseTraitDeclaration() (ast.Node, error) {
 
 	return &ast.TraitNode{
 		Name: &ast.Identifier{Name: name, Pos: ast.Position(pos)},
-		Body: methods,
+		Body: body,
 		Pos:  ast.Position(pos),
 	}, nil
 }

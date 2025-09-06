@@ -14,7 +14,7 @@ This document compares the available rules in PHP CodeSniffer (PHPCS) with the r
 ## PHPCS Standards and Categories
 
 ### Core Standards
-- **PSR-1**: Basic Coding Standard (implemented: 4/5 rules)
+- **PSR-1**: Basic Coding Standard (implemented: 5/5 rules)
 - **PSR-2**: Coding Style Guide (implemented: 2/15+ rules)
 - **PSR-12**: Extended Coding Style Guide (implemented: 8/25+ rules)
 
@@ -28,20 +28,21 @@ This document compares the available rules in PHP CodeSniffer (PHPCS) with the r
 
 ### Implemented Rules in Go Project
 
-#### Style Rules (13 rules)
+#### Style Rules (14 rules)
 1. `Generic.Arrays.DisallowLongArraySyntax` - ✅ Implemented
 2. `Generic.Formatting.DisallowMultipleStatements` - ✅ Implemented
 3. `Generic.Functions.FunctionCallArgumentSpacing` - ✅ Implemented
-4. `PSR1.Classes.ClassDeclaration.PascalCase` - ✅ Implemented
-5. `PSR1.Classes.ClassInstantiation` - ✅ Implemented
-6. `PSR1.Methods.CamelCapsMethodName` - ✅ Implemented
-7. `PSR12.Classes.ClosingBraceOnOwnLine` - ✅ Implemented
-8. `PSR12.Classes.OpenBraceOnOwnLine` - ✅ Implemented
-9. `PSR12.Files.EndFileNewline` - ✅ Implemented
-10. `PSR12.Files.EndFileNoTrailingWhitespace` - ✅ Implemented
-11. `PSR12.Files.NoBlankLineAfterPHPOpeningTag` - ✅ Implemented
-12. `PSR12.Files.NoSpaceBeforeSemicolon` - ✅ Implemented
-13. `PSR12.Methods.VisibilityDeclared` - ✅ Implemented
+4. `PSR1.Classes.ClassConstantName` - ✅ Implemented
+5. `PSR1.Classes.ClassDeclaration.PascalCase` - ✅ Implemented
+6. `PSR1.Classes.ClassInstantiation` - ✅ Implemented
+7. `PSR1.Methods.CamelCapsMethodName` - ✅ Implemented
+8. `PSR12.Classes.ClosingBraceOnOwnLine` - ✅ Implemented
+9. `PSR12.Classes.OpenBraceOnOwnLine` - ✅ Implemented
+10. `PSR12.Files.EndFileNewline` - ✅ Implemented
+11. `PSR12.Files.EndFileNoTrailingWhitespace` - ✅ Implemented
+12. `PSR12.Files.NoBlankLineAfterPHPOpeningTag` - ✅ Implemented
+13. `PSR12.Files.NoSpaceBeforeSemicolon` - ✅ Implemented
+14. `PSR12.Methods.VisibilityDeclared` - ✅ Implemented
 
 #### Analysis Rules (3 rules)
 1. `A.RETURN.TYPE` - ✅ Implemented (Return type checking)
@@ -179,7 +180,7 @@ This document compares the available rules in PHP CodeSniffer (PHPCS) with the r
 - **Code Quality**: ~15% implemented (3/20 major rules)
 
 ### By PSR Standard
-- **PSR-1**: 80% implemented (4/5 rules)
+- **PSR-1**: 100% implemented (5/5 rules)
 - **PSR-2**: ~13% implemented (2/15+ rules)
 - **PSR-12**: ~32% implemented (8/25+ rules)
 
