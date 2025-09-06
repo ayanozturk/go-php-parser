@@ -5,4 +5,5 @@ ignore:
   # - vendor
   - node_modules
 # rules:
-  # - PSR12.Classes.ClosingBraceOnOwnLine
+#   - PSR12.Classes.ClosingBraceOnOwnLine
+#   - all  # Special rule to run all available rules

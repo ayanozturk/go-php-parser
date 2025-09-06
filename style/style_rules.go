@@ -21,18 +21,37 @@ func RegisterRule(code string, fn RuleFunc) {
 	ruleRegistry[code] = fn
 }
 
-// RunSelectedRules runs only the selected rules by code. If rules is nil or empty, runs all rules.
+// Default rules to run when none are specified - performance-optimized subset
+var defaultRules = []string{
+	"PSR1.Classes.ClassDeclaration.PascalCase",
+	"PSR12.Classes.ClosingBraceOnOwnLine",
+	"PSR12.Files.EndFileNewline",
+	"PSR12.Files.EndFileNoTrailingWhitespace",
+	"PSR12.Files.NoBlankLineAfterPHPOpeningTag",
+	"PSR12.Files.NoSpaceBeforeSemicolon",
+}
+
+// RunSelectedRules runs only the selected rules by code. If rules is nil or empty, runs default rules.
 func RunSelectedRules(filename string, content []byte, nodes []ast.Node, rules []string) []StyleIssue {
 	ruleRegistryMu.RLock()
 	defer ruleRegistryMu.RUnlock()
 	var selected []RuleFunc
 	if len(rules) == 0 {
-		for _, fn := range ruleRegistry {
-			selected = append(selected, fn)
+		// Use default rules instead of all rules for better performance
+		for _, code := range defaultRules {
+			if fn, ok := ruleRegistry[code]; ok {
+				selected = append(selected, fn)
+			}
 		}
 	} else {
 		for _, code := range rules {
-			if fn, ok := ruleRegistry[code]; ok {
+			if code == "all" {
+				// Special case: run all registered rules
+				for _, fn := range ruleRegistry {
+					selected = append(selected, fn)
+				}
+				break // No need to process other rules
+			} else if fn, ok := ruleRegistry[code]; ok {
 				selected = append(selected, fn)
 			}
 		}
