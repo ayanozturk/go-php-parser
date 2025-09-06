@@ -7,7 +7,7 @@ import (
 
 func TestControlStructureSpacingChecker_CheckIssues(t *testing.T) {
 	checker := NewControlStructureSpacingChecker()
-	
+
 	tests := []struct {
 		name           string
 		code           string
@@ -197,19 +197,19 @@ $text = 'for($i = 0; $i < 10; $i++)';`,
 			expectedCodes:  []string{},
 		},
 	}
-	
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			lines := strings.Split(tt.code, "\n")
 			issues := checker.CheckIssues(lines, "test.php")
-			
+
 			if len(issues) != tt.expectedIssues {
 				t.Errorf("Expected %d issues, got %d", tt.expectedIssues, len(issues))
 				for i, issue := range issues {
 					t.Errorf("Issue %d: Line %d, Column %d, Message: %s", i+1, issue.Line, issue.Column, issue.Message)
 				}
 			}
-			
+
 			for i, issue := range issues {
 				if i < len(tt.expectedCodes) && issue.Code != tt.expectedCodes[i] {
 					t.Errorf("Expected issue %d to have code %s, got %s", i, tt.expectedCodes[i], issue.Code)
@@ -320,7 +320,7 @@ for ($i = 0; $i < 10; $i++) {
 }`,
 		},
 	}
-	
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result := FixControlStructureSpacing(tt.input)
@@ -333,21 +333,21 @@ for ($i = 0; $i < 10; $i++) {
 
 func TestControlStructureSpacingFixer(t *testing.T) {
 	fixer := ControlStructureSpacingFixer{}
-	
+
 	if fixer.Code() != controlStructureSpacingCode {
 		t.Errorf("Expected fixer code %s, got %s", controlStructureSpacingCode, fixer.Code())
 	}
-	
+
 	input := `<?php
 if($condition){
     echo "test";
 }`
-	
+
 	expected := `<?php
 if ($condition) {
     echo "test";
 }`
-	
+
 	result := fixer.Fix(input)
 	if result != expected {
 		t.Errorf("Expected:\n%s\n\nGot:\n%s", expected, result)
@@ -364,7 +364,7 @@ func TestControlStructureSpacingRegistration(t *testing.T) {
 			break
 		}
 	}
-	
+
 	if !found {
 		t.Errorf("Rule %s not found in registered rules", controlStructureSpacingCode)
 	}
@@ -372,23 +372,17 @@ func TestControlStructureSpacingRegistration(t *testing.T) {
 
 func TestNewControlStructureSpacingChecker(t *testing.T) {
 	checker := NewControlStructureSpacingChecker()
-	
+
 	if checker == nil {
 		t.Error("NewControlStructureSpacingChecker returned nil")
 	}
-	
+
 	if len(checker.controlKeywords) == 0 {
 		t.Error("Control keywords not initialized")
 	}
-	
-	if checker.keywordRegex == nil {
-		t.Error("Keyword regex not initialized")
-	}
-	
-	if checker.functionRegex == nil {
-		t.Error("Function regex not initialized")
-	}
-	
+
+	// regex fields removed in optimized checker; no assertion required
+
 	// Test that expected keywords are present
 	expectedKeywords := []string{"if", "else", "elseif", "for", "foreach", "while", "do", "switch", "try", "catch", "finally"}
 	for _, expected := range expectedKeywords {

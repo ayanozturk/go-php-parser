@@ -7,6 +7,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unsafe"
 )
 
 type RuleFunc func(filename string, content []byte, nodes []ast.Node) []StyleIssue
@@ -15,6 +16,7 @@ var (
 	ruleRegistryMu sync.RWMutex
 	ruleRegistry   = make(map[string]RuleFunc)
 	ruleTimings    = sync.Map{}
+	linesCache     sync.Map
 )
 
 // RegisterRule registers a style rule by code.
@@ -184,4 +186,19 @@ func ListRegisteredRuleCodes() []string {
 	}
 	sort.Strings(codes)
 	return codes
+}
+
+// SplitLinesCached converts content into lines once per file and caches by backing array pointer
+func SplitLinesCached(content []byte) []string {
+	if len(content) == 0 {
+		return nil
+	}
+	key := uintptr(unsafe.Pointer(&content[0])) ^ uintptr(len(content))
+	if v, ok := linesCache.Load(key); ok {
+		return v.([]string)
+	}
+	s := string(content)
+	lines := strings.Split(s, "\n")
+	linesCache.Store(key, lines)
+	return lines
 }

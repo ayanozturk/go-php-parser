@@ -2,7 +2,6 @@ package style
 
 import (
 	"go-phpcs/ast"
-	"strings"
 )
 
 type NoSpaceBeforeSemicolonChecker struct{}
@@ -36,7 +35,7 @@ func (c *NoSpaceBeforeSemicolonChecker) CheckIssues(lines []string, filename str
 
 func init() {
 	RegisterRule("PSR12.Files.NoSpaceBeforeSemicolon", func(filename string, content []byte, _ []ast.Node) []StyleIssue {
-		lines := strings.Split(string(content), "\n")
+		lines := SplitLinesCached(content)
 		checker := &NoSpaceBeforeSemicolonChecker{}
 		return checker.CheckIssues(lines, filename)
 	})

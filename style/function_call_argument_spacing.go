@@ -237,7 +237,7 @@ func fixArgumentSpacing(args string) string {
 
 func init() {
 	RegisterRule("Generic.Functions.FunctionCallArgumentSpacing", func(filename string, content []byte, _ []ast.Node) []StyleIssue {
-		lines := strings.Split(string(content), "\n")
+		lines := SplitLinesCached(content)
 		checker := &FunctionCallArgumentSpacingChecker{}
 		return checker.CheckIssues(lines, filename)
 	})

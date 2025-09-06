@@ -337,7 +337,7 @@ func (f ControlStructureSpacingFixer) Fix(content string) string {
 
 func init() {
 	RegisterRule(controlStructureSpacingCode, func(filename string, content []byte, _ []ast.Node) []StyleIssue {
-		lines := strings.Split(string(content), "\n")
+		lines := SplitLinesCached(content)
 		checker := NewControlStructureSpacingChecker()
 		return checker.CheckIssues(lines, filename)
 	})

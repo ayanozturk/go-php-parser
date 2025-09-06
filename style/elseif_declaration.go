@@ -1,6 +1,7 @@
 package style
 
 import (
+	"fmt"
 	"go-phpcs/ast"
 	"regexp"
 	"strings"
@@ -76,7 +77,10 @@ func (c *ElseIfDeclarationChecker) checkElseIfDeclaration(line, filename string,
 			if c.isPositionInString(line, i) {
 				continue
 			}
-			issues = append(issues, StyleIssue{Filename: filename, Line: lineNum, Column: i + 1, Type: Error, Fixable: true, Message: "Use 'elseif' instead of 'else if'", Code: elseIfDeclarationCode})
+			whitespace := line[j:k]
+			display := strings.ReplaceAll(whitespace, "\t", "\\t")
+			msg := fmt.Sprintf("Use 'elseif' instead of 'else if'. Found %s between 'else' and 'if'", display)
+			issues = append(issues, StyleIssue{Filename: filename, Line: lineNum, Column: i + 1, Type: Error, Fixable: true, Message: msg, Code: elseIfDeclarationCode})
 		}
 	}
 
@@ -134,7 +138,7 @@ func (f ElseIfDeclarationFixer) Fix(content string) string { return FixElseIfDec
 
 func init() {
 	RegisterRule(elseIfDeclarationCode, func(filename string, content []byte, _ []ast.Node) []StyleIssue {
-		lines := strings.Split(string(content), "\n")
+		lines := SplitLinesCached(content)
 		checker := NewElseIfDeclarationChecker()
 		return checker.CheckIssues(lines, filename)
 	})

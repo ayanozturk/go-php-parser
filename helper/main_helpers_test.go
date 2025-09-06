@@ -3,6 +3,7 @@ package helper
 import (
 	"flag"
 	"os"
+	"runtime"
 	"testing"
 )
 
@@ -19,8 +20,8 @@ func TestParseCLIArgsDefaults(t *testing.T) {
 	if args.CommandName != "style" {
 		t.Errorf("Expected CommandName to be 'style', got %s", args.CommandName)
 	}
-	if args.parallelism != 2 {
-		t.Errorf("Expected parallelism to be 2 by default")
+	if args.parallelism != runtime.NumCPU() {
+		t.Errorf("Expected parallelism to default to NumCPU (%d), got %d", runtime.NumCPU(), args.parallelism)
 	}
 	if args.Fix {
 		t.Errorf("Expected Fix to be false by default")
