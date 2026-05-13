@@ -32,6 +32,8 @@ func (p *Parser) parseStatement() (ast.Node, error) {
 	}
 retry:
 	switch p.tok.Type {
+	case token.T_USE:
+		return p.parseUseDeclaration()
 	case token.T_TRAIT:
 		return p.parseTraitDeclaration()
 	case token.T_COMMENT:
