@@ -92,6 +92,24 @@ $parts[] = $className;
 	}
 }
 
+func TestParseIfElseWithArrayAppend(t *testing.T) {
+	php := `<?php
+if ($parts !== []) {
+    $parts[] = $className;
+} else {
+    $fullyQualifiedName = $className;
+}
+`
+
+	l := lexer.New(php)
+	p := New(l, true)
+	_ = p.Parse()
+
+	if len(p.Errors()) > 0 {
+		t.Fatalf("unexpected parser errors: %v", p.Errors())
+	}
+}
+
 func TestParseStaticMethodCallChain(t *testing.T) {
 	php := `<?php
 $classLevelTestDox = MetadataRegistry::parser()->forClass($className)->isTestDox();
@@ -126,6 +144,80 @@ $variables = array_map(
 func TestParseParenthesizedNewMethodCall(t *testing.T) {
 	php := `<?php
 $instance = (new \ReflectionClass(DumpServer::class))->newInstanceWithoutConstructor();
+`
+
+	l := lexer.New(php)
+	p := New(l, true)
+	_ = p.Parse()
+
+	if len(p.Errors()) > 0 {
+		t.Fatalf("unexpected parser errors: %v", p.Errors())
+	}
+}
+
+func TestParseConcatAssignment(t *testing.T) {
+	php := `<?php
+$buffer .= sprintf('x');
+`
+
+	l := lexer.New(php)
+	p := New(l, true)
+	_ = p.Parse()
+
+	if len(p.Errors()) > 0 {
+		t.Fatalf("unexpected parser errors: %v", p.Errors())
+	}
+}
+
+func TestParseIssetAndContinue(t *testing.T) {
+	php := `<?php
+if (!isset($result[$name])) {
+    continue;
+}
+`
+
+	l := lexer.New(php)
+	p := New(l, true)
+	_ = p.Parse()
+
+	if len(p.Errors()) > 0 {
+		t.Fatalf("unexpected parser errors: %v", p.Errors())
+	}
+}
+
+func TestParseUnaryAndBooleanCondition(t *testing.T) {
+	php := `<?php
+if (!$wasNumeric && $isNumeric) {
+    $wasNumeric = true;
+}
+`
+
+	l := lexer.New(php)
+	p := New(l, true)
+	_ = p.Parse()
+
+	if len(p.Errors()) > 0 {
+		t.Fatalf("unexpected parser errors: %v", p.Errors())
+	}
+}
+
+func TestParseVariableClassConstFetch(t *testing.T) {
+	php := `<?php
+$key = $test::class . '#' . $test->name();
+`
+
+	l := lexer.New(php)
+	p := New(l, true)
+	_ = p.Parse()
+
+	if len(p.Errors()) > 0 {
+		t.Fatalf("unexpected parser errors: %v", p.Errors())
+	}
+}
+
+func TestParseArrayDestructuringAssignment(t *testing.T) {
+	php := `<?php
+[$result, $isCustomized] = $this->processTestDox($test, $testDox, $colorize);
 `
 
 	l := lexer.New(php)

@@ -360,6 +360,24 @@ func TestLexerTruncatedOperatorsDoNotPanic(t *testing.T) {
 	}
 }
 
+func TestLexerConcatEqual(t *testing.T) {
+	l := New("<?php\n$buffer .= sprintf('x');")
+	var sawConcatEqual bool
+	for {
+		tok := l.NextToken()
+		if tok.Type == token.T_CONCAT_EQUAL {
+			sawConcatEqual = true
+			break
+		}
+		if tok.Type == token.T_EOF {
+			break
+		}
+	}
+	if !sawConcatEqual {
+		t.Fatal("expected lexer to emit T_CONCAT_EQUAL for .=")
+	}
+}
+
 func TestLexerEOF(t *testing.T) {
 	lex := New("")
 	tok := lex.NextToken()

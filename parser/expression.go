@@ -16,11 +16,15 @@ func (p *Parser) parseExpression() ast.Node {
 // parseExpressionWithPrecedence parses expressions with correct precedence. Only validateAssignmentTarget for top-level expressions.
 func (p *Parser) parseExpressionWithPrecedence(minPrec int, validateAssignmentTarget bool, stopTypes ...token.TokenType) ast.Node {
 	if p.tok.Type == token.T_LBRACKET || p.tok.Type == token.T_ARRAY {
-		return p.parseArrayLiteral()
+		left := p.parseArrayLiteral()
+		if left == nil {
+			return nil
+		}
+		return p.parseBinaryAndTernaryOperators(left, minPrec, validateAssignmentTarget, stopTypes...)
 	}
 
-	if node := p.parseUnaryExpression(stopTypes...); node != nil {
-		return node
+	if left := p.parseUnaryExpression(stopTypes...); left != nil {
+		return p.parseBinaryAndTernaryOperators(left, minPrec, validateAssignmentTarget, stopTypes...)
 	}
 
 	left := p.parseSimpleExpression()
@@ -232,6 +236,8 @@ func (p *Parser) parseSimpleExpression() ast.Node {
 		return p.parseSimpleBoolOrNull()
 	case token.T_VARIABLE:
 		return p.parseSimpleVariable()
+	case token.T_ISSET, token.T_EMPTY:
+		return p.parseSimpleBuiltinCall()
 	case token.T_LPAREN:
 		return p.parseGroupedExpression()
 	case token.T_MATCH:
@@ -695,6 +701,31 @@ func (p *Parser) parseSimpleVariable() ast.Node {
 	return p.parsePostfixExpression(expr)
 }
 
+func (p *Parser) parseSimpleBuiltinCall() ast.Node {
+	pos := p.tok.Pos
+	name := p.tok.Literal
+	p.nextToken()
+	if p.tok.Type != token.T_LPAREN {
+		p.addError("line %d:%d: expected ( after %s, got %s", p.tok.Pos.Line, p.tok.Pos.Column, name, p.tok.Literal)
+		return nil
+	}
+	p.nextToken() // consume '('
+	args := p.parseFunctionCallArguments()
+	if p.tok.Type != token.T_RPAREN {
+		p.addError(errExpectedRParenFunctionCall, p.tok.Pos.Line, p.tok.Pos.Column, name, p.tok.Literal)
+		return nil
+	}
+	p.nextToken() // consume ')'
+	return p.parsePostfixExpression(&ast.FunctionCallNode{
+		Name: &ast.IdentifierNode{
+			Value: name,
+			Pos:   ast.Position(pos),
+		},
+		Args: args,
+		Pos:  ast.Position(pos),
+	})
+}
+
 func (p *Parser) parseGroupedExpression() ast.Node {
 	groupPos := p.tok.Pos
 	p.nextToken() // consume '('
@@ -719,6 +750,10 @@ func (p *Parser) parsePostfixExpression(expr ast.Node) ast.Node {
 			expr = p.parseSimpleObjectOrMethod(expr)
 			continue
 		}
+		if p.tok.Type == token.T_DOUBLE_COLON {
+			expr = p.parseStaticAccessOnNode(expr)
+			continue
+		}
 		if p.tok.Type == token.T_LBRACKET {
 			expr = p.parseSimpleArrayAccess(expr)
 			continue
@@ -730,6 +765,39 @@ func (p *Parser) parsePostfixExpression(expr ast.Node) ast.Node {
 		break
 	}
 	return expr
+}
+
+func (p *Parser) parseStaticAccessOnNode(expr ast.Node) ast.Node {
+	className := expr.TokenLiteral()
+	if variable, ok := expr.(*ast.VariableNode); ok {
+		className = "$" + variable.Name
+	}
+	p.nextToken() // consume '::'
+	if p.tok.Type == token.T_STRING {
+		memberName := p.tok.Literal
+		p.nextToken()
+		if p.tok.Type == token.T_LPAREN {
+			p.nextToken() // consume '('
+			args := p.parseFunctionCallArguments()
+			if p.tok.Type != token.T_RPAREN {
+				p.addError("line %d:%d: expected ) after arguments for static call %s::%s, got %s", p.tok.Pos.Line, p.tok.Pos.Column, className, memberName, p.tok.Literal)
+				return nil
+			}
+			p.nextToken() // consume ')'
+			return p.parsePostfixExpression(&ast.FunctionCallNode{
+				Name: &ast.IdentifierNode{Value: className + "::" + memberName, Pos: expr.GetPos()},
+				Args: args,
+				Pos:  expr.GetPos(),
+			})
+		}
+		return p.parsePostfixExpression(&ast.ClassConstFetchNode{Class: className, Const: memberName, Pos: expr.GetPos()})
+	}
+	if p.tok.Type == token.T_CLASS_CONST || p.tok.Type == token.T_CLASS {
+		p.nextToken()
+		return p.parsePostfixExpression(&ast.ClassConstFetchNode{Class: className, Const: "class", Pos: expr.GetPos()})
+	}
+	p.addError("line %d:%d: expected constant name or 'class' after '::', got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal)
+	return nil
 }
 
 func (p *Parser) parseSimpleArrayAccess(expr ast.Node) ast.Node {

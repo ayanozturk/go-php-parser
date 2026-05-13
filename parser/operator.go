@@ -21,7 +21,7 @@ func isValidAssignmentTarget(node ast.Node) bool {
 		return false
 	}
 	switch node.(type) {
-	case *ast.VariableNode, *ast.PropertyFetchNode, *ast.ArrayAccessNode:
+	case *ast.VariableNode, *ast.PropertyFetchNode, *ast.ArrayAccessNode, *ast.ArrayNode:
 		return true
 	default:
 		return false

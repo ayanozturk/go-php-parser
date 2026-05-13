@@ -2,6 +2,8 @@ package lexer
 
 import (
 	"go-phpcs/token"
+	"strings"
+	"unicode/utf8"
 )
 
 func (l *Lexer) queueHeredocTokens(pos token.Position) {
@@ -69,20 +71,14 @@ func (l *Lexer) skipToNextLine() {
 }
 
 func (l *Lexer) readHeredocBody(identifier string) string {
-	identifierRunes := []rune(identifier)
-	inputRunes := []rune(l.input)
 	bodyStart := l.pos
 	bodyEnd := -1
 	for l.char != 0 {
 		lineStart := l.pos
-		if l.isEndOfHeredocLine(identifierRunes, inputRunes) {
+		if l.isEndOfHeredocLine(identifier) {
 			bodyEnd = lineStart
-			l.pos += len(identifierRunes)
-			l.readPos = l.pos
-			if l.pos > 0 && l.pos-1 < len(inputRunes) {
-				l.char = inputRunes[l.pos-1]
-			} else {
-				l.char = 0
+			for i := 0; i < utf8.RuneCountInString(identifier); i++ {
+				l.readChar()
 			}
 			break
 		}
@@ -94,18 +90,17 @@ func (l *Lexer) readHeredocBody(identifier string) string {
 	return l.input[bodyStart:bodyEnd]
 }
 
-func (l *Lexer) isEndOfHeredocLine(identifierRunes, inputRunes []rune) bool {
-	if l.char != identifierRunes[0] {
+func (l *Lexer) isEndOfHeredocLine(identifier string) bool {
+	if identifier == "" {
 		return false
 	}
-	for i := 0; i < len(identifierRunes); i++ {
-		if l.pos+i >= len(inputRunes) || inputRunes[l.pos+i] != identifierRunes[i] {
-			return false
-		}
+	if !strings.HasPrefix(l.input[l.pos:], identifier) {
+		return false
 	}
 	var nextChar rune
-	if l.pos+len(identifierRunes) < len(inputRunes) {
-		nextChar = inputRunes[l.pos+len(identifierRunes)]
+	nextPos := l.pos + len(identifier)
+	if nextPos < len(l.input) {
+		nextChar, _ = utf8.DecodeRuneInString(l.input[nextPos:])
 	} else {
 		nextChar = 0
 	}

@@ -66,6 +66,19 @@ retry:
 			Expr: expr,
 			Pos:  ast.Position(pos),
 		}, nil
+	case token.T_CONTINUE, token.T_BREAK:
+		pos := p.tok.Pos
+		keyword := p.tok.Literal
+		p.nextToken() // consume continue/break
+		if p.tok.Type != token.T_SEMICOLON {
+			p.addError("line %d:%d: expected ; after %s statement, got %s", p.tok.Pos.Line, p.tok.Pos.Column, keyword, p.tok.Literal)
+			return nil, nil
+		}
+		p.nextToken() // consume ;
+		return &ast.ExpressionStmt{
+			Expr: &ast.IdentifierNode{Value: keyword, Pos: ast.Position(pos)},
+			Pos:  ast.Position(pos),
+		}, nil
 	case token.T_STATIC:
 		// static $x = 1, $y; inside functions
 		pos := p.tok.Pos

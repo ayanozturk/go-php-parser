@@ -80,6 +80,11 @@ func (l *Lexer) lexDot(pos token.Position) token.Token {
 		l.readChar()
 		return token.Token{Type: token.T_ELLIPSIS, Literal: "...", Pos: pos}
 	}
+	if l.peekChar() == '=' {
+		l.readChar()
+		l.readChar()
+		return token.Token{Type: token.T_CONCAT_EQUAL, Literal: ".=", Pos: pos}
+	}
 	tok := token.Token{Type: token.T_DOT, Literal: string(l.char), Pos: pos}
 	l.readChar()
 	return tok

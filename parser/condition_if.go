@@ -112,7 +112,6 @@ func (p *Parser) parseElseIfClause() (*ast.ElseIfNode, error) {
 		} else if err != nil {
 			return nil, err
 		}
-		p.nextToken()
 	}
 
 	if p.tok.Type != token.T_RBRACE {
@@ -145,7 +144,6 @@ func (p *Parser) parseElseClause() (*ast.ElseNode, error) {
 		} else if err != nil {
 			return nil, err
 		}
-		p.nextToken()
 	}
 
 	if p.tok.Type != token.T_RBRACE {

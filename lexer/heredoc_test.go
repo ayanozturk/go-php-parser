@@ -61,3 +61,61 @@ $end = 1;`
 		t.Errorf("heredoc content mismatch.\nExpected: %q\nGot:      %q", expected, heredocToken.Literal)
 	}
 }
+
+func TestLexerContinuesAfterHeredocTerminator(t *testing.T) {
+	input := `<?php
+$str = <<<EOT
+hello
+EOT;
+$end = 1;`
+	l := New(input)
+
+	var seenSemicolon, seenEndVar bool
+	for {
+		tok := l.NextToken()
+		if tok.Type == token.T_SEMICOLON {
+			seenSemicolon = true
+		}
+		if tok.Type == token.T_VARIABLE && tok.Literal == "$end" {
+			seenEndVar = true
+			break
+		}
+		if tok.Type == token.T_EOF {
+			break
+		}
+	}
+
+	if !seenSemicolon {
+		t.Fatal("expected semicolon token after heredoc terminator")
+	}
+	if !seenEndVar {
+		t.Fatal("expected lexer to continue to the statement after heredoc")
+	}
+}
+
+func TestLexerNowdocWithUnicodeContinuesAfterTerminator(t *testing.T) {
+	input := "<?php\n$str = <<<'EOT'\ncheck ✓ and ✗\nEOT;\n$end = 1;"
+	l := New(input)
+
+	var seenSemicolon, seenEndVar bool
+	for {
+		tok := l.NextToken()
+		if tok.Type == token.T_SEMICOLON {
+			seenSemicolon = true
+		}
+		if tok.Type == token.T_VARIABLE && tok.Literal == "$end" {
+			seenEndVar = true
+			break
+		}
+		if tok.Type == token.T_EOF {
+			break
+		}
+	}
+
+	if !seenSemicolon {
+		t.Fatal("expected semicolon token after unicode nowdoc terminator")
+	}
+	if !seenEndVar {
+		t.Fatal("expected lexer to continue after unicode nowdoc content")
+	}
+}
