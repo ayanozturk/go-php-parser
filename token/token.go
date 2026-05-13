@@ -40,6 +40,8 @@ const (
 	// Operators
 	T_PLUS                TokenType = "T_PLUS"
 	T_MINUS               TokenType = "T_MINUS"
+	T_INC                 TokenType = "T_INC"
+	T_DEC                 TokenType = "T_DEC"
 	T_MULTIPLY            TokenType = "T_MULTIPLY"
 	T_DIVIDE              TokenType = "T_DIVIDE"
 	T_MODULO              TokenType = "T_MODULO"

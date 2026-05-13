@@ -51,6 +51,19 @@ func (p *Parser) parseUnaryExpression(stopTypes ...token.TokenType) ast.Node {
 			Operand:  right,
 			Pos:      ast.Position(opTok.Pos),
 		}
+	case token.T_INC, token.T_DEC:
+		opTok := p.tok
+		p.nextToken()
+		right := p.parseExpressionWithPrecedence(100, false, stopTypes...)
+		if right == nil {
+			p.addError("line %d:%d: expected operand after unary operator %s", opTok.Pos.Line, opTok.Pos.Column, opTok.Literal)
+			return nil
+		}
+		return &ast.UnaryExpr{
+			Operator: opTok.Literal,
+			Operand:  right,
+			Pos:      ast.Position(opTok.Pos),
+		}
 	case token.T_NOT:
 		notTok := p.tok
 		p.nextToken()
@@ -213,6 +226,13 @@ func (p *Parser) parseSimpleExpression() ast.Node {
 	switch p.tok.Type {
 	case token.T_NEW:
 		return p.parseSimpleNew()
+	case token.T_FUNCTION:
+		if fn, err := p.parseFunction(nil); err == nil {
+			if fn != nil {
+				return fn
+			}
+		}
+		return nil
 	case token.T_FN:
 		return p.parseArrowFunction()
 	case token.T_STATIC:
@@ -543,12 +563,28 @@ func (p *Parser) parseSimpleFunctionCallWithConsumedParen(fqcn string, fqcnPos t
 func (p *Parser) parseFunctionCallArguments() []ast.Node {
 	var args []ast.Node
 	for p.tok.Type != token.T_RPAREN && p.tok.Type != token.T_EOF {
+		for p.tok.Type == token.T_COMMENT || p.tok.Type == token.T_DOC_COMMENT {
+			p.nextToken()
+		}
+		if p.tok.Type == token.T_RPAREN {
+			break
+		}
 		isUnpacked := false
 		if p.tok.Type == token.T_ELLIPSIS {
 			isUnpacked = true
 			p.nextToken() // consume ...
 		}
-		arg := p.parseExpression()
+		var arg ast.Node
+		if p.tok.Type == token.T_STRING && p.peekToken().Type == token.T_COLON {
+			argPos := p.tok.Pos
+			name := p.tok.Literal
+			p.nextToken() // consume name
+			p.nextToken() // consume :
+			value := p.parseExpression()
+			arg = &ast.NamedArgumentNode{Name: name, Value: value, Pos: ast.Position(argPos)}
+		} else {
+			arg = p.parseExpression()
+		}
 		if arg != nil {
 			if isUnpacked {
 				arg = &ast.UnpackedArgumentNode{
@@ -557,6 +593,9 @@ func (p *Parser) parseFunctionCallArguments() []ast.Node {
 				}
 			}
 			args = append(args, arg)
+		}
+		for p.tok.Type == token.T_COMMENT || p.tok.Type == token.T_DOC_COMMENT {
+			p.nextToken()
 		}
 		if p.tok.Type == token.T_COMMA {
 			p.nextToken()
@@ -729,6 +768,19 @@ func (p *Parser) parseSimpleBuiltinCall() ast.Node {
 func (p *Parser) parseGroupedExpression() ast.Node {
 	groupPos := p.tok.Pos
 	p.nextToken() // consume '('
+	if castType, ok := p.readCastType(); ok {
+		if p.tok.Type != token.T_RPAREN {
+			p.addError("line %d:%d: expected ) after cast type, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal)
+			return nil
+		}
+		p.nextToken() // consume ')'
+		expr := p.parseExpressionWithPrecedence(100, false)
+		if expr == nil {
+			p.addError("line %d:%d: expected expression after cast %s", p.tok.Pos.Line, p.tok.Pos.Column, castType)
+			return nil
+		}
+		return p.parsePostfixExpression(&ast.TypeCastNode{Type: castType, Expr: expr, Pos: ast.Position(groupPos)})
+	}
 	expr := p.parseExpression()
 	if expr == nil {
 		return nil
@@ -744,8 +796,36 @@ func (p *Parser) parseGroupedExpression() ast.Node {
 	return p.parsePostfixExpression(expr)
 }
 
+func (p *Parser) readCastType() (string, bool) {
+	if p.tok.Type == token.T_STRING {
+		switch p.tok.Literal {
+		case "string", "int", "integer", "float", "double", "bool", "boolean", "object", "unset":
+			castType := p.tok.Literal
+			if p.peekToken().Type == token.T_RPAREN {
+				p.nextToken()
+				return castType, true
+			}
+		}
+	}
+	if p.tok.Type == token.T_ARRAY && p.peekToken().Type == token.T_RPAREN {
+		p.nextToken()
+		return "array", true
+	}
+	return "", false
+}
+
 func (p *Parser) parsePostfixExpression(expr ast.Node) ast.Node {
 	for {
+		if p.tok.Type == token.T_INC || p.tok.Type == token.T_DEC {
+			opTok := p.tok
+			p.nextToken()
+			expr = &ast.UnaryExpr{
+				Operator: opTok.Literal,
+				Operand:  expr,
+				Pos:      ast.Position(opTok.Pos),
+			}
+			continue
+		}
 		if p.tok.Type == token.T_OBJECT_OPERATOR || p.tok.Type == token.T_NULLSAFE_OBJECT_OPERATOR {
 			expr = p.parseSimpleObjectOrMethod(expr)
 			continue

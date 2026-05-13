@@ -83,3 +83,20 @@ func (u *UnpackedArgumentNode) String() string {
 	return fmt.Sprintf("...%s", u.Expr.String())
 }
 func (u *UnpackedArgumentNode) TokenLiteral() string { return "..." }
+
+type NamedArgumentNode struct {
+	Name  string
+	Value Node
+	Pos   Position
+}
+
+func (n *NamedArgumentNode) NodeType() string    { return "NamedArgument" }
+func (n *NamedArgumentNode) GetPos() Position    { return n.Pos }
+func (n *NamedArgumentNode) SetPos(pos Position) { n.Pos = pos }
+func (n *NamedArgumentNode) String() string {
+	if n.Value == nil {
+		return fmt.Sprintf("%s: <nil>", n.Name)
+	}
+	return fmt.Sprintf("%s: %s", n.Name, n.Value.String())
+}
+func (n *NamedArgumentNode) TokenLiteral() string { return n.Name }

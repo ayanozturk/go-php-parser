@@ -117,6 +117,8 @@ retry:
 		return p.parseFunction(nil)
 	case token.T_IF:
 		return p.parseIfStatement()
+	case token.T_TRY:
+		return p.parseTryStatement()
 	case token.T_STRING:
 		if p.tok.Literal == "final" || p.tok.Literal == "abstract" {
 			modifier := p.tok.Literal

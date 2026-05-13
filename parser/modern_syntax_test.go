@@ -228,3 +228,120 @@ func TestParseArrayDestructuringAssignment(t *testing.T) {
 		t.Fatalf("unexpected parser errors: %v", p.Errors())
 	}
 }
+
+func TestParsePostIncrementInArrayAccess(t *testing.T) {
+	php := `<?php
+$value = $providedDataValues[$i++] ?? null;
+`
+
+	l := lexer.New(php)
+	p := New(l, true)
+	_ = p.Parse()
+
+	if len(p.Errors()) > 0 {
+		t.Fatalf("unexpected parser errors: %v", p.Errors())
+	}
+}
+
+func TestParseStringCast(t *testing.T) {
+	php := `<?php
+return (string) $value->value;
+`
+
+	l := lexer.New(php)
+	p := New(l, true)
+	_ = p.Parse()
+
+	if len(p.Errors()) > 0 {
+		t.Fatalf("unexpected parser errors: %v", p.Errors())
+	}
+}
+
+func TestParseTryCatch(t *testing.T) {
+	php := `<?php
+try {
+    return [$reflector->invokeArgs(null, array_values($test->providedData())), true];
+} catch (Throwable $t) {
+    return [];
+}
+`
+
+	l := lexer.New(php)
+	p := New(l, true)
+	_ = p.Parse()
+
+	if len(p.Errors()) > 0 {
+		t.Fatalf("unexpected parser errors: %v", p.Errors())
+	}
+}
+
+func TestParseTraitUseInClass(t *testing.T) {
+	php := `<?php
+class MultiSelectPromptRenderer {
+    use Concerns\DrawsBoxes;
+}
+`
+
+	l := lexer.New(php)
+	p := New(l, true)
+	nodes := p.Parse()
+
+	if len(p.Errors()) > 0 {
+		t.Fatalf("unexpected parser errors: %v", p.Errors())
+	}
+	classNode, ok := nodes[0].(*ast.ClassNode)
+	if !ok || len(classNode.Properties) == 0 {
+		t.Fatalf("expected class with trait use node, got %T", nodes[0])
+	}
+	if _, ok := classNode.Properties[0].(*ast.TraitUseNode); !ok {
+		t.Fatalf("expected first class property slot to contain TraitUseNode, got %T", classNode.Properties[0])
+	}
+}
+
+func TestParseNamedArgument(t *testing.T) {
+	php := `<?php
+$result = $this->box('label', color: 'red');
+`
+
+	l := lexer.New(php)
+	p := New(l, true)
+	_ = p.Parse()
+
+	if len(p.Errors()) > 0 {
+		t.Fatalf("unexpected parser errors: %v", p.Errors())
+	}
+}
+
+func TestParseClosureWithUse(t *testing.T) {
+	php := `<?php
+$result = array_map(function ($label, $key) use ($prompt) {
+    return $label;
+}, $options);
+`
+
+	l := lexer.New(php)
+	p := New(l, true)
+	_ = p.Parse()
+
+	if len(p.Errors()) > 0 {
+		t.Fatalf("unexpected parser errors: %v", p.Errors())
+	}
+}
+
+func TestParseFunctionCallArgumentTrailingComment(t *testing.T) {
+	php := `<?php
+$result = $this->when(
+    $prompt->hint,
+    fn () => $this->hint($prompt->hint),
+    fn () => $this->newLine() // Space for errors
+);
+`
+
+	l := lexer.New(php)
+	p := New(l, true)
+	_ = p.Parse()
+
+	if len(p.Errors()) > 0 {
+		t.Fatalf("unexpected parser errors: %v", p.Errors())
+	}
+}

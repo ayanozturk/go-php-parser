@@ -64,6 +64,34 @@ func (p *Parser) parseFunction(modifiers []string) (ast.Node, error) {
 	}
 	p.nextToken() // consume )
 
+	if name == "" && p.tok.Type == token.T_USE {
+		p.nextToken() // consume use
+		if p.tok.Type != token.T_LPAREN {
+			p.addError("line %d:%d: expected ( after closure use, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal)
+			return nil, nil
+		}
+		p.nextToken() // consume (
+		for p.tok.Type != token.T_RPAREN && p.tok.Type != token.T_EOF {
+			if p.tok.Type == token.T_AMPERSAND {
+				p.nextToken()
+			}
+			if p.tok.Type != token.T_VARIABLE {
+				p.addError("line %d:%d: expected closure use variable, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal)
+				return nil, nil
+			}
+			p.nextToken()
+			if p.tok.Type == token.T_COMMA {
+				p.nextToken()
+				continue
+			}
+		}
+		if p.tok.Type != token.T_RPAREN {
+			p.addError("line %d:%d: expected ) after closure use list, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal)
+			return nil, nil
+		}
+		p.nextToken() // consume )
+	}
+
 	// Parse return type hint
 	var returnType string
 	if p.tok.Type == token.T_COLON {

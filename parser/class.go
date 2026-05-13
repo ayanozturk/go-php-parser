@@ -91,6 +91,7 @@ func (p *Parser) parseClassDeclaration() (ast.Node, error) {
 	var properties []ast.Node
 	var methods []ast.Node
 	var constants []ast.Node
+	var traitUses []ast.Node
 	// Parse class body
 	for p.tok.Type != token.T_RBRACE && p.tok.Type != token.T_EOF {
 		p.debugTokenContext("class body loop entry")
@@ -144,6 +145,12 @@ func (p *Parser) parseClassDeclaration() (ast.Node, error) {
 			}
 			continue
 		}
+		if p.tok.Type == token.T_USE {
+			if traitUse := p.parseTraitUseStatement(); traitUse != nil {
+				traitUses = append(traitUses, traitUse)
+			}
+			continue
+		}
 		if len(modifiers) > 0 || typeHint != "" {
 			p.debugTokenContext("unexpected after modifiers/typeHint")
 			p.addError("line %d:%d: expected property or function after modifiers/type in class %s body, got %s", p.tok.Pos.Line, p.tok.Pos.Column, name, p.tok.Literal)
@@ -165,12 +172,37 @@ func (p *Parser) parseClassDeclaration() (ast.Node, error) {
 		Name:       name,
 		Extends:    extends,
 		Implements: implements,
-		Properties: properties,
+		Properties: append(traitUses, properties...),
 		Methods:    methods,
 		Constants:  constants,
 		Pos:        ast.Position(pos),
 		PHPDoc:     p.consumeCurrentDoc(pos),
 	}, nil
+}
+
+func (p *Parser) parseTraitUseStatement() ast.Node {
+	pos := p.tok.Pos
+	p.nextToken() // consume use
+	var traits []string
+	for {
+		typeNode := p.parseFQCN()
+		identifier, ok := typeNode.(*ast.IdentifierNode)
+		if !ok || identifier == nil {
+			p.addError("line %d:%d: expected trait name after use, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal)
+			return nil
+		}
+		traits = append(traits, identifier.Value)
+		if p.tok.Type != token.T_COMMA {
+			break
+		}
+		p.nextToken() // consume comma
+	}
+	if p.tok.Type != token.T_SEMICOLON {
+		p.addError("line %d:%d: expected ; after trait use, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal)
+		return nil
+	}
+	p.nextToken() // consume ;
+	return &ast.TraitUseNode{Traits: traits, Pos: ast.Position(pos)}
 }
 
 // Helper: skip to next class member or end of class on parse error

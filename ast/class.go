@@ -86,6 +86,19 @@ func (n *PropertyNode) TokenLiteral() string {
 	return n.Name
 }
 
+type TraitUseNode struct {
+	Traits []string
+	Pos    Position
+}
+
+func (t *TraitUseNode) NodeType() string    { return "TraitUse" }
+func (t *TraitUseNode) GetPos() Position    { return t.Pos }
+func (t *TraitUseNode) SetPos(pos Position) { t.Pos = pos }
+func (t *TraitUseNode) String() string {
+	return fmt.Sprintf("TraitUse(%s) @ %d:%d", strings.Join(t.Traits, ", "), t.Pos.Line, t.Pos.Column)
+}
+func (t *TraitUseNode) TokenLiteral() string { return "use" }
+
 // NewNode represents object instantiation
 type NewNode struct {
 	ClassName string

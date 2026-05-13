@@ -378,6 +378,26 @@ func TestLexerConcatEqual(t *testing.T) {
 	}
 }
 
+func TestLexerIncrementDecrement(t *testing.T) {
+	l := New("<?php\n$i++;\n--$j;")
+	var sawInc, sawDec bool
+	for {
+		tok := l.NextToken()
+		if tok.Type == token.T_INC {
+			sawInc = true
+		}
+		if tok.Type == token.T_DEC {
+			sawDec = true
+		}
+		if tok.Type == token.T_EOF {
+			break
+		}
+	}
+	if !sawInc || !sawDec {
+		t.Fatalf("expected lexer to emit increment and decrement tokens, got inc=%v dec=%v", sawInc, sawDec)
+	}
+}
+
 func TestLexerEOF(t *testing.T) {
 	lex := New("")
 	tok := lex.NextToken()

@@ -6,6 +6,11 @@ import (
 )
 
 func (l *Lexer) lexPlus(pos token.Position) token.Token {
+	if l.peekChar() == '+' {
+		l.readChar()
+		l.readChar()
+		return token.Token{Type: token.T_INC, Literal: "++", Pos: pos}
+	}
 	if l.peekChar() == '=' {
 		l.readChar()
 		l.readChar()
@@ -17,6 +22,11 @@ func (l *Lexer) lexPlus(pos token.Position) token.Token {
 }
 
 func (l *Lexer) lexMinus(pos token.Position) token.Token {
+	if l.peekChar() == '-' {
+		l.readChar()
+		l.readChar()
+		return token.Token{Type: token.T_DEC, Literal: "--", Pos: pos}
+	}
 	if l.peekChar() == '>' {
 		l.readChar()
 		l.readChar()
