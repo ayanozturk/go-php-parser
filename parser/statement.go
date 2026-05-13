@@ -7,6 +7,7 @@ import (
 )
 
 func (p *Parser) parseStatement() (ast.Node, error) {
+retry:
 	// Skip attributes before statement (PHP 8+)
 	for p.tok.Type == token.T_ATTRIBUTE {
 		p.nextToken()
@@ -30,7 +31,6 @@ func (p *Parser) parseStatement() (ast.Node, error) {
 		p.nextToken() // consume 'declare'
 		return p.parseDeclare(), nil
 	}
-retry:
 	switch p.tok.Type {
 	case token.T_USE:
 		return p.parseUseDeclaration()
@@ -108,13 +108,13 @@ retry:
 		if p.tok.Literal == "final" || p.tok.Literal == "abstract" {
 			modifier := p.tok.Literal
 			p.nextToken()
-			if p.tok.Type == token.T_CLASS {
-				return p.parseClassDeclarationWithModifier(modifier)
-			}
-			p.addError("line %d:%d: expected 'class' after modifier %s, got %s", p.tok.Pos.Line, p.tok.Pos.Column, modifier, p.tok.Literal)
-			return nil, nil
+			return p.parseClassDeclarationWithModifier(modifier)
 		}
 		return p.parseExpressionStatement()
+	case token.T_READONLY:
+		modifier := p.tok.Literal
+		p.nextToken()
+		return p.parseClassDeclarationWithModifier(modifier)
 	case token.T_CLASS:
 		return p.parseClassDeclaration()
 	case token.T_INTERFACE:

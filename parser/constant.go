@@ -5,7 +5,8 @@ import (
 	"go-phpcs/token"
 )
 
-// parseConstant parses a PHP constant declaration: [visibility] const NAME [: TYPE] = VALUE;
+// parseConstant parses a PHP constant declaration.
+// Supports both legacy `const NAME = VALUE;` and typed `const TYPE NAME = VALUE;` forms.
 func (p *Parser) parseConstant() *ast.ConstantNode {
 	pos := p.tok.Pos
 	visibility := ""
@@ -19,13 +20,17 @@ func (p *Parser) parseConstant() *ast.ConstantNode {
 		return nil
 	}
 	p.nextToken() // consume 'const'
+	typeStr := ""
+	if p.tok.Type == token.T_STRING && p.peekToken().Type == token.T_STRING {
+		typeStr = p.tok.Literal
+		p.nextToken()
+	}
 	if p.tok.Type != token.T_STRING {
 		p.addError("expected constant name after const, got %s", p.tok.Literal)
 		return nil
 	}
 	name := p.tok.Literal
 	p.nextToken() // consume name
-	typeStr := ""
 	if p.tok.Type == token.T_COLON {
 		p.nextToken() // consume ':'
 		// Parse type (simple identifier or namespaced)
@@ -40,6 +45,9 @@ func (p *Parser) parseConstant() *ast.ConstantNode {
 	}
 	p.nextToken() // consume '='
 	value := p.parseExpression()
+	if _, ok := value.(*ast.HeredocNode); ok && p.tok.Type != token.T_SEMICOLON {
+		p.nextToken()
+	}
 	if p.tok.Type != token.T_SEMICOLON {
 		p.addError("expected ';' after constant value, got %s", p.tok.Literal)
 		return nil

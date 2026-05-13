@@ -4,6 +4,7 @@ import (
 	"go-phpcs/ast"
 	"go-phpcs/lexer"
 	"go-phpcs/token"
+	"strings"
 )
 
 type Parser struct {
@@ -109,19 +110,20 @@ func (p *Parser) peekToken() token.Token {
 // parseFQCN parses a fully qualified class name, e.g. \Foo\Bar
 func (p *Parser) parseFQCN() ast.Node {
 	pos := p.tok.Pos
-	fqcn := ""
+	var fqcnBuilder strings.Builder
 	for {
 		if p.tok.Type == token.T_NS_SEPARATOR {
-			fqcn += "\\"
+			fqcnBuilder.WriteString("\\")
 			p.nextToken()
 		}
 		if p.tok.Type == token.T_STRING || p.tok.Type == token.T_STATIC || p.tok.Type == token.T_SELF || p.tok.Type == token.T_PARENT {
-			fqcn += p.tok.Literal
+			fqcnBuilder.WriteString(p.tok.Literal)
 			p.nextToken()
 		} else {
 			break
 		}
 	}
+	fqcn := fqcnBuilder.String()
 	if fqcn == "" {
 		p.addError("line %d:%d: expected fully qualified class name, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal)
 		return nil

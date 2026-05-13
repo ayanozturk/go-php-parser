@@ -62,3 +62,22 @@ class Foo {
 		t.Fatal("No AST nodes returned")
 	}
 }
+
+func TestParseNullsafeMethodCall(t *testing.T) {
+	php := `<?php
+class Foo {
+    public function test($admin) {
+        return $admin?->getEmail();
+    }
+}`
+	l := lexer.New(php)
+	p := New(l, true)
+	nodes := p.Parse()
+	err := p.Errors()
+	if len(err) > 0 {
+		t.Fatalf("Unexpected errors: %v", err)
+	}
+	if len(nodes) == 0 {
+		t.Fatal("No AST nodes returned")
+	}
+}

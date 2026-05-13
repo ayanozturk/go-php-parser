@@ -82,3 +82,19 @@ function foo($x): int {
 		t.Fatalf("expected 1 unreachable issue, got %d (%#v)", got, issues)
 	}
 }
+
+func TestReachableAfterIfReturnWithNullsafeCallNotReported(t *testing.T) {
+	php := `<?php
+function getContactEmail(): ?string {
+    if ($this->email) {
+        return $this->email;
+    }
+
+    $admin = $this->getAdministrator();
+    return $admin?->getEmail();
+}`
+	issues := analyseUnreachablePHP(t, php)
+	if got := countUnreachableIssues(issues); got != 0 {
+		t.Fatalf("expected 0 unreachable issues, got %d (%#v)", got, issues)
+	}
+}

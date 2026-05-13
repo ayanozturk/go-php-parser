@@ -4,6 +4,7 @@ import (
 	"go-phpcs/ast"
 	"go-phpcs/token"
 	"strconv"
+	"strings"
 )
 
 const errExpectedRParenFunctionCall = "line %d:%d: expected ) after arguments for function call %s, got %s"
@@ -121,7 +122,10 @@ func (p *Parser) parseBinaryAndTernaryOperators(left ast.Node, minPrec int, vali
 func (p *Parser) parseTernaryExpression(left ast.Node, ternaryPrec int) ast.Node {
 	qPos := p.tok.Pos
 	p.nextToken() // consume '?'
-	ifTrue := p.parseExpressionWithPrecedence(0, false)
+	ifTrue := left
+	if p.tok.Type != token.T_COLON {
+		ifTrue = p.parseExpressionWithPrecedence(0, false)
+	}
 	if p.tok.Type != token.T_COLON {
 		p.addError("line %d:%d: expected ':' in ternary expression, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal)
 		return nil
@@ -205,12 +209,21 @@ func (p *Parser) parseSimpleExpression() ast.Node {
 	switch p.tok.Type {
 	case token.T_NEW:
 		return p.parseSimpleNew()
-	case token.T_STRING, token.T_STATIC, token.T_SELF, token.T_PARENT, token.T_NS_SEPARATOR:
+	case token.T_FN:
+		return p.parseArrowFunction()
+	case token.T_STATIC:
+		if p.peekToken().Type == token.T_FN {
+			return p.parseArrowFunction()
+		}
+		return p.parseSimpleFQCNOrFunctionCall()
+	case token.T_STRING, token.T_SELF, token.T_PARENT, token.T_NS_SEPARATOR:
 		return p.parseSimpleFQCNOrFunctionCall()
 	case token.T_CONSTANT_ENCAPSED_STRING:
 		return p.parseSimpleStringOrConcat()
 	case token.T_CONSTANT_STRING:
 		return p.parseSimpleConstantString()
+	case token.T_START_HEREDOC, token.T_START_NOWDOC:
+		return p.parseSimpleHeredoc()
 	case token.T_LNUMBER:
 		return p.parseSimpleLNumber()
 	case token.T_DNUMBER:
@@ -219,6 +232,8 @@ func (p *Parser) parseSimpleExpression() ast.Node {
 		return p.parseSimpleBoolOrNull()
 	case token.T_VARIABLE:
 		return p.parseSimpleVariable()
+	case token.T_LPAREN:
+		return p.parseGroupedExpression()
 	case token.T_MATCH:
 		return p.parseMatchExpression()
 	// case token.T_NS_SEPARATOR: (now handled above)
@@ -287,24 +302,29 @@ func (p *Parser) parseSimpleNew() ast.Node {
 		return nil
 	}
 	p.nextToken() // consume )
-	return &ast.NewNode{
+	return p.parsePostfixExpression(&ast.NewNode{
 		ClassName: className,
 		Args:      args,
 		Pos:       ast.Position(pos),
-	}
+	})
 }
 
 func (p *Parser) parseSimpleFQCNOrFunctionCall() ast.Node {
 	fqcnPos := p.tok.Pos
-	fqcn := ""
+	var fqcnBuilder strings.Builder
 	// Handle leading \ for fully qualified names
 	if p.tok.Type == token.T_NS_SEPARATOR {
-		fqcn += "\\"
+		fqcnBuilder.WriteString("\\")
 		p.nextToken()
 	}
-	fqcn += p.collectFQCNString()
+	fqcnBuilder.WriteString(p.collectFQCNString())
+	fqcn := fqcnBuilder.String()
 	if p.tok.Type == token.T_DOUBLE_COLON {
-		return p.parseSimpleClassConstFetch(fqcn, fqcnPos)
+		return p.parseSimpleStaticAccess(fqcn, fqcnPos)
+	}
+	var expr ast.Node = &ast.IdentifierNode{
+		Value: fqcn,
+		Pos:   ast.Position(fqcnPos),
 	}
 	if p.tok.Type == token.T_LPAREN {
 		// Check if this is first-class callable syntax: name(...)
@@ -313,13 +333,14 @@ func (p *Parser) parseSimpleFQCNOrFunctionCall() ast.Node {
 			p.nextToken() // consume '...'
 			if p.tok.Type == token.T_RPAREN {
 				p.nextToken() // consume ')'
-				return &ast.FirstClassCallableNode{
+				expr = &ast.FirstClassCallableNode{
 					Name: &ast.IdentifierNode{
 						Value: fqcn,
 						Pos:   ast.Position(fqcnPos),
 					},
 					Pos: ast.Position(fqcnPos),
 				}
+				return p.parsePostfixExpression(expr)
 			} else {
 				p.addError("line %d:%d: expected ')' after '...' in first-class callable", p.tok.Pos.Line, p.tok.Pos.Column)
 				return nil
@@ -332,58 +353,148 @@ func (p *Parser) parseSimpleFQCNOrFunctionCall() ast.Node {
 				return nil
 			}
 			p.nextToken() // consume )
-			return &ast.FunctionCallNode{
-				Name: &ast.IdentifierNode{
-					Value: fqcn,
-					Pos:   ast.Position(fqcnPos),
-				},
+			expr = &ast.FunctionCallNode{
+				Name: expr,
 				Args: args,
 				Pos:  ast.Position(fqcnPos),
 			}
+			return p.parsePostfixExpression(expr)
 		}
 	}
-	return &ast.IdentifierNode{
-		Value: fqcn,
-		Pos:   ast.Position(fqcnPos),
-	}
+	return p.parsePostfixExpression(expr)
 }
 
 func (p *Parser) collectFQCNString() string {
-	fqcn := ""
+	var fqcnBuilder strings.Builder
 	for {
 		if p.tok.Type == token.T_NS_SEPARATOR {
-			fqcn += "\\"
+			fqcnBuilder.WriteString("\\")
 			p.nextToken()
 		} else if p.tok.Type == token.T_STRING || p.tok.Type == token.T_STATIC || p.tok.Type == token.T_SELF || p.tok.Type == token.T_PARENT {
-			fqcn += p.tok.Literal
+			fqcnBuilder.WriteString(p.tok.Literal)
 			p.nextToken()
 		} else {
 			break
 		}
 	}
-	return fqcn
+	return fqcnBuilder.String()
 }
 
-func (p *Parser) parseSimpleClassConstFetch(fqcn string, fqcnPos token.Position) ast.Node {
+func (p *Parser) parseSimpleStaticAccess(fqcn string, fqcnPos token.Position) ast.Node {
 	p.nextToken() // consume '::'
 	if p.tok.Type == token.T_STRING {
-		constName := p.tok.Literal
+		memberName := p.tok.Literal
 		p.nextToken()
-		return &ast.ClassConstFetchNode{
-			Class: fqcn,
-			Const: constName,
-			Pos:   ast.Position(fqcnPos),
+		if p.tok.Type == token.T_LPAREN {
+			p.nextToken() // consume '('
+			args := p.parseFunctionCallArguments()
+			if p.tok.Type != token.T_RPAREN {
+				p.addError("line %d:%d: expected ) after arguments for static call %s::%s, got %s", p.tok.Pos.Line, p.tok.Pos.Column, fqcn, memberName, p.tok.Literal)
+				return nil
+			}
+			p.nextToken() // consume ')'
+			return p.parsePostfixExpression(&ast.FunctionCallNode{
+				Name: &ast.IdentifierNode{
+					Value: fqcn + "::" + memberName,
+					Pos:   ast.Position(fqcnPos),
+				},
+				Args: args,
+				Pos:  ast.Position(fqcnPos),
+			})
 		}
-	} else if p.tok.Type == token.T_CLASS_CONST {
+		return p.parsePostfixExpression(&ast.ClassConstFetchNode{
+			Class: fqcn,
+			Const: memberName,
+			Pos:   ast.Position(fqcnPos),
+		})
+	} else if p.tok.Type == token.T_CLASS_CONST || p.tok.Type == token.T_CLASS {
 		p.nextToken()
-		return &ast.ClassConstFetchNode{
+		return p.parsePostfixExpression(&ast.ClassConstFetchNode{
 			Class: fqcn,
 			Const: "class",
 			Pos:   ast.Position(fqcnPos),
-		}
+		})
 	} else {
 		p.addError("line %d:%d: expected constant name or 'class' after '::', got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal)
 		return nil
+	}
+}
+
+func (p *Parser) parseArrowFunction() ast.Node {
+	pos := p.tok.Pos
+	if p.tok.Type == token.T_STATIC {
+		p.nextToken()
+	}
+	if p.tok.Type != token.T_FN {
+		p.addError("line %d:%d: expected fn after static, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal)
+		return nil
+	}
+	p.nextToken() // consume 'fn'
+	if p.tok.Type != token.T_LPAREN {
+		p.addError("line %d:%d: expected ( after fn, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal)
+		return nil
+	}
+	p.nextToken() // consume '('
+
+	var params []ast.Node
+	for p.tok.Type != token.T_RPAREN {
+		for p.tok.Type == token.T_COMMENT || p.tok.Type == token.T_DOC_COMMENT || p.tok.Type == token.T_WHITESPACE {
+			p.nextToken()
+		}
+		if p.tok.Type == token.T_RPAREN {
+			break
+		}
+		param := p.parseParameter()
+		if param == nil {
+			for p.tok.Type != token.T_COMMA && p.tok.Type != token.T_RPAREN && p.tok.Type != token.T_EOF {
+				p.nextToken()
+			}
+			if p.tok.Type == token.T_COMMA {
+				p.nextToken()
+				continue
+			}
+			break
+		}
+		params = append(params, param)
+		if p.tok.Type == token.T_COMMA {
+			p.nextToken()
+			for p.tok.Type == token.T_COMMENT || p.tok.Type == token.T_DOC_COMMENT || p.tok.Type == token.T_WHITESPACE {
+				p.nextToken()
+			}
+			if p.tok.Type == token.T_RPAREN {
+				break
+			}
+		}
+	}
+	if p.tok.Type != token.T_RPAREN {
+		p.addError("line %d:%d: expected ) after arrow function parameters, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal)
+		return nil
+	}
+	p.nextToken() // consume ')'
+
+	var returnType string
+	if p.tok.Type == token.T_COLON {
+		p.nextToken()
+		returnType = p.parseTypeHint()
+	}
+
+	if p.tok.Type != token.T_DOUBLE_ARROW {
+		p.addError("line %d:%d: expected => after arrow function signature, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal)
+		return nil
+	}
+	p.nextToken() // consume '=>'
+
+	body := p.parseExpression()
+	if body == nil {
+		p.addError("line %d:%d: expected expression after => in arrow function", p.tok.Pos.Line, p.tok.Pos.Column)
+		return nil
+	}
+
+	return &ast.ArrowFunctionNode{
+		Params:     params,
+		ReturnType: returnType,
+		Expr:       body,
+		Pos:        ast.Position(pos),
 	}
 }
 
@@ -457,9 +568,10 @@ func (p *Parser) parseFunctionCallArguments() []ast.Node {
 
 func (p *Parser) parseSimpleObjectOrMethod(expr ast.Node) ast.Node {
 	objOpPos := p.tok.Pos
-	p.nextToken() // consume '->'
+	operator := p.tok.Literal
+	p.nextToken() // consume object operator
 	if p.tok.Type != token.T_STRING {
-		p.addError("line %d:%d: expected property/method name after ->, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal)
+		p.addError("line %d:%d: expected property/method name after %s, got %s", p.tok.Pos.Line, p.tok.Pos.Column, operator, p.tok.Literal)
 		return nil
 	}
 	member := p.tok.Literal
@@ -580,8 +692,30 @@ func (p *Parser) parseSimpleVariable() ast.Node {
 		Pos:  ast.Position(p.tok.Pos),
 	}
 	p.nextToken()
+	return p.parsePostfixExpression(expr)
+}
+
+func (p *Parser) parseGroupedExpression() ast.Node {
+	groupPos := p.tok.Pos
+	p.nextToken() // consume '('
+	expr := p.parseExpression()
+	if expr == nil {
+		return nil
+	}
+	if p.tok.Type != token.T_RPAREN {
+		p.addError("line %d:%d: expected ) after grouped expression, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal)
+		return nil
+	}
+	p.nextToken() // consume ')'
+	if expr.GetPos().Line == 0 {
+		expr.SetPos(ast.Position(groupPos))
+	}
+	return p.parsePostfixExpression(expr)
+}
+
+func (p *Parser) parsePostfixExpression(expr ast.Node) ast.Node {
 	for {
-		if p.tok.Type == token.T_OBJECT_OPERATOR {
+		if p.tok.Type == token.T_OBJECT_OPERATOR || p.tok.Type == token.T_NULLSAFE_OBJECT_OPERATOR {
 			expr = p.parseSimpleObjectOrMethod(expr)
 			continue
 		}
@@ -601,7 +735,10 @@ func (p *Parser) parseSimpleVariable() ast.Node {
 func (p *Parser) parseSimpleArrayAccess(expr ast.Node) ast.Node {
 	bracketPos := p.tok.Pos
 	p.nextToken() // consume [
-	index := p.parseExpression()
+	var index ast.Node
+	if p.tok.Type != token.T_RBRACKET {
+		index = p.parseExpression()
+	}
 	if p.tok.Type != token.T_RBRACKET {
 		p.addError("line %d:%d: expected ] after array index, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal)
 		return nil
@@ -611,6 +748,33 @@ func (p *Parser) parseSimpleArrayAccess(expr ast.Node) ast.Node {
 		Var:   expr,
 		Index: index,
 		Pos:   ast.Position(bracketPos),
+	}
+}
+
+func (p *Parser) parseSimpleHeredoc() ast.Node {
+	pos := p.tok.Pos
+	identifier := p.tok.Literal
+	p.nextToken() // consume heredoc start token
+
+	parts := []ast.Node{}
+	if p.tok.Type == token.T_ENCAPSED_AND_WHITESPACE {
+		parts = append(parts, &ast.StringNode{
+			Value: p.tok.Literal,
+			Pos:   ast.Position(p.tok.Pos),
+		})
+		p.nextToken()
+	}
+
+	if p.tok.Type != token.T_END_HEREDOC && p.tok.Type != token.T_END_NOWDOC {
+		p.addError("line %d:%d: expected heredoc terminator for %s, got %s", p.tok.Pos.Line, p.tok.Pos.Column, identifier, p.tok.Literal)
+		return nil
+	}
+	p.nextToken() // consume heredoc terminator
+
+	return &ast.HeredocNode{
+		Identifier: identifier,
+		Parts:      parts,
+		Pos:        ast.Position(pos),
 	}
 }
 
