@@ -38,6 +38,22 @@ func (l *Lexer) lexPipe(pos token.Position) token.Token {
 	return tok
 }
 
+func (l *Lexer) lexAmpersand(pos token.Position) token.Token {
+	if l.peekChar() == '&' {
+		l.readChar()
+		l.readChar()
+		return token.Token{Type: token.T_BOOLEAN_AND, Literal: "&&", Pos: pos}
+	}
+	if l.peekChar() == '=' {
+		l.readChar()
+		l.readChar()
+		return token.Token{Type: token.T_AND_EQUAL, Literal: "&=", Pos: pos}
+	}
+	tok := token.Token{Type: token.T_AMPERSAND, Literal: string(l.char), Pos: pos}
+	l.readChar()
+	return tok
+}
+
 func (l *Lexer) lexGreater(pos token.Position) token.Token {
 	if l.peekChar() == '=' {
 		l.readChar()
@@ -58,7 +74,7 @@ func (l *Lexer) lexDollar(pos token.Position) token.Token {
 }
 
 func (l *Lexer) lexDot(pos token.Position) token.Token {
-	if l.peekChar() == '.' && l.input[l.readPos+1] == '.' {
+	if l.peekChar() == '.' && l.readPos+1 < len(l.input) && l.input[l.readPos+1] == '.' {
 		l.readChar()
 		l.readChar()
 		l.readChar()
@@ -152,7 +168,7 @@ func (l *Lexer) lexLess(pos token.Position) token.Token {
 		l.readChar()
 		return token.Token{Type: token.T_IS_SMALLER_OR_EQUAL, Literal: "<=", Pos: pos}
 	}
-	if l.peekChar() == '<' && l.input[l.readPos+1] == '<' {
+	if l.peekChar() == '<' && l.readPos+1 < len(l.input) && l.input[l.readPos+1] == '<' {
 		l.queueHeredocTokens(pos)
 		return l.nextHeredocToken()
 	}
@@ -179,7 +195,7 @@ func (l *Lexer) lexLess(pos token.Position) token.Token {
 }
 
 func (l *Lexer) lexEquals(pos token.Position) token.Token {
-	if l.peekChar() == '=' && l.input[l.readPos+1] == '=' {
+	if l.peekChar() == '=' && l.readPos+1 < len(l.input) && l.input[l.readPos+1] == '=' {
 		l.readChar()
 		l.readChar()
 		l.readChar()
@@ -198,6 +214,22 @@ func (l *Lexer) lexEquals(pos token.Position) token.Token {
 		return tok
 	}
 	tok := token.Token{Type: token.T_ASSIGN, Literal: string(l.char), Pos: pos}
+	l.readChar()
+	return tok
+}
+
+func (l *Lexer) lexBang(pos token.Position) token.Token {
+	if l.peekChar() == '=' {
+		l.readChar()
+		if l.peekChar() == '=' {
+			l.readChar()
+			l.readChar()
+			return token.Token{Type: token.T_IS_NOT_IDENTICAL, Literal: "!==", Pos: pos}
+		}
+		l.readChar()
+		return token.Token{Type: token.T_IS_NOT_EQUAL, Literal: "!=", Pos: pos}
+	}
+	tok := token.Token{Type: token.T_NOT, Literal: string(l.char), Pos: pos}
 	l.readChar()
 	return tok
 }

@@ -115,7 +115,15 @@ func RunScanOrCommand(args CliArgs, c *config.Config, filesToScan []string, outW
 	totalParseErrors := 0
 	totalLines := 0
 	if args.filePath != "" {
-		totalParseErrors, totalLines = command.ProcessFile(args.filePath, args.CommandName, args.debug, outWriter), 0
+		errList, lineCount := command.ProcessFileWithErrors(args.filePath, args.CommandName, args.debug, outWriter)
+		totalParseErrors = len(errList)
+		totalLines = lineCount
+		if len(errList) > 0 {
+			fmt.Fprintf(outWriter, "Parsing errors in %s (%d error(s)):\n", args.filePath, len(errList))
+			for _, err := range errList {
+				fmt.Fprintf(outWriter, command.ErrorLineFormat, err)
+			}
+		}
 	} else {
 		if len(filesToScan) == 0 {
 			fmt.Fprintln(outWriter, "No files to scan.")

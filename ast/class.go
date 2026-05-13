@@ -38,13 +38,24 @@ func (c *ClassNode) TokenLiteral() string {
 
 // PropertyNode represents a class property
 type PropertyNode struct {
-	Name         string
-	TypeHint     string
-	DefaultValue Node
-	Visibility   string // public, private, protected
-	IsStatic     bool
-	IsReadonly   bool
-	Pos          Position
+	Name          string
+	TypeHint      string
+	DefaultValue  Node
+	Visibility    string // public, private, protected
+	SetVisibility string // PHP 8.4 asymmetric visibility: public(set), protected(set), private(set)
+	IsStatic      bool
+	IsReadonly    bool
+	Hooks         []PropertyHookNode
+	Pos           Position
+}
+
+type PropertyHookNode struct {
+	Name      string
+	IsByRef   bool
+	Parameter string
+	Expr      Node
+	Body      []Node
+	Pos       Position
 }
 
 func (n *PropertyNode) GetPos() Position {
@@ -63,6 +74,9 @@ func (n *PropertyNode) String() string {
 	var parts []string
 	if n.Visibility != "" {
 		parts = append(parts, n.Visibility)
+	}
+	if n.SetVisibility != "" {
+		parts = append(parts, n.SetVisibility+"(set)")
 	}
 	parts = append(parts, fmt.Sprintf("Property($%s)", n.Name))
 	return fmt.Sprintf("%s @ %d:%d", strings.Join(parts, " "), n.Pos.Line, n.Pos.Column)

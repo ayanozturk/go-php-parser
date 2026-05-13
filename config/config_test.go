@@ -126,7 +126,7 @@ func TestGetFilesToScan_Error(t *testing.T) {
 	if err == nil {
 		t.Error("expected error for non-existent path, got nil")
 	}
-	if files != nil && len(files) != 0 {
+	if len(files) != 0 {
 		t.Errorf("expected no files, got %v", files)
 	}
 }

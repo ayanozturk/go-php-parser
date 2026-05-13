@@ -32,27 +32,31 @@ func LoadConfig(filename string) (*Config, error) {
 
 func GetFilesToScan(config *Config) ([]string, error) {
 	var filesToScan []string
+	ignoreDirs := make(map[string]struct{}, len(config.Ignore))
+	for _, ignore := range config.Ignore {
+		ignoreDirs[ignore] = struct{}{}
+	}
+	allowedExts := make(map[string]struct{}, len(config.Extensions))
+	for _, ext := range config.Extensions {
+		allowedExts["."+ext] = struct{}{}
+	}
 
-	err := filepath.Walk(config.Path, func(path string, info os.FileInfo, err error) error {
+	err := filepath.WalkDir(config.Path, func(path string, d os.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
 
 		// Skip ignored directories
-		for _, ignore := range config.Ignore {
-			if info.IsDir() && info.Name() == ignore {
+		if d.IsDir() {
+			if _, ignored := ignoreDirs[d.Name()]; ignored {
 				return filepath.SkipDir
 			}
+			return nil
 		}
 
 		// Check file extensions
-		if !info.IsDir() {
-			for _, ext := range config.Extensions {
-				if filepath.Ext(path) == "."+ext {
-					filesToScan = append(filesToScan, path)
-					break
-				}
-			}
+		if _, allowed := allowedExts[filepath.Ext(path)]; allowed {
+			filesToScan = append(filesToScan, path)
 		}
 
 		return nil

@@ -1,6 +1,7 @@
 package parser
 
 import (
+	"go-phpcs/ast"
 	"go-phpcs/lexer"
 	"testing"
 )
@@ -67,6 +68,48 @@ func TestInstanceOf(t *testing.T) {
 	hasErr := len(p.Errors()) > 0
 	if hasErr {
 		t.Errorf("Test 'InstanceOf': expected no error, got error=%v", p.Errors())
+	}
+}
+
+func TestIfConditionWithNotIdenticalAndBooleanAnd(t *testing.T) {
+	l := lexer.New(`<?php
+		if ('lint' !== $mode && false === getenv('SYMFONY_PATCH_TYPE_DECLARATIONS')) {
+			echo 'ok';
+		}
+	`)
+	p := New(l, true)
+	nodes := p.Parse()
+
+	if len(p.Errors()) > 0 {
+		t.Fatalf("expected no parser errors, got %v", p.Errors())
+	}
+
+	if len(nodes) != 1 {
+		t.Fatalf("expected 1 node, got %d", len(nodes))
+	}
+
+	ifNode, ok := nodes[0].(*ast.IfNode)
+	if !ok {
+		t.Fatalf("expected IfNode, got %T", nodes[0])
+	}
+
+	cond, ok := ifNode.Condition.(*ast.BinaryExpr)
+	if !ok {
+		t.Fatalf("expected BinaryExpr condition, got %T", ifNode.Condition)
+	}
+
+	if cond.Operator != "&&" {
+		t.Fatalf("expected top-level && condition, got %q", cond.Operator)
+	}
+
+	left, ok := cond.Left.(*ast.BinaryExpr)
+	if !ok || left.Operator != "!==" {
+		t.Fatalf("expected left side !== comparison, got %T with operator %q", cond.Left, left.Operator)
+	}
+
+	right, ok := cond.Right.(*ast.BinaryExpr)
+	if !ok || right.Operator != "===" {
+		t.Fatalf("expected right side === comparison, got %T with operator %q", cond.Right, right.Operator)
 	}
 }
 

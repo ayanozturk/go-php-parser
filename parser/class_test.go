@@ -156,6 +156,80 @@ class Broken {
 	}
 }
 
+func TestParseClassPropertyHooks(t *testing.T) {
+	php := `<?php
+class BackedProperty
+{
+    public private(set) string $name {
+        get => $this->name;
+        set => $value;
+    }
+}`
+	l := lexer.New(php)
+	p := New(l, true)
+	nodes := p.Parse()
+	if len(p.Errors()) > 0 {
+		t.Fatalf("Parser errors: %v", p.Errors())
+	}
+	if len(nodes) != 1 {
+		t.Fatalf("Expected 1 node, got %d", len(nodes))
+	}
+	classNode, ok := nodes[0].(*ast.ClassNode)
+	if !ok {
+		t.Fatalf("Expected ClassNode, got %T", nodes[0])
+	}
+	if len(classNode.Properties) != 1 {
+		t.Fatalf("Expected 1 property, got %d", len(classNode.Properties))
+	}
+	prop, ok := classNode.Properties[0].(*ast.PropertyNode)
+	if !ok {
+		t.Fatalf("Expected PropertyNode, got %T", classNode.Properties[0])
+	}
+	if prop.Visibility != "public" {
+		t.Fatalf("Expected public visibility, got %q", prop.Visibility)
+	}
+	if prop.SetVisibility != "private" {
+		t.Fatalf("Expected private set visibility, got %q", prop.SetVisibility)
+	}
+	if prop.TypeHint != "string" {
+		t.Fatalf("Expected string type hint, got %q", prop.TypeHint)
+	}
+	if len(prop.Hooks) != 2 {
+		t.Fatalf("Expected 2 property hooks, got %d", len(prop.Hooks))
+	}
+	if prop.Hooks[0].Name != "get" || prop.Hooks[0].Expr == nil {
+		t.Fatalf("Expected get hook with expression, got %+v", prop.Hooks[0])
+	}
+	if prop.Hooks[1].Name != "set" || prop.Hooks[1].Expr == nil {
+		t.Fatalf("Expected set hook with expression, got %+v", prop.Hooks[1])
+	}
+}
+
+func TestParseClassAsymmetricVisibilityProperty(t *testing.T) {
+	php := `<?php
+class VisibilityFixture
+{
+    private(set) string $type;
+}`
+	l := lexer.New(php)
+	p := New(l, true)
+	nodes := p.Parse()
+	if len(p.Errors()) > 0 {
+		t.Fatalf("Parser errors: %v", p.Errors())
+	}
+	classNode, ok := nodes[0].(*ast.ClassNode)
+	if !ok {
+		t.Fatalf("Expected ClassNode, got %T", nodes[0])
+	}
+	prop, ok := classNode.Properties[0].(*ast.PropertyNode)
+	if !ok {
+		t.Fatalf("Expected PropertyNode, got %T", classNode.Properties[0])
+	}
+	if prop.SetVisibility != "private" {
+		t.Fatalf("Expected private set visibility, got %q", prop.SetVisibility)
+	}
+}
+
 func TestParseFunctionWithStaticReturnType(t *testing.T) {
 	php := `<?php
 class Foo {

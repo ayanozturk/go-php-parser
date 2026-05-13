@@ -32,9 +32,10 @@ func TestClassNodeMethods(t *testing.T) {
 
 func TestPropertyNodeMethods(t *testing.T) {
 	p := &PropertyNode{
-		Name:       "foo",
-		Visibility: "private",
-		Pos:        Position{Line: 2, Column: 3},
+		Name:          "foo",
+		Visibility:    "private",
+		SetVisibility: "protected",
+		Pos:           Position{Line: 2, Column: 3},
 	}
 	if p.NodeType() != "Property" {
 		t.Errorf("NodeType: got %q", p.NodeType())
@@ -47,7 +48,7 @@ func TestPropertyNodeMethods(t *testing.T) {
 		t.Errorf("SetPos: got %+v", p.GetPos())
 	}
 	str := p.String()
-	if str == "" || str == "Property($foo) @ 4:5" {
+	if str == "" || str == "Property($foo) @ 4:5" || str == "private Property($foo) @ 4:5" {
 		t.Errorf("String: got %q", str)
 	}
 	if p.TokenLiteral() != "foo" {

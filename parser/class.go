@@ -62,6 +62,10 @@ func (p *Parser) parseClassDeclarationWithModifier(modifier string) (ast.Node, e
 		// Collect all modifiers before method/property
 		var modifiers []string
 		for {
+			if modifier, ok := p.parsePropertyModifier(); ok {
+				modifiers = append(modifiers, modifier)
+				continue
+			}
 			switch p.tok.Type {
 			case token.T_PUBLIC, token.T_PROTECTED, token.T_PRIVATE, token.T_STATIC, token.T_FINAL, token.T_ABSTRACT:
 				modifiers = append(modifiers, p.tok.Literal)
@@ -186,6 +190,10 @@ func (p *Parser) parseClassDeclaration() (ast.Node, error) {
 		// Collect all modifiers before method/property/constant
 		var modifiers []string
 		for {
+			if modifier, ok := p.parsePropertyModifier(); ok {
+				modifiers = append(modifiers, modifier)
+				continue
+			}
 			switch p.tok.Type {
 			case token.T_PUBLIC, token.T_PROTECTED, token.T_PRIVATE, token.T_STATIC, token.T_FINAL, token.T_ABSTRACT:
 				modifiers = append(modifiers, p.tok.Literal)
@@ -269,16 +277,48 @@ func (p *Parser) syncToNextClassMember() {
 	}
 }
 
+func (p *Parser) parsePropertyModifier() (string, bool) {
+	if p.tok.Type == token.T_READONLY {
+		p.nextToken()
+		return "readonly", true
+	}
+	if p.tok.Type != token.T_PUBLIC && p.tok.Type != token.T_PROTECTED && p.tok.Type != token.T_PRIVATE {
+		return "", false
+	}
+	modifier := p.tok.Literal
+	if p.peekToken().Type != token.T_LPAREN {
+		return "", false
+	}
+	p.nextToken() // consume visibility, land on '('
+	if p.tok.Type != token.T_LPAREN {
+		return "", false
+	}
+	p.nextToken() // consume '('
+	if p.tok.Type != token.T_STRING || p.tok.Literal != "set" {
+		p.addError("line %d:%d: expected set in asymmetric visibility modifier, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal)
+		return modifier, true
+	}
+	p.nextToken() // consume 'set'
+	if p.tok.Type != token.T_RPAREN {
+		p.addError("line %d:%d: expected ) after asymmetric visibility modifier, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal)
+		return modifier, true
+	}
+	p.nextToken() // consume ')'
+	return modifier + "(set)", true
+}
+
 func (p *Parser) parsePropertyDeclaration(modifiers []string, typeHint string) (ast.Node, error) {
 	p.debugTokenContext("parsePropertyDeclaration entry")
 	pos := p.tok.Pos
 	// Interpret modifiers
-	var visibility string
+	var visibility, setVisibility string
 	var isStatic, isReadonly bool
 	for _, m := range modifiers {
 		switch m {
 		case "public", "protected", "private":
 			visibility = m
+		case "public(set)", "protected(set)", "private(set)":
+			setVisibility = m[:len(m)-5]
 		case "static":
 			isStatic = true
 		case "readonly":
@@ -298,19 +338,115 @@ func (p *Parser) parsePropertyDeclaration(modifiers []string, typeHint string) (
 		p.nextToken() // consume =
 		defaultValue = p.parseExpression()
 	}
-	if p.tok.Type != token.T_SEMICOLON {
+	var hooks []ast.PropertyHookNode
+	requiresSemicolon := true
+	if p.tok.Type == token.T_LBRACE {
+		hooks = p.parsePropertyHooks(name)
+		requiresSemicolon = false
+	}
+	if requiresSemicolon && p.tok.Type != token.T_SEMICOLON {
 		p.debugTokenContext("expected semicolon after property")
 		p.addError("line %d:%d: expected ; after property declaration $%s, got %s", p.tok.Pos.Line, p.tok.Pos.Column, name, p.tok.Literal)
 		return nil, nil
 	}
-	p.nextToken()
+	if requiresSemicolon {
+		p.nextToken()
+	}
 	return &ast.PropertyNode{
-		Name:         name,
-		TypeHint:     typeHint,
-		DefaultValue: defaultValue,
-		Visibility:   visibility,
-		IsStatic:     isStatic,
-		IsReadonly:   isReadonly,
-		Pos:          ast.Position(pos),
+		Name:          name,
+		TypeHint:      typeHint,
+		DefaultValue:  defaultValue,
+		Visibility:    visibility,
+		SetVisibility: setVisibility,
+		IsStatic:      isStatic,
+		IsReadonly:    isReadonly,
+		Hooks:         hooks,
+		Pos:           ast.Position(pos),
 	}, nil
+}
+
+func (p *Parser) parsePropertyHooks(propertyName string) []ast.PropertyHookNode {
+	var hooks []ast.PropertyHookNode
+	p.nextToken() // consume '{'
+	for p.tok.Type != token.T_RBRACE && p.tok.Type != token.T_EOF {
+		for p.tok.Type == token.T_COMMENT || p.tok.Type == token.T_DOC_COMMENT {
+			p.nextToken()
+		}
+		if p.tok.Type == token.T_RBRACE || p.tok.Type == token.T_EOF {
+			break
+		}
+
+		hookPos := p.tok.Pos
+		isByRef := false
+		if p.tok.Type == token.T_AMPERSAND {
+			isByRef = true
+			p.nextToken()
+		}
+		if p.tok.Type != token.T_STRING {
+			p.addError("line %d:%d: expected property hook name for $%s, got %s", p.tok.Pos.Line, p.tok.Pos.Column, propertyName, p.tok.Literal)
+			for p.tok.Type != token.T_SEMICOLON && p.tok.Type != token.T_RBRACE && p.tok.Type != token.T_EOF {
+				p.nextToken()
+			}
+			if p.tok.Type == token.T_SEMICOLON {
+				p.nextToken()
+			}
+			continue
+		}
+
+		hook := ast.PropertyHookNode{Name: p.tok.Literal, IsByRef: isByRef, Pos: ast.Position(hookPos)}
+		p.nextToken() // consume hook name
+
+		if p.tok.Type == token.T_LPAREN {
+			hook.Parameter = p.readBalancedPropertyHookHeader()
+		}
+
+		switch p.tok.Type {
+		case token.T_DOUBLE_ARROW:
+			p.nextToken() // consume =>
+			hook.Expr = p.parseExpression()
+			if p.tok.Type != token.T_SEMICOLON {
+				p.addError("line %d:%d: expected ; after %s hook for $%s, got %s", p.tok.Pos.Line, p.tok.Pos.Column, hook.Name, propertyName, p.tok.Literal)
+				return hooks
+			}
+			p.nextToken() // consume ;
+		case token.T_LBRACE:
+			p.nextToken() // consume {
+			hook.Body = p.parseBlockStatement()
+			if p.tok.Type != token.T_RBRACE {
+				p.addError("line %d:%d: expected } after %s hook for $%s, got %s", p.tok.Pos.Line, p.tok.Pos.Column, hook.Name, propertyName, p.tok.Literal)
+				return hooks
+			}
+			p.nextToken() // consume }
+		default:
+			p.addError("line %d:%d: expected => or { after %s hook for $%s, got %s", p.tok.Pos.Line, p.tok.Pos.Column, hook.Name, propertyName, p.tok.Literal)
+			return hooks
+		}
+
+		hooks = append(hooks, hook)
+	}
+
+	if p.tok.Type != token.T_RBRACE {
+		p.addError("line %d:%d: expected } to close property hooks for $%s, got %s", p.tok.Pos.Line, p.tok.Pos.Column, propertyName, p.tok.Literal)
+		return hooks
+	}
+	p.nextToken() // consume '}'
+	return hooks
+}
+
+func (p *Parser) readBalancedPropertyHookHeader() string {
+	depth := 0
+	header := ""
+	for {
+		if p.tok.Type == token.T_LPAREN {
+			depth++
+		} else if p.tok.Type == token.T_RPAREN {
+			depth--
+		}
+		header += p.tok.Literal
+		p.nextToken()
+		if depth == 0 || p.tok.Type == token.T_EOF {
+			break
+		}
+	}
+	return header
 }

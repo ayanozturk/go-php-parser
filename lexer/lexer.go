@@ -273,7 +273,7 @@ func (l *Lexer) lexSymbol(pos token.Position) token.Token {
 	case ',':
 		return l.lexSingleChar(token.T_COMMA, pos)
 	case '&':
-		return l.lexSingleChar(token.T_AMPERSAND, pos)
+		return l.lexAmpersand(pos)
 	case '.':
 		return l.lexDot(pos)
 	case '"':
@@ -289,7 +289,7 @@ func (l *Lexer) lexSymbol(pos token.Position) token.Token {
 	case ']':
 		return l.lexSingleChar(token.T_RBRACKET, pos)
 	case '!':
-		return l.lexSingleChar(token.T_NOT, pos)
+		return l.lexBang(pos)
 	}
 	return token.Token{Type: token.T_ILLEGAL, Literal: string(l.char), Pos: pos}
 }

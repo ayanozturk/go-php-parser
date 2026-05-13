@@ -45,6 +45,33 @@ func TestLexerBooleanOr(t *testing.T) {
 	}
 }
 
+func TestLexerBooleanAnd(t *testing.T) {
+	lex := New("&&")
+	tok := lex.NextToken()
+	if tok.Type != token.T_BOOLEAN_AND {
+		t.Errorf("expected T_BOOLEAN_AND, got %v", tok.Type)
+	}
+}
+
+func TestLexerNotEqualOperators(t *testing.T) {
+	lex := New("!= !== !")
+
+	tok := lex.NextToken()
+	if tok.Type != token.T_IS_NOT_EQUAL || tok.Literal != "!=" {
+		t.Errorf("expected T_IS_NOT_EQUAL, got %v %q", tok.Type, tok.Literal)
+	}
+
+	tok = lex.NextToken()
+	if tok.Type != token.T_IS_NOT_IDENTICAL || tok.Literal != "!==" {
+		t.Errorf("expected T_IS_NOT_IDENTICAL, got %v %q", tok.Type, tok.Literal)
+	}
+
+	tok = lex.NextToken()
+	if tok.Type != token.T_NOT || tok.Literal != "!" {
+		t.Errorf("expected T_NOT, got %v %q", tok.Type, tok.Literal)
+	}
+}
+
 func TestLexerCoalesce(t *testing.T) {
 	lex := New("??")
 	tok := lex.NextToken()
@@ -285,6 +312,14 @@ func TestLexerOperators(t *testing.T) {
 	}
 }
 
+func TestLexerAssignmentOperators(t *testing.T) {
+	lex := New("&=")
+	tok := lex.NextToken()
+	if tok.Type != token.T_AND_EQUAL || tok.Literal != "&=" {
+		t.Errorf("expected T_AND_EQUAL, got %v %q", tok.Type, tok.Literal)
+	}
+}
+
 func TestLexerInStringMode(t *testing.T) {
 	lex := New("'foo'")
 	if lex.inStringMode() {
@@ -298,6 +333,30 @@ func TestLexerPeekToken(t *testing.T) {
 	tok2 := lex.NextToken()
 	if tok1.Type != tok2.Type || tok1.Literal != tok2.Literal {
 		t.Errorf("PeekToken and NextToken should return the same token")
+	}
+}
+
+func TestLexerPeekTokenPreservesState(t *testing.T) {
+	lex := New("foo\nbar")
+	first := lex.NextToken()
+	if first.Literal != "foo" {
+		t.Fatalf("expected first token foo, got %q", first.Literal)
+	}
+	peek := lex.PeekToken()
+	next := lex.NextToken()
+	if peek.Type != next.Type || peek.Literal != next.Literal || peek.Pos.Line != next.Pos.Line || peek.Pos.Column != next.Pos.Column {
+		t.Fatalf("peek token %#v did not match next token %#v", peek, next)
+	}
+	if next.Pos.Line != 2 {
+		t.Fatalf("expected second token on line 2, got line %d", next.Pos.Line)
+	}
+}
+
+func TestLexerTruncatedOperatorsDoNotPanic(t *testing.T) {
+	inputs := []string{"..", "<<", "=="}
+	for _, input := range inputs {
+		lex := New(input)
+		_ = lex.NextToken()
 	}
 }
 
