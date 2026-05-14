@@ -126,7 +126,33 @@ retry:
 		return p.parseIfStatement()
 	case token.T_TRY:
 		return p.parseTryStatement()
+	case token.T_GOTO:
+		pos := p.tok.Pos
+		p.nextToken() // consume goto
+		if p.tok.Type != token.T_STRING {
+			p.addError("line %d:%d: expected label after goto, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal)
+			return nil, nil
+		}
+		label := p.tok.Literal
+		p.nextToken() // consume label
+		if p.tok.Type != token.T_SEMICOLON {
+			p.addError("line %d:%d: expected ; after goto label %s, got %s", p.tok.Pos.Line, p.tok.Pos.Column, label, p.tok.Literal)
+			return nil, nil
+		}
+		p.nextToken() // consume ;
+		return &ast.GotoNode{Label: label, Pos: ast.Position(pos)}, nil
+	case token.T_FINAL, token.T_ABSTRACT:
+		modifier := p.tok.Literal
+		p.nextToken()
+		return p.parseClassDeclarationWithModifier(modifier)
 	case token.T_STRING:
+		if p.peekToken().Type == token.T_COLON {
+			pos := p.tok.Pos
+			label := p.tok.Literal
+			p.nextToken() // consume label
+			p.nextToken() // consume :
+			return &ast.LabelNode{Name: label, Pos: ast.Position(pos)}, nil
+		}
 		if p.tok.Literal == "final" || p.tok.Literal == "abstract" {
 			modifier := p.tok.Literal
 			p.nextToken()

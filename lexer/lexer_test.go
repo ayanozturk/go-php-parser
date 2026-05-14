@@ -80,6 +80,18 @@ func TestLexerSpaceship(t *testing.T) {
 	}
 }
 
+func TestLexerShiftOperators(t *testing.T) {
+	lex := New("<< >>")
+	tok := lex.NextToken()
+	if tok.Type != token.T_SL || tok.Literal != "<<" {
+		t.Errorf("expected T_SL, got %v %q", tok.Type, tok.Literal)
+	}
+	tok = lex.NextToken()
+	if tok.Type != token.T_SR || tok.Literal != ">>" {
+		t.Errorf("expected T_SR, got %v %q", tok.Type, tok.Literal)
+	}
+}
+
 func TestLexerCoalesce(t *testing.T) {
 	lex := New("??")
 	tok := lex.NextToken()

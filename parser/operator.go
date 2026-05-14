@@ -44,6 +44,7 @@ var PhpOperatorPrecedence = map[token.TokenType]int{
 
 	token.T_QUESTION:    1, // Ternary operator (just above assignment)
 	token.T_BOOLEAN_OR:  2, // ||
+	token.T_LOGICAL_XOR: 2,
 	token.T_BOOLEAN_AND: 3, // &&
 	token.T_PIPE:        4, // |
 	token.T_AMPERSAND:   5, // &
@@ -60,6 +61,8 @@ var PhpOperatorPrecedence = map[token.TokenType]int{
 	token.T_INSTANCEOF:          8,
 
 	token.T_COALESCE: 9, // ??
+	token.T_SL:       9,
+	token.T_SR:       9,
 	token.T_PLUS:     10,
 	token.T_MINUS:    10,
 	token.T_DOT:      10,

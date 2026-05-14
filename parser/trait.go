@@ -27,19 +27,26 @@ func (p *Parser) parseTraitDeclaration() (ast.Node, error) {
 	// Parse methods and constants inside the trait
 	var body []ast.Node
 	for p.tok.Type != token.T_RBRACE && p.tok.Type != token.T_EOF {
-		// Collect all modifiers (public, protected, private, static, final, abstract) and comments/docblocks before 'function' or 'const'
 		var modifiers []string
 		for {
+			if modifier, ok := p.parsePropertyModifier(); ok {
+				modifiers = append(modifiers, modifier)
+				continue
+			}
 			switch p.tok.Type {
 			case token.T_PUBLIC, token.T_PROTECTED, token.T_PRIVATE, token.T_STATIC, token.T_FINAL, token.T_ABSTRACT:
 				modifiers = append(modifiers, p.tok.Literal)
 				p.nextToken()
 				continue
-			case token.T_COMMENT, token.T_DOC_COMMENT:
+			case token.T_COMMENT, token.T_DOC_COMMENT, token.T_ATTRIBUTE:
 				p.nextToken()
 				continue
 			}
 			break
+		}
+		var typeHint string
+		if p.tok.Type == token.T_STRING || p.tok.Type == token.T_NS_SEPARATOR || p.tok.Type == token.T_CALLABLE || p.tok.Type == token.T_ARRAY || p.tok.Type == token.T_QUESTION {
+			typeHint = p.parseTypeHint()
 		}
 		if p.tok.Type == token.T_FUNCTION {
 			fn, err := p.parseFunction(modifiers)
@@ -59,9 +66,17 @@ func (p *Parser) parseTraitDeclaration() (ast.Node, error) {
 			}
 			continue
 		}
-		if len(modifiers) > 0 {
-			// If we saw modifiers but not a function, emit error and skip
-			p.addError("line %d:%d: expected function after modifiers in trait %s body, got %s", p.tok.Pos.Line, p.tok.Pos.Column, name, p.tok.Literal)
+		if p.tok.Type == token.T_VARIABLE {
+			if prop, err := p.parsePropertyDeclaration(modifiers, typeHint); prop != nil {
+				body = append(body, prop)
+			} else if err != nil {
+				p.addError(err.Error())
+				p.nextToken()
+			}
+			continue
+		}
+		if len(modifiers) > 0 || typeHint != "" {
+			p.addError("line %d:%d: expected property or function after modifiers/type in trait %s body, got %s", p.tok.Pos.Line, p.tok.Pos.Column, name, p.tok.Literal)
 			p.nextToken()
 			continue
 		}

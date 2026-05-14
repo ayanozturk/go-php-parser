@@ -110,6 +110,21 @@ func (p *Parser) parseFunction(modifiers []string) (ast.Node, error) {
 		p.nextToken()
 	}
 
+	for _, modifier := range modifiers {
+		if modifier == "abstract" && p.tok.Type == token.T_SEMICOLON {
+			p.nextToken() // consume ;
+			return &ast.FunctionNode{
+				Name:       name,
+				Params:     params,
+				ReturnType: returnType,
+				Modifiers:  modifiers,
+				Body:       nil,
+				PHPDoc:     p.consumeCurrentDoc(pos),
+				Pos:        ast.Position(pos),
+			}, nil
+		}
+	}
+
 	// Parse function body
 	if p.tok.Type != token.T_LBRACE {
 		p.addError("line %d:%d: expected { to start function body for %s, got %s", p.tok.Pos.Line, p.tok.Pos.Column, name, p.tok.Literal)

@@ -73,12 +73,11 @@ func (p *Parser) parseCatchClause() (*ast.CatchNode, error) {
 		p.nextToken() // consume |
 	}
 
-	if p.tok.Type != token.T_VARIABLE {
-		p.addError("line %d:%d: expected catch variable, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal)
-		return nil, nil
+	variable := ""
+	if p.tok.Type == token.T_VARIABLE {
+		variable = p.tok.Literal[1:]
+		p.nextToken()
 	}
-	variable := p.tok.Literal[1:]
-	p.nextToken()
 
 	if p.tok.Type != token.T_RPAREN {
 		p.addError("line %d:%d: expected ) after catch signature, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal)

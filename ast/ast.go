@@ -668,3 +668,29 @@ func (t *ThrowNode) String() string {
 	return "Throw(" + t.Expr.String() + ") @ " + fmt.Sprintf("%d:%d", t.Pos.Line, t.Pos.Column)
 }
 func (t *ThrowNode) TokenLiteral() string { return "throw" }
+
+type GotoNode struct {
+	Label string
+	Pos   Position
+}
+
+func (g *GotoNode) NodeType() string    { return "Goto" }
+func (g *GotoNode) GetPos() Position    { return g.Pos }
+func (g *GotoNode) SetPos(pos Position) { g.Pos = pos }
+func (g *GotoNode) String() string {
+	return fmt.Sprintf("Goto(%s) @ %d:%d", g.Label, g.Pos.Line, g.Pos.Column)
+}
+func (g *GotoNode) TokenLiteral() string { return "goto" }
+
+type LabelNode struct {
+	Name string
+	Pos  Position
+}
+
+func (l *LabelNode) NodeType() string    { return "Label" }
+func (l *LabelNode) GetPos() Position    { return l.Pos }
+func (l *LabelNode) SetPos(pos Position) { l.Pos = pos }
+func (l *LabelNode) String() string {
+	return fmt.Sprintf("Label(%s) @ %d:%d", l.Name, l.Pos.Line, l.Pos.Column)
+}
+func (l *LabelNode) TokenLiteral() string { return l.Name }

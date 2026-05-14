@@ -91,6 +91,11 @@ func (l *Lexer) lexAmpersand(pos token.Position) token.Token {
 }
 
 func (l *Lexer) lexGreater(pos token.Position) token.Token {
+	if l.peekChar() == '>' {
+		l.readChar()
+		l.readChar()
+		return token.Token{Type: token.T_SR, Literal: ">>", Pos: pos}
+	}
 	if l.peekChar() == '=' {
 		l.readChar()
 		l.readChar()
@@ -226,9 +231,14 @@ func (l *Lexer) lexLess(pos token.Position) token.Token {
 		l.readChar()
 		return token.Token{Type: token.T_IS_SMALLER_OR_EQUAL, Literal: "<=", Pos: pos}
 	}
-	if l.peekChar() == '<' && l.readPos+1 < len(l.input) && l.input[l.readPos+1] == '<' {
-		l.queueHeredocTokens(pos)
-		return l.nextHeredocToken()
+	if l.peekChar() == '<' {
+		if l.readPos+1 < len(l.input) && l.input[l.readPos+1] == '<' {
+			l.queueHeredocTokens(pos)
+			return l.nextHeredocToken()
+		}
+		l.readChar()
+		l.readChar()
+		return token.Token{Type: token.T_SL, Literal: "<<", Pos: pos}
 	}
 	if l.peekChar() == '?' {
 		l.readChar()

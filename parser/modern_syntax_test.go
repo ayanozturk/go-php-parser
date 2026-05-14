@@ -780,3 +780,217 @@ $result = $this->when(
 		t.Fatalf("unexpected parser errors: %v", p.Errors())
 	}
 }
+
+func TestParseGroupedStaticClosureInvocation(t *testing.T) {
+	php := `<?php
+$gen = (static function () use ($loaders): \Generator {
+    yield 1;
+})();
+`
+
+	l := lexer.New(php)
+	p := New(l, true)
+	_ = p.Parse()
+
+	if len(p.Errors()) > 0 {
+		t.Fatalf("unexpected parser errors: %v", p.Errors())
+	}
+}
+
+func TestParseAbstractMethodDeclaration(t *testing.T) {
+	php := `<?php
+abstract class A {
+    abstract public function operator(Compiler $compiler): Compiler;
+}
+`
+
+	l := lexer.New(php)
+	p := New(l, true)
+	_ = p.Parse()
+
+	if len(p.Errors()) > 0 {
+		t.Fatalf("unexpected parser errors: %v", p.Errors())
+	}
+}
+
+func TestParseTypedTraitProperty(t *testing.T) {
+	php := `<?php
+trait T {
+    private bool $definedTest = false;
+}
+`
+
+	l := lexer.New(php)
+	p := New(l, true)
+	_ = p.Parse()
+
+	if len(p.Errors()) > 0 {
+		t.Fatalf("unexpected parser errors: %v", p.Errors())
+	}
+}
+
+func TestParseGotoAndLabel(t *testing.T) {
+	php := `<?php
+goto methodCheck;
+methodCheck:
+return 1;
+`
+
+	l := lexer.New(php)
+	p := New(l, true)
+	_ = p.Parse()
+
+	if len(p.Errors()) > 0 {
+		t.Fatalf("unexpected parser errors: %v", p.Errors())
+	}
+}
+
+func TestParseStaticPropertyFetchAndReservedMethod(t *testing.T) {
+	php := `<?php
+return self::$colors[$foo] ?? CoreExtension::include($env);
+`
+
+	l := lexer.New(php)
+	p := New(l, true)
+	_ = p.Parse()
+
+	if len(p.Errors()) > 0 {
+		t.Fatalf("unexpected parser errors: %v", p.Errors())
+	}
+}
+
+func TestParseReservedObjectMethodName(t *testing.T) {
+	php := `<?php
+foreach ($template->yield($context) as $block) {}
+`
+
+	l := lexer.New(php)
+	p := New(l, true)
+	_ = p.Parse()
+
+	if len(p.Errors()) > 0 {
+		t.Fatalf("unexpected parser errors: %v", p.Errors())
+	}
+}
+
+func TestParseCommentSeparatedFluentChain(t *testing.T) {
+	php := `<?php
+
+$compiler
+    // chain comment
+    ->write('x')
+    ->raw('y');
+`
+
+	l := lexer.New(php)
+	p := New(l, true)
+	_ = p.Parse()
+
+	if len(p.Errors()) > 0 {
+		t.Fatalf("unexpected parser errors: %v", p.Errors())
+	}
+}
+
+func TestParseCatchWithoutVariable(t *testing.T) {
+	php := `<?php
+try {
+    x();
+} catch (RuntimeError) {
+    y();
+}
+`
+
+	l := lexer.New(php)
+	p := New(l, true)
+	_ = p.Parse()
+
+	if len(p.Errors()) > 0 {
+		t.Fatalf("unexpected parser errors: %v", p.Errors())
+	}
+}
+
+func TestParseLogicalXor(t *testing.T) {
+	php := `<?php
+if ($a xor $b) {
+	return;
+}
+`
+
+	l := lexer.New(php)
+	p := New(l, true)
+	_ = p.Parse()
+
+	if len(p.Errors()) > 0 {
+		t.Fatalf("unexpected parser errors: %v", p.Errors())
+	}
+}
+
+func TestParseShiftOperators(t *testing.T) {
+	php := `<?php
+return 0xD800 | ($u >> 10);
+`
+
+	l := lexer.New(php)
+	p := New(l, true)
+	_ = p.Parse()
+
+	if len(p.Errors()) > 0 {
+		t.Fatalf("unexpected parser errors: %v", p.Errors())
+	}
+}
+
+func TestParseMatchArmComment(t *testing.T) {
+	php := `<?php
+return match ($ord) {
+	34 => '&quot;', /* quotation mark */
+	38 => '&amp;',
+	default => 'x',
+};
+`
+
+	l := lexer.New(php)
+	p := New(l, true)
+	_ = p.Parse()
+
+	if len(p.Errors()) > 0 {
+		t.Fatalf("unexpected parser errors: %v", p.Errors())
+	}
+}
+
+func TestParseCommentSeparatedElseIfChain(t *testing.T) {
+	php := `<?php
+if ($node instanceof ForNode) {
+	$x = 1;
+} elseif (!$loops) {
+	return;
+}
+
+// the loop variable is referenced for the current loop
+elseif ($node instanceof ContextVariable) {
+	$y = 1;
+}
+`
+
+	l := lexer.New(php)
+	p := New(l, true)
+	_ = p.Parse()
+
+	if len(p.Errors()) > 0 {
+		t.Fatalf("unexpected parser errors: %v", p.Errors())
+	}
+}
+
+func TestParseCommentAfterConcatenationOperator(t *testing.T) {
+	php := `<?php
+$x = preg_quote($a, '#')."x". // comment
+	'|';
+`
+
+	l := lexer.New(php)
+	p := New(l, true)
+	_ = p.Parse()
+
+	if len(p.Errors()) > 0 {
+		t.Fatalf("unexpected parser errors: %v", p.Errors())
+	}
+}

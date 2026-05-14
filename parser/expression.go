@@ -15,6 +15,9 @@ func (p *Parser) parseExpression() ast.Node {
 
 // parseExpressionWithPrecedence parses expressions with correct precedence. Only validateAssignmentTarget for top-level expressions.
 func (p *Parser) parseExpressionWithPrecedence(minPrec int, validateAssignmentTarget bool, stopTypes ...token.TokenType) ast.Node {
+	for p.tok.Type == token.T_COMMENT || p.tok.Type == token.T_DOC_COMMENT || p.tok.Type == token.T_WHITESPACE {
+		p.nextToken()
+	}
 	if p.tok.Type == token.T_LBRACKET || p.tok.Type == token.T_ARRAY {
 		left := p.parseArrayLiteral()
 		if left == nil {
@@ -150,7 +153,7 @@ func (p *Parser) parseUnaryExpression(stopTypes ...token.TokenType) ast.Node {
 // parseBinaryAndTernaryOperators handles binary and ternary expressions.
 func (p *Parser) parseBinaryAndTernaryOperators(left ast.Node, minPrec int, validateAssignmentTarget bool, stopTypes ...token.TokenType) ast.Node {
 	for {
-		for p.tok.Type == token.T_COMMENT || p.tok.Type == token.T_DOC_COMMENT {
+		for p.tok.Type == token.T_COMMENT || p.tok.Type == token.T_DOC_COMMENT || p.tok.Type == token.T_WHITESPACE {
 			p.nextToken()
 		}
 		// Ternary
@@ -300,6 +303,15 @@ func (p *Parser) parseSimpleExpression() ast.Node {
 	case token.T_STATIC:
 		if p.peekToken().Type == token.T_FN {
 			return p.parseArrowFunction()
+		}
+		if p.peekToken().Type == token.T_FUNCTION {
+			p.nextToken() // consume static
+			if fn, err := p.parseFunction([]string{"static"}); err == nil {
+				if fn != nil {
+					return fn
+				}
+			}
+			return nil
 		}
 		return p.parseSimpleFQCNOrFunctionCall()
 	case token.T_STRING, token.T_SELF, token.T_PARENT, token.T_NS_SEPARATOR:
@@ -490,7 +502,16 @@ func (p *Parser) collectFQCNString() string {
 
 func (p *Parser) parseSimpleStaticAccess(fqcn string, fqcnPos token.Position) ast.Node {
 	p.nextToken() // consume '::'
-	if p.tok.Type == token.T_STRING {
+	if p.tok.Type == token.T_VARIABLE {
+		memberName := p.tok.Literal
+		p.nextToken()
+		return p.parsePostfixExpression(&ast.ClassConstFetchNode{
+			Class: fqcn,
+			Const: memberName,
+			Pos:   ast.Position(fqcnPos),
+		})
+	}
+	if p.tok.Type == token.T_STRING || isValidMethodNameToken(p.tok.Type) {
 		memberName := p.tok.Literal
 		p.nextToken()
 		if p.tok.Type == token.T_LPAREN {
@@ -697,7 +718,7 @@ func (p *Parser) parseSimpleObjectOrMethod(expr ast.Node) ast.Node {
 	objOpPos := p.tok.Pos
 	operator := p.tok.Literal
 	p.nextToken() // consume object operator
-	if !isMemberIdentifierToken(p.tok.Type) {
+	if !isMemberIdentifierToken(p.tok.Type) && !isValidMethodNameToken(p.tok.Type) {
 		p.addError("line %d:%d: expected property/method name after %s, got %s", p.tok.Pos.Line, p.tok.Pos.Column, operator, p.tok.Literal)
 		return nil
 	}
@@ -934,6 +955,9 @@ func (p *Parser) readCastType() (string, bool) {
 
 func (p *Parser) parsePostfixExpression(expr ast.Node) ast.Node {
 	for {
+		for p.tok.Type == token.T_COMMENT || p.tok.Type == token.T_DOC_COMMENT || p.tok.Type == token.T_WHITESPACE {
+			p.nextToken()
+		}
 		if p.tok.Type == token.T_INC || p.tok.Type == token.T_DEC {
 			opTok := p.tok
 			p.nextToken()
@@ -971,7 +995,12 @@ func (p *Parser) parseStaticAccessOnNode(expr ast.Node) ast.Node {
 		className = "$" + variable.Name
 	}
 	p.nextToken() // consume '::'
-	if isMemberIdentifierToken(p.tok.Type) {
+	if p.tok.Type == token.T_VARIABLE {
+		memberName := p.tok.Literal
+		p.nextToken()
+		return p.parsePostfixExpression(&ast.ClassConstFetchNode{Class: className, Const: memberName, Pos: expr.GetPos()})
+	}
+	if isMemberIdentifierToken(p.tok.Type) || isValidMethodNameToken(p.tok.Type) {
 		memberName := p.tok.Literal
 		p.nextToken()
 		if p.tok.Type == token.T_LPAREN {

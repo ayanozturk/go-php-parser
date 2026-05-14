@@ -44,6 +44,12 @@ func (p *Parser) parseMatchExpression() ast.Node {
 
 	// Parse match arms
 	for p.tok.Type != token.T_RBRACE && p.tok.Type != token.T_EOF {
+		for p.tok.Type == token.T_COMMENT || p.tok.Type == token.T_DOC_COMMENT || p.tok.Type == token.T_WHITESPACE {
+			p.nextToken()
+		}
+		if p.tok.Type == token.T_RBRACE {
+			break
+		}
 		arm := p.parseMatchArm()
 		if arm == nil {
 			return nil
@@ -51,6 +57,9 @@ func (p *Parser) parseMatchExpression() ast.Node {
 		arms = append(arms, *arm)
 
 		// Handle optional comma after arm (trailing comma support)
+		for p.tok.Type == token.T_COMMENT || p.tok.Type == token.T_DOC_COMMENT || p.tok.Type == token.T_WHITESPACE {
+			p.nextToken()
+		}
 		if p.tok.Type == token.T_COMMA {
 			p.nextToken()
 		} else if p.tok.Type != token.T_RBRACE {
