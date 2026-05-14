@@ -72,6 +72,14 @@ func TestLexerNotEqualOperators(t *testing.T) {
 	}
 }
 
+func TestLexerSpaceship(t *testing.T) {
+	lex := New("<=>")
+	tok := lex.NextToken()
+	if tok.Type != token.T_SPACESHIP || tok.Literal != "<=>" {
+		t.Errorf("expected T_SPACESHIP, got %v %q", tok.Type, tok.Literal)
+	}
+}
+
 func TestLexerCoalesce(t *testing.T) {
 	lex := New("??")
 	tok := lex.NextToken()
@@ -109,6 +117,14 @@ func TestLexerAtOperator(t *testing.T) {
 	tok := lex.NextToken()
 	if tok.Type != token.T_AT || tok.Literal != "@" {
 		t.Errorf("expected T_AT, got %v %q", tok.Type, tok.Literal)
+	}
+}
+
+func TestLexerYieldKeyword(t *testing.T) {
+	lex := New("yield")
+	tok := lex.NextToken()
+	if tok.Type != token.T_YIELD || tok.Literal != "yield" {
+		t.Errorf("expected T_YIELD, got %v %q", tok.Type, tok.Literal)
 	}
 }
 

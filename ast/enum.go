@@ -10,6 +10,7 @@ type EnumNode struct {
 	Name     string
 	BackedBy string // Optional type that the enum is backed by (e.g., "int", "string")
 	Cases    []*EnumCaseNode
+	Methods  []Node
 	Pos      Position
 }
 

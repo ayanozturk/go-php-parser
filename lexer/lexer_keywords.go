@@ -64,6 +64,7 @@ var keywordTokenMap = map[string]token.TokenType{
 	"require_once": token.T_REQUIRE_ONCE,
 	"global":       token.T_GLOBAL,
 	"list":         token.T_LIST,
+	"yield":        token.T_YIELD,
 	"namespace":    token.T_NAMESPACE,
 	"use":          token.T_USE,
 	"never":        token.T_NEVER,

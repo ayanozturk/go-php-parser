@@ -215,6 +215,12 @@ func (l *Lexer) lexPercent(pos token.Position) token.Token {
 }
 
 func (l *Lexer) lexLess(pos token.Position) token.Token {
+	if l.peekChar() == '=' && l.readPos+1 < len(l.input) && l.input[l.readPos+1] == '>' {
+		l.readChar()
+		l.readChar()
+		l.readChar()
+		return token.Token{Type: token.T_SPACESHIP, Literal: "<=>", Pos: pos}
+	}
 	if l.peekChar() == '=' {
 		l.readChar()
 		l.readChar()

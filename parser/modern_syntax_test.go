@@ -532,6 +532,138 @@ return new ($class)($parser);
 	}
 }
 
+func TestParseYieldFrom(t *testing.T) {
+	php := `<?php
+function iter() {
+    yield from $parsers;
+}
+`
+
+	l := lexer.New(php)
+	p := New(l, true)
+	_ = p.Parse()
+
+	if len(p.Errors()) > 0 {
+		t.Fatalf("unexpected parser errors: %v", p.Errors())
+	}
+}
+
+func TestParseUnpackedFunctionCallArgument(t *testing.T) {
+	php := `<?php
+var_dump(...$vars);
+`
+
+	l := lexer.New(php)
+	p := New(l, true)
+	_ = p.Parse()
+
+	if len(p.Errors()) > 0 {
+		t.Fatalf("unexpected parser errors: %v", p.Errors())
+	}
+}
+
+func TestParseSwitchStatement(t *testing.T) {
+	php := `<?php
+switch ($extension) {
+    case 'js':
+    case 'json':
+        return 'js';
+    default:
+        return 'html';
+}
+`
+
+	l := lexer.New(php)
+	p := New(l, true)
+	_ = p.Parse()
+
+	if len(p.Errors()) > 0 {
+		t.Fatalf("unexpected parser errors: %v", p.Errors())
+	}
+}
+
+func TestParseReservedKeywordMethodName(t *testing.T) {
+	php := `<?php
+class CoreExtension {
+    public static function default($value, $default = '')
+    {
+        return $value;
+    }
+}
+`
+
+	l := lexer.New(php)
+	p := New(l, true)
+	_ = p.Parse()
+
+	if len(p.Errors()) > 0 {
+		t.Fatalf("unexpected parser errors: %v", p.Errors())
+	}
+}
+
+func TestParseSpaceshipOperator(t *testing.T) {
+	php := `<?php
+return (string) $a <=> $b;
+`
+
+	l := lexer.New(php)
+	p := New(l, true)
+	_ = p.Parse()
+
+	if len(p.Errors()) > 0 {
+		t.Fatalf("unexpected parser errors: %v", p.Errors())
+	}
+}
+
+func TestParseAnonymousClassInstantiation(t *testing.T) {
+	php := `<?php
+return new class($precedence, $value) extends BinaryOperatorExpressionParser {
+    public function __construct($precedence, $value) {}
+};
+`
+
+	l := lexer.New(php)
+	p := New(l, true)
+	_ = p.Parse()
+
+	if len(p.Errors()) > 0 {
+		t.Fatalf("unexpected parser errors: %v", p.Errors())
+	}
+}
+
+func TestParseDynamicMethodCall(t *testing.T) {
+	php := `<?php
+return $parent->$method(...$args);
+`
+
+	l := lexer.New(php)
+	p := New(l, true)
+	_ = p.Parse()
+
+	if len(p.Errors()) > 0 {
+		t.Fatalf("unexpected parser errors: %v", p.Errors())
+	}
+}
+
+func TestParseReservedEnumMethodName(t *testing.T) {
+	php := `<?php
+class CoreExtension {
+    public static function enum($enum)
+    {
+        return $enum;
+    }
+}
+`
+
+	l := lexer.New(php)
+	p := New(l, true)
+	_ = p.Parse()
+
+	if len(p.Errors()) > 0 {
+		t.Fatalf("unexpected parser errors: %v", p.Errors())
+	}
+}
+
 func TestParseVariableArrayKey(t *testing.T) {
 	php := `<?php
 return [$name => $template];

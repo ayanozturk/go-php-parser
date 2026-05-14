@@ -190,6 +190,8 @@ retry:
 		return p.parseWhileStatement()
 	case token.T_DO:
 		return p.parseDoWhileStatement()
+	case token.T_SWITCH:
+		return p.parseSwitchStatement()
 	case token.T_UNSET:
 		pos := p.tok.Pos
 		p.nextToken() // consume 'unset'

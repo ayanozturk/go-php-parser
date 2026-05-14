@@ -35,15 +35,44 @@ func (p *Parser) parseEnum() (*ast.EnumNode, error) {
 	}
 	p.nextToken()
 
-	// Parse cases
+	// Parse enum body
 	var cases []*ast.EnumCaseNode
-	for p.tok.Type != token.T_RBRACE {
+	var methods []ast.Node
+	for p.tok.Type != token.T_RBRACE && p.tok.Type != token.T_EOF {
+		for p.tok.Type == token.T_COMMENT || p.tok.Type == token.T_DOC_COMMENT || p.tok.Type == token.T_ATTRIBUTE {
+			p.nextToken()
+		}
 		if p.tok.Type == token.T_CASE {
 			enumCase, err := p.parseEnumCase()
 			if err != nil {
 				return nil, err
 			}
 			cases = append(cases, enumCase)
+			continue
+		}
+
+		var modifiers []string
+		for {
+			switch p.tok.Type {
+			case token.T_PUBLIC, token.T_PROTECTED, token.T_PRIVATE, token.T_STATIC, token.T_FINAL, token.T_ABSTRACT:
+				modifiers = append(modifiers, p.tok.Literal)
+				p.nextToken()
+				continue
+			case token.T_COMMENT, token.T_DOC_COMMENT, token.T_ATTRIBUTE:
+				p.nextToken()
+				continue
+			}
+			break
+		}
+		if p.tok.Type == token.T_FUNCTION {
+			method, err := p.parseFunction(modifiers)
+			if err != nil {
+				return nil, err
+			}
+			if method != nil {
+				methods = append(methods, method)
+			}
+			continue
 		} else {
 			p.nextToken()
 		}
@@ -56,6 +85,7 @@ func (p *Parser) parseEnum() (*ast.EnumNode, error) {
 		Name:     name,
 		BackedBy: backedBy,
 		Cases:    cases,
+		Methods:  methods,
 		Pos:      ast.Position(pos),
 	}, nil
 }

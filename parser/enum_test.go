@@ -41,3 +41,33 @@ enum Status { case CASE_ONE; case CASE_TWO; }`
 		t.Errorf("Expected second case 'CASE_TWO', got '%s'", enumNode.Cases[1].Name)
 	}
 }
+
+func TestParseEnumWithMethod(t *testing.T) {
+	code := `<?php
+enum ExpressionParserType: string {
+    case Prefix = 'prefix';
+    case Infix = 'infix';
+
+    public static function getType(object $object): ExpressionParserType
+    {
+        return self::Prefix;
+    }
+}`
+	l := lexer.New(code)
+	p := New(l, true)
+	nodes := p.Parse()
+
+	if len(p.Errors()) > 0 {
+		t.Fatalf("Parse errors: %v", p.Errors())
+	}
+	enumNode, ok := nodes[0].(*ast.EnumNode)
+	if !ok {
+		t.Fatalf("Expected *ast.EnumNode, got %T", nodes[0])
+	}
+	if len(enumNode.Cases) != 2 {
+		t.Fatalf("Expected 2 cases, got %d", len(enumNode.Cases))
+	}
+	if len(enumNode.Methods) != 1 {
+		t.Fatalf("Expected 1 method, got %d", len(enumNode.Methods))
+	}
+}

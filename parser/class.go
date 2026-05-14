@@ -180,6 +180,136 @@ func (p *Parser) parseClassDeclaration() (ast.Node, error) {
 	}, nil
 }
 
+func (p *Parser) parseAnonymousClassExpression() (ast.Node, []ast.Node) {
+	pos := p.tok.Pos
+	p.nextToken() // consume 'class'
+
+	var args []ast.Node
+	if p.tok.Type == token.T_LPAREN {
+		p.nextToken() // consume (
+		args = p.parseFunctionCallArguments()
+		if p.tok.Type != token.T_RPAREN {
+			p.addError("line %d:%d: expected ) after anonymous class arguments, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal)
+			return nil, nil
+		}
+		p.nextToken() // consume )
+	}
+
+	var extends string
+	if p.tok.Type == token.T_EXTENDS {
+		p.nextToken() // consume 'extends'
+		parentNode, ok := p.parseFQCN().(*ast.IdentifierNode)
+		if !ok || parentNode == nil {
+			p.addError("line %d:%d: expected parent class name after extends, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal)
+			return nil, nil
+		}
+		extends = parentNode.Value
+	}
+
+	var implements []string
+	if p.tok.Type == token.T_IMPLEMENTS {
+		p.nextToken() // consume 'implements'
+		for {
+			ifaceNode, ok := p.parseFQCN().(*ast.IdentifierNode)
+			if !ok || ifaceNode == nil {
+				p.addError("line %d:%d: expected interface name after implements, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal)
+				return nil, nil
+			}
+			implements = append(implements, ifaceNode.Value)
+
+			if p.tok.Type != token.T_COMMA {
+				break
+			}
+			p.nextToken() // consume comma
+		}
+	}
+
+	if p.tok.Type != token.T_LBRACE {
+		p.addError("line %d:%d: expected { after anonymous class declaration, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal)
+		return nil, nil
+	}
+	p.nextToken() // consume {
+
+	var properties []ast.Node
+	var methods []ast.Node
+	var constants []ast.Node
+	var traitUses []ast.Node
+	for p.tok.Type != token.T_RBRACE && p.tok.Type != token.T_EOF {
+		var modifiers []string
+		for {
+			if modifier, ok := p.parsePropertyModifier(); ok {
+				modifiers = append(modifiers, modifier)
+				continue
+			}
+			switch p.tok.Type {
+			case token.T_PUBLIC, token.T_PROTECTED, token.T_PRIVATE, token.T_STATIC, token.T_FINAL, token.T_ABSTRACT:
+				modifiers = append(modifiers, p.tok.Literal)
+				p.nextToken()
+				continue
+			case token.T_COMMENT, token.T_DOC_COMMENT, token.T_ATTRIBUTE:
+				p.nextToken()
+				continue
+			}
+			break
+		}
+
+		var typeHint string
+		if p.tok.Type == token.T_STRING || p.tok.Type == token.T_NS_SEPARATOR || p.tok.Type == token.T_CALLABLE || p.tok.Type == token.T_ARRAY || p.tok.Type == token.T_QUESTION {
+			typeHint = p.parseTypeHint()
+		}
+		if p.tok.Type == token.T_FUNCTION {
+			if method, err := p.parseFunction(modifiers); method != nil {
+				methods = append(methods, method)
+			} else if err != nil {
+				return nil, nil
+			}
+			continue
+		}
+		if p.tok.Type == token.T_VARIABLE {
+			if prop, err := p.parsePropertyDeclaration(modifiers, typeHint); prop != nil {
+				properties = append(properties, prop)
+			} else if err != nil {
+				return nil, nil
+			}
+			continue
+		}
+		if p.tok.Type == token.T_CONST {
+			if constant := p.parseConstant(); constant != nil {
+				constants = append(constants, constant)
+			}
+			continue
+		}
+		if p.tok.Type == token.T_USE {
+			if traitUse := p.parseTraitUseStatement(); traitUse != nil {
+				traitUses = append(traitUses, traitUse)
+			}
+			continue
+		}
+		if len(modifiers) > 0 || typeHint != "" {
+			p.addError("line %d:%d: expected property or function in anonymous class body, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal)
+			p.syncToNextClassMember()
+			continue
+		}
+		p.addError("line %d:%d: unexpected token %s in anonymous class body", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal)
+		p.syncToNextClassMember()
+	}
+
+	if p.tok.Type != token.T_RBRACE {
+		p.addError("line %d:%d: expected } to close anonymous class body, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal)
+		return nil, nil
+	}
+	p.nextToken() // consume }
+
+	return &ast.ClassNode{
+		Extends:    extends,
+		Implements: implements,
+		Properties: append(traitUses, properties...),
+		Methods:    methods,
+		Constants:  constants,
+		Pos:        ast.Position(pos),
+	}, args
+}
+
 func (p *Parser) parseTraitUseStatement() ast.Node {
 	pos := p.tok.Pos
 	p.nextToken() // consume use

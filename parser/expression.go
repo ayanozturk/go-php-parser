@@ -318,6 +318,8 @@ func (p *Parser) parseSimpleExpression() ast.Node {
 		return p.parseSimpleBoolOrNull()
 	case token.T_VARIABLE:
 		return p.parseSimpleVariable()
+	case token.T_YIELD:
+		return p.parseSimpleYieldExpression()
 	case token.T_ISSET, token.T_EMPTY:
 		return p.parseSimpleBuiltinCall()
 	case token.T_INCLUDE, token.T_INCLUDE_ONCE, token.T_REQUIRE, token.T_REQUIRE_ONCE:
@@ -359,6 +361,17 @@ func (p *Parser) parseSimpleUnary() ast.Node {
 func (p *Parser) parseSimpleNew() ast.Node {
 	pos := p.tok.Pos
 	p.nextToken() // consume 'new'
+	if p.tok.Type == token.T_CLASS {
+		classExpr, args := p.parseAnonymousClassExpression()
+		if classExpr == nil {
+			return nil
+		}
+		return &ast.NewNode{
+			ClassExpr: classExpr,
+			Args:      args,
+			Pos:       ast.Position(pos),
+		}
+	}
 	if p.tok.Type != token.T_STRING && p.tok.Type != token.T_STATIC && p.tok.Type != token.T_SELF && p.tok.Type != token.T_PARENT && p.tok.Type != token.T_NS_SEPARATOR && p.tok.Type != token.T_VARIABLE && p.tok.Type != token.T_LPAREN {
 		p.addError("line %d:%d: expected class name after new, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal)
 		return nil
@@ -429,8 +442,8 @@ func (p *Parser) parseSimpleFQCNOrFunctionCall() ast.Node {
 		// Check if this is first-class callable syntax: name(...)
 		p.nextToken() // consume '('
 		if p.tok.Type == token.T_ELLIPSIS {
-			p.nextToken() // consume '...'
-			if p.tok.Type == token.T_RPAREN {
+			if p.peekToken().Type == token.T_RPAREN {
+				p.nextToken() // consume '...'
 				p.nextToken() // consume ')'
 				expr = &ast.FirstClassCallableNode{
 					Name: &ast.IdentifierNode{
@@ -440,25 +453,21 @@ func (p *Parser) parseSimpleFQCNOrFunctionCall() ast.Node {
 					Pos: ast.Position(fqcnPos),
 				}
 				return p.parsePostfixExpression(expr)
-			} else {
-				p.addError("line %d:%d: expected ')' after '...' in first-class callable", p.tok.Pos.Line, p.tok.Pos.Column)
-				return nil
 			}
-		} else {
-			// Not first-class callable, parse as regular function call
-			args := p.parseFunctionCallArguments()
-			if p.tok.Type != token.T_RPAREN {
-				p.addError(errExpectedRParenFunctionCall, p.tok.Pos.Line, p.tok.Pos.Column, fqcn, p.tok.Literal)
-				return nil
-			}
-			p.nextToken() // consume )
-			expr = &ast.FunctionCallNode{
-				Name: expr,
-				Args: args,
-				Pos:  ast.Position(fqcnPos),
-			}
-			return p.parsePostfixExpression(expr)
 		}
+		// Not first-class callable, parse as regular function call
+		args := p.parseFunctionCallArguments()
+		if p.tok.Type != token.T_RPAREN {
+			p.addError(errExpectedRParenFunctionCall, p.tok.Pos.Line, p.tok.Pos.Column, fqcn, p.tok.Literal)
+			return nil
+		}
+		p.nextToken() // consume )
+		expr = &ast.FunctionCallNode{
+			Name: expr,
+			Args: args,
+			Pos:  ast.Position(fqcnPos),
+		}
+		return p.parsePostfixExpression(expr)
 	}
 	return p.parsePostfixExpression(expr)
 }
@@ -854,6 +863,26 @@ func (p *Parser) parseSimpleIncludeExpression() ast.Node {
 	}
 }
 
+func (p *Parser) parseSimpleYieldExpression() ast.Node {
+	pos := p.tok.Pos
+	p.nextToken() // consume yield
+	operator := "yield"
+	if p.tok.Type == token.T_STRING && p.tok.Literal == "from" {
+		operator = "yield from"
+		p.nextToken() // consume from
+	}
+	expr := p.parseExpressionWithPrecedence(100, false)
+	if expr == nil {
+		p.addError("line %d:%d: expected expression after %s", pos.Line, pos.Column, operator)
+		return nil
+	}
+	return &ast.UnaryExpr{
+		Operator: operator,
+		Operand:  expr,
+		Pos:      ast.Position(pos),
+	}
+}
+
 func (p *Parser) parseGroupedExpression() ast.Node {
 	groupPos := p.tok.Pos
 	p.nextToken() // consume '('
@@ -971,7 +1000,7 @@ func (p *Parser) parseStaticAccessOnNode(expr ast.Node) ast.Node {
 
 func isMemberIdentifierToken(tokType token.TokenType) bool {
 	switch tokType {
-	case token.T_STRING, token.T_CLASS, token.T_CALLABLE, token.T_MATCH, token.T_FN, token.T_LIST, token.T_STATIC, token.T_SELF, token.T_PARENT:
+	case token.T_STRING, token.T_CLASS, token.T_CALLABLE, token.T_MATCH, token.T_FN, token.T_LIST, token.T_STATIC, token.T_SELF, token.T_PARENT, token.T_VARIABLE:
 		return true
 	default:
 		return false

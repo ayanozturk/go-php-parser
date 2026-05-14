@@ -18,6 +18,8 @@ func isValidMethodNameToken(t token.TokenType) bool {
 	switch t {
 	case token.T_STRING,
 		token.T_CONTINUE,
+		token.T_DEFAULT,
+		token.T_ENUM,
 		token.T_MATCH,
 		token.T_YIELD,
 		token.T_LIST,
