@@ -928,20 +928,42 @@ func (p *Parser) parseSimpleIncludeExpression() ast.Node {
 func (p *Parser) parseSimpleYieldExpression() ast.Node {
 	pos := p.tok.Pos
 	p.nextToken() // consume yield
-	operator := "yield"
 	if p.tok.Type == token.T_STRING && p.tok.Literal == "from" {
-		operator = "yield from"
 		p.nextToken() // consume from
+		expr := p.parseExpressionWithPrecedence(100, false)
+		if expr == nil {
+			p.addError("line %d:%d: expected expression after yield from", pos.Line, pos.Column)
+			return nil
+		}
+		return &ast.YieldNode{
+			Value: expr,
+			From:  true,
+			Pos:   ast.Position(pos),
+		}
 	}
-	expr := p.parseExpressionWithPrecedence(100, false)
-	if expr == nil {
-		p.addError("line %d:%d: expected expression after %s", pos.Line, pos.Column, operator)
+
+	value := p.parseExpressionWithPrecedence(0, false, token.T_DOUBLE_ARROW, token.T_SEMICOLON)
+	if value == nil {
+		p.addError("line %d:%d: expected expression after yield", pos.Line, pos.Column)
 		return nil
 	}
-	return &ast.UnaryExpr{
-		Operator: operator,
-		Operand:  expr,
-		Pos:      ast.Position(pos),
+
+	var key ast.Node
+	if p.tok.Type == token.T_DOUBLE_ARROW {
+		key = value
+		p.nextToken() // consume =>
+		value = p.parseExpressionWithPrecedence(0, false, token.T_SEMICOLON)
+		if value == nil {
+			p.addError("line %d:%d: expected expression after => in yield", p.tok.Pos.Line, p.tok.Pos.Column)
+			return nil
+		}
+	}
+
+	return &ast.YieldNode{
+		Key:   key,
+		Value: value,
+		From:  false,
+		Pos:   ast.Position(pos),
 	}
 }
 

@@ -548,6 +548,22 @@ function iter() {
 	}
 }
 
+func TestParseKeyedYield(t *testing.T) {
+	php := `<?php
+function provider() {
+    yield 'case' => ['ok' => true];
+}
+`
+
+	l := lexer.New(php)
+	p := New(l, true)
+	_ = p.Parse()
+
+	if len(p.Errors()) > 0 {
+		t.Fatalf("unexpected parser errors: %v", p.Errors())
+	}
+}
+
 func TestParseUnpackedFunctionCallArgument(t *testing.T) {
 	php := `<?php
 var_dump(...$vars);
@@ -1226,6 +1242,20 @@ $eventName = [
 func TestParseReservedNamespacePropertyFetch(t *testing.T) {
 	php := `<?php
 $result = $response->namespace;
+`
+
+	l := lexer.New(php)
+	p := New(l, true)
+	_ = p.Parse()
+
+	if len(p.Errors()) > 0 {
+		t.Fatalf("unexpected parser errors: %v", p.Errors())
+	}
+}
+
+func TestParseReservedNeverMethodCall(t *testing.T) {
+	php := `<?php
+$result = $mock->never()->method('x');
 `
 
 	l := lexer.New(php)
