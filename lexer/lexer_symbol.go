@@ -69,6 +69,11 @@ func (l *Lexer) lexPipe(pos token.Position) token.Token {
 		l.readChar()
 		return token.Token{Type: token.T_BOOLEAN_OR, Literal: "||", Pos: pos}
 	}
+	if l.peekChar() == '=' {
+		l.readChar()
+		l.readChar()
+		return token.Token{Type: token.T_OR_EQUAL, Literal: "|=", Pos: pos}
+	}
 	tok := token.Token{Type: token.T_PIPE, Literal: string(l.char), Pos: pos}
 	l.readChar()
 	return tok

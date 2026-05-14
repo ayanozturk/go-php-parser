@@ -58,6 +58,16 @@ func (p *Parser) parseForeachStatement() (ast.Node, error) {
 		return nil
 	}
 
+	parseValueTarget := func() ast.Node {
+		if p.tok.Type == token.T_VARIABLE {
+			return parseVar()
+		}
+		if p.tok.Type == token.T_LBRACKET {
+			return p.parseArrayLiteral(true)
+		}
+		return nil
+	}
+
 	if p.tok.Type == token.T_AMPERSAND {
 		// Could be foreach ($arr as &$v) or foreach ($arr as $k => &$v)
 		p.nextToken()
@@ -92,18 +102,20 @@ func (p *Parser) parseForeachStatement() (ast.Node, error) {
 				byRef = true
 				p.nextToken()
 			}
-			valueVar = parseVar()
+			valueVar = parseValueTarget()
 		} else {
 			// This variable is the value
 			valueVar = varNode
 		}
+	} else if p.tok.Type == token.T_LBRACKET {
+		valueVar = parseValueTarget()
 	} else {
-		p.addError("line %d:%d: expected variable or & after 'as' in foreach, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal)
+		p.addError("line %d:%d: expected variable, destructuring target, or & after 'as' in foreach, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal)
 		return nil, nil
 	}
 
 	if valueVar == nil {
-		p.addError("line %d:%d: expected variable after 'as' or '=>', got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal)
+		p.addError("line %d:%d: expected foreach target after 'as' or '=>', got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal)
 		return nil, nil
 	}
 

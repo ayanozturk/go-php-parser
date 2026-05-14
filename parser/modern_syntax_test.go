@@ -1069,3 +1069,156 @@ static::setTemplateProjectStability($root, $version);
 		t.Fatalf("unexpected parser errors: %v", p.Errors())
 	}
 }
+
+func TestParseBracedDynamicPropertyFetch(t *testing.T) {
+	php := `<?php
+return $package->extra->{'branch-alias'}->{'dev-main'} ?? $version;
+`
+
+	l := lexer.New(php)
+	p := New(l, true)
+	_ = p.Parse()
+
+	if len(p.Errors()) > 0 {
+		t.Fatalf("unexpected parser errors: %v", p.Errors())
+	}
+}
+
+func TestParseContinueWithLevel(t *testing.T) {
+	php := `<?php
+foreach ($items as $item) {
+	continue 2;
+}
+`
+
+	l := lexer.New(php)
+	p := New(l, true)
+	_ = p.Parse()
+
+	if len(p.Errors()) > 0 {
+		t.Fatalf("unexpected parser errors: %v", p.Errors())
+	}
+}
+
+func TestParseOrEqualAssignment(t *testing.T) {
+	php := `<?php
+$changed |= $this->generateComponentPackage($event, $component);
+`
+
+	l := lexer.New(php)
+	p := New(l, true)
+	_ = p.Parse()
+
+	if len(p.Errors()) > 0 {
+		t.Fatalf("unexpected parser errors: %v", p.Errors())
+	}
+}
+
+func TestParseAssignmentByReference(t *testing.T) {
+	php := `<?php
+$definitions[$name] =& $package['autoload']['psr-4'];
+`
+
+	l := lexer.New(php)
+	p := New(l, true)
+	_ = p.Parse()
+
+	if len(p.Errors()) > 0 {
+		t.Fatalf("unexpected parser errors: %v", p.Errors())
+	}
+}
+
+func TestParseArrayWithTrailingCommentedEntry(t *testing.T) {
+	php := `<?php
+$config->setRules([
+	'a' => true,
+
+	// TODO php 7.4 migration (one day..)
+	// 'b' => true,
+]);
+`
+
+	l := lexer.New(php)
+	p := New(l, true)
+	_ = p.Parse()
+
+	if len(p.Errors()) > 0 {
+		t.Fatalf("unexpected parser errors: %v", p.Errors())
+	}
+}
+
+func TestParseForeachArrayDestructuring(t *testing.T) {
+	php := `<?php
+foreach ($packages as [$name, $version]) {
+}
+`
+
+	l := lexer.New(php)
+	p := New(l, true)
+	_ = p.Parse()
+
+	if len(p.Errors()) > 0 {
+		t.Fatalf("unexpected parser errors: %v", p.Errors())
+	}
+}
+
+func TestParseStaticPropertyAssignment(t *testing.T) {
+	php := `<?php
+self::$registeredLoaders[$this->vendorDir] = $this;
+`
+
+	l := lexer.New(php)
+	p := New(l, true)
+	_ = p.Parse()
+
+	if len(p.Errors()) > 0 {
+		t.Fatalf("unexpected parser errors: %v", p.Errors())
+	}
+}
+
+func TestParseArrayDestructuringWithSkippedSlot(t *testing.T) {
+	php := `<?php
+[$major, , $patch] = explode('.', $version);
+`
+
+	l := lexer.New(php)
+	p := New(l, true)
+	_ = p.Parse()
+
+	if len(p.Errors()) > 0 {
+		t.Fatalf("unexpected parser errors: %v", p.Errors())
+	}
+}
+
+func TestParseLogicalAndAfterAssignment(t *testing.T) {
+	php := `<?php
+(
+	\PHP_VERSION_ID < 80100
+) and $reflProp->setAccessible(true);
+`
+
+	l := lexer.New(php)
+	p := New(l, true)
+	_ = p.Parse()
+
+	if len(p.Errors()) > 0 {
+		t.Fatalf("unexpected parser errors: %v", p.Errors())
+	}
+}
+
+func TestParseArrayLiteralDereference(t *testing.T) {
+	php := `<?php
+$eventName = [
+	'install' => 'pre-install',
+	'update' => 'pre-update',
+][$opType];
+`
+
+	l := lexer.New(php)
+	p := New(l, true)
+	_ = p.Parse()
+
+	if len(p.Errors()) > 0 {
+		t.Fatalf("unexpected parser errors: %v", p.Errors())
+	}
+}

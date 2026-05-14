@@ -106,7 +106,7 @@ func (p *Parser) parseArrayElementKey() (ast.Node, error) {
 
 var ErrInvalidArrayKey = errors.New("invalid array key")
 
-func (p *Parser) parseArrayLiteral() ast.Node {
+func (p *Parser) parseArrayLiteral(allowSkippedElements bool) ast.Node {
 	pos := p.tok.Pos
 
 	// Handle array() syntax
@@ -122,6 +122,13 @@ func (p *Parser) parseArrayLiteral() ast.Node {
 		for p.tok.Type != token.T_RPAREN && p.tok.Type != token.T_EOF {
 			for p.tok.Type == token.T_COMMENT || p.tok.Type == token.T_DOC_COMMENT {
 				p.nextToken()
+			}
+			if p.tok.Type == token.T_RPAREN {
+				break
+			}
+			if allowSkippedElements && p.tok.Type == token.T_COMMA {
+				p.nextToken()
+				continue
 			}
 			if element := p.parseArrayElement(); element != nil {
 				elements = append(elements, element)
@@ -157,6 +164,13 @@ func (p *Parser) parseArrayLiteral() ast.Node {
 		for p.tok.Type != token.T_RBRACKET && p.tok.Type != token.T_EOF {
 			for p.tok.Type == token.T_COMMENT || p.tok.Type == token.T_DOC_COMMENT {
 				p.nextToken()
+			}
+			if p.tok.Type == token.T_RBRACKET {
+				break
+			}
+			if allowSkippedElements && p.tok.Type == token.T_COMMA {
+				p.nextToken()
+				continue
 			}
 			if element := p.parseArrayElement(); element != nil {
 				elements = append(elements, element)

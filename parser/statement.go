@@ -77,13 +77,20 @@ retry:
 		pos := p.tok.Pos
 		keyword := p.tok.Literal
 		p.nextToken() // consume continue/break
+		var expr ast.Node
+		if p.tok.Type != token.T_SEMICOLON {
+			expr = p.parseExpressionWithPrecedence(0, false, token.T_SEMICOLON)
+			if expr == nil {
+				return nil, nil
+			}
+		}
 		if p.tok.Type != token.T_SEMICOLON {
 			p.addError("line %d:%d: expected ; after %s statement, got %s", p.tok.Pos.Line, p.tok.Pos.Column, keyword, p.tok.Literal)
 			return nil, nil
 		}
 		p.nextToken() // consume ;
 		return &ast.ExpressionStmt{
-			Expr: &ast.IdentifierNode{Value: keyword, Pos: ast.Position(pos)},
+			Expr: exprOrIdentifier(keyword, expr, ast.Position(pos)),
 			Pos:  ast.Position(pos),
 		}, nil
 	case token.T_STATIC:

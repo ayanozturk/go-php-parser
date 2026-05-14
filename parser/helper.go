@@ -1,6 +1,9 @@
 package parser
 
-import "go-phpcs/token"
+import (
+	"go-phpcs/ast"
+	"go-phpcs/token"
+)
 
 // expect checks if the current token matches the expected type. If so, advances to the next token and returns true.
 // Otherwise, adds an error and returns false.
@@ -37,4 +40,11 @@ func isValidMethodNameToken(t token.TokenType) bool {
 	default:
 		return false
 	}
+}
+
+func exprOrIdentifier(keyword string, expr ast.Node, pos ast.Position) ast.Node {
+	if expr != nil {
+		return expr
+	}
+	return &ast.IdentifierNode{Value: keyword, Pos: pos}
 }

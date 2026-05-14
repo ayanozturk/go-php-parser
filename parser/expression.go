@@ -19,10 +19,11 @@ func (p *Parser) parseExpressionWithPrecedence(minPrec int, validateAssignmentTa
 		p.nextToken()
 	}
 	if p.tok.Type == token.T_LBRACKET || p.tok.Type == token.T_ARRAY {
-		left := p.parseArrayLiteral()
+		left := p.parseArrayLiteral(validateAssignmentTarget)
 		if left == nil {
 			return nil
 		}
+		left = p.parsePostfixExpression(left)
 		return p.parseBinaryAndTernaryOperators(left, minPrec, validateAssignmentTarget, stopTypes...)
 	}
 
@@ -92,6 +93,19 @@ func (p *Parser) parseUnaryExpression(stopTypes ...token.TokenType) ast.Node {
 			Operator: "@",
 			Operand:  right,
 			Pos:      ast.Position(atTok.Pos),
+		}
+	case token.T_AMPERSAND:
+		ampTok := p.tok
+		p.nextToken()
+		right := p.parseExpressionWithPrecedence(100, false, stopTypes...)
+		if right == nil {
+			p.addError("line %d:%d: expected operand after unary operator &", ampTok.Pos.Line, ampTok.Pos.Column)
+			return nil
+		}
+		return &ast.UnaryExpr{
+			Operator: "&",
+			Operand:  right,
+			Pos:      ast.Position(ampTok.Pos),
 		}
 	case token.T_TILDE:
 		tildeTok := p.tok
@@ -249,7 +263,7 @@ func (p *Parser) parseBinaryOperator(left ast.Node, prec int, validateAssignment
 			}
 		}
 	}
-	if isAssignmentOperator(op) && validateAssignmentTarget && prec == 0 {
+	if isAssignmentOperator(op) && validateAssignmentTarget {
 		if !isValidAssignmentTarget(left) {
 			p.addError("line %d:%d: invalid assignment target for operator %s", pos.Line, pos.Column, operator)
 			return nil
@@ -717,6 +731,24 @@ func (p *Parser) parseSimpleObjectOrMethod(expr ast.Node) ast.Node {
 	objOpPos := p.tok.Pos
 	operator := p.tok.Literal
 	p.nextToken() // consume object operator
+	if p.tok.Type == token.T_LBRACE {
+		p.nextToken() // consume {
+		memberExpr := p.parseExpressionWithStop(token.T_RBRACE)
+		if memberExpr == nil {
+			p.addError("line %d:%d: expected expression after %s{, got %s", p.tok.Pos.Line, p.tok.Pos.Column, operator, p.tok.Literal)
+			return nil
+		}
+		if p.tok.Type != token.T_RBRACE {
+			p.addError("line %d:%d: expected } after dynamic member expression, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal)
+			return nil
+		}
+		p.nextToken() // consume }
+		return &ast.PropertyFetchNode{
+			Object:   expr,
+			Property: memberExpr.TokenLiteral(),
+			Pos:      ast.Position(objOpPos),
+		}
+	}
 	if !isMemberIdentifierToken(p.tok.Type) && !isValidMethodNameToken(p.tok.Type) {
 		p.addError("line %d:%d: expected property/method name after %s, got %s", p.tok.Pos.Line, p.tok.Pos.Column, operator, p.tok.Literal)
 		return nil

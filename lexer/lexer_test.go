@@ -92,6 +92,14 @@ func TestLexerShiftOperators(t *testing.T) {
 	}
 }
 
+func TestLexerOrEqual(t *testing.T) {
+	lex := New("|=")
+	tok := lex.NextToken()
+	if tok.Type != token.T_OR_EQUAL || tok.Literal != "|=" {
+		t.Errorf("expected T_OR_EQUAL, got %v %q", tok.Type, tok.Literal)
+	}
+}
+
 func TestLexerCoalesce(t *testing.T) {
 	lex := New("??")
 	tok := lex.NextToken()
