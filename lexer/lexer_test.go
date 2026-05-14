@@ -545,3 +545,34 @@ func TestLexerNextHeredocTokenEmptyQueue(t *testing.T) {
 		t.Errorf("expected T_ILLEGAL for empty heredoc queue, got %v", tok.Type)
 	}
 }
+
+func TestLexerDoesNotTreatClassPrefixedPropertyAsClassConst(t *testing.T) {
+	lex := New("<?php\nself::$classCounter;\n")
+
+	var tokens []token.TokenType
+	for {
+		tok := lex.NextToken()
+		tokens = append(tokens, tok.Type)
+		if tok.Type == token.T_EOF {
+			break
+		}
+	}
+
+	for i := 0; i < len(tokens); i++ {
+		if tokens[i] == token.T_CLASS_CONST {
+			t.Fatalf("did not expect T_CLASS_CONST in token stream: %v", tokens)
+		}
+	}
+
+	foundPair := false
+	for i := 0; i+1 < len(tokens); i++ {
+		if tokens[i] == token.T_DOUBLE_COLON && tokens[i+1] == token.T_VARIABLE {
+			foundPair = true
+			break
+		}
+	}
+
+	if !foundPair {
+		t.Fatalf("expected T_DOUBLE_COLON followed by T_VARIABLE, got %v", tokens)
+	}
+}

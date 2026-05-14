@@ -61,6 +61,7 @@ const (
 	T_LOGICAL_AND         TokenType = "T_LOGICAL_AND"
 	T_LOGICAL_OR          TokenType = "T_LOGICAL_OR"
 	T_LOGICAL_XOR         TokenType = "T_LOGICAL_XOR"
+	T_CARET               TokenType = "T_CARET"
 	T_SL                  TokenType = "T_SL"
 	T_SR                  TokenType = "T_SR"
 	T_IS_EQUAL            TokenType = "T_IS_EQUAL"

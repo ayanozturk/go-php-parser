@@ -55,29 +55,30 @@ var PhpOperatorPrecedence = map[token.TokenType]int{
 	token.T_BOOLEAN_OR:  5, // ||
 	token.T_BOOLEAN_AND: 6, // &&
 	token.T_PIPE:        7, // |
-	token.T_AMPERSAND:   8, // &
+	token.T_CARET:       8, // ^
+	token.T_AMPERSAND:   9, // &
 	// token.T_XOR_EQUAL:   5, // ^ (already included as assignment above)
-	token.T_IS_EQUAL:            9,
-	token.T_IS_NOT_EQUAL:        9,
-	token.T_IS_IDENTICAL:        9,
-	token.T_IS_NOT_IDENTICAL:    9,
-	token.T_IS_SMALLER:          10,
-	token.T_IS_GREATER:          10,
-	token.T_IS_GREATER_OR_EQUAL: 10,
-	token.T_IS_SMALLER_OR_EQUAL: 10,
-	token.T_SPACESHIP:           10,
-	token.T_INSTANCEOF:          11,
+	token.T_IS_EQUAL:            10,
+	token.T_IS_NOT_EQUAL:        10,
+	token.T_IS_IDENTICAL:        10,
+	token.T_IS_NOT_IDENTICAL:    10,
+	token.T_IS_SMALLER:          11,
+	token.T_IS_GREATER:          11,
+	token.T_IS_GREATER_OR_EQUAL: 11,
+	token.T_IS_SMALLER_OR_EQUAL: 11,
+	token.T_SPACESHIP:           11,
+	token.T_INSTANCEOF:          12,
 
-	token.T_COALESCE: 12, // ??
-	token.T_SL:       12,
-	token.T_SR:       12,
-	token.T_PLUS:     13,
-	token.T_MINUS:    13,
-	token.T_DOT:      13,
-	token.T_MULTIPLY: 14,
-	token.T_DIVIDE:   14,
-	token.T_MODULO:   14,
-	token.T_POW:      15,
+	token.T_COALESCE: 13, // ??
+	token.T_SL:       13,
+	token.T_SR:       13,
+	token.T_PLUS:     14,
+	token.T_MINUS:    14,
+	token.T_DOT:      14,
+	token.T_MULTIPLY: 15,
+	token.T_DIVIDE:   15,
+	token.T_MODULO:   15,
+	token.T_POW:      16,
 }
 
 // Operator associativity (true = right-associative)

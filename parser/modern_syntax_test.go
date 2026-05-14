@@ -1222,3 +1222,31 @@ $eventName = [
 		t.Fatalf("unexpected parser errors: %v", p.Errors())
 	}
 }
+
+func TestParseReservedNamespacePropertyFetch(t *testing.T) {
+	php := `<?php
+$result = $response->namespace;
+`
+
+	l := lexer.New(php)
+	p := New(l, true)
+	_ = p.Parse()
+
+	if len(p.Errors()) > 0 {
+		t.Fatalf("unexpected parser errors: %v", p.Errors())
+	}
+}
+
+func TestParseBitwiseXorExpression(t *testing.T) {
+	php := `<?php
+return ($mask ^ $bits) !== 0;
+`
+
+	l := lexer.New(php)
+	p := New(l, true)
+	_ = p.Parse()
+
+	if len(p.Errors()) > 0 {
+		t.Fatalf("unexpected parser errors: %v", p.Errors())
+	}
+}
