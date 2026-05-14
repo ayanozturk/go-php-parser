@@ -13,12 +13,14 @@ type ClosingBraceOnOwnLineChecker struct{}
 
 // Helper struct to track class parsing state
 type classState struct {
-	inClass    bool
-	braceDepth int
+	inClass     bool
+	braceDepth  int
+	inMethod    bool
+	methodSig   bool
+	methodDepth int
 }
 
-// Helper: Check and report issues for a class closing brace line
-func checkClassClosingBraceIssues(line string, nextLine string, lineNum int, filename string, issues *[]StyleIssue) {
+func checkClosingBraceOwnLine(line string, lineNum int, filename string, message string, issues *[]StyleIssue) {
 	indices := findClosingBraceIndices(line)
 	if len(indices) == 0 {
 		return
@@ -32,10 +34,15 @@ func checkClassClosingBraceIssues(line string, nextLine string, lineNum int, fil
 			Line:     lineNum,
 			Type:     Error,
 			Fixable:  true,
-			Message:  "Class closing brace must be on its own line with nothing before or after",
+			Message:  message,
 			Code:     closingBraceOnOwnLineCode,
 		})
 	}
+}
+
+// Helper: Check and report issues for a class closing brace line
+func checkClassClosingBraceIssues(line string, nextLine string, lineNum int, filename string, issues *[]StyleIssue) {
+	checkClosingBraceOwnLine(line, lineNum, filename, "Class closing brace must be on its own line with nothing before or after", issues)
 	if nextLine != "" && nextLine != "}" && nextLine != "?>" {
 		*issues = append(*issues, StyleIssue{
 			Filename: filename,
@@ -50,6 +57,40 @@ func checkClassClosingBraceIssues(line string, nextLine string, lineNum int, fil
 
 // Helper: Process a line when inside a class for CheckIssues
 func processInClassCheckIssues(line string, nextLine string, lineNum int, filename string, state *classState, issues *[]StyleIssue) bool {
+	trimmed := helper.TrimWhitespace(line)
+	startedMethod := false
+	if !state.inMethod && helper.ContainsWord(trimmed, "function") {
+		state.methodSig = true
+	}
+	if state.methodSig {
+		if strings.Contains(line, ";") && !strings.Contains(line, "{") {
+			state.methodSig = false
+		} else {
+			openCount := strings.Count(line, "{")
+			closeCount := strings.Count(line, "}")
+			if openCount > 0 {
+				state.methodSig = false
+				state.inMethod = true
+				state.methodDepth = openCount - closeCount
+				startedMethod = true
+				if state.methodDepth <= 0 {
+					checkClosingBraceOwnLine(line, lineNum, filename, "Method closing brace must be on its own line with nothing before or after", issues)
+					state.inMethod = false
+					state.methodDepth = 0
+				}
+			}
+		}
+	}
+	if state.inMethod && !startedMethod {
+		openCount := strings.Count(line, "{")
+		closeCount := strings.Count(line, "}")
+		state.methodDepth += openCount - closeCount
+		if closeCount > 0 && state.methodDepth <= 0 {
+			checkClosingBraceOwnLine(line, lineNum, filename, "Method closing brace must be on its own line with nothing before or after", issues)
+			state.inMethod = false
+			state.methodDepth = 0
+		}
+	}
 	updateClassState(line, state)
 	if state.braceDepth < 0 {
 		state.inClass = false
