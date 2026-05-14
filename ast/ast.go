@@ -305,6 +305,22 @@ func (w *WhileNode) TokenLiteral() string {
 	return "while"
 }
 
+type DoWhileNode struct {
+	Condition Node
+	Body      []Node
+	Pos       Position
+}
+
+func (d *DoWhileNode) NodeType() string    { return "DoWhile" }
+func (d *DoWhileNode) GetPos() Position    { return d.Pos }
+func (d *DoWhileNode) SetPos(pos Position) { d.Pos = pos }
+func (d *DoWhileNode) String() string {
+	return fmt.Sprintf("DoWhile(Cond: %s) @ %d:%d", d.Condition.String(), d.Pos.Line, d.Pos.Column)
+}
+func (d *DoWhileNode) TokenLiteral() string {
+	return "do"
+}
+
 type FunctionDecl struct {
 	Name   string
 	Params []*Variable

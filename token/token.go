@@ -71,6 +71,8 @@ const (
 	T_QUESTION            TokenType = "T_QUESTION" // ? for nullable types
 	T_PIPE                TokenType = "T_PIPE"     // | for union types
 	T_NOT                 TokenType = "T_NOT"      // ! logical not
+	T_AT                  TokenType = "T_AT"       // @ error suppression
+	T_TILDE               TokenType = "T_TILDE"    // ~ bitwise not
 
 	// Delimiters
 	T_LPAREN          TokenType = "T_LPAREN"

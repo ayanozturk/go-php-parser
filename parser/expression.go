@@ -77,6 +77,32 @@ func (p *Parser) parseUnaryExpression(stopTypes ...token.TokenType) ast.Node {
 			Operand:  right,
 			Pos:      ast.Position(notTok.Pos),
 		}
+	case token.T_AT:
+		atTok := p.tok
+		p.nextToken()
+		right := p.parseExpressionWithPrecedence(100, false, stopTypes...)
+		if right == nil {
+			p.addError("line %d:%d: expected operand after unary operator @", atTok.Pos.Line, atTok.Pos.Column)
+			return nil
+		}
+		return &ast.UnaryExpr{
+			Operator: "@",
+			Operand:  right,
+			Pos:      ast.Position(atTok.Pos),
+		}
+	case token.T_TILDE:
+		tildeTok := p.tok
+		p.nextToken()
+		right := p.parseExpressionWithPrecedence(100, false, stopTypes...)
+		if right == nil {
+			p.addError("line %d:%d: expected operand after unary operator ~", tildeTok.Pos.Line, tildeTok.Pos.Column)
+			return nil
+		}
+		return &ast.UnaryExpr{
+			Operator: "~",
+			Operand:  right,
+			Pos:      ast.Position(tildeTok.Pos),
+		}
 	case token.T_CLONE:
 		cloneTok := p.tok
 		p.nextToken()
@@ -294,6 +320,8 @@ func (p *Parser) parseSimpleExpression() ast.Node {
 		return p.parseSimpleVariable()
 	case token.T_ISSET, token.T_EMPTY:
 		return p.parseSimpleBuiltinCall()
+	case token.T_INCLUDE, token.T_INCLUDE_ONCE, token.T_REQUIRE, token.T_REQUIRE_ONCE:
+		return p.parseSimpleIncludeExpression()
 	case token.T_LPAREN:
 		return p.parseGroupedExpression()
 	case token.T_MATCH:
@@ -331,17 +359,35 @@ func (p *Parser) parseSimpleUnary() ast.Node {
 func (p *Parser) parseSimpleNew() ast.Node {
 	pos := p.tok.Pos
 	p.nextToken() // consume 'new'
-	if p.tok.Type != token.T_STRING && p.tok.Type != token.T_STATIC && p.tok.Type != token.T_SELF && p.tok.Type != token.T_PARENT && p.tok.Type != token.T_NS_SEPARATOR {
+	if p.tok.Type != token.T_STRING && p.tok.Type != token.T_STATIC && p.tok.Type != token.T_SELF && p.tok.Type != token.T_PARENT && p.tok.Type != token.T_NS_SEPARATOR && p.tok.Type != token.T_VARIABLE && p.tok.Type != token.T_LPAREN {
 		p.addError("line %d:%d: expected class name after new, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal)
 		return nil
 	}
-	classNameNode := p.parseFQCN()
 	className := ""
-	if id, ok := classNameNode.(*ast.IdentifierNode); ok {
-		className = id.Value
+	var classExpr ast.Node
+	if p.tok.Type == token.T_VARIABLE {
+		className = p.tok.Literal
+		p.nextToken()
+	} else if p.tok.Type == token.T_LPAREN {
+		p.nextToken() // consume (
+		classExpr = p.parseExpressionWithStop(token.T_RPAREN)
+		if classExpr == nil {
+			p.addError("line %d:%d: expected class expression after new (", p.tok.Pos.Line, p.tok.Pos.Column)
+			return nil
+		}
+		if p.tok.Type != token.T_RPAREN {
+			p.addError("line %d:%d: expected ) after dynamic class expression, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal)
+			return nil
+		}
+		p.nextToken() // consume )
 	} else {
-		p.addError("line %d:%d: expected identifier node for class name after new", p.tok.Pos.Line, p.tok.Pos.Column)
-		return nil
+		classNameNode := p.parseFQCN()
+		if id, ok := classNameNode.(*ast.IdentifierNode); ok {
+			className = id.Value
+		} else {
+			p.addError("line %d:%d: expected identifier node for class name after new", p.tok.Pos.Line, p.tok.Pos.Column)
+			return nil
+		}
 	}
 	if p.tok.Type != token.T_LPAREN {
 		p.addError("line %d:%d: expected ( after class name %s, got %s", p.tok.Pos.Line, p.tok.Pos.Column, className, p.tok.Literal)
@@ -356,6 +402,7 @@ func (p *Parser) parseSimpleNew() ast.Node {
 	p.nextToken() // consume )
 	return &ast.NewNode{
 		ClassName: className,
+		ClassExpr: classExpr,
 		Args:      args,
 		Pos:       ast.Position(pos),
 	}
@@ -789,6 +836,22 @@ func (p *Parser) parseSimpleBuiltinCall() ast.Node {
 		Args: args,
 		Pos:  ast.Position(pos),
 	})
+}
+
+func (p *Parser) parseSimpleIncludeExpression() ast.Node {
+	pos := p.tok.Pos
+	name := p.tok.Literal
+	p.nextToken()
+	expr := p.parseExpressionWithPrecedence(100, false)
+	if expr == nil {
+		p.addError("line %d:%d: expected expression after %s, got %s", p.tok.Pos.Line, p.tok.Pos.Column, name, p.tok.Literal)
+		return nil
+	}
+	return &ast.UnaryExpr{
+		Operator: name,
+		Operand:  expr,
+		Pos:      ast.Position(pos),
+	}
 }
 
 func (p *Parser) parseGroupedExpression() ast.Node {

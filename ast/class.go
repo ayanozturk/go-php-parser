@@ -102,6 +102,7 @@ func (t *TraitUseNode) TokenLiteral() string { return "use" }
 // NewNode represents object instantiation
 type NewNode struct {
 	ClassName string
+	ClassExpr Node
 	Args      []Node
 	Pos       Position
 }
@@ -110,7 +111,11 @@ func (n *NewNode) NodeType() string    { return "New" }
 func (n *NewNode) GetPos() Position    { return n.Pos }
 func (n *NewNode) SetPos(pos Position) { n.Pos = pos }
 func (n *NewNode) String() string {
-	return fmt.Sprintf("New(%s) @ %d:%d", n.ClassName, n.Pos.Line, n.Pos.Column)
+	className := n.ClassName
+	if n.ClassExpr != nil {
+		className = n.ClassExpr.String()
+	}
+	return fmt.Sprintf("New(%s) @ %d:%d", className, n.Pos.Line, n.Pos.Column)
 }
 func (n *NewNode) TokenLiteral() string {
 	return "new"

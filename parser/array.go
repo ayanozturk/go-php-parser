@@ -10,26 +10,26 @@ import (
 func (p *Parser) parseArrayElement() ast.Node {
 	pos := p.tok.Pos
 	byRef, unpack := p.parseArrayElementFlags()
-	key, keyErr := p.parseArrayElementKey()
-	if keyErr != nil {
+	var key ast.Node
+	value := p.parseExpressionWithPrecedence(0, false, token.T_DOUBLE_ARROW, token.T_COMMA, token.T_RBRACKET, token.T_RPAREN)
+	if value == nil {
 		return nil
 	}
 
-	var value ast.Node
 	if p.tok.Type == token.T_DOUBLE_ARROW {
+		key = value
 		p.nextToken() // consume =>
-	} else {
-		value = key
-		key = nil
-	}
-
-	if value == nil {
 		if byRef && p.tok.Type != token.T_VARIABLE {
 			p.addError("line %d:%d: by-reference must be followed by a variable", p.tok.Pos.Line, p.tok.Pos.Column)
 			return nil
 		}
 		value = p.parseExpression()
 		if value == nil {
+			return nil
+		}
+	} else if byRef {
+		if _, ok := value.(*ast.VariableNode); !ok {
+			p.addError("line %d:%d: by-reference must be followed by a variable", p.tok.Pos.Line, p.tok.Pos.Column)
 			return nil
 		}
 	}

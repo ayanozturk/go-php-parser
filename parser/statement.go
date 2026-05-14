@@ -186,6 +186,10 @@ retry:
 		return p.parseForeachStatement()
 	case token.T_FOR:
 		return p.parseForStatement()
+	case token.T_WHILE:
+		return p.parseWhileStatement()
+	case token.T_DO:
+		return p.parseDoWhileStatement()
 	case token.T_UNSET:
 		pos := p.tok.Pos
 		p.nextToken() // consume 'unset'

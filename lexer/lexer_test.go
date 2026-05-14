@@ -104,6 +104,22 @@ func TestLexerQuestion(t *testing.T) {
 	}
 }
 
+func TestLexerAtOperator(t *testing.T) {
+	lex := New("@")
+	tok := lex.NextToken()
+	if tok.Type != token.T_AT || tok.Literal != "@" {
+		t.Errorf("expected T_AT, got %v %q", tok.Type, tok.Literal)
+	}
+}
+
+func TestLexerTildeOperator(t *testing.T) {
+	lex := New("~")
+	tok := lex.NextToken()
+	if tok.Type != token.T_TILDE || tok.Literal != "~" {
+		t.Errorf("expected T_TILDE, got %v %q", tok.Type, tok.Literal)
+	}
+}
+
 func TestLexerModuloOperators(t *testing.T) {
 	lex := New("% %=")
 

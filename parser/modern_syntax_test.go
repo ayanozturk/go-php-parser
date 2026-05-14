@@ -474,6 +474,110 @@ function done(): void {
 	}
 }
 
+func TestParseSuppressedIncludeOnce(t *testing.T) {
+	php := `<?php
+if (is_file($key)) {
+    @include_once $key;
+}
+`
+
+	l := lexer.New(php)
+	p := New(l, true)
+	_ = p.Parse()
+
+	if len(p.Errors()) > 0 {
+		t.Fatalf("unexpected parser errors: %v", p.Errors())
+	}
+}
+
+func TestParseBitwiseNotInCallArgument(t *testing.T) {
+	php := `<?php
+@chmod($key, 0666 & ~umask());
+`
+
+	l := lexer.New(php)
+	p := New(l, true)
+	_ = p.Parse()
+
+	if len(p.Errors()) > 0 {
+		t.Fatalf("unexpected parser errors: %v", p.Errors())
+	}
+}
+
+func TestParseDynamicNewVariable(t *testing.T) {
+	php := `<?php
+$cache = new $cls($this);
+`
+
+	l := lexer.New(php)
+	p := New(l, true)
+	_ = p.Parse()
+
+	if len(p.Errors()) > 0 {
+		t.Fatalf("unexpected parser errors: %v", p.Errors())
+	}
+}
+
+func TestParseDynamicParenthesizedNew(t *testing.T) {
+	php := `<?php
+return new ($class)($parser);
+`
+
+	l := lexer.New(php)
+	p := New(l, true)
+	_ = p.Parse()
+
+	if len(p.Errors()) > 0 {
+		t.Fatalf("unexpected parser errors: %v", p.Errors())
+	}
+}
+
+func TestParseVariableArrayKey(t *testing.T) {
+	php := `<?php
+return [$name => $template];
+`
+
+	l := lexer.New(php)
+	p := New(l, true)
+	_ = p.Parse()
+
+	if len(p.Errors()) > 0 {
+		t.Fatalf("unexpected parser errors: %v", p.Errors())
+	}
+}
+
+func TestParseWhileAssignmentCondition(t *testing.T) {
+	php := `<?php
+while ($e = $e->getPrevious()) {
+    $exceptions[] = $e;
+}
+`
+
+	l := lexer.New(php)
+	p := New(l, true)
+	_ = p.Parse()
+
+	if len(p.Errors()) > 0 {
+		t.Fatalf("unexpected parser errors: %v", p.Errors())
+	}
+}
+
+func TestParseDoWhile(t *testing.T) {
+	php := `<?php
+do {
+    $line = $e->getline();
+} while (false !== $e = $e->getPrevious());
+`
+
+	l := lexer.New(php)
+	p := New(l, true)
+	_ = p.Parse()
+
+	if len(p.Errors()) > 0 {
+		t.Fatalf("unexpected parser errors: %v", p.Errors())
+	}
+}
+
 func TestParseTraitUseInClass(t *testing.T) {
 	php := `<?php
 class MultiSelectPromptRenderer {
