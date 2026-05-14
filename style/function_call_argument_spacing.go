@@ -9,6 +9,15 @@ import (
 
 type FunctionCallArgumentSpacingChecker struct{}
 
+func isCommentOnlyLine(line string) bool {
+	trimmed := strings.TrimSpace(line)
+	return strings.HasPrefix(trimmed, "//") ||
+		strings.HasPrefix(trimmed, "#") ||
+		strings.HasPrefix(trimmed, "/*") ||
+		strings.HasPrefix(trimmed, "*") ||
+		strings.HasPrefix(trimmed, "*/")
+}
+
 // Detects bad comma spacing without regex: any of
 // 1) one or more spaces before comma
 // 2) two or more spaces after comma
@@ -41,6 +50,9 @@ func hasBadCommaSpacing(args string) bool {
 func (c *FunctionCallArgumentSpacingChecker) CheckIssues(lines []string, filename string) []StyleIssue {
 	var issues []StyleIssue
 	for i, line := range lines {
+		if isCommentOnlyLine(line) {
+			continue
+		}
 		// Fast skip: only check lines that have both '(' and ','
 		if !strings.Contains(line, "(") || !strings.Contains(line, ",") {
 			continue
@@ -110,6 +122,9 @@ func (f FunctionCallArgumentSpacingFixer) Fix(content string) string {
 	}()
 	lines := strings.Split(content, "\n")
 	for i, line := range lines {
+		if isCommentOnlyLine(line) {
+			continue
+		}
 		fixed := fixFunctionCallSpacingInLine(line)
 		if fixed != line {
 			// Debug print to stderr with file and line info

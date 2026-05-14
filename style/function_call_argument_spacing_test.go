@@ -24,6 +24,8 @@ func TestFunctionCallArgumentSpacingChecker(t *testing.T) {
 		{[]string{"foo($x);"}, 0, "single argument"},
 		// OK: nested call
 		{[]string{"foo(bar(1, 2), 3);"}, 0, "nested call with correct spacing"},
+		// OK: docblock example should be ignored
+		{[]string{" *  {{ \"one,two,three,four,five\"|split(',', 3) }}"}, 0, "docblock example ignored"},
 	}
 
 	for _, tc := range cases {
@@ -53,6 +55,8 @@ func TestFunctionCallArgumentSpacingFixer(t *testing.T) {
 		{"foo( 1,2 ,  3 );", "foo( 1, 2, 3 );", "multiple errors in one call"},
 		// Nested call
 		{"foo(bar(1,2),3);", "foo(bar(1, 2), 3);", "nested call"},
+		// Docblock example should not be touched
+		{" *  {{ \"one,two,three,four,five\"|split(',', 3) }}", " *  {{ \"one,two,three,four,five\"|split(',', 3) }}", "docblock example unchanged"},
 	}
 	for _, tc := range cases {
 		output := fixer.Fix(tc.input)
