@@ -23,27 +23,98 @@ func isCommentOnlyLine(line string) bool {
 // 2) two or more spaces after comma
 // 3) no space after comma (next is non-space)
 func hasBadCommaSpacing(args string) bool {
+	parenDepth := 0
+	bracketDepth := 0
+	braceDepth := 0
+	inSingleQuote := false
+	inDoubleQuote := false
+	escaped := false
+
 	for i := 0; i < len(args); i++ {
+		if escaped {
+			escaped = false
+			continue
+		}
+
+		if inSingleQuote {
+			if args[i] == '\\' {
+				escaped = true
+				continue
+			}
+			if args[i] == '\'' {
+				inSingleQuote = false
+			}
+			continue
+		}
+
+		if inDoubleQuote {
+			if args[i] == '\\' {
+				escaped = true
+				continue
+			}
+			if args[i] == '"' {
+				inDoubleQuote = false
+			}
+			continue
+		}
+
+		switch args[i] {
+		case '\'':
+			inSingleQuote = true
+			continue
+		case '"':
+			inDoubleQuote = true
+			continue
+		case '(':
+			parenDepth++
+			continue
+		case ')':
+			if parenDepth > 0 {
+				parenDepth--
+			}
+			continue
+		case '[':
+			bracketDepth++
+			continue
+		case ']':
+			if bracketDepth > 0 {
+				bracketDepth--
+			}
+			continue
+		case '{':
+			braceDepth++
+			continue
+		case '}':
+			if braceDepth > 0 {
+				braceDepth--
+			}
+			continue
+		}
+
+		if parenDepth > 0 || bracketDepth > 0 || braceDepth > 0 {
+			continue
+		}
+
 		if args[i] == ',' {
-			// Check space before comma
 			if i > 0 && (args[i-1] == ' ' || args[i-1] == '\t') {
 				return true
 			}
-			// Count spaces after comma
+
 			j := i + 1
 			spaceCount := 0
 			for j < len(args) && (args[j] == ' ' || args[j] == '\t') {
 				spaceCount++
 				j++
 			}
-			if spaceCount >= 2 { // two or more spaces after comma
+			if spaceCount >= 2 {
 				return true
 			}
-			if j < len(args) && spaceCount == 0 { // no space after comma before next token
+			if j < len(args) && spaceCount == 0 {
 				return true
 			}
 		}
 	}
+
 	return false
 }
 
@@ -53,19 +124,16 @@ func (c *FunctionCallArgumentSpacingChecker) CheckIssues(lines []string, filenam
 		if isCommentOnlyLine(line) {
 			continue
 		}
-		// Fast skip: only check lines that have both '(' and ','
 		if !strings.Contains(line, "(") || !strings.Contains(line, ",") {
 			continue
 		}
-		// Fast scan for function calls (no regex)
+
 		for idx := 0; idx < len(line); {
-			// Find function name
 			start := idx
 			for idx < len(line) && (isIdentChar(line[idx]) || (idx > start && isDigit(line[idx]))) {
 				idx++
 			}
 			if idx < len(line) && line[idx] == '(' && start != idx {
-				// Found function call
 				parenDepth := 1
 				j := idx + 1
 				for ; j < len(line) && parenDepth > 0; j++ {
@@ -93,19 +161,15 @@ func (c *FunctionCallArgumentSpacingChecker) CheckIssues(lines []string, filenam
 					}
 					idx = j
 					continue
-				} else {
-					// No matching closing parenthesis, skip rest
-					break
 				}
+				break
 			}
-			// Not a function call, move to next char
 			idx++
 		}
 	}
+
 	return issues
 }
-
-// Fixer for Generic.Functions.FunctionCallArgumentSpacing
 
 type FunctionCallArgumentSpacingFixer struct{}
 
@@ -120,6 +184,7 @@ func (f FunctionCallArgumentSpacingFixer) Fix(content string) string {
 			fmt.Fprintf(os.Stderr, "[PANIC] content: %q\n", content)
 		}
 	}()
+
 	lines := strings.Split(content, "\n")
 	for i, line := range lines {
 		if isCommentOnlyLine(line) {
@@ -127,26 +192,27 @@ func (f FunctionCallArgumentSpacingFixer) Fix(content string) string {
 		}
 		fixed := fixFunctionCallSpacingInLine(line)
 		if fixed != line {
-			// Debug print to stderr with file and line info
 			fmt.Fprintf(os.Stderr, "[DEBUG] FunctionCallArgumentSpacingFixer: line %d changed in Fix\nOriginal: %q\nFixed:   %q\n", i+1, line, fixed)
 		}
 		lines[i] = fixed
 	}
+
 	return strings.Join(lines, "\n")
 }
 
-// Parenthesis-aware function call fixer for a line
 func fixFunctionCallSpacingInLine(line string) string {
 	out := getBuilder()
 	for i := 0; i < len(line); {
-		// Find function name
 		start := i
 		for i < len(line) && (isIdentChar(line[i]) || (i > start && isDigit(line[i]))) {
 			i++
 		}
+		if start != i && (i >= len(line) || line[i] != '(') {
+			out.WriteString(line[start:i])
+			continue
+		}
 		if i < len(line) && line[i] == '(' && start != i {
 			funcName := line[start:i]
-			// Find matching closing parenthesis
 			parenDepth := 1
 			j := i + 1
 			for ; j < len(line) && parenDepth > 0; j++ {
@@ -157,24 +223,18 @@ func fixFunctionCallSpacingInLine(line string) string {
 				}
 			}
 			if parenDepth == 0 {
-				// Only extract args if j-1 >= i+1 and j-1 <= len(line)
-				var args string
+				args := ""
 				if j-1 >= i+1 && j-1 <= len(line) {
 					args = line[i+1 : j-1]
-				} else {
-					args = ""
 				}
 				fixedArgs := fixArgumentSpacing(args)
 				out.WriteString(funcName + "(" + fixedArgs + ")")
 				i = j
 				continue
-			} else {
-				// No matching closing parenthesis, copy the rest and break
-				out.WriteString(line[start:])
-				break
 			}
+			out.WriteString(line[start:])
+			break
 		}
-		// Not a function call, just copy
 		out.WriteByte(line[i])
 		i++
 	}
@@ -191,28 +251,78 @@ func isDigit(ch byte) bool {
 	return ch >= '0' && ch <= '9'
 }
 
-// Splits arguments at the top level, respecting parentheses and unpacked arguments
+// Splits arguments at the top level, respecting parentheses, quotes, and unpacked arguments.
 func splitFunctionArguments(args string) []string {
 	var (
-		result     []string
-		parenDepth int
-		start      int
-		inUnpack   bool
+		result        []string
+		parenDepth    int
+		bracketDepth  int
+		braceDepth    int
+		start         int
+		inUnpack      bool
+		inSingleQuote bool
+		inDoubleQuote bool
+		escaped       bool
 	)
+
 	for i := 0; i <= len(args); i++ {
 		if i < len(args) && args[i] == '.' && i+2 < len(args) && args[i+1] == '.' && args[i+2] == '.' {
 			inUnpack = true
 			i += 2
 			continue
 		}
+
+		if escaped {
+			escaped = false
+			continue
+		}
+
+		if inSingleQuote {
+			if i < len(args) && args[i] == '\\' {
+				escaped = true
+				continue
+			}
+			if i < len(args) && args[i] == '\'' {
+				inSingleQuote = false
+			}
+			continue
+		}
+
+		if inDoubleQuote {
+			if i < len(args) && args[i] == '\\' {
+				escaped = true
+				continue
+			}
+			if i < len(args) && args[i] == '"' {
+				inDoubleQuote = false
+			}
+			continue
+		}
+
 		if i < len(args) {
-			if args[i] == '(' {
+			switch args[i] {
+			case '\'':
+				inSingleQuote = true
+				continue
+			case '"':
+				inDoubleQuote = true
+				continue
+			case '(':
 				parenDepth++
-			} else if args[i] == ')' {
+			case ')':
 				parenDepth--
+			case '[':
+				bracketDepth++
+			case ']':
+				bracketDepth--
+			case '{':
+				braceDepth++
+			case '}':
+				braceDepth--
 			}
 		}
-		if i == len(args) || (parenDepth == 0 && i < len(args) && args[i] == ',') {
+
+		if i == len(args) || (parenDepth == 0 && bracketDepth == 0 && braceDepth == 0 && i < len(args) && args[i] == ',') {
 			arg := args[start:i]
 			if inUnpack {
 				arg = "..." + arg
@@ -222,6 +332,7 @@ func splitFunctionArguments(args string) []string {
 			start = i + 1
 		}
 	}
+
 	return result
 }
 
@@ -229,7 +340,7 @@ func fixArgumentSpacing(args string) string {
 	if args == "" {
 		return ""
 	}
-	// Preserve leading/trailing spaces inside the argument list
+
 	leading := ""
 	trailing := ""
 	core := args
@@ -241,6 +352,7 @@ func fixArgumentSpacing(args string) string {
 		trailing = string(core[len(core)-1]) + trailing
 		core = core[:len(core)-1]
 	}
+
 	parts := splitFunctionArguments(core)
 	for i, arg := range parts {
 		arg = strings.TrimSpace(arg)
@@ -249,6 +361,7 @@ func fixArgumentSpacing(args string) string {
 		}
 		parts[i] = arg
 	}
+
 	return leading + strings.Join(parts, ", ") + trailing
 }
 
