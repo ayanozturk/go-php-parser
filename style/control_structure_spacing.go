@@ -172,6 +172,10 @@ func (c *ControlStructureSpacingChecker) checkFunctionCallSpacing(line, filename
 		end := i
 		name := line[start:end]
 
+		if c.isInsideString(line, start) {
+			continue
+		}
+
 		isControl := false
 		for _, kw := range c.controlKeywords {
 			if name == kw {
@@ -180,6 +184,9 @@ func (c *ControlStructureSpacingChecker) checkFunctionCallSpacing(line, filename
 			}
 		}
 		if isControl {
+			continue
+		}
+		if name == "function" || name == "fn" || name == "use" {
 			continue
 		}
 
@@ -305,6 +312,12 @@ func fixFuncCallSpacingNoRegex(line string, controlKeywords []string) string {
 					}
 				}
 				if !isControl && spaceCount > 0 {
+					if name == "function" || name == "fn" || name == "use" {
+						out.WriteByte(' ')
+						out.WriteByte('(')
+						i = j + 1
+						continue
+					}
 					out.WriteByte('(')
 					i = j + 1
 					continue

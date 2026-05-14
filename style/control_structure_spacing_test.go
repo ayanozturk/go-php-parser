@@ -112,7 +112,13 @@ for  ($i = 0; $i < 10; $i++)  {
 }
 myFunction ($param);`,
 			expectedIssues: 5,
-			expectedCodes:  []string{controlStructureSpacingCode, controlStructureSpacingCode, controlStructureSpacingCode, controlStructureSpacingCode, controlStructureSpacingCode},
+			expectedCodes: []string{
+				controlStructureSpacingCode,
+				controlStructureSpacingCode,
+				controlStructureSpacingCode,
+				controlStructureSpacingCode,
+				controlStructureSpacingCode,
+			},
 		},
 		{
 			name: "else and elseif",
@@ -196,6 +202,22 @@ $text = 'for($i = 0; $i < 10; $i++)';`,
 			expectedIssues: 0,
 			expectedCodes:  []string{},
 		},
+		{
+			name: "anonymous function spacing should be allowed",
+			code: `<?php
+set_error_handler(function ($t, $m) use ($regexp) {
+    return false;
+});`,
+			expectedIssues: 0,
+			expectedCodes:  []string{},
+		},
+		{
+			name: "arrow function spacing should be allowed",
+			code: `<?php
+$mapper = fn ($value) => $value;`,
+			expectedIssues: 0,
+			expectedCodes:  []string{},
+		},
 	}
 
 	for _, tt := range tests {
@@ -241,6 +263,11 @@ if ($condition) {
 for ($i = 0; $i < 10; $i++) {
     echo $i;
 }`,
+		},
+		{
+			name:     "do not change anonymous function spacing",
+			input:    "<?php\nset_error_handler(function ($t, $m) use ($regexp) { return false; });",
+			expected: "<?php\nset_error_handler(function ($t, $m) use ($regexp) { return false; });",
 		},
 		{
 			name: "fix multiple spaces after control keywords",
@@ -355,7 +382,6 @@ if ($condition) {
 }
 
 func TestControlStructureSpacingRegistration(t *testing.T) {
-	// Test that the rule is registered
 	codes := ListRegisteredRuleCodes()
 	found := false
 	for _, code := range codes {
@@ -381,9 +407,6 @@ func TestNewControlStructureSpacingChecker(t *testing.T) {
 		t.Error("Control keywords not initialized")
 	}
 
-	// regex fields removed in optimized checker; no assertion required
-
-	// Test that expected keywords are present
 	expectedKeywords := []string{"if", "else", "elseif", "for", "foreach", "while", "do", "switch", "try", "catch", "finally"}
 	for _, expected := range expectedKeywords {
 		found := false
