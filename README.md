@@ -188,6 +188,28 @@ To control parallelism (number of concurrent workers), use the `-p` flag. By def
 go run main.go -p 4   # Use 4 workers in parallel
 ```
 
+### Compatibility Metrics
+
+To track parser compatibility progress across the checked-in corpus under `test_projects`, run:
+
+```bash
+make compat-metrics
+```
+
+This prints overall file compatibility, per-project compatibility, total parse errors, and a small sample of the first failing files per project.
+
+You can also emit a machine-readable snapshot for tracking over time:
+
+```bash
+go run ./cmd/compat-metrics -json -output compatibility-report.json
+```
+
+Useful flags:
+
+- `-root` to scan a different corpus root
+- `-workers` to control parallelism
+- `-top` to control how many failing-file examples are shown per project
+
 ### Performance Output
 
 After scanning, the tool will print performance statistics:

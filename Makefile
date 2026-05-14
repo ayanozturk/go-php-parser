@@ -32,6 +32,9 @@ style:
 build:
 	go build -o go-phpcs
 
+compat-metrics:
+	go run ./cmd/compat-metrics
+
 # Fetch large PHP projects for testing (includes vendor dependencies)
 test-projects:
 	mkdir -p test_projects
