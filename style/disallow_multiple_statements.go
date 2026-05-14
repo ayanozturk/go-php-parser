@@ -42,6 +42,7 @@ func (s *DisallowMultipleStatementsSniff) CheckIssues(lines []string, filename s
 func (s *DisallowMultipleStatementsSniff) countStatements(line string, commentState *helper.CommentState) int {
 	count := 0
 	qs := &helper.QuoteState{}
+	parenDepth := 0
 	j := 0
 	for j < len(line) {
 		if s.skipOrHandleBlockComment(line, &j, commentState) {
@@ -56,7 +57,17 @@ func (s *DisallowMultipleStatementsSniff) countStatements(line string, commentSt
 		if s.handleQuotes(line, &j, qs) {
 			continue
 		}
-		if s.isStatementSeparator(line, j, qs, commentState) {
+		if !qs.InSingle && !qs.InDouble && !commentState.InBlockComment && !commentState.InHeredoc {
+			switch line[j] {
+			case '(':
+				parenDepth++
+			case ')':
+				if parenDepth > 0 {
+					parenDepth--
+				}
+			}
+		}
+		if s.isStatementSeparator(line, j, qs, commentState, parenDepth) {
 			count++
 		}
 		j++
@@ -109,8 +120,8 @@ func (s *DisallowMultipleStatementsSniff) handleQuotes(line string, j *int, qs *
 	return false
 }
 
-func (s *DisallowMultipleStatementsSniff) isStatementSeparator(line string, j int, qs *helper.QuoteState, commentState *helper.CommentState) bool {
-	return !qs.InSingle && !qs.InDouble && !commentState.InBlockComment && !commentState.InHeredoc && line[j] == ';'
+func (s *DisallowMultipleStatementsSniff) isStatementSeparator(line string, j int, qs *helper.QuoteState, commentState *helper.CommentState, parenDepth int) bool {
+	return !qs.InSingle && !qs.InDouble && !commentState.InBlockComment && !commentState.InHeredoc && parenDepth == 0 && line[j] == ';'
 }
 
 func init() {
