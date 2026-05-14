@@ -32,28 +32,19 @@ style:
 build:
 	go build -o go-phpcs
 
-compat-metrics:
+compat-metrics: test-projects
 	go run ./cmd/compat-metrics
 
 # Fetch large PHP projects for testing (includes vendor dependencies)
+# Skips already-cloned projects so safe to re-run
 test-projects:
 	mkdir -p test_projects
-	cd test_projects && \
-	echo "Fetching Laravel..." && \
-	git clone --depth 1 https://github.com/laravel/laravel.git laravel && \
-	cd laravel && composer install --no-dev --optimize-autoloader && cd .. && \
-	echo "Fetching Symfony..." && \
-	git clone --depth 1 https://github.com/symfony/symfony.git symfony && \
-	cd symfony && composer install --no-dev --optimize-autoloader && cd .. && \
-	echo "Fetching Drupal..." && \
-	git clone --depth 1 https://github.com/drupal/drupal.git drupal && \
-	cd drupal && composer install --no-dev --optimize-autoloader && cd .. && \
-	echo "Fetching Composer..." && \
-	git clone --depth 1 https://github.com/composer/composer.git composer-src && \
-	cd composer-src && composer install --no-dev --optimize-autoloader && cd .. && \
-	echo "Fetching PHPUnit..." && \
-	git clone --depth 1 https://github.com/sebastianbergmann/phpunit.git phpunit && \
-	cd phpunit && composer install --no-dev --optimize-autoloader && cd .. && \
+	@cd test_projects && \
+	if [ ! -d laravel ]; then echo "Fetching Laravel..." && git clone --depth 1 https://github.com/laravel/laravel.git laravel && cd laravel && composer install --no-dev --optimize-autoloader && cd ..; else echo "Laravel already present, skipping."; fi && \
+	if [ ! -d symfony ]; then echo "Fetching Symfony..." && git clone --depth 1 https://github.com/symfony/symfony.git symfony && cd symfony && composer install --no-dev --optimize-autoloader && cd ..; else echo "Symfony already present, skipping."; fi && \
+	if [ ! -d drupal ]; then echo "Fetching Drupal..." && git clone --depth 1 https://github.com/drupal/drupal.git drupal && cd drupal && composer install --no-dev --optimize-autoloader && cd ..; else echo "Drupal already present, skipping."; fi && \
+	if [ ! -d composer-src ]; then echo "Fetching Composer..." && git clone --depth 1 https://github.com/composer/composer.git composer-src && cd composer-src && composer install --no-dev --optimize-autoloader && cd ..; else echo "Composer already present, skipping."; fi && \
+	if [ ! -d phpunit ]; then echo "Fetching PHPUnit..." && git clone --depth 1 https://github.com/sebastianbergmann/phpunit.git phpunit && cd phpunit && composer install --no-dev --optimize-autoloader && cd ..; else echo "PHPUnit already present, skipping."; fi && \
 	echo "Counting lines of code..." && \
 	find . -name "*.php" -type f -exec wc -l {} + | tail -1
 
