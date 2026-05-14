@@ -7,11 +7,13 @@ import (
 )
 
 type AnalysisIssue struct {
-	Filename string
-	Line     int
-	Column   int
-	Code     string
-	Message  string
+	Filename    string
+	Line        int
+	Column      int
+	Code        string
+	Message     string
+	SubjectKind string
+	SubjectName string
 }
 
 type AnalysisRuleFunc func(filename string, nodes []ast.Node) []AnalysisIssue

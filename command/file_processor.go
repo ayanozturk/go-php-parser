@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"go-phpcs/analyse"
 	"go-phpcs/lexer"
+	"go-phpcs/overrides"
 	"go-phpcs/parser"
 	"go-phpcs/sharedcache"
 	"go-phpcs/style"
@@ -58,7 +59,7 @@ func ProcessFile(filePath, commandName string, debug bool, w io.Writer) int {
 	return lineCount
 }
 
-func ProcessFileWithErrors(filePath, commandName string, debug bool, w io.Writer) ([]string, int) {
+func ProcessFileWithErrors(filePath, commandName string, debug bool, rules []string, matcher *overrides.Compiled, w io.Writer) ([]string, int) {
 	input, err := getCachedFileContent(filePath)
 	if err != nil {
 		fmt.Fprintf(w, "Error reading file: %s\n", err)
@@ -72,7 +73,11 @@ func ProcessFileWithErrors(filePath, commandName string, debug bool, w io.Writer
 	if len(errList) > 0 {
 		return errList, lineCount
 	}
-	ExecuteCommand(commandName, nodes, input, filePath, w)
+	if commandName == "style" {
+		Commands["style"].ExecuteWithRules(nodes, filePath, w, rules, matcher)
+	} else {
+		ExecuteCommand(commandName, nodes, input, filePath, w)
+	}
 	return nil, lineCount
 }
 
@@ -131,7 +136,7 @@ func getCachedFileContent(filename string) ([]byte, error) {
 	return content, nil
 }
 
-func processFileForStyle(file string, rules []string, issueCh chan<- []style.StyleIssue, linesCh chan<- int, errCh chan<- int, callback func()) {
+func processFileForStyle(file string, rules []string, matcher *overrides.Compiled, issueCh chan<- []style.StyleIssue, linesCh chan<- int, errCh chan<- int, callback func()) {
 	input, err := getCachedFileContent(file)
 	if err != nil {
 		return
@@ -146,7 +151,7 @@ func processFileForStyle(file string, rules []string, issueCh chan<- []style.Sty
 		errCh <- 0
 	}
 	// Run analysis rules on the parsed AST and collect issues
-	analysisIssues := analyse.RunAnalysisRules(file, nodes)
+	analysisIssues := analyse.FilterIssues(analyse.RunAnalysisRules(file, nodes), matcher)
 	var fileIssues []style.StyleIssue
 	for _, iss := range analysisIssues {
 		// Convert AnalysisIssue to StyleIssue for unified reporting
@@ -161,7 +166,7 @@ func processFileForStyle(file string, rules []string, issueCh chan<- []style.Sty
 		})
 	}
 	issueWriter := &style.IssueCollector{Issues: &fileIssues}
-	Commands["style"].ExecuteWithRules(nodes, file, issueWriter, rules)
+	Commands["style"].ExecuteWithRules(nodes, file, issueWriter, rules, matcher)
 	issueCh <- fileIssues
 	if callback != nil {
 		callback()
@@ -169,7 +174,7 @@ func processFileForStyle(file string, rules []string, issueCh chan<- []style.Sty
 }
 
 // Helper to process a batch of files in parallel
-func processStyleBatch(batch []string, rules []string, parallelism int, callback func()) ([]style.StyleIssue, int, int) {
+func processStyleBatch(batch []string, rules []string, matcher *overrides.Compiled, parallelism int, callback func()) ([]style.StyleIssue, int, int) {
 	var (
 		wg      sync.WaitGroup
 		fileCh  = make(chan string)
@@ -184,7 +189,7 @@ func processStyleBatch(batch []string, rules []string, parallelism int, callback
 		go func() {
 			defer wg.Done()
 			for file := range fileCh {
-				processFileForStyle(file, rules, issueCh, linesCh, errCh, callback)
+				processFileForStyle(file, rules, matcher, issueCh, linesCh, errCh, callback)
 			}
 		}()
 	}
@@ -213,7 +218,7 @@ func processStyleBatch(batch []string, rules []string, parallelism int, callback
 	return allIssues, totalParseErrors, totalLines
 }
 
-func ProcessStyleFilesParallelWithCallback(files []string, rules []string, parallelism int, callback func()) ([]style.StyleIssue, int, int) {
+func ProcessStyleFilesParallelWithCallback(files []string, rules []string, matcher *overrides.Compiled, parallelism int, callback func()) ([]style.StyleIssue, int, int) {
 	batchSize := 100
 	nFiles := len(files)
 	allIssues := make([]style.StyleIssue, 0, nFiles*2)
@@ -231,7 +236,7 @@ func ProcessStyleFilesParallelWithCallback(files []string, rules []string, paral
 			return nil, 0, 0
 		}
 
-		batchIssues, batchParseErrors, batchLines := processStyleBatch(batch, rules, parallelism, callback)
+		batchIssues, batchParseErrors, batchLines := processStyleBatch(batch, rules, matcher, parallelism, callback)
 		allIssues = append(allIssues, batchIssues...)
 		totalParseErrors += batchParseErrors
 		totalLines += batchLines
@@ -244,7 +249,7 @@ func ProcessStyleFilesParallelWithCallback(files []string, rules []string, paral
 	return allIssues, totalParseErrors, totalLines
 }
 
-func ProcessStyleFilesParallel(files []string, rules []string, parallelism int) ([]style.StyleIssue, int, int) {
+func ProcessStyleFilesParallel(files []string, rules []string, matcher *overrides.Compiled, parallelism int) ([]style.StyleIssue, int, int) {
 	fileContents := make(map[string][]byte, len(files))
 	for _, file := range files {
 		content, err := getCachedFileContent(file)
@@ -272,7 +277,7 @@ func ProcessStyleFilesParallel(files []string, rules []string, parallelism int) 
 		go func() {
 			defer wg.Done()
 			for file := range fileCh {
-				processFileForStyle(file, rules, issueCh, linesCh, errCh, nil)
+				processFileForStyle(file, rules, matcher, issueCh, linesCh, errCh, nil)
 			}
 		}()
 	}
@@ -299,7 +304,7 @@ func ProcessStyleFilesParallel(files []string, rules []string, parallelism int) 
 	return allIssues, totalParseErrors, totalLines
 }
 
-func ProcessMultipleFiles(files []string, commandName string, debug bool, parallelism int, w io.Writer) (int, int) {
+func ProcessMultipleFiles(files []string, commandName string, debug bool, parallelism int, rules []string, matcher *overrides.Compiled, w io.Writer) (int, int) {
 	totalParseErrors := 0
 	totalLines := 0
 	var wg sync.WaitGroup
@@ -314,7 +319,7 @@ func ProcessMultipleFiles(files []string, commandName string, debug bool, parall
 
 	for i := 0; i < parallelism; i++ {
 		wg.Add(1)
-		go Worker(fileCh, errDetailCh, linesCh, commandName, debug, &wg, w)
+		go Worker(fileCh, errDetailCh, linesCh, commandName, debug, rules, matcher, &wg, w)
 	}
 
 	for _, filePath := range files {
@@ -343,10 +348,10 @@ func CollectErrors(errDetailCh <-chan ParseErrorDetail, totalParseErrors *int, d
 	done <- struct{}{}
 }
 
-func Worker(fileCh <-chan string, errDetailCh chan<- ParseErrorDetail, linesCh chan<- int, commandName string, debug bool, wg *sync.WaitGroup, w io.Writer) {
+func Worker(fileCh <-chan string, errDetailCh chan<- ParseErrorDetail, linesCh chan<- int, commandName string, debug bool, rules []string, matcher *overrides.Compiled, wg *sync.WaitGroup, w io.Writer) {
 	defer wg.Done()
 	for filePath := range fileCh {
-		errList, lines := ProcessFileWithErrors(filePath, commandName, debug, w)
+		errList, lines := ProcessFileWithErrors(filePath, commandName, debug, rules, matcher, w)
 		errDetailCh <- ParseErrorDetail{File: filePath, Errors: errList}
 		linesCh <- lines
 	}

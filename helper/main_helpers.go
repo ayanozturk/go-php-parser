@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"go-phpcs/command"
 	"go-phpcs/config"
+	"go-phpcs/overrides"
 	"go-phpcs/style"
 	"go-phpcs/utils"
 	"io"
@@ -114,8 +115,12 @@ func TrackMemoryUsage(mem *MemStats, atStart bool) {
 func RunScanOrCommand(args CliArgs, c *config.Config, filesToScan []string, outWriter io.Writer, mem *MemStats) (int, int) {
 	totalParseErrors := 0
 	totalLines := 0
+	matcher, err := overrides.Compile(c.Overrides)
+	if err != nil {
+		log.Fatalf("Error compiling overrides: %v", err)
+	}
 	if args.filePath != "" {
-		errList, lineCount := command.ProcessFileWithErrors(args.filePath, args.CommandName, args.debug, outWriter)
+		errList, lineCount := command.ProcessFileWithErrors(args.filePath, args.CommandName, args.debug, c.Rules, matcher, outWriter)
 		totalParseErrors = len(errList)
 		totalLines = lineCount
 		if len(errList) > 0 {
@@ -134,7 +139,7 @@ func RunScanOrCommand(args CliArgs, c *config.Config, filesToScan []string, outW
 			nFiles := len(filesToScan)
 			progressBar := utils.NewProgressBar(nFiles, "Scanning")
 			var processed int
-			allIssues, totalParseErrors, totalLines = command.ProcessStyleFilesParallelWithCallback(filesToScan, c.Rules, args.parallelism, func() {
+			allIssues, totalParseErrors, totalLines = command.ProcessStyleFilesParallelWithCallback(filesToScan, c.Rules, matcher, args.parallelism, func() {
 				processed++
 				progressBar.Print(processed)
 			})
@@ -181,7 +186,7 @@ func RunScanOrCommand(args CliArgs, c *config.Config, filesToScan []string, outW
 			fmt.Fprintln(outWriter, "\033[36;1m\n========== SCAN RESULTS =========="+"\033[0m")
 			style.PrintPHPCSStyleOutputToWriter(outWriter, allIssues)
 		} else {
-			totalParseErrors, totalLines = command.ProcessMultipleFiles(filesToScan, args.CommandName, args.debug, args.parallelism, outWriter)
+			totalParseErrors, totalLines = command.ProcessMultipleFiles(filesToScan, args.CommandName, args.debug, args.parallelism, c.Rules, matcher, outWriter)
 		}
 	}
 	return totalParseErrors, totalLines

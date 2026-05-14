@@ -5,6 +5,8 @@ import (
 	"path/filepath"
 	"reflect"
 	"testing"
+
+	"go-phpcs/overrides"
 )
 
 func TestLoadConfig_Success(t *testing.T) {
@@ -21,6 +23,10 @@ extensions:
 ignore:
   - vendor
   - testdata
+overrides:
+  PSR1.Classes.ClassDeclaration.PascalCase:
+    classes:
+      - "/Legacy_.*/"
 `)
 	if _, err := tempFile.Write(content); err != nil {
 		t.Fatalf("failed to write to temp file: %v", err)
@@ -36,6 +42,11 @@ ignore:
 		Path:       "./testdata",
 		Extensions: []string{"php", "inc"},
 		Ignore:     []string{"vendor", "testdata"},
+		Overrides: map[string]overrides.RuleOverride{
+			"PSR1.Classes.ClassDeclaration.PascalCase": {
+				Classes: []string{"/Legacy_.*/"},
+			},
+		},
 	}
 	if !reflect.DeepEqual(cfg, expected) {
 		t.Errorf("unexpected config: got %+v, want %+v", cfg, expected)

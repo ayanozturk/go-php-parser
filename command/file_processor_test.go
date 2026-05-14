@@ -22,9 +22,9 @@ func TestProcessStyleFilesParallel(t *testing.T) {
 	}
 
 	// Run with 1 worker (serial)
-	issuesSerial, errSerial, linesSerial := ProcessStyleFilesParallel(paths, []string{"PSR12.Files.NoBlankLineAfterPHPOpeningTag"}, 1)
+	issuesSerial, errSerial, linesSerial := ProcessStyleFilesParallel(paths, []string{"PSR12.Files.NoBlankLineAfterPHPOpeningTag"}, nil, 1)
 	// Run with 4 workers (parallel)
-	issuesParallel, errParallel, linesParallel := ProcessStyleFilesParallel(paths, []string{"PSR12.Files.NoBlankLineAfterPHPOpeningTag"}, 4)
+	issuesParallel, errParallel, linesParallel := ProcessStyleFilesParallel(paths, []string{"PSR12.Files.NoBlankLineAfterPHPOpeningTag"}, nil, 4)
 
 	if len(issuesSerial) != len(issuesParallel) {
 		t.Errorf("issue count mismatch: serial %d, parallel %d", len(issuesSerial), len(issuesParallel))

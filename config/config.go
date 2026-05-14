@@ -4,14 +4,17 @@ import (
 	"os"
 	"path/filepath"
 
+	"go-phpcs/overrides"
+
 	"gopkg.in/yaml.v2"
 )
 
 type Config struct {
-	Path       string   `yaml:"path"`
-	Extensions []string `yaml:"extensions"`
-	Ignore     []string `yaml:"ignore"`
-	Rules      []string `yaml:"rules"`
+	Path       string                  `yaml:"path"`
+	Extensions []string                `yaml:"extensions"`
+	Ignore     []string                `yaml:"ignore"`
+	Rules      []string                `yaml:"rules"`
+	Overrides  overrides.RuleOverrides `yaml:"overrides"`
 }
 
 func LoadConfig(filename string) (*Config, error) {

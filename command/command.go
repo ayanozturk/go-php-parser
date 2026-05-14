@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"go-phpcs/ast"
 	"go-phpcs/lexer"
+	"go-phpcs/overrides"
 	"go-phpcs/parser"
 	"go-phpcs/printer"
 	"go-phpcs/sharedcache"
@@ -16,7 +17,7 @@ type Command struct {
 	Name             string
 	Description      string
 	Execute          func([]ast.Node, string, io.Writer)
-	ExecuteWithRules func([]ast.Node, string, io.Writer, []string)
+	ExecuteWithRules func([]ast.Node, string, io.Writer, []string, *overrides.Compiled)
 }
 
 // Commands maps command names to their implementations
@@ -39,7 +40,7 @@ var Commands = map[string]Command{
 		Name:        "style",
 		Description: "Check code style (e.g., function naming)",
 		// Refactored for concurrent streaming: checkers run in goroutines, issues are streamed to output
-		ExecuteWithRules: func(nodes []ast.Node, filename string, w io.Writer, allowedRules []string) {
+		ExecuteWithRules: func(nodes []ast.Node, filename string, w io.Writer, allowedRules []string, matcher *overrides.Compiled) {
 			var allIssues []style.StyleIssue
 			// checker := &style.ClassNameChecker{}
 			// allIssues = append(allIssues, checker.CheckIssues(nodes, filename)...)
@@ -53,7 +54,7 @@ var Commands = map[string]Command{
 					Code:     "PSR12.Files.FileOpenError",
 				})
 			} else {
-				allIssues = append(allIssues, style.RunSelectedRules(filename, content, nodes, allowedRules)...) // Unified registry
+				allIssues = append(allIssues, style.FilterIssues(style.RunSelectedRules(filename, content, nodes, allowedRules), matcher)...)
 			}
 
 			// If w is an IssueCollector, append to it; else, print immediately
@@ -98,7 +99,7 @@ const ErrorLineFormat = "\t%s\n"
 func init() {
 	styleCmd := Commands["style"]
 	styleCmd.Execute = func(nodes []ast.Node, filename string, w io.Writer) {
-		styleCmd.ExecuteWithRules(nodes, filename, w, nil)
+		styleCmd.ExecuteWithRules(nodes, filename, w, nil, nil)
 	}
 	Commands["style"] = styleCmd
 }
@@ -112,7 +113,7 @@ type MemStats struct {
 	Start, End interface{}
 }
 
-func ProcessSingleFileWithWriter(filePath, commandName string, debug bool, w io.Writer) (int, int) {
+func ProcessSingleFileWithWriter(filePath, commandName string, debug bool, rules []string, matcher *overrides.Compiled, w io.Writer) (int, int) {
 	input, err := os.ReadFile(filePath)
 	if err != nil {
 		fmt.Fprintf(w, "Could not read file %s: %v\n", filePath, err)
@@ -121,15 +122,19 @@ func ProcessSingleFileWithWriter(filePath, commandName string, debug bool, w io.
 	lex := lexer.New(string(input))
 	p := parser.New(lex, false)
 	nodes := p.Parse()
-	ExecuteCommand(commandName, nodes, input, filePath, w)
+	if commandName == "style" {
+		Commands["style"].ExecuteWithRules(nodes, filePath, w, rules, matcher)
+	} else {
+		ExecuteCommand(commandName, nodes, input, filePath, w)
+	}
 	return 0, CountLines(input)
 }
 
-func ProcessMultipleFilesWithWriter(files []string, commandName string, debug bool, parallelism int, w io.Writer) (int, int) {
+func ProcessMultipleFilesWithWriter(files []string, commandName string, debug bool, parallelism int, rules []string, matcher *overrides.Compiled, w io.Writer) (int, int) {
 	totalParseErrors := 0
 	totalLines := 0
 	for _, file := range files {
-		err, lines := ProcessSingleFileWithWriter(file, commandName, debug, w)
+		err, lines := ProcessSingleFileWithWriter(file, commandName, debug, rules, matcher, w)
 		totalParseErrors += err
 		totalLines += lines
 	}

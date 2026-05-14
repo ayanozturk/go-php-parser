@@ -18,13 +18,15 @@ func (c *ClassNameChecker) CheckIssues(nodes []ast.Node, filename string) []Styl
 		if cls, ok := node.(*ast.ClassNode); ok {
 			if cls.Name != helper.PascalCase(cls.Name) {
 				issues = append(issues, StyleIssue{
-					Filename: filename,
-					Line:     cls.Pos.Line,
-					Column:   cls.Pos.Column,
-					Type:     Error,
-					Fixable:  false,
-					Message:  "Class name should be PascalCase",
-					Code:     "PSR1.Classes.ClassDeclaration.PascalCase",
+					Filename:    filename,
+					Line:        cls.Pos.Line,
+					Column:      cls.Pos.Column,
+					Type:        Error,
+					Fixable:     false,
+					Message:     "Class name should be PascalCase",
+					Code:        "PSR1.Classes.ClassDeclaration.PascalCase",
+					SubjectKind: "class",
+					SubjectName: cls.Name,
 				})
 			}
 		}
