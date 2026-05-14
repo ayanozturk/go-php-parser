@@ -14,12 +14,41 @@ const controlStructureSpacingCode = "PSR12.ControlStructures.ControlStructureSpa
 // - Single space before opening brace of control structures
 type ControlStructureSpacingChecker struct {
 	controlKeywords []string
+	nonCallKeywords map[string]struct{}
 }
 
 // NewControlStructureSpacingChecker creates a new checker with proper initialization
 func NewControlStructureSpacingChecker() *ControlStructureSpacingChecker {
 	keywords := []string{"if", "else", "elseif", "for", "foreach", "while", "do", "switch", "try", "catch", "finally"}
-	return &ControlStructureSpacingChecker{controlKeywords: keywords}
+	nonCallKeywords := map[string]struct{}{
+		"array":        {},
+		"clone":        {},
+		"die":          {},
+		"echo":         {},
+		"empty":        {},
+		"eval":         {},
+		"exit":         {},
+		"fn":           {},
+		"function":     {},
+		"include":      {},
+		"include_once": {},
+		"isset":        {},
+		"list":         {},
+		"match":        {},
+		"new":          {},
+		"print":        {},
+		"require":      {},
+		"require_once": {},
+		"return":       {},
+		"unset":        {},
+		"use":          {},
+	}
+	return &ControlStructureSpacingChecker{controlKeywords: keywords, nonCallKeywords: nonCallKeywords}
+}
+
+func (c *ControlStructureSpacingChecker) isNonCallKeyword(name string) bool {
+	_, ok := c.nonCallKeywords[name]
+	return ok
 }
 
 // CheckIssues analyzes the code for control structure spacing violations
@@ -186,7 +215,7 @@ func (c *ControlStructureSpacingChecker) checkFunctionCallSpacing(line, filename
 		if isControl {
 			continue
 		}
-		if name == "function" || name == "fn" || name == "use" {
+		if c.isNonCallKeyword(name) {
 			continue
 		}
 
@@ -274,7 +303,7 @@ func FixControlStructureSpacing(content string) string {
 		}
 
 		// Fix function call spacing (remove spaces before parenthesis) without regex
-		line = fixFuncCallSpacingNoRegex(line, checker.controlKeywords)
+		line = fixFuncCallSpacingNoRegex(line, checker.controlKeywords, checker.nonCallKeywords)
 
 		// Fix brace spacing
 		line = regexp.MustCompile(`\)\s*\{`).ReplaceAllString(line, ") {")
@@ -287,7 +316,7 @@ func FixControlStructureSpacing(content string) string {
 }
 
 // fixFuncCallSpacingNoRegex removes spaces between function name and '(' using a linear scan
-func fixFuncCallSpacingNoRegex(line string, controlKeywords []string) string {
+func fixFuncCallSpacingNoRegex(line string, controlKeywords []string, nonCallKeywords map[string]struct{}) string {
 	var out strings.Builder
 	for i := 0; i < len(line); {
 		if (line[i] >= 'a' && line[i] <= 'z') || (line[i] >= 'A' && line[i] <= 'Z') || line[i] == '_' {
@@ -312,7 +341,7 @@ func fixFuncCallSpacingNoRegex(line string, controlKeywords []string) string {
 					}
 				}
 				if !isControl && spaceCount > 0 {
-					if name == "function" || name == "fn" || name == "use" {
+					if _, ok := nonCallKeywords[name]; ok {
 						out.WriteByte(' ')
 						out.WriteByte('(')
 						i = j + 1

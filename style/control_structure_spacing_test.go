@@ -218,6 +218,13 @@ $mapper = fn ($value) => $value;`,
 			expectedIssues: 0,
 			expectedCodes:  []string{},
 		},
+		{
+			name: "return cast spacing should be allowed",
+			code: `<?php
+return (float) $aTrim <=> (float) $b;`,
+			expectedIssues: 0,
+			expectedCodes:  []string{},
+		},
 	}
 
 	for _, tt := range tests {
@@ -268,6 +275,11 @@ for ($i = 0; $i < 10; $i++) {
 			name:     "do not change anonymous function spacing",
 			input:    "<?php\nset_error_handler(function ($t, $m) use ($regexp) { return false; });",
 			expected: "<?php\nset_error_handler(function ($t, $m) use ($regexp) { return false; });",
+		},
+		{
+			name:     "do not change return cast spacing",
+			input:    "<?php\nreturn (float) $aTrim <=> (float) $b;",
+			expected: "<?php\nreturn (float) $aTrim <=> (float) $b;",
 		},
 		{
 			name: "fix multiple spaces after control keywords",
