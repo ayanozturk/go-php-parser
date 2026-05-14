@@ -199,3 +199,50 @@ func (p *Parser) parseArrayLiteral(allowSkippedElements bool) ast.Node {
 
 	return nil
 }
+
+func (p *Parser) parseListLiteral(allowSkippedElements bool) ast.Node {
+	pos := p.tok.Pos
+	p.nextToken() // consume list
+	if p.tok.Type != token.T_LPAREN {
+		p.addError("line %d:%d: expected ( after list, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal)
+		return nil
+	}
+	p.nextToken() // consume (
+
+	var elements []ast.Node
+	for p.tok.Type != token.T_RPAREN && p.tok.Type != token.T_EOF {
+		for p.tok.Type == token.T_COMMENT || p.tok.Type == token.T_DOC_COMMENT {
+			p.nextToken()
+		}
+		if p.tok.Type == token.T_RPAREN {
+			break
+		}
+		if allowSkippedElements && p.tok.Type == token.T_COMMA {
+			p.nextToken()
+			continue
+		}
+		if element := p.parseArrayElement(); element != nil {
+			elements = append(elements, element)
+		}
+		for p.tok.Type == token.T_COMMENT || p.tok.Type == token.T_DOC_COMMENT {
+			p.nextToken()
+		}
+
+		if p.tok.Type == token.T_COMMA {
+			p.nextToken()
+			continue
+		}
+
+		if p.tok.Type != token.T_RPAREN {
+			p.addError("line %d:%d: expected , or ) in list expression, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal)
+			return nil
+		}
+		break
+	}
+	p.nextToken() // consume )
+
+	return &ast.ArrayNode{
+		Elements: elements,
+		Pos:      ast.Position(pos),
+	}
+}

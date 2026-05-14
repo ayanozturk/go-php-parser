@@ -564,6 +564,34 @@ function provider() {
 	}
 }
 
+func TestParseListAssignment(t *testing.T) {
+	php := `<?php
+list($constraints, $conjunctive) = $optimized;
+`
+
+	l := lexer.New(php)
+	p := New(l, true)
+	_ = p.Parse()
+
+	if len(p.Errors()) > 0 {
+		t.Fatalf("unexpected parser errors: %v", p.Errors())
+	}
+}
+
+func TestParseDynamicNewWithPostfixClassExpr(t *testing.T) {
+	php := `<?php
+$instance = new $this->constraintMap[$constraintName]($this);
+`
+
+	l := lexer.New(php)
+	p := New(l, true)
+	_ = p.Parse()
+
+	if len(p.Errors()) > 0 {
+		t.Fatalf("unexpected parser errors: %v", p.Errors())
+	}
+}
+
 func TestParseUnpackedFunctionCallArgument(t *testing.T) {
 	php := `<?php
 var_dump(...$vars);
@@ -1256,6 +1284,48 @@ $result = $response->namespace;
 func TestParseReservedNeverMethodCall(t *testing.T) {
 	php := `<?php
 $result = $mock->never()->method('x');
+`
+
+	l := lexer.New(php)
+	p := New(l, true)
+	_ = p.Parse()
+
+	if len(p.Errors()) > 0 {
+		t.Fatalf("unexpected parser errors: %v", p.Errors())
+	}
+}
+
+func TestParseReservedNullMethodCall(t *testing.T) {
+	php := `<?php
+$result = !$scope->null();
+`
+
+	l := lexer.New(php)
+	p := New(l, true)
+	_ = p.Parse()
+
+	if len(p.Errors()) > 0 {
+		t.Fatalf("unexpected parser errors: %v", p.Errors())
+	}
+}
+
+func TestParseReservedBoolMethodCalls(t *testing.T) {
+	php := `<?php
+$result = $scope->true() || $scope->false();
+`
+
+	l := lexer.New(php)
+	p := New(l, true)
+	_ = p.Parse()
+
+	if len(p.Errors()) > 0 {
+		t.Fatalf("unexpected parser errors: %v", p.Errors())
+	}
+}
+
+func TestParseReservedConstPropertyFetch(t *testing.T) {
+	php := `<?php
+$value = $reader->const;
 `
 
 	l := lexer.New(php)

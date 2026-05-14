@@ -26,6 +26,13 @@ func (p *Parser) parseExpressionWithPrecedence(minPrec int, validateAssignmentTa
 		left = p.parsePostfixExpression(left)
 		return p.parseBinaryAndTernaryOperators(left, minPrec, validateAssignmentTarget, stopTypes...)
 	}
+	if p.tok.Type == token.T_LIST && validateAssignmentTarget {
+		left := p.parseListLiteral(true)
+		if left == nil {
+			return nil
+		}
+		return p.parseBinaryAndTernaryOperators(left, minPrec, validateAssignmentTarget, stopTypes...)
+	}
 
 	if left := p.parseUnaryExpression(stopTypes...); left != nil {
 		return p.parseBinaryAndTernaryOperators(left, minPrec, validateAssignmentTarget, stopTypes...)
@@ -405,8 +412,13 @@ func (p *Parser) parseSimpleNew() ast.Node {
 	className := ""
 	var classExpr ast.Node
 	if p.tok.Type == token.T_VARIABLE {
-		className = p.tok.Literal
+		classExpr = &ast.VariableNode{Name: p.tok.Literal[1:], Pos: ast.Position(p.tok.Pos)}
 		p.nextToken()
+		classExpr = p.parseNewClassPostfixExpression(classExpr)
+		if variable, ok := classExpr.(*ast.VariableNode); ok {
+			className = "$" + variable.Name
+			classExpr = nil
+		}
 	} else if p.tok.Type == token.T_LPAREN {
 		p.nextToken() // consume (
 		classExpr = p.parseExpressionWithStop(token.T_RPAREN)
@@ -444,6 +456,28 @@ func (p *Parser) parseSimpleNew() ast.Node {
 		Args:      args,
 		Pos:       ast.Position(pos),
 	}
+}
+
+func (p *Parser) parseNewClassPostfixExpression(expr ast.Node) ast.Node {
+	for {
+		for p.tok.Type == token.T_COMMENT || p.tok.Type == token.T_DOC_COMMENT || p.tok.Type == token.T_WHITESPACE {
+			p.nextToken()
+		}
+		if p.tok.Type == token.T_OBJECT_OPERATOR || p.tok.Type == token.T_NULLSAFE_OBJECT_OPERATOR {
+			expr = p.parseSimpleObjectOrMethod(expr)
+			continue
+		}
+		if p.tok.Type == token.T_DOUBLE_COLON {
+			expr = p.parseStaticAccessOnNode(expr)
+			continue
+		}
+		if p.tok.Type == token.T_LBRACKET {
+			expr = p.parseSimpleArrayAccess(expr)
+			continue
+		}
+		break
+	}
+	return expr
 }
 
 func (p *Parser) parseSimpleFQCNOrFunctionCall() ast.Node {
