@@ -1,56 +1,42 @@
 package lexer
 
-import "strings"
-
-func (l *Lexer) readLineComment() string {
-	var out strings.Builder
-	out.WriteRune('/')
-	out.WriteRune('/')
-
-	l.readChar() // move past second /
+// readLineComment slices the line comment directly from input (zero allocation).
+// commentStart is the byte offset of the first '/'.
+// Called with l.char at the second '/'.
+func (l *Lexer) readLineComment(commentStart int) string {
+	l.readChar() // move past second '/'
 	for l.char != '\n' && l.char != 0 {
-		out.WriteRune(l.char)
 		l.readChar()
 	}
-
-	return out.String()
+	return l.input[commentStart:l.pos]
 }
 
+// readHashComment slices the hash comment directly from input (zero allocation).
+// Called with l.char at '#'.
 func (l *Lexer) readHashComment() string {
-	var out strings.Builder
-	out.WriteRune('#')
-
-	l.readChar() // move past #
+	commentStart := l.pos
+	l.readChar() // move past '#'
 	for l.char != '\n' && l.char != 0 {
-		out.WriteRune(l.char)
 		l.readChar()
 	}
-
-	return out.String()
+	return l.input[commentStart:l.pos]
 }
 
-func (l *Lexer) readBlockComment() string {
-	var out strings.Builder
-	out.WriteRune('/')
-	out.WriteRune('*')
-
-	l.readChar() // Move past *
+// readBlockComment slices the block comment directly from input (zero allocation).
+// commentStart is the byte offset of the opening '/'.
+// Called with l.char at the first (or second, for /**) '*'.
+func (l *Lexer) readBlockComment(commentStart int) string {
+	l.readChar() // move past '*'
 	for {
 		if l.char == 0 {
 			break
 		}
-
 		if l.char == '*' && l.peekChar() == '/' {
-			out.WriteRune('*')
-			out.WriteRune('/')
-			l.readChar() // consume *
-			l.readChar() // consume /
+			l.readChar() // consume '*'
+			l.readChar() // consume '/'
 			break
 		}
-
-		out.WriteRune(l.char)
 		l.readChar()
 	}
-
-	return out.String()
+	return l.input[commentStart:l.pos]
 }

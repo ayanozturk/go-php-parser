@@ -73,11 +73,15 @@ func (l *Lexer) skipToNextLine() {
 func (l *Lexer) readHeredocBody(identifier string) string {
 	bodyStart := l.pos
 	bodyEnd := -1
+	// PHP identifiers are ASCII-only, so byte length == rune count.
+	identByteLen := len(identifier)
 	for l.char != 0 {
 		lineStart := l.pos
 		if l.isEndOfHeredocLine(identifier) {
 			bodyEnd = lineStart
-			for i := 0; i < utf8.RuneCountInString(identifier); i++ {
+			// Advance past identifier using precomputed byte length.
+			end := l.pos + identByteLen
+			for l.pos < end {
 				l.readChar()
 			}
 			break

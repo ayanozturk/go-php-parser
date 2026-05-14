@@ -17,6 +17,9 @@ type Lexer struct {
 	inString bool // Tracks if currently inside a string
 	// For heredoc token queue
 	heredocTokens []token.Token
+	// Lookahead cache: avoids state save/restore on PeekToken
+	hasPeeked   bool
+	peekedToken token.Token
 }
 
 // inStringMode returns whether the lexer is currently inside a string.
@@ -96,6 +99,15 @@ func (l *Lexer) readString(quote byte) string {
 	return out.String()
 }
 
+// stripUnderscores removes PHP 7.4+ numeric separator underscores.
+// Returns the original string unchanged when no underscores are present (no allocation).
+func stripUnderscores(s string) string {
+	if !strings.ContainsRune(s, '_') {
+		return s
+	}
+	return strings.ReplaceAll(s, "_", "")
+}
+
 // readOctalNumber reads and processes an octal number (0o format)
 func (l *Lexer) readOctalNumber() (string, bool) {
 	l.readChar() // consume '0'
@@ -104,9 +116,7 @@ func (l *Lexer) readOctalNumber() (string, bool) {
 	for (l.char >= '0' && l.char <= '7') || l.char == '_' {
 		l.readChar()
 	}
-	// Remove underscores
-	octal := strings.ReplaceAll(l.input[start:l.pos], "_", "")
-	return "0o" + octal, false
+	return "0o" + stripUnderscores(l.input[start:l.pos]), false
 }
 
 func (l *Lexer) readNumber() (string, bool) {
@@ -126,9 +136,7 @@ func (l *Lexer) readNumber() (string, bool) {
 			for (l.char >= '0' && l.char <= '9') || (l.char >= 'a' && l.char <= 'f') || (l.char >= 'A' && l.char <= 'F') || l.char == '_' {
 				l.readChar()
 			}
-			// Remove underscores
-			hex := strings.ReplaceAll(l.input[start:l.pos], "_", "")
-			return "0x" + hex, false
+			return "0x" + stripUnderscores(l.input[start:l.pos]), false
 		}
 	}
 
@@ -147,9 +155,7 @@ func (l *Lexer) readNumber() (string, bool) {
 		l.readChar()
 	}
 
-	// Remove underscores from the literal
-	num := strings.ReplaceAll(l.input[position:l.pos], "_", "")
-	return num, isFloat
+	return stripUnderscores(l.input[position:l.pos]), isFloat
 }
 
 // readIdentifier reads a PHP identifier (supports Unicode)
@@ -162,6 +168,15 @@ func (l *Lexer) readIdentifier() string {
 }
 
 func (l *Lexer) NextToken() token.Token {
+	if l.hasPeeked {
+		tok := l.peekedToken
+		l.hasPeeked = false
+		return tok
+	}
+	return l.scanToken()
+}
+
+func (l *Lexer) scanToken() token.Token {
 	if len(l.heredocTokens) > 0 {
 		return l.nextHeredocToken()
 	}

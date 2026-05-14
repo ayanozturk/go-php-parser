@@ -213,17 +213,19 @@ func (l *Lexer) lexSingleChar(t token.TokenType, pos token.Position) token.Token
 
 func (l *Lexer) lexSlash(pos token.Position) token.Token {
 	if l.peekChar() == '/' {
-		l.readChar()
-		comment := l.readLineComment()
+		commentStart := l.pos // byte offset of first '/'
+		l.readChar()          // now at second '/'
+		comment := l.readLineComment(commentStart)
 		return token.Token{Type: token.T_COMMENT, Literal: comment, Pos: pos}
 	} else if l.peekChar() == '*' {
-		l.readChar()
+		commentStart := l.pos // byte offset of opening '/'
+		l.readChar()          // now at '*'
 		if l.peekChar() == '*' {
-			l.readChar()
-			comment := "/**" + l.readBlockComment()[2:]
+			l.readChar() // now at second '*' (doc comment)
+			comment := l.readBlockComment(commentStart)
 			return token.Token{Type: token.T_DOC_COMMENT, Literal: comment, Pos: pos}
 		}
-		comment := l.readBlockComment()
+		comment := l.readBlockComment(commentStart)
 		return token.Token{Type: token.T_COMMENT, Literal: comment, Pos: pos}
 	}
 	tok := token.Token{Type: token.T_DIVIDE, Literal: string(l.char), Pos: pos}
