@@ -2,8 +2,8 @@ package style
 
 import (
 	"go-phpcs/ast"
-	"go-phpcs/style/helper"
 	"strings"
+	"unicode"
 )
 
 const psr1MethodCamelCaseCode = "PSR1.Methods.CamelCapsMethodName"
@@ -102,11 +102,18 @@ func (s *MethodCamelCaseSniff) isValidCamelCase(name string) bool {
 		return s.isValidCamelCase(name[1:])
 	}
 
-	// Convert to what camelCase should look like
-	expected := helper.CamelCase(name)
+	first := rune(name[0])
+	if !unicode.IsLetter(first) {
+		return false
+	}
 
-	// If the name is already camelCase, it should match the expected
-	return name == expected
+	for _, r := range name[1:] {
+		if !unicode.IsLetter(r) && !unicode.IsDigit(r) {
+			return false
+		}
+	}
+
+	return true
 }
 
 // isMagicMethod checks if the method name is a PHP magic method

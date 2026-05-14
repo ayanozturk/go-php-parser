@@ -27,7 +27,7 @@ class TestClass {
 func TestMethodCamelCaseInvalidNames(t *testing.T) {
 	php := `<?php
 class TestClass {
-    public function GetUser() {}
+	public function set_name() {}
 }
 `
 	issues := runMethodCamelCaseAnalysis(t, php)
@@ -62,13 +62,13 @@ func TestMethodCamelCaseInterfaceMethods(t *testing.T) {
 	php := `<?php
 interface TestInterface {
     public function getData();
-    public function GetData();  // invalid
+	public function GetData();  // valid under PHPCS PSR-1
     public function set_name(); // invalid
 }
 `
 	issues := runMethodCamelCaseAnalysis(t, php)
-	if len(issues) != 2 {
-		t.Fatalf("expected 2 issues for invalid interface methods, got %d: %v", len(issues), issues)
+	if len(issues) != 1 {
+		t.Fatalf("expected 1 issue for invalid interface methods, got %d: %v", len(issues), issues)
 	}
 }
 
@@ -87,12 +87,24 @@ trait TestTrait {
 func TestMethodCamelCasePascalCase(t *testing.T) {
 	php := `<?php
 class TestClass {
-    public function GetUser() {}
+	public function GetUser() {}
 }
 `
 	issues := runMethodCamelCaseAnalysis(t, php)
-	if len(issues) != 1 {
-		t.Fatalf("expected 1 issue for PascalCase method name, got %d: %v", len(issues), issues)
+	if len(issues) != 0 {
+		t.Fatalf("expected no issues for PascalCase method name, got %d: %v", len(issues), issues)
+	}
+}
+
+func TestMethodCamelCaseGetInstance(t *testing.T) {
+	php := `<?php
+class Session {
+	public static function GetInstance() {}
+}
+`
+	issues := runMethodCamelCaseAnalysis(t, php)
+	if len(issues) != 0 {
+		t.Fatalf("expected no issues for GetInstance, got %d: %v", len(issues), issues)
 	}
 }
 
