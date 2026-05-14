@@ -127,6 +127,40 @@ class Foo {
 	// Optionally, check for ClassNode with correct methods and properties
 }
 
+func TestParseClassWithFQCNExtendsAndImplements(t *testing.T) {
+	php := `<?php
+class TemplateDirIterator extends \IteratorIterator implements \Stringable, Countable {}
+`
+
+	l := lexer.New(php)
+	p := New(l, true)
+	nodes := p.Parse()
+
+	if len(p.Errors()) > 0 {
+		t.Fatalf("Parser errors: %v", p.Errors())
+	}
+	if len(nodes) == 0 {
+		t.Fatal("Expected at least one node, got none")
+	}
+
+	classNode, ok := nodes[0].(*ast.ClassNode)
+	if !ok {
+		t.Fatalf("Expected ClassNode, got %T", nodes[0])
+	}
+	if classNode.Extends != "\\IteratorIterator" {
+		t.Fatalf("Expected extends \\IteratorIterator, got %q", classNode.Extends)
+	}
+	if len(classNode.Implements) != 2 {
+		t.Fatalf("Expected 2 implemented interfaces, got %d", len(classNode.Implements))
+	}
+	if classNode.Implements[0] != "\\Stringable" {
+		t.Fatalf("Expected first interface \\Stringable, got %q", classNode.Implements[0])
+	}
+	if classNode.Implements[1] != "Countable" {
+		t.Fatalf("Expected second interface Countable, got %q", classNode.Implements[1])
+	}
+}
+
 func TestParseClassErrorRecovery_TypedProperties(t *testing.T) {
 	php := `<?php
 class Broken {

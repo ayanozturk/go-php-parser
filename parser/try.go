@@ -31,12 +31,22 @@ func (p *Parser) parseTryStatement() (ast.Node, error) {
 		}
 		catches = append(catches, catchNode)
 	}
-	if len(catches) == 0 {
-		p.addError("line %d:%d: expected catch after try block, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal)
+
+	var finallyBody []ast.Node
+	if p.tok.Type == token.T_FINALLY {
+		var err error
+		finallyBody, err = p.parseFinallyClause()
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	if len(catches) == 0 && finallyBody == nil {
+		p.addError("line %d:%d: expected catch or finally after try block, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal)
 		return nil, nil
 	}
 
-	return &ast.TryNode{Body: body, Catches: catches, Pos: ast.Position(pos)}, nil
+	return &ast.TryNode{Body: body, Catches: catches, Finally: finallyBody, Pos: ast.Position(pos)}, nil
 }
 
 func (p *Parser) parseCatchClause() (*ast.CatchNode, error) {
@@ -89,4 +99,20 @@ func (p *Parser) parseCatchClause() (*ast.CatchNode, error) {
 	p.nextToken() // consume }
 
 	return &ast.CatchNode{Types: types, Variable: variable, Body: body, Pos: ast.Position(pos)}, nil
+}
+
+func (p *Parser) parseFinallyClause() ([]ast.Node, error) {
+	p.nextToken() // consume finally
+	if p.tok.Type != token.T_LBRACE {
+		p.addError("line %d:%d: expected { after finally, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal)
+		return nil, nil
+	}
+	p.nextToken() // consume {
+	body := p.parseBlockStatement()
+	if p.tok.Type != token.T_RBRACE {
+		p.addError("line %d:%d: expected } to close finally body, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal)
+		return nil, nil
+	}
+	p.nextToken() // consume }
+	return body, nil
 }

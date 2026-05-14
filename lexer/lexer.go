@@ -178,7 +178,7 @@ func (l *Lexer) NextToken() token.Token {
 		return l.lexQuestion(pos)
 	case 0:
 		return token.Token{Type: token.T_EOF, Literal: "", Pos: pos}
-	case '+', '-', '*', '/', '|', '>', '<', '$', '=', '(', ')', '{', '}', ';', ',', '&', '.', '"', '\'', '\\', ':', '[', ']', '!':
+	case '+', '-', '*', '/', '%', '|', '>', '<', '$', '=', '(', ')', '{', '}', ';', ',', '&', '.', '"', '\'', '\\', ':', '[', ']', '!':
 		return l.lexSymbol(pos)
 	}
 
@@ -247,9 +247,11 @@ func (l *Lexer) lexSymbol(pos token.Position) token.Token {
 	case '-':
 		return l.lexMinus(pos)
 	case '*':
-		return l.lexSingleChar(token.T_MULTIPLY, pos)
+		return l.lexAsterisk(pos)
 	case '/':
 		return l.lexSlash(pos)
+	case '%':
+		return l.lexPercent(pos)
 	case '|':
 		return l.lexPipe(pos)
 	case '>':

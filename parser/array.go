@@ -120,8 +120,14 @@ func (p *Parser) parseArrayLiteral() ast.Node {
 
 		var elements []ast.Node
 		for p.tok.Type != token.T_RPAREN && p.tok.Type != token.T_EOF {
+			for p.tok.Type == token.T_COMMENT || p.tok.Type == token.T_DOC_COMMENT {
+				p.nextToken()
+			}
 			if element := p.parseArrayElement(); element != nil {
 				elements = append(elements, element)
+			}
+			for p.tok.Type == token.T_COMMENT || p.tok.Type == token.T_DOC_COMMENT {
+				p.nextToken()
 			}
 
 			if p.tok.Type == token.T_COMMA {
@@ -149,8 +155,14 @@ func (p *Parser) parseArrayLiteral() ast.Node {
 
 		var elements []ast.Node
 		for p.tok.Type != token.T_RBRACKET && p.tok.Type != token.T_EOF {
+			for p.tok.Type == token.T_COMMENT || p.tok.Type == token.T_DOC_COMMENT {
+				p.nextToken()
+			}
 			if element := p.parseArrayElement(); element != nil {
 				elements = append(elements, element)
+			}
+			for p.tok.Type == token.T_COMMENT || p.tok.Type == token.T_DOC_COMMENT {
+				p.nextToken()
 			}
 
 			if p.tok.Type == token.T_COMMA {

@@ -27,12 +27,38 @@ func (l *Lexer) lexMinus(pos token.Position) token.Token {
 		l.readChar()
 		return token.Token{Type: token.T_DEC, Literal: "--", Pos: pos}
 	}
+	if l.peekChar() == '=' {
+		l.readChar()
+		l.readChar()
+		return token.Token{Type: token.T_MINUS_EQUAL, Literal: "-=", Pos: pos}
+	}
 	if l.peekChar() == '>' {
 		l.readChar()
 		l.readChar()
 		return token.Token{Type: token.T_OBJECT_OPERATOR, Literal: "->", Pos: pos}
 	}
 	tok := token.Token{Type: token.T_MINUS, Literal: string(l.char), Pos: pos}
+	l.readChar()
+	return tok
+}
+
+func (l *Lexer) lexAsterisk(pos token.Position) token.Token {
+	if l.peekChar() == '*' {
+		l.readChar()
+		if l.peekChar() == '=' {
+			l.readChar()
+			l.readChar()
+			return token.Token{Type: token.T_POW_EQUAL, Literal: "**=", Pos: pos}
+		}
+		l.readChar()
+		return token.Token{Type: token.T_POW, Literal: "**", Pos: pos}
+	}
+	if l.peekChar() == '=' {
+		l.readChar()
+		l.readChar()
+		return token.Token{Type: token.T_MUL_EQUAL, Literal: "*=", Pos: pos}
+	}
+	tok := token.Token{Type: token.T_MULTIPLY, Literal: string(l.char), Pos: pos}
 	l.readChar()
 	return tok
 }
@@ -173,6 +199,17 @@ func (l *Lexer) lexSlash(pos token.Position) token.Token {
 		return token.Token{Type: token.T_COMMENT, Literal: comment, Pos: pos}
 	}
 	tok := token.Token{Type: token.T_DIVIDE, Literal: string(l.char), Pos: pos}
+	l.readChar()
+	return tok
+}
+
+func (l *Lexer) lexPercent(pos token.Position) token.Token {
+	if l.peekChar() == '=' {
+		l.readChar()
+		l.readChar()
+		return token.Token{Type: token.T_MOD_EQUAL, Literal: "%=", Pos: pos}
+	}
+	tok := token.Token{Type: token.T_MODULO, Literal: string(l.char), Pos: pos}
 	l.readChar()
 	return tok
 }

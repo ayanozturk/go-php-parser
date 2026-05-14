@@ -8,7 +8,7 @@ import (
 // isAssignmentOperator returns true if the operator is an assignment
 func isAssignmentOperator(op token.TokenType) bool {
 	switch op {
-	case token.T_ASSIGN, token.T_PLUS_EQUAL, token.T_MINUS_EQUAL, token.T_MUL_EQUAL, token.T_DIV_EQUAL, token.T_MOD_EQUAL, token.T_AND_EQUAL, token.T_CONCAT_EQUAL, token.T_XOR_EQUAL, token.T_COALESCE_EQUAL:
+	case token.T_ASSIGN, token.T_PLUS_EQUAL, token.T_MINUS_EQUAL, token.T_MUL_EQUAL, token.T_DIV_EQUAL, token.T_MOD_EQUAL, token.T_AND_EQUAL, token.T_CONCAT_EQUAL, token.T_XOR_EQUAL, token.T_COALESCE_EQUAL, token.T_POW_EQUAL:
 		return true
 	default:
 		return false
@@ -40,6 +40,7 @@ var PhpOperatorPrecedence = map[token.TokenType]int{
 	token.T_CONCAT_EQUAL:   0,
 	token.T_XOR_EQUAL:      0,
 	token.T_COALESCE_EQUAL: 0, // ??= assignment
+	token.T_POW_EQUAL:      0,
 
 	token.T_QUESTION:    1, // Ternary operator (just above assignment)
 	token.T_BOOLEAN_OR:  2, // ||
@@ -65,6 +66,7 @@ var PhpOperatorPrecedence = map[token.TokenType]int{
 	token.T_MULTIPLY: 11,
 	token.T_DIVIDE:   11,
 	token.T_MODULO:   11,
+	token.T_POW:      12,
 }
 
 // Operator associativity (true = right-associative)
@@ -79,5 +81,7 @@ var PhpOperatorRightAssoc = map[token.TokenType]bool{
 	token.T_CONCAT_EQUAL:   true,
 	token.T_XOR_EQUAL:      true,
 	token.T_COALESCE_EQUAL: true,
+	token.T_POW_EQUAL:      true,
 	token.T_COALESCE:       true,
+	token.T_POW:            true,
 }

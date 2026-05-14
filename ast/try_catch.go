@@ -5,6 +5,7 @@ import "fmt"
 type TryNode struct {
 	Body    []Node
 	Catches []*CatchNode
+	Finally []Node
 	Pos     Position
 }
 

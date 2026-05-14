@@ -77,6 +77,19 @@ func (p *Parser) parseUnaryExpression(stopTypes ...token.TokenType) ast.Node {
 			Operand:  right,
 			Pos:      ast.Position(notTok.Pos),
 		}
+	case token.T_CLONE:
+		cloneTok := p.tok
+		p.nextToken()
+		right := p.parseExpressionWithPrecedence(100, false, stopTypes...)
+		if right == nil {
+			p.addError("line %d:%d: expected operand after clone", cloneTok.Pos.Line, cloneTok.Pos.Column)
+			return nil
+		}
+		return &ast.UnaryExpr{
+			Operator: "clone",
+			Operand:  right,
+			Pos:      ast.Position(cloneTok.Pos),
+		}
 	case token.T_THROW:
 		throwTok := p.tok
 		p.nextToken()
@@ -111,6 +124,9 @@ func (p *Parser) parseUnaryExpression(stopTypes ...token.TokenType) ast.Node {
 // parseBinaryAndTernaryOperators handles binary and ternary expressions.
 func (p *Parser) parseBinaryAndTernaryOperators(left ast.Node, minPrec int, validateAssignmentTarget bool, stopTypes ...token.TokenType) ast.Node {
 	for {
+		for p.tok.Type == token.T_COMMENT || p.tok.Type == token.T_DOC_COMMENT {
+			p.nextToken()
+		}
 		// Ternary
 		ternaryPrec := PhpOperatorPrecedence[token.T_QUESTION]
 		if p.tok.Type == token.T_QUESTION && minPrec <= ternaryPrec {
@@ -183,6 +199,26 @@ func (p *Parser) parseBinaryOperator(left ast.Node, prec int, validateAssignment
 	if right == nil {
 		p.addError("line %d:%d: expected right operand after operator %s", pos.Line, pos.Column, operator)
 		return nil
+	}
+	if !isAssignmentOperator(op) && isAssignmentOperator(p.tok.Type) && isValidAssignmentTarget(right) {
+		right = p.parseBinaryOperator(right, PhpOperatorPrecedence[p.tok.Type], false, stopTypes...)
+		if right == nil {
+			return nil
+		}
+	}
+	if isAssignmentOperator(op) {
+		if unary, ok := left.(*ast.UnaryExpr); ok && unary.Operator == "!" && isValidAssignmentTarget(unary.Operand) {
+			assignment := &ast.AssignmentNode{
+				Left:  unary.Operand,
+				Right: right,
+				Pos:   ast.Position(pos),
+			}
+			return &ast.UnaryExpr{
+				Operator: unary.Operator,
+				Operand:  assignment,
+				Pos:      unary.Pos,
+			}
+		}
 	}
 	if isAssignmentOperator(op) && validateAssignmentTarget && prec == 0 {
 		if !isValidAssignmentTarget(left) {
@@ -312,27 +348,17 @@ func (p *Parser) parseSimpleNew() ast.Node {
 		return nil
 	}
 	p.nextToken() // consume (
-	var args []ast.Node
-	for p.tok.Type != token.T_RPAREN && p.tok.Type != token.T_EOF {
-		if arg := p.parseExpression(); arg != nil {
-			args = append(args, arg)
-		}
-		if p.tok.Type == token.T_COMMA {
-			p.nextToken()
-			continue
-		}
-		break
-	}
+	args := p.parseFunctionCallArguments()
 	if p.tok.Type != token.T_RPAREN {
 		p.addError("line %d:%d: expected ) after arguments for %s, got %s", p.tok.Pos.Line, p.tok.Pos.Column, className, p.tok.Literal)
 		return nil
 	}
 	p.nextToken() // consume )
-	return p.parsePostfixExpression(&ast.NewNode{
+	return &ast.NewNode{
 		ClassName: className,
 		Args:      args,
 		Pos:       ast.Position(pos),
-	})
+	}
 }
 
 func (p *Parser) parseSimpleFQCNOrFunctionCall() ast.Node {
@@ -615,7 +641,7 @@ func (p *Parser) parseSimpleObjectOrMethod(expr ast.Node) ast.Node {
 	objOpPos := p.tok.Pos
 	operator := p.tok.Literal
 	p.nextToken() // consume object operator
-	if p.tok.Type != token.T_STRING {
+	if !isMemberIdentifierToken(p.tok.Type) {
 		p.addError("line %d:%d: expected property/method name after %s, got %s", p.tok.Pos.Line, p.tok.Pos.Column, operator, p.tok.Literal)
 		return nil
 	}
@@ -853,7 +879,7 @@ func (p *Parser) parseStaticAccessOnNode(expr ast.Node) ast.Node {
 		className = "$" + variable.Name
 	}
 	p.nextToken() // consume '::'
-	if p.tok.Type == token.T_STRING {
+	if isMemberIdentifierToken(p.tok.Type) {
 		memberName := p.tok.Literal
 		p.nextToken()
 		if p.tok.Type == token.T_LPAREN {
@@ -878,6 +904,15 @@ func (p *Parser) parseStaticAccessOnNode(expr ast.Node) ast.Node {
 	}
 	p.addError("line %d:%d: expected constant name or 'class' after '::', got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal)
 	return nil
+}
+
+func isMemberIdentifierToken(tokType token.TokenType) bool {
+	switch tokType {
+	case token.T_STRING, token.T_CLASS, token.T_CALLABLE, token.T_MATCH, token.T_FN, token.T_LIST, token.T_STATIC, token.T_SELF, token.T_PARENT:
+		return true
+	default:
+		return false
+	}
 }
 
 func (p *Parser) parseSimpleArrayAccess(expr ast.Node) ast.Node {

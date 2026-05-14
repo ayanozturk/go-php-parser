@@ -53,6 +53,13 @@ retry:
 	case token.T_RETURN:
 		pos := p.tok.Pos
 		p.nextToken() // consume return
+		if p.tok.Type == token.T_SEMICOLON {
+			p.nextToken() // consume ;
+			return &ast.ReturnNode{
+				Expr: nil,
+				Pos:  ast.Position(pos),
+			}, nil
+		}
 		expr := p.parseExpression()
 		if expr == nil {
 			return nil, nil

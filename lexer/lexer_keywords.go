@@ -48,6 +48,7 @@ var keywordTokenMap = map[string]token.TokenType{
 	"switch":       token.T_SWITCH,
 	"goto":         token.T_GOTO,
 	"continue":     token.T_CONTINUE,
+	"clone":        token.T_CLONE,
 	"throw":        token.T_THROW,
 	"try":          token.T_TRY,
 	"catch":        token.T_CATCH,

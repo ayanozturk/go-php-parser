@@ -55,12 +55,12 @@ func (p *Parser) parseClassDeclaration() (ast.Node, error) {
 	var extends string
 	if p.tok.Type == token.T_EXTENDS {
 		p.nextToken() // consume 'extends'
-		if p.tok.Type != token.T_STRING {
+		parentNode, ok := p.parseFQCN().(*ast.IdentifierNode)
+		if !ok || parentNode == nil {
 			p.addError("line %d:%d: expected parent class name after extends, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal)
 			return nil, nil
 		}
-		extends = p.tok.Literal
-		p.nextToken()
+		extends = parentNode.Value
 	}
 
 	// Check for implements clause
@@ -68,12 +68,12 @@ func (p *Parser) parseClassDeclaration() (ast.Node, error) {
 	if p.tok.Type == token.T_IMPLEMENTS {
 		p.nextToken() // consume 'implements'
 		for {
-			if p.tok.Type != token.T_STRING {
+			ifaceNode, ok := p.parseFQCN().(*ast.IdentifierNode)
+			if !ok || ifaceNode == nil {
 				p.addError("line %d:%d: expected interface name after implements, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal)
 				return nil, nil
 			}
-			implements = append(implements, p.tok.Literal)
-			p.nextToken()
+			implements = append(implements, ifaceNode.Value)
 
 			if p.tok.Type != token.T_COMMA {
 				break
@@ -107,7 +107,7 @@ func (p *Parser) parseClassDeclaration() (ast.Node, error) {
 				modifiers = append(modifiers, p.tok.Literal)
 				p.nextToken()
 				continue
-			case token.T_COMMENT, token.T_DOC_COMMENT:
+			case token.T_COMMENT, token.T_DOC_COMMENT, token.T_ATTRIBUTE:
 				p.nextToken()
 				continue
 			}
@@ -209,7 +209,7 @@ func (p *Parser) parseTraitUseStatement() ast.Node {
 func (p *Parser) syncToNextClassMember() {
 	for {
 		switch p.tok.Type {
-		case token.T_PUBLIC, token.T_PROTECTED, token.T_PRIVATE, token.T_STATIC, token.T_FINAL, token.T_ABSTRACT, token.T_FUNCTION, token.T_VARIABLE, token.T_RBRACE, token.T_EOF:
+		case token.T_PUBLIC, token.T_PROTECTED, token.T_PRIVATE, token.T_STATIC, token.T_FINAL, token.T_ABSTRACT, token.T_FUNCTION, token.T_VARIABLE, token.T_ATTRIBUTE, token.T_RBRACE, token.T_EOF:
 			return
 		}
 		p.nextToken()

@@ -46,6 +46,49 @@ class ServerDumpPlaceholderCommand {}
 	}
 }
 
+func TestParseAttributeOnClassMethod(t *testing.T) {
+	php := `<?php
+class TemplateDirIterator extends \IteratorIterator
+{
+    #[\ReturnTypeWillChange]
+    public function current()
+    {
+        return parent::current();
+    }
+}
+`
+
+	l := lexer.New(php)
+	p := New(l, true)
+	_ = p.Parse()
+
+	if len(p.Errors()) > 0 {
+		t.Fatalf("unexpected parser errors: %v", p.Errors())
+	}
+}
+
+func TestParseReservedKeywordPropertyFetch(t *testing.T) {
+	php := `<?php
+class TwigCallable {
+    private $class;
+    private $callable;
+
+    public function values()
+    {
+        return [$this->class, $this->callable];
+    }
+}
+`
+
+	l := lexer.New(php)
+	p := New(l, true)
+	_ = p.Parse()
+
+	if len(p.Errors()) > 0 {
+		t.Fatalf("unexpected parser errors: %v", p.Errors())
+	}
+}
+
 func TestParseTypedClassConstant(t *testing.T) {
 	php := `<?php
 final readonly class HtmlRenderer {
@@ -130,6 +173,114 @@ $variables = array_map(
     static fn (string $variable): string => sprintf('/%s(?=\\b)/', preg_quote($variable, '/')),
     array_keys($providedData),
 );
+`
+
+	l := lexer.New(php)
+	p := New(l, true)
+	_ = p.Parse()
+
+	if len(p.Errors()) > 0 {
+		t.Fatalf("unexpected parser errors: %v", p.Errors())
+	}
+}
+
+func TestParseNegatedAssignmentCondition(t *testing.T) {
+	php := `<?php
+if (!$parameters = $function->getParameters()) {
+    return false;
+}
+`
+
+	l := lexer.New(php)
+	p := New(l, true)
+	_ = p.Parse()
+
+	if len(p.Errors()) > 0 {
+		t.Fatalf("unexpected parser errors: %v", p.Errors())
+	}
+}
+
+func TestParseCloneExpressionAssignment(t *testing.T) {
+	php := `<?php
+$new = clone $this;
+$new->name = $name;
+`
+
+	l := lexer.New(php)
+	p := New(l, true)
+	_ = p.Parse()
+
+	if len(p.Errors()) > 0 {
+		t.Fatalf("unexpected parser errors: %v", p.Errors())
+	}
+}
+
+func TestParseArrayLiteralWithCommentedFirstElement(t *testing.T) {
+	php := `<?php
+return [
+    // formatting filters
+    new TwigFilter('date', [$this, 'formatDate']),
+];
+`
+
+	l := lexer.New(php)
+	p := New(l, true)
+	_ = p.Parse()
+
+	if len(p.Errors()) > 0 {
+		t.Fatalf("unexpected parser errors: %v", p.Errors())
+	}
+}
+
+func TestParseBooleanExpressionWithInlineComment(t *testing.T) {
+	php := `<?php
+$isDumpOutputHtmlSafe = \extension_loaded('xdebug')
+    // Xdebug overloads var_dump in develop mode when html_errors is enabled
+    && str_contains(\ini_get('xdebug.mode'), 'develop');
+`
+
+	l := lexer.New(php)
+	p := New(l, true)
+	_ = p.Parse()
+
+	if len(p.Errors()) > 0 {
+		t.Fatalf("unexpected parser errors: %v", p.Errors())
+	}
+}
+
+func TestParseNewExpressionWithNamedArgument(t *testing.T) {
+	php := `<?php
+$parser = new UnaryOperatorExpressionParser(SpreadUnary::class, '...', 512, description: 'Spread operator');
+`
+
+	l := lexer.New(php)
+	p := New(l, true)
+	_ = p.Parse()
+
+	if len(p.Errors()) > 0 {
+		t.Fatalf("unexpected parser errors: %v", p.Errors())
+	}
+}
+
+func TestParseExponentiationExpression(t *testing.T) {
+	php := `<?php
+return $method($value * 10 ** $precision) / 10 ** $precision;
+`
+
+	l := lexer.New(php)
+	p := New(l, true)
+	_ = p.Parse()
+
+	if len(p.Errors()) > 0 {
+		t.Fatalf("unexpected parser errors: %v", p.Errors())
+	}
+}
+
+func TestParseComparisonWithAssignmentOnRight(t *testing.T) {
+	php := `<?php
+if (0 < $timestamp = $cache->getTimestamp()) {
+    return $timestamp;
+}
 `
 
 	l := lexer.New(php)
@@ -263,6 +414,54 @@ try {
     return [$reflector->invokeArgs(null, array_values($test->providedData())), true];
 } catch (Throwable $t) {
     return [];
+}
+`
+
+	l := lexer.New(php)
+	p := New(l, true)
+	_ = p.Parse()
+
+	if len(p.Errors()) > 0 {
+		t.Fatalf("unexpected parser errors: %v", p.Errors())
+	}
+}
+
+func TestParseTryFinally(t *testing.T) {
+	php := `<?php
+try {
+    return $this;
+} finally {
+    $this->didUseEcho = array_pop($this->didUseEchoStack);
+}
+`
+
+	l := lexer.New(php)
+	p := New(l, true)
+	_ = p.Parse()
+
+	if len(p.Errors()) > 0 {
+		t.Fatalf("unexpected parser errors: %v", p.Errors())
+	}
+}
+
+func TestParseMinusEqualAssignment(t *testing.T) {
+	php := `<?php
+$this->indentation -= $step;
+`
+
+	l := lexer.New(php)
+	p := New(l, true)
+	_ = p.Parse()
+
+	if len(p.Errors()) > 0 {
+		t.Fatalf("unexpected parser errors: %v", p.Errors())
+	}
+}
+
+func TestParseBareReturn(t *testing.T) {
+	php := `<?php
+function done(): void {
+    return;
 }
 `
 

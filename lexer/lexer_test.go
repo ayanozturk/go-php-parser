@@ -104,6 +104,47 @@ func TestLexerQuestion(t *testing.T) {
 	}
 }
 
+func TestLexerModuloOperators(t *testing.T) {
+	lex := New("% %=")
+
+	tok := lex.NextToken()
+	if tok.Type != token.T_MODULO || tok.Literal != "%" {
+		t.Errorf("expected T_MODULO, got %v %q", tok.Type, tok.Literal)
+	}
+
+	tok = lex.NextToken()
+	if tok.Type != token.T_MOD_EQUAL || tok.Literal != "%=" {
+		t.Errorf("expected T_MOD_EQUAL, got %v %q", tok.Type, tok.Literal)
+	}
+}
+
+func TestLexerExponentiationOperators(t *testing.T) {
+	lex := New("** **= *=")
+
+	tok := lex.NextToken()
+	if tok.Type != token.T_POW || tok.Literal != "**" {
+		t.Errorf("expected T_POW, got %v %q", tok.Type, tok.Literal)
+	}
+
+	tok = lex.NextToken()
+	if tok.Type != token.T_POW_EQUAL || tok.Literal != "**=" {
+		t.Errorf("expected T_POW_EQUAL, got %v %q", tok.Type, tok.Literal)
+	}
+
+	tok = lex.NextToken()
+	if tok.Type != token.T_MUL_EQUAL || tok.Literal != "*=" {
+		t.Errorf("expected T_MUL_EQUAL, got %v %q", tok.Type, tok.Literal)
+	}
+}
+
+func TestLexerMinusEqual(t *testing.T) {
+	lex := New("-=")
+	tok := lex.NextToken()
+	if tok.Type != token.T_MINUS_EQUAL || tok.Literal != "-=" {
+		t.Errorf("expected T_MINUS_EQUAL, got %v %q", tok.Type, tok.Literal)
+	}
+}
+
 func TestLexerIllegalToken(t *testing.T) {
 	lex := New("\x01") // Non-printable, non-PHP token
 	tok := lex.NextToken()
@@ -186,6 +227,7 @@ func TestLexerKeywords(t *testing.T) {
 		"implements": token.T_IMPLEMENTS,
 		"never":      token.T_NEVER,
 		"default":    token.T_DEFAULT,
+		"clone":      token.T_CLONE,
 	}
 	for kw, typ := range keywords {
 		lex := New(kw)
