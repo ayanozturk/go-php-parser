@@ -120,6 +120,37 @@ function myFunction() {}
 	}
 }
 
+func TestSideEffectsUseAndClassDeclarationOnly(t *testing.T) {
+	php := `<?php
+namespace MyNamespace;
+
+use Foo\\Bar;
+
+final class MyClass {}
+`
+	issues := runSideEffectsAnalysis(t, php)
+	if len(issues) != 0 {
+		t.Fatalf("expected no issues for namespace/use/class declarations, got %d: %v", len(issues), issues)
+	}
+}
+
+func TestSideEffectsClassMethodInstantiationNotTopLevel(t *testing.T) {
+	php := `<?php
+class MyClass {
+    /**
+     * Returns a new instance.
+     */
+    public function make() {
+        return new OtherClass();
+    }
+}
+`
+	issues := runSideEffectsAnalysis(t, php)
+	if len(issues) != 0 {
+		t.Fatalf("expected no issues for instantiation inside class method, got %d: %v", len(issues), issues)
+	}
+}
+
 func TestSideEffectsInterfaceDeclaration(t *testing.T) {
 	php := `<?php
 interface MyInterface {}
