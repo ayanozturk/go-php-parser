@@ -87,6 +87,9 @@ retry:
 			Pos:  ast.Position(pos),
 		}, nil
 	case token.T_STATIC:
+		if p.peekToken().Type == token.T_DOUBLE_COLON {
+			return p.parseExpressionStatement()
+		}
 		// static $x = 1, $y; inside functions
 		pos := p.tok.Pos
 		p.nextToken() // consume 'static'

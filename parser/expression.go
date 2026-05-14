@@ -414,17 +414,16 @@ func (p *Parser) parseSimpleNew() ast.Node {
 			return nil
 		}
 	}
-	if p.tok.Type != token.T_LPAREN {
-		p.addError("line %d:%d: expected ( after class name %s, got %s", p.tok.Pos.Line, p.tok.Pos.Column, className, p.tok.Literal)
-		return nil
+	var args []ast.Node
+	if p.tok.Type == token.T_LPAREN {
+		p.nextToken() // consume (
+		args = p.parseFunctionCallArguments()
+		if p.tok.Type != token.T_RPAREN {
+			p.addError("line %d:%d: expected ) after arguments for %s, got %s", p.tok.Pos.Line, p.tok.Pos.Column, className, p.tok.Literal)
+			return nil
+		}
+		p.nextToken() // consume )
 	}
-	p.nextToken() // consume (
-	args := p.parseFunctionCallArguments()
-	if p.tok.Type != token.T_RPAREN {
-		p.addError("line %d:%d: expected ) after arguments for %s, got %s", p.tok.Pos.Line, p.tok.Pos.Column, className, p.tok.Literal)
-		return nil
-	}
-	p.nextToken() // consume )
 	return &ast.NewNode{
 		ClassName: className,
 		ClassExpr: classExpr,

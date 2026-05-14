@@ -1041,3 +1041,31 @@ if ($a) {
 		t.Fatalf("unexpected parser errors: %v", p.Errors())
 	}
 }
+
+func TestParseNewWithoutParentheses(t *testing.T) {
+	php := `<?php
+$config = new PhpCsFixer\Config;
+`
+
+	l := lexer.New(php)
+	p := New(l, true)
+	_ = p.Parse()
+
+	if len(p.Errors()) > 0 {
+		t.Fatalf("unexpected parser errors: %v", p.Errors())
+	}
+}
+
+func TestParseStaticClassConstExpressionStatement(t *testing.T) {
+	php := `<?php
+static::setTemplateProjectStability($root, $version);
+`
+
+	l := lexer.New(php)
+	p := New(l, true)
+	_ = p.Parse()
+
+	if len(p.Errors()) > 0 {
+		t.Fatalf("unexpected parser errors: %v", p.Errors())
+	}
+}
