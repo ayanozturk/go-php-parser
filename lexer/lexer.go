@@ -172,6 +172,10 @@ func (l *Lexer) NextToken() token.Token {
 	if l.char == '#' && l.peekChar() == '[' {
 		return l.lexAttribute(pos)
 	}
+	if l.char == '#' {
+		comment := l.readHashComment()
+		return token.Token{Type: token.T_COMMENT, Literal: comment, Pos: pos}
+	}
 
 	switch l.char {
 	case '?':

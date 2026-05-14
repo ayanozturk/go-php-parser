@@ -376,14 +376,18 @@ func TestLexerNumberLiteral(t *testing.T) {
 }
 
 func TestLexerCommentModes(t *testing.T) {
-	lex := New("// line\n/* block */")
+	lex := New("// line\n/* block */\n# hash")
 	tok1 := lex.NextToken()
 	tok2 := lex.NextToken()
+	tok3 := lex.NextToken()
 	if tok1.Type != token.T_COMMENT {
 		t.Errorf("expected T_COMMENT, got %v", tok1.Type)
 	}
 	if tok2.Type != token.T_COMMENT {
 		t.Errorf("expected T_COMMENT, got %v", tok2.Type)
+	}
+	if tok3.Type != token.T_COMMENT {
+		t.Errorf("expected T_COMMENT, got %v", tok3.Type)
 	}
 }
 

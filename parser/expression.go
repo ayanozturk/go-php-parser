@@ -332,7 +332,7 @@ func (p *Parser) parseSimpleExpression() ast.Node {
 		return p.parseSimpleVariable()
 	case token.T_YIELD:
 		return p.parseSimpleYieldExpression()
-	case token.T_ISSET, token.T_EMPTY:
+	case token.T_ISSET, token.T_EMPTY, token.T_EXIT, token.T_DIE:
 		return p.parseSimpleBuiltinCall()
 	case token.T_INCLUDE, token.T_INCLUDE_ONCE, token.T_REQUIRE, token.T_REQUIRE_ONCE:
 		return p.parseSimpleIncludeExpression()
@@ -847,6 +847,16 @@ func (p *Parser) parseSimpleBuiltinCall() ast.Node {
 	pos := p.tok.Pos
 	name := p.tok.Literal
 	p.nextToken()
+	if (name == "exit" || name == "die") && p.tok.Type == token.T_SEMICOLON {
+		return p.parsePostfixExpression(&ast.FunctionCallNode{
+			Name: &ast.IdentifierNode{
+				Value: name,
+				Pos:   ast.Position(pos),
+			},
+			Args: nil,
+			Pos:  ast.Position(pos),
+		})
+	}
 	if p.tok.Type != token.T_LPAREN {
 		p.addError("line %d:%d: expected ( after %s, got %s", p.tok.Pos.Line, p.tok.Pos.Column, name, p.tok.Literal)
 		return nil

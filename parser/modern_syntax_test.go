@@ -994,3 +994,50 @@ $x = preg_quote($a, '#')."x". // comment
 		t.Fatalf("unexpected parser errors: %v", p.Errors())
 	}
 }
+
+func TestParseLeadingShebang(t *testing.T) {
+	php := `#!/usr/bin/env php
+<?php
+return 1;
+`
+
+	l := lexer.New(php)
+	p := New(l, true)
+	_ = p.Parse()
+
+	if len(p.Errors()) > 0 {
+		t.Fatalf("unexpected parser errors: %v", p.Errors())
+	}
+}
+
+func TestParseExitBuiltinCall(t *testing.T) {
+	php := `<?php
+if (empty($report)) {
+	exit(0);
+}
+`
+
+	l := lexer.New(php)
+	p := New(l, true)
+	_ = p.Parse()
+
+	if len(p.Errors()) > 0 {
+		t.Fatalf("unexpected parser errors: %v", p.Errors())
+	}
+}
+
+func TestParseBareExitBuiltinCall(t *testing.T) {
+	php := `<?php
+if ($a) {
+	exit;
+}
+`
+
+	l := lexer.New(php)
+	p := New(l, true)
+	_ = p.Parse()
+
+	if len(p.Errors()) > 0 {
+		t.Fatalf("unexpected parser errors: %v", p.Errors())
+	}
+}

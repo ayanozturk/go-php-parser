@@ -67,6 +67,10 @@ func (p *Parser) Parse() []ast.Node {
 
 	var nodes []ast.Node
 
+	for p.tok.Type == token.T_WHITESPACE || p.tok.Type == token.T_COMMENT {
+		p.nextToken()
+	}
+
 	// Expect PHP open tag first
 	if p.tok.Type != token.T_OPEN_TAG {
 		p.addError("line %d:%d: expected <?php at start of file, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal)
