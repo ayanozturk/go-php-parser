@@ -77,3 +77,11 @@ func TestFalsePositivesAvoidedInCommentsAndStrings(t *testing.T) {
 		t.Fatalf("expected 0 issues inside comments/strings, got %d: %v", countCI(issues), issues)
 	}
 }
+
+func TestVariableNamesContainingNewDoNotTriggerClassInstantiation(t *testing.T) {
+	php := "<?php\n$newToken = build_identifier();\n$logger->record($newToken);\n"
+	issues := runClassInstantiation(php)
+	if countCI(issues) != 0 {
+		t.Fatalf("expected 0 issues for variable names containing new, got %d: %v", countCI(issues), issues)
+	}
+}

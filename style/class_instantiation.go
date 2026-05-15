@@ -123,6 +123,10 @@ func (s *ClassInstantiationSniff) CheckIssues(content []byte, filename string) [
 
 			// Detect "new ClassName" without immediate parentheses
 			if j+3 < len(line) && line[j:j+3] == "new" && (j == 0 || isWordBoundary(line[j-1])) {
+				if !isWordBoundary(line[j+3]) {
+					j += 3
+					continue
+				}
 				k := j + 3
 				for k < len(line) && (line[k] == ' ' || line[k] == '\t') {
 					k++
