@@ -303,6 +303,10 @@ func newFunctionScope(class *ast.ClassNode, fn *ast.FunctionNode, typeCtx fileTy
 				scope.properties[property.Name] = propertyType
 			}
 		}
+		for _, promoted := range promotedClassProperties(class, typeCtx, scope) {
+			scope.propertyDecls[promoted.name] = promoted.typ
+			scope.properties[promoted.name] = promoted.typ
+		}
 		for _, methodNode := range class.Methods {
 			method, ok := methodNode.(*ast.FunctionNode)
 			if !ok {
@@ -356,6 +360,46 @@ func newFunctionScope(class *ast.ClassNode, fn *ast.FunctionNode, typeCtx fileTy
 	}
 
 	return scope
+}
+
+type promotedProperty struct {
+	name string
+	typ  Type
+}
+
+func promotedClassProperties(class *ast.ClassNode, typeCtx fileTypeContext, scope *functionScope) []promotedProperty {
+	if class == nil {
+		return nil
+	}
+
+	var properties []promotedProperty
+	for _, methodNode := range class.Methods {
+		method, ok := methodNode.(*ast.FunctionNode)
+		if !ok || method == nil || !strings.EqualFold(method.Name, "__construct") {
+			continue
+		}
+		for _, paramNode := range method.Params {
+			param, ok := paramNode.(*ast.ParamNode)
+			if !ok || !param.IsPromoted {
+				continue
+			}
+			paramType := ParseType(normalizeTypeWithContext(param.TypeHint, typeCtx))
+			if paramType.IsEmpty() && param.UnionType != nil {
+				paramType = ParseType(normalizeTypeWithContext(param.UnionType.TokenLiteral(), typeCtx))
+			}
+			if paramType.IsEmpty() && method.PHPDoc != nil {
+				paramType = ParseType(normalizeTypeWithContext(method.PHPDoc.GetParamTypeFromPHPDoc(param.Name), typeCtx))
+			}
+			if paramType.IsEmpty() && param.DefaultValue != nil {
+				paramType = inferType(param.DefaultValue, scope, nil)
+			}
+			if paramType.IsEmpty() {
+				continue
+			}
+			properties = append(properties, promotedProperty{name: param.Name, typ: paramType})
+		}
+	}
+	return properties
 }
 
 func (s *functionScope) clone() *functionScope {

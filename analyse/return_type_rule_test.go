@@ -113,3 +113,24 @@ func TestThisMethodReturnTypeNoMismatch(t *testing.T) {
 		t.Fatalf("expected no A.RETURN.TYPE issue for same-class method return, got: %#v", issues)
 	}
 }
+
+func TestPromotedPropertyReturnTypeNoMismatch(t *testing.T) {
+	php := `<?php
+	class SessionStore {}
+
+	class Session
+	{
+		public function __construct(private SessionStore $session)
+		{
+		}
+
+		public function store(): SessionStore
+		{
+			return $this->session;
+		}
+	}`
+	issues := analysePHP(t, php)
+	if hasReturnTypeIssue(issues) {
+		t.Fatalf("expected no A.RETURN.TYPE issue for promoted property fetch, got: %#v", issues)
+	}
+}
