@@ -52,3 +52,64 @@ func TestMultipleCompatibleTypesNoError(t *testing.T) {
 		t.Fatalf("expected no A.RETURN.TYPE issue when actual types are [bool,mixed] declared bool, got: %#v", issues)
 	}
 }
+
+func TestAssignedVariableReturnTypeNoMismatch(t *testing.T) {
+	php := `<?php
+	function foo(): string {
+		$value = "ok";
+		return $value;
+	}`
+	issues := analysePHP(t, php)
+	if hasReturnTypeIssue(issues) {
+		t.Fatalf("expected no A.RETURN.TYPE issue for assigned local string, got: %#v", issues)
+	}
+}
+
+func TestNewExpressionClassReturnTypeNoMismatch(t *testing.T) {
+	php := `<?php
+	class User {}
+
+	function makeUser(): User {
+		return new User();
+	}`
+	issues := analysePHP(t, php)
+	if hasReturnTypeIssue(issues) {
+		t.Fatalf("expected no A.RETURN.TYPE issue for new User return, got: %#v", issues)
+	}
+}
+
+func TestThisPropertyReturnTypeNoMismatch(t *testing.T) {
+	php := `<?php
+	class User {}
+
+	class UserRepository {
+		private User $user;
+
+		public function current(): User {
+			return $this->user;
+		}
+	}`
+	issues := analysePHP(t, php)
+	if hasReturnTypeIssue(issues) {
+		t.Fatalf("expected no A.RETURN.TYPE issue for typed property fetch, got: %#v", issues)
+	}
+}
+
+func TestThisMethodReturnTypeNoMismatch(t *testing.T) {
+	php := `<?php
+	class User {}
+
+	class UserRepository {
+		public function current(): User {
+			return $this->loadUser();
+		}
+
+		private function loadUser(): User {
+			return new User();
+		}
+	}`
+	issues := analysePHP(t, php)
+	if hasReturnTypeIssue(issues) {
+		t.Fatalf("expected no A.RETURN.TYPE issue for same-class method return, got: %#v", issues)
+	}
+}

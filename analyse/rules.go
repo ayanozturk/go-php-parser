@@ -17,19 +17,31 @@ type AnalysisIssue struct {
 }
 
 type AnalysisRuleFunc func(filename string, nodes []ast.Node) []AnalysisIssue
+type AnalysisRuleWithContextFunc func(filename string, nodes []ast.Node, ctx *AnalysisContext) []AnalysisIssue
+
+type analysisRuleEntry struct {
+	legacy     AnalysisRuleFunc
+	contextual AnalysisRuleWithContextFunc
+}
 
 var (
-	analysisRuleRegistry     = map[string]AnalysisRuleFunc{}
+	analysisRuleRegistry     = map[string]analysisRuleEntry{}
 	analysisRuleRegistryLock sync.RWMutex
 	sortedRuleCodesCache     []string
 	sortedRuleCodesDirty     = true
 )
 
 func RegisterAnalysisRule(code string, fn AnalysisRuleFunc) {
+	RegisterAnalysisRuleWithContext(code, func(filename string, nodes []ast.Node, _ *AnalysisContext) []AnalysisIssue {
+		return fn(filename, nodes)
+	})
+}
+
+func RegisterAnalysisRuleWithContext(code string, fn AnalysisRuleWithContextFunc) {
 	analysisRuleRegistryLock.Lock()
 	defer analysisRuleRegistryLock.Unlock()
 
-	analysisRuleRegistry[code] = fn
+	analysisRuleRegistry[code] = analysisRuleEntry{contextual: fn}
 	sortedRuleCodesDirty = true
 }
 
@@ -72,14 +84,24 @@ func ClearAnalysisRules() {
 }
 
 func RunAnalysisRules(filename string, nodes []ast.Node) []AnalysisIssue {
+	return RunAnalysisRulesWithContext(filename, nodes, nil)
+}
+
+func RunAnalysisRulesWithContext(filename string, nodes []ast.Node, ctx *AnalysisContext) []AnalysisIssue {
 	codes := ListRegisteredAnalysisRuleCodes()
 
 	issues := make([]AnalysisIssue, 0, 8)
 	analysisRuleRegistryLock.RLock()
 	defer analysisRuleRegistryLock.RUnlock()
 	for _, code := range codes {
-		fn := analysisRuleRegistry[code]
-		issues = append(issues, fn(filename, nodes)...)
+		entry := analysisRuleRegistry[code]
+		if entry.contextual != nil {
+			issues = append(issues, entry.contextual(filename, nodes, ctx)...)
+			continue
+		}
+		if entry.legacy != nil {
+			issues = append(issues, entry.legacy(filename, nodes)...)
+		}
 	}
 	return issues
 }
