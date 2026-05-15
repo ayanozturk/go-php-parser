@@ -14,6 +14,7 @@ type HoverTargetKind string
 
 const (
 	HoverTargetUnknown  HoverTargetKind = ""
+	HoverTargetLiteral  HoverTargetKind = "literal"
 	HoverTargetVariable HoverTargetKind = "variable"
 	HoverTargetProperty HoverTargetKind = "property"
 	HoverTargetMethod   HoverTargetKind = "method"
@@ -127,6 +128,12 @@ func walkExprForHoverTypes(node ast.Node, scope *functionScope, ctx *AnalysisCon
 	}
 
 	switch n := node.(type) {
+	case *ast.StringLiteral, *ast.InterpolatedStringLiteral, *ast.StringNode,
+		*ast.IntegerLiteral, *ast.IntegerNode,
+		*ast.FloatLiteral, *ast.FloatNode,
+		*ast.BooleanLiteral, *ast.BooleanNode,
+		*ast.NullLiteral, *ast.NullNode:
+		considerHoverTypeMatch(n, n.TokenLiteral(), inferType(n, scope, ctx), HoverTargetLiteral, "", query, best)
 	case *ast.VariableNode:
 		considerHoverTypeMatch(n, n.Name, inferType(n, scope, ctx), HoverTargetVariable, "", query, best)
 	case *ast.PropertyFetchNode:
