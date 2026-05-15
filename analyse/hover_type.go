@@ -3,16 +3,46 @@ package analyse
 import "go-phpcs/ast"
 
 func InferTypeAtPosition(nodes []ast.Node, line, column int, ident string, ctx *AnalysisContext) (string, bool) {
-	if ident == "" {
+	target, ok := InferHoverTargetAtPosition(nodes, line, column, ident, ctx)
+	if !ok || target.Type == "" {
 		return "", false
+	}
+	return target.Type, true
+}
+
+type HoverTargetKind string
+
+const (
+	HoverTargetUnknown  HoverTargetKind = ""
+	HoverTargetVariable HoverTargetKind = "variable"
+	HoverTargetProperty HoverTargetKind = "property"
+	HoverTargetMethod   HoverTargetKind = "method"
+	HoverTargetFunction HoverTargetKind = "function"
+	HoverTargetClass    HoverTargetKind = "class"
+)
+
+type HoverTarget struct {
+	Type          string
+	Kind          HoverTargetKind
+	ReceiverClass string
+}
+
+func InferHoverTargetAtPosition(nodes []ast.Node, line, column int, ident string, ctx *AnalysisContext) (HoverTarget, bool) {
+	if ident == "" {
+		return HoverTarget{}, false
 	}
 
 	query := hoverTypeQuery{line: line, column: column, ident: ident}
 	match := findHoverTypeMatch(nodes, query, ctx)
-	if !match.ok || match.typ.IsEmpty() {
-		return "", false
+	if !match.ok {
+		return HoverTarget{}, false
 	}
-	return match.typ.String(), true
+
+	target := HoverTarget{Kind: match.kind, ReceiverClass: match.receiverClass}
+	if !match.typ.IsEmpty() {
+		target.Type = match.typ.String()
+	}
+	return target, true
 }
 
 type hoverTypeQuery struct {
@@ -22,10 +52,12 @@ type hoverTypeQuery struct {
 }
 
 type hoverTypeMatch struct {
-	typ    Type
-	score  int
-	column int
-	ok     bool
+	typ           Type
+	kind          HoverTargetKind
+	receiverClass string
+	score         int
+	column        int
+	ok            bool
 }
 
 func findHoverTypeMatch(nodes []ast.Node, query hoverTypeQuery, ctx *AnalysisContext) hoverTypeMatch {
@@ -96,19 +128,19 @@ func walkExprForHoverTypes(node ast.Node, scope *functionScope, ctx *AnalysisCon
 
 	switch n := node.(type) {
 	case *ast.VariableNode:
-		considerHoverTypeMatch(n, n.Name, inferType(n, scope, ctx), query, best)
+		considerHoverTypeMatch(n, n.Name, inferType(n, scope, ctx), HoverTargetVariable, "", query, best)
 	case *ast.PropertyFetchNode:
-		considerHoverTypeMatch(n, n.Property, inferType(n, scope, ctx), query, best)
+		considerHoverTypeMatch(n, n.Property, inferType(n, scope, ctx), HoverTargetProperty, hoverReceiverClass(n.Object, scope, ctx), query, best)
 		walkExprForHoverTypes(n.Object, scope, ctx, query, best)
 	case *ast.MethodCallNode:
-		considerHoverTypeMatch(n, n.Method, inferType(n, scope, ctx), query, best)
+		considerHoverTypeMatch(n, n.Method, inferType(n, scope, ctx), HoverTargetMethod, hoverReceiverClass(n.Object, scope, ctx), query, best)
 		walkExprForHoverTypes(n.Object, scope, ctx, query, best)
 		for _, arg := range n.Args {
 			walkExprForHoverTypes(argumentValue(arg), scope, ctx, query, best)
 		}
 	case *ast.FunctionCallNode:
 		if identNode, ok := n.Name.(*ast.IdentifierNode); ok {
-			considerHoverTypeMatch(n, identNode.Value, inferType(n, scope, ctx), query, best)
+			considerHoverTypeMatch(n, identNode.Value, inferType(n, scope, ctx), HoverTargetFunction, "", query, best)
 		}
 		for _, arg := range n.Args {
 			walkExprForHoverTypes(argumentValue(arg), scope, ctx, query, best)
@@ -121,7 +153,7 @@ func walkExprForHoverTypes(node ast.Node, scope *functionScope, ctx *AnalysisCon
 			}
 		}
 		if className != "" {
-			considerHoverTypeMatch(n, className, inferType(n, scope, ctx), query, best)
+			considerHoverTypeMatch(n, className, inferType(n, scope, ctx), HoverTargetClass, "", query, best)
 		}
 		for _, arg := range n.Args {
 			walkExprForHoverTypes(argumentValue(arg), scope, ctx, query, best)
@@ -147,7 +179,7 @@ func walkExprForHoverTypes(node ast.Node, scope *functionScope, ctx *AnalysisCon
 	}
 }
 
-func considerHoverTypeMatch(node ast.Node, ident string, typ Type, query hoverTypeQuery, best *hoverTypeMatch) {
+func considerHoverTypeMatch(node ast.Node, ident string, typ Type, kind HoverTargetKind, receiverClass string, query hoverTypeQuery, best *hoverTypeMatch) {
 	if node == nil || typ.IsEmpty() || ident != query.ident {
 		return
 	}
@@ -163,8 +195,25 @@ func considerHoverTypeMatch(node ast.Node, ident string, typ Type, query hoverTy
 	}
 	if !best.ok || score < best.score || (score == best.score && pos.Column > best.column) {
 		best.typ = typ
+		best.kind = kind
+		best.receiverClass = receiverClass
 		best.score = score
 		best.column = pos.Column
 		best.ok = true
 	}
+}
+
+func receiverClassName(typ Type) string {
+	className, ok := typ.SingleClassName()
+	if !ok {
+		return ""
+	}
+	return className
+}
+
+func hoverReceiverClass(node ast.Node, scope *functionScope, ctx *AnalysisContext) string {
+	if variable, ok := node.(*ast.VariableNode); ok && variable.Name == "this" && scope != nil {
+		return scope.className
+	}
+	return receiverClassName(inferType(node, scope, ctx))
 }
