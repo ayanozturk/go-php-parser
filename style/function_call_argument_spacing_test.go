@@ -1,6 +1,10 @@
 package style
 
-import "testing"
+import (
+	"io"
+	"os"
+	"testing"
+)
 
 func TestFunctionCallArgumentSpacingChecker(t *testing.T) {
 	checker := &FunctionCallArgumentSpacingChecker{}
@@ -72,4 +76,49 @@ func TestFunctionCallArgumentSpacingFixer(t *testing.T) {
 			t.Errorf("%s: expected '%s', got '%s'", tc.msg, tc.expected, output)
 		}
 	}
+}
+
+func TestFunctionCallArgumentSpacingFixerDoesNotWriteDebugOutput(t *testing.T) {
+	fixer := FunctionCallArgumentSpacingFixer{}
+	var output string
+	stderr := captureStderr(t, func() {
+		output = fixer.Fix("foo(1,2,  3);")
+	})
+
+	if output != "foo(1, 2, 3);" {
+		t.Fatalf("expected fixed output, got %q", output)
+	}
+	if stderr != "" {
+		t.Fatalf("expected fixer to be silent on stderr, got %q", stderr)
+	}
+}
+
+func captureStderr(t *testing.T, fn func()) string {
+	t.Helper()
+
+	oldStderr := os.Stderr
+	readPipe, writePipe, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("failed to create stderr pipe: %v", err)
+	}
+	os.Stderr = writePipe
+	defer func() {
+		os.Stderr = oldStderr
+	}()
+
+	fn()
+
+	if err := writePipe.Close(); err != nil {
+		t.Fatalf("failed to close stderr pipe: %v", err)
+	}
+
+	output, err := io.ReadAll(readPipe)
+	if err != nil {
+		t.Fatalf("failed to read stderr pipe: %v", err)
+	}
+	if err := readPipe.Close(); err != nil {
+		t.Fatalf("failed to close stderr read pipe: %v", err)
+	}
+
+	return string(output)
 }

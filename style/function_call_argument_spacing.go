@@ -191,9 +191,6 @@ func (f FunctionCallArgumentSpacingFixer) Fix(content string) string {
 			continue
 		}
 		fixed := fixFunctionCallSpacingInLine(line)
-		if fixed != line {
-			fmt.Fprintf(os.Stderr, "[DEBUG] FunctionCallArgumentSpacingFixer: line %d changed in Fix\nOriginal: %q\nFixed:   %q\n", i+1, line, fixed)
-		}
 		lines[i] = fixed
 	}
 
