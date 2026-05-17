@@ -1,7 +1,6 @@
 package parser
 
 import (
-	"fmt"
 	"go-phpcs/ast"
 	"go-phpcs/token"
 )
@@ -32,9 +31,6 @@ func (p *Parser) parseForeachStatement() (ast.Node, error) {
 	if expr == nil {
 		p.addError("line %d:%d: expected expression after foreach (", p.tok.Pos.Line, p.tok.Pos.Column)
 		return nil, nil
-	}
-	if p.debug {
-		fmt.Printf("[DEBUG] After foreach expr, token: %s (%q)\n", p.tok.Type, p.tok.Literal)
 	}
 	if p.tok.Type != token.T_AS {
 		p.addError("line %d:%d: expected 'as' after foreach expression, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal)

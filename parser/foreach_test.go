@@ -3,6 +3,8 @@ package parser
 import (
 	"go-phpcs/ast"
 	"go-phpcs/lexer"
+	"io"
+	"os"
 	"testing"
 )
 
@@ -68,4 +70,64 @@ func TestParseForeachStatement(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestParseForeachDoesNotWriteDebugOutput(t *testing.T) {
+	output := captureStdout(t, func() {
+		l := lexer.New(`<?php foreach ($arr as $v) { echo $v; }`)
+		p := New(l, true)
+		_ = p.Parse()
+		if len(p.Errors()) > 0 {
+			t.Fatalf("Parser errors: %v", p.Errors())
+		}
+	})
+
+	if output != "" {
+		t.Fatalf("expected foreach parsing to be silent, got %q", output)
+	}
+}
+
+func TestParseParameterDefaultDoesNotWriteDebugOutput(t *testing.T) {
+	output := captureStdout(t, func() {
+		l := lexer.New(`<?php function example($value = 'default') {}`)
+		p := New(l, true)
+		_ = p.Parse()
+		if len(p.Errors()) > 0 {
+			t.Fatalf("Parser errors: %v", p.Errors())
+		}
+	})
+
+	if output != "" {
+		t.Fatalf("expected parameter parsing to be silent, got %q", output)
+	}
+}
+
+func captureStdout(t *testing.T, fn func()) string {
+	t.Helper()
+
+	oldStdout := os.Stdout
+	readPipe, writePipe, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("failed to create stdout pipe: %v", err)
+	}
+	os.Stdout = writePipe
+	defer func() {
+		os.Stdout = oldStdout
+	}()
+
+	fn()
+
+	if err := writePipe.Close(); err != nil {
+		t.Fatalf("failed to close stdout pipe: %v", err)
+	}
+
+	output, err := io.ReadAll(readPipe)
+	if err != nil {
+		t.Fatalf("failed to read stdout pipe: %v", err)
+	}
+	if err := readPipe.Close(); err != nil {
+		t.Fatalf("failed to close stdout read pipe: %v", err)
+	}
+
+	return string(output)
 }
