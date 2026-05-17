@@ -57,3 +57,17 @@ func TestCompileIgnoresBlankPatterns(t *testing.T) {
 		t.Fatal("blank override patterns should not match every class")
 	}
 }
+
+func TestCompileReturnsNilWhenAllPatternsAreBlank(t *testing.T) {
+	compiled, err := Compile(RuleOverrides{
+		"PSR1.Classes.ClassDeclaration.PascalCase": {
+			Classes: []string{"", "   ", "//"},
+		},
+	})
+	if err != nil {
+		t.Fatalf("Compile returned error: %v", err)
+	}
+	if compiled != nil {
+		t.Fatalf("expected nil matcher when all override patterns are blank, got %#v", compiled)
+	}
+}

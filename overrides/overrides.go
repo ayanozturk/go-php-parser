@@ -31,7 +31,13 @@ func Compile(raw RuleOverrides) (*Compiled, error) {
 		if err != nil {
 			return nil, fmt.Errorf("compile override for %s: %w", code, err)
 		}
+		if len(classPatterns) == 0 {
+			continue
+		}
 		compiled.rules[code] = compiledRuleOverride{classPatterns: classPatterns}
+	}
+	if len(compiled.rules) == 0 {
+		return nil, nil
 	}
 
 	return compiled, nil
@@ -73,6 +79,9 @@ func compilePatterns(patterns []string) ([]*regexp.Regexp, error) {
 
 func normalizePattern(pattern string) string {
 	trimmed := strings.TrimSpace(pattern)
+	if trimmed == "" {
+		return ""
+	}
 	if len(trimmed) >= 2 && strings.HasPrefix(trimmed, "/") && strings.HasSuffix(trimmed, "/") {
 		return trimmed[1 : len(trimmed)-1]
 	}
