@@ -36,3 +36,21 @@ func TestCompileRejectsInvalidRegex(t *testing.T) {
 		t.Fatal("expected invalid regex error")
 	}
 }
+
+func TestCompileIgnoresBlankPatterns(t *testing.T) {
+	compiled, err := Compile(RuleOverrides{
+		"PSR1.Classes.ClassDeclaration.PascalCase": {
+			Classes: []string{"", "   ", "//", "/^Legacy_/"},
+		},
+	})
+	if err != nil {
+		t.Fatalf("Compile returned error: %v", err)
+	}
+
+	if !compiled.IgnoreIssue("PSR1.Classes.ClassDeclaration.PascalCase", "class", "Legacy_Service") {
+		t.Fatal("expected non-blank Legacy_ pattern to be applied")
+	}
+	if compiled.IgnoreIssue("PSR1.Classes.ClassDeclaration.PascalCase", "class", "ModernService") {
+		t.Fatal("blank override patterns should not match every class")
+	}
+}

@@ -14,9 +14,10 @@ func TestCommandsMapIntegrity(t *testing.T) {
 	expected := map[string]struct {
 		Description string
 	}{
-		"ast":    {"Print the Abstract Syntax Tree"},
-		"tokens": {"Print the tokens from the lexer"},
-		"style":  {"Check code style (e.g., function naming)"},
+		"ast":        {"Print the Abstract Syntax Tree"},
+		"tokens":     {"Print the tokens from the lexer"},
+		"style":      {"Check code style (e.g., function naming)"},
+		"list-files": {"List all PHP files selected by the current configuration"},
 	}
 	for name, meta := range expected {
 		cmd, ok := Commands[name]

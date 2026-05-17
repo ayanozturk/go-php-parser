@@ -59,6 +59,9 @@ func compilePatterns(patterns []string) ([]*regexp.Regexp, error) {
 	compiled := make([]*regexp.Regexp, 0, len(patterns))
 	for _, pattern := range patterns {
 		normalized := normalizePattern(pattern)
+		if normalized == "" {
+			continue
+		}
 		re, err := regexp.Compile(normalized)
 		if err != nil {
 			return nil, fmt.Errorf("invalid regex %q: %w", pattern, err)

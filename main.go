@@ -28,6 +28,10 @@ func main() {
 		command.Commands["list-style-rules"].Execute(nil, "", outWriter)
 		os.Exit(0)
 	}
+	if args.CommandName == "list-files" {
+		helper.PrintFileList(outWriter, filesToScan)
+		os.Exit(0)
+	}
 	defer func() {
 		if f, ok := outWriter.(*os.File); ok && f != os.Stdout {
 			f.Close()

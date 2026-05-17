@@ -1,9 +1,11 @@
 package helper
 
 import (
+	"bytes"
 	"flag"
 	"os"
 	"runtime"
+	"strings"
 	"testing"
 )
 
@@ -98,6 +100,28 @@ func TestSetupOutputFileOutputFileShort(t *testing.T) {
 	}
 	if w == nil {
 		t.Errorf("Expected file writer, got nil")
+	}
+}
+
+func TestPrintFileListSorted(t *testing.T) {
+	var buf bytes.Buffer
+
+	PrintFileList(&buf, []string{"src/Z.php", "src/A.php", "src/M.php"})
+
+	got := strings.TrimSpace(buf.String())
+	want := strings.Join([]string{"src/A.php", "src/M.php", "src/Z.php"}, "\n")
+	if got != want {
+		t.Fatalf("unexpected file list:\ngot:\n%s\nwant:\n%s", got, want)
+	}
+}
+
+func TestPrintFileListEmpty(t *testing.T) {
+	var buf bytes.Buffer
+
+	PrintFileList(&buf, nil)
+
+	if got, want := strings.TrimSpace(buf.String()), "No files selected by config."; got != want {
+		t.Fatalf("unexpected empty file list message: got %q, want %q", got, want)
 	}
 }
 

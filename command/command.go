@@ -82,6 +82,13 @@ var Commands = map[string]Command{
 			}
 		},
 	},
+	"list-files": {
+		Name:        "list-files",
+		Description: "List all PHP files selected by the current configuration",
+		Execute: func(_ []ast.Node, _ string, w io.Writer) {
+			fmt.Fprintln(w, "Use list-files without a file argument to list files selected by config.")
+		},
+	},
 }
 
 // PrintUsage prints the usage information for all available commands

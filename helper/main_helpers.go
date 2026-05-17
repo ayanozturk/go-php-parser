@@ -13,6 +13,7 @@ import (
 	"os"
 	"runtime"
 	"runtime/pprof"
+	"sort"
 )
 
 type CliArgs struct {
@@ -75,6 +76,19 @@ func SetupOutputFile(args CliArgs) io.Writer {
 		return f
 	}
 	return os.Stdout
+}
+
+func PrintFileList(w io.Writer, files []string) {
+	if len(files) == 0 {
+		fmt.Fprintln(w, "No files selected by config.")
+		return
+	}
+
+	sortedFiles := append([]string(nil), files...)
+	sort.Strings(sortedFiles)
+	for _, file := range sortedFiles {
+		fmt.Fprintln(w, file)
+	}
 }
 
 func SetupProfiling(enabled bool) func() {
