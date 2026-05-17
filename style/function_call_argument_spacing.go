@@ -1,9 +1,7 @@
 package style
 
 import (
-	"fmt"
 	"go-phpcs/ast"
-	"os"
 	"strings"
 )
 
@@ -177,11 +175,11 @@ func (f FunctionCallArgumentSpacingFixer) Code() string {
 	return "Generic.Functions.FunctionCallArgumentSpacing"
 }
 
-func (f FunctionCallArgumentSpacingFixer) Fix(content string) string {
+func (f FunctionCallArgumentSpacingFixer) Fix(content string) (fixedContent string) {
+	fixedContent = content
 	defer func() {
 		if r := recover(); r != nil {
-			fmt.Fprintf(os.Stderr, "[PANIC] in FunctionCallArgumentSpacingFixer.Fix: %v\n", r)
-			fmt.Fprintf(os.Stderr, "[PANIC] content: %q\n", content)
+			fixedContent = content
 		}
 	}()
 
@@ -194,7 +192,8 @@ func (f FunctionCallArgumentSpacingFixer) Fix(content string) string {
 		lines[i] = fixed
 	}
 
-	return strings.Join(lines, "\n")
+	fixedContent = strings.Join(lines, "\n")
+	return fixedContent
 }
 
 func fixFunctionCallSpacingInLine(line string) string {
