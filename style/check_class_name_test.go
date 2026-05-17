@@ -1,54 +1,33 @@
 package style
 
 import (
-	"bytes"
-
 	"go-phpcs/ast"
 	"go-phpcs/style/helper"
+	"io"
 	"os"
 	"testing"
 )
 
-func TestClassNameCheckerCheckPrintsWarning(t *testing.T) {
+func TestClassNameCheckerCheckDoesNotPrintWarning(t *testing.T) {
 	checker := &ClassNameChecker{}
 	class := &ast.ClassNode{Name: "not_PascalCase"}
-	var buf bytes.Buffer
-	saved := os.Stdout
-	r, w, _ := os.Pipe()
-	os.Stdout = w
 
-	checker.Check([]ast.Node{class}, "test.php")
+	output := captureStdout(t, func() {
+		checker.Check([]ast.Node{class}, "test.php")
+	})
 
-	w.Close()
-	os.Stdout = saved
-	buf.ReadFrom(r)
-	output := buf.String()
-
-	expected := "\n\033[1m\033[31mClass Name Style Error\033[0m\n" +
-		"  \033[34mFile   :\033[0m test.php\n" +
-		"  \033[34mClass  :\033[0m not_PascalCase\n" +
-		"  \033[34mLine   :\033[0m 0\n" +
-		"  \033[34mColumn :\033[0m 0\n" +
-		"  \033[33mReason :\033[0m Class name should be PascalCase\n\n"
-	if output != expected {
-		t.Errorf("unexpected output: got %q, want %q", output, expected)
+	if output != "" {
+		t.Errorf("expected deprecated Check to be silent, got %q", output)
 	}
 }
 
 func TestClassNameCheckerCheckNoWarning(t *testing.T) {
 	checker := &ClassNameChecker{}
 	class := &ast.ClassNode{Name: "PascalCase"}
-	var buf bytes.Buffer
-	saved := os.Stdout
-	r, w, _ := os.Pipe()
-	os.Stdout = w
 
-	checker.Check([]ast.Node{class}, "test.php")
-
-	w.Close()
-	os.Stdout = saved
-	buf.ReadFrom(r)
-	output := buf.String()
+	output := captureStdout(t, func() {
+		checker.Check([]ast.Node{class}, "test.php")
+	})
 
 	if output != "" {
 		t.Errorf("expected no output for PascalCase class, got %q", output)
@@ -127,4 +106,34 @@ func TestToLowerToUpper(t *testing.T) {
 	if helper.ToUpper('a') != 'A' || helper.ToUpper('z') != 'Z' || helper.ToUpper('A') != 'A' {
 		t.Error("ToUpper failed")
 	}
+}
+
+func captureStdout(t *testing.T, fn func()) string {
+	t.Helper()
+
+	oldStdout := os.Stdout
+	readPipe, writePipe, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("failed to create stdout pipe: %v", err)
+	}
+	os.Stdout = writePipe
+	defer func() {
+		os.Stdout = oldStdout
+	}()
+
+	fn()
+
+	if err := writePipe.Close(); err != nil {
+		t.Fatalf("failed to close stdout pipe: %v", err)
+	}
+
+	output, err := io.ReadAll(readPipe)
+	if err != nil {
+		t.Fatalf("failed to read stdout pipe: %v", err)
+	}
+	if err := readPipe.Close(); err != nil {
+		t.Fatalf("failed to close stdout read pipe: %v", err)
+	}
+
+	return string(output)
 }
