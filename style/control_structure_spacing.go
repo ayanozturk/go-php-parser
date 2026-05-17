@@ -17,6 +17,11 @@ type ControlStructureSpacingChecker struct {
 	nonCallKeywords map[string]struct{}
 }
 
+type stringState struct {
+	inSingle bool
+	inDouble bool
+}
+
 // NewControlStructureSpacingChecker creates a new checker with proper initialization
 func NewControlStructureSpacingChecker() *ControlStructureSpacingChecker {
 	keywords := []string{"if", "else", "elseif", "for", "foreach", "while", "do", "switch", "try", "catch", "finally"}
@@ -54,6 +59,7 @@ func (c *ControlStructureSpacingChecker) isNonCallKeyword(name string) bool {
 // CheckIssues analyzes the code for control structure spacing violations
 func (c *ControlStructureSpacingChecker) CheckIssues(lines []string, filename string) []StyleIssue {
 	var issues []StyleIssue
+	state := stringState{}
 
 	for i, line := range lines {
 		trimmed := strings.TrimSpace(line)
@@ -64,20 +70,22 @@ func (c *ControlStructureSpacingChecker) CheckIssues(lines []string, filename st
 		}
 
 		// Check control structure keyword spacing
-		issues = append(issues, c.checkControlKeywordSpacing(line, filename, i+1)...)
+		issues = append(issues, c.checkControlKeywordSpacing(line, filename, i+1, state)...)
 
 		// Check function call spacing (should have no space before parenthesis)
-		issues = append(issues, c.checkFunctionCallSpacing(line, filename, i+1)...)
+		issues = append(issues, c.checkFunctionCallSpacing(line, filename, i+1, state)...)
 
 		// Check brace spacing for control structures
-		issues = append(issues, c.checkBraceSpacing(line, filename, i+1)...)
+		issues = append(issues, c.checkBraceSpacing(line, filename, i+1, state)...)
+
+		state = c.advanceStringState(line, state)
 	}
 
 	return issues
 }
 
 // checkControlKeywordSpacing ensures single space after control keywords
-func (c *ControlStructureSpacingChecker) checkControlKeywordSpacing(line, filename string, lineNum int) []StyleIssue {
+func (c *ControlStructureSpacingChecker) checkControlKeywordSpacing(line, filename string, lineNum int, initialState stringState) []StyleIssue {
 	var issues []StyleIssue
 
 	// Quick precheck: ignore lines without letters
@@ -106,7 +114,7 @@ func (c *ControlStructureSpacingChecker) checkControlKeywordSpacing(line, filena
 		keyword := line[start:end]
 
 		// Skip string literal positions
-		if c.isInsideString(line, start) {
+		if c.isInsideString(line, start, initialState) {
 			continue
 		}
 
@@ -164,29 +172,50 @@ func (c *ControlStructureSpacingChecker) checkControlKeywordSpacing(line, filena
 }
 
 // isInsideString checks if a position is inside a string literal
-func (c *ControlStructureSpacingChecker) isInsideString(line string, pos int) bool {
-	inSingle := false
-	inDouble := false
+func (c *ControlStructureSpacingChecker) isInsideString(line string, pos int, initialState stringState) bool {
+	state := initialState
+
+	if pos == 0 {
+		return state.inSingle || state.inDouble
+	}
 
 	for i := 0; i < pos && i < len(line); i++ {
-		if !inSingle && !inDouble {
+		if !state.inSingle && !state.inDouble {
 			if line[i] == '\'' {
-				inSingle = true
+				state.inSingle = true
 			} else if line[i] == '"' {
-				inDouble = true
+				state.inDouble = true
 			}
-		} else if inSingle && line[i] == '\'' && (i == 0 || line[i-1] != '\\') {
-			inSingle = false
-		} else if inDouble && line[i] == '"' && (i == 0 || line[i-1] != '\\') {
-			inDouble = false
+		} else if state.inSingle && line[i] == '\'' && (i == 0 || line[i-1] != '\\') {
+			state.inSingle = false
+		} else if state.inDouble && line[i] == '"' && (i == 0 || line[i-1] != '\\') {
+			state.inDouble = false
 		}
 	}
 
-	return inSingle || inDouble
+	return state.inSingle || state.inDouble
+}
+
+func (c *ControlStructureSpacingChecker) advanceStringState(line string, initialState stringState) stringState {
+	state := initialState
+	for i := 0; i < len(line); i++ {
+		if !state.inSingle && !state.inDouble {
+			if line[i] == '\'' {
+				state.inSingle = true
+			} else if line[i] == '"' {
+				state.inDouble = true
+			}
+		} else if state.inSingle && line[i] == '\'' && (i == 0 || line[i-1] != '\\') {
+			state.inSingle = false
+		} else if state.inDouble && line[i] == '"' && (i == 0 || line[i-1] != '\\') {
+			state.inDouble = false
+		}
+	}
+	return state
 }
 
 // checkFunctionCallSpacing ensures no space between function name and parenthesis
-func (c *ControlStructureSpacingChecker) checkFunctionCallSpacing(line, filename string, lineNum int) []StyleIssue {
+func (c *ControlStructureSpacingChecker) checkFunctionCallSpacing(line, filename string, lineNum int, initialState stringState) []StyleIssue {
 	var issues []StyleIssue
 
 	for i := 0; i < len(line); i++ {
@@ -201,7 +230,7 @@ func (c *ControlStructureSpacingChecker) checkFunctionCallSpacing(line, filename
 		end := i
 		name := line[start:end]
 
-		if c.isInsideString(line, start) {
+		if c.isInsideString(line, start, initialState) {
 			continue
 		}
 
@@ -234,11 +263,14 @@ func (c *ControlStructureSpacingChecker) checkFunctionCallSpacing(line, filename
 }
 
 // checkBraceSpacing ensures single space before opening brace in control structures
-func (c *ControlStructureSpacingChecker) checkBraceSpacing(line, filename string, lineNum int) []StyleIssue {
+func (c *ControlStructureSpacingChecker) checkBraceSpacing(line, filename string, lineNum int, initialState stringState) []StyleIssue {
 	var issues []StyleIssue
 
 	// Look for patterns like ") {" or "){" in control structures
 	for i := 0; i < len(line)-1; i++ {
+		if c.isInsideString(line, i, initialState) {
+			continue
+		}
 		if line[i] == ')' && i+1 < len(line) {
 			nextChar := line[i+1]
 			if nextChar == '{' {

@@ -203,6 +203,16 @@ $text = 'for($i = 0; $i < 10; $i++)';`,
 			expectedCodes:  []string{},
 		},
 		{
+			name: "multiline sql string should be ignored",
+			code: `<?php
+$this->addSql('
+    INSERT INTO products (product_id, name)
+    VALUES ("1", "Module")
+');`,
+			expectedIssues: 0,
+			expectedCodes:  []string{},
+		},
+		{
 			name: "anonymous function spacing should be allowed",
 			code: `<?php
 set_error_handler(function ($t, $m) use ($regexp) {
