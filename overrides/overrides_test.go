@@ -18,6 +18,9 @@ func TestCompileAndIgnoreIssue(t *testing.T) {
 	if !compiled.IgnoreIssue("PSR1.Classes.ClassDeclaration.PascalCase", "class", "SpecialClass") {
 		t.Fatal("expected SpecialClass to be ignored")
 	}
+	if compiled.IgnoreIssue("PSR1.Classes.ClassDeclaration.PascalCase", "class", "MySpecialClass") {
+		t.Fatal("plain class override should match exact class name only")
+	}
 	if compiled.IgnoreIssue("PSR1.Classes.ClassDeclaration.PascalCase", "class", "ModernService") {
 		t.Fatal("did not expect ModernService to be ignored")
 	}

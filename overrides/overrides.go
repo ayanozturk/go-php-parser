@@ -76,7 +76,7 @@ func normalizePattern(pattern string) string {
 	if len(trimmed) >= 2 && strings.HasPrefix(trimmed, "/") && strings.HasSuffix(trimmed, "/") {
 		return trimmed[1 : len(trimmed)-1]
 	}
-	return trimmed
+	return "^" + regexp.QuoteMeta(trimmed) + "$"
 }
 
 func matchesAny(patterns []*regexp.Regexp, value string) bool {
