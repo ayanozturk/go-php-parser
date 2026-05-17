@@ -114,13 +114,6 @@ func TestIfConditionWithNotIdenticalAndBooleanAnd(t *testing.T) {
 }
 
 func TestInterfaceMethodParam(t *testing.T) {
-	src := `<?php
-interface AccessDecisionStrategyInterface
-{
-    public function decide(\Traversable $results): bool;
-}`
-	DebugPrintTokens(src)
-
 	l := lexer.New(`<?php
 interface AccessDecisionStrategyInterface
 {

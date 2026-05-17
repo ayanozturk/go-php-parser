@@ -10,17 +10,6 @@ func TestInterfaceExtendsFQCN(t *testing.T) {
 	input := `<?php
 interface MyInterface extends \Some\OtherInterface {}`
 	l := lexer.New(input)
-	// DEBUG: Dump tokens
-	tokens := []string{}
-	for i := 0; i < 20; i++ {
-		tok := l.NextToken()
-		tokens = append(tokens, string(tok.Type)+" (\""+tok.Literal+"\")")
-		if tok.Type == "T_EOF" {
-			break
-		}
-	}
-	t.Logf("TOKENS: %v", tokens)
-	l = lexer.New(input)
 	p := New(l, true)
 	nodes := p.Parse()
 	if len(p.Errors()) > 0 {
