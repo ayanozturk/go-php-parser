@@ -7,7 +7,6 @@ import (
 
 // parseFunction parses a PHP function declaration
 func (p *Parser) parseFunction(modifiers []string) (ast.Node, error) {
-	p.debugTokenContext("parseFunction entry")
 	pos := p.tok.Pos
 	p.nextToken() // consume 'function'
 
@@ -164,7 +163,6 @@ func (p *Parser) parseFunction(modifiers []string) (ast.Node, error) {
 	if p.tok.Type == token.T_RBRACE {
 		p.nextToken() // consume }
 	} else {
-		p.debugTokenContext("parseFunction missing closing brace, resyncing")
 		p.addError("line %d:%d: expected } to close function %s body, got %s", p.tok.Pos.Line, p.tok.Pos.Column, name, p.tok.Literal)
 		p.syncToNextClassMember()
 		return nil, nil
