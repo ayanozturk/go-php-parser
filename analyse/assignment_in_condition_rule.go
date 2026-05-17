@@ -10,31 +10,26 @@ type AssignmentInConditionRule struct{}
 // CheckIssues walks through all nodes and checks for assignments in condition expressions
 func (r *AssignmentInConditionRule) CheckIssues(nodes []ast.Node, filename string) []AnalysisIssue {
 	var issues []AnalysisIssue
+	addAssignmentIssues := func(expr ast.Node) {
+		for _, assignment := range r.findAssignmentsInExpression(expr) {
+			issues = append(issues, AnalysisIssue{
+				Filename: filename,
+				Line:     assignment.GetPos().Line,
+				Column:   assignment.GetPos().Column,
+				Code:     "Generic.CodeAnalysis.AssignmentInCondition",
+				Message:  "Assignment in condition",
+			})
+		}
+	}
 	var checkFunc func(n ast.Node)
 	checkFunc = func(n ast.Node) {
 		switch node := n.(type) {
 		case *ast.IfNode:
 			// Check main if condition
-			if assignment := r.findAssignmentInExpression(node.Condition); assignment != nil {
-				issues = append(issues, AnalysisIssue{
-					Filename: filename,
-					Line:     assignment.GetPos().Line,
-					Column:   assignment.GetPos().Column,
-					Code:     "Generic.CodeAnalysis.AssignmentInCondition",
-					Message:  "Assignment in condition",
-				})
-			}
+			addAssignmentIssues(node.Condition)
 			// Check elseif conditions
 			for _, elseif := range node.ElseIfs {
-				if assignment := r.findAssignmentInExpression(elseif.Condition); assignment != nil {
-					issues = append(issues, AnalysisIssue{
-						Filename: filename,
-						Line:     assignment.GetPos().Line,
-						Column:   assignment.GetPos().Column,
-						Code:     "Generic.CodeAnalysis.AssignmentInCondition",
-						Message:  "Assignment in condition",
-					})
-				}
+				addAssignmentIssues(elseif.Condition)
 				// Recursively check elseif body
 				for _, bodyNode := range elseif.Body {
 					checkFunc(bodyNode)
@@ -53,15 +48,7 @@ func (r *AssignmentInConditionRule) CheckIssues(nodes []ast.Node, filename strin
 
 		case *ast.WhileNode:
 			// Check while condition
-			if assignment := r.findAssignmentInExpression(node.Condition); assignment != nil {
-				issues = append(issues, AnalysisIssue{
-					Filename: filename,
-					Line:     assignment.GetPos().Line,
-					Column:   assignment.GetPos().Column,
-					Code:     "Generic.CodeAnalysis.AssignmentInCondition",
-					Message:  "Assignment in condition",
-				})
-			}
+			addAssignmentIssues(node.Condition)
 			// Recursively check while body
 			for _, bodyNode := range node.Body {
 				checkFunc(bodyNode)
@@ -69,41 +56,17 @@ func (r *AssignmentInConditionRule) CheckIssues(nodes []ast.Node, filename strin
 
 		case *ast.MatchNode:
 			// Check match condition
-			if assignment := r.findAssignmentInExpression(node.Condition); assignment != nil {
-				issues = append(issues, AnalysisIssue{
-					Filename: filename,
-					Line:     assignment.GetPos().Line,
-					Column:   assignment.GetPos().Column,
-					Code:     "Generic.CodeAnalysis.AssignmentInCondition",
-					Message:  "Assignment in condition",
-				})
-			}
+			addAssignmentIssues(node.Condition)
 			// Check match arm conditions
 			for _, arm := range node.Arms {
 				for _, condition := range arm.Conditions {
-					if assignment := r.findAssignmentInExpression(condition); assignment != nil {
-						issues = append(issues, AnalysisIssue{
-							Filename: filename,
-							Line:     assignment.GetPos().Line,
-							Column:   assignment.GetPos().Column,
-							Code:     "Generic.CodeAnalysis.AssignmentInCondition",
-							Message:  "Assignment in condition",
-						})
-					}
+					addAssignmentIssues(condition)
 				}
 			}
 
 		case *ast.TernaryExpr:
 			// Check ternary condition
-			if assignment := r.findAssignmentInExpression(node.Condition); assignment != nil {
-				issues = append(issues, AnalysisIssue{
-					Filename: filename,
-					Line:     assignment.GetPos().Line,
-					Column:   assignment.GetPos().Column,
-					Code:     "Generic.CodeAnalysis.AssignmentInCondition",
-					Message:  "Assignment in condition",
-				})
-			}
+			addAssignmentIssues(node.Condition)
 
 		case *ast.FunctionNode:
 			// Recursively check function body
@@ -132,66 +95,61 @@ func (r *AssignmentInConditionRule) CheckIssues(nodes []ast.Node, filename strin
 	return issues
 }
 
-// findAssignmentInExpression recursively searches for assignment nodes within an expression
-func (r *AssignmentInConditionRule) findAssignmentInExpression(expr ast.Node) *ast.AssignmentNode {
+// findAssignmentsInExpression recursively searches for all assignment nodes within an expression.
+func (r *AssignmentInConditionRule) findAssignmentsInExpression(expr ast.Node) []*ast.AssignmentNode {
 	if expr == nil {
 		return nil
 	}
 
 	switch node := expr.(type) {
 	case *ast.AssignmentNode:
-		return node
+		assignments := []*ast.AssignmentNode{node}
+		assignments = append(assignments, r.findAssignmentsInExpression(node.Left)...)
+		assignments = append(assignments, r.findAssignmentsInExpression(node.Right)...)
+		return assignments
 
 	case *ast.BinaryExpr:
 		// Check both sides of binary expressions
-		if left := r.findAssignmentInExpression(node.Left); left != nil {
-			return left
-		}
-		if right := r.findAssignmentInExpression(node.Right); right != nil {
-			return right
-		}
+		var assignments []*ast.AssignmentNode
+		assignments = append(assignments, r.findAssignmentsInExpression(node.Left)...)
+		assignments = append(assignments, r.findAssignmentsInExpression(node.Right)...)
+		return assignments
 
 	case *ast.ExpressionStmt:
 		// Unwrap expression statements
-		return r.findAssignmentInExpression(node.Expr)
+		return r.findAssignmentsInExpression(node.Expr)
 
 	case *ast.FunctionCallNode:
 		// Check function call arguments
+		var assignments []*ast.AssignmentNode
 		for _, arg := range node.Args {
-			if assignment := r.findAssignmentInExpression(arg); assignment != nil {
-				return assignment
-			}
+			assignments = append(assignments, r.findAssignmentsInExpression(arg)...)
 		}
+		return assignments
 
 	case *ast.PropertyFetchNode:
 		// Check property fetch expressions
-		if assignment := r.findAssignmentInExpression(node.Object); assignment != nil {
-			return assignment
-		}
+		return r.findAssignmentsInExpression(node.Object)
 
 	case *ast.ConcatNode:
 		// Check concatenation parts
+		var assignments []*ast.AssignmentNode
 		for _, part := range node.Parts {
-			if assignment := r.findAssignmentInExpression(part); assignment != nil {
-				return assignment
-			}
+			assignments = append(assignments, r.findAssignmentsInExpression(part)...)
 		}
+		return assignments
 
 	case *ast.TypeCastNode:
 		// Check type cast expression
-		return r.findAssignmentInExpression(node.Expr)
+		return r.findAssignmentsInExpression(node.Expr)
 
 	case *ast.TernaryExpr:
 		// Check all parts of ternary expression
-		if assignment := r.findAssignmentInExpression(node.Condition); assignment != nil {
-			return assignment
-		}
-		if assignment := r.findAssignmentInExpression(node.IfTrue); assignment != nil {
-			return assignment
-		}
-		if assignment := r.findAssignmentInExpression(node.IfFalse); assignment != nil {
-			return assignment
-		}
+		var assignments []*ast.AssignmentNode
+		assignments = append(assignments, r.findAssignmentsInExpression(node.Condition)...)
+		assignments = append(assignments, r.findAssignmentsInExpression(node.IfTrue)...)
+		assignments = append(assignments, r.findAssignmentsInExpression(node.IfFalse)...)
+		return assignments
 	}
 
 	return nil

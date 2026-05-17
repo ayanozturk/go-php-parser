@@ -74,9 +74,6 @@ if ($result = doSomething()) {
 }
 
 func TestAssignmentInElseIfCondition(t *testing.T) {
-	// Skip this test for now as elseif parsing seems to have issues
-	t.Skip("Skipping elseif test due to parser issues")
-
 	php := `<?php
 if ($x > 0) {
     echo "positive";
@@ -88,25 +85,6 @@ if ($x > 0) {
 	if !hasAssignmentInConditionIssue(issues) {
 		t.Fatalf("expected Generic.CodeAnalysis.AssignmentInCondition issue for assignment in elseif condition, got: %#v", issues)
 	}
-}
-
-// Helper function to test assignment detection
-func findAssignmentInConditionTest(expr ast.Node) *ast.AssignmentNode {
-	if expr == nil {
-		return nil
-	}
-	switch node := expr.(type) {
-	case *ast.AssignmentNode:
-		return node
-	case *ast.BinaryExpr:
-		if left := findAssignmentInConditionTest(node.Left); left != nil {
-			return left
-		}
-		if right := findAssignmentInConditionTest(node.Right); right != nil {
-			return right
-		}
-	}
-	return nil
 }
 
 func TestMultipleAssignmentsInConditions(t *testing.T) {
@@ -123,9 +101,6 @@ if ($a = func1()) {
 }
 
 func TestNestedAssignmentInComplexExpression(t *testing.T) {
-	// Skip this test for now - complex expressions with parentheses may need additional handling
-	t.Skip("Skipping complex expression test - may need additional AST node handling")
-
 	php := `<?php
 if (($result = doSomething()) && $result > 0) {
     echo "Success";
@@ -133,6 +108,17 @@ if (($result = doSomething()) && $result > 0) {
 	issues := analysePHPCode(t, php)
 	if !hasAssignmentInConditionIssue(issues) {
 		t.Fatalf("expected Generic.CodeAnalysis.AssignmentInCondition issue for nested assignment in complex expression, got: %#v", issues)
+	}
+}
+
+func TestMultipleAssignmentsInSingleCondition(t *testing.T) {
+	php := `<?php
+if (($first = getFirst()) && ($second = getSecond())) {
+    echo "both";
+}`
+	issues := analysePHPCode(t, php)
+	if countAssignmentInConditionIssues(issues) != 2 {
+		t.Fatalf("expected 2 assignment in condition issues, got %d", countAssignmentInConditionIssues(issues))
 	}
 }
 
