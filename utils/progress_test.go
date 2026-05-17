@@ -1,26 +1,19 @@
 package utils
 
 import (
-	"bytes"
+	"io"
 	"os"
 	"testing"
 )
 
 func TestProgressBar_Print_TTY(t *testing.T) {
 	pb := &ProgressBar{total: 10, label: "Test", isTTY: true}
-	var buf bytes.Buffer
-	oldStdout := os.Stdout
-	r, w, _ := os.Pipe()
-	os.Stdout = w
 
-	for i := 1; i <= 10; i++ {
-		pb.Print(i)
-	}
-
-	w.Close()
-	os.Stdout = oldStdout
-	buf.ReadFrom(r)
-	output := buf.String()
+	output := captureStdout(t, func() {
+		for i := 1; i <= 10; i++ {
+			pb.Print(i)
+		}
+	})
 
 	if len(output) == 0 {
 		t.Errorf("Expected output for TTY, got none")
@@ -29,22 +22,43 @@ func TestProgressBar_Print_TTY(t *testing.T) {
 
 func TestProgressBar_Print_NonTTY(t *testing.T) {
 	pb := &ProgressBar{total: 10, label: "Test", isTTY: false}
-	var buf bytes.Buffer
-	oldStdout := os.Stdout
-	r, w, _ := os.Pipe()
-	os.Stdout = w
 
-	for i := 1; i <= 10; i++ {
-		pb.Print(i)
-	}
-
-	w.Close()
-	os.Stdout = oldStdout
-	buf.ReadFrom(r)
-	output := buf.String()
+	output := captureStdout(t, func() {
+		for i := 1; i <= 10; i++ {
+			pb.Print(i)
+		}
+	})
 
 	if output != "" {
 		t.Errorf("Expected no output for non-TTY, got: %q", output)
+	}
+}
+
+func TestProgressBar_Print_ClampsCurrent(t *testing.T) {
+	pb := &ProgressBar{total: 10, label: "Test", isTTY: true}
+
+	output := captureStdout(t, func() {
+		pb.Print(-3)
+		pb.Print(15)
+	})
+
+	expected := "\rTest:   0% [0/10]\rTest: 100% [10/10]\n"
+	if output != expected {
+		t.Fatalf("expected clamped progress output %q, got %q", expected, output)
+	}
+}
+
+func TestProgressBar_Print_NonPositiveTotal(t *testing.T) {
+	for _, total := range []int{0, -5} {
+		pb := &ProgressBar{total: total, label: "Test", isTTY: true}
+
+		output := captureStdout(t, func() {
+			pb.Print(1)
+		})
+
+		if output != "" {
+			t.Fatalf("expected no output for total %d, got %q", total, output)
+		}
 	}
 }
 
@@ -53,4 +67,34 @@ func TestNewProgressBar(t *testing.T) {
 	if pb.total != 5 || pb.label != "Load" {
 		t.Errorf("ProgressBar not initialized correctly")
 	}
+}
+
+func captureStdout(t *testing.T, fn func()) string {
+	t.Helper()
+
+	oldStdout := os.Stdout
+	readPipe, writePipe, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("failed to create stdout pipe: %v", err)
+	}
+	os.Stdout = writePipe
+	defer func() {
+		os.Stdout = oldStdout
+	}()
+
+	fn()
+
+	if err := writePipe.Close(); err != nil {
+		t.Fatalf("failed to close stdout pipe: %v", err)
+	}
+
+	output, err := io.ReadAll(readPipe)
+	if err != nil {
+		t.Fatalf("failed to read stdout pipe: %v", err)
+	}
+	if err := readPipe.Close(); err != nil {
+		t.Fatalf("failed to close stdout read pipe: %v", err)
+	}
+
+	return string(output)
 }

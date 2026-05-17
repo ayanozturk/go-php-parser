@@ -23,8 +23,14 @@ func NewProgressBar(total int, label string) *ProgressBar {
 
 // Print prints the progress bar if output is a terminal.
 func (pb *ProgressBar) Print(current int) {
-	if !pb.isTTY || pb.total == 0 {
+	if !pb.isTTY || pb.total <= 0 {
 		return
+	}
+	if current < 0 {
+		current = 0
+	}
+	if current > pb.total {
+		current = pb.total
 	}
 	percent := float64(current) / float64(pb.total) * 100
 	fmt.Printf("\r%s: %3.0f%% [%d/%d]", pb.label, percent, current, pb.total)
