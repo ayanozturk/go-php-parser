@@ -18,8 +18,9 @@ type ControlStructureSpacingChecker struct {
 }
 
 type stringState struct {
-	inSingle bool
-	inDouble bool
+	inSingle     bool
+	inDouble     bool
+	heredocLabel string
 }
 
 // NewControlStructureSpacingChecker creates a new checker with proper initialization
@@ -176,11 +177,18 @@ func (c *ControlStructureSpacingChecker) isInsideString(line string, pos int, in
 	state := initialState
 
 	if pos == 0 {
-		return state.inSingle || state.inDouble
+		return state.inSingle || state.inDouble || state.heredocLabel != ""
 	}
 
 	for i := 0; i < pos && i < len(line); i++ {
+		if state.heredocLabel != "" {
+			return true
+		}
 		if !state.inSingle && !state.inDouble {
+			if label, ok := heredocStartAt(line, i); ok {
+				state.heredocLabel = label
+				return true
+			}
 			if line[i] == '\'' {
 				state.inSingle = true
 			} else if line[i] == '"' {
@@ -193,13 +201,23 @@ func (c *ControlStructureSpacingChecker) isInsideString(line string, pos int, in
 		}
 	}
 
-	return state.inSingle || state.inDouble
+	return state.inSingle || state.inDouble || state.heredocLabel != ""
 }
 
 func (c *ControlStructureSpacingChecker) advanceStringState(line string, initialState stringState) stringState {
 	state := initialState
+	if state.heredocLabel != "" {
+		if isHeredocTerminatorLine(line, state.heredocLabel) {
+			state.heredocLabel = ""
+		}
+		return state
+	}
 	for i := 0; i < len(line); i++ {
 		if !state.inSingle && !state.inDouble {
+			if label, ok := heredocStartAt(line, i); ok {
+				state.heredocLabel = label
+				return state
+			}
 			if line[i] == '\'' {
 				state.inSingle = true
 			} else if line[i] == '"' {
@@ -212,6 +230,59 @@ func (c *ControlStructureSpacingChecker) advanceStringState(line string, initial
 		}
 	}
 	return state
+}
+
+func heredocStartAt(line string, pos int) (string, bool) {
+	if pos+3 > len(line) || line[pos:pos+3] != "<<<" {
+		return "", false
+	}
+
+	marker := strings.TrimSpace(line[pos+3:])
+	if marker == "" {
+		return "", false
+	}
+
+	if marker[0] == '\'' || marker[0] == '"' {
+		quote := marker[0]
+		end := strings.IndexByte(marker[1:], quote)
+		if end < 0 {
+			return "", false
+		}
+		label := marker[1 : 1+end]
+		if label == "" {
+			return "", false
+		}
+		return label, true
+	}
+
+	end := 0
+	for end < len(marker) {
+		ch := marker[end]
+		if (ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z') || (ch >= '0' && ch <= '9') || ch == '_' {
+			end++
+			continue
+		}
+		break
+	}
+	if end == 0 {
+		return "", false
+	}
+	return marker[:end], true
+}
+
+func isHeredocTerminatorLine(line, label string) bool {
+	trimmed := strings.TrimSpace(line)
+	if trimmed == "" {
+		return false
+	}
+	if !strings.HasPrefix(trimmed, label) {
+		return false
+	}
+	if len(trimmed) == len(label) {
+		return true
+	}
+	next := trimmed[len(label)]
+	return next == ';' || next == ',' || next == ')' || next == ']' || next == '}'
 }
 
 // checkFunctionCallSpacing ensures no space between function name and parenthesis

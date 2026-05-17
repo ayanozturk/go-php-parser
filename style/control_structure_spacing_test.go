@@ -213,6 +213,26 @@ $this->addSql('
 			expectedCodes:  []string{},
 		},
 		{
+			name: "heredoc sql should be ignored",
+			code: `<?php
+$this->addSql(<<<SQL
+    CREATE TABLE invoices (invoice_id CHAR(36) NOT NULL)
+SQL
+);`,
+			expectedIssues: 0,
+			expectedCodes:  []string{},
+		},
+		{
+			name: "nowdoc sql should be ignored",
+			code: `<?php
+$this->addSql(<<<'SQL'
+    CREATE TABLE subscription_payment_method (id INT NOT NULL)
+SQL
+);`,
+			expectedIssues: 0,
+			expectedCodes:  []string{},
+		},
+		{
 			name: "anonymous function spacing should be allowed",
 			code: `<?php
 set_error_handler(function ($t, $m) use ($regexp) {
