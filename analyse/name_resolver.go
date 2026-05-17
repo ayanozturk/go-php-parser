@@ -48,7 +48,23 @@ func collectFileTypeContextFromNodes(nodes []ast.Node, currentNS string, ctx *fi
 			if n.Extends != "" {
 				resolved.Extends = []string{resolveClassLikeInContext(namespace, ctx.aliases, n.Extends)}
 			}
+			if len(n.Implements) > 0 {
+				resolved.Implements = make([]string, 0, len(n.Implements))
+				for _, implemented := range n.Implements {
+					resolved.Implements = append(resolved.Implements, resolveClassLikeInContext(namespace, ctx.aliases, implemented))
+				}
+			}
 			ctx.classes[strings.ToLower(strings.TrimPrefix(className, `\`))] = resolved
+		case *ast.InterfaceNode:
+			interfaceName := resolveClassLikeInContext(namespace, ctx.aliases, n.Name)
+			resolved := ResolvedClass{Name: interfaceName}
+			if len(n.Extends) > 0 {
+				resolved.Extends = make([]string, 0, len(n.Extends))
+				for _, parent := range n.Extends {
+					resolved.Extends = append(resolved.Extends, resolveClassLikeInContext(namespace, ctx.aliases, parent))
+				}
+			}
+			ctx.classes[strings.ToLower(strings.TrimPrefix(interfaceName, `\`))] = resolved
 		}
 	}
 	if ctx.namespace == "" {

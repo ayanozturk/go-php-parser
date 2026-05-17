@@ -8,8 +8,9 @@ type SymbolResolver interface {
 }
 
 type ResolvedClass struct {
-	Name    string
-	Extends []string
+	Name       string
+	Extends    []string
+	Implements []string
 }
 
 type ResolvedMethod struct {

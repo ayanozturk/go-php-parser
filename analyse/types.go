@@ -230,6 +230,16 @@ func classHierarchyCompatible(declaredName, actualName string, scope *functionSc
 			}
 			queue = append(queue, parent)
 		}
+		for _, implemented := range resolved.Implements {
+			implemented = canonicalClassName(implemented, scope, ctx)
+			if implemented == "" {
+				continue
+			}
+			if strings.EqualFold(implemented, declaredName) {
+				return true
+			}
+			queue = append(queue, implemented)
+		}
 	}
 
 	return false

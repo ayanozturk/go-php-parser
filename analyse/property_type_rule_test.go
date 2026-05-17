@@ -40,3 +40,25 @@ func TestPropertyAssignmentTypeCompatible(t *testing.T) {
 		t.Fatalf("expected no A.PROP.TYPE issue for int assigned to float property, got: %#v", issues)
 	}
 }
+
+func TestPropertyAssignmentAcceptsImplementedInterface(t *testing.T) {
+	php := `<?php
+	namespace Doctrine\Common\Collections;
+
+	interface Collection {}
+
+	class ArrayCollection implements Collection {}
+
+	class Example {
+		private Collection $users;
+
+		public function __construct()
+		{
+			$this->users = new ArrayCollection();
+		}
+	}`
+	issues := analysePHP(t, php)
+	if hasPropertyTypeIssue(issues) {
+		t.Fatalf("expected no A.PROP.TYPE issue for class implementing interface assignment, got: %#v", issues)
+	}
+}
