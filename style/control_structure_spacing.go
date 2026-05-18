@@ -2,6 +2,7 @@ package style
 
 import (
 	"go-phpcs/ast"
+	"go-phpcs/style/helper"
 	"regexp"
 	"strings"
 )
@@ -57,39 +58,125 @@ func (c *ControlStructureSpacingChecker) isNonCallKeyword(name string) bool {
 	return ok
 }
 
-// CheckIssues analyzes the code for control structure spacing violations
+// CheckIssues analyzes the code for control structure spacing violations.
 func (c *ControlStructureSpacingChecker) CheckIssues(lines []string, filename string) []StyleIssue {
 	var issues []StyleIssue
+	commentState := &helper.CommentState{}
 	state := stringState{}
 
 	for i, line := range lines {
-		trimmed := strings.TrimSpace(line)
+		masked, nextState := maskControlStructureNonCode(line, commentState, state)
+		trimmed := strings.TrimSpace(masked)
+		state = nextState
 
-		// Skip empty lines and comments
-		if len(trimmed) == 0 || strings.HasPrefix(trimmed, "//") || strings.HasPrefix(trimmed, "#") || strings.HasPrefix(trimmed, "/*") || strings.HasPrefix(trimmed, "*") {
+		if len(trimmed) == 0 {
 			continue
 		}
 
-		// Check control structure keyword spacing
-		issues = append(issues, c.checkControlKeywordSpacing(line, filename, i+1, state)...)
-
-		// Check function call spacing (should have no space before parenthesis)
-		issues = append(issues, c.checkFunctionCallSpacing(line, filename, i+1, state)...)
-
-		// Check brace spacing for control structures
-		issues = append(issues, c.checkBraceSpacing(line, filename, i+1, state)...)
-
-		state = c.advanceStringState(line, state)
+		issues = append(issues, c.checkControlKeywordSpacing(masked, filename, i+1)...)
+		issues = append(issues, c.checkFunctionCallSpacing(masked, filename, i+1)...)
+		issues = append(issues, c.checkBraceSpacing(masked, filename, i+1)...)
 	}
 
 	return issues
 }
 
-// checkControlKeywordSpacing ensures single space after control keywords
-func (c *ControlStructureSpacingChecker) checkControlKeywordSpacing(line, filename string, lineNum int, initialState stringState) []StyleIssue {
+func maskControlStructureNonCode(line string, commentState *helper.CommentState, state stringState) (string, stringState) {
+	masked := []byte(line)
+	if state.heredocLabel != "" {
+		for i := range masked {
+			masked[i] = ' '
+		}
+		if isHeredocTerminatorLine(line, state.heredocLabel) {
+			state.heredocLabel = ""
+		}
+		return string(masked), state
+	}
+
+	for i := 0; i < len(masked); {
+		if commentState.InBlockComment {
+			masked[i] = ' '
+			if i+1 < len(masked) {
+				masked[i+1] = ' '
+			}
+			j := helper.HandleBlockComment(line, i, commentState)
+			if j == i {
+				i++
+				continue
+			}
+			for k := i; k < j && k < len(masked); k++ {
+				masked[k] = ' '
+			}
+			i = j
+			continue
+		}
+
+		if !state.inSingle && !state.inDouble {
+			if label, ok := heredocStartAt(line, i); ok {
+				for k := i; k < len(masked); k++ {
+					masked[k] = ' '
+				}
+				state.heredocLabel = label
+				break
+			}
+			if i+1 < len(masked) && line[i] == '/' && line[i+1] == '/' {
+				for k := i; k < len(masked); k++ {
+					masked[k] = ' '
+				}
+				break
+			}
+			if line[i] == '#' {
+				for k := i; k < len(masked); k++ {
+					masked[k] = ' '
+				}
+				break
+			}
+			if i+1 < len(masked) && line[i] == '/' && line[i+1] == '*' {
+				j := helper.HandleBlockComment(line, i, commentState)
+				for k := i; k < j && k < len(masked); k++ {
+					masked[k] = ' '
+				}
+				i = j
+				continue
+			}
+		}
+
+		if !state.inDouble && line[i] == '\'' {
+			state.inSingle = !state.inSingle
+			masked[i] = ' '
+			i++
+			continue
+		}
+		if !state.inSingle && line[i] == '"' {
+			state.inDouble = !state.inDouble
+			masked[i] = ' '
+			i++
+			continue
+		}
+		if (state.inSingle || state.inDouble) && line[i] == '\\' {
+			masked[i] = ' '
+			if i+1 < len(masked) {
+				masked[i+1] = ' '
+			}
+			i += 2
+			continue
+		}
+		if state.inSingle || state.inDouble {
+			masked[i] = ' '
+			i++
+			continue
+		}
+
+		i++
+	}
+
+	return string(masked), state
+}
+
+// checkControlKeywordSpacing ensures single space after control keywords.
+func (c *ControlStructureSpacingChecker) checkControlKeywordSpacing(line, filename string, lineNum int) []StyleIssue {
 	var issues []StyleIssue
 
-	// Quick precheck: ignore lines without letters
 	hasLetter := false
 	for i := 0; i < len(line); i++ {
 		if (line[i] >= 'a' && line[i] <= 'z') || (line[i] >= 'A' && line[i] <= 'Z') {
@@ -101,7 +188,6 @@ func (c *ControlStructureSpacingChecker) checkControlKeywordSpacing(line, filena
 		return issues
 	}
 
-	// Scan for identifiers and compare to keyword list
 	for i := 0; i < len(line); i++ {
 		ch := line[i]
 		if !(ch == '_' || (ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z')) {
@@ -114,12 +200,6 @@ func (c *ControlStructureSpacingChecker) checkControlKeywordSpacing(line, filena
 		end := i
 		keyword := line[start:end]
 
-		// Skip string literal positions
-		if c.isInsideString(line, start, initialState) {
-			continue
-		}
-
-		// Ensure boundaries
 		if start > 0 && (isAlphaNumeric(line[start-1]) || line[start-1] == '_') {
 			continue
 		}
@@ -140,6 +220,10 @@ func (c *ControlStructureSpacingChecker) checkControlKeywordSpacing(line, filena
 
 		if end < len(line) {
 			nextChar := line[end]
+
+			if nextChar == '=' {
+				continue
+			}
 
 			if keyword == "else" {
 				if end+2 <= len(line) && line[end:end+2] == "if" {
@@ -170,66 +254,6 @@ func (c *ControlStructureSpacingChecker) checkControlKeywordSpacing(line, filena
 	}
 
 	return issues
-}
-
-// isInsideString checks if a position is inside a string literal
-func (c *ControlStructureSpacingChecker) isInsideString(line string, pos int, initialState stringState) bool {
-	state := initialState
-
-	if pos == 0 {
-		return state.inSingle || state.inDouble || state.heredocLabel != ""
-	}
-
-	for i := 0; i < pos && i < len(line); i++ {
-		if state.heredocLabel != "" {
-			return true
-		}
-		if !state.inSingle && !state.inDouble {
-			if label, ok := heredocStartAt(line, i); ok {
-				state.heredocLabel = label
-				return true
-			}
-			if line[i] == '\'' {
-				state.inSingle = true
-			} else if line[i] == '"' {
-				state.inDouble = true
-			}
-		} else if state.inSingle && line[i] == '\'' && (i == 0 || line[i-1] != '\\') {
-			state.inSingle = false
-		} else if state.inDouble && line[i] == '"' && (i == 0 || line[i-1] != '\\') {
-			state.inDouble = false
-		}
-	}
-
-	return state.inSingle || state.inDouble || state.heredocLabel != ""
-}
-
-func (c *ControlStructureSpacingChecker) advanceStringState(line string, initialState stringState) stringState {
-	state := initialState
-	if state.heredocLabel != "" {
-		if isHeredocTerminatorLine(line, state.heredocLabel) {
-			state.heredocLabel = ""
-		}
-		return state
-	}
-	for i := 0; i < len(line); i++ {
-		if !state.inSingle && !state.inDouble {
-			if label, ok := heredocStartAt(line, i); ok {
-				state.heredocLabel = label
-				return state
-			}
-			if line[i] == '\'' {
-				state.inSingle = true
-			} else if line[i] == '"' {
-				state.inDouble = true
-			}
-		} else if state.inSingle && line[i] == '\'' && (i == 0 || line[i-1] != '\\') {
-			state.inSingle = false
-		} else if state.inDouble && line[i] == '"' && (i == 0 || line[i-1] != '\\') {
-			state.inDouble = false
-		}
-	}
-	return state
 }
 
 func heredocStartAt(line string, pos int) (string, bool) {
@@ -285,8 +309,8 @@ func isHeredocTerminatorLine(line, label string) bool {
 	return next == ';' || next == ',' || next == ')' || next == ']' || next == '}'
 }
 
-// checkFunctionCallSpacing ensures no space between function name and parenthesis
-func (c *ControlStructureSpacingChecker) checkFunctionCallSpacing(line, filename string, lineNum int, initialState stringState) []StyleIssue {
+// checkFunctionCallSpacing ensures no space between function name and parenthesis.
+func (c *ControlStructureSpacingChecker) checkFunctionCallSpacing(line, filename string, lineNum int) []StyleIssue {
 	var issues []StyleIssue
 
 	for i := 0; i < len(line); i++ {
@@ -300,10 +324,6 @@ func (c *ControlStructureSpacingChecker) checkFunctionCallSpacing(line, filename
 		}
 		end := i
 		name := line[start:end]
-
-		if c.isInsideString(line, start, initialState) {
-			continue
-		}
 
 		isControl := false
 		for _, kw := range c.controlKeywords {
@@ -333,19 +353,14 @@ func (c *ControlStructureSpacingChecker) checkFunctionCallSpacing(line, filename
 	return issues
 }
 
-// checkBraceSpacing ensures single space before opening brace in control structures
-func (c *ControlStructureSpacingChecker) checkBraceSpacing(line, filename string, lineNum int, initialState stringState) []StyleIssue {
+// checkBraceSpacing ensures single space before opening brace in control structures.
+func (c *ControlStructureSpacingChecker) checkBraceSpacing(line, filename string, lineNum int) []StyleIssue {
 	var issues []StyleIssue
 
-	// Look for patterns like ") {" or "){" in control structures
 	for i := 0; i < len(line)-1; i++ {
-		if c.isInsideString(line, i, initialState) {
-			continue
-		}
 		if line[i] == ')' && i+1 < len(line) {
 			nextChar := line[i+1]
 			if nextChar == '{' {
-				// No space before brace
 				issues = append(issues, StyleIssue{
 					Filename: filename,
 					Line:     lineNum,
@@ -356,25 +371,22 @@ func (c *ControlStructureSpacingChecker) checkBraceSpacing(line, filename string
 					Code:     controlStructureSpacingCode,
 				})
 			} else if nextChar == ' ' || nextChar == '\t' {
-				// Check for correct spacing
 				spaceCount := 0
 				j := i + 1
 				for j < len(line) && (line[j] == ' ' || line[j] == '\t') {
 					spaceCount++
 					j++
 				}
-				if j < len(line) && line[j] == '{' {
-					if spaceCount != 1 {
-						issues = append(issues, StyleIssue{
-							Filename: filename,
-							Line:     lineNum,
-							Column:   i + 2,
-							Type:     Error,
-							Fixable:  true,
-							Message:  "Expected single space before opening brace, found multiple spaces",
-							Code:     controlStructureSpacingCode,
-						})
-					}
+				if j < len(line) && line[j] == '{' && spaceCount != 1 {
+					issues = append(issues, StyleIssue{
+						Filename: filename,
+						Line:     lineNum,
+						Column:   i + 2,
+						Type:     Error,
+						Fixable:  true,
+						Message:  "Expected single space before opening brace, found multiple spaces",
+						Code:     controlStructureSpacingCode,
+					})
 				}
 			}
 		}
@@ -383,34 +395,36 @@ func (c *ControlStructureSpacingChecker) checkBraceSpacing(line, filename string
 	return issues
 }
 
-// isAlphaNumeric checks if a character is alphanumeric
 func isAlphaNumeric(c byte) bool {
 	return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9')
 }
 
-// FixControlStructureSpacing fixes control structure spacing issues
+// FixControlStructureSpacing fixes control structure spacing issues.
 func FixControlStructureSpacing(content string) string {
 	lines := strings.Split(content, "\n")
 	checker := NewControlStructureSpacingChecker()
+	commentState := &helper.CommentState{}
+	state := stringState{}
 
 	for i, line := range lines {
-		// Fix control keyword spacing
+		initialCommentState := *commentState
+		initialState := state
+		masked, nextState := maskControlStructureNonCode(line, commentState, state)
+		state = nextState
+
 		for _, keyword := range checker.controlKeywords {
-			// Fix missing space after keyword before (
 			pattern := regexp.MustCompile(`\b` + keyword + `\(`)
-			line = pattern.ReplaceAllString(line, keyword+" (")
+			line = replaceMatchesOutsideMask(line, masked, pattern, keyword+" (")
 
-			// Fix multiple spaces after keyword
 			pattern = regexp.MustCompile(`\b` + keyword + `\s{2,}`)
-			line = pattern.ReplaceAllString(line, keyword+" ")
+			line = replaceMatchesOutsideMask(line, masked, pattern, keyword+" ")
 		}
+		masked = remaskControlStructureLine(line, &initialCommentState, initialState)
 
-		// Fix function call spacing (remove spaces before parenthesis) without regex
-		line = fixFuncCallSpacingNoRegex(line, checker.controlKeywords, checker.nonCallKeywords)
+		line = fixFuncCallSpacingNoRegex(line, masked, checker.controlKeywords, checker.nonCallKeywords)
+		masked = remaskControlStructureLine(line, &initialCommentState, initialState)
 
-		// Fix brace spacing
-		line = regexp.MustCompile(`\)\s*\{`).ReplaceAllString(line, ") {")
-		line = regexp.MustCompile(`\)\s{2,}\{`).ReplaceAllString(line, ") {")
+		line = replaceMatchesOutsideMask(line, masked, regexp.MustCompile(`\)\s*\{`), ") {")
 
 		lines[i] = line
 	}
@@ -418,24 +432,42 @@ func FixControlStructureSpacing(content string) string {
 	return strings.Join(lines, "\n")
 }
 
-// fixFuncCallSpacingNoRegex removes spaces between function name and '(' using a linear scan
-func fixFuncCallSpacingNoRegex(line string, controlKeywords []string, nonCallKeywords map[string]struct{}) string {
+func remaskControlStructureLine(line string, commentState *helper.CommentState, state stringState) string {
+	if commentState == nil {
+		masked, _ := maskControlStructureNonCode(line, &helper.CommentState{}, state)
+		return masked
+	}
+	clone := *commentState
+	masked, _ := maskControlStructureNonCode(line, &clone, state)
+	return masked
+}
+
+func fixFuncCallSpacingNoRegex(line, masked string, controlKeywords []string, nonCallKeywords map[string]struct{}) string {
 	var out strings.Builder
 	for i := 0; i < len(line); {
+		if i >= len(masked) {
+			out.WriteString(line[i:])
+			break
+		}
+		if masked[i] != line[i] {
+			out.WriteByte(line[i])
+			i++
+			continue
+		}
 		if (line[i] >= 'a' && line[i] <= 'z') || (line[i] >= 'A' && line[i] <= 'Z') || line[i] == '_' {
 			start := i
-			for i < len(line) && ((line[i] >= 'a' && line[i] <= 'z') || (line[i] >= 'A' && line[i] <= 'Z') || (line[i] >= '0' && line[i] <= '9') || line[i] == '_') {
+			for i < len(line) && i < len(masked) && masked[i] == line[i] && ((line[i] >= 'a' && line[i] <= 'z') || (line[i] >= 'A' && line[i] <= 'Z') || (line[i] >= '0' && line[i] <= '9') || line[i] == '_') {
 				i++
 			}
 			name := line[start:i]
 			out.WriteString(name)
 			j := i
 			spaceCount := 0
-			for j < len(line) && (line[j] == ' ' || line[j] == '\t') {
+			for j < len(line) && j < len(masked) && masked[j] == line[j] && (line[j] == ' ' || line[j] == '\t') {
 				spaceCount++
 				j++
 			}
-			if j < len(line) && line[j] == '(' {
+			if j < len(line) && j < len(masked) && masked[j] == line[j] && line[j] == '(' {
 				isControl := false
 				for _, kw := range controlKeywords {
 					if name == kw {
@@ -472,7 +504,39 @@ func fixFuncCallSpacingNoRegex(line string, controlKeywords []string, nonCallKey
 	return out.String()
 }
 
-// ControlStructureSpacingFixer implements StyleFixer for autofix support
+func replaceMatchesOutsideMask(line, masked string, pattern *regexp.Regexp, replacement string) string {
+	matches := pattern.FindAllStringIndex(masked, -1)
+	if len(matches) == 0 {
+		return line
+	}
+
+	var out strings.Builder
+	last := 0
+	for _, match := range matches {
+		start, end := match[0], match[1]
+		if start < last {
+			start = last
+		}
+		if start > len(line) {
+			break
+		}
+		if end > len(line) {
+			end = len(line)
+		}
+		if start >= end {
+			continue
+		}
+		out.WriteString(line[last:start])
+		out.WriteString(replacement)
+		last = end
+	}
+	if last < len(line) {
+		out.WriteString(line[last:])
+	}
+	return out.String()
+}
+
+// ControlStructureSpacingFixer implements StyleFixer for autofix support.
 type ControlStructureSpacingFixer struct{}
 
 func (f ControlStructureSpacingFixer) Code() string { return controlStructureSpacingCode }

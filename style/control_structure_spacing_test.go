@@ -195,6 +195,30 @@ if ($condition) {
 			expectedCodes:  []string{},
 		},
 		{
+			name: "docblock function-like text should be ignored",
+			code: `<?php
+/**
+ * SELF - The name of THIS file (typically "index.php")
+ * Reads the file ( string $filename ): array|false
+ */
+function bootstrap(): void
+{
+    file($path);
+}`,
+			expectedIssues: 0,
+			expectedCodes:  []string{},
+		},
+		{
+			name: "inline comments should be ignored",
+			code: `<?php
+file($path); // file ($filename) should not be linted here
+if ($condition) {
+    echo "test";
+}`,
+			expectedIssues: 0,
+			expectedCodes:  []string{},
+		},
+		{
 			name: "control keywords in strings should be ignored",
 			code: `<?php
 echo "if($condition) this is in a string";
@@ -252,6 +276,19 @@ $mapper = fn ($value) => $value;`,
 			name: "return cast spacing should be allowed",
 			code: `<?php
 return (float) $aTrim <=> (float) $b;`,
+			expectedIssues: 0,
+			expectedCodes:  []string{},
+		},
+		{
+			name: "multiline block comments should be ignored",
+			code: `<?php
+/*
+ * file ($filename)
+ * if($condition)
+ */
+foreach ($items as $item) {
+    echo $item;
+}`,
 			expectedIssues: 0,
 			expectedCodes:  []string{},
 		},
@@ -387,6 +424,34 @@ if ($condition) {
 for ($i = 0; $i < 10; $i++) {
     echo $i;
 }`,
+		},
+		{
+			name: "leave docblock examples unchanged",
+			input: `<?php
+/**
+ * SELF - The name of THIS file (typically "index.php")
+ * Reads the file ( string $filename ): array|false
+ */
+if($condition) {
+    file ($path);
+}`,
+			expected: `<?php
+/**
+ * SELF - The name of THIS file (typically "index.php")
+ * Reads the file ( string $filename ): array|false
+ */
+if ($condition) {
+    file($path);
+}`,
+		},
+		{
+			name: "leave inline comments unchanged",
+			input: `<?php
+myFunction ($param); // anotherFunction ($param)
+`,
+			expected: `<?php
+myFunction($param); // anotherFunction ($param)
+`,
 		},
 	}
 
