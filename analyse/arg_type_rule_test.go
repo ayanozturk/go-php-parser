@@ -130,3 +130,59 @@ func TestMethodArgumentTypeNotRefinedAfterNonTerminatingNullCheck(t *testing.T) 
 		t.Fatalf("expected A.ARG.TYPE issue when null check does not terminate, got: %#v", issues)
 	}
 }
+
+func TestMethodArgumentTypeRefinedInsideInstanceofAndBranch(t *testing.T) {
+	php := `<?php
+    namespace App;
+
+    class UploadedFile {
+    }
+
+    class Example {
+        public function getDocumentFile(): ?UploadedFile {
+            return new UploadedFile();
+        }
+
+        public function uploadDocument(UploadedFile $documentFile): void {
+        }
+
+        public function run(string $documentSelection): void {
+            $documentFile = $this->getDocumentFile();
+            if ($documentSelection === "upload" && $documentFile instanceof UploadedFile) {
+                $this->uploadDocument($documentFile);
+            }
+        }
+    }`
+	issues := analysePHP(t, php)
+	if hasArgTypeIssue(issues) {
+		t.Fatalf("expected no A.ARG.TYPE issue for variable refined by instanceof in true branch, got: %#v", issues)
+	}
+}
+
+func TestMethodArgumentTypeNotRefinedWithoutInstanceofBranch(t *testing.T) {
+	php := `<?php
+    namespace App;
+
+    class UploadedFile {
+    }
+
+    class Example {
+        public function getDocumentFile(): ?UploadedFile {
+            return new UploadedFile();
+        }
+
+        public function uploadDocument(UploadedFile $documentFile): void {
+        }
+
+        public function run(string $documentSelection): void {
+            $documentFile = $this->getDocumentFile();
+            if ($documentSelection === "upload") {
+                $this->uploadDocument($documentFile);
+            }
+        }
+    }`
+	issues := analysePHP(t, php)
+	if !hasArgTypeIssue(issues) {
+		t.Fatalf("expected A.ARG.TYPE issue without instanceof refinement, got: %#v", issues)
+	}
+}

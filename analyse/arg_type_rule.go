@@ -49,10 +49,10 @@ func walkStatementsForArgTypes(nodes []ast.Node, scope *functionScope, ctx *Anal
 			walkExprForArgTypes(n.Expr, scope, ctx, filename, issues)
 		case *ast.IfNode:
 			walkExprForArgTypes(n.Condition, scope, ctx, filename, issues)
-			walkStatementsForArgTypes(n.Body, scope.clone(), ctx, filename, issues)
+			walkStatementsForArgTypes(n.Body, scopeForConditionTrue(scope, n.Condition), ctx, filename, issues)
 			for _, elseif := range n.ElseIfs {
 				walkExprForArgTypes(elseif.Condition, scope, ctx, filename, issues)
-				walkStatementsForArgTypes(elseif.Body, scope.clone(), ctx, filename, issues)
+				walkStatementsForArgTypes(elseif.Body, scopeForConditionTrue(scope, elseif.Condition), ctx, filename, issues)
 			}
 			if n.Else != nil {
 				walkStatementsForArgTypes(n.Else.Body, scope.clone(), ctx, filename, issues)
@@ -68,6 +68,59 @@ func walkStatementsForArgTypes(nodes []ast.Node, scope *functionScope, ctx *Anal
 			walkStatementsForArgTypes(n.Body, scope.clone(), ctx, filename, issues)
 		}
 	}
+}
+
+func scopeForConditionTrue(scope *functionScope, condition ast.Node) *functionScope {
+	refined := scope.clone()
+	if refined == nil {
+		return nil
+	}
+	applyConditionTrueScope(refined, condition)
+	return refined
+}
+
+func applyConditionTrueScope(scope *functionScope, condition ast.Node) {
+	if scope == nil {
+		return
+	}
+	for variableName, typ := range variablesTypedWhenTrue(condition, scope) {
+		if !typ.IsEmpty() {
+			scope.variables[variableName] = typ
+		}
+	}
+}
+
+func variablesTypedWhenTrue(node ast.Node, scope *functionScope) map[string]Type {
+	switch n := node.(type) {
+	case *ast.BinaryExpr:
+		switch n.Operator {
+		case "&&", "and":
+			types := variablesTypedWhenTrue(n.Left, scope)
+			for name, typ := range variablesTypedWhenTrue(n.Right, scope) {
+				types[name] = typ
+			}
+			return types
+		case "instanceof":
+			if variable, ok := n.Left.(*ast.VariableNode); ok {
+				if typ := typeFromInstanceofTarget(n.Right, scope); !typ.IsEmpty() {
+					return map[string]Type{variable.Name: typ}
+				}
+			}
+		}
+	}
+	return map[string]Type{}
+}
+
+func typeFromInstanceofTarget(node ast.Node, scope *functionScope) Type {
+	identifier, ok := node.(*ast.IdentifierNode)
+	if !ok {
+		return EmptyType()
+	}
+	className := identifier.Value
+	if scope != nil {
+		className = scope.typeCtx.resolveClassLike(className)
+	}
+	return ClassType(className)
 }
 
 func applyTerminatingIfFalseScope(scope *functionScope, node *ast.IfNode) {
