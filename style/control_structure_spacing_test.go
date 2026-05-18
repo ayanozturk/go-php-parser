@@ -310,6 +310,24 @@ $factory->for($user, 'owner');`,
 			expectedIssues: 0,
 			expectedCodes:  []string{},
 		},
+		{
+			name: "function declarations named like control keywords should be ignored",
+			code: `<?php
+class GenerateCoverageTodoCommand
+{
+    public static function do($container, $lazyLoad = true)
+    {
+        return self::do($container, $lazyLoad);
+    }
+
+    public static function for($duration)
+    {
+        return $duration;
+    }
+}`,
+			expectedIssues: 0,
+			expectedCodes:  []string{},
+		},
 	}
 
 	for _, tt := range tests {
@@ -354,6 +372,25 @@ if ($condition) {
 }
 for ($i = 0; $i < 10; $i++) {
     echo $i;
+}`,
+		},
+		{
+			name: "do not change function declarations named like control keywords",
+			input: `<?php
+class GenerateCoverageTodoCommand
+{
+    public static function do($container, $lazyLoad = true)
+    {
+        return self::do($container, $lazyLoad);
+    }
+}`,
+			expected: `<?php
+class GenerateCoverageTodoCommand
+{
+    public static function do($container, $lazyLoad = true)
+    {
+        return self::do($container, $lazyLoad);
+    }
 }`,
 		},
 		{

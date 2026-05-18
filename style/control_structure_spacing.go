@@ -217,6 +217,9 @@ func (c *ControlStructureSpacingChecker) checkControlKeywordSpacing(line, filena
 		if !isKw {
 			continue
 		}
+		if !isControlKeywordUsage(line, start, end, keyword) {
+			continue
+		}
 
 		if end < len(line) {
 			nextChar := line[end]
@@ -399,6 +402,26 @@ func isAlphaNumeric(c byte) bool {
 	return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9')
 }
 
+func isIdentifierChar(c byte) bool {
+	return isAlphaNumeric(c) || c == '_'
+}
+
+func previousIdentifier(line string, index int) string {
+	for index >= 0 && (line[index] == ' ' || line[index] == '\t') {
+		index--
+	}
+	if index < 0 || !isIdentifierChar(line[index]) {
+		return ""
+	}
+
+	end := index + 1
+	for index >= 0 && isIdentifierChar(line[index]) {
+		index--
+	}
+
+	return line[index+1 : end]
+}
+
 func isMemberAccessPrefix(line string, index int) bool {
 	if index < 0 || index >= len(line) {
 		return false
@@ -413,6 +436,31 @@ func isMemberAccessPrefix(line string, index int) bool {
 	}
 
 	return index > 0 && line[index-1] == ':'
+}
+
+func isControlKeywordUsage(line string, start, end int, keyword string) bool {
+	if start > 0 && isMemberAccessPrefix(line, start-1) {
+		return false
+	}
+
+	prev := previousIdentifier(line, start-1)
+	if prev == "function" || prev == "fn" {
+		return false
+	}
+
+	if end >= len(line) {
+		return false
+	}
+
+	nextChar := line[end]
+	switch keyword {
+	case "if", "elseif", "for", "foreach", "while", "switch", "catch":
+		return nextChar == '(' || nextChar == ' ' || nextChar == '\t'
+	case "else", "do", "try", "finally":
+		return nextChar == '{' || nextChar == ' ' || nextChar == '\t'
+	default:
+		return true
+	}
 }
 
 // FixControlStructureSpacing fixes control structure spacing issues.
@@ -431,12 +479,12 @@ func FixControlStructureSpacing(content string) string {
 		for _, keyword := range checker.controlKeywords {
 			pattern := regexp.MustCompile(`\b` + keyword + `\(`)
 			line = replaceMatchesOutsideMaskWithFilter(line, masked, pattern, keyword+" (", func(src string, matchStart int) bool {
-				return matchStart == 0 || !isMemberAccessPrefix(src, matchStart-1)
+				return isControlKeywordUsage(src, matchStart, matchStart+len(keyword), keyword)
 			})
 
 			pattern = regexp.MustCompile(`\b` + keyword + `\s{2,}`)
 			line = replaceMatchesOutsideMaskWithFilter(line, masked, pattern, keyword+" ", func(src string, matchStart int) bool {
-				return matchStart == 0 || !isMemberAccessPrefix(src, matchStart-1)
+				return isControlKeywordUsage(src, matchStart, matchStart+len(keyword), keyword)
 			})
 		}
 		masked = remaskControlStructureLine(line, &initialCommentState, initialState)
