@@ -67,6 +67,21 @@ function foo($x): int {
 	}
 }
 
+func TestReachableAfterUnbracedIfReturnNotReported(t *testing.T) {
+	php := `<?php
+function isFeatureEnabled($feature): bool {
+    $user = $this->getUser();
+    if (!$user instanceof User)
+        return true;
+
+    return $feature->isEnabledFor($user);
+}`
+	issues := analyseUnreachablePHP(t, php)
+	if got := countUnreachableIssues(issues); got != 0 {
+		t.Fatalf("expected 0 unreachable issues, got %d (%#v)", got, issues)
+	}
+}
+
 func TestUnreachableInsideIfBranch(t *testing.T) {
 	php := `<?php
 function foo($x): int {
@@ -124,6 +139,22 @@ function foo($redirectURL): void {
 	issues := analyseUnreachablePHP(t, php)
 	if got := countUnreachableIssues(issues); got != 0 {
 		t.Fatalf("expected 0 unreachable issues, got %d (%#v)", got, issues)
+	}
+}
+
+func TestUnreachableAfterUnbracedIfElseBothTerminate(t *testing.T) {
+	php := `<?php
+function foo($x): void {
+    if ($x)
+        return;
+    else
+        throw $e;
+
+    $x = 1;
+}`
+	issues := analyseUnreachablePHP(t, php)
+	if got := countUnreachableIssues(issues); got != 1 {
+		t.Fatalf("expected 1 unreachable issue, got %d (%#v)", got, issues)
 	}
 }
 

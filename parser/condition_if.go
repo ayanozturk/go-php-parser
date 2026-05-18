@@ -26,27 +26,10 @@ func (p *Parser) parseIfStatement() (ast.Node, error) {
 	}
 	p.nextToken()
 
-	if p.tok.Type != token.T_LBRACE {
-		p.addError("line %d:%d: expected { after if condition, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal)
-		return nil, nil
+	body, err := p.parseConditionalBody("if")
+	if err != nil {
+		return nil, err
 	}
-	p.nextToken()
-
-	var body []ast.Node
-	for p.tok.Type != token.T_RBRACE && p.tok.Type != token.T_EOF {
-		if stmt, err := p.parseStatement(); stmt != nil {
-			body = append(body, stmt)
-		} else if err != nil {
-			return nil, err
-		}
-		// Don't consume tokens here - parseStatement handles that
-	}
-
-	if p.tok.Type != token.T_RBRACE {
-		p.addError("line %d:%d: expected } to close if body, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal)
-		return nil, nil
-	}
-	p.nextToken() // consume }
 	for p.tok.Type == token.T_COMMENT || p.tok.Type == token.T_DOC_COMMENT || p.tok.Type == token.T_WHITESPACE {
 		p.nextToken()
 	}
@@ -102,26 +85,10 @@ func (p *Parser) parseElseIfClause() (*ast.ElseIfNode, error) {
 	}
 	p.nextToken()
 
-	if p.tok.Type != token.T_LBRACE {
-		p.addError("line %d:%d: expected { after elseif condition, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal)
-		return nil, nil
+	body, err := p.parseConditionalBody("elseif")
+	if err != nil {
+		return nil, err
 	}
-	p.nextToken()
-
-	var body []ast.Node
-	for p.tok.Type != token.T_RBRACE && p.tok.Type != token.T_EOF {
-		if stmt, err := p.parseStatement(); stmt != nil {
-			body = append(body, stmt)
-		} else if err != nil {
-			return nil, err
-		}
-	}
-
-	if p.tok.Type != token.T_RBRACE {
-		p.addError("line %d:%d: expected } to close elseif body, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal)
-		return nil, nil
-	}
-	p.nextToken() // consume }
 	for p.tok.Type == token.T_COMMENT || p.tok.Type == token.T_DOC_COMMENT || p.tok.Type == token.T_WHITESPACE {
 		p.nextToken()
 	}
@@ -137,26 +104,10 @@ func (p *Parser) parseElseClause() (*ast.ElseNode, error) {
 	pos := p.tok.Pos
 	p.nextToken() // consume else
 
-	if p.tok.Type != token.T_LBRACE {
-		p.addError("line %d:%d: expected { after else, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal)
-		return nil, nil
+	body, err := p.parseConditionalBody("else")
+	if err != nil {
+		return nil, err
 	}
-	p.nextToken()
-
-	var body []ast.Node
-	for p.tok.Type != token.T_RBRACE && p.tok.Type != token.T_EOF {
-		if stmt, err := p.parseStatement(); stmt != nil {
-			body = append(body, stmt)
-		} else if err != nil {
-			return nil, err
-		}
-	}
-
-	if p.tok.Type != token.T_RBRACE {
-		p.addError("line %d:%d: expected } to close else body, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal)
-		return nil, nil
-	}
-	p.nextToken() // consume }
 	for p.tok.Type == token.T_COMMENT || p.tok.Type == token.T_DOC_COMMENT || p.tok.Type == token.T_WHITESPACE {
 		p.nextToken()
 	}
@@ -165,4 +116,26 @@ func (p *Parser) parseElseClause() (*ast.ElseNode, error) {
 		Body: body,
 		Pos:  ast.Position(pos),
 	}, nil
+}
+
+func (p *Parser) parseConditionalBody(keyword string) ([]ast.Node, error) {
+	if p.tok.Type == token.T_LBRACE {
+		p.nextToken()
+		body := p.parseBlockStatement()
+		if p.tok.Type != token.T_RBRACE {
+			p.addError("line %d:%d: expected } to close %s body, got %s", p.tok.Pos.Line, p.tok.Pos.Column, keyword, p.tok.Literal)
+			return nil, nil
+		}
+		p.nextToken()
+		return body, nil
+	}
+
+	stmt, err := p.parseStatement()
+	if err != nil {
+		return nil, err
+	}
+	if stmt == nil {
+		return nil, nil
+	}
+	return []ast.Node{stmt}, nil
 }
