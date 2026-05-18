@@ -98,3 +98,48 @@ function getContactEmail(): ?string {
 		t.Fatalf("expected 0 unreachable issues, got %d (%#v)", got, issues)
 	}
 }
+
+func TestUnreachableAfterExitInFunction(t *testing.T) {
+	php := `<?php
+function foo(): void {
+    exit();
+    $x = 1;
+}`
+	issues := analyseUnreachablePHP(t, php)
+	if got := countUnreachableIssues(issues); got != 1 {
+		t.Fatalf("expected 1 unreachable issue, got %d (%#v)", got, issues)
+	}
+}
+
+func TestReachableAfterConditionalExitNotReported(t *testing.T) {
+	php := `<?php
+function foo($redirectURL): void {
+    if ($redirectURL) {
+        redirect($redirectURL);
+        exit();
+    }
+
+    $authenticationState = $authService->getState();
+}`
+	issues := analyseUnreachablePHP(t, php)
+	if got := countUnreachableIssues(issues); got != 0 {
+		t.Fatalf("expected 0 unreachable issues, got %d (%#v)", got, issues)
+	}
+}
+
+func TestUnreachableAfterIfElseBothTerminate(t *testing.T) {
+	php := `<?php
+function foo($x): void {
+    if ($x) {
+        exit();
+    } else {
+        throw $e;
+    }
+
+    $x = 1;
+}`
+	issues := analyseUnreachablePHP(t, php)
+	if got := countUnreachableIssues(issues); got != 1 {
+		t.Fatalf("expected 1 unreachable issue, got %d (%#v)", got, issues)
+	}
+}
