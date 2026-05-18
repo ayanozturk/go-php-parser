@@ -59,3 +59,33 @@ class Example {
 		t.Fatalf("expected no A.ARG.COUNT issue for optional and variadic args, got: %#v", issues)
 	}
 }
+
+func TestInheritedExceptionConstructorArgumentCountAccepted(t *testing.T) {
+	php := `<?php
+class SubscriptionReactivationException extends Exception
+{
+	public static function invalidStatus(string $status): self
+	{
+		return new self("Subscription cannot be reactivated");
+	}
+}`
+	issues := analysePHP(t, php)
+	if hasArgCountIssue(issues) {
+		t.Fatalf("expected no A.ARG.COUNT issue for inherited Exception constructor, got: %#v", issues)
+	}
+}
+
+func TestInheritedExceptionConstructorTooManyArgumentsReported(t *testing.T) {
+	php := `<?php
+class SubscriptionReactivationException extends Exception
+{
+	public static function invalidStatus(string $status): self
+	{
+		return new self("message", 0, null, "extra");
+	}
+}`
+	issues := analysePHP(t, php)
+	if !hasArgCountIssue(issues) {
+		t.Fatalf("expected A.ARG.COUNT issue for too many Exception constructor args, got: %#v", issues)
+	}
+}

@@ -203,11 +203,17 @@ func resolveConstructorForNew(node *ast.NewNode, scope *functionScope, ctx *Anal
 		if method, ok := resolveSameClassMethod(scope, "__construct"); ok {
 			return strings.TrimPrefix(scope.className, `\`), method, true
 		}
+		if method, ok := resolveInheritedConstructor(scope.className, scope, ctx); ok {
+			return strings.TrimPrefix(scope.className, `\`), method, true
+		}
 		return strings.TrimPrefix(scope.className, `\`), ResolvedMethod{Name: "__construct"}, true
 	}
 
 	if scope != nil && scope.className != "" && strings.EqualFold(strings.TrimPrefix(resolvedClassName, `\`), strings.TrimPrefix(scope.className, `\`)) {
 		if method, ok := resolveSameClassMethod(scope, "__construct"); ok {
+			return strings.TrimPrefix(scope.className, `\`), method, true
+		}
+		if method, ok := resolveInheritedConstructor(scope.className, scope, ctx); ok {
 			return strings.TrimPrefix(scope.className, `\`), method, true
 		}
 		return strings.TrimPrefix(scope.className, `\`), ResolvedMethod{Name: "__construct"}, true
@@ -221,6 +227,66 @@ func resolveConstructorForNew(node *ast.NewNode, scope *functionScope, ctx *Anal
 	}
 
 	return "", ResolvedMethod{}, false
+}
+
+func resolveInheritedConstructor(className string, scope *functionScope, ctx *AnalysisContext) (ResolvedMethod, bool) {
+	className = strings.TrimPrefix(strings.TrimSpace(className), `\`)
+	if className == "" {
+		return ResolvedMethod{}, false
+	}
+	if isBuiltinExceptionClass(className, scope, ctx) {
+		return builtinExceptionConstructor(), true
+	}
+
+	seen := map[string]struct{}{}
+	queue := []string{className}
+	for len(queue) > 0 {
+		current := strings.TrimPrefix(queue[0], `\`)
+		queue = queue[1:]
+		key := strings.ToLower(current)
+		if _, ok := seen[key]; ok {
+			continue
+		}
+		seen[key] = struct{}{}
+
+		resolved, ok := resolveHierarchyClass(current, scope, ctx)
+		if !ok {
+			continue
+		}
+		for _, parent := range resolved.Extends {
+			parent = canonicalClassName(parent, scope, ctx)
+			if parent == "" {
+				continue
+			}
+			if ctx != nil && ctx.Resolver != nil {
+				if method, ok := ctx.Resolver.ResolveMethod(parent, "__construct"); ok {
+					return method, true
+				}
+			}
+			if isBuiltinExceptionClass(parent, scope, ctx) {
+				return builtinExceptionConstructor(), true
+			}
+			queue = append(queue, parent)
+		}
+	}
+
+	return ResolvedMethod{}, false
+}
+
+func isBuiltinExceptionClass(className string, scope *functionScope, ctx *AnalysisContext) bool {
+	className = strings.TrimPrefix(strings.TrimSpace(className), `\`)
+	return strings.EqualFold(className, "Exception") || classHierarchyCompatible("Exception", className, scope, ctx)
+}
+
+func builtinExceptionConstructor() ResolvedMethod {
+	return ResolvedMethod{
+		Name: "__construct",
+		Params: []ResolvedParam{
+			{Name: "message", Type: "string", HasDefault: true},
+			{Name: "code", Type: "int", HasDefault: true},
+			{Name: "previous", Type: "Throwable", HasDefault: true},
+		},
+	}
 }
 
 func countCallArguments(args []ast.Node) (int, bool) {
