@@ -57,6 +57,7 @@ func walkStatementsForArgTypes(nodes []ast.Node, scope *functionScope, ctx *Anal
 			if n.Else != nil {
 				walkStatementsForArgTypes(n.Else.Body, scope.clone(), ctx, filename, issues)
 			}
+			applyTerminatingIfFalseScope(scope, n)
 		case *ast.BlockNode:
 			walkStatementsForArgTypes(n.Statements, scope.clone(), ctx, filename, issues)
 		case *ast.WhileNode:
@@ -66,6 +67,70 @@ func walkStatementsForArgTypes(nodes []ast.Node, scope *functionScope, ctx *Anal
 			walkExprForArgTypes(n.Expr, scope, ctx, filename, issues)
 			walkStatementsForArgTypes(n.Body, scope.clone(), ctx, filename, issues)
 		}
+	}
+}
+
+func applyTerminatingIfFalseScope(scope *functionScope, node *ast.IfNode) {
+	if scope == nil || node == nil || node.Else != nil || len(node.ElseIfs) > 0 {
+		return
+	}
+	if !statementsTerminate(node.Body) {
+		return
+	}
+	for _, variableName := range variablesNonNullWhenFalse(node.Condition) {
+		current, ok := scope.variables[variableName]
+		if !ok {
+			continue
+		}
+		refined := current.withoutBuiltin("null")
+		if !refined.IsEmpty() {
+			scope.variables[variableName] = refined
+		}
+	}
+}
+
+func variablesNonNullWhenFalse(node ast.Node) []string {
+	switch n := node.(type) {
+	case *ast.BinaryExpr:
+		switch n.Operator {
+		case "||", "or":
+			left := variablesNonNullWhenFalse(n.Left)
+			return append(left, variablesNonNullWhenFalse(n.Right)...)
+		case "==", "===":
+			if name, ok := nullComparisonVariable(n.Left, n.Right); ok {
+				return []string{name}
+			}
+		}
+	case *ast.UnaryExpr:
+		if n.Operator == "!" {
+			if variable, ok := n.Operand.(*ast.VariableNode); ok {
+				return []string{variable.Name}
+			}
+		}
+	}
+	return nil
+}
+
+func nullComparisonVariable(left, right ast.Node) (string, bool) {
+	if isNullLiteral(left) {
+		if variable, ok := right.(*ast.VariableNode); ok {
+			return variable.Name, true
+		}
+	}
+	if isNullLiteral(right) {
+		if variable, ok := left.(*ast.VariableNode); ok {
+			return variable.Name, true
+		}
+	}
+	return "", false
+}
+
+func isNullLiteral(node ast.Node) bool {
+	switch node.(type) {
+	case *ast.NullLiteral, *ast.NullNode:
+		return true
+	default:
+		return false
 	}
 }
 

@@ -139,6 +139,21 @@ func (t Type) hasBuiltin(name string) bool {
 	return ok
 }
 
+func (t Type) withoutBuiltin(name string) Type {
+	if t.IsEmpty() || !t.hasBuiltin(name) {
+		return t
+	}
+
+	refined := Type{atoms: make(map[string]typeAtom, len(t.atoms)-1)}
+	for key, atom := range t.atoms {
+		if key == name {
+			continue
+		}
+		refined.atoms[key] = atom
+	}
+	return refined
+}
+
 func (t Type) sortedAtoms() []typeAtom {
 	atoms := make([]typeAtom, 0, len(t.atoms))
 	for _, atom := range t.atoms {
