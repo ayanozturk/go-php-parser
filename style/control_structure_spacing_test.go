@@ -219,6 +219,16 @@ if ($condition) {
 			expectedCodes:  []string{},
 		},
 		{
+			name: "html for attribute should be ignored",
+			code: `<?php
+?><label for="sSearchID"><?= htmlspecialchars($label) ?></label><?php
+for ($i = 0; $i < 1; $i++) {
+    echo $i;
+}`,
+			expectedIssues: 0,
+			expectedCodes:  []string{},
+		},
+		{
 			name: "control keywords in strings should be ignored",
 			code: `<?php
 echo "if($condition) this is in a string";

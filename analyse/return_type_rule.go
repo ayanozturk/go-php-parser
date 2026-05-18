@@ -330,7 +330,12 @@ func newFunctionScope(class *ast.ClassNode, fn *ast.FunctionNode, typeCtx fileTy
 				if paramType.IsEmpty() && method.PHPDoc != nil {
 					paramType = ParseType(normalizeTypeWithContext(method.PHPDoc.GetParamTypeFromPHPDoc(param.Name), typeCtx))
 				}
-				resolved.Params = append(resolved.Params, ResolvedParam{Name: param.Name, Type: paramType.String()})
+				resolved.Params = append(resolved.Params, ResolvedParam{
+					Name:       param.Name,
+					Type:       paramType.String(),
+					HasDefault: param.DefaultValue != nil,
+					IsVariadic: param.IsVariadic,
+				})
 			}
 			scope.methods[strings.ToLower(method.Name)] = resolved
 			if !methodType.IsEmpty() {

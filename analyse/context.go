@@ -25,8 +25,10 @@ type ResolvedProperty struct {
 }
 
 type ResolvedParam struct {
-	Name string
-	Type string
+	Name       string
+	Type       string
+	HasDefault bool
+	IsVariadic bool
 }
 
 type AnalysisContext struct {
