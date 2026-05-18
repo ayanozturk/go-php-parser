@@ -302,6 +302,14 @@ foreach ($items as $item) {
 			expectedIssues: 0,
 			expectedCodes:  []string{},
 		},
+		{
+			name: "method calls named like control keywords should be ignored",
+			code: `<?php
+TaskStatusDisplay::for(TaskStatus::BACKLOG, 'Backlog');
+$factory->for($user, 'owner');`,
+			expectedIssues: 0,
+			expectedCodes:  []string{},
+		},
 	}
 
 	for _, tt := range tests {
@@ -417,6 +425,15 @@ if ($condition) {
 for ($i = 0; $i < 10; $i++) {
     myFunction($i);
 }`,
+		},
+		{
+			name: "do not change method calls named like control keywords",
+			input: `<?php
+TaskStatusDisplay::for($status);
+$factory->for($user);`,
+			expected: `<?php
+TaskStatusDisplay::for($status);
+$factory->for($user);`,
 		},
 		{
 			name: "preserve control keywords in function fixes",

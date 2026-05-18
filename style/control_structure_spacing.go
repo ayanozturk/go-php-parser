@@ -200,7 +200,7 @@ func (c *ControlStructureSpacingChecker) checkControlKeywordSpacing(line, filena
 		end := i
 		keyword := line[start:end]
 
-		if start > 0 && (isAlphaNumeric(line[start-1]) || line[start-1] == '_') {
+		if start > 0 && (isAlphaNumeric(line[start-1]) || line[start-1] == '_' || isMemberAccessPrefix(line, start-1)) {
 			continue
 		}
 		if end < len(line) && (isAlphaNumeric(line[end]) || line[end] == '_') {
@@ -399,6 +399,22 @@ func isAlphaNumeric(c byte) bool {
 	return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9')
 }
 
+func isMemberAccessPrefix(line string, index int) bool {
+	if index < 0 || index >= len(line) {
+		return false
+	}
+
+	if line[index] == '>' {
+		return index > 0 && line[index-1] == '-'
+	}
+
+	if line[index] != ':' {
+		return false
+	}
+
+	return index > 0 && line[index-1] == ':'
+}
+
 // FixControlStructureSpacing fixes control structure spacing issues.
 func FixControlStructureSpacing(content string) string {
 	lines := strings.Split(content, "\n")
@@ -414,10 +430,14 @@ func FixControlStructureSpacing(content string) string {
 
 		for _, keyword := range checker.controlKeywords {
 			pattern := regexp.MustCompile(`\b` + keyword + `\(`)
-			line = replaceMatchesOutsideMask(line, masked, pattern, keyword+" (")
+			line = replaceMatchesOutsideMaskWithFilter(line, masked, pattern, keyword+" (", func(src string, matchStart int) bool {
+				return matchStart == 0 || !isMemberAccessPrefix(src, matchStart-1)
+			})
 
 			pattern = regexp.MustCompile(`\b` + keyword + `\s{2,}`)
-			line = replaceMatchesOutsideMask(line, masked, pattern, keyword+" ")
+			line = replaceMatchesOutsideMaskWithFilter(line, masked, pattern, keyword+" ", func(src string, matchStart int) bool {
+				return matchStart == 0 || !isMemberAccessPrefix(src, matchStart-1)
+			})
 		}
 		masked = remaskControlStructureLine(line, &initialCommentState, initialState)
 
@@ -505,6 +525,10 @@ func fixFuncCallSpacingNoRegex(line, masked string, controlKeywords []string, no
 }
 
 func replaceMatchesOutsideMask(line, masked string, pattern *regexp.Regexp, replacement string) string {
+	return replaceMatchesOutsideMaskWithFilter(line, masked, pattern, replacement, nil)
+}
+
+func replaceMatchesOutsideMaskWithFilter(line, masked string, pattern *regexp.Regexp, replacement string, allow func(string, int) bool) string {
 	matches := pattern.FindAllStringIndex(masked, -1)
 	if len(matches) == 0 {
 		return line
@@ -514,6 +538,9 @@ func replaceMatchesOutsideMask(line, masked string, pattern *regexp.Regexp, repl
 	last := 0
 	for _, match := range matches {
 		start, end := match[0], match[1]
+		if allow != nil && !allow(line, start) {
+			continue
+		}
 		if start < last {
 			start = last
 		}
