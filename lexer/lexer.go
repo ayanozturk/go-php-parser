@@ -6,6 +6,21 @@ import (
 	"unicode/utf8"
 )
 
+var asciiStrings [128]string
+
+func init() {
+	for i := 0; i < 128; i++ {
+		asciiStrings[i] = string(rune(i))
+	}
+}
+
+func asciiString(c rune) string {
+	if c >= 0 && c < 128 {
+		return asciiStrings[c]
+	}
+	return string(c)
+}
+
 type Lexer struct {
 	input    string
 	pos      int
@@ -43,7 +58,13 @@ func (l *Lexer) readChar() {
 		l.char = 0
 		l.size = 0
 	} else {
-		l.char, l.size = utf8.DecodeRuneInString(l.input[l.readPos:])
+		c := l.input[l.readPos]
+		if c < utf8.RuneSelf {
+			l.char = rune(c)
+			l.size = 1
+		} else {
+			l.char, l.size = utf8.DecodeRuneInString(l.input[l.readPos:])
+		}
 	}
 	l.pos = l.readPos
 	l.readPos += l.size
@@ -61,6 +82,10 @@ func (l *Lexer) peekChar() rune {
 	if l.readPos >= len(l.input) {
 		return 0
 	}
+	c := l.input[l.readPos]
+	if c < utf8.RuneSelf {
+		return rune(c)
+	}
 	r, _ := utf8.DecodeRuneInString(l.input[l.readPos:])
 	return r
 }
@@ -72,6 +97,31 @@ func (l *Lexer) skipWhitespace() {
 }
 
 func (l *Lexer) readString(quote byte) string {
+	// Fast path: scan forward to see if we can slice directly without escapes or newlines
+	hasEscapesOrNewlines := false
+	end := l.pos
+	for end < len(l.input) {
+		c := l.input[end]
+		if c == quote {
+			break
+		}
+		if c == '\\' || c == '\n' || c == '\r' {
+			hasEscapesOrNewlines = true
+			break
+		}
+		end++
+	}
+
+	if !hasEscapesOrNewlines && end < len(l.input) && l.input[end] == quote {
+		str := l.input[l.pos:end]
+		l.column += (end - l.pos)
+		l.pos = end
+		l.readPos = end + 1
+		l.char = rune(quote)
+		l.size = 1
+		return str
+	}
+
 	var out strings.Builder
 	for l.char != rune(quote) && l.char != 0 {
 		if l.char == '\\' {
@@ -208,7 +258,7 @@ func (l *Lexer) scanToken() token.Token {
 		return l.lexNumber(pos)
 	}
 
-	tok := token.Token{Type: token.T_ILLEGAL, Literal: string(l.char), Pos: pos}
+	tok := token.Token{Type: token.T_ILLEGAL, Literal: asciiString(l.char), Pos: pos}
 	l.readChar()
 	return tok
 }
@@ -252,7 +302,7 @@ func (l *Lexer) lexQuestion(pos token.Position) token.Token {
 		l.readChar()
 		return token.Token{Type: token.T_COALESCE, Literal: "??", Pos: pos}
 	}
-	tok := token.Token{Type: token.T_QUESTION, Literal: string(l.char), Pos: pos}
+	tok := token.Token{Type: token.T_QUESTION, Literal: asciiString(l.char), Pos: pos}
 	l.readChar()
 	return tok
 }
@@ -318,7 +368,7 @@ func (l *Lexer) lexSymbol(pos token.Position) token.Token {
 	case '~':
 		return l.lexSingleChar(token.T_TILDE, pos)
 	}
-	return token.Token{Type: token.T_ILLEGAL, Literal: string(l.char), Pos: pos}
+	return token.Token{Type: token.T_ILLEGAL, Literal: asciiString(l.char), Pos: pos}
 }
 
 func (l *Lexer) lexIdentifier(pos token.Position) token.Token {

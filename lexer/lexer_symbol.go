@@ -16,7 +16,7 @@ func (l *Lexer) lexPlus(pos token.Position) token.Token {
 		l.readChar()
 		return token.Token{Type: token.T_PLUS_EQUAL, Literal: "+=", Pos: pos}
 	}
-	tok := token.Token{Type: token.T_PLUS, Literal: string(l.char), Pos: pos}
+	tok := token.Token{Type: token.T_PLUS, Literal: asciiString(l.char), Pos: pos}
 	l.readChar()
 	return tok
 }
@@ -37,7 +37,7 @@ func (l *Lexer) lexMinus(pos token.Position) token.Token {
 		l.readChar()
 		return token.Token{Type: token.T_OBJECT_OPERATOR, Literal: "->", Pos: pos}
 	}
-	tok := token.Token{Type: token.T_MINUS, Literal: string(l.char), Pos: pos}
+	tok := token.Token{Type: token.T_MINUS, Literal: asciiString(l.char), Pos: pos}
 	l.readChar()
 	return tok
 }
@@ -58,7 +58,7 @@ func (l *Lexer) lexAsterisk(pos token.Position) token.Token {
 		l.readChar()
 		return token.Token{Type: token.T_MUL_EQUAL, Literal: "*=", Pos: pos}
 	}
-	tok := token.Token{Type: token.T_MULTIPLY, Literal: string(l.char), Pos: pos}
+	tok := token.Token{Type: token.T_MULTIPLY, Literal: asciiString(l.char), Pos: pos}
 	l.readChar()
 	return tok
 }
@@ -74,7 +74,7 @@ func (l *Lexer) lexPipe(pos token.Position) token.Token {
 		l.readChar()
 		return token.Token{Type: token.T_OR_EQUAL, Literal: "|=", Pos: pos}
 	}
-	tok := token.Token{Type: token.T_PIPE, Literal: string(l.char), Pos: pos}
+	tok := token.Token{Type: token.T_PIPE, Literal: asciiString(l.char), Pos: pos}
 	l.readChar()
 	return tok
 }
@@ -90,7 +90,7 @@ func (l *Lexer) lexAmpersand(pos token.Position) token.Token {
 		l.readChar()
 		return token.Token{Type: token.T_AND_EQUAL, Literal: "&=", Pos: pos}
 	}
-	tok := token.Token{Type: token.T_AMPERSAND, Literal: string(l.char), Pos: pos}
+	tok := token.Token{Type: token.T_AMPERSAND, Literal: asciiString(l.char), Pos: pos}
 	l.readChar()
 	return tok
 }
@@ -101,7 +101,7 @@ func (l *Lexer) lexCaret(pos token.Position) token.Token {
 		l.readChar()
 		return token.Token{Type: token.T_XOR_EQUAL, Literal: "^=", Pos: pos}
 	}
-	tok := token.Token{Type: token.T_CARET, Literal: string(l.char), Pos: pos}
+	tok := token.Token{Type: token.T_CARET, Literal: asciiString(l.char), Pos: pos}
 	l.readChar()
 	return tok
 }
@@ -117,7 +117,7 @@ func (l *Lexer) lexGreater(pos token.Position) token.Token {
 		l.readChar()
 		return token.Token{Type: token.T_IS_GREATER_OR_EQUAL, Literal: ">=", Pos: pos}
 	}
-	tok := token.Token{Type: token.T_IS_GREATER, Literal: string(l.char), Pos: pos}
+	tok := token.Token{Type: token.T_IS_GREATER, Literal: asciiString(l.char), Pos: pos}
 	l.readChar()
 	return tok
 }
@@ -125,7 +125,10 @@ func (l *Lexer) lexGreater(pos token.Position) token.Token {
 func (l *Lexer) lexDollar(pos token.Position) token.Token {
 	l.readChar()
 	if isLetter(l.char) {
-		return token.Token{Type: token.T_VARIABLE, Literal: "$" + l.readIdentifier(), Pos: pos}
+		for isLetter(l.char) || isDigit(l.char) {
+			l.readChar()
+		}
+		return token.Token{Type: token.T_VARIABLE, Literal: l.input[pos.Offset:l.pos], Pos: pos}
 	}
 	return token.Token{Type: token.T_ILLEGAL, Literal: "$", Pos: pos}
 }
@@ -142,7 +145,7 @@ func (l *Lexer) lexDot(pos token.Position) token.Token {
 		l.readChar()
 		return token.Token{Type: token.T_CONCAT_EQUAL, Literal: ".=", Pos: pos}
 	}
-	tok := token.Token{Type: token.T_DOT, Literal: string(l.char), Pos: pos}
+	tok := token.Token{Type: token.T_DOT, Literal: asciiString(l.char), Pos: pos}
 	l.readChar()
 	return tok
 }
@@ -167,16 +170,16 @@ func (l *Lexer) lexSingleQuote(pos token.Position) token.Token {
 
 func (l *Lexer) lexBackslash(pos token.Position) token.Token {
 	if l.inStringMode() {
-		tok := token.Token{Type: token.T_BACKSLASH, Literal: string(l.char), Pos: pos}
+		tok := token.Token{Type: token.T_BACKSLASH, Literal: asciiString(l.char), Pos: pos}
 		l.readChar()
 		return tok
 	}
 	if isIdentifierStart(l.peekChar()) {
-		tok := token.Token{Type: token.T_NS_SEPARATOR, Literal: string(l.char), Pos: pos}
+		tok := token.Token{Type: token.T_NS_SEPARATOR, Literal: asciiString(l.char), Pos: pos}
 		l.readChar()
 		return tok
 	}
-	tok := token.Token{Type: token.T_BACKSLASH, Literal: string(l.char), Pos: pos}
+	tok := token.Token{Type: token.T_BACKSLASH, Literal: asciiString(l.char), Pos: pos}
 	l.readChar()
 	return tok
 }
@@ -200,13 +203,13 @@ func (l *Lexer) lexColon(pos token.Position) token.Token {
 		}
 		return token.Token{Type: token.T_DOUBLE_COLON, Literal: "::", Pos: pos}
 	}
-	tok := token.Token{Type: token.T_COLON, Literal: string(l.char), Pos: pos}
+	tok := token.Token{Type: token.T_COLON, Literal: asciiString(l.char), Pos: pos}
 	l.readChar()
 	return tok
 }
 
 func (l *Lexer) lexSingleChar(t token.TokenType, pos token.Position) token.Token {
-	tok := token.Token{Type: t, Literal: string(l.char), Pos: pos}
+	tok := token.Token{Type: t, Literal: asciiString(l.char), Pos: pos}
 	l.readChar()
 	return tok
 }
@@ -228,7 +231,7 @@ func (l *Lexer) lexSlash(pos token.Position) token.Token {
 		comment := l.readBlockComment(commentStart)
 		return token.Token{Type: token.T_COMMENT, Literal: comment, Pos: pos}
 	}
-	tok := token.Token{Type: token.T_DIVIDE, Literal: string(l.char), Pos: pos}
+	tok := token.Token{Type: token.T_DIVIDE, Literal: asciiString(l.char), Pos: pos}
 	l.readChar()
 	return tok
 }
@@ -239,7 +242,7 @@ func (l *Lexer) lexPercent(pos token.Position) token.Token {
 		l.readChar()
 		return token.Token{Type: token.T_MOD_EQUAL, Literal: "%=", Pos: pos}
 	}
-	tok := token.Token{Type: token.T_MODULO, Literal: string(l.char), Pos: pos}
+	tok := token.Token{Type: token.T_MODULO, Literal: asciiString(l.char), Pos: pos}
 	l.readChar()
 	return tok
 }
@@ -278,11 +281,11 @@ func (l *Lexer) lexLess(pos token.Position) token.Token {
 				}
 			}
 		}
-		tok := token.Token{Type: token.T_IS_SMALLER, Literal: string(l.char), Pos: pos}
+		tok := token.Token{Type: token.T_IS_SMALLER, Literal: asciiString(l.char), Pos: pos}
 		l.readChar()
 		return tok
 	}
-	tok := token.Token{Type: token.T_IS_SMALLER, Literal: string(l.char), Pos: pos}
+	tok := token.Token{Type: token.T_IS_SMALLER, Literal: asciiString(l.char), Pos: pos}
 	l.readChar()
 	return tok
 }
@@ -300,13 +303,12 @@ func (l *Lexer) lexEquals(pos token.Position) token.Token {
 		return token.Token{Type: token.T_IS_EQUAL, Literal: "==", Pos: pos}
 	}
 	if l.peekChar() == '>' {
-		ch := l.char
 		l.readChar()
-		tok := token.Token{Type: token.T_DOUBLE_ARROW, Literal: string(ch) + string(l.char), Pos: pos}
+		tok := token.Token{Type: token.T_DOUBLE_ARROW, Literal: "=>", Pos: pos}
 		l.readChar()
 		return tok
 	}
-	tok := token.Token{Type: token.T_ASSIGN, Literal: string(l.char), Pos: pos}
+	tok := token.Token{Type: token.T_ASSIGN, Literal: asciiString(l.char), Pos: pos}
 	l.readChar()
 	return tok
 }
@@ -322,7 +324,7 @@ func (l *Lexer) lexBang(pos token.Position) token.Token {
 		l.readChar()
 		return token.Token{Type: token.T_IS_NOT_EQUAL, Literal: "!=", Pos: pos}
 	}
-	tok := token.Token{Type: token.T_NOT, Literal: string(l.char), Pos: pos}
+	tok := token.Token{Type: token.T_NOT, Literal: asciiString(l.char), Pos: pos}
 	l.readChar()
 	return tok
 }
