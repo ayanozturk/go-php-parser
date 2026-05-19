@@ -102,10 +102,10 @@ func walkStatementsForHoverTypes(nodes []ast.Node, scope *functionScope, ctx *An
 			walkExprForHoverTypes(n.Expr, scope, ctx, query, best)
 		case *ast.IfNode:
 			walkExprForHoverTypes(n.Condition, scope, ctx, query, best)
-			walkStatementsForHoverTypes(n.Body, scope.clone(), ctx, query, best)
+			walkStatementsForHoverTypes(n.Body, scopeForConditionTrue(scope, n.Condition), ctx, query, best)
 			for _, elseif := range n.ElseIfs {
 				walkExprForHoverTypes(elseif.Condition, scope, ctx, query, best)
-				walkStatementsForHoverTypes(elseif.Body, scope.clone(), ctx, query, best)
+				walkStatementsForHoverTypes(elseif.Body, scopeForConditionTrue(scope, elseif.Condition), ctx, query, best)
 			}
 			if n.Else != nil {
 				walkStatementsForHoverTypes(n.Else.Body, scope.clone(), ctx, query, best)

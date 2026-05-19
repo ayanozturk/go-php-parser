@@ -106,6 +106,10 @@ func variablesTypedWhenTrue(node ast.Node, scope *functionScope) map[string]Type
 					return map[string]Type{variable.Name: typ}
 				}
 			}
+		case "==", "===":
+			if name, ok := nullComparisonVariable(n.Left, n.Right); ok {
+				return map[string]Type{name: ParseType("null")}
+			}
 		}
 	case *ast.FunctionCallNode:
 		if variableName, typ, ok := builtinTypePredicate(n); ok {
