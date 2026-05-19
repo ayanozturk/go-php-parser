@@ -1,6 +1,7 @@
 package command
 
 import (
+	"bytes"
 	"fmt"
 	"go-phpcs/ast"
 	"go-phpcs/lexer"
@@ -156,12 +157,7 @@ func CollectLines(linesCh <-chan int, totalLines *int, done chan<- struct{}) {
 }
 
 func CountLines(input []byte) int {
-	lineCount := 0
-	for _, b := range input {
-		if b == '\n' {
-			lineCount++
-		}
-	}
+	lineCount := bytes.Count(input, []byte{'\n'})
 	if len(input) > 0 && input[len(input)-1] != '\n' {
 		lineCount++
 	}

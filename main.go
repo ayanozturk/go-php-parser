@@ -1,17 +1,20 @@
 package main
 
 import (
+	"bufio"
 	"flag"
 	"fmt"
 	"go-phpcs/command"
 	"go-phpcs/config"
 	"go-phpcs/helper"
 	"log"
+	_ "net/http/pprof" // registers /debug/pprof handlers on DefaultServeMux
 	"os"
 	"time"
 )
 
 func main() {
+
 	c, err := config.LoadConfig("config.yaml")
 	if err != nil {
 		log.Fatalf("Error loading config: %v", err)
@@ -33,6 +36,10 @@ func main() {
 		os.Exit(0)
 	}
 	defer func() {
+		// Flush buffered writer if applicable, then close.
+		if bw, ok := outWriter.(*bufio.Writer); ok {
+			bw.Flush()
+		}
 		if f, ok := outWriter.(*os.File); ok && f != os.Stdout {
 			f.Close()
 		}

@@ -1,6 +1,7 @@
 package helper
 
 import (
+	"bufio"
 	"flag"
 	"fmt"
 	"go-phpcs/command"
@@ -10,6 +11,7 @@ import (
 	"go-phpcs/utils"
 	"io"
 	"log"
+	"net/http"
 	"os"
 	"runtime"
 	"runtime/pprof"
@@ -25,6 +27,7 @@ type CliArgs struct {
 	parallelism     int
 	filePath        string
 	Fix             bool
+	PprofAddr       string
 }
 
 func ParseCLIArgs(filesToScan []string) CliArgs {
@@ -34,7 +37,17 @@ func ParseCLIArgs(filesToScan []string) CliArgs {
 	debug := flag.Bool("debug", false, "Enable debug mode to show parsing errors")
 	parallelism := flag.Int("p", 0, "Number of files to process in parallel (0=auto: NumCPU)")
 	fix := flag.Bool("fix", false, "Automatically fix fixable style issues")
+	pprofAddr := flag.String("pprof", "", "Start pprof HTTP server on addr (e.g. localhost:6060)")
 	flag.Parse()
+
+	if *pprofAddr != "" {
+		go func() {
+			log.Printf("pprof listening on http://%s/debug/pprof/", *pprofAddr)
+			if err := http.ListenAndServe(*pprofAddr, nil); err != nil {
+				log.Printf("pprof: %v", err)
+			}
+		}()
+	}
 
 	commandName := "style"
 	if len(flag.Args()) > 0 {
@@ -56,8 +69,9 @@ func ParseCLIArgs(filesToScan []string) CliArgs {
 			}
 			return *parallelism
 		}(),
-		filePath: filePath,
-		Fix:      *fix,
+		filePath:  filePath,
+		Fix:       *fix,
+		PprofAddr: *pprofAddr,
 	}
 }
 
@@ -67,13 +81,13 @@ func SetupOutputFile(args CliArgs) io.Writer {
 		if err != nil {
 			log.Fatalf("Could not create output file %s: %v", args.outputFile, err)
 		}
-		return f
+		return bufio.NewWriterSize(f, 256*1024)
 	} else if args.outputFileShort != "" {
 		f, err := os.Create(args.outputFileShort)
 		if err != nil {
 			log.Fatalf("Could not create output file %s: %v", args.outputFileShort, err)
 		}
-		return f
+		return bufio.NewWriterSize(f, 256*1024)
 	}
 	return os.Stdout
 }
@@ -121,7 +135,9 @@ func TrackMemoryUsage(mem *MemStats, atStart bool) {
 	if atStart {
 		runtime.ReadMemStats(&mem.Start)
 	} else {
-		runtime.GC()
+		// Avoid runtime.GC() here — on large codebases the forced GC stalls for
+		// minutes tracing pinned AST-substring data. Stats are slightly optimistic
+		// (dead objects not yet collected) but the scan timing is correct.
 		runtime.ReadMemStats(&mem.End)
 	}
 }

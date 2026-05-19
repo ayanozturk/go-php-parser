@@ -11,7 +11,21 @@ import (
 	"io"
 	"os"
 	"sync"
+	"time"
 )
+
+// fileParseTimeout is the maximum time allowed to parse + analyse a single file.
+// Files that exceed this limit are skipped with a stderr warning; this prevents
+// a buggy lexer/parser edge-case from hanging the entire scan.
+const fileParseTimeout = 10 * time.Second
+
+// fileResult carries all per-file outputs through a single channel to avoid
+// the ordering deadlock that occurs when issueCh/linesCh/errCh are separate.
+type fileResult struct {
+	issues []style.StyleIssue
+	lines  int
+	errors int
+}
 
 func handleParsingErrors(p *parser.Parser, filePath string, w io.Writer, lineCount int) int {
 	errCount := len(p.Errors())
@@ -138,19 +152,26 @@ func getCachedFileContent(filename string) ([]byte, error) {
 	return content, nil
 }
 
-func processFileForStyle(file string, rules []string, matcher *overrides.Compiled, issueCh chan<- []style.StyleIssue, linesCh chan<- int, errCh chan<- int, callback func()) {
+func processFileForStyle(file string, rules []string, matcher *overrides.Compiled, resultCh chan<- fileResult, callback func()) {
 	input, err := getCachedFileContent(file)
 	if err != nil {
+		// Always send a result so the collector loop never hangs.
+		resultCh <- fileResult{}
+		if callback != nil {
+			callback()
+		}
 		return
 	}
-	linesCh <- CountLines(input)
+	lines := CountLines(input)
 	lex := lexer.New(string(input))
 	p := parser.New(lex, false)
 	nodes := p.Parse()
 	if len(p.Errors()) > 0 {
-		errCh <- len(p.Errors())
-	} else {
-		errCh <- 0
+		resultCh <- fileResult{lines: lines, errors: len(p.Errors())}
+		if callback != nil {
+			callback()
+		}
+		return
 	}
 	// Run analysis rules on the parsed AST and collect issues
 	analysisIssues := analyse.FilterIssues(analyse.RunAnalysisRules(file, nodes), matcher)
@@ -169,34 +190,31 @@ func processFileForStyle(file string, rules []string, matcher *overrides.Compile
 	}
 	issueWriter := &style.IssueCollector{Issues: &fileIssues}
 	Commands["style"].ExecuteWithRules(nodes, file, issueWriter, rules, matcher)
-	issueCh <- fileIssues
+	resultCh <- fileResult{issues: fileIssues, lines: lines, errors: 0}
 	if callback != nil {
 		callback()
 	}
 }
 
-// Helper to process a batch of files in parallel
+// Helper to process a batch of files in parallel.
+// Uses a single resultCh (unified struct) to avoid the ordering deadlock that
+// occurred with separate issueCh/linesCh/errCh channels.
 func processStyleBatch(batch []string, rules []string, matcher *overrides.Compiled, parallelism int, callback func()) ([]style.StyleIssue, int, int) {
-	var (
-		wg      sync.WaitGroup
-		fileCh  = make(chan string)
-		issueCh = make(chan []style.StyleIssue, parallelism)
-		linesCh = make(chan int, parallelism)
-		errCh   = make(chan int, parallelism)
-	)
+	n := len(batch)
+	fileCh := make(chan string, parallelism)
+	resultCh := make(chan fileResult, parallelism)
 
-	// Worker setup
+	var wg sync.WaitGroup
 	for j := 0; j < parallelism; j++ {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
 			for file := range fileCh {
-				processFileForStyle(file, rules, matcher, issueCh, linesCh, errCh, callback)
+				processFileForStyle(file, rules, matcher, resultCh, callback)
 			}
 		}()
 	}
 
-	// Feed files
 	go func() {
 		for _, file := range batch {
 			fileCh <- file
@@ -204,98 +222,162 @@ func processStyleBatch(batch []string, rules []string, matcher *overrides.Compil
 		close(fileCh)
 	}()
 
-	allIssues := make([]style.StyleIssue, 0, len(batch)*2)
+	allIssues := make([]style.StyleIssue, 0, n*2)
 	totalLines := 0
 	totalParseErrors := 0
-	for j := 0; j < len(batch); j++ {
-		allIssues = append(allIssues, <-issueCh...)
-		totalLines += <-linesCh
-		totalParseErrors += <-errCh
+	for j := 0; j < n; j++ {
+		res := <-resultCh
+		allIssues = append(allIssues, res.issues...)
+		totalLines += res.lines
+		totalParseErrors += res.errors
 	}
-	close(issueCh)
-	close(linesCh)
-	close(errCh)
 	wg.Wait()
 
 	return allIssues, totalParseErrors, totalLines
 }
 
+// ProcessStyleFilesParallelWithCallback scans all files in a streaming pipeline:
+// - ioWorkers goroutines read files from disk (I/O bound, more workers than CPUs)
+// - parallelism goroutines parse + analyse (CPU bound)
+// I/O and CPU overlap fully; no preload→process serialization.
 func ProcessStyleFilesParallelWithCallback(files []string, rules []string, matcher *overrides.Compiled, parallelism int, callback func()) ([]style.StyleIssue, int, int) {
-	batchSize := 100
 	nFiles := len(files)
+	if nFiles == 0 {
+		return nil, 0, 0
+	}
+
+	// Use more goroutines for I/O than CPU — high-latency volumes benefit greatly.
+	ioWorkers := parallelism * 4
+	if ioWorkers < 16 {
+		ioWorkers = 16
+	}
+
+	type readResult struct {
+		path    string
+		content []byte
+	}
+
+	pathCh := make(chan string, ioWorkers*2)
+	contentCh := make(chan readResult, parallelism*4)
+	resultCh := make(chan fileResult, parallelism)
+
+	// Feed paths
+	go func() {
+		for _, f := range files {
+			pathCh <- f
+		}
+		close(pathCh)
+	}()
+
+	// I/O workers: read files concurrently
+	var ioWg sync.WaitGroup
+	for i := 0; i < ioWorkers; i++ {
+		ioWg.Add(1)
+		go func() {
+			defer ioWg.Done()
+			for path := range pathCh {
+				content, err := os.ReadFile(path)
+				if err != nil {
+					content = nil
+				}
+				contentCh <- readResult{path: path, content: content}
+			}
+		}()
+	}
+	go func() {
+		ioWg.Wait()
+		close(contentCh)
+	}()
+
+	// CPU workers: parse + analyse
+	var cpuWg sync.WaitGroup
+	for i := 0; i < parallelism; i++ {
+		cpuWg.Add(1)
+		go func() {
+			defer cpuWg.Done()
+			for rr := range contentCh {
+				if rr.content == nil {
+					resultCh <- fileResult{}
+					if callback != nil {
+						callback()
+					}
+					continue
+				}
+				// Store in shared cache so style rules can access raw content.
+				sharedcache.StoreCachedFileContent(rr.path, rr.content)
+
+				lines := CountLines(rr.content)
+
+				// Run parse+analyse in an inner goroutine with a hard timeout.
+				// A lexer/parser edge-case on a malformed file can spin indefinitely;
+				// the timeout guarantees the cpu worker is never permanently blocked.
+				type innerResult struct {
+					issues []style.StyleIssue
+					errors int
+				}
+				done := make(chan innerResult, 1)
+				go func(path string, content []byte) {
+					lex := lexer.New(string(content))
+					p := parser.New(lex, false)
+					nodes := p.Parse()
+					if len(p.Errors()) > 0 {
+						done <- innerResult{errors: len(p.Errors())}
+						return
+					}
+					analysisIssues := analyse.FilterIssues(analyse.RunAnalysisRules(path, nodes), matcher)
+					var fileIssues []style.StyleIssue
+					for _, iss := range analysisIssues {
+						fileIssues = append(fileIssues, style.StyleIssue{
+							Filename: iss.Filename,
+							Line:     iss.Line,
+							Column:   iss.Column,
+							Type:     style.Error,
+							Fixable:  false,
+							Message:  iss.Message,
+							Code:     iss.Code,
+						})
+					}
+					issueWriter := &style.IssueCollector{Issues: &fileIssues}
+					Commands["style"].ExecuteWithRules(nodes, path, issueWriter, rules, matcher)
+					done <- innerResult{issues: fileIssues}
+				}(rr.path, rr.content)
+
+				var res innerResult
+				select {
+				case res = <-done:
+				case <-time.After(fileParseTimeout):
+					fmt.Fprintf(os.Stderr, "\n[warn] parse timeout (%s): skipping %s\n", fileParseTimeout, rr.path)
+					// The inner goroutine is leaked but will eventually exit (or the
+					// process ends). The timeout ensures the scan completes.
+				}
+				sharedcache.DeleteCachedFileContent(rr.path)
+				resultCh <- fileResult{issues: res.issues, lines: lines, errors: res.errors}
+				if callback != nil {
+					callback()
+				}
+			}
+		}()
+	}
+	go func() {
+		cpuWg.Wait()
+		close(resultCh)
+	}()
+
+	// Collect results
 	allIssues := make([]style.StyleIssue, 0, nFiles*2)
 	totalLines := 0
 	totalParseErrors := 0
-
-	for i := 0; i < nFiles; i += batchSize {
-		end := i + batchSize
-		if end > nFiles {
-			end = nFiles
-		}
-		batch := files[i:end]
-
-		if err := PreloadFilesParallel(batch, parallelism); err != nil {
-			return nil, 0, 0
-		}
-
-		batchIssues, batchParseErrors, batchLines := processStyleBatch(batch, rules, matcher, parallelism, callback)
-		allIssues = append(allIssues, batchIssues...)
-		totalParseErrors += batchParseErrors
-		totalLines += batchLines
-
-		for _, file := range batch {
-			fileContentCache.Delete(file)
-		}
+	for res := range resultCh {
+		allIssues = append(allIssues, res.issues...)
+		totalLines += res.lines
+		totalParseErrors += res.errors
 	}
 
 	return allIssues, totalParseErrors, totalLines
 }
 
 func ProcessStyleFilesParallel(files []string, rules []string, matcher *overrides.Compiled, parallelism int) ([]style.StyleIssue, int, int) {
-	if err := PreloadFilesParallel(files, 16); err != nil {
-		return nil, 0, 0
-	}
-
-	var (
-		wg      sync.WaitGroup
-		fileCh  = make(chan string)
-		issueCh = make(chan []style.StyleIssue, parallelism)
-		linesCh = make(chan int, parallelism)
-		errCh   = make(chan int, parallelism)
-	)
-
-	nFiles := len(files)
-
-	for i := 0; i < parallelism; i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			for file := range fileCh {
-				processFileForStyle(file, rules, matcher, issueCh, linesCh, errCh, nil)
-			}
-		}()
-	}
-
-	go func() {
-		for _, file := range files {
-			fileCh <- file
-		}
-		close(fileCh)
-	}()
-
-	allIssues := make([]style.StyleIssue, 0, nFiles*2)
-	totalLines := 0
-	totalParseErrors := 0
-	for i := 0; i < nFiles; i++ {
-		allIssues = append(allIssues, <-issueCh...)
-		totalLines += <-linesCh
-		totalParseErrors += <-errCh
-	}
-	close(issueCh)
-	close(linesCh)
-	close(errCh)
-	wg.Wait()
-	return allIssues, totalParseErrors, totalLines
+	return ProcessStyleFilesParallelWithCallback(files, rules, matcher, parallelism, nil)
 }
 
 func ProcessMultipleFiles(files []string, commandName string, debug bool, parallelism int, rules []string, matcher *overrides.Compiled, w io.Writer) (int, int) {

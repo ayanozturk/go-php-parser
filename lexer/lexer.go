@@ -273,6 +273,21 @@ func (l *Lexer) lexAttribute(pos token.Position) token.Token {
 	l.readChar() // '['
 	depth := 1
 	for l.char != 0 && depth > 0 {
+		// Skip string literals so '[' or ']' inside them don't affect depth.
+		if l.char == '\'' || l.char == '"' {
+			quote := l.char
+			l.readChar() // consume opening quote
+			for l.char != 0 && l.char != quote {
+				if l.char == '\\' {
+					l.readChar() // skip escaped char
+				}
+				l.readChar()
+			}
+			if l.char == quote {
+				l.readChar() // consume closing quote
+			}
+			continue
+		}
 		if l.char == '[' {
 			depth++
 		} else if l.char == ']' {

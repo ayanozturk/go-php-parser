@@ -24,3 +24,8 @@ func GetCachedFileContent(filename string) ([]byte, error) {
 func StoreCachedFileContent(filename string, content []byte) {
 	fileContentCache.Store(filename, content)
 }
+
+// DeleteCachedFileContent removes a file's content from the cache to free memory.
+func DeleteCachedFileContent(filename string) {
+	fileContentCache.Delete(filename)
+}

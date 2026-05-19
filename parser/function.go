@@ -30,13 +30,13 @@ func (p *Parser) parseFunction(modifiers []string) (ast.Node, error) {
 	p.nextToken() // consume (
 
 	var params []ast.Node
-	for p.tok.Type != token.T_RPAREN {
+	for p.tok.Type != token.T_RPAREN && p.tok.Type != token.T_EOF {
 		// Skip comments before parameter or after trailing comma
 		for p.tok.Type == token.T_COMMENT || p.tok.Type == token.T_DOC_COMMENT || p.tok.Type == token.T_WHITESPACE {
 			p.nextToken()
 		}
-		// If after skipping comments we see a closing parenthesis, allow it (trailing comma or comment)
-		if p.tok.Type == token.T_RPAREN {
+		// If after skipping comments we see a closing parenthesis or EOF, stop.
+		if p.tok.Type == token.T_RPAREN || p.tok.Type == token.T_EOF {
 			break
 		}
 		param := p.parseParameter()
@@ -49,10 +49,8 @@ func (p *Parser) parseFunction(modifiers []string) (ast.Node, error) {
 				p.nextToken()
 				continue
 			}
-			if p.tok.Type == token.T_RPAREN || p.tok.Type == token.T_LBRACE {
-				break
-			}
-			continue
+			// T_RPAREN, T_LBRACE, or T_EOF — stop parameter parsing
+			break
 		}
 		params = append(params, param)
 

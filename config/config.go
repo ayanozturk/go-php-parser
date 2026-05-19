@@ -67,3 +67,39 @@ func GetFilesToScan(config *Config) ([]string, error) {
 
 	return filesToScan, err
 }
+
+// StreamFilesToScan walks the configured path in a background goroutine and
+// streams discovered file paths into the returned channel, which is closed
+// when the walk completes. This allows callers to overlap I/O and parsing
+// with the directory walk rather than waiting for the full file list first.
+func StreamFilesToScan(config *Config) <-chan string {
+	ignoreDirs := make(map[string]struct{}, len(config.Ignore))
+	for _, ignore := range config.Ignore {
+		ignoreDirs[ignore] = struct{}{}
+	}
+	allowedExts := make(map[string]struct{}, len(config.Extensions))
+	for _, ext := range config.Extensions {
+		allowedExts["."+ext] = struct{}{}
+	}
+
+	ch := make(chan string, 256)
+	go func() {
+		defer close(ch)
+		filepath.WalkDir(config.Path, func(path string, d os.DirEntry, err error) error { //nolint:errcheck
+			if err != nil {
+				return nil // skip unreadable entries
+			}
+			if d.IsDir() {
+				if _, ignored := ignoreDirs[d.Name()]; ignored {
+					return filepath.SkipDir
+				}
+				return nil
+			}
+			if _, allowed := allowedExts[filepath.Ext(path)]; allowed {
+				ch <- path
+			}
+			return nil
+		})
+	}()
+	return ch
+}
