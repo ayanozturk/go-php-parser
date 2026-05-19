@@ -11,13 +11,13 @@ func (p *Parser) parseNamespaceDeclaration() (ast.Node, error) {
 	p.nextToken() // consume 'namespace'
 
 	// Parse namespace name (can be multiple T_STRING separated by T_NS_SEPARATOR)
-	name := ""
+	p.nameBuf.Reset()
 	for {
 		if p.tok.Type == token.T_STRING {
-			if name != "" {
-				name += "\\"
+			if p.nameBuf.Len() > 0 {
+				p.nameBuf.WriteString("\\")
 			}
-			name += p.tok.Literal
+			p.nameBuf.WriteString(p.tok.Literal)
 			p.nextToken()
 		} else if p.tok.Type == token.T_NS_SEPARATOR {
 			p.nextToken()
@@ -26,6 +26,7 @@ func (p *Parser) parseNamespaceDeclaration() (ast.Node, error) {
 			break
 		}
 	}
+	name := p.nameBuf.String()
 
 	// Inline namespace: namespace Foo\\Bar;
 	if p.tok.Type == token.T_SEMICOLON {

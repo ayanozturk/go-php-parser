@@ -51,9 +51,9 @@ func (p *Parser) parseUseDeclaration() (ast.Node, error) {
 }
 
 func (p *Parser) parseQualifiedName() string {
-	name := ""
+	p.nameBuf.Reset()
 	if p.tok.Type == token.T_NS_SEPARATOR || p.tok.Literal == "\\" {
-		name += "\\"
+		p.nameBuf.WriteString("\\")
 		p.nextToken()
 	}
 
@@ -61,16 +61,17 @@ func (p *Parser) parseQualifiedName() string {
 		if p.tok.Type != token.T_STRING && p.tok.Type != token.T_STATIC && p.tok.Type != token.T_SELF && p.tok.Type != token.T_PARENT {
 			break
 		}
-		name += p.tok.Literal
+		p.nameBuf.WriteString(p.tok.Literal)
 		p.nextToken()
 		if p.tok.Type == token.T_NS_SEPARATOR || p.tok.Literal == "\\" {
-			name += "\\"
+			p.nameBuf.WriteString("\\")
 			p.nextToken()
 			continue
 		}
 		break
 	}
 
+	name := p.nameBuf.String()
 	return strings.TrimSuffix(name, "\\")
 }
 
