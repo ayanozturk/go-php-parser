@@ -51,19 +51,7 @@ func (p *Parser) parseEnum() (*ast.EnumNode, error) {
 			continue
 		}
 
-		var modifiers []string
-		for {
-			switch p.tok.Type {
-			case token.T_PUBLIC, token.T_PROTECTED, token.T_PRIVATE, token.T_STATIC, token.T_FINAL, token.T_ABSTRACT:
-				modifiers = append(modifiers, p.tok.Literal)
-				p.nextToken()
-				continue
-			case token.T_COMMENT, token.T_DOC_COMMENT, token.T_ATTRIBUTE:
-				p.nextToken()
-				continue
-			}
-			break
-		}
+		modifiers := p.parseModifiers()
 		if p.tok.Type == token.T_FUNCTION {
 			method, err := p.parseFunction(modifiers)
 			if err != nil {

@@ -27,23 +27,7 @@ func (p *Parser) parseTraitDeclaration() (ast.Node, error) {
 	// Parse methods and constants inside the trait
 	var body []ast.Node
 	for p.tok.Type != token.T_RBRACE && p.tok.Type != token.T_EOF {
-		var modifiers []string
-		for {
-			if modifier, ok := p.parsePropertyModifier(); ok {
-				modifiers = append(modifiers, modifier)
-				continue
-			}
-			switch p.tok.Type {
-			case token.T_PUBLIC, token.T_PROTECTED, token.T_PRIVATE, token.T_STATIC, token.T_FINAL, token.T_ABSTRACT:
-				modifiers = append(modifiers, p.tok.Literal)
-				p.nextToken()
-				continue
-			case token.T_COMMENT, token.T_DOC_COMMENT, token.T_ATTRIBUTE:
-				p.nextToken()
-				continue
-			}
-			break
-		}
+		modifiers := p.parseModifiers()
 		var typeHint string
 		if p.tok.Type == token.T_STRING || p.tok.Type == token.T_NS_SEPARATOR || p.tok.Type == token.T_CALLABLE || p.tok.Type == token.T_ARRAY || p.tok.Type == token.T_QUESTION {
 			typeHint = p.parseTypeHint()

@@ -10,6 +10,12 @@ func (p *Parser) parseFunction(modifiers []string) (ast.Node, error) {
 	pos := p.tok.Pos
 	p.nextToken() // consume 'function'
 
+	var savedModifiers []string
+	if len(modifiers) > 0 {
+		savedModifiers = make([]string, len(modifiers))
+		copy(savedModifiers, modifiers)
+	}
+
 	var name string
 	if isValidMethodNameToken(p.tok.Type) {
 		name = p.tok.Literal
@@ -109,14 +115,14 @@ func (p *Parser) parseFunction(modifiers []string) (ast.Node, error) {
 		p.nextToken()
 	}
 
-	for _, modifier := range modifiers {
+	for _, modifier := range savedModifiers {
 		if modifier == "abstract" && p.tok.Type == token.T_SEMICOLON {
 			p.nextToken() // consume ;
 			return &ast.FunctionNode{
 				Name:       name,
 				Params:     params,
 				ReturnType: returnType,
-				Modifiers:  modifiers,
+				Modifiers:  savedModifiers,
 				Body:       nil,
 				PHPDoc:     p.consumeCurrentDoc(pos),
 				Pos:        ast.Position(pos),
@@ -172,7 +178,7 @@ func (p *Parser) parseFunction(modifiers []string) (ast.Node, error) {
 		Name:       name,
 		Params:     params,
 		ReturnType: returnType,
-		Modifiers:  modifiers,
+		Modifiers:  savedModifiers,
 		Body:       body,
 		PHPDoc:     p.consumeCurrentDoc(pos),
 		Pos:        ast.Position(pos),

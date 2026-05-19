@@ -20,7 +20,7 @@ func (r *UnreachableCodeRule) CheckIssues(nodes []ast.Node, filename string) []A
 
 func (r *UnreachableCodeRule) walkStatements(stmts []ast.Node, filename string, issues *[]AnalysisIssue) {
 	terminated := false
-	for i, stmt := range stmts {
+	for _, stmt := range stmts {
 		if terminated {
 			pos := stmt.GetPos()
 			*issues = append(*issues, AnalysisIssue{
@@ -35,16 +35,9 @@ func (r *UnreachableCodeRule) walkStatements(stmts []ast.Node, filename string, 
 
 		r.walkChildren(stmt, filename, issues)
 
-		// Only mark as terminated if this statement always terminates control flow in all code paths (not just inside a conditional)
-		// If this statement is inside an if/else or loop, do not mark following statements as unreachable
-		// We only set terminated=true if this is the last statement in the block or if all previous code paths terminate
+		// Only mark as terminated if this statement always terminates control flow in all code paths
 		if isTerminatingStatement(stmt) {
-			// Check if this statement is not inside a conditional branch
-			// If the parent node is an if/else or loop, do not set terminated
-			// For now, as a simple fix, only set terminated if this is the last statement in the block
-			if i == len(stmts)-1 {
-				terminated = true
-			}
+			terminated = true
 		}
 	}
 }

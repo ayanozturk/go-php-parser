@@ -90,23 +90,7 @@ func (p *Parser) parseClassDeclaration() (ast.Node, error) {
 	// Parse class body
 	for p.tok.Type != token.T_RBRACE && p.tok.Type != token.T_EOF {
 		// Collect all modifiers before method/property/constant
-		var modifiers []string
-		for {
-			if modifier, ok := p.parsePropertyModifier(); ok {
-				modifiers = append(modifiers, modifier)
-				continue
-			}
-			switch p.tok.Type {
-			case token.T_PUBLIC, token.T_PROTECTED, token.T_PRIVATE, token.T_STATIC, token.T_FINAL, token.T_ABSTRACT:
-				modifiers = append(modifiers, p.tok.Literal)
-				p.nextToken()
-				continue
-			case token.T_COMMENT, token.T_DOC_COMMENT, token.T_ATTRIBUTE:
-				p.nextToken()
-				continue
-			}
-			break
-		}
+		modifiers := p.parseModifiers()
 		// Parse type hint if present (for property)
 		var typeHint string
 		if p.tok.Type == token.T_STRING || p.tok.Type == token.T_NS_SEPARATOR || p.tok.Type == token.T_CALLABLE || p.tok.Type == token.T_ARRAY || p.tok.Type == token.T_QUESTION {
@@ -155,11 +139,18 @@ func (p *Parser) parseClassDeclaration() (ast.Node, error) {
 	}
 	p.nextToken() // consume }
 
+	var classProperties []ast.Node
+	if len(traitUses) > 0 {
+		classProperties = append(traitUses, properties...)
+	} else {
+		classProperties = properties
+	}
+
 	return &ast.ClassNode{
 		Name:       name,
 		Extends:    extends,
 		Implements: implements,
-		Properties: append(traitUses, properties...),
+		Properties: classProperties,
 		Methods:    methods,
 		Constants:  constants,
 		Pos:        ast.Position(pos),
@@ -222,23 +213,7 @@ func (p *Parser) parseAnonymousClassExpression() (ast.Node, []ast.Node) {
 	var constants []ast.Node
 	var traitUses []ast.Node
 	for p.tok.Type != token.T_RBRACE && p.tok.Type != token.T_EOF {
-		var modifiers []string
-		for {
-			if modifier, ok := p.parsePropertyModifier(); ok {
-				modifiers = append(modifiers, modifier)
-				continue
-			}
-			switch p.tok.Type {
-			case token.T_PUBLIC, token.T_PROTECTED, token.T_PRIVATE, token.T_STATIC, token.T_FINAL, token.T_ABSTRACT:
-				modifiers = append(modifiers, p.tok.Literal)
-				p.nextToken()
-				continue
-			case token.T_COMMENT, token.T_DOC_COMMENT, token.T_ATTRIBUTE:
-				p.nextToken()
-				continue
-			}
-			break
-		}
+		modifiers := p.parseModifiers()
 
 		var typeHint string
 		if p.tok.Type == token.T_STRING || p.tok.Type == token.T_NS_SEPARATOR || p.tok.Type == token.T_CALLABLE || p.tok.Type == token.T_ARRAY || p.tok.Type == token.T_QUESTION {
@@ -287,10 +262,17 @@ func (p *Parser) parseAnonymousClassExpression() (ast.Node, []ast.Node) {
 	}
 	p.nextToken() // consume }
 
+	var classProperties []ast.Node
+	if len(traitUses) > 0 {
+		classProperties = append(traitUses, properties...)
+	} else {
+		classProperties = properties
+	}
+
 	return &ast.ClassNode{
 		Extends:    extends,
 		Implements: implements,
-		Properties: append(traitUses, properties...),
+		Properties: classProperties,
 		Methods:    methods,
 		Constants:  constants,
 		Pos:        ast.Position(pos),

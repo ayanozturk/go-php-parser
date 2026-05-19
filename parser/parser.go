@@ -8,18 +8,20 @@ import (
 )
 
 type Parser struct {
-	l          *lexer.Lexer
-	tok        token.Token
-	errors     []error
-	debug      bool
-	currentDoc string // Current PHPDoc comment being tracked
+	l           *lexer.Lexer
+	tok         token.Token
+	errors      []error
+	debug       bool
+	currentDoc  string // Current PHPDoc comment being tracked
+	modifierBuf []string
 }
 
 func New(l *lexer.Lexer, debug bool) *Parser {
 	p := &Parser{
-		l:      l,
-		errors: []error{},
-		debug:  debug,
+		l:           l,
+		errors:      []error{},
+		debug:       debug,
+		modifierBuf: make([]string, 0, 4),
 	}
 	p.nextToken() // Initialize first token
 	return p
@@ -137,4 +139,26 @@ func (p *Parser) parseFQCN() ast.Node {
 		Value: fqcn,
 		Pos:   ast.Position(pos),
 	}
+}
+
+// parseModifiers parses and returns member modifiers, reusing the internal modifierBuf.
+func (p *Parser) parseModifiers() []string {
+	p.modifierBuf = p.modifierBuf[:0]
+	for {
+		if modifier, ok := p.parsePropertyModifier(); ok {
+			p.modifierBuf = append(p.modifierBuf, modifier)
+			continue
+		}
+		switch p.tok.Type {
+		case token.T_PUBLIC, token.T_PROTECTED, token.T_PRIVATE, token.T_STATIC, token.T_FINAL, token.T_ABSTRACT:
+			p.modifierBuf = append(p.modifierBuf, p.tok.Literal)
+			p.nextToken()
+			continue
+		case token.T_COMMENT, token.T_DOC_COMMENT, token.T_ATTRIBUTE:
+			p.nextToken()
+			continue
+		}
+		break
+	}
+	return p.modifierBuf
 }
