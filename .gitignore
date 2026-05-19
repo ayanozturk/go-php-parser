@@ -7,4 +7,5 @@ mem.prof
 coverage.out
 coverage.html
 mem.out
+cpu.out
 *.test
