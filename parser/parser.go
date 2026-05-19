@@ -1,6 +1,7 @@
 package parser
 
 import (
+	"context"
 	"go-phpcs/ast"
 	"go-phpcs/lexer"
 	"go-phpcs/token"
@@ -8,6 +9,7 @@ import (
 )
 
 type Parser struct {
+	Ctx         context.Context
 	l           *lexer.Lexer
 	tok         token.Token
 	errors      []error
@@ -87,6 +89,10 @@ func (p *Parser) Parse() []ast.Node {
 	}
 
 	for p.tok.Type != token.T_EOF {
+		if p.Ctx != nil && p.Ctx.Err() != nil {
+			p.addError("parser context cancelled: %v", p.Ctx.Err())
+			break
+		}
 		// Skip whitespace/comments between statements (but not doc comments - let statement parsing handle them)
 		for p.tok.Type == token.T_WHITESPACE || p.tok.Type == token.T_COMMENT {
 			p.nextToken()

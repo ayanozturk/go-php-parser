@@ -42,6 +42,13 @@ func TestParserInfiniteLoopScenarios(t *testing.T) {
 			`,
 			wantErr: true,
 		},
+		{
+			name: "malformed function call arguments with invalid operator",
+			input: `<?php
+				foo( + );
+			`,
+			wantErr: true,
+		},
 	}
 
 	for _, tt := range tests {

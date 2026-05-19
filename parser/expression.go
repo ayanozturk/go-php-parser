@@ -735,15 +735,18 @@ func (p *Parser) parseFunctionCallArguments() []ast.Node {
 		} else {
 			arg = p.parseExpression()
 		}
-		if arg != nil {
-			if isUnpacked {
-				arg = &ast.UnpackedArgumentNode{
-					Expr: arg,
-					Pos:  arg.GetPos(),
-				}
-			}
-			args = append(args, arg)
+		if arg == nil {
+			p.addError("line %d:%d: expected expression in function call arguments, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal)
+			p.nextToken()
+			continue
 		}
+		if isUnpacked {
+			arg = &ast.UnpackedArgumentNode{
+				Expr: arg,
+				Pos:  arg.GetPos(),
+			}
+		}
+		args = append(args, arg)
 		for p.tok.Type == token.T_COMMENT || p.tok.Type == token.T_DOC_COMMENT {
 			p.nextToken()
 		}
