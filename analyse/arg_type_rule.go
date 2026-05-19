@@ -107,8 +107,52 @@ func variablesTypedWhenTrue(node ast.Node, scope *functionScope) map[string]Type
 				}
 			}
 		}
+	case *ast.FunctionCallNode:
+		if variableName, typ, ok := builtinTypePredicate(n); ok {
+			return map[string]Type{variableName: typ}
+		}
 	}
 	return map[string]Type{}
+}
+
+func builtinTypePredicate(call *ast.FunctionCallNode) (string, Type, bool) {
+	if call == nil || len(call.Args) != 1 {
+		return "", EmptyType(), false
+	}
+
+	nameNode, ok := call.Name.(*ast.IdentifierNode)
+	if !ok {
+		return "", EmptyType(), false
+	}
+
+	variable, ok := argumentValue(call.Args[0]).(*ast.VariableNode)
+	if !ok {
+		return "", EmptyType(), false
+	}
+
+	name := strings.TrimLeft(nameNode.Value, "\\")
+	if idx := strings.LastIndex(name, "\\"); idx != -1 {
+		name = name[idx+1:]
+	}
+
+	switch strings.ToLower(name) {
+	case "is_string":
+		return variable.Name, ParseType("string"), true
+	case "is_int", "is_integer", "is_long":
+		return variable.Name, ParseType("int"), true
+	case "is_float", "is_double", "is_real":
+		return variable.Name, ParseType("float"), true
+	case "is_bool":
+		return variable.Name, ParseType("bool"), true
+	case "is_array":
+		return variable.Name, ParseType("array"), true
+	case "is_object":
+		return variable.Name, ParseType("object"), true
+	case "is_null":
+		return variable.Name, ParseType("null"), true
+	}
+
+	return "", EmptyType(), false
 }
 
 func typeFromInstanceofTarget(node ast.Node, scope *functionScope) Type {

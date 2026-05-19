@@ -186,3 +186,42 @@ func TestMethodArgumentTypeNotRefinedWithoutInstanceofBranch(t *testing.T) {
 		t.Fatalf("expected A.ARG.TYPE issue without instanceof refinement, got: %#v", issues)
 	}
 }
+
+func TestMethodArgumentTypeRefinedInsideIsStringAndBranch(t *testing.T) {
+	php := `<?php
+    class Company {
+    }
+
+    class RequestQuery {
+        public function get(string $name): bool|float|int|null|string {
+            return "abc";
+        }
+    }
+
+    class Request {
+        public RequestQuery $query;
+    }
+
+    class Example {
+        private Request $request;
+
+        public function getCompany(): Company {
+            return new Company();
+        }
+
+        public function getDocumentForCompany(string $documentId, Company $company): void {
+        }
+
+        public function run(): void {
+            $company = $this->getCompany();
+            $documentId = $this->request->query->get("documentId");
+            if (is_string($documentId) && $documentId !== "") {
+                $this->getDocumentForCompany($documentId, $company);
+            }
+        }
+    }`
+	issues := analysePHP(t, php)
+	if hasArgTypeIssue(issues) {
+		t.Fatalf("expected no A.ARG.TYPE issue for variable refined by is_string in true branch, got: %#v", issues)
+	}
+}
