@@ -19,3 +19,8 @@ func GetCachedFileContent(filename string) ([]byte, error) {
 	fileContentCache.Store(filename, content)
 	return content, nil
 }
+
+// StoreCachedFileContent stores already-read file content for later reuse.
+func StoreCachedFileContent(filename string, content []byte) {
+	fileContentCache.Store(filename, content)
+}

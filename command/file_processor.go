@@ -105,6 +105,7 @@ func PreloadFilesParallel(files []string, parallelism int) error {
 					continue
 				}
 				fileContentCache.Store(file, content)
+				sharedcache.StoreCachedFileContent(file, content)
 			}
 		}()
 	}
@@ -133,6 +134,7 @@ func getCachedFileContent(filename string) ([]byte, error) {
 		return nil, err
 	}
 	fileContentCache.Store(filename, content)
+	sharedcache.StoreCachedFileContent(filename, content)
 	return content, nil
 }
 
@@ -250,14 +252,6 @@ func ProcessStyleFilesParallelWithCallback(files []string, rules []string, match
 }
 
 func ProcessStyleFilesParallel(files []string, rules []string, matcher *overrides.Compiled, parallelism int) ([]style.StyleIssue, int, int) {
-	fileContents := make(map[string][]byte, len(files))
-	for _, file := range files {
-		content, err := getCachedFileContent(file)
-		if err == nil {
-			fileContents[file] = content
-		}
-	}
-	sharedcache.BatchTokenizeFiles(fileContents)
 	if err := PreloadFilesParallel(files, 16); err != nil {
 		return nil, 0, 0
 	}
