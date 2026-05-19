@@ -20,8 +20,9 @@ func TestClassBraceOnOwnLineChecker(t *testing.T) {
 		{[]string{"interface Bar {"}, 1, "interface brace wrong line"},
 		{[]string{"trait Baz {"}, 1, "trait brace wrong line"},
 		{[]string{"enum E {"}, 1, "enum brace wrong line"},
-		// Incorrect: brace after whitespace
-		{[]string{"class Foo", "   {"}, 1, "class brace with leading spaces"},
+		// Correct: brace line may be indented (e.g. inside bracketed namespace)
+		{[]string{"    class Foo", "    {"}, 0, "class brace with indentation"},
+		{[]string{"\tclass Foo", "\t{"}, 0, "class brace with tab indentation"},
 		// Correct: unrelated lines
 		{[]string{"$a = 1;"}, 0, "not a class declaration"},
 	}
@@ -63,6 +64,11 @@ func TestFixClassBraceOnOwnLine(t *testing.T) {
 			name:     "already correct",
 			input:    "class Foo\n{\n    public $a;\n}",
 			expected: "class Foo\n{\n    public $a;\n}",
+		},
+		{
+			name:     "preserves indentation",
+			input:    "    class Foo {\n        public $a;\n    }",
+			expected: "    class Foo\n    {\n        public $a;\n    }",
 		},
 		{
 			name:     "unrelated code",

@@ -28,7 +28,7 @@ func (c *ClassBraceOnOwnLineChecker) CheckIssues(lines []string, filename string
 			}
 			if i+1 < len(lines) {
 				next := lines[i+1]
-				if next != "{" {
+				if helper.TrimWhitespace(next) != "{" {
 					issues = append(issues, StyleIssue{
 						Filename: filename,
 						Line:     i + 2,
@@ -76,10 +76,11 @@ func FixClassBraceOnOwnLine(content string) string {
 			idx := strings.Index(line, "{")
 			if idx != -1 {
 				before := strings.TrimRight(line[:idx], " \t")
+				indent := line[:len(line)-len(strings.TrimLeft(line, " \t"))]
 				// Insert a new line with just the brace after the declaration
 				lines[i] = before
 				// Insert the brace line after
-				lines = append(lines[:i+1], append([]string{"{"}, lines[i+1:]...)...)
+				lines = append(lines[:i+1], append([]string{indent + "{"}, lines[i+1:]...)...)
 			}
 		}
 	}
