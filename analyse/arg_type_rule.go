@@ -267,6 +267,7 @@ func walkExprForArgTypes(node ast.Node, scope *functionScope, ctx *AnalysisConte
 		walkExprForArgTypes(n.IfTrue, scope, ctx, filename, issues)
 		walkExprForArgTypes(n.IfFalse, scope, ctx, filename, issues)
 	case *ast.NewNode:
+		checkNewArgTypes(n, scope, ctx, filename, issues)
 		for _, arg := range n.Args {
 			walkExprForArgTypes(argumentValue(arg), scope, ctx, filename, issues)
 		}
@@ -282,9 +283,37 @@ func checkMethodCallArgTypes(call *ast.MethodCallNode, scope *functionScope, ctx
 	if !ok || len(method.Params) == 0 {
 		return
 	}
+	checkResolvedCallArgTypes(fmt.Sprintf("Method %s", method.Name), method, call.Args, scope, ctx, filename, issues)
+}
 
-	for idx, argNode := range call.Args {
-		if idx >= len(method.Params) {
+func checkNewArgTypes(node *ast.NewNode, scope *functionScope, ctx *AnalysisContext, filename string, issues *[]AnalysisIssue) {
+	className, method, ok := resolveConstructorForNew(node, scope, ctx)
+	if !ok || len(method.Params) == 0 {
+		return
+	}
+	checkResolvedCallArgTypes(fmt.Sprintf("Class %s constructor", className), method, node.Args, scope, ctx, filename, issues)
+}
+
+func checkResolvedCallArgTypes(target string, method ResolvedMethod, args []ast.Node, scope *functionScope, ctx *AnalysisContext, filename string, issues *[]AnalysisIssue) {
+	if len(method.Params) == 0 {
+		return
+	}
+
+	nameToIndex := make(map[string]int, len(method.Params))
+	variadicIndex := -1
+	for idx, param := range method.Params {
+		nameToIndex[strings.ToLower(param.Name)] = idx
+		if param.IsVariadic {
+			variadicIndex = idx
+		}
+	}
+
+	usedParams := map[int]struct{}{}
+	nextPositionalParam := 0
+
+	for _, argNode := range args {
+		if _, ok := argNode.(*ast.UnpackedArgumentNode); ok {
+			// Cannot infer concrete type count/order for unpacked arguments.
 			return
 		}
 
@@ -293,12 +322,50 @@ func checkMethodCallArgTypes(call *ast.MethodCallNode, scope *functionScope, ctx
 			continue
 		}
 
-		expected := ParseType(method.Params[idx].Type)
-		if expected.IsEmpty() {
+		paramIndex := -1
+		argLabel := ""
+
+		if namedArg, ok := argNode.(*ast.NamedArgumentNode); ok {
+			idx, ok := nameToIndex[strings.ToLower(namedArg.Name)]
+			if !ok {
+				continue
+			}
+			paramIndex = idx
+			argLabel = "$" + method.Params[idx].Name
+		} else {
+			for nextPositionalParam < len(method.Params) {
+				if _, alreadyUsed := usedParams[nextPositionalParam]; alreadyUsed {
+					nextPositionalParam++
+					continue
+				}
+				break
+			}
+
+			if nextPositionalParam < len(method.Params) {
+				paramIndex = nextPositionalParam
+				nextPositionalParam++
+			} else if variadicIndex >= 0 {
+				paramIndex = variadicIndex
+			} else {
+				return
+			}
+			argLabel = fmt.Sprintf("%d", paramIndex+1)
+		}
+
+		if paramIndex < 0 || paramIndex >= len(method.Params) {
 			continue
 		}
+
+		param := method.Params[paramIndex]
+		expected := ParseType(param.Type)
+		if expected.IsEmpty() {
+			usedParams[paramIndex] = struct{}{}
+			continue
+		}
+
 		actual := inferType(argExpr, scope, ctx)
 		if expected.AcceptsWithContext(actual, scope, ctx) {
+			usedParams[paramIndex] = struct{}{}
 			continue
 		}
 
@@ -306,14 +373,17 @@ func checkMethodCallArgTypes(call *ast.MethodCallNode, scope *functionScope, ctx
 		if actualLabel == "" {
 			actualLabel = "mixed"
 		}
+
 		pos := argExpr.GetPos()
 		*issues = append(*issues, AnalysisIssue{
 			Filename: filename,
 			Line:     pos.Line,
 			Column:   pos.Column,
 			Code:     "A.ARG.TYPE",
-			Message:  fmt.Sprintf("Method %s argument %d expects %s, got %s", method.Name, idx+1, expected.String(), actualLabel),
+			Message:  fmt.Sprintf("%s argument %s expects %s, got %s", target, argLabel, expected.String(), actualLabel),
 		})
+
+		usedParams[paramIndex] = struct{}{}
 	}
 }
 

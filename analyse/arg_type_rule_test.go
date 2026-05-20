@@ -225,3 +225,40 @@ func TestMethodArgumentTypeRefinedInsideIsStringAndBranch(t *testing.T) {
 		t.Fatalf("expected no A.ARG.TYPE issue for variable refined by is_string in true branch, got: %#v", issues)
 	}
 }
+
+func TestMethodArgumentTypeMatchesNamedArgumentsByParameterName(t *testing.T) {
+	php := `<?php
+class Example {
+    public function save(string $title, int $count): void {
+    }
+
+    public function run(): void {
+        $this->save(count: 2, title: "ok");
+    }
+}`
+	issues := analysePHP(t, php)
+	if hasArgTypeIssue(issues) {
+		t.Fatalf("expected no A.ARG.TYPE issue for correctly typed named arguments, got: %#v", issues)
+	}
+}
+
+func TestConstructorArgumentTypeMismatchDetectedForNamedArguments(t *testing.T) {
+	php := `<?php
+class Response {
+    public function __construct(
+        int $status = 200,
+        array $headers = [],
+        ?string $body = null
+    ) {
+    }
+
+    public function make(): void {
+        new self(body: []);
+    }
+}
+`
+	issues := analysePHP(t, php)
+	if !hasArgTypeIssue(issues) {
+		t.Fatalf("expected A.ARG.TYPE issue for constructor named arg type mismatch, got: %#v", issues)
+	}
+}

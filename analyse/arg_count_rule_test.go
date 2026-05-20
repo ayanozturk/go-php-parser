@@ -89,3 +89,24 @@ class SubscriptionReactivationException extends Exception
 		t.Fatalf("expected A.ARG.COUNT issue for too many Exception constructor args, got: %#v", issues)
 	}
 }
+
+func TestNamedConstructorArgumentAcceptedWhenEarlierParamsHaveDefaults(t *testing.T) {
+	php := `<?php
+class Response {
+	public function __construct(
+		int $status = 200,
+		array $headers = [],
+		?string $body = null,
+		string $version = '1.1',
+		?string $reason = null
+	) {
+	}
+}
+
+new Response(body: 'ok');
+`
+	issues := analysePHP(t, php)
+	if hasArgCountIssue(issues) {
+		t.Fatalf("expected no A.ARG.COUNT issue for named constructor arg with optional defaults, got: %#v", issues)
+	}
+}

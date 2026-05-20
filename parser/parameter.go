@@ -92,6 +92,11 @@ func (p *Parser) parseParameter() ast.Node {
 	name := p.tok.Literal[1:] // Remove $ prefix
 	p.nextToken()
 
+	// Allow spacing/comments between the variable and default assignment.
+	for p.tok.Type == token.T_WHITESPACE || p.tok.Type == token.T_COMMENT || p.tok.Type == token.T_DOC_COMMENT {
+		p.nextToken()
+	}
+
 	// Handle default value if present
 	var defaultValue ast.Node
 	if p.tok.Type == token.T_ASSIGN {

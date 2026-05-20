@@ -237,6 +237,8 @@ func inferNodeKindType(n ast.Node) string {
 		return "string"
 	case *ast.BooleanLiteral, *ast.BooleanNode:
 		return "bool"
+	case *ast.ArrayNode:
+		return "array"
 	case *ast.NullLiteral, *ast.NullNode:
 		return "null"
 	case *ast.VariableNode:
