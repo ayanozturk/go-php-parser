@@ -313,15 +313,20 @@ func (p *Parser) parseExpressionStatement() (ast.Node, error) {
 func (p *Parser) parseBlockStatement() []ast.Node {
 	var statements []ast.Node
 	for p.tok.Type != token.T_RBRACE && p.tok.Type != token.T_EOF {
+		prevOffset := p.tok.Pos.Offset
 		stmt, err := p.parseStatement()
 		if err != nil {
 			p.addError(err.Error())
 			p.nextToken()
 			continue
-		} else if stmt != nil {
+		}
+		if stmt != nil {
 			statements = append(statements, stmt)
 		}
-		if stmt == nil {
+		// Safety: if parseStatement returned nil without consuming any token,
+		// advance to avoid an infinite loop. But do NOT advance if the token
+		// position changed (e.g. empty statement ';' was already consumed).
+		if stmt == nil && p.tok.Pos.Offset == prevOffset {
 			p.nextToken()
 		}
 	}

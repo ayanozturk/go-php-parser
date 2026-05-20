@@ -152,6 +152,7 @@ func (p *Parser) parseFunction(modifiers []string) (ast.Node, error) {
 			p.nextToken()
 			continue
 		}
+		prevOffset := p.tok.Pos.Offset
 		stmt, err := p.parseStatement()
 		if stmt != nil {
 			body = append(body, stmt)
@@ -159,7 +160,8 @@ func (p *Parser) parseFunction(modifiers []string) (ast.Node, error) {
 		if err != nil {
 			p.addError(err.Error())
 		}
-		if stmt == nil {
+		// Safety: only advance if parseStatement did not consume any token
+		if stmt == nil && p.tok.Pos.Offset == prevOffset {
 			p.nextToken()
 		}
 	}

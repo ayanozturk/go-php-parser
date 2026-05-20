@@ -236,6 +236,35 @@ namespace App\Controllers; // phpcs:ignore
 class Foo {}
 `,
 		},
+		{
+			name: "if block with trailing semicolon followed by another if",
+			input: `<?php
+class Foo {
+    public function test() {
+        if ($x) {
+            echo "hi";
+        };
+        if ($y) {
+            echo "bye";
+        }
+    }
+}
+`,
+		},
+		{
+			name: "empty statement inside if block",
+			input: `<?php
+class Foo {
+    public function test() {
+        if ($x === false) {
+            $a = parent::getUser()->getName();
+            ;
+        }
+        echo "after";
+    }
+}
+`,
+		},
 	}
 
 	for _, tt := range tests {
