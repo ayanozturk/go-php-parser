@@ -18,6 +18,9 @@ func (p *Parser) parseEnum() (*ast.EnumNode, error) {
 	name := p.tok.Literal
 	p.nextToken()
 
+	// Skip trailing comments/whitespace before colon or opening brace
+	p.skipCommentsAndWhitespace()
+
 	// Check for backed enum type
 	var backedBy string
 	if p.tok.Type == token.T_COLON {
@@ -28,6 +31,9 @@ func (p *Parser) parseEnum() (*ast.EnumNode, error) {
 		backedBy = p.tok.Literal
 		p.nextToken()
 	}
+
+	// Skip trailing comments/whitespace before opening brace
+	p.skipCommentsAndWhitespace()
 
 	// Expect opening brace
 	if p.tok.Type != token.T_LBRACE {

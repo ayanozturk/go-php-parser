@@ -20,6 +20,9 @@ func (p *Parser) parseClassDeclarationWithModifiers(modifiers []string) (ast.Nod
 			modifiers = append(modifiers, p.tok.Literal)
 			p.nextToken()
 		default:
+			// Skip trailing comments/whitespace before 'class' keyword
+			p.skipCommentsAndWhitespace()
+
 			if p.tok.Type != token.T_CLASS {
 				p.addError("line %d:%d: expected 'class' after modifier %s, got %s", p.tok.Pos.Line, p.tok.Pos.Column, strings.Join(modifiers, " "), p.tok.Literal)
 				return nil, nil
@@ -46,6 +49,9 @@ func (p *Parser) parseClassDeclaration() (ast.Node, error) {
 	name := p.tok.Literal
 	p.nextToken()
 
+	// Skip trailing comments/whitespace before extends/implements/opening brace
+	p.skipCommentsAndWhitespace()
+
 	// Check for extends clause
 	var extends string
 	if p.tok.Type == token.T_EXTENDS {
@@ -57,6 +63,9 @@ func (p *Parser) parseClassDeclaration() (ast.Node, error) {
 		}
 		extends = parentNode.Value
 	}
+
+	// Skip trailing comments/whitespace before implements/opening brace
+	p.skipCommentsAndWhitespace()
 
 	// Check for implements clause
 	var implements []string
@@ -76,6 +85,9 @@ func (p *Parser) parseClassDeclaration() (ast.Node, error) {
 			p.nextToken() // consume comma
 		}
 	}
+
+	// Skip trailing comments/whitespace before opening brace
+	p.skipCommentsAndWhitespace()
 
 	if p.tok.Type != token.T_LBRACE {
 		p.addError("line %d:%d: expected { after class declaration for %s, got %s", p.tok.Pos.Line, p.tok.Pos.Column, name, p.tok.Literal)
@@ -173,6 +185,9 @@ func (p *Parser) parseAnonymousClassExpression() (ast.Node, []ast.Node) {
 		p.nextToken() // consume )
 	}
 
+	// Skip trailing comments/whitespace before extends/implements/opening brace
+	p.skipCommentsAndWhitespace()
+
 	var extends string
 	if p.tok.Type == token.T_EXTENDS {
 		p.nextToken() // consume 'extends'
@@ -183,6 +198,9 @@ func (p *Parser) parseAnonymousClassExpression() (ast.Node, []ast.Node) {
 		}
 		extends = parentNode.Value
 	}
+
+	// Skip trailing comments/whitespace before implements/opening brace
+	p.skipCommentsAndWhitespace()
 
 	var implements []string
 	if p.tok.Type == token.T_IMPLEMENTS {
@@ -201,6 +219,9 @@ func (p *Parser) parseAnonymousClassExpression() (ast.Node, []ast.Node) {
 			p.nextToken() // consume comma
 		}
 	}
+
+	// Skip trailing comments/whitespace before opening brace
+	p.skipCommentsAndWhitespace()
 
 	if p.tok.Type != token.T_LBRACE {
 		p.addError("line %d:%d: expected { after anonymous class declaration, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal)

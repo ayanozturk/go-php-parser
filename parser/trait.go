@@ -17,6 +17,9 @@ func (p *Parser) parseTraitDeclaration() (ast.Node, error) {
 	name := p.tok.Literal
 	p.nextToken()
 
+	// Skip trailing comments/whitespace before opening brace
+	p.skipCommentsAndWhitespace()
+
 	// Expect opening brace
 	if p.tok.Type != token.T_LBRACE {
 		p.addError("line %d:%d: expected { to start trait body for %s, got %s", p.tok.Pos.Line, p.tok.Pos.Column, name, p.tok.Literal)

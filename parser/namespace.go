@@ -28,6 +28,9 @@ func (p *Parser) parseNamespaceDeclaration() (ast.Node, error) {
 	}
 	name := p.nameBuf.String()
 
+	// Skip trailing comments/whitespace before ; or {
+	p.skipCommentsAndWhitespace()
+
 	// Inline namespace: namespace Foo\\Bar;
 	if p.tok.Type == token.T_SEMICOLON {
 		p.nextToken() // consume ;

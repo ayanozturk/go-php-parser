@@ -16,6 +16,15 @@ func (p *Parser) expect(expected token.TokenType) bool {
 	return false
 }
 
+// skipCommentsAndWhitespace skips over any T_COMMENT, T_DOC_COMMENT, and T_WHITESPACE tokens.
+// This is used before boundary tokens ({, }, ;) in declaration headers where trailing
+// inline comments (e.g. // phpcs:ignore) may appear between the declaration and the brace.
+func (p *Parser) skipCommentsAndWhitespace() {
+	for p.tok.Type == token.T_COMMENT || p.tok.Type == token.T_DOC_COMMENT || p.tok.Type == token.T_WHITESPACE {
+		p.nextToken()
+	}
+}
+
 // isValidMethodNameToken returns true if the given token type is valid as a PHP method name.
 func isValidMethodNameToken(t token.TokenType) bool {
 	switch t {

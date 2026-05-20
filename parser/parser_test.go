@@ -138,3 +138,126 @@ interface AccessDecisionStrategyInterface
 		t.Fatal("Expected at least one node, got none")
 	}
 }
+
+func TestClassWithTrailingComment(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+	}{
+		{
+			name: "class with phpcs:ignore comment before brace",
+			input: `<?php
+class Authentication_Controller extends Public_Controller // phpcs:ignore
+{
+    public function login() {
+        return true;
+    }
+}
+`,
+		},
+		{
+			name: "class with comment after extends",
+			input: `<?php
+class Foo extends Bar // some comment
+{
+    public function test() {}
+}
+`,
+		},
+		{
+			name: "class with comment after implements",
+			input: `<?php
+class Foo implements Bar // phpcs:ignore
+{
+    public function test() {}
+}
+`,
+		},
+		{
+			name: "class with comment between extends and implements",
+			input: `<?php
+class Foo extends Bar // comment
+    implements Baz
+{
+    public function test() {}
+}
+`,
+		},
+		{
+			name: "abstract class with trailing comment",
+			input: `<?php
+abstract class Foo // phpcs:ignore
+{
+    abstract public function test();
+}
+`,
+		},
+		{
+			name: "trait with trailing comment",
+			input: `<?php
+trait MyTrait // phpcs:ignore
+{
+    public function test() {}
+}
+`,
+		},
+		{
+			name: "enum with trailing comment",
+			input: `<?php
+enum Status // phpcs:ignore
+{
+    case Active;
+    case Inactive;
+}
+`,
+		},
+		{
+			name: "backed enum with trailing comment before brace",
+			input: `<?php
+enum Color: string // phpcs:ignore
+{
+    case Red = 'red';
+}
+`,
+		},
+		{
+			name: "namespace with trailing comment before brace",
+			input: `<?php
+namespace App\Controllers // phpcs:ignore
+{
+    class Foo {}
+}
+`,
+		},
+		{
+			name: "namespace inline with trailing comment before semicolon",
+			input: `<?php
+namespace App\Controllers; // phpcs:ignore
+class Foo {}
+`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			l := lexer.New(tt.input)
+			p := New(l, true)
+			nodes := p.Parse()
+
+			if len(p.Errors()) > 0 {
+				t.Errorf("expected no parser errors, got %v", p.Errors())
+			}
+
+			if len(nodes) == 0 {
+				t.Errorf("expected at least one node, got none")
+			}
+
+			// Verify class nodes are properly parsed (not BlockNodes)
+			for _, node := range nodes {
+				if _, ok := node.(*ast.BlockNode); ok {
+					t.Errorf("got unexpected BlockNode - class body was not parsed correctly")
+				}
+			}
+		})
+	}
+}
