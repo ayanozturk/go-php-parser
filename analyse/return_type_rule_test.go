@@ -134,3 +134,25 @@ func TestPromotedPropertyReturnTypeNoMismatch(t *testing.T) {
 		t.Fatalf("expected no A.RETURN.TYPE issue for promoted property fetch, got: %#v", issues)
 	}
 }
+
+func TestLazyInitPropertyReturnTypeNoMismatch(t *testing.T) {
+	// Lazy-init pattern: $this->prop is ?Type, assigned inside
+	// `if (null === $this->prop)`, then returned as Type.
+	php := `<?php
+class MemberService {}
+class Example {
+    private ?MemberService $memberService = null;
+
+    public function getMemberService(): MemberService
+    {
+        if (null === $this->memberService) {
+            $this->memberService = new MemberService();
+        }
+        return $this->memberService;
+    }
+}`
+	issues := analysePHP(t, php)
+	if hasReturnTypeIssue(issues) {
+		t.Fatalf("expected no A.RETURN.TYPE issue for lazy-init property, got: %#v", issues)
+	}
+}

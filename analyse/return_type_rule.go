@@ -160,6 +160,7 @@ func collectObservedReturns(nodes []ast.Node, scope *functionScope, ctx *Analysi
 			if n.Else != nil {
 				returns = append(returns, collectObservedReturns(n.Else.Body, scope.clone(), ctx)...)
 			}
+			applyLazyInitPropertyScope(scope, n, ctx)
 		case *ast.BlockNode:
 			returns = append(returns, collectObservedReturns(n.Statements, scope.clone(), ctx)...)
 		case *ast.WhileNode:
@@ -492,10 +493,12 @@ func inferPropertyFetchType(node *ast.PropertyFetchNode, scope *functionScope, c
 		return MixedType()
 	}
 	if object, ok := node.Object.(*ast.VariableNode); ok && object.Name == "this" {
-		if propertyType, ok := resolveSameClassPropertyType(scope, node.Property); ok {
+		// Narrowed/assigned type takes precedence over the declared type so
+		// that flow-based updates (e.g. lazy-init null strips) are respected.
+		if propertyType, ok := scope.properties[node.Property]; ok {
 			return propertyType
 		}
-		if propertyType, ok := scope.properties[node.Property]; ok {
+		if propertyType, ok := resolveSameClassPropertyType(scope, node.Property); ok {
 			return propertyType
 		}
 	}
@@ -506,10 +509,10 @@ func inferPropertyFetchType(node *ast.PropertyFetchNode, scope *functionScope, c
 		return MixedType()
 	}
 	if scope != nil && strings.EqualFold(className, scope.className) {
-		if propertyType, ok := resolveSameClassPropertyType(scope, node.Property); ok {
+		if propertyType, ok := scope.properties[node.Property]; ok {
 			return propertyType
 		}
-		if propertyType, ok := scope.properties[node.Property]; ok {
+		if propertyType, ok := resolveSameClassPropertyType(scope, node.Property); ok {
 			return propertyType
 		}
 	}

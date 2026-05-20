@@ -58,6 +58,7 @@ func walkStatementsForArgTypes(nodes []ast.Node, scope *functionScope, ctx *Anal
 				walkStatementsForArgTypes(n.Else.Body, scope.clone(), ctx, filename, issues)
 			}
 			applyTerminatingIfFalseScope(scope, n)
+			applyLazyInitPropertyScope(scope, n, ctx)
 		case *ast.BlockNode:
 			walkStatementsForArgTypes(n.Statements, scope.clone(), ctx, filename, issues)
 		case *ast.WhileNode:
@@ -178,6 +179,8 @@ func applyTerminatingIfFalseScope(scope *functionScope, node *ast.IfNode) {
 	if !statementsTerminate(node.Body) {
 		return
 	}
+	// Strip null from variables that are non-null when the condition is false
+	// (e.g. `if ($x === null) { return; }` → $x is non-null after).
 	for _, variableName := range variablesNonNullWhenFalse(node.Condition) {
 		current, ok := scope.variables[variableName]
 		if !ok {
@@ -186,6 +189,18 @@ func applyTerminatingIfFalseScope(scope *functionScope, node *ast.IfNode) {
 		refined := current.withoutBuiltin("null")
 		if !refined.IsEmpty() {
 			scope.variables[variableName] = refined
+		}
+	}
+	// When the condition is `!<expr>` and the body terminates, execution
+	// continues only when <expr> is true. Apply the positive type narrowing
+	// of the inner expression (e.g. `if (!($x instanceof Foo)) { return; }`
+	// → after the if, $x is narrowed to Foo).
+	if unary, ok := node.Condition.(*ast.UnaryExpr); ok && unary.Operator == "!" {
+		for variableName, typ := range variablesTypedWhenTrue(unary.Operand, scope) {
+			if typ.IsEmpty() {
+				continue
+			}
+			scope.variables[variableName] = typ
 		}
 	}
 }
@@ -232,6 +247,97 @@ func isNullLiteral(node ast.Node) bool {
 		return true
 	default:
 		return false
+	}
+}
+
+// nullComparisonProperty returns the property name when the expression is
+// `null === $this->prop` or `$this->prop === null` (using == or ===).
+func nullComparisonProperty(node ast.Node) (string, bool) {
+	binary, ok := node.(*ast.BinaryExpr)
+	if !ok {
+		return "", false
+	}
+	if binary.Operator != "==" && binary.Operator != "===" {
+		return "", false
+	}
+	check := func(maybeNull, maybeExpr ast.Node) (string, bool) {
+		if !isNullLiteral(maybeNull) {
+			return "", false
+		}
+		prop, ok := maybeExpr.(*ast.PropertyFetchNode)
+		if !ok {
+			return "", false
+		}
+		obj, ok := prop.Object.(*ast.VariableNode)
+		if !ok || obj.Name != "this" {
+			return "", false
+		}
+		return prop.Property, true
+	}
+	if name, ok := check(binary.Left, binary.Right); ok {
+		return name, true
+	}
+	return check(binary.Right, binary.Left)
+}
+
+// bodyAssignsToThisProperty returns true when any top-level statement in body
+// is an assignment to $this-><propertyName>.
+func bodyAssignsToThisProperty(body []ast.Node, propertyName string) bool {
+	for _, stmt := range body {
+		var assignment *ast.AssignmentNode
+		switch n := stmt.(type) {
+		case *ast.AssignmentNode:
+			assignment = n
+		case *ast.ExpressionStmt:
+			a, ok := n.Expr.(*ast.AssignmentNode)
+			if !ok {
+				continue
+			}
+			assignment = a
+		default:
+			continue
+		}
+		prop, ok := assignment.Left.(*ast.PropertyFetchNode)
+		if !ok {
+			continue
+		}
+		obj, ok := prop.Object.(*ast.VariableNode)
+		if ok && obj.Name == "this" && strings.EqualFold(prop.Property, propertyName) {
+			return true
+		}
+	}
+	return false
+}
+
+// applyLazyInitPropertyScope handles the lazy-initialisation pattern:
+//
+//	if (null === $this->prop) { $this->prop = ...; }
+//
+// After such a block the property is guaranteed non-null regardless of which
+// branch executed, so null is stripped from the property type in the outer scope.
+func applyLazyInitPropertyScope(scope *functionScope, node *ast.IfNode, ctx *AnalysisContext) {
+	if scope == nil || node == nil || node.Else != nil || len(node.ElseIfs) > 0 {
+		return
+	}
+	if statementsTerminate(node.Body) {
+		return
+	}
+	propertyName, ok := nullComparisonProperty(node.Condition)
+	if !ok {
+		return
+	}
+	if !bodyAssignsToThisProperty(node.Body, propertyName) {
+		return
+	}
+	current, hasCurrent := scope.properties[propertyName]
+	if !hasCurrent {
+		if declType, ok := scope.propertyDecls[propertyName]; ok {
+			current = declType
+		}
+	}
+	refined := current.withoutBuiltin("null")
+	if !refined.IsEmpty() {
+		scope.properties[propertyName] = refined
 	}
 }
 

@@ -66,6 +66,11 @@ func isMethodDeclaration(line string) bool {
 	if idx == -1 {
 		return false
 	}
+	// `$function` — the word "function" is preceded by `$`, making it a
+	// variable name, not the keyword.
+	if idx > 0 && line[idx-1] == '$' {
+		return false
+	}
 	n := idx + len("function")
 	for n < len(line) && (line[n] == ' ' || line[n] == '\t') {
 		n++

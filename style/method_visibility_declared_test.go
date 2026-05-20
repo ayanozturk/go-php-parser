@@ -23,6 +23,8 @@ func TestMethodVisibilityDeclaredChecker(t *testing.T) {
 		{[]string{"class Foo", "{", "$cb = function ($x) { return $x; };", "}"}, 0, "anonymous function inside class should not flag"},
 		// Correct: static anonymous function inside class
 		{[]string{"class Foo", "{", "$cb = static function ($x) { return $x; };", "}"}, 0, "static anonymous function inside class should not flag"},
+		// Correct: dynamic call via $function variable (should not flag)
+		{[]string{"class Foo", "{", "public function run(): void {", "$this->obj->{$function}(...$params);", "}", "}"}, 0, "dynamic call via $function variable should not flag"},
 	}
 
 	for _, tc := range cases {

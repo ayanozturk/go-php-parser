@@ -262,3 +262,25 @@ class Response {
 		t.Fatalf("expected A.ARG.TYPE issue for constructor named arg type mismatch, got: %#v", issues)
 	}
 }
+
+func TestNoFalsePositiveAfterNegatedInstanceofGuard(t *testing.T) {
+	// `if (!($x instanceof Foo)) { return; }` narrows $x to Foo afterwards.
+	// Passing $x to a method expecting Foo should produce no A.ARG.TYPE issue.
+	php := `<?php
+class Token {}
+class Example {
+    public function takesToken(Token $t): void {}
+
+    public function run(?Token $token): void {
+        if (!($token instanceof Token)) {
+            return;
+        }
+        $this->takesToken($token);
+    }
+}
+`
+	issues := analysePHP(t, php)
+	if hasArgTypeIssue(issues) {
+		t.Fatalf("expected no A.ARG.TYPE issue after negated instanceof guard, got: %#v", issues)
+	}
+}

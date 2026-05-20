@@ -107,6 +107,12 @@ func (t Type) AcceptsWithContext(actual Type, scope *functionScope, ctx *Analysi
 	}
 
 	for _, actualAtom := range actual.sortedAtoms() {
+		// PHPUnit / Mockery mock types are always compatible with any declared
+		// type — they implement whatever interface or extend whatever class they
+		// were created for. Skipping them avoids false positives in test code.
+		if isMockObjectType(actualAtom.display) {
+			continue
+		}
 		matched := false
 		for _, declaredAtom := range t.sortedAtoms() {
 			if atomsCompatibleWithContext(declaredAtom, actualAtom, scope, ctx) {
@@ -120,6 +126,20 @@ func (t Type) AcceptsWithContext(actual Type, scope *functionScope, ctx *Analysi
 	}
 
 	return true
+}
+
+// isMockObjectType returns true for PHPUnit and Mockery mock framework types
+// that are always valid substitutes for the type they were created from.
+func isMockObjectType(name string) bool {
+	switch name {
+	case `PHPUnit\Framework\MockObject\MockObject`,
+		`PHPUnit\Framework\MockObject\MockObjectForAbstractClass`,
+		`PHPUnit\Framework\MockObject\MockObjectForTrait`,
+		`Mockery\MockInterface`,
+		`Mockery\LegacyMockInterface`:
+		return true
+	}
+	return false
 }
 
 func (t Type) SingleClassName() (string, bool) {
