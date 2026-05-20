@@ -205,6 +205,16 @@ func TestLexerIllegalToken(t *testing.T) {
 	}
 }
 
+func TestLexerOpenTagCaseInsensitive(t *testing.T) {
+	for _, input := range []string{"<?php $x;", "<?PHP $x;", "<?Php $x;", "<?pHp $x;"} {
+		lex := New(input)
+		tok := lex.NextToken()
+		if tok.Type != token.T_OPEN_TAG {
+			t.Errorf("input %q: expected T_OPEN_TAG, got %v", input, tok.Type)
+		}
+	}
+}
+
 func TestHelperIsIdentifierStart(t *testing.T) {
 	if !isIdentifierStart('a') || !isIdentifierStart('_') {
 		t.Error("isIdentifierStart failed for valid identifier start")

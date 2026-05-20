@@ -270,11 +270,11 @@ func (l *Lexer) lexLess(pos token.Position) token.Token {
 	}
 	if l.peekChar() == '?' {
 		l.readChar()
-		if l.peekChar() == 'p' {
+		if l.peekChar() == 'p' || l.peekChar() == 'P' {
 			l.readChar()
-			if l.peekChar() == 'h' {
+			if l.peekChar() == 'h' || l.peekChar() == 'H' {
 				l.readChar()
-				if l.peekChar() == 'p' {
+				if l.peekChar() == 'p' || l.peekChar() == 'P' {
 					l.readChar()
 					l.readChar()
 					return token.Token{Type: token.T_OPEN_TAG, Literal: "<?php", Pos: pos}
