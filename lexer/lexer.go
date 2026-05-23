@@ -90,6 +90,83 @@ func (l *Lexer) peekChar() rune {
 	return r
 }
 
+// SkipBalancedCurlyBlock advances from the current "{" through its matching
+// "}". It is used by symbol-only parser passes that need declarations and
+// signatures but not statement bodies.
+func (l *Lexer) SkipBalancedCurlyBlock() bool {
+	depth := 0
+	if l.char != '{' {
+		depth = 1
+	}
+	for l.char != 0 {
+		switch l.char {
+		case '\'', '"':
+			l.skipQuotedString(l.char)
+			continue
+		case '/':
+			switch l.peekChar() {
+			case '/':
+				l.skipLineComment()
+				continue
+			case '*':
+				l.skipBlockComment()
+				continue
+			}
+		case '#':
+			l.skipLineComment()
+			continue
+		case '{':
+			depth++
+		case '}':
+			depth--
+			l.readChar()
+			if depth == 0 {
+				return true
+			}
+			continue
+		}
+		l.readChar()
+	}
+	return false
+}
+
+func (l *Lexer) skipQuotedString(quote rune) {
+	l.readChar()
+	for l.char != 0 {
+		if l.char == '\\' {
+			l.readChar()
+			if l.char != 0 {
+				l.readChar()
+			}
+			continue
+		}
+		if l.char == quote {
+			l.readChar()
+			return
+		}
+		l.readChar()
+	}
+}
+
+func (l *Lexer) skipLineComment() {
+	for l.char != 0 && l.char != '\n' {
+		l.readChar()
+	}
+}
+
+func (l *Lexer) skipBlockComment() {
+	l.readChar()
+	l.readChar()
+	for l.char != 0 {
+		if l.char == '*' && l.peekChar() == '/' {
+			l.readChar()
+			l.readChar()
+			return
+		}
+		l.readChar()
+	}
+}
+
 func (l *Lexer) skipWhitespace() {
 	for l.char == ' ' || l.char == '\t' || l.char == '\n' || l.char == '\r' {
 		l.readChar()

@@ -9,14 +9,18 @@ import (
 )
 
 type Parser struct {
-	Ctx         context.Context
-	l           *lexer.Lexer
-	tok         token.Token
-	errors      []error
-	debug       bool
-	currentDoc  string // Current PHPDoc comment being tracked
-	modifierBuf []string
-	nameBuf     strings.Builder
+	Ctx context.Context
+	// SkipFunctionBodies parses signatures and class members but skips statement
+	// bodies. Indexers use this to build symbol tables without paying for a full
+	// analysis-grade AST.
+	SkipFunctionBodies bool
+	l                  *lexer.Lexer
+	tok                token.Token
+	errors             []error
+	debug              bool
+	currentDoc         string // Current PHPDoc comment being tracked
+	modifierBuf        []string
+	nameBuf            strings.Builder
 }
 
 func New(l *lexer.Lexer, debug bool) *Parser {

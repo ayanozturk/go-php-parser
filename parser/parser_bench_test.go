@@ -49,3 +49,13 @@ func BenchmarkParse(b *testing.B) {
 		_ = p.Parse()
 	}
 }
+
+func BenchmarkParseSkipFunctionBodies(b *testing.B) {
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		l := lexer.New(benchPHPCode)
+		p := New(l, false)
+		p.SkipFunctionBodies = true
+		_ = p.Parse()
+	}
+}

@@ -56,6 +56,45 @@ func TestConstrutor(t *testing.T) {
 	}
 }
 
+func TestSkipFunctionBodiesKeepsFollowingClassMembers(t *testing.T) {
+	input := `<?php
+class Example {
+    public function first(): void {
+        if (true) {
+            echo "}";
+        }
+    }
+
+    public function second(int $value): string {
+        return (string) $value;
+    }
+
+    private string $name;
+}`
+
+	l := lexer.New(input)
+	p := New(l, true)
+	p.SkipFunctionBodies = true
+	nodes := p.Parse()
+
+	if len(p.Errors()) > 0 {
+		t.Fatalf("Parser errors: %v", p.Errors())
+	}
+	if len(nodes) != 1 {
+		t.Fatalf("Expected one class node, got %d", len(nodes))
+	}
+	classNode, ok := nodes[0].(*ast.ClassNode)
+	if !ok {
+		t.Fatalf("Expected ClassNode, got %T", nodes[0])
+	}
+	if len(classNode.Methods) != 2 {
+		t.Fatalf("Expected two methods after skipping bodies, got %d", len(classNode.Methods))
+	}
+	if len(classNode.Properties) != 1 {
+		t.Fatalf("Expected one property after skipping bodies, got %d", len(classNode.Properties))
+	}
+}
+
 func TestParseConstructorPromotionReadonly(t *testing.T) {
 	input := `<?php
 class Bar {

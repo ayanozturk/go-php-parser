@@ -134,6 +134,22 @@ func (p *Parser) parseFunction(modifiers []string) (ast.Node, error) {
 		p.syncToNextClassMember()
 		return nil, nil
 	}
+	if p.SkipFunctionBodies {
+		if !p.l.SkipBalancedCurlyBlock() {
+			p.syncToNextClassMember()
+			return nil, nil
+		}
+		p.nextToken()
+		return &ast.FunctionNode{
+			Name:       name,
+			Params:     params,
+			ReturnType: returnType,
+			Modifiers:  savedModifiers,
+			Body:       nil,
+			PHPDoc:     p.consumeCurrentDoc(pos),
+			Pos:        ast.Position(pos),
+		}, nil
+	}
 	p.nextToken() // consume {
 
 	var body []ast.Node
