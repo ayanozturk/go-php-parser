@@ -25,6 +25,10 @@ func TestMethodVisibilityDeclaredChecker(t *testing.T) {
 		{[]string{"class Foo", "{", "$cb = static function ($x) { return $x; };", "}"}, 0, "static anonymous function inside class should not flag"},
 		// Correct: dynamic call via $function variable (should not flag)
 		{[]string{"class Foo", "{", "public function run(): void {", "$this->obj->{$function}(...$params);", "}", "}"}, 0, "dynamic call via $function variable should not flag"},
+		// Correct: function text inside strings should not be treated as a method.
+		{[]string{"class Foo", "{", "public static function provideData()", "{", "return [", "['Call to undefined function test_namespaced_function()', 'Attempted to call undefined function \"foo\".'],", "];", "}", "}"}, 0, "function word inside string should not flag"},
+		// Correct: function text inside comments should not be treated as a method.
+		{[]string{"class Foo", "{", "public function run(): void", "{", "// function missingVisibility()", "/* function alsoIgnored() */", "}", "}"}, 0, "function word inside comments should not flag"},
 	}
 
 	for _, tc := range cases {

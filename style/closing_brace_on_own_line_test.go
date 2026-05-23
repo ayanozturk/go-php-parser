@@ -29,6 +29,10 @@ func TestClosingBraceOnOwnLineChecker(t *testing.T) {
 		{[]string{"    }", ""}, 0, "brace with leading spaces, blank after"},
 		// Incorrect: class closing brace with trailing code, then blank
 		{[]string{"class Foo", "{", "    $a = 1;", "    } $x = 1;", ""}, 1, "class brace with trailing code, blank after"},
+		// Correct: inline docblock tags contain braces but are not PHP blocks.
+		{[]string{"class Foo", "{", "    /**", "     * {@inheritdoc}", "     */", "    protected static $modules = [", "        'system',", "    ];", "}", ""}, 0, "docblock inline tag before static property"},
+		// Correct: braces in comments and strings should not affect class depth.
+		{[]string{"class Foo", "{", "    // comment with }", "    protected string $template = '{value}';", "}"}, 0, "comment and string braces ignored"},
 	}
 	for _, tc := range cases {
 		issues := checker.CheckIssues(tc.lines, filename)

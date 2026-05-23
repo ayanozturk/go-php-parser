@@ -13,8 +13,10 @@ func (c *MethodVisibilityDeclaredChecker) CheckIssues(lines []string, filename s
 	var issues []StyleIssue
 	inClass := false
 	braceDepth := 0
+	commentState := &helper.CommentState{}
 	for i, line := range lines {
-		trimmed := helper.TrimWhitespace(line)
+		codeLine := codeOnlyLine(line, commentState)
+		trimmed := helper.TrimWhitespace(codeLine)
 		if shouldSkipLine(trimmed) {
 			continue
 		}
@@ -44,6 +46,65 @@ func (c *MethodVisibilityDeclaredChecker) CheckIssues(lines []string, filename s
 
 func shouldSkipLine(line string) bool {
 	return len(line) > 0 && (line[0] == '/' || line[0] == '*')
+}
+
+func codeOnlyLine(line string, commentState *helper.CommentState) string {
+	if helper.HandleHeredocEnd(line, commentState) {
+		return ""
+	}
+
+	quoteState := &helper.QuoteState{}
+	out := []byte(line)
+	for j := 0; j < len(line); {
+		if commentState.InBlockComment {
+			out[j] = ' '
+			next := helper.HandleBlockComment(line, j, commentState)
+			for k := j + 1; k < next && k < len(out); k++ {
+				out[k] = ' '
+			}
+			j = next
+			continue
+		}
+
+		if !quoteState.InSingle && !quoteState.InDouble {
+			if j+1 < len(line) && line[j] == '/' && line[j+1] == '/' {
+				blankBytes(out, j, len(out))
+				break
+			}
+			if line[j] == '#' {
+				blankBytes(out, j, len(out))
+				break
+			}
+			if next := helper.HandleBlockComment(line, j, commentState); next != j {
+				blankBytes(out, j, next)
+				j = next
+				continue
+			}
+			if next := helper.HandleHeredocStart(line, j, commentState); next != j {
+				blankBytes(out, j, len(out))
+				break
+			}
+		}
+
+		if quoteState.InSingle || quoteState.InDouble {
+			out[j] = ' '
+		}
+		next := helper.HandleQuotes(line, j, quoteState)
+		if next != j {
+			blankBytes(out, j, next)
+			j = next
+			continue
+		}
+		j++
+	}
+
+	return string(out)
+}
+
+func blankBytes(out []byte, start int, end int) {
+	for i := start; i < end && i < len(out); i++ {
+		out[i] = ' '
+	}
 }
 
 func updateBraceState(line string, braceDepth int, inClass bool) (int, bool) {
