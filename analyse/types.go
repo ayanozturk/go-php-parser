@@ -3,6 +3,7 @@ package analyse
 import (
 	"sort"
 	"strings"
+	"sync"
 )
 
 type typeKind int
@@ -40,6 +41,8 @@ var builtinTypeNames = map[string]struct{}{
 	"void":     {},
 }
 
+var parsedTypeCache sync.Map
+
 func EmptyType() Type {
 	return Type{}
 }
@@ -62,6 +65,10 @@ func ParseType(raw string) Type {
 		raw = "null|" + strings.TrimSpace(strings.TrimPrefix(raw, "?"))
 	}
 
+	if cached, ok := parsedTypeCache.Load(raw); ok {
+		return cached.(Type)
+	}
+
 	t := Type{atoms: make(map[string]typeAtom)}
 	for _, part := range strings.Split(raw, "|") {
 		atom, ok := normalizeTypeAtom(part)
@@ -74,6 +81,7 @@ func ParseType(raw string) Type {
 	if len(t.atoms) == 0 {
 		return EmptyType()
 	}
+	parsedTypeCache.Store(raw, t)
 	return t
 }
 

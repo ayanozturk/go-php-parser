@@ -12,7 +12,7 @@ type ArgumentCountRule struct{}
 
 func (r *ArgumentCountRule) CheckIssues(nodes []ast.Node, filename string, ctx *AnalysisContext) []AnalysisIssue {
 	var issues []AnalysisIssue
-	fileCtx := collectFileTypeContext(nodes)
+	fileCtx := analysisFileTypeContext(ctx, nodes)
 	var walk func(node ast.Node, class *ast.ClassNode)
 
 	walk = func(node ast.Node, class *ast.ClassNode) {
@@ -22,7 +22,7 @@ func (r *ArgumentCountRule) CheckIssues(nodes []ast.Node, filename string, ctx *
 				walk(methodNode, n)
 			}
 		case *ast.FunctionNode:
-			scope := newFunctionScope(class, n, fileCtx)
+			scope := analysisFunctionScope(ctx, class, n, fileCtx)
 			walkStatementsForArgCounts(n.Body, scope, ctx, filename, &issues)
 		case *ast.NamespaceNode:
 			for _, child := range n.Body {

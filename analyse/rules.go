@@ -88,6 +88,11 @@ func RunAnalysisRules(filename string, nodes []ast.Node) []AnalysisIssue {
 }
 
 func RunAnalysisRulesWithContext(filename string, nodes []ast.Node, ctx *AnalysisContext) []AnalysisIssue {
+	if ctx == nil {
+		ctx = &AnalysisContext{}
+	} else {
+		ctx = &AnalysisContext{Resolver: ctx.Resolver}
+	}
 	codes := ListRegisteredAnalysisRuleCodes()
 
 	issues := make([]AnalysisIssue, 0, 8)

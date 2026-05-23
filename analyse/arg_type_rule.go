@@ -10,7 +10,7 @@ type ArgumentTypeRule struct{}
 
 func (r *ArgumentTypeRule) CheckIssues(nodes []ast.Node, filename string, ctx *AnalysisContext) []AnalysisIssue {
 	var issues []AnalysisIssue
-	fileCtx := collectFileTypeContext(nodes)
+	fileCtx := analysisFileTypeContext(ctx, nodes)
 	var walk func(node ast.Node, class *ast.ClassNode, scope *functionScope)
 
 	walk = func(node ast.Node, class *ast.ClassNode, scope *functionScope) {
@@ -20,7 +20,7 @@ func (r *ArgumentTypeRule) CheckIssues(nodes []ast.Node, filename string, ctx *A
 				walk(methodNode, n, nil)
 			}
 		case *ast.FunctionNode:
-			fnScope := newFunctionScope(class, n, fileCtx)
+			fnScope := analysisFunctionScope(ctx, class, n, fileCtx)
 			walkStatementsForArgTypes(n.Body, fnScope, ctx, filename, &issues)
 		case *ast.NamespaceNode:
 			for _, child := range n.Body {

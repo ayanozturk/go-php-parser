@@ -44,7 +44,7 @@ func (r *ReturnTypeRule) CheckFunctionReturnType(fn *ast.FunctionNode, class *as
 	// Collect all actual return types
 	returnTypes := map[string]int{}
 	var firstMismatch *ReturnTypeError
-	scope := newFunctionScope(class, fn, typeCtx)
+	scope := analysisFunctionScope(ctx, class, fn, typeCtx)
 	for _, ret := range collectObservedReturns(fn.Body, scope, ctx) {
 		actualType := ret.Type
 		actualLabel := actualType.String()
@@ -111,7 +111,7 @@ func (r *ReturnTypeRule) CheckFunctionReturnType(fn *ast.FunctionNode, class *as
 
 func (r *ReturnTypeRule) CheckIssues(nodes []ast.Node, filename string, ctx *AnalysisContext) []AnalysisIssue {
 	var issues []AnalysisIssue
-	fileCtx := collectFileTypeContext(nodes)
+	fileCtx := analysisFileTypeContext(ctx, nodes)
 	var checkFunc func(n ast.Node, class *ast.ClassNode)
 	checkFunc = func(n ast.Node, class *ast.ClassNode) {
 		switch fn := n.(type) {
@@ -417,26 +417,17 @@ func (s *functionScope) clone() *functionScope {
 	clone := &functionScope{
 		className:     s.className,
 		typeCtx:       s.typeCtx,
-		propertyDecls: make(map[string]Type, len(s.propertyDecls)),
+		propertyDecls: s.propertyDecls,
 		variables:     make(map[string]Type, len(s.variables)),
 		properties:    make(map[string]Type, len(s.properties)),
-		methods:       make(map[string]ResolvedMethod, len(s.methods)),
-		methodReturns: make(map[string]Type, len(s.methodReturns)),
-	}
-	for name, typ := range s.propertyDecls {
-		clone.propertyDecls[name] = typ
+		methods:       s.methods,
+		methodReturns: s.methodReturns,
 	}
 	for name, typ := range s.variables {
 		clone.variables[name] = typ
 	}
 	for name, typ := range s.properties {
 		clone.properties[name] = typ
-	}
-	for name, method := range s.methods {
-		clone.methods[name] = method
-	}
-	for name, typ := range s.methodReturns {
-		clone.methodReturns[name] = typ
 	}
 	return clone
 }
