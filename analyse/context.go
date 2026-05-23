@@ -39,6 +39,7 @@ type AnalysisContext struct {
 	fileTypeContext     fileTypeContext
 	hasFileTypeContext  bool
 	functionScopeByNode map[*ast.FunctionNode]*functionScope
+	classScopeByNode    map[*ast.ClassNode]classScopeData
 }
 
 func analysisFileTypeContext(ctx *AnalysisContext, nodes []ast.Node) fileTypeContext {
@@ -62,7 +63,25 @@ func analysisFunctionScope(ctx *AnalysisContext, class *ast.ClassNode, fn *ast.F
 	if scope, ok := ctx.functionScopeByNode[fn]; ok {
 		return scope.clone()
 	}
-	scope := newFunctionScope(class, fn, typeCtx)
+	scope := newFunctionScopeWithContext(ctx, class, fn, typeCtx)
 	ctx.functionScopeByNode[fn] = scope
 	return scope.clone()
+}
+
+func analysisClassScopeData(ctx *AnalysisContext, class *ast.ClassNode, typeCtx fileTypeContext) classScopeData {
+	if class == nil {
+		return classScopeData{}
+	}
+	if ctx == nil {
+		return buildClassScopeData(class, typeCtx)
+	}
+	if ctx.classScopeByNode == nil {
+		ctx.classScopeByNode = make(map[*ast.ClassNode]classScopeData)
+	}
+	if data, ok := ctx.classScopeByNode[class]; ok {
+		return data
+	}
+	data := buildClassScopeData(class, typeCtx)
+	ctx.classScopeByNode[class] = data
+	return data
 }

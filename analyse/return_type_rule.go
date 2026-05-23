@@ -24,6 +24,14 @@ type functionScope struct {
 	methodReturns map[string]Type
 }
 
+type classScopeData struct {
+	className     string
+	propertyDecls map[string]Type
+	properties    map[string]Type
+	methods       map[string]ResolvedMethod
+	methodReturns map[string]Type
+}
+
 type ReturnTypeError struct {
 	FuncName     string
 	DeclaredType string
@@ -281,6 +289,10 @@ func declaredFunctionReturnType(fn *ast.FunctionNode, typeCtx fileTypeContext) T
 }
 
 func newFunctionScope(class *ast.ClassNode, fn *ast.FunctionNode, typeCtx fileTypeContext) *functionScope {
+	return newFunctionScopeWithContext(nil, class, fn, typeCtx)
+}
+
+func newFunctionScopeWithContext(ctx *AnalysisContext, class *ast.ClassNode, fn *ast.FunctionNode, typeCtx fileTypeContext) *functionScope {
 	scope := &functionScope{
 		typeCtx:       typeCtx,
 		propertyDecls: make(map[string]Type),
@@ -291,60 +303,12 @@ func newFunctionScope(class *ast.ClassNode, fn *ast.FunctionNode, typeCtx fileTy
 	}
 
 	if class != nil {
-		scope.className = typeCtx.resolveClassLike(class.Name)
-		for _, propertyNode := range class.Properties {
-			property, ok := propertyNode.(*ast.PropertyNode)
-			if !ok {
-				continue
-			}
-			propertyType := ParseType(normalizeTypeWithContext(property.TypeHint, typeCtx))
-			if propertyType.IsEmpty() && property.DefaultValue != nil {
-				propertyType = inferType(property.DefaultValue, scope, nil)
-			}
-			if !propertyType.IsEmpty() {
-				scope.propertyDecls[property.Name] = propertyType
-				scope.properties[property.Name] = propertyType
-			}
-		}
-		for _, promoted := range promotedClassProperties(class, typeCtx, scope) {
-			scope.propertyDecls[promoted.name] = promoted.typ
-			scope.properties[promoted.name] = promoted.typ
-		}
-		for _, methodNode := range class.Methods {
-			method, ok := methodNode.(*ast.FunctionNode)
-			if !ok {
-				continue
-			}
-			methodType := declaredFunctionReturnType(method, typeCtx)
-			resolved := ResolvedMethod{
-				Name:       method.Name,
-				ReturnType: methodType.String(),
-				Params:     make([]ResolvedParam, 0, len(method.Params)),
-			}
-			for _, paramNode := range method.Params {
-				param, ok := paramNode.(*ast.ParamNode)
-				if !ok {
-					continue
-				}
-				paramType := ParseType(normalizeTypeWithContext(param.TypeHint, typeCtx))
-				if paramType.IsEmpty() && param.UnionType != nil {
-					paramType = ParseType(normalizeTypeWithContext(param.UnionType.TokenLiteral(), typeCtx))
-				}
-				if paramType.IsEmpty() && method.PHPDoc != nil {
-					paramType = ParseType(normalizeTypeWithContext(method.PHPDoc.GetParamTypeFromPHPDoc(param.Name), typeCtx))
-				}
-				resolved.Params = append(resolved.Params, ResolvedParam{
-					Name:       param.Name,
-					Type:       paramType.String(),
-					HasDefault: param.DefaultValue != nil,
-					IsVariadic: param.IsVariadic,
-				})
-			}
-			scope.methods[strings.ToLower(method.Name)] = resolved
-			if !methodType.IsEmpty() {
-				scope.methodReturns[strings.ToLower(method.Name)] = methodType
-			}
-		}
+		classData := analysisClassScopeData(ctx, class, typeCtx)
+		scope.className = classData.className
+		scope.propertyDecls = classData.propertyDecls
+		scope.properties = copyTypeMap(classData.properties)
+		scope.methods = classData.methods
+		scope.methodReturns = classData.methodReturns
 	}
 
 	for _, paramNode := range fn.Params {
@@ -368,6 +332,88 @@ func newFunctionScope(class *ast.ClassNode, fn *ast.FunctionNode, typeCtx fileTy
 	}
 
 	return scope
+}
+
+func buildClassScopeData(class *ast.ClassNode, typeCtx fileTypeContext) classScopeData {
+	data := classScopeData{
+		className:     typeCtx.resolveClassLike(class.Name),
+		propertyDecls: make(map[string]Type),
+		properties:    make(map[string]Type),
+		methods:       make(map[string]ResolvedMethod),
+		methodReturns: make(map[string]Type),
+	}
+	scope := &functionScope{
+		className:     data.className,
+		typeCtx:       typeCtx,
+		propertyDecls: data.propertyDecls,
+		variables:     make(map[string]Type),
+		properties:    data.properties,
+		methods:       data.methods,
+		methodReturns: data.methodReturns,
+	}
+
+	for _, propertyNode := range class.Properties {
+		property, ok := propertyNode.(*ast.PropertyNode)
+		if !ok {
+			continue
+		}
+		propertyType := ParseType(normalizeTypeWithContext(property.TypeHint, typeCtx))
+		if propertyType.IsEmpty() && property.DefaultValue != nil {
+			propertyType = inferType(property.DefaultValue, scope, nil)
+		}
+		if !propertyType.IsEmpty() {
+			data.propertyDecls[property.Name] = propertyType
+			data.properties[property.Name] = propertyType
+		}
+	}
+	for _, promoted := range promotedClassProperties(class, typeCtx, scope) {
+		data.propertyDecls[promoted.name] = promoted.typ
+		data.properties[promoted.name] = promoted.typ
+	}
+	for _, methodNode := range class.Methods {
+		method, ok := methodNode.(*ast.FunctionNode)
+		if !ok {
+			continue
+		}
+		methodType := declaredFunctionReturnType(method, typeCtx)
+		resolved := ResolvedMethod{
+			Name:       method.Name,
+			ReturnType: methodType.String(),
+			Params:     make([]ResolvedParam, 0, len(method.Params)),
+		}
+		for _, paramNode := range method.Params {
+			param, ok := paramNode.(*ast.ParamNode)
+			if !ok {
+				continue
+			}
+			paramType := ParseType(normalizeTypeWithContext(param.TypeHint, typeCtx))
+			if paramType.IsEmpty() && param.UnionType != nil {
+				paramType = ParseType(normalizeTypeWithContext(param.UnionType.TokenLiteral(), typeCtx))
+			}
+			if paramType.IsEmpty() && method.PHPDoc != nil {
+				paramType = ParseType(normalizeTypeWithContext(method.PHPDoc.GetParamTypeFromPHPDoc(param.Name), typeCtx))
+			}
+			resolved.Params = append(resolved.Params, ResolvedParam{
+				Name:       param.Name,
+				Type:       paramType.String(),
+				HasDefault: param.DefaultValue != nil,
+				IsVariadic: param.IsVariadic,
+			})
+		}
+		data.methods[strings.ToLower(method.Name)] = resolved
+		if !methodType.IsEmpty() {
+			data.methodReturns[strings.ToLower(method.Name)] = methodType
+		}
+	}
+	return data
+}
+
+func copyTypeMap(src map[string]Type) map[string]Type {
+	dst := make(map[string]Type, len(src))
+	for name, typ := range src {
+		dst[name] = typ
+	}
+	return dst
 }
 
 type promotedProperty struct {

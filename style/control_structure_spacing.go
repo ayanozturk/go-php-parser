@@ -24,6 +24,8 @@ type stringState struct {
 	heredocLabel string
 }
 
+var defaultControlStructureSpacingChecker = NewControlStructureSpacingChecker()
+
 // NewControlStructureSpacingChecker creates a new checker with proper initialization
 func NewControlStructureSpacingChecker() *ControlStructureSpacingChecker {
 	keywords := []string{"if", "else", "elseif", "for", "foreach", "while", "do", "switch", "try", "catch", "finally"}
@@ -82,6 +84,10 @@ func (c *ControlStructureSpacingChecker) CheckIssues(lines []string, filename st
 }
 
 func maskControlStructureNonCode(line string, commentState *helper.CommentState, state stringState) (string, stringState) {
+	if !commentState.InBlockComment && !state.inSingle && !state.inDouble && state.heredocLabel == "" && strings.IndexAny(line, "'\"/#<") == -1 {
+		return line, state
+	}
+
 	masked := []byte(line)
 	if state.heredocLabel != "" {
 		for i := range masked {
@@ -622,8 +628,7 @@ func (f ControlStructureSpacingFixer) Fix(content string) string {
 func init() {
 	RegisterRule(controlStructureSpacingCode, func(filename string, content []byte, _ []ast.Node) []StyleIssue {
 		lines := SplitLinesCached(content)
-		checker := NewControlStructureSpacingChecker()
-		return checker.CheckIssues(lines, filename)
+		return defaultControlStructureSpacingChecker.CheckIssues(lines, filename)
 	})
 	RegisterFixer(ControlStructureSpacingFixer{})
 }
