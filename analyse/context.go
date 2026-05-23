@@ -1,6 +1,9 @@
 package analyse
 
-import "go-phpcs/ast"
+import (
+	"go-phpcs/ast"
+	"strings"
+)
 
 type SymbolResolver interface {
 	ClassExists(name string) bool
@@ -84,4 +87,20 @@ func analysisClassScopeData(ctx *AnalysisContext, class *ast.ClassNode, typeCtx 
 	data := buildClassScopeData(class, typeCtx)
 	ctx.classScopeByNode[class] = data
 	return data
+}
+
+func analysisClassScopeDataByName(ctx *AnalysisContext, className string, typeCtx fileTypeContext) (classScopeData, bool) {
+	className = strings.TrimPrefix(strings.TrimSpace(className), `\`)
+	if className == "" {
+		return classScopeData{}, false
+	}
+	class, ok := typeCtx.classNodes[strings.ToLower(className)]
+	if !ok {
+		resolved := typeCtx.resolveClassLike(className)
+		class, ok = typeCtx.classNodes[strings.ToLower(strings.TrimPrefix(resolved, `\`))]
+		if !ok {
+			return classScopeData{}, false
+		}
+	}
+	return analysisClassScopeData(ctx, class, typeCtx), true
 }

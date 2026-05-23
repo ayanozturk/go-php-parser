@@ -56,7 +56,7 @@ func ClassType(name string) Type {
 }
 
 func ParseType(raw string) Type {
-	raw = strings.TrimSpace(raw)
+	raw = normalizeRawType(raw)
 	if raw == "" {
 		return EmptyType()
 	}
@@ -70,12 +70,10 @@ func ParseType(raw string) Type {
 	}
 
 	t := Type{atoms: make(map[string]typeAtom)}
-	for _, part := range strings.Split(raw, "|") {
-		atom, ok := normalizeTypeAtom(part)
-		if !ok {
-			continue
+	for _, part := range splitTopLevelTypes(raw, '|') {
+		for _, atom := range normalizeTypeAtoms(part) {
+			t.atoms[atom.key] = atom
 		}
-		t.atoms[atom.key] = atom
 	}
 
 	if len(t.atoms) == 0 {
@@ -83,6 +81,43 @@ func ParseType(raw string) Type {
 	}
 	parsedTypeCache.Store(raw, t)
 	return t
+}
+
+func normalizeTypeAtoms(raw string) []typeAtom {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return nil
+	}
+	raw = strings.TrimPrefix(raw, "\\")
+	canonical := canonicalizeDocType(raw)
+	parts := splitTopLevelTypes(canonical, '|')
+	if len(parts) > 1 {
+		atoms := make([]typeAtom, 0, len(parts))
+		for _, part := range parts {
+			atom, ok := normalizeTypeAtom(part)
+			if ok {
+				atoms = append(atoms, atom)
+			}
+		}
+		return atoms
+	}
+	atom, ok := normalizeTypeAtom(canonical)
+	if !ok {
+		return nil
+	}
+	return []typeAtom{atom}
+}
+
+func normalizeRawType(raw string) string {
+	raw = strings.TrimSpace(raw)
+	for strings.HasPrefix(raw, "(") && strings.HasSuffix(raw, ")") {
+		inner := strings.TrimSpace(raw[1 : len(raw)-1])
+		if inner == "" {
+			break
+		}
+		raw = inner
+	}
+	return raw
 }
 
 func (t Type) IsEmpty() bool {
@@ -199,6 +234,9 @@ func normalizeTypeAtom(raw string) (typeAtom, bool) {
 		return typeAtom{}, false
 	}
 
+	raw = strings.TrimPrefix(raw, "\\")
+	raw = canonicalizeDocType(raw)
+
 	lower := strings.ToLower(raw)
 	if _, ok := builtinTypeNames[lower]; ok {
 		return typeAtom{key: lower, display: lower, kind: typeKindBuiltin}, true
@@ -231,11 +269,106 @@ func atomsCompatibleWithContext(declared, actual typeAtom, scope *functionScope,
 		if declared.key == "void" && actual.key == "null" {
 			return true
 		}
+		if declared.key == "bool" && (actual.key == "true" || actual.key == "false") {
+			return true
+		}
+		if declared.key == "iterable" && actual.key == "array" {
+			return true
+		}
+	}
+	if declared.kind == typeKindBuiltin && actual.kind == typeKindClass {
+		if declared.key == "object" {
+			return true
+		}
+		if declared.key == "iterable" {
+			return classHierarchyCompatible("Traversable", actual.display, scope, ctx)
+		}
 	}
 	if declared.kind == typeKindClass && actual.kind == typeKindClass {
 		return classHierarchyCompatible(declared.display, actual.display, scope, ctx)
 	}
 	return false
+}
+
+func canonicalizeDocType(raw string) string {
+	lower := strings.ToLower(strings.TrimSpace(raw))
+	if strings.HasPrefix(lower, "[") && strings.HasSuffix(lower, "]") {
+		return "array"
+	}
+	if strings.HasSuffix(lower, "[]") {
+		return "array"
+	}
+
+	base := lower
+	if idx := strings.IndexAny(base, "<("); idx >= 0 {
+		base = base[:idx]
+	}
+	if idx := strings.Index(base, "{"); idx >= 0 {
+		base = base[:idx]
+	}
+
+	switch base {
+	case "boolean":
+		return "bool"
+	case "integer":
+		return "int"
+	case "double", "real":
+		return "float"
+	case "callback":
+		return "callable"
+	case "list", "non-empty-list", "array-key", "array-shape":
+		if base == "array-key" {
+			return "int|string"
+		}
+		return "array"
+	case "array", "non-empty-array", "associative-array":
+		return "array"
+	case "class-string", "interface-string", "trait-string", "literal-string", "non-empty-string", "numeric-string", "lowercase-string":
+		return "string"
+	case "positive-int", "negative-int", "non-negative-int", "non-positive-int":
+		return "int"
+	case "scalar":
+		return "bool|float|int|string"
+	}
+
+	return raw
+}
+
+func splitTopLevelTypes(raw string, sep rune) []string {
+	var parts []string
+	start := 0
+	depthAngle := 0
+	depthParen := 0
+	depthBrace := 0
+	for idx, r := range raw {
+		switch r {
+		case '<':
+			depthAngle++
+		case '>':
+			if depthAngle > 0 {
+				depthAngle--
+			}
+		case '(':
+			depthParen++
+		case ')':
+			if depthParen > 0 {
+				depthParen--
+			}
+		case '{':
+			depthBrace++
+		case '}':
+			if depthBrace > 0 {
+				depthBrace--
+			}
+		default:
+			if r == sep && depthAngle == 0 && depthParen == 0 && depthBrace == 0 {
+				parts = append(parts, raw[start:idx])
+				start = idx + len(string(r))
+			}
+		}
+	}
+	parts = append(parts, raw[start:])
+	return parts
 }
 
 func classHierarchyCompatible(declaredName, actualName string, scope *functionScope, ctx *AnalysisContext) bool {

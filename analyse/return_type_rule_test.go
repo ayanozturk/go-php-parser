@@ -39,6 +39,17 @@ func TestImplodeReturnsStringNoMismatch(t *testing.T) {
 	}
 }
 
+func TestShortArrayLiteralReturnMatchesArrayType(t *testing.T) {
+	php := `<?php
+    function values(): array {
+        return ['name'];
+    }`
+	issues := analysePHP(t, php)
+	if hasReturnTypeIssue(issues) {
+		t.Fatalf("expected no A.RETURN.TYPE issue for short array literal returned as array, got: %#v", issues)
+	}
+}
+
 func TestMultipleCompatibleTypesNoError(t *testing.T) {
 	php := `<?php
     function bar(): bool {

@@ -6,13 +6,18 @@ import (
 )
 
 type fileTypeContext struct {
-	namespace string
-	aliases   map[string]string
-	classes   map[string]ResolvedClass
+	namespace  string
+	aliases    map[string]string
+	classes    map[string]ResolvedClass
+	classNodes map[string]*ast.ClassNode
 }
 
 func collectFileTypeContext(nodes []ast.Node) fileTypeContext {
-	ctx := fileTypeContext{aliases: make(map[string]string), classes: make(map[string]ResolvedClass)}
+	ctx := fileTypeContext{
+		aliases:    make(map[string]string),
+		classes:    make(map[string]ResolvedClass),
+		classNodes: make(map[string]*ast.ClassNode),
+	}
 	collectFileTypeContextFromNodes(nodes, "", &ctx)
 	return ctx
 }
@@ -54,7 +59,9 @@ func collectFileTypeContextFromNodes(nodes []ast.Node, currentNS string, ctx *fi
 					resolved.Implements = append(resolved.Implements, resolveClassLikeInContext(namespace, ctx.aliases, implemented))
 				}
 			}
-			ctx.classes[strings.ToLower(strings.TrimPrefix(className, `\`))] = resolved
+			key := strings.ToLower(strings.TrimPrefix(className, `\`))
+			ctx.classes[key] = resolved
+			ctx.classNodes[key] = n
 		case *ast.InterfaceNode:
 			interfaceName := resolveClassLikeInContext(namespace, ctx.aliases, n.Name)
 			resolved := ResolvedClass{Name: interfaceName}
@@ -133,10 +140,15 @@ func normalizeTypeWithContext(raw string, ctx fileTypeContext) string {
 		raw = strings.TrimSpace(strings.TrimPrefix(raw, "?"))
 	}
 
-	parts := strings.Split(raw, "|")
+	parts := splitTopLevelTypes(raw, '|')
 	for idx, part := range parts {
 		part = strings.TrimSpace(part)
 		if part == "" {
+			continue
+		}
+		part = canonicalizeDocType(strings.TrimPrefix(part, `\`))
+		if len(splitTopLevelTypes(part, '|')) > 1 {
+			parts[idx] = part
 			continue
 		}
 		atom, ok := normalizeTypeAtom(part)

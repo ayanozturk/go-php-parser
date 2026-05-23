@@ -43,6 +43,105 @@ func TestMethodArgumentTypeCompatible(t *testing.T) {
 	}
 }
 
+func TestMethodArgumentObjectParameterAcceptsClassInstance(t *testing.T) {
+	php := `<?php
+    namespace Symfony\Component\PropertyAccess\Tests;
+
+    class UninitializedPrivateProperty {
+    }
+
+    class PropertyAccessor {
+        public function getValue(array|object $objectOrArray, string $propertyPath): mixed {
+        }
+    }
+
+    class Example {
+        private PropertyAccessor $propertyAccessor;
+
+        public function run(): void {
+            $this->propertyAccessor->getValue(new UninitializedPrivateProperty(), "uninitialized");
+        }
+    }`
+	issues := analysePHP(t, php)
+	if hasArgTypeIssue(issues) {
+		t.Fatalf("expected no A.ARG.TYPE issue for class instance passed to object parameter, got: %#v", issues)
+	}
+}
+
+func TestMethodArgumentTypeNormalizesPhpDocAliasesAndGenerics(t *testing.T) {
+	php := `<?php
+    class CollectionConsumer {
+        /**
+         * @param list<string> $names
+         * @param class-string<Foo> $className
+         * @param boolean $enabled
+         * @param integer $count
+         */
+        public function consume($names, $className, $enabled, $count): void {
+        }
+
+        public function run(): void {
+            $this->consume(["a"], Foo::class, true, 1);
+        }
+    }
+
+    class Foo {
+    }`
+	issues := analysePHP(t, php)
+	if hasArgTypeIssue(issues) {
+		t.Fatalf("expected no A.ARG.TYPE issue for normalized PHPDoc aliases/generics, got: %#v", issues)
+	}
+}
+
+func TestInheritedMethodSignatureUsedForArgumentTypes(t *testing.T) {
+	php := `<?php
+    class BaseAccessor {
+        public function getValue(array|object $objectOrArray, string $propertyPath): mixed {
+        }
+    }
+
+    class PropertyAccessor extends BaseAccessor {
+    }
+
+    class Fixture {
+    }
+
+    class Example {
+        private PropertyAccessor $propertyAccessor;
+
+        public function run(): void {
+            $this->propertyAccessor->getValue(new Fixture(), "value");
+        }
+    }`
+	issues := analysePHP(t, php)
+	if hasArgTypeIssue(issues) {
+		t.Fatalf("expected no A.ARG.TYPE issue using inherited method signature, got: %#v", issues)
+	}
+}
+
+func TestInheritedMethodSignatureDetectsArgumentTypeMismatch(t *testing.T) {
+	php := `<?php
+    class BaseAccessor {
+        public function setCount(int $count): void {
+        }
+    }
+
+    class Accessor extends BaseAccessor {
+    }
+
+    class Example {
+        private Accessor $accessor;
+
+        public function run(): void {
+            $this->accessor->setCount("bad");
+        }
+    }`
+	issues := analysePHP(t, php)
+	if !hasArgTypeIssue(issues) {
+		t.Fatalf("expected A.ARG.TYPE issue using inherited method signature, got: %#v", issues)
+	}
+}
+
 func TestMethodArgumentTypeRefinedAfterNullGuardThrow(t *testing.T) {
 	php := `<?php
     class DocumentPolicy {

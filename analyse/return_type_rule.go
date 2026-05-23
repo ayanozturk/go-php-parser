@@ -335,12 +335,29 @@ func newFunctionScopeWithContext(ctx *AnalysisContext, class *ast.ClassNode, fn 
 }
 
 func buildClassScopeData(class *ast.ClassNode, typeCtx fileTypeContext) classScopeData {
+	return buildClassScopeDataWithSeen(class, typeCtx, map[string]struct{}{})
+}
+
+func buildClassScopeDataWithSeen(class *ast.ClassNode, typeCtx fileTypeContext, seen map[string]struct{}) classScopeData {
 	data := classScopeData{
 		className:     typeCtx.resolveClassLike(class.Name),
 		propertyDecls: make(map[string]Type),
 		properties:    make(map[string]Type),
 		methods:       make(map[string]ResolvedMethod),
 		methodReturns: make(map[string]Type),
+	}
+	key := strings.ToLower(strings.TrimPrefix(data.className, `\`))
+	if _, ok := seen[key]; ok {
+		return data
+	}
+	seen[key] = struct{}{}
+
+	if class.Extends != "" {
+		parentName := typeCtx.resolveClassLike(class.Extends)
+		if parent, ok := typeCtx.classNodes[strings.ToLower(strings.TrimPrefix(parentName, `\`))]; ok {
+			parentData := buildClassScopeDataWithSeen(parent, typeCtx, seen)
+			mergeClassScopeData(&data, parentData)
+		}
 	}
 	scope := &functionScope{
 		className:     data.className,
@@ -406,6 +423,21 @@ func buildClassScopeData(class *ast.ClassNode, typeCtx fileTypeContext) classSco
 		}
 	}
 	return data
+}
+
+func mergeClassScopeData(dst *classScopeData, src classScopeData) {
+	for name, typ := range src.propertyDecls {
+		dst.propertyDecls[name] = typ
+	}
+	for name, typ := range src.properties {
+		dst.properties[name] = typ
+	}
+	for name, method := range src.methods {
+		dst.methods[name] = method
+	}
+	for name, typ := range src.methodReturns {
+		dst.methodReturns[name] = typ
+	}
 }
 
 func copyTypeMap(src map[string]Type) map[string]Type {
@@ -579,6 +611,13 @@ func inferMethodCallType(node *ast.MethodCallNode, scope *functionScope, ctx *An
 	if scope != nil && strings.EqualFold(className, scope.className) {
 		if method, ok := resolveSameClassMethod(scope, node.Method); ok {
 			return ParseType(method.ReturnType)
+		}
+	}
+	if scope != nil {
+		if classData, ok := analysisClassScopeDataByName(ctx, className, scope.typeCtx); ok {
+			if method, ok := classData.methods[strings.ToLower(node.Method)]; ok {
+				return ParseType(method.ReturnType)
+			}
 		}
 	}
 	if ctx != nil && ctx.Resolver != nil {
