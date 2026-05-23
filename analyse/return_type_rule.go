@@ -511,11 +511,34 @@ func (s *functionScope) clone() *functionScope {
 }
 
 func applyExpressionScope(scope *functionScope, expr ast.Node, ctx *AnalysisContext) {
+	if condition, ok := assertionCondition(expr); ok {
+		applyConditionTrueScope(scope, condition)
+		return
+	}
 	assignment, ok := expr.(*ast.AssignmentNode)
 	if !ok {
 		return
 	}
 	applyAssignmentScope(scope, assignment, ctx)
+}
+
+func assertionCondition(expr ast.Node) (ast.Node, bool) {
+	call, ok := expr.(*ast.FunctionCallNode)
+	if !ok || len(call.Args) == 0 {
+		return nil, false
+	}
+	nameNode, ok := call.Name.(*ast.IdentifierNode)
+	if !ok {
+		return nil, false
+	}
+	name := strings.TrimLeft(nameNode.Value, "\\")
+	if idx := strings.LastIndex(name, "\\"); idx != -1 {
+		name = name[idx+1:]
+	}
+	if !strings.EqualFold(name, "assert") {
+		return nil, false
+	}
+	return argumentValue(call.Args[0]), true
 }
 
 func applyAssignmentScope(scope *functionScope, assignment *ast.AssignmentNode, ctx *AnalysisContext) {

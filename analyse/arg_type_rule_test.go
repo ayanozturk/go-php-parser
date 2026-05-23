@@ -202,6 +202,136 @@ func TestMethodArgumentTypeRefinedAfterExplicitNullGuardReturn(t *testing.T) {
 	}
 }
 
+func TestMethodArgumentTypeRefinedInsideNotNullBranch(t *testing.T) {
+	php := `<?php
+    class DOMElement {
+    }
+
+    class Example {
+        public function parseBooleanAttribute(DOMElement $element, string $name, bool $default): bool {
+        }
+
+        public function run(?DOMElement $element): void {
+            if ($element !== null) {
+                $this->parseBooleanAttribute($element, "includeGitInformation", false);
+            }
+        }
+    }`
+	issues := analysePHP(t, php)
+	if hasArgTypeIssue(issues) {
+		t.Fatalf("expected no A.ARG.TYPE issue for non-null variable inside !== null branch, got: %#v", issues)
+	}
+}
+
+func TestMethodArgumentTypeRefinedInsideNotIsNullBranch(t *testing.T) {
+	php := `<?php
+    class DOMElement {
+    }
+
+    class Example {
+        public function parseBooleanAttribute(DOMElement $element): bool {
+        }
+
+        public function run(?DOMElement $element): void {
+            if (!is_null($element)) {
+                $this->parseBooleanAttribute($element);
+            }
+        }
+    }`
+	issues := analysePHP(t, php)
+	if hasArgTypeIssue(issues) {
+		t.Fatalf("expected no A.ARG.TYPE issue for non-null variable inside !is_null branch, got: %#v", issues)
+	}
+}
+
+func TestMethodArgumentTypeRefinedInsideTruthyObjectBranch(t *testing.T) {
+	php := `<?php
+    class DOMElement {
+    }
+
+    class Example {
+        public function parseBooleanAttribute(DOMElement $element): bool {
+        }
+
+        public function run(?DOMElement $element): void {
+            if ($element) {
+                $this->parseBooleanAttribute($element);
+            }
+        }
+    }`
+	issues := analysePHP(t, php)
+	if hasArgTypeIssue(issues) {
+		t.Fatalf("expected no A.ARG.TYPE issue for non-null variable inside truthy branch, got: %#v", issues)
+	}
+}
+
+func TestMethodArgumentTypeRefinedAfterLoopBreakNullGuard(t *testing.T) {
+	php := `<?php
+    class Rule {
+    }
+
+    class Example {
+        public function propagate(): ?Rule {
+            return new Rule();
+        }
+
+        public function analyze(Rule $rule): void {
+        }
+
+        public function run(): void {
+            while (true) {
+                $rule = $this->propagate();
+                if ($rule === null) {
+                    break;
+                }
+
+                $this->analyze($rule);
+            }
+        }
+    }`
+	issues := analysePHP(t, php)
+	if hasArgTypeIssue(issues) {
+		t.Fatalf("expected no A.ARG.TYPE issue after break null guard in loop body, got: %#v", issues)
+	}
+}
+
+func TestMethodArgumentTypeRefinedAfterAssertNotNull(t *testing.T) {
+	php := `<?php
+    class Example {
+        public function revert(int $level): void {
+        }
+
+        public function run(?int $lastLevel): void {
+            assert($lastLevel !== null);
+
+            $this->revert($lastLevel);
+        }
+    }`
+	issues := analysePHP(t, php)
+	if hasArgTypeIssue(issues) {
+		t.Fatalf("expected no A.ARG.TYPE issue after assert non-null guard, got: %#v", issues)
+	}
+}
+
+func TestMethodArgumentTypeRefinedAfterAssertNotNullFromImpreciseAssignment(t *testing.T) {
+	php := `<?php
+    class Example {
+        public function revert(int $level): void {
+        }
+
+        public function run(): void {
+            $lastLevel = null;
+            assert($lastLevel !== null);
+
+            $this->revert($lastLevel);
+        }
+    }`
+	issues := analysePHP(t, php)
+	if hasArgTypeIssue(issues) {
+		t.Fatalf("expected no A.ARG.TYPE issue after assert proves imprecise null assignment non-null, got: %#v", issues)
+	}
+}
+
 func TestMethodArgumentTypeNotRefinedAfterNonTerminatingNullCheck(t *testing.T) {
 	php := `<?php
     class DocumentPolicy {

@@ -111,6 +111,26 @@ func variablesTypedWhenTrue(node ast.Node, scope *functionScope) map[string]Type
 			if name, ok := nullComparisonVariable(n.Left, n.Right); ok {
 				return map[string]Type{name: ParseType("null")}
 			}
+		case "!=", "!==":
+			if name, ok := nullComparisonVariable(n.Left, n.Right); ok {
+				if typ, ok := nonNullVariableType(scope, name); ok {
+					return map[string]Type{name: typ}
+				}
+			}
+		}
+	case *ast.UnaryExpr:
+		if n.Operator == "!" {
+			refined := map[string]Type{}
+			for _, variableName := range variablesNonNullWhenFalse(n.Operand) {
+				if typ, ok := nonNullVariableType(scope, variableName); ok {
+					refined[variableName] = typ
+				}
+			}
+			return refined
+		}
+	case *ast.VariableNode:
+		if typ, ok := nonNullVariableType(scope, n.Name); ok {
+			return map[string]Type{n.Name: typ}
 		}
 	case *ast.FunctionCallNode:
 		if variableName, typ, ok := builtinTypePredicate(n); ok {
@@ -118,6 +138,24 @@ func variablesTypedWhenTrue(node ast.Node, scope *functionScope) map[string]Type
 		}
 	}
 	return map[string]Type{}
+}
+
+func nonNullVariableType(scope *functionScope, variableName string) (Type, bool) {
+	if scope == nil {
+		return EmptyType(), false
+	}
+	current, ok := scope.variables[variableName]
+	if !ok {
+		return EmptyType(), false
+	}
+	refined := current.withoutBuiltin("null")
+	if refined.IsEmpty() {
+		if current.hasBuiltin("null") {
+			return MixedType(), true
+		}
+		return EmptyType(), false
+	}
+	return refined, true
 }
 
 func builtinTypePredicate(call *ast.FunctionCallNode) (string, Type, bool) {
@@ -176,7 +214,7 @@ func applyTerminatingIfFalseScope(scope *functionScope, node *ast.IfNode) {
 	if scope == nil || node == nil || node.Else != nil || len(node.ElseIfs) > 0 {
 		return
 	}
-	if !statementsTerminate(node.Body) {
+	if !statementsExitCurrentBlock(node.Body) {
 		return
 	}
 	// Strip null from variables that are non-null when the condition is false
@@ -205,6 +243,48 @@ func applyTerminatingIfFalseScope(scope *functionScope, node *ast.IfNode) {
 	}
 }
 
+func statementsExitCurrentBlock(stmts []ast.Node) bool {
+	if statementsTerminate(stmts) {
+		return true
+	}
+	if len(stmts) == 0 {
+		return false
+	}
+	for _, stmt := range stmts {
+		if exitsCurrentBlock(stmt) {
+			return true
+		}
+	}
+	return false
+}
+
+func exitsCurrentBlock(node ast.Node) bool {
+	if isTerminatingStatement(node) {
+		return true
+	}
+	switch n := node.(type) {
+	case *ast.ExpressionStmt:
+		return exitsCurrentBlock(n.Expr)
+	case *ast.IdentifierNode:
+		keyword := strings.ToLower(n.Value)
+		return keyword == "break" || keyword == "continue"
+	case *ast.IfNode:
+		if n.Else == nil {
+			return false
+		}
+		if !statementsExitCurrentBlock(n.Body) {
+			return false
+		}
+		for _, elseif := range n.ElseIfs {
+			if !statementsExitCurrentBlock(elseif.Body) {
+				return false
+			}
+		}
+		return statementsExitCurrentBlock(n.Else.Body)
+	}
+	return false
+}
+
 func variablesNonNullWhenFalse(node ast.Node) []string {
 	switch n := node.(type) {
 	case *ast.BinaryExpr:
@@ -222,6 +302,10 @@ func variablesNonNullWhenFalse(node ast.Node) []string {
 			if variable, ok := n.Operand.(*ast.VariableNode); ok {
 				return []string{variable.Name}
 			}
+		}
+	case *ast.FunctionCallNode:
+		if variableName, typ, ok := builtinTypePredicate(n); ok && typ.hasBuiltin("null") {
+			return []string{variableName}
 		}
 	}
 	return nil
