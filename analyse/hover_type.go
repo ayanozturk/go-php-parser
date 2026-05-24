@@ -32,6 +32,9 @@ func InferHoverTargetAtPosition(nodes []ast.Node, line, column int, ident string
 	if ident == "" {
 		return HoverTarget{}, false
 	}
+	if ident == "new" {
+		return HoverTarget{}, false
+	}
 
 	query := hoverTypeQuery{line: line, column: column, ident: ident}
 	match := findHoverTypeMatch(nodes, query, ctx)

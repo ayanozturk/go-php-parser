@@ -38,6 +38,14 @@ func TestNewWithParenthesesIsOk(t *testing.T) {
 	}
 }
 
+func TestGroupedNewWithoutConstructorParenthesesForMethodCallIsOk(t *testing.T) {
+	php := "<?php\n$configuration = (new Builder)->fromParameters(['command', 'argument']);\n"
+	issues := runClassInstantiation(php)
+	if countCI(issues) != 0 {
+		t.Fatalf("expected 0 issues for grouped instantiation method call, got %d: %v", countCI(issues), issues)
+	}
+}
+
 func TestFQCNInstantiationIsOk(t *testing.T) {
 	php := "<?php\n$x = new \\A\\B\\Foo();\n"
 	issues := runClassInstantiation(php)

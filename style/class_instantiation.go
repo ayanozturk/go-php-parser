@@ -32,6 +32,15 @@ func (s *ClassInstantiationSniff) CheckIssues(content []byte, filename string) [
 		return !(unicode.IsLetter(rune(b)) || unicode.IsDigit(rune(b)) || b == '_')
 	}
 
+	prevSignificantChar := func(line string, idx int) byte {
+		for i := idx - 1; i >= 0; i-- {
+			if line[i] != ' ' && line[i] != '\t' {
+				return line[i]
+			}
+		}
+		return 0
+	}
+
 	skipSpacesAndInlineComments := func(line string, idx int) int {
 		i := idx
 		for i < len(line) {
@@ -148,7 +157,7 @@ func (s *ClassInstantiationSniff) CheckIssues(content []byte, filename string) [
 						p = pending{active: true, line: i + 1, col: j + 1}
 						break
 					}
-					if line[n] != '(' {
+					if line[n] != '(' && !(line[n] == ')' && prevSignificantChar(line, j) == '(') {
 						issues = append(issues, StyleIssue{Filename: filename, Line: i + 1, Column: j + 1, Type: Error, Fixable: true, Message: "Missing parentheses for class instantiation", Code: psr1ClassInstantiationCode})
 					}
 				}
