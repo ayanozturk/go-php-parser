@@ -114,6 +114,35 @@ function getContactEmail(): ?string {
 	}
 }
 
+func TestReachableAfterCarbonIntervalDateIntervalGuardNotReported(t *testing.T) {
+	php := `<?php
+class CarbonInterval extends DateInterval {
+    public function __construct($years = null, $months = null) {
+        if ($years instanceof DateInterval) {
+            parent::__construct(static::getDateIntervalSpec($years));
+            $this->f = $years->f;
+            self::copyNegativeUnits($years, $this);
+
+            return;
+        }
+
+        $spec = $years;
+        $isStringSpec = (\is_string($spec) && !preg_match('/^[\d.]/', $spec));
+
+        if (!$isStringSpec || (float) $years) {
+            $spec = static::PERIOD_PREFIX;
+
+            $spec .= $years > 0 ? $years.static::PERIOD_YEARS : '';
+            $spec .= $months > 0 ? $months.static::PERIOD_MONTHS : '';
+        }
+    }
+}`
+	issues := analyseUnreachablePHP(t, php)
+	if got := countUnreachableIssues(issues); got != 0 {
+		t.Fatalf("expected 0 unreachable issues, got %d (%#v)", got, issues)
+	}
+}
+
 func TestUnreachableAfterExitInFunction(t *testing.T) {
 	php := `<?php
 function foo(): void {
