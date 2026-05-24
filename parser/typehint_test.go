@@ -34,3 +34,34 @@ function foo(null|\Product\Custom\Entity $customProductEntity) {}`
 		t.Errorf("Expected type hint '%s', got '%s'", expected, param.TypeHint)
 	}
 }
+
+func TestParseByReferenceArrayParameterTypeHint(t *testing.T) {
+	input := `<?php
+function foo(array &$missingFields) {}`
+	l := lexer.New(input)
+	p := New(l, true)
+	nodes := p.Parse()
+	if len(p.Errors()) > 0 {
+		t.Fatalf("Parser returned errors: %v", p.Errors())
+	}
+	if len(nodes) == 0 {
+		t.Fatal("No nodes parsed from input")
+	}
+	funcNode, ok := nodes[0].(*ast.FunctionNode)
+	if !ok {
+		t.Fatalf("Expected first node to be FunctionNode, got %T", nodes[0])
+	}
+	if len(funcNode.Params) != 1 {
+		t.Fatalf("Expected one parameter, got %d", len(funcNode.Params))
+	}
+	param, ok := funcNode.Params[0].(*ast.ParamNode)
+	if !ok {
+		t.Fatalf("Expected parameter to be ParamNode, got %T", funcNode.Params[0])
+	}
+	if param.TypeHint != "array" {
+		t.Fatalf("Expected type hint 'array', got %q", param.TypeHint)
+	}
+	if !param.IsByRef {
+		t.Fatalf("Expected parameter to be parsed as by-reference")
+	}
+}

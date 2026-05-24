@@ -30,6 +30,9 @@ func parseFullTypeHint(p *Parser) string {
 			}
 			continue
 		}
+		if p.tok.Type == token.T_AMPERSAND && parenLevel == 0 && p.peekToken().Type == token.T_VARIABLE {
+			break
+		}
 		if p.tok.Type == token.T_PIPE || p.tok.Type == token.T_AMPERSAND || p.tok.Type == token.T_QUESTION {
 			typeHintBuilder.WriteString(p.tok.Literal)
 			p.nextToken()

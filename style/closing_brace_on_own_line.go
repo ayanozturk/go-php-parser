@@ -75,7 +75,6 @@ func processInClassCheckIssues(line string, nextLine string, lineNum int, filena
 				state.methodDepth = openCount - closeCount
 				startedMethod = true
 				if state.methodDepth <= 0 {
-					checkClosingBraceOwnLine(line, lineNum, filename, "Method closing brace must be on its own line with nothing before or after", issues)
 					state.inMethod = false
 					state.methodDepth = 0
 				}

@@ -21,8 +21,10 @@ func TestClosingBraceOnOwnLineChecker(t *testing.T) {
 		{[]string{"class Foo", "{", "    $a = 1;", "}", "$b = 2;"}, 1, "code after class closing brace on next line"},
 		// Correct: function closing brace on same line as code (should not flag)
 		{[]string{"function bar() {", "    return 1;", "} // comment"}, 0, "function brace with comment after (not class)"},
-		// Incorrect: method closing brace on same line as body code
-		{[]string{"class Foo", "{", "    function bar() { return 1; }", "}", ""}, 1, "method closing brace on same line is not allowed"},
+		// Correct: compact single-line method body
+		{[]string{"class Foo", "{", "    function bar() { return 1; }", "}", ""}, 0, "single-line method body is allowed"},
+		// Correct: compact single-line typed methods
+		{[]string{"class Foo", "{", "    public function getFile(): string { return \"\"; }", "", "    public function getLine(): int { return 0; }", "}", ""}, 0, "single-line typed methods are allowed"},
 		// Incorrect: method closing brace on same line as previous statement
 		{[]string{"class Foo", "{", "    public function bar(): void", "    {", "        $x = 1; }", "}", ""}, 1, "method closing brace must be on its own line"},
 		// Correct: closing brace with whitespace

@@ -471,6 +471,37 @@ class Example {
 	}
 }
 
+func TestMethodArgumentTypeAllowsArrayPassedToByReferenceArrayParameter(t *testing.T) {
+	php := `<?php
+namespace App\Service\Profile;
+
+class Example {
+    public function buildSummary(): void {
+        $missingFields = [];
+        $totalFields = 0;
+        $completedFields = 0;
+
+        $this->trackField(true, "Profile photo", $missingFields, $totalFields, $completedFields);
+    }
+
+    /**
+     * @param list<string> $missingFields
+     */
+    private function trackField(
+        bool $isComplete,
+        string $label,
+        array &$missingFields,
+        int &$totalFields,
+        int &$completedFields,
+    ): void {
+    }
+}`
+	issues := analysePHP(t, php)
+	if hasArgTypeIssue(issues) {
+		t.Fatalf("expected no A.ARG.TYPE issue for array passed to by-reference array parameter, got: %#v", issues)
+	}
+}
+
 func TestConstructorArgumentTypeMismatchDetectedForNamedArguments(t *testing.T) {
 	php := `<?php
 class Response {
