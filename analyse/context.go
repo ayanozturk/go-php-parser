@@ -37,7 +37,8 @@ type ResolvedParam struct {
 }
 
 type AnalysisContext struct {
-	Resolver SymbolResolver
+	Resolver   SymbolResolver
+	PHPVersion string
 
 	fileTypeContext     fileTypeContext
 	hasFileTypeContext  bool

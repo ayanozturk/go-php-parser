@@ -91,7 +91,7 @@ func RunAnalysisRulesWithContext(filename string, nodes []ast.Node, ctx *Analysi
 	if ctx == nil {
 		ctx = &AnalysisContext{}
 	} else {
-		ctx = &AnalysisContext{Resolver: ctx.Resolver}
+		ctx = &AnalysisContext{Resolver: ctx.Resolver, PHPVersion: ctx.PHPVersion}
 	}
 	codes := ListRegisteredAnalysisRuleCodes()
 

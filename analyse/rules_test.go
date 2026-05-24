@@ -56,6 +56,23 @@ func TestRunAnalysisRulesDeterministicOrder(t *testing.T) {
 	}
 }
 
+func TestRunAnalysisRulesPreservesContextPHPVersion(t *testing.T) {
+	ClearAnalysisRules()
+	defer ClearAnalysisRules()
+
+	RegisterAnalysisRuleWithContext("PHP.VERSION", func(filename string, nodes []ast.Node, ctx *AnalysisContext) []AnalysisIssue {
+		return []AnalysisIssue{{Filename: filename, Code: "PHP.VERSION", Message: ctx.PHPVersion}}
+	})
+
+	issues := RunAnalysisRulesWithContext("test.php", nil, &AnalysisContext{PHPVersion: "8.4"})
+	if len(issues) != 1 {
+		t.Fatalf("expected 1 issue, got %d", len(issues))
+	}
+	if issues[0].Message != "8.4" {
+		t.Fatalf("expected PHP version 8.4 in context, got %q", issues[0].Message)
+	}
+}
+
 func TestClearAnalysisRules(t *testing.T) {
 	ClearAnalysisRules()
 
