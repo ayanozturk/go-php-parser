@@ -804,6 +804,17 @@ func (p *Parser) parseSimpleObjectOrMethod(expr ast.Node) ast.Node {
 
 func (p *Parser) parseSimpleMethodCall(expr ast.Node, member string, objOpPos token.Position) ast.Node {
 	p.nextToken() // consume '('
+	if p.tok.Type == token.T_ELLIPSIS && p.peekToken().Type == token.T_RPAREN {
+		p.nextToken() // consume '...'
+		p.nextToken() // consume ')'
+		return p.parsePostfixExpression(&ast.FirstClassCallableNode{
+			Name: &ast.IdentifierNode{
+				Value: expr.TokenLiteral() + "->" + member,
+				Pos:   expr.GetPos(),
+			},
+			Pos: ast.Position(objOpPos),
+		})
+	}
 	args := p.parseFunctionCallArguments()
 	if p.tok.Type != token.T_RPAREN {
 		p.addError("line %d:%d: expected ) after arguments for method call %s, got %s", p.tok.Pos.Line, p.tok.Pos.Column, member, p.tok.Literal)

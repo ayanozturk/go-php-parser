@@ -297,6 +297,21 @@ $result = $fn("hello");
 	}
 }
 
+func TestParseMethodFirstClassCallable(t *testing.T) {
+	php := `<?php
+$result = array_filter($users, $this->isUserCompliant(...));
+`
+	l := lexer.New(php)
+	p := New(l, true)
+	nodes := p.Parse()
+	if len(p.Errors()) > 0 {
+		t.Fatalf("Parser errors: %v", p.Errors())
+	}
+	if len(nodes) != 1 {
+		t.Fatalf("Expected 1 node, got %d", len(nodes))
+	}
+}
+
 func TestParseNullCoalescingAssignment(t *testing.T) {
 	php := `<?php $a ??= 1; $this->foo ??= 2;` // property fetch
 	l := lexer.New(php)

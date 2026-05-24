@@ -203,3 +203,34 @@ function foo($x): void {
 		t.Fatalf("expected 1 unreachable issue, got %d (%#v)", got, issues)
 	}
 }
+
+func TestReachableAfterForeachWithAssignmentNotReported(t *testing.T) {
+	php := `<?php
+class PolicyComplianceService {
+    public function getCompliantUsers(): array
+    {
+        return array_values(array_filter($users, $this->isUserCompliant(...)));
+    }
+
+    public function getPoliciesWithLowCompliance(Company $company, float $threshold = 80.0): array
+    {
+        $policiesById = [];
+        foreach ($this->policyRepository->findActiveByCompany($company) as $policy) {
+            $policiesById[$policy->getId()] = $policy;
+        }
+
+        $lowCompliancePolicies = [];
+        foreach ($this->getComplianceByPolicy($company) as $policyStats) {
+            if ($policyStats['complianceRate'] >= $threshold) {
+                continue;
+            }
+        }
+
+        return $lowCompliancePolicies;
+    }
+}`
+	issues := analyseUnreachablePHP(t, php)
+	if got := countUnreachableIssues(issues); got != 0 {
+		t.Fatalf("expected 0 unreachable issues after foreach assignment, got %d (%#v)", got, issues)
+	}
+}
