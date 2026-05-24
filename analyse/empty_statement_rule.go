@@ -15,7 +15,7 @@ type EmptyStatementRule struct{}
 
 // CheckIssuesWithSource performs analysis given explicit source content (used by tests for isolation).
 func (r *EmptyStatementRule) CheckIssuesWithSource(filename string, content []byte, _ []ast.Node) []AnalysisIssue {
-	lines := strings.Split(string(content), "\n")
+	lines := sharedcache.SplitLinesCached(content)
 	var issues []AnalysisIssue
 
 	commentState := &helper.CommentState{}
@@ -39,6 +39,9 @@ func (r *EmptyStatementRule) CheckIssuesWithSource(filename string, content []by
 	for i, line := range lines {
 		// Reset segment tracker at start of each new line
 		hasCodeSinceBoundary = false
+		if !commentState.InBlockComment && !commentState.InHeredoc && !ctrl.active && !emptyStatementLineNeedsScan(line) {
+			continue
+		}
 		qs := &helper.QuoteState{}
 
 		// Convenience closures
@@ -233,6 +236,63 @@ func (r *EmptyStatementRule) CheckIssuesWithSource(filename string, content []by
 	}
 
 	return issues
+}
+
+func emptyStatementLineNeedsScan(line string) bool {
+	if strings.IndexByte(line, ';') >= 0 {
+		return true
+	}
+	if strings.Contains(line, "/*") || strings.Contains(line, "<<<") {
+		return true
+	}
+	return containsEmptyStatementControlCandidate(line)
+}
+
+func containsEmptyStatementControlCandidate(line string) bool {
+	for i := 0; i < len(line); i++ {
+		switch line[i] {
+		case 'f', 'F':
+			if hasKeywordAtASCII(line, i, "for") {
+				return true
+			}
+		case 'i', 'I':
+			if hasKeywordAtASCII(line, i, "if") {
+				return true
+			}
+		case 'w', 'W':
+			if hasKeywordAtASCII(line, i, "while") {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func hasKeywordAtASCII(line string, start int, keyword string) bool {
+	end := start + len(keyword)
+	if end > len(line) {
+		return false
+	}
+	if start > 0 && isEmptyStatementIdentByte(line[start-1]) {
+		return false
+	}
+	if end < len(line) && isEmptyStatementIdentByte(line[end]) {
+		return false
+	}
+	for i := 0; i < len(keyword); i++ {
+		ch := line[start+i]
+		if ch >= 'A' && ch <= 'Z' {
+			ch += 'a' - 'A'
+		}
+		if ch != keyword[i] {
+			return false
+		}
+	}
+	return true
+}
+
+func isEmptyStatementIdentByte(ch byte) bool {
+	return ch == '_' || (ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z') || (ch >= '0' && ch <= '9')
 }
 
 // CheckIssues reads the source file and delegates to CheckIssuesWithSource.

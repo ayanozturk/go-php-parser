@@ -14,16 +14,28 @@ import (
 	"time"
 )
 
-// fileParseTimeout is the maximum time allowed to parse + analyse a single file.
-// Files that exceed this limit are skipped with a stderr warning; this prevents
-// a buggy lexer/parser edge-case from hanging the entire scan.
-const fileParseTimeout = 10 * time.Second
+const (
+	// fileParseTimeout is the maximum time allowed to parse + analyse a large file.
+	// Files that exceed this limit are skipped with a stderr warning; this prevents
+	// a buggy lexer/parser edge-case from hanging the entire scan.
+	fileParseTimeout = 10 * time.Second
+
+	// Small files dominate large PHP codebases. Avoid allocating a timer and
+	// goroutine for each one; keep the timeout guard only for files large enough
+	// to make a parser hang materially expensive.
+	fileParseTimeoutMinBytes = 256 * 1024
+)
 
 // fileResult carries all per-file outputs through a single channel to avoid
 // the ordering deadlock that occurs when issueCh/linesCh/errCh are separate.
 type fileResult struct {
 	issues []style.StyleIssue
 	lines  int
+	errors int
+}
+
+type parseAnalysisResult struct {
+	issues []style.StyleIssue
 	errors int
 }
 
@@ -196,6 +208,51 @@ func processFileForStyle(file string, rules []string, matcher *overrides.Compile
 	}
 }
 
+func parseAndAnalyzeStyleFile(path string, content []byte, rules []string, matcher *overrides.Compiled) parseAnalysisResult {
+	lex := lexer.New(string(content))
+	p := parser.New(lex, false)
+	nodes := p.Parse()
+	if len(p.Errors()) > 0 {
+		return parseAnalysisResult{errors: len(p.Errors())}
+	}
+
+	analysisIssues := analyse.FilterIssues(analyse.RunAnalysisRules(path, nodes), matcher)
+	fileIssues := make([]style.StyleIssue, 0, len(analysisIssues))
+	for _, iss := range analysisIssues {
+		fileIssues = append(fileIssues, style.StyleIssue{
+			Filename: iss.Filename,
+			Line:     iss.Line,
+			Column:   iss.Column,
+			Type:     style.Error,
+			Fixable:  false,
+			Message:  iss.Message,
+			Code:     iss.Code,
+		})
+	}
+	issueWriter := &style.IssueCollector{Issues: &fileIssues}
+	Commands["style"].ExecuteWithRules(nodes, path, issueWriter, rules, matcher)
+	return parseAnalysisResult{issues: fileIssues}
+}
+
+func parseAndAnalyzeStyleFileWithTimeout(path string, content []byte, rules []string, matcher *overrides.Compiled) parseAnalysisResult {
+	if len(content) < fileParseTimeoutMinBytes {
+		return parseAndAnalyzeStyleFile(path, content, rules, matcher)
+	}
+
+	done := make(chan parseAnalysisResult, 1)
+	go func() {
+		done <- parseAndAnalyzeStyleFile(path, content, rules, matcher)
+	}()
+
+	select {
+	case res := <-done:
+		return res
+	case <-time.After(fileParseTimeout):
+		fmt.Fprintf(os.Stderr, "\n[warn] parse timeout (%s): skipping %s\n", fileParseTimeout, path)
+		return parseAnalysisResult{}
+	}
+}
+
 // Helper to process a batch of files in parallel.
 // Uses a single resultCh (unified struct) to avoid the ordering deadlock that
 // occurred with separate issueCh/linesCh/errCh channels.
@@ -307,50 +364,9 @@ func ProcessStyleFilesParallelWithCallback(files []string, rules []string, match
 				sharedcache.StoreCachedFileContent(rr.path, rr.content)
 
 				lines := CountLines(rr.content)
-
-				// Run parse+analyse in an inner goroutine with a hard timeout.
-				// A lexer/parser edge-case on a malformed file can spin indefinitely;
-				// the timeout guarantees the cpu worker is never permanently blocked.
-				type innerResult struct {
-					issues []style.StyleIssue
-					errors int
-				}
-				done := make(chan innerResult, 1)
-				go func(path string, content []byte) {
-					lex := lexer.New(string(content))
-					p := parser.New(lex, false)
-					nodes := p.Parse()
-					if len(p.Errors()) > 0 {
-						done <- innerResult{errors: len(p.Errors())}
-						return
-					}
-					analysisIssues := analyse.FilterIssues(analyse.RunAnalysisRules(path, nodes), matcher)
-					var fileIssues []style.StyleIssue
-					for _, iss := range analysisIssues {
-						fileIssues = append(fileIssues, style.StyleIssue{
-							Filename: iss.Filename,
-							Line:     iss.Line,
-							Column:   iss.Column,
-							Type:     style.Error,
-							Fixable:  false,
-							Message:  iss.Message,
-							Code:     iss.Code,
-						})
-					}
-					issueWriter := &style.IssueCollector{Issues: &fileIssues}
-					Commands["style"].ExecuteWithRules(nodes, path, issueWriter, rules, matcher)
-					done <- innerResult{issues: fileIssues}
-				}(rr.path, rr.content)
-
-				var res innerResult
-				select {
-				case res = <-done:
-				case <-time.After(fileParseTimeout):
-					fmt.Fprintf(os.Stderr, "\n[warn] parse timeout (%s): skipping %s\n", fileParseTimeout, rr.path)
-					// The inner goroutine is leaked but will eventually exit (or the
-					// process ends). The timeout ensures the scan completes.
-				}
+				res := parseAndAnalyzeStyleFileWithTimeout(rr.path, rr.content, rules, matcher)
 				sharedcache.DeleteCachedFileContent(rr.path)
+				sharedcache.DeleteCachedLines(rr.content)
 				resultCh <- fileResult{issues: res.issues, lines: lines, errors: res.errors}
 				if callback != nil {
 					callback()

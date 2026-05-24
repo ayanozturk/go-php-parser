@@ -40,6 +40,14 @@ func TestIfWithSemicolonBody(t *testing.T) {
 	}
 }
 
+func TestIfWithSemicolonBodyOnNextLine(t *testing.T) {
+	php := "<?php\nif ($x)\n    ;\n"
+	issues := runEmptyStatementAnalysis(t, php)
+	if !hasEmptyStatementIssue(issues) {
+		t.Fatalf("expected empty statement for multiline if body, got %v", issues)
+	}
+}
+
 func TestWhileWithSemicolonBody(t *testing.T) {
 	php := "<?php\nwhile ($x) ;\n"
 	issues := runEmptyStatementAnalysis(t, php)

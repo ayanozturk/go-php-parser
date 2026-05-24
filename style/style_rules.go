@@ -3,22 +3,19 @@ package style
 
 import (
 	"go-phpcs/ast"
+	"go-phpcs/sharedcache"
 	"sort"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"time"
-	"unsafe"
 )
 
 type RuleFunc func(filename string, content []byte, nodes []ast.Node) []StyleIssue
 
 var (
-	ruleRegistryMu  sync.RWMutex
-	ruleRegistry    = make(map[string]RuleFunc)
-	ruleTimings     = sync.Map{}
-	linesCache      sync.Map
-	linesCacheCount int64
+	ruleRegistryMu sync.RWMutex
+	ruleRegistry   = make(map[string]RuleFunc)
+	ruleTimings    = sync.Map{}
 )
 
 // RegisterRule registers a style rule by code.
@@ -190,45 +187,7 @@ func ListRegisteredRuleCodes() []string {
 	return codes
 }
 
-type cacheEntry struct {
-	length    int
-	firstByte byte
-	lastByte  byte
-	lines     []string
-}
-
 // SplitLinesCached converts content into lines once per file and caches by backing array pointer
 func SplitLinesCached(content []byte) []string {
-	if len(content) == 0 {
-		return nil
-	}
-	key := uintptr(unsafe.Pointer(&content[0]))
-	first := content[0]
-	last := content[len(content)-1]
-
-	if v, ok := linesCache.Load(key); ok {
-		entry := v.(cacheEntry)
-		if entry.length == len(content) && entry.firstByte == first && entry.lastByte == last {
-			return entry.lines
-		}
-	}
-
-	// Periodically evict cache to prevent memory leaks in long running LSP session
-	if atomic.AddInt64(&linesCacheCount, 1) > 2000 {
-		atomic.StoreInt64(&linesCacheCount, 0)
-		linesCache.Range(func(k, val interface{}) bool {
-			linesCache.Delete(k)
-			return true
-		})
-	}
-
-	s := string(content)
-	lines := strings.Split(s, "\n")
-	linesCache.Store(key, cacheEntry{
-		length:    len(content),
-		firstByte: first,
-		lastByte:  last,
-		lines:     lines,
-	})
-	return lines
+	return sharedcache.SplitLinesCached(content)
 }

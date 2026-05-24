@@ -27,3 +27,22 @@ func TestBatchTokenizeFilesAndGetCachedTokens(t *testing.T) {
 		t.Errorf("Token cache not cleared for a.php")
 	}
 }
+
+func TestSplitLinesCachedAndDelete(t *testing.T) {
+	ClearLinesCache()
+
+	content := []byte("<?php\n$a = 1;\n")
+	lines := SplitLinesCached(content)
+	if len(lines) != 3 || lines[1] != "$a = 1;" {
+		t.Fatalf("unexpected split lines: %#v", lines)
+	}
+	if cached := SplitLinesCached(content); &cached[0] != &lines[0] {
+		t.Fatalf("expected cached split lines to be reused")
+	}
+
+	DeleteCachedLines(content)
+	afterDelete := SplitLinesCached(content)
+	if len(afterDelete) != len(lines) || afterDelete[1] != lines[1] {
+		t.Fatalf("unexpected split lines after delete: %#v", afterDelete)
+	}
+}
