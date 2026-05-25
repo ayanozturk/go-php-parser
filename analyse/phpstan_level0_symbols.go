@@ -99,6 +99,9 @@ func (r *PHPStanLevel0Rule) checkSymbolsAndCalls(filename string, nodes []ast.No
 				if guards.hasClass(className) || (n.Const == "class" && guards.hasClass(className)) {
 					return
 				}
+				if n.Const != "class" && guards.hasConstant(className+"::"+n.Const) {
+					return
+				}
 				issues = append(issues, issue(filename, n.GetPos(), level0SymbolsCode, fmt.Sprintf("Access to constant %s::%s on an unknown class %s.", className, n.Const, className)))
 				return
 			}
@@ -114,8 +117,14 @@ func (r *PHPStanLevel0Rule) checkSymbolsAndCalls(filename string, nodes []ast.No
 				}
 				return
 			}
-			if n.Const != "class" && !ctx.Resolver.ConstantExists(className+"::"+n.Const) {
-				issues = append(issues, issue(filename, n.GetPos(), level0SymbolsCode, fmt.Sprintf("Access to undefined constant %s::%s.", className, n.Const)))
+			if n.Const != "class" {
+				constantName := className + "::" + n.Const
+				if !ctx.Resolver.ConstantExists(constantName) {
+					if guards.hasConstant(constantName) {
+						return
+					}
+					issues = append(issues, issue(filename, n.GetPos(), level0SymbolsCode, fmt.Sprintf("Access to undefined constant %s::%s.", className, n.Const)))
+				}
 			}
 		case *ast.PropertyFetchNode:
 			receiver, ok := n.Object.(*ast.VariableNode)

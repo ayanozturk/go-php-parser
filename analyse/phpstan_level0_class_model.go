@@ -35,8 +35,17 @@ func (r *PHPStanLevel0Rule) checkClassModel(filename string, nodes []ast.Node, c
 						issues = append(issues, issue(filename, n.GetPos(), level0ClassModelCode, fmt.Sprintf("Class %s extends unknown class %s.", className, parentName)))
 					} else if parent.Kind != "class" {
 						issues = append(issues, issue(filename, n.GetPos(), level0ClassModelCode, fmt.Sprintf("Class %s extends %s %s.", className, parent.Kind, parent.Name)))
-					} else if parent.Final {
-						issues = append(issues, issue(filename, n.GetPos(), level0ClassModelCode, fmt.Sprintf("Class %s extends final class %s.", className, parent.Name)))
+					} else {
+						if parent.Final {
+							issues = append(issues, issue(filename, n.GetPos(), level0ClassModelCode, fmt.Sprintf("Class %s extends final class %s.", className, parent.Name)))
+						}
+						classReadonly := hasClassModifier(n, "readonly")
+						if classReadonly && !parent.Readonly {
+							issues = append(issues, issue(filename, n.GetPos(), level0ClassModelCode, fmt.Sprintf("Readonly class %s cannot extend non-readonly class %s.", className, parent.Name)))
+						}
+						if !classReadonly && parent.Readonly {
+							issues = append(issues, issue(filename, n.GetPos(), level0ClassModelCode, fmt.Sprintf("Non-readonly class %s cannot extend readonly class %s.", className, parent.Name)))
+						}
 					}
 				}
 				for _, implemented := range n.Implements {

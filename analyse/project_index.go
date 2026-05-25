@@ -332,7 +332,7 @@ func indexKey(name string) string {
 func (idx *ProjectIndex) seedBuiltins() {
 	for _, class := range []ResolvedClass{
 		{Name: "stdClass", Kind: "class"},
-		{Name: "Exception", Kind: "class"},
+		{Name: "Exception", Kind: "class", Extends: []string{"Throwable"}},
 		{Name: "Throwable", Kind: "interface"},
 		{Name: "Error", Kind: "class", Extends: []string{"Throwable"}},
 		{Name: "DateTime", Kind: "class"},

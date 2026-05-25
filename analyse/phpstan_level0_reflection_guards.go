@@ -79,6 +79,11 @@ func (guards reflectionGuards) hasMethod(className, methodName string) bool {
 	return ok
 }
 
+func (guards reflectionGuards) hasConstant(name string) bool {
+	_, ok := guards.constants[indexKey(name)]
+	return ok
+}
+
 func classNameGuardValue(node ast.Node, ft fileTypeContext) (string, bool) {
 	if value, ok := stringLiteralValue(node); ok {
 		return ft.resolveClassLike(value), true

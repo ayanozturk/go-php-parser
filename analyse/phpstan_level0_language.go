@@ -55,6 +55,22 @@ func (r *PHPStanLevel0Rule) checkLanguage(filename string, nodes []ast.Node, ctx
 			if strings.EqualFold(n.Type, "unset") || strings.EqualFold(n.Type, "void") {
 				issues = append(issues, issue(filename, n.GetPos(), level0LanguageCode, fmt.Sprintf("Cannot cast to %s.", n.Type)))
 			}
+		case *ast.ThrowNode:
+			className := resolveThrownClassName(n.Expr, ft)
+			if className == "" || isSpecialClassName(className) {
+				return
+			}
+			resolved, ok := ctx.Resolver.ResolveClass(className)
+			if !ok {
+				return
+			}
+			if resolved.Kind == "trait" || resolved.Kind == "enum" {
+				issues = append(issues, issue(filename, n.GetPos(), level0ClassModelCode, fmt.Sprintf("Cannot throw %s %s.", resolved.Kind, resolved.Name)))
+				return
+			}
+			if !isThrowableClass(className, ctx.Resolver) {
+				issues = append(issues, issue(filename, n.GetPos(), level0ClassModelCode, fmt.Sprintf("Invalid type %s to throw.", resolved.Name)))
+			}
 		case *ast.FunctionCallNode:
 			name := strings.ToLower(functionCallName(n))
 			if name == "preg_match" && len(n.Args) > 0 {

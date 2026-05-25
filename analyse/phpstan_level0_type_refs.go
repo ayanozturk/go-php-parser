@@ -8,49 +8,64 @@ import (
 
 func (r *PHPStanLevel0Rule) checkTypeReferences(filename string, nodes []ast.Node, ctx *AnalysisContext, fileCtx fileTypeContext) []AnalysisIssue {
 	var issues []AnalysisIssue
+	guards := collectReflectionGuards(nodes, fileCtx)
 	walkAll(nodes, func(node ast.Node, class *ast.ClassNode, ft fileTypeContext) {
 		switch n := node.(type) {
 		case *ast.UseNode:
 			switch n.Type {
 			case "function":
-				if !ctx.Resolver.FunctionExists(strings.TrimPrefix(n.Path, `\`)) {
+				name := strings.TrimPrefix(n.Path, `\`)
+				if !ctx.Resolver.FunctionExists(name) {
+					if guards.hasFunction(name) {
+						return
+					}
 					issues = append(issues, issue(filename, n.GetPos(), level0SymbolsCode, fmt.Sprintf("Used function %s not found.", n.Path)))
 				}
 			case "const":
-				if !ctx.Resolver.ConstantExists(strings.TrimPrefix(n.Path, `\`)) {
+				name := strings.TrimPrefix(n.Path, `\`)
+				if !ctx.Resolver.ConstantExists(name) {
+					if guards.hasConstant(name) {
+						return
+					}
 					issues = append(issues, issue(filename, n.GetPos(), level0SymbolsCode, fmt.Sprintf("Used constant %s not found.", n.Path)))
 				}
 			default:
 				name := strings.TrimPrefix(n.Path, `\`)
 				if _, ok := ctx.Resolver.ResolveClass(name); !ok {
+					if guards.hasClass(name) {
+						return
+					}
 					issues = append(issues, issue(filename, n.GetPos(), level0SymbolsCode, fmt.Sprintf("Used class %s not found.", name)))
 				}
 			}
 		case *ast.FunctionNode:
 			for _, param := range n.Params {
 				if p, ok := param.(*ast.ParamNode); ok {
-					checkTypeReference(filename, p.GetPos(), "Parameter $"+p.Name, paramTypeName(p), ft, ctx, &issues)
+					checkTypeReference(filename, p.GetPos(), "Parameter $"+p.Name, paramTypeName(p), ft, ctx, guards, &issues)
 				}
 			}
-			checkTypeReference(filename, n.GetPos(), "Return type", n.ReturnType, ft, ctx, &issues)
+			checkTypeReference(filename, n.GetPos(), "Return type", n.ReturnType, ft, ctx, guards, &issues)
 		case *ast.InterfaceMethodNode:
 			for _, param := range n.Params {
 				if p, ok := param.(*ast.ParamNode); ok {
-					checkTypeReference(filename, p.GetPos(), "Parameter $"+p.Name, paramTypeName(p), ft, ctx, &issues)
+					checkTypeReference(filename, p.GetPos(), "Parameter $"+p.Name, paramTypeName(p), ft, ctx, guards, &issues)
 				}
 			}
 			if n.ReturnType != nil {
-				checkTypeReference(filename, n.GetPos(), "Return type", n.ReturnType.TokenLiteral(), ft, ctx, &issues)
+				checkTypeReference(filename, n.GetPos(), "Return type", n.ReturnType.TokenLiteral(), ft, ctx, guards, &issues)
 			}
 		case *ast.PropertyNode:
-			checkTypeReference(filename, n.GetPos(), "Property $"+n.Name, n.TypeHint, ft, ctx, &issues)
+			checkTypeReference(filename, n.GetPos(), "Property $"+n.Name, n.TypeHint, ft, ctx, guards, &issues)
 		case *ast.ConstantNode:
-			checkTypeReference(filename, n.GetPos(), "Constant "+n.Name, n.Type, ft, ctx, &issues)
+			checkTypeReference(filename, n.GetPos(), "Constant "+n.Name, n.Type, ft, ctx, guards, &issues)
 		case *ast.CatchNode:
 			for _, catchType := range n.Types {
 				name := ft.resolveClassLike(catchType)
 				resolved, ok := ctx.Resolver.ResolveClass(name)
 				if !ok {
+					if guards.hasClass(name) {
+						continue
+					}
 					issues = append(issues, issue(filename, n.GetPos(), level0SymbolsCode, fmt.Sprintf("Caught class %s not found.", name)))
 					continue
 				}
@@ -62,6 +77,9 @@ func (r *PHPStanLevel0Rule) checkTypeReferences(filename string, nodes []ast.Nod
 			name := ft.resolveClassLike(n.Name)
 			resolved, ok := ctx.Resolver.ResolveClass(name)
 			if !ok {
+				if guards.hasClass(name) {
+					return
+				}
 				issues = append(issues, issue(filename, n.GetPos(), level0SymbolsCode, fmt.Sprintf("Attribute class %s not found.", name)))
 				return
 			}
@@ -71,12 +89,15 @@ func (r *PHPStanLevel0Rule) checkTypeReferences(filename string, nodes []ast.Nod
 	return issues
 }
 
-func checkTypeReference(filename string, pos ast.Position, subject, raw string, ft fileTypeContext, ctx *AnalysisContext, issues *[]AnalysisIssue) {
+func checkTypeReference(filename string, pos ast.Position, subject, raw string, ft fileTypeContext, ctx *AnalysisContext, guards reflectionGuards, issues *[]AnalysisIssue) {
 	for _, name := range referencedClassTypes(raw, ft) {
 		if isSpecialClassName(name) {
 			continue
 		}
 		if _, ok := ctx.Resolver.ResolveClass(name); !ok {
+			if guards.hasClass(name) {
+				continue
+			}
 			*issues = append(*issues, issue(filename, pos, level0SymbolsCode, fmt.Sprintf("%s references unknown class %s.", subject, name)))
 		}
 	}

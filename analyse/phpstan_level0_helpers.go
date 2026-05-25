@@ -109,3 +109,64 @@ func cloneBoolMap(in map[string]bool) map[string]bool {
 func issue(filename string, pos ast.Position, code, message string) AnalysisIssue {
 	return AnalysisIssue{Filename: filename, Line: pos.Line, Column: pos.Column, Code: code, Message: message}
 }
+
+func resolveThrownClassName(node ast.Node, ft fileTypeContext) string {
+	switch n := node.(type) {
+	case *ast.NewNode:
+		return resolveNewClassName(n, ft)
+	case *ast.IdentifierNode:
+		return ft.resolveClassLike(n.Value)
+	case *ast.Identifier:
+		return ft.resolveClassLike(n.Name)
+	case *ast.ClassConstFetchNode:
+		if n.Const == "class" {
+			return ft.resolveClassLike(n.Class)
+		}
+	}
+	return ""
+}
+
+func isThrowableClass(name string, resolver SymbolResolver) bool {
+	if name == "" || isSpecialClassName(name) {
+		return false
+	}
+	seen := map[string]struct{}{}
+	var walk func(string) bool
+	walk = func(className string) bool {
+		key := indexKey(className)
+		if key == "" {
+			return false
+		}
+		if _, ok := seen[key]; ok {
+			return false
+		}
+		seen[key] = struct{}{}
+		if indexKey(className) == indexKey("Throwable") {
+			return true
+		}
+		class, ok := resolver.ResolveClass(className)
+		if !ok {
+			return false
+		}
+		if class.Kind == "interface" {
+			for _, iface := range class.Extends {
+				if walk(iface) {
+					return true
+				}
+			}
+			return indexKey(class.Name) == indexKey("Throwable")
+		}
+		for _, parent := range class.Extends {
+			if walk(parent) {
+				return true
+			}
+		}
+		for _, iface := range class.Implements {
+			if walk(iface) {
+				return true
+			}
+		}
+		return false
+	}
+	return walk(name)
+}

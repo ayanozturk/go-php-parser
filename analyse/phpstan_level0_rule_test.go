@@ -346,6 +346,87 @@ echo $reported;
 	}
 }
 
+func TestLevel0ReflectionGuardsSuppressTypeAndConstantReferences(t *testing.T) {
+	issues := runLevel0OnFiles(t, map[string]string{
+		"test.php": `<?php
+use Missing\GuardedClass;
+use function missing_guarded_fn;
+use const Missing\GUARDED_CONST;
+
+if (interface_exists(Missing\GuardedClass::class)) {}
+if (trait_exists('Missing\\GuardedTrait')) {}
+if (function_exists('missing_guarded_fn')) {}
+if (defined('Missing\\GUARDED_CONST')) {}
+echo Missing\STILL_MISSING_CONST;
+`,
+	})
+
+	for _, unexpected := range []string{
+		"Used class Missing\\GuardedClass not found",
+		"Used function missing_guarded_fn not found",
+		"Used constant Missing\\GUARDED_CONST not found",
+	} {
+		if hasIssueContaining(issues, level0SymbolsCode, unexpected) {
+			t.Fatalf("reflection guard should suppress %q, got %#v", unexpected, issues)
+		}
+	}
+}
+
+func TestLevel0DefinedGuardSuppressesClassConstantAccess(t *testing.T) {
+	issues := runLevel0OnFiles(t, map[string]string{
+		"test.php": `<?php
+if (defined('Missing\\Guarded::VALUE')) {
+    echo Missing\Guarded::VALUE;
+}
+echo Missing\StillMissing::VALUE;
+`,
+	})
+
+	if hasIssueContaining(issues, level0SymbolsCode, "Access to undefined constant Missing\\Guarded::VALUE") {
+		t.Fatalf("defined() guard should suppress guarded constant access, got %#v", issues)
+	}
+	if !hasIssueContaining(issues, level0SymbolsCode, "Missing\\StillMissing") {
+		t.Fatalf("expected unguarded class constant issue, got %#v", issues)
+	}
+}
+
+func TestLevel0ThrowExpressionValidity(t *testing.T) {
+	issues := runLevel0OnFiles(t, map[string]string{
+		"test.php": `<?php
+throw new Exception();
+throw new DateTime();
+throw new MissingThrowable();
+`,
+	})
+
+	if hasIssueContaining(issues, level0ClassModelCode, "Invalid type Exception to throw") {
+		t.Fatalf("Exception should be throwable, got %#v", issues)
+	}
+	if !hasIssueContaining(issues, level0ClassModelCode, "Invalid type DateTime to throw") {
+		t.Fatalf("expected non-throwable throw issue, got %#v", issues)
+	}
+}
+
+func TestLevel0ReadonlyClassInheritance(t *testing.T) {
+	issues := runLevel0OnFiles(t, map[string]string{
+		"a.php": `<?php
+class MutableParent {}
+readonly class ReadonlyParent {}
+`,
+		"b.php": `<?php
+readonly class ReadonlyChild extends MutableParent {}
+class MutableChild extends ReadonlyParent {}
+`,
+	})
+
+	if !hasIssueContaining(issues, level0ClassModelCode, "Readonly class ReadonlyChild cannot extend non-readonly class MutableParent") {
+		t.Fatalf("expected readonly extends mutable issue, got %#v", issues)
+	}
+	if !hasIssueContaining(issues, level0ClassModelCode, "Non-readonly class MutableChild cannot extend readonly class ReadonlyParent") {
+		t.Fatalf("expected mutable extends readonly issue, got %#v", issues)
+	}
+}
+
 func TestLevel0ReflectionGuardsSuppressUnknownSymbols(t *testing.T) {
 	issues := runLevel0OnFiles(t, map[string]string{
 		"test.php": `<?php
