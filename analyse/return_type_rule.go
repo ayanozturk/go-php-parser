@@ -668,7 +668,7 @@ func resolveSameClassPropertyType(scope *functionScope, propertyName string) (Ty
 }
 
 func init() {
-	RegisterAnalysisRuleWithContext("A.RETURN.TYPE", func(filename string, nodes []ast.Node, ctx *AnalysisContext) []AnalysisIssue {
+	RegisterAnalysisRuleWithLevel("A.RETURN.TYPE", 3, "phpstan.types", func(filename string, nodes []ast.Node, ctx *AnalysisContext) []AnalysisIssue {
 		rule := &ReturnTypeRule{}
 		return rule.CheckIssues(nodes, filename, ctx)
 	})

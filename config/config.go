@@ -10,11 +10,12 @@ import (
 )
 
 type Config struct {
-	Path       string                  `yaml:"path"`
-	Extensions []string                `yaml:"extensions"`
-	Ignore     []string                `yaml:"ignore"`
-	Rules      []string                `yaml:"rules"`
-	Overrides  overrides.RuleOverrides `yaml:"overrides"`
+	Path          string                  `yaml:"path"`
+	Extensions    []string                `yaml:"extensions"`
+	Ignore        []string                `yaml:"ignore"`
+	Rules         []string                `yaml:"rules"`
+	AnalysisLevel *int                    `yaml:"analysis_level"`
+	Overrides     overrides.RuleOverrides `yaml:"overrides"`
 }
 
 func LoadConfig(filename string) (*Config, error) {

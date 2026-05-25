@@ -149,6 +149,7 @@ func RunScanOrCommand(args CliArgs, c *config.Config, filesToScan []string, outW
 	if err != nil {
 		log.Fatalf("Error compiling overrides: %v", err)
 	}
+	command.ConfigureAnalysis(c.AnalysisLevel)
 	if args.filePath != "" {
 		errList, lineCount := command.ProcessFileWithErrors(args.filePath, args.CommandName, args.debug, c.Rules, matcher, outWriter)
 		totalParseErrors = len(errList)

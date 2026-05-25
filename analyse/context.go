@@ -7,26 +7,45 @@ import (
 
 type SymbolResolver interface {
 	ClassExists(name string) bool
+	FunctionExists(name string) bool
+	ConstantExists(name string) bool
 	ResolveClass(name string) (ResolvedClass, bool)
 	ResolveMethod(className, methodName string) (ResolvedMethod, bool)
 	ResolveProperty(className, propertyName string) (ResolvedProperty, bool)
+	ResolveFunction(name string) (ResolvedFunction, bool)
 }
 
 type ResolvedClass struct {
 	Name       string
 	Extends    []string
 	Implements []string
+	Kind       string
+	Final      bool
+	Abstract   bool
+	Readonly   bool
 }
 
 type ResolvedMethod struct {
 	Name       string
 	ReturnType string
 	Params     []ResolvedParam
+	Visibility string
+	IsStatic   bool
+	Abstract   bool
 }
 
 type ResolvedProperty struct {
-	Name string
-	Type string
+	Name       string
+	Type       string
+	Visibility string
+	IsStatic   bool
+	Readonly   bool
+}
+
+type ResolvedFunction struct {
+	Name       string
+	ReturnType string
+	Params     []ResolvedParam
 }
 
 type ResolvedParam struct {
@@ -37,8 +56,10 @@ type ResolvedParam struct {
 }
 
 type AnalysisContext struct {
-	Resolver   SymbolResolver
-	PHPVersion string
+	Resolver      SymbolResolver
+	PHPVersion    string
+	Project       *ProjectIndex
+	AnalysisLevel *int
 
 	fileTypeContext     fileTypeContext
 	hasFileTypeContext  bool

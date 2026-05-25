@@ -19,9 +19,17 @@ type AnalysisIssue struct {
 type AnalysisRuleFunc func(filename string, nodes []ast.Node) []AnalysisIssue
 type AnalysisRuleWithContextFunc func(filename string, nodes []ast.Node, ctx *AnalysisContext) []AnalysisIssue
 
+type AnalysisRuleMeta struct {
+	Code           string
+	Level          int
+	Category       string
+	DefaultEnabled bool
+}
+
 type analysisRuleEntry struct {
 	legacy     AnalysisRuleFunc
 	contextual AnalysisRuleWithContextFunc
+	meta       AnalysisRuleMeta
 }
 
 var (
@@ -38,10 +46,21 @@ func RegisterAnalysisRule(code string, fn AnalysisRuleFunc) {
 }
 
 func RegisterAnalysisRuleWithContext(code string, fn AnalysisRuleWithContextFunc) {
+	RegisterAnalysisRuleWithMeta(AnalysisRuleMeta{Code: code, Level: -1, DefaultEnabled: true}, fn)
+}
+
+func RegisterAnalysisRuleWithLevel(code string, level int, category string, fn AnalysisRuleWithContextFunc) {
+	RegisterAnalysisRuleWithMeta(AnalysisRuleMeta{Code: code, Level: level, Category: category, DefaultEnabled: true}, fn)
+}
+
+func RegisterAnalysisRuleWithMeta(meta AnalysisRuleMeta, fn AnalysisRuleWithContextFunc) {
 	analysisRuleRegistryLock.Lock()
 	defer analysisRuleRegistryLock.Unlock()
 
-	analysisRuleRegistry[code] = analysisRuleEntry{contextual: fn}
+	if meta.Code == "" {
+		return
+	}
+	analysisRuleRegistry[meta.Code] = analysisRuleEntry{contextual: fn, meta: meta}
 	sortedRuleCodesDirty = true
 }
 
@@ -91,7 +110,7 @@ func RunAnalysisRulesWithContext(filename string, nodes []ast.Node, ctx *Analysi
 	if ctx == nil {
 		ctx = &AnalysisContext{}
 	} else {
-		ctx = &AnalysisContext{Resolver: ctx.Resolver, PHPVersion: ctx.PHPVersion}
+		ctx = &AnalysisContext{Resolver: ctx.Resolver, PHPVersion: ctx.PHPVersion, Project: ctx.Project, AnalysisLevel: ctx.AnalysisLevel}
 	}
 	codes := ListRegisteredAnalysisRuleCodes()
 
@@ -100,6 +119,11 @@ func RunAnalysisRulesWithContext(filename string, nodes []ast.Node, ctx *Analysi
 	defer analysisRuleRegistryLock.RUnlock()
 	for _, code := range codes {
 		entry := analysisRuleRegistry[code]
+		if ctx.AnalysisLevel != nil {
+			if entry.meta.Level < 0 || entry.meta.Level > *ctx.AnalysisLevel || !entry.meta.DefaultEnabled {
+				continue
+			}
+		}
 		if entry.contextual != nil {
 			issues = append(issues, entry.contextual(filename, nodes, ctx)...)
 			continue

@@ -622,7 +622,7 @@ func argumentValue(node ast.Node) ast.Node {
 }
 
 func init() {
-	RegisterAnalysisRuleWithContext("A.ARG.TYPE", func(filename string, nodes []ast.Node, ctx *AnalysisContext) []AnalysisIssue {
+	RegisterAnalysisRuleWithLevel("A.ARG.TYPE", 5, "phpstan.types", func(filename string, nodes []ast.Node, ctx *AnalysisContext) []AnalysisIssue {
 		rule := &ArgumentTypeRule{}
 		return rule.CheckIssues(nodes, filename, ctx)
 	})

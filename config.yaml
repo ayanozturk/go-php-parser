@@ -1,4 +1,5 @@
 path: /Volumes/RG-DOCK/rg_core
+analysis_level: 0
 extensions:
   - php
 ignore:

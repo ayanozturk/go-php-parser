@@ -3,6 +3,7 @@ package command
 import (
 	"fmt"
 	"go-phpcs/analyse"
+	"go-phpcs/ast"
 	"go-phpcs/lexer"
 	"go-phpcs/overrides"
 	"go-phpcs/parser"
@@ -37,6 +38,12 @@ type fileResult struct {
 type parseAnalysisResult struct {
 	issues []style.StyleIssue
 	errors int
+}
+
+var configuredAnalysisLevel *int
+
+func ConfigureAnalysis(level *int) {
+	configuredAnalysisLevel = level
 }
 
 func handleParsingErrors(p *parser.Parser, filePath string, w io.Writer, lineCount int) int {
@@ -100,6 +107,18 @@ func ProcessFileWithErrors(filePath, commandName string, debug bool, rules []str
 		return errList, lineCount
 	}
 	if commandName == "style" {
+		analysisIssues := analyse.FilterIssues(runAnalysis(filePath, nodes, nil), matcher)
+		for _, iss := range analysisIssues {
+			style.PrintPHPCSStyleIssueToWriter(w, style.StyleIssue{
+				Filename: iss.Filename,
+				Line:     iss.Line,
+				Column:   iss.Column,
+				Type:     style.Error,
+				Fixable:  false,
+				Message:  iss.Message,
+				Code:     iss.Code,
+			})
+		}
 		Commands["style"].ExecuteWithRules(nodes, filePath, w, rules, matcher)
 	} else {
 		ExecuteCommand(commandName, nodes, input, filePath, w)
@@ -186,7 +205,7 @@ func processFileForStyle(file string, rules []string, matcher *overrides.Compile
 		return
 	}
 	// Run analysis rules on the parsed AST and collect issues
-	analysisIssues := analyse.FilterIssues(analyse.RunAnalysisRules(file, nodes), matcher)
+	analysisIssues := analyse.FilterIssues(runAnalysis(file, nodes, nil), matcher)
 	var fileIssues []style.StyleIssue
 	for _, iss := range analysisIssues {
 		// Convert AnalysisIssue to StyleIssue for unified reporting
@@ -208,7 +227,7 @@ func processFileForStyle(file string, rules []string, matcher *overrides.Compile
 	}
 }
 
-func parseAndAnalyzeStyleFile(path string, content []byte, rules []string, matcher *overrides.Compiled) parseAnalysisResult {
+func parseAndAnalyzeStyleFile(path string, content []byte, rules []string, matcher *overrides.Compiled, project *analyse.ProjectIndex) parseAnalysisResult {
 	lex := lexer.New(string(content))
 	p := parser.New(lex, false)
 	nodes := p.Parse()
@@ -216,7 +235,7 @@ func parseAndAnalyzeStyleFile(path string, content []byte, rules []string, match
 		return parseAnalysisResult{errors: len(p.Errors())}
 	}
 
-	analysisIssues := analyse.FilterIssues(analyse.RunAnalysisRules(path, nodes), matcher)
+	analysisIssues := analyse.FilterIssues(runAnalysis(path, nodes, project), matcher)
 	fileIssues := make([]style.StyleIssue, 0, len(analysisIssues))
 	for _, iss := range analysisIssues {
 		fileIssues = append(fileIssues, style.StyleIssue{
@@ -234,14 +253,14 @@ func parseAndAnalyzeStyleFile(path string, content []byte, rules []string, match
 	return parseAnalysisResult{issues: fileIssues}
 }
 
-func parseAndAnalyzeStyleFileWithTimeout(path string, content []byte, rules []string, matcher *overrides.Compiled) parseAnalysisResult {
+func parseAndAnalyzeStyleFileWithTimeout(path string, content []byte, rules []string, matcher *overrides.Compiled, project *analyse.ProjectIndex) parseAnalysisResult {
 	if len(content) < fileParseTimeoutMinBytes {
-		return parseAndAnalyzeStyleFile(path, content, rules, matcher)
+		return parseAndAnalyzeStyleFile(path, content, rules, matcher, project)
 	}
 
 	done := make(chan parseAnalysisResult, 1)
 	go func() {
-		done <- parseAndAnalyzeStyleFile(path, content, rules, matcher)
+		done <- parseAndAnalyzeStyleFile(path, content, rules, matcher, project)
 	}()
 
 	select {
@@ -302,6 +321,7 @@ func ProcessStyleFilesParallelWithCallback(files []string, rules []string, match
 	if nFiles == 0 {
 		return nil, 0, 0
 	}
+	project := buildProjectIndexForFiles(files)
 
 	// Use more goroutines for I/O than CPU — high-latency volumes benefit greatly.
 	ioWorkers := parallelism * 4
@@ -364,7 +384,7 @@ func ProcessStyleFilesParallelWithCallback(files []string, rules []string, match
 				sharedcache.StoreCachedFileContent(rr.path, rr.content)
 
 				lines := CountLines(rr.content)
-				res := parseAndAnalyzeStyleFileWithTimeout(rr.path, rr.content, rules, matcher)
+				res := parseAndAnalyzeStyleFileWithTimeout(rr.path, rr.content, rules, matcher, project)
 				sharedcache.DeleteCachedFileContent(rr.path)
 				sharedcache.DeleteCachedLines(rr.content)
 				resultCh <- fileResult{issues: res.issues, lines: lines, errors: res.errors}
@@ -390,6 +410,39 @@ func ProcessStyleFilesParallelWithCallback(files []string, rules []string, match
 	}
 
 	return allIssues, totalParseErrors, totalLines
+}
+
+func runAnalysis(path string, nodes []ast.Node, project *analyse.ProjectIndex) []analyse.AnalysisIssue {
+	if configuredAnalysisLevel == nil && project == nil {
+		return analyse.RunAnalysisRules(path, nodes)
+	}
+	if project == nil {
+		project = analyse.BuildProjectIndex(map[string][]ast.Node{path: nodes})
+	}
+	ctx := &analyse.AnalysisContext{Resolver: project, Project: project, AnalysisLevel: configuredAnalysisLevel}
+	return analyse.RunAnalysisRulesWithContext(path, nodes, ctx)
+}
+
+func buildProjectIndexForFiles(files []string) *analyse.ProjectIndex {
+	if configuredAnalysisLevel == nil {
+		return nil
+	}
+	parsed := make(map[string][]ast.Node, len(files))
+	for _, file := range files {
+		content, err := os.ReadFile(file)
+		if err != nil {
+			continue
+		}
+		sharedcache.StoreCachedFileContent(file, content)
+		lex := lexer.New(string(content))
+		p := parser.New(lex, false)
+		nodes := p.Parse()
+		if len(p.Errors()) > 0 {
+			continue
+		}
+		parsed[file] = nodes
+	}
+	return analyse.BuildProjectIndex(parsed)
 }
 
 func ProcessStyleFilesParallel(files []string, rules []string, matcher *overrides.Compiled, parallelism int) ([]style.StyleIssue, int, int) {
