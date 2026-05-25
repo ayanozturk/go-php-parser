@@ -4,13 +4,17 @@ import (
 	"fmt"
 	"go-phpcs/ast"
 	"go-phpcs/token"
+	"strings"
 )
 
 func (p *Parser) parseStatement() (ast.Node, error) {
 retry:
-	// Skip attributes before statement (PHP 8+)
-	for p.tok.Type == token.T_ATTRIBUTE {
+	// Keep attributes as lightweight nodes so analysis rules can validate them.
+	if p.tok.Type == token.T_ATTRIBUTE {
+		pos := p.tok.Pos
+		name := attributeNameFromLiteral(p.tok.Literal)
 		p.nextToken()
+		return &ast.AttributeNode{Name: name, Pos: ast.Position(pos)}, nil
 	}
 	if p.tok.Type == token.T_NAMESPACE {
 		return p.parseNamespaceDeclaration()
@@ -308,6 +312,17 @@ func (p *Parser) parseExpressionStatement() (ast.Node, error) {
 		Expr: expr,
 		Pos:  expr.GetPos(),
 	}, nil
+}
+
+func attributeNameFromLiteral(literal string) string {
+	literal = strings.TrimSpace(literal)
+	literal = strings.TrimPrefix(literal, "#[")
+	literal = strings.TrimSuffix(literal, "]")
+	literal = strings.TrimSpace(literal)
+	if idx := strings.IndexAny(literal, "(,"); idx >= 0 {
+		literal = literal[:idx]
+	}
+	return strings.TrimSpace(literal)
 }
 
 func (p *Parser) parseBlockStatement() []ast.Node {

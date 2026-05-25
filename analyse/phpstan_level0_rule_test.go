@@ -43,6 +43,16 @@ func hasIssueContaining(issues []AnalysisIssue, code, needle string) bool {
 	return false
 }
 
+func countIssueContaining(issues []AnalysisIssue, code, needle string) int {
+	count := 0
+	for _, issue := range issues {
+		if issue.Code == code && strings.Contains(issue.Message, needle) {
+			count++
+		}
+	}
+	return count
+}
+
 func TestLevel0UnknownSymbolsAndFunctionArguments(t *testing.T) {
 	issues := runLevel0OnFiles(t, map[string]string{
 		"test.php": `<?php
@@ -90,6 +100,111 @@ class Calls {
 	}
 	if !hasIssueContaining(issues, level0SymbolsCode, "Call to an undefined method Calls::missing") {
 		t.Fatalf("expected undefined $this method issue, got %#v", issues)
+	}
+}
+
+func TestLevel0DuplicateDeclarationsAreReportedForOwningFile(t *testing.T) {
+	issues := runLevel0OnFiles(t, map[string]string{
+		"a.php": `<?php
+class Duplicate {}
+`,
+		"b.php": `<?php
+class Duplicate {}
+`,
+		"c.php": `<?php
+class Other {}
+`,
+	})
+
+	if countIssueContaining(issues, level0ClassModelCode, "Duplicate declaration of class Duplicate") != 1 {
+		t.Fatalf("expected one duplicate declaration issue, got %#v", issues)
+	}
+	for _, issue := range issues {
+		if strings.Contains(issue.Message, "Duplicate declaration of class Duplicate") && issue.Filename == "c.php" {
+			t.Fatalf("duplicate issue reported for unrelated file: %#v", issues)
+		}
+	}
+}
+
+func TestLevel0TypeUseCatchAndAttributeReferences(t *testing.T) {
+	issues := runLevel0OnFiles(t, map[string]string{
+		"test.php": `<?php
+use Missing\Thing;
+use function missing_fn;
+use const MISSING_CONST;
+
+#[MissingAttr]
+function demo(MissingParam $value): MissingReturn {}
+
+class Box {
+    private MissingProperty $item;
+}
+
+try {
+} catch (MissingException $e) {
+}
+`,
+	})
+
+	for _, expected := range []string{
+		"Used class Missing\\Thing not found",
+		"Used function missing_fn not found",
+		"Used constant MISSING_CONST not found",
+		"Attribute class MissingAttr not found",
+		"Parameter $value references unknown class MissingParam",
+		"Return type references unknown class MissingReturn",
+		"Property $item references unknown class MissingProperty",
+		"Caught class MissingException not found",
+	} {
+		if !hasIssueContaining(issues, level0SymbolsCode, expected) {
+			t.Fatalf("expected %q issue, got %#v", expected, issues)
+		}
+	}
+}
+
+func TestLevel0PropertyChecks(t *testing.T) {
+	issues := runLevel0OnFiles(t, map[string]string{
+		"test.php": `<?php
+class Props {
+    public int $known;
+    public int $instance;
+    public static int $staticKnown;
+
+    public function run() {
+        $this->missing;
+        self::$missingStatic;
+        self::$instance;
+    }
+}
+`,
+	})
+
+	if !hasIssueContaining(issues, level0SymbolsCode, "Access to an undefined property Props::$missing") {
+		t.Fatalf("expected undefined instance property issue, got %#v", issues)
+	}
+	if !hasIssueContaining(issues, level0SymbolsCode, "Access to undefined static property Props::$missingStatic") {
+		t.Fatalf("expected undefined static property issue, got %#v", issues)
+	}
+	if !hasIssueContaining(issues, level0SymbolsCode, "Static access to instance property Props::$instance") {
+		t.Fatalf("expected static access to instance property issue, got %#v", issues)
+	}
+}
+
+func TestLevel0IssetAndEmptyAllowUndefinedVariables(t *testing.T) {
+	issues := runLevel0OnFiles(t, map[string]string{
+		"test.php": `<?php
+isset($missing);
+empty($alsoMissing);
+echo $reported;
+`,
+	})
+
+	if hasIssueContaining(issues, level0VariablesCode, "Undefined variable: $missing") ||
+		hasIssueContaining(issues, level0VariablesCode, "Undefined variable: $alsoMissing") {
+		t.Fatalf("isset/empty variables should not be reported, got %#v", issues)
+	}
+	if !hasIssueContaining(issues, level0VariablesCode, "Undefined variable: $reported") {
+		t.Fatalf("expected normal undefined variable issue, got %#v", issues)
 	}
 }
 

@@ -25,6 +25,7 @@ func (r *PHPStanLevel0Rule) CheckIssues(filename string, nodes []ast.Node, ctx *
 	fileCtx := analysisFileTypeContext(ctx, nodes)
 	var issues []AnalysisIssue
 	issues = append(issues, r.checkClassModel(filename, nodes, ctx, fileCtx)...)
+	issues = append(issues, r.checkTypeReferences(filename, nodes, ctx, fileCtx)...)
 	issues = append(issues, r.checkSymbolsAndCalls(filename, nodes, ctx, fileCtx)...)
 	issues = append(issues, r.checkUndefinedVariables(filename, nodes, ctx, fileCtx)...)
 	issues = append(issues, r.checkLanguage(filename, nodes, ctx, fileCtx)...)
@@ -46,9 +47,9 @@ func ensureLevel0Context(filename string, nodes []ast.Node, ctx *AnalysisContext
 
 func (r *PHPStanLevel0Rule) checkClassModel(filename string, nodes []ast.Node, ctx *AnalysisContext, fileCtx fileTypeContext) []AnalysisIssue {
 	var issues []AnalysisIssue
-	for className, positions := range ctx.Project.Duplicates {
-		for _, pos := range positions {
-			issues = append(issues, issue(filename, pos, level0ClassModelCode, fmt.Sprintf("Duplicate declaration of class %s.", className)))
+	for _, duplicate := range ctx.Project.Duplicates {
+		if duplicate.File == filename {
+			issues = append(issues, issue(filename, duplicate.Pos, level0ClassModelCode, fmt.Sprintf("Duplicate declaration of class %s.", duplicate.Name)))
 		}
 	}
 
@@ -100,13 +101,78 @@ func (r *PHPStanLevel0Rule) checkClassModel(filename string, nodes []ast.Node, c
 					if resolved, ok := ctx.Resolver.ResolveClass(traitName); !ok {
 						issues = append(issues, issue(filename, n.GetPos(), level0ClassModelCode, fmt.Sprintf("Trait %s not found.", traitName)))
 					} else if resolved.Kind != "trait" {
-						issues = append(issues, issue(filename, n.GetPos(), level0ClassModelCode, fmt.Sprintf("%s %s used as trait.", strings.Title(resolved.Kind), resolved.Name)))
+						issues = append(issues, issue(filename, n.GetPos(), level0ClassModelCode, fmt.Sprintf("%s %s used as trait.", titleKind(resolved.Kind), resolved.Name)))
 					}
 				}
 			}
 		}
 	}
 	walk(nodes, fileCtx, "")
+	return issues
+}
+
+func (r *PHPStanLevel0Rule) checkTypeReferences(filename string, nodes []ast.Node, ctx *AnalysisContext, fileCtx fileTypeContext) []AnalysisIssue {
+	var issues []AnalysisIssue
+	walkAll(nodes, func(node ast.Node, class *ast.ClassNode, ft fileTypeContext) {
+		switch n := node.(type) {
+		case *ast.UseNode:
+			switch n.Type {
+			case "function":
+				if !ctx.Resolver.FunctionExists(strings.TrimPrefix(n.Path, `\`)) {
+					issues = append(issues, issue(filename, n.GetPos(), level0SymbolsCode, fmt.Sprintf("Used function %s not found.", n.Path)))
+				}
+			case "const":
+				if !ctx.Resolver.ConstantExists(strings.TrimPrefix(n.Path, `\`)) {
+					issues = append(issues, issue(filename, n.GetPos(), level0SymbolsCode, fmt.Sprintf("Used constant %s not found.", n.Path)))
+				}
+			default:
+				name := strings.TrimPrefix(n.Path, `\`)
+				if _, ok := ctx.Resolver.ResolveClass(name); !ok {
+					issues = append(issues, issue(filename, n.GetPos(), level0SymbolsCode, fmt.Sprintf("Used class %s not found.", name)))
+				}
+			}
+		case *ast.FunctionNode:
+			for _, param := range n.Params {
+				if p, ok := param.(*ast.ParamNode); ok {
+					checkTypeReference(filename, p.GetPos(), "Parameter $"+p.Name, paramTypeName(p), ft, ctx, &issues)
+				}
+			}
+			checkTypeReference(filename, n.GetPos(), "Return type", n.ReturnType, ft, ctx, &issues)
+		case *ast.InterfaceMethodNode:
+			for _, param := range n.Params {
+				if p, ok := param.(*ast.ParamNode); ok {
+					checkTypeReference(filename, p.GetPos(), "Parameter $"+p.Name, paramTypeName(p), ft, ctx, &issues)
+				}
+			}
+			if n.ReturnType != nil {
+				checkTypeReference(filename, n.GetPos(), "Return type", n.ReturnType.TokenLiteral(), ft, ctx, &issues)
+			}
+		case *ast.PropertyNode:
+			checkTypeReference(filename, n.GetPos(), "Property $"+n.Name, n.TypeHint, ft, ctx, &issues)
+		case *ast.ConstantNode:
+			checkTypeReference(filename, n.GetPos(), "Constant "+n.Name, n.Type, ft, ctx, &issues)
+		case *ast.CatchNode:
+			for _, catchType := range n.Types {
+				name := ft.resolveClassLike(catchType)
+				resolved, ok := ctx.Resolver.ResolveClass(name)
+				if !ok {
+					issues = append(issues, issue(filename, n.GetPos(), level0SymbolsCode, fmt.Sprintf("Caught class %s not found.", name)))
+					continue
+				}
+				if resolved.Kind == "trait" || resolved.Kind == "enum" {
+					issues = append(issues, issue(filename, n.GetPos(), level0ClassModelCode, fmt.Sprintf("Caught %s %s is not throwable.", resolved.Kind, resolved.Name)))
+				}
+			}
+		case *ast.AttributeNode:
+			name := ft.resolveClassLike(n.Name)
+			resolved, ok := ctx.Resolver.ResolveClass(name)
+			if !ok {
+				issues = append(issues, issue(filename, n.GetPos(), level0SymbolsCode, fmt.Sprintf("Attribute class %s not found.", name)))
+				return
+			}
+			checkCallArguments(filename, n.GetPos(), "Attribute class "+resolved.Name+" constructor", "__construct", n.Arguments, constructorFor(resolved.Name, ctx), &issues)
+		}
+	})
 	return issues
 }
 
@@ -182,12 +248,38 @@ func (r *PHPStanLevel0Rule) checkSymbolsAndCalls(filename string, nodes []ast.No
 			if isSpecialClassName(className) || strings.HasPrefix(className, "$") {
 				return
 			}
-			if _, ok := ctx.Resolver.ResolveClass(className); !ok {
+			resolvedClass, ok := ctx.Resolver.ResolveClass(className)
+			if !ok {
 				issues = append(issues, issue(filename, n.GetPos(), level0SymbolsCode, fmt.Sprintf("Access to constant %s::%s on an unknown class %s.", className, n.Const, className)))
+				return
+			}
+			if strings.HasPrefix(n.Const, "$") {
+				propertyName := strings.TrimPrefix(n.Const, "$")
+				property, ok := ctx.Resolver.ResolveProperty(className, propertyName)
+				if !ok {
+					issues = append(issues, issue(filename, n.GetPos(), level0SymbolsCode, fmt.Sprintf("Access to undefined static property %s::$%s.", className, propertyName)))
+					return
+				}
+				if !property.IsStatic {
+					issues = append(issues, issue(filename, n.GetPos(), level0SymbolsCode, fmt.Sprintf("Static access to instance property %s::$%s.", resolvedClass.Name, property.Name)))
+				}
 				return
 			}
 			if n.Const != "class" && !ctx.Resolver.ConstantExists(className+"::"+n.Const) {
 				issues = append(issues, issue(filename, n.GetPos(), level0SymbolsCode, fmt.Sprintf("Access to undefined constant %s::%s.", className, n.Const)))
+			}
+		case *ast.PropertyFetchNode:
+			receiver, ok := n.Object.(*ast.VariableNode)
+			if !ok || receiver.Name != "this" {
+				return
+			}
+			className := currentClassName(class, ft)
+			if className == "" {
+				issues = append(issues, issue(filename, n.GetPos(), level0SymbolsCode, "Undefined variable: $this"))
+				return
+			}
+			if _, ok := ctx.Resolver.ResolveProperty(className, n.Property); !ok {
+				issues = append(issues, issue(filename, n.GetPos(), level0SymbolsCode, fmt.Sprintf("Access to an undefined property %s::$%s.", className, n.Property)))
 			}
 		}
 	})
@@ -443,12 +535,22 @@ func walkAll(nodes []ast.Node, fn func(ast.Node, *ast.ClassNode, fileTypeContext
 				walk(child, class, ft)
 			}
 			for _, catchNode := range n.Catches {
-				for _, child := range catchNode.Body {
-					walk(child, class, ft)
-				}
+				walk(catchNode, class, ft)
 			}
 			for _, child := range n.Finally {
 				walk(child, class, ft)
+			}
+		case *ast.CatchNode:
+			for _, child := range n.Body {
+				walk(child, class, ft)
+			}
+		case *ast.AttributeNode:
+			for _, arg := range n.Arguments {
+				walk(arg, class, ft)
+			}
+		case *ast.StaticVarDeclNode:
+			for _, entry := range n.Vars {
+				walk(entry.Init, class, ft)
 			}
 		case *ast.FunctionCallNode:
 			walk(n.Name, class, ft)
@@ -513,6 +615,59 @@ func walkAll(nodes []ast.Node, fn func(ast.Node, *ast.ClassNode, fileTypeContext
 	for _, node := range nodes {
 		walk(node, nil, ft)
 	}
+}
+
+func checkTypeReference(filename string, pos ast.Position, subject, raw string, ft fileTypeContext, ctx *AnalysisContext, issues *[]AnalysisIssue) {
+	for _, name := range referencedClassTypes(raw, ft) {
+		if isSpecialClassName(name) {
+			continue
+		}
+		if _, ok := ctx.Resolver.ResolveClass(name); !ok {
+			*issues = append(*issues, issue(filename, pos, level0SymbolsCode, fmt.Sprintf("%s references unknown class %s.", subject, name)))
+		}
+	}
+}
+
+func referencedClassTypes(raw string, ft fileTypeContext) []string {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return nil
+	}
+	if strings.HasPrefix(raw, "?") {
+		raw = strings.TrimSpace(strings.TrimPrefix(raw, "?"))
+	}
+	var refs []string
+	for _, unionPart := range splitTopLevelTypes(raw, '|') {
+		for _, part := range splitTopLevelTypes(unionPart, '&') {
+			part = strings.TrimSpace(part)
+			part = strings.Trim(part, "()")
+			if part == "" {
+				continue
+			}
+			canonical := canonicalizeDocType(strings.TrimPrefix(part, `\`))
+			if atom, ok := normalizeTypeAtom(canonical); ok {
+				if atom.kind == typeKindBuiltin {
+					continue
+				}
+				part = atom.display
+			}
+			if strings.ContainsAny(part, "$[]{}") {
+				continue
+			}
+			refs = append(refs, ft.resolveClassLike(part))
+		}
+	}
+	return refs
+}
+
+func paramTypeName(param *ast.ParamNode) string {
+	if param.TypeHint != "" {
+		return param.TypeHint
+	}
+	if param.UnionType != nil {
+		return param.UnionType.TokenLiteral()
+	}
+	return ""
 }
 
 func checkCallArguments(filename string, pos ast.Position, target, name string, args []ast.Node, method ResolvedMethod, issues *[]AnalysisIssue) {
@@ -620,6 +775,10 @@ func checkExprVars(filename string, node ast.Node, defined map[string]bool, issu
 		checkExprVars(filename, n.Right, defined, issues)
 		defineAssignmentTarget(n.Left, defined)
 	case *ast.FunctionCallNode:
+		name := strings.ToLower(functionCallName(n))
+		if name == "isset" || name == "empty" {
+			return
+		}
 		for _, arg := range n.Args {
 			checkExprVars(filename, argumentValue(arg), defined, issues)
 		}
@@ -749,6 +908,13 @@ func isWritableExpr(node ast.Node) bool {
 	default:
 		return false
 	}
+}
+
+func titleKind(kind string) string {
+	if kind == "" {
+		return ""
+	}
+	return strings.ToUpper(kind[:1]) + kind[1:]
 }
 
 func literalKey(node ast.Node) (string, bool) {

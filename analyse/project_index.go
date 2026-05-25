@@ -12,7 +12,13 @@ type ProjectIndex struct {
 	Functions  map[string]ResolvedFunction
 	Constants  map[string]struct{}
 	FileTypes  map[string]fileTypeContext
-	Duplicates map[string][]ast.Position
+	Duplicates []DuplicateSymbol
+}
+
+type DuplicateSymbol struct {
+	File string
+	Name string
+	Pos  ast.Position
 }
 
 func NewProjectIndex() *ProjectIndex {
@@ -23,7 +29,6 @@ func NewProjectIndex() *ProjectIndex {
 		Functions:  make(map[string]ResolvedFunction),
 		Constants:  make(map[string]struct{}),
 		FileTypes:  make(map[string]fileTypeContext),
-		Duplicates: make(map[string][]ast.Position),
 	}
 	idx.seedBuiltins()
 	return idx
@@ -34,7 +39,7 @@ func BuildProjectIndex(parsed map[string][]ast.Node) *ProjectIndex {
 	for filename, nodes := range parsed {
 		ft := collectFileTypeContext(nodes)
 		idx.FileTypes[filename] = ft
-		idx.indexNodes(nodes, ft, "")
+		idx.indexNodes(filename, nodes, ft, "")
 	}
 	return idx
 }
@@ -119,7 +124,7 @@ func (idx *ProjectIndex) classLineage(className string) []string {
 	return out
 }
 
-func (idx *ProjectIndex) indexNodes(nodes []ast.Node, ft fileTypeContext, currentClass string) {
+func (idx *ProjectIndex) indexNodes(filename string, nodes []ast.Node, ft fileTypeContext, currentClass string) {
 	for _, node := range nodes {
 		switch n := node.(type) {
 		case *ast.NamespaceNode:
@@ -127,7 +132,7 @@ func (idx *ProjectIndex) indexNodes(nodes []ast.Node, ft fileTypeContext, curren
 			if nft.namespace == "" {
 				nft.namespace = n.Name
 			}
-			idx.indexNodes(n.Body, nft, currentClass)
+			idx.indexNodes(filename, n.Body, nft, currentClass)
 		case *ast.ClassNode:
 			name := ft.resolveClassLike(n.Name)
 			class := ResolvedClass{
@@ -139,21 +144,21 @@ func (idx *ProjectIndex) indexNodes(nodes []ast.Node, ft fileTypeContext, curren
 				Abstract:   strings.Contains(n.Modifier, "abstract"),
 				Readonly:   strings.Contains(n.Modifier, "readonly"),
 			}
-			idx.addClass(class, n.Pos)
+			idx.addClass(filename, class, n.Pos)
 			idx.indexClassMembers(name, n.Properties, n.Methods, n.Constants, ft)
 		case *ast.InterfaceNode:
 			name := ft.resolveClassLike(n.Name)
-			idx.addClass(ResolvedClass{Name: name, Extends: resolvedList(ft, n.Extends), Kind: "interface"}, n.Pos)
+			idx.addClass(filename, ResolvedClass{Name: name, Extends: resolvedList(ft, n.Extends), Kind: "interface"}, n.Pos)
 			idx.indexInterfaceMembers(name, n.Members, ft)
 		case *ast.TraitNode:
 			if n.Name != nil {
 				name := ft.resolveClassLike(n.Name.Name)
-				idx.addClass(ResolvedClass{Name: name, Kind: "trait"}, n.Pos)
-				idx.indexNodes(n.Body, ft, name)
+				idx.addClass(filename, ResolvedClass{Name: name, Kind: "trait"}, n.Pos)
+				idx.indexNodes(filename, n.Body, ft, name)
 			}
 		case *ast.EnumNode:
 			name := ft.resolveClassLike(n.Name)
-			idx.addClass(ResolvedClass{Name: name, Kind: "enum", Final: true}, n.Pos)
+			idx.addClass(filename, ResolvedClass{Name: name, Kind: "enum", Final: true}, n.Pos)
 			idx.indexClassMembers(name, nil, n.Methods, nil, ft)
 		case *ast.FunctionNode:
 			if currentClass != "" {
@@ -212,10 +217,10 @@ func (idx *ProjectIndex) indexInterfaceMembers(className string, members []ast.N
 	}
 }
 
-func (idx *ProjectIndex) addClass(class ResolvedClass, pos ast.Position) {
+func (idx *ProjectIndex) addClass(filename string, class ResolvedClass, pos ast.Position) {
 	key := indexKey(class.Name)
 	if _, exists := idx.Classes[key]; exists {
-		idx.Duplicates[key] = append(idx.Duplicates[key], pos)
+		idx.Duplicates = append(idx.Duplicates, DuplicateSymbol{File: filename, Name: class.Name, Pos: pos})
 		return
 	}
 	idx.Classes[key] = class
@@ -328,13 +333,18 @@ func (idx *ProjectIndex) seedBuiltins() {
 		{Name: "array_map", Params: []ResolvedParam{{Name: "callback"}, {Name: "array"}, {Name: "arrays", IsVariadic: true}}},
 		{Name: "array_keys", Params: []ResolvedParam{{Name: "array"}, {Name: "filter_value", HasDefault: true}, {Name: "strict", HasDefault: true}}},
 		{Name: "class_exists", Params: []ResolvedParam{{Name: "class"}, {Name: "autoload", HasDefault: true}}},
+		{Name: "compact", Params: []ResolvedParam{{Name: "var_name"}, {Name: "var_names", IsVariadic: true}}},
+		{Name: "constant", Params: []ResolvedParam{{Name: "name"}}},
+		{Name: "define", Params: []ResolvedParam{{Name: "constant_name"}, {Name: "value"}, {Name: "case_insensitive", HasDefault: true}}},
 		{Name: "defined", Params: []ResolvedParam{{Name: "constant_name"}}},
 		{Name: "die", Params: []ResolvedParam{{Name: "status", HasDefault: true}}},
+		{Name: "empty", Params: []ResolvedParam{{Name: "var"}}},
 		{Name: "enum_exists", Params: []ResolvedParam{{Name: "enum"}, {Name: "autoload", HasDefault: true}}},
 		{Name: "exit", Params: []ResolvedParam{{Name: "status", HasDefault: true}}},
 		{Name: "extension_loaded", Params: []ResolvedParam{{Name: "extension"}}},
 		{Name: "function_exists", Params: []ResolvedParam{{Name: "function"}}},
 		{Name: "interface_exists", Params: []ResolvedParam{{Name: "interface"}, {Name: "autoload", HasDefault: true}}},
+		{Name: "isset", Params: []ResolvedParam{{Name: "var"}, {Name: "vars", IsVariadic: true}}},
 		{Name: "is_array", Params: []ResolvedParam{{Name: "value"}}},
 		{Name: "is_bool", Params: []ResolvedParam{{Name: "value"}}},
 		{Name: "is_float", Params: []ResolvedParam{{Name: "value"}}},
