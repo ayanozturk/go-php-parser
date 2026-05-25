@@ -24,6 +24,7 @@ func (p *Parser) parseParameter() ast.Node {
 	// Parse all modifiers (visibility, readonly) in any order
 	var visibility string
 	var isPromoted bool
+	var isReadonly bool
 	for {
 		if p.tok.Type == token.T_PUBLIC || p.tok.Type == token.T_PROTECTED || p.tok.Type == token.T_PRIVATE {
 			visibility = p.tok.Literal
@@ -33,6 +34,7 @@ func (p *Parser) parseParameter() ast.Node {
 		}
 		if p.tok.Literal == "readonly" {
 			isPromoted = true
+			isReadonly = true
 			p.nextToken()
 			continue
 		}
@@ -120,6 +122,7 @@ func (p *Parser) parseParameter() ast.Node {
 		DefaultValue: defaultValue,
 		Visibility:   visibility,
 		IsPromoted:   isPromoted,
+		IsReadonly:   isReadonly,
 		IsVariadic:   isVariadic,
 		IsByRef:      isByRef,
 		Pos:          ast.Position(pos),

@@ -427,6 +427,244 @@ class MutableChild extends ReadonlyParent {}
 	}
 }
 
+func TestLevel0ThisInStaticMethod(t *testing.T) {
+	issues := runLevel0OnFiles(t, map[string]string{
+		"test.php": `<?php
+class Demo {
+    public static function run() {
+        $this->work();
+        $this->value;
+    }
+    public function work() {}
+    public int $value;
+}
+`,
+	})
+
+	for _, expected := range []string{
+		"Using $this inside static method Demo::run()",
+	} {
+		if countIssueContaining(issues, level0SymbolsCode, expected) < 2 {
+			t.Fatalf("expected at least two %q issues, got %#v", expected, issues)
+		}
+	}
+}
+
+func TestLevel0ConstructorVisibilityAndArgumentCount(t *testing.T) {
+	issues := runLevel0OnFiles(t, map[string]string{
+		"test.php": `<?php
+class PrivateCtor {
+    private function __construct() {}
+}
+class ProtectedCtor {
+    protected function __construct() {}
+}
+class Child extends ProtectedCtor {
+    public static function create() {
+        new Child();
+    }
+}
+new PrivateCtor();
+new ProtectedCtor();
+new Child();
+new NoCtor(1);
+class NoCtor {}
+`,
+	})
+
+	for _, expected := range []string{
+		"Cannot instantiate class PrivateCtor via private constructor",
+		"Cannot instantiate class ProtectedCtor via protected constructor",
+		"Cannot instantiate class Child via protected constructor",
+		"Class NoCtor constructor invoked with 1",
+	} {
+		if !hasIssueContaining(issues, level0InvocationCode, expected) {
+			t.Fatalf("expected %q issue, got %#v", expected, issues)
+		}
+	}
+	if countIssueContaining(issues, level0InvocationCode, "Cannot instantiate class Child via protected constructor") != 1 {
+		t.Fatalf("global and static-context Child instantiation should report once, got %#v", issues)
+	}
+}
+
+func TestLevel0InstanceCallToStaticMethod(t *testing.T) {
+	issues := runLevel0OnFiles(t, map[string]string{
+		"test.php": `<?php
+class Demo {
+    public static function run() {}
+}
+(new Demo())->run();
+`,
+	})
+
+	if !hasIssueContaining(issues, level0InvocationCode, "Call to static method Demo::run() on instance") {
+		t.Fatalf("expected instance static method call issue, got %#v", issues)
+	}
+}
+
+func TestLevel0ProtectedMethodCallableFromSubclass(t *testing.T) {
+	issues := runLevel0OnFiles(t, map[string]string{
+		"test.php": `<?php
+class Base {
+    protected function work() {}
+}
+class Child extends Base {
+    public function run() {
+        $this->work();
+    }
+}
+`,
+	})
+
+	if hasIssueContaining(issues, level0InvocationCode, "Call to protected method") {
+		t.Fatalf("protected method should be callable from subclass, got %#v", issues)
+	}
+}
+
+func TestLevel0ReadonlyClassProperties(t *testing.T) {
+	issues := runLevel0OnFiles(t, map[string]string{
+		"test.php": `<?php
+readonly class BadProperty {
+    public int $mutable;
+}
+readonly class ReadonlyParent {
+    public readonly int $inherited;
+}
+readonly class BadOverride extends ReadonlyParent {
+    public int $inherited;
+}
+`,
+	})
+
+	if !hasIssueContaining(issues, level0ClassModelCode, "Readonly class BadProperty cannot have non-readonly property $mutable") {
+		t.Fatalf("expected readonly class property issue, got %#v", issues)
+	}
+	if !hasIssueContaining(issues, level0ClassModelCode, "overriding readonly property must be readonly") {
+		t.Fatalf("expected readonly override issue, got %#v", issues)
+	}
+}
+
+func TestLevel0EnumSanity(t *testing.T) {
+	issues := runLevel0OnFiles(t, map[string]string{
+		"test.php": `<?php
+enum UnitWithValue {
+    case A = 1;
+}
+
+enum BadBacking: float {
+    case A;
+}
+
+enum MissingBackedValue: string {
+    case A;
+}
+
+enum BadUnitValue {
+    case A = 'x';
+}
+
+enum BadCaseType: string {
+    case A = 1;
+}
+
+enum DuplicateValues: int {
+    case A = 1;
+    case B = 1;
+}
+
+enum BadMethods: string {
+    case A = 'a';
+    public function __construct() {}
+    public function __destruct() {}
+    public function __sleep() {}
+    public function cases() {}
+    public static function from(string $value): self {}
+}
+
+enum ValidBacked: string {
+    case A = 'a';
+    public function label(): string { return $this->name; }
+}
+`,
+	})
+
+	for _, expected := range []string{
+		"Enum UnitWithValue is not backed, but case A has value 1",
+		"Backed enum BadBacking can have only \"int\" or \"string\" type",
+		"Enum case MissingBackedValue::A does not have a value but the enum is backed with the \"string\" type",
+		"Enum BadUnitValue is not backed, but case A has value \"x\"",
+		"Enum case BadCaseType::A value 1 does not match the \"string\" type",
+		"Enum DuplicateValues has duplicate value 1 for cases A, B",
+		"Enum BadMethods contains constructor",
+		"Enum BadMethods contains destructor",
+		"Enum BadMethods contains magic method __sleep()",
+		"Enum BadMethods cannot redeclare native method cases()",
+		"Enum BadMethods cannot redeclare native method from()",
+	} {
+		if !hasIssueContaining(issues, level0ClassModelCode, expected) {
+			t.Fatalf("expected %q issue, got %#v", expected, issues)
+		}
+	}
+	for _, unexpected := range []string{
+		"Enum ValidBacked",
+	} {
+		if hasIssueContaining(issues, level0ClassModelCode, unexpected) {
+			t.Fatalf("unexpected %q issue, got %#v", unexpected, issues)
+		}
+	}
+}
+
+func TestLevel0FinalMethodOverride(t *testing.T) {
+	issues := runLevel0OnFiles(t, map[string]string{
+		"test.php": `<?php
+class Base {
+    final public function sealed() {}
+}
+class Child extends Base {
+    public function sealed() {}
+}
+`,
+	})
+
+	if !hasIssueContaining(issues, level0ClassModelCode, "Cannot override final method Base::sealed()") {
+		t.Fatalf("expected final method override issue, got %#v", issues)
+	}
+}
+
+func TestLevel0PrivateMethodNotCallableFromSubclass(t *testing.T) {
+	issues := runLevel0OnFiles(t, map[string]string{
+		"test.php": `<?php
+class Base {
+    private function hidden() {}
+}
+class Child extends Base {
+    public function run() {
+        $this->hidden();
+    }
+}
+`,
+	})
+
+	if !hasIssueContaining(issues, level0InvocationCode, "Call to private method Base::hidden()") {
+		t.Fatalf("expected private method visibility issue, got %#v", issues)
+	}
+}
+
+func TestLevel0ProtectedMethodOnKnownReceiver(t *testing.T) {
+	issues := runLevel0OnFiles(t, map[string]string{
+		"test.php": `<?php
+class Base {
+    protected function work() {}
+}
+(new Base())->work();
+`,
+	})
+
+	if !hasIssueContaining(issues, level0InvocationCode, "Call to protected method Base::work()") {
+		t.Fatalf("expected protected method call on known receiver, got %#v", issues)
+	}
+}
+
 func TestLevel0ReflectionGuardsSuppressUnknownSymbols(t *testing.T) {
 	issues := runLevel0OnFiles(t, map[string]string{
 		"test.php": `<?php

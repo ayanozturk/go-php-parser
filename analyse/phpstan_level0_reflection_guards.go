@@ -19,7 +19,7 @@ func collectReflectionGuards(nodes []ast.Node, fileCtx fileTypeContext) reflecti
 		constants: map[string]struct{}{},
 		methods:   map[string]struct{}{},
 	}
-	walkAll(nodes, func(node ast.Node, class *ast.ClassNode, ft fileTypeContext) {
+	walkAll(nodes, func(node ast.Node, class *ast.ClassNode, _ *ast.FunctionNode, ft fileTypeContext) {
 		call, ok := node.(*ast.FunctionCallNode)
 		if !ok {
 			return

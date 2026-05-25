@@ -13,6 +13,7 @@ type ParamNode struct {
 	DefaultValue Node
 	Visibility   string // public, protected, private (for promoted constructor params)
 	IsPromoted   bool   // true if this param is promoted to a property
+	IsReadonly   bool   // true if this promoted parameter is readonly
 	IsVariadic   bool   // true if this param is variadic (...$values)
 	IsByRef      bool   // true if this param is passed by reference (&$data)
 	Pos          Position

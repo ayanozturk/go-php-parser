@@ -57,6 +57,7 @@ func (r *PHPStanLevel0Rule) checkClassModel(filename string, nodes []ast.Node, c
 					}
 				}
 				checkClassMethodLegality(filename, className, n, ctx, &issues)
+				checkReadonlyClassProperties(filename, className, n, ctx, &issues)
 				walk(n.Properties, ft, className)
 				walk(n.Methods, ft, className)
 			case *ast.InterfaceNode:
@@ -79,6 +80,10 @@ func (r *PHPStanLevel0Rule) checkClassModel(filename string, nodes []ast.Node, c
 						issues = append(issues, issue(filename, n.GetPos(), level0ClassModelCode, fmt.Sprintf("%s %s used as trait.", titleKind(resolved.Kind), resolved.Name)))
 					}
 				}
+			case *ast.EnumNode:
+				enumName := ft.resolveClassLike(n.Name)
+				checkEnumLegality(filename, enumName, n, &issues)
+				walk(n.Methods, ft, enumName)
 			}
 		}
 	}
@@ -106,6 +111,10 @@ func checkClassMethodLegality(filename, className string, class *ast.ClassNode, 
 			if hasModifier(method.Modifiers, "final") {
 				*issues = append(*issues, issue(filename, method.GetPos(), level0ClassModelCode, fmt.Sprintf("Abstract method %s::%s() cannot be final.", className, method.Name)))
 			}
+			continue
+		}
+		if parentMethod, ok := finalMethodInAncestors(ctx.Project, className, method.Name); ok {
+			*issues = append(*issues, issue(filename, method.GetPos(), level0ClassModelCode, fmt.Sprintf("Cannot override final method %s::%s().", parentMethod.DeclaringClass, parentMethod.Name)))
 		}
 	}
 	if !isAbstractClass {
@@ -123,6 +132,67 @@ func checkInterfaceMemberLegality(filename, interfaceName string, iface *ast.Int
 			*issues = append(*issues, issue(filename, method.GetPos(), level0ClassModelCode, fmt.Sprintf("Interface method %s::%s() must be public.", interfaceName, method.Name)))
 		}
 	}
+}
+
+func checkReadonlyClassProperties(filename, className string, class *ast.ClassNode, ctx *AnalysisContext, issues *[]AnalysisIssue) {
+	classReadonly := hasClassModifier(class, "readonly")
+	for _, propNode := range class.Properties {
+		property, ok := propNode.(*ast.PropertyNode)
+		if !ok {
+			continue
+		}
+		if classReadonly && !property.IsReadonly {
+			*issues = append(*issues, issue(filename, property.GetPos(), level0ClassModelCode, fmt.Sprintf("Readonly class %s cannot have non-readonly property $%s.", className, property.Name)))
+		}
+		if class.Extends != "" {
+			parentName := ""
+			if ctx.Project != nil {
+				if resolved, ok := ctx.Project.ResolveClass(className); ok && len(resolved.Extends) > 0 {
+					parentName = resolved.Extends[0]
+				}
+			}
+			if parentName == "" {
+				continue
+			}
+			if parentProperty, ok := ctx.Resolver.ResolveProperty(parentName, property.Name); ok && parentProperty.Readonly && !property.IsReadonly {
+				*issues = append(*issues, issue(filename, property.GetPos(), level0ClassModelCode, fmt.Sprintf("Property %s::$%s overriding readonly property must be readonly.", className, property.Name)))
+			}
+		}
+	}
+	for _, methodNode := range class.Methods {
+		fn, ok := methodNode.(*ast.FunctionNode)
+		if !ok || !strings.EqualFold(fn.Name, "__construct") {
+			continue
+		}
+		for _, paramNode := range fn.Params {
+			param, ok := paramNode.(*ast.ParamNode)
+			if !ok || !param.IsPromoted {
+				continue
+			}
+			if classReadonly && !param.IsReadonly {
+				*issues = append(*issues, issue(filename, param.GetPos(), level0ClassModelCode, fmt.Sprintf("Readonly class %s cannot have non-readonly property $%s.", className, param.Name)))
+			}
+		}
+	}
+}
+
+func finalMethodInAncestors(project *ProjectIndex, className, methodName string) (ResolvedMethod, bool) {
+	if project == nil {
+		return ResolvedMethod{}, false
+	}
+	class, ok := project.ResolveClass(className)
+	if !ok {
+		return ResolvedMethod{}, false
+	}
+	for _, parent := range class.Extends {
+		if method, ok := project.Methods[indexKey(parent)][strings.ToLower(methodName)]; ok && method.Final {
+			return method, true
+		}
+		if method, ok := finalMethodInAncestors(project, parent, methodName); ok {
+			return method, true
+		}
+	}
+	return ResolvedMethod{}, false
 }
 
 func hasClassModifier(class *ast.ClassNode, modifier string) bool {

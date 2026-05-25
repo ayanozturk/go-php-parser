@@ -26,12 +26,14 @@ type ResolvedClass struct {
 }
 
 type ResolvedMethod struct {
-	Name       string
-	ReturnType string
-	Params     []ResolvedParam
-	Visibility string
-	IsStatic   bool
-	Abstract   bool
+	Name           string
+	DeclaringClass string
+	ReturnType     string
+	Params         []ResolvedParam
+	Visibility     string
+	IsStatic       bool
+	Abstract       bool
+	Final          bool
 }
 
 type ResolvedProperty struct {

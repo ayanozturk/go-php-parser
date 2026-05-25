@@ -9,7 +9,7 @@ import (
 func (r *PHPStanLevel0Rule) checkSymbolsAndCalls(filename string, nodes []ast.Node, ctx *AnalysisContext, fileCtx fileTypeContext) []AnalysisIssue {
 	var issues []AnalysisIssue
 	guards := collectReflectionGuards(nodes, fileCtx)
-	walkAll(nodes, func(node ast.Node, class *ast.ClassNode, ft fileTypeContext) {
+	walkAll(nodes, func(node ast.Node, class *ast.ClassNode, currentFn *ast.FunctionNode, ft fileTypeContext) {
 		switch n := node.(type) {
 		case *ast.NewNode:
 			className := resolveNewClassName(n, ft)
@@ -31,7 +31,9 @@ func (r *PHPStanLevel0Rule) checkSymbolsAndCalls(filename string, nodes []ast.No
 			if resolved.Abstract {
 				issues = append(issues, issue(filename, n.GetPos(), level0ClassModelCode, fmt.Sprintf("Instantiated class %s is abstract.", resolved.Name)))
 			}
-			checkCallArguments(filename, n.GetPos(), "Class "+resolved.Name+" constructor", "__construct", n.Args, constructorFor(resolved.Name, ctx), &issues)
+			constructor := constructorFor(resolved.Name, ctx)
+			checkConstructorAccess(filename, n.GetPos(), resolved.Name, class, ft, ctx.Project, constructor, &issues)
+			checkCallArguments(filename, n.GetPos(), "Class "+resolved.Name+" constructor", "__construct", n.Args, constructor, &issues)
 		case *ast.FunctionCallNode:
 			name := functionCallName(n)
 			if name == "" {
@@ -56,7 +58,7 @@ func (r *PHPStanLevel0Rule) checkSymbolsAndCalls(filename string, nodes []ast.No
 					issues = append(issues, issue(filename, n.GetPos(), level0SymbolsCode, fmt.Sprintf("Call to an undefined static method %s::%s().", resolvedClass, methodName)))
 					return
 				}
-				checkMethodVisibility(filename, n.GetPos(), method, resolvedClass, class, true, &issues)
+				checkMethodVisibility(filename, n.GetPos(), method, resolvedClass, class, ft, ctx.Project, true, &issues)
 				checkCallArguments(filename, n.GetPos(), "Static method "+resolvedClass+"::"+method.Name+"()", method.Name, n.Args, method, &issues)
 				return
 			}
@@ -73,6 +75,14 @@ func (r *PHPStanLevel0Rule) checkSymbolsAndCalls(filename string, nodes []ast.No
 			}
 		case *ast.MethodCallNode:
 			if receiver, ok := n.Object.(*ast.VariableNode); ok && receiver.Name == "this" {
+				if isStaticMethod(currentFn) {
+					methodName := "method"
+					if currentFn != nil && currentFn.Name != "" {
+						methodName = currentFn.Name
+					}
+					issues = append(issues, issue(filename, n.GetPos(), level0SymbolsCode, fmt.Sprintf("Using $this inside static method %s::%s().", currentClassName(class, ft), methodName)))
+					return
+				}
 				className := currentClassName(class, ft)
 				if className == "" {
 					issues = append(issues, issue(filename, n.GetPos(), level0SymbolsCode, fmt.Sprintf("Undefined variable: $%s", receiver.Name)))
@@ -86,9 +96,21 @@ func (r *PHPStanLevel0Rule) checkSymbolsAndCalls(filename string, nodes []ast.No
 					issues = append(issues, issue(filename, n.GetPos(), level0SymbolsCode, fmt.Sprintf("Call to an undefined method %s::%s().", className, n.Method)))
 					return
 				}
-				checkMethodVisibility(filename, n.GetPos(), method, className, class, false, &issues)
+				checkMethodVisibility(filename, n.GetPos(), method, className, class, ft, ctx.Project, false, &issues)
 				checkCallArguments(filename, n.GetPos(), "Method "+className+"::"+method.Name+"()", method.Name, n.Args, method, &issues)
+				return
 			}
+			className := methodCallClassName(n.Object, ft)
+			if className == "" {
+				return
+			}
+			method, ok := ctx.Resolver.ResolveMethod(className, n.Method)
+			if !ok {
+				return
+			}
+			checkMethodVisibility(filename, n.GetPos(), method, className, class, ft, ctx.Project, false, &issues)
+			checkInstanceStaticMethodCall(filename, n.GetPos(), method, className, &issues)
+			checkCallArguments(filename, n.GetPos(), "Method "+className+"::"+method.Name+"()", method.Name, n.Args, method, &issues)
 		case *ast.ClassConstFetchNode:
 			className := resolveClassLikeForCall(n.Class, class, ft)
 			if isSpecialClassName(className) || strings.HasPrefix(className, "$") {
@@ -131,6 +153,14 @@ func (r *PHPStanLevel0Rule) checkSymbolsAndCalls(filename string, nodes []ast.No
 			if !ok || receiver.Name != "this" {
 				return
 			}
+			if isStaticMethod(currentFn) {
+				methodName := "method"
+				if currentFn != nil && currentFn.Name != "" {
+					methodName = currentFn.Name
+				}
+				issues = append(issues, issue(filename, n.GetPos(), level0SymbolsCode, fmt.Sprintf("Using $this inside static method %s::%s().", currentClassName(class, ft), methodName)))
+				return
+			}
 			className := currentClassName(class, ft)
 			if className == "" {
 				issues = append(issues, issue(filename, n.GetPos(), level0SymbolsCode, "Undefined variable: $this"))
@@ -142,4 +172,20 @@ func (r *PHPStanLevel0Rule) checkSymbolsAndCalls(filename string, nodes []ast.No
 		}
 	})
 	return issues
+}
+
+func methodCallClassName(object ast.Node, ft fileTypeContext) string {
+	switch receiver := object.(type) {
+	case *ast.IdentifierNode:
+		return ft.resolveClassLike(receiver.Value)
+	case *ast.Identifier:
+		return ft.resolveClassLike(receiver.Name)
+	case *ast.ClassConstFetchNode:
+		if receiver.Const == "class" {
+			return ft.resolveClassLike(receiver.Class)
+		}
+	case *ast.NewNode:
+		return resolveNewClassName(receiver, ft)
+	}
+	return ""
 }

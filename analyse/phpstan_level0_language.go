@@ -14,7 +14,7 @@ func (r *PHPStanLevel0Rule) checkLanguage(filename string, nodes []ast.Node, ctx
 	var issues []AnalysisIssue
 	labels := map[string]struct{}{}
 	var gotos []*ast.GotoNode
-	walkAll(nodes, func(node ast.Node, class *ast.ClassNode, ft fileTypeContext) {
+	walkAll(nodes, func(node ast.Node, class *ast.ClassNode, _ *ast.FunctionNode, ft fileTypeContext) {
 		switch n := node.(type) {
 		case *ast.LabelNode:
 			labels[n.Name] = struct{}{}

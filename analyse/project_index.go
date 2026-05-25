@@ -71,6 +71,7 @@ func (idx *ProjectIndex) ResolveMethod(className, methodName string) (ResolvedMe
 			continue
 		}
 		if method, ok := methods[strings.ToLower(methodName)]; ok {
+			method.DeclaringClass = candidate
 			return method, true
 		}
 	}
@@ -162,7 +163,7 @@ func (idx *ProjectIndex) indexNodes(filename string, nodes []ast.Node, ft fileTy
 			idx.indexClassMembers(name, nil, n.Methods, nil, ft)
 		case *ast.FunctionNode:
 			if currentClass != "" {
-				idx.addMethod(currentClass, methodFromFunction(n, ft))
+				idx.addMethod(currentClass, methodFromFunction(currentClass, n, ft))
 				continue
 			}
 			name := ft.resolveClassLike(n.Name)
@@ -187,12 +188,12 @@ func (idx *ProjectIndex) indexClassMembers(className string, properties, methods
 		case *ast.TraitUseNode:
 			// Trait use is checked by level-0 rules; no index entry needed.
 		case *ast.FunctionNode:
-			idx.addMethod(className, methodFromFunction(p, ft))
+			idx.addMethod(className, methodFromFunction(className, p, ft))
 		}
 	}
 	for _, methodNode := range methods {
 		if fn, ok := methodNode.(*ast.FunctionNode); ok {
-			idx.addMethod(className, methodFromFunction(fn, ft))
+			idx.addMethod(className, methodFromFunction(className, fn, ft))
 		}
 	}
 	for _, constNode := range constants {
@@ -210,7 +211,7 @@ func (idx *ProjectIndex) indexInterfaceMembers(className string, members []ast.N
 			if m.ReturnType != nil {
 				returnType = m.ReturnType.TokenLiteral()
 			}
-			idx.addMethod(className, ResolvedMethod{Name: m.Name, ReturnType: normalizeTypeWithContext(returnType, ft), Params: paramsFromNodes(m.Params, ft), Visibility: "public", Abstract: true})
+			idx.addMethod(className, ResolvedMethod{Name: m.Name, DeclaringClass: className, ReturnType: normalizeTypeWithContext(returnType, ft), Params: paramsFromNodes(m.Params, ft), Visibility: "public", Abstract: true})
 		case *ast.ConstantNode:
 			idx.Constants[indexKey(className+"::"+m.Name)] = struct{}{}
 		}
@@ -246,14 +247,16 @@ func (idx *ProjectIndex) addProperty(className string, property ResolvedProperty
 	idx.Properties[key][strings.ToLower(property.Name)] = property
 }
 
-func methodFromFunction(fn *ast.FunctionNode, ft fileTypeContext) ResolvedMethod {
+func methodFromFunction(className string, fn *ast.FunctionNode, ft fileTypeContext) ResolvedMethod {
 	return ResolvedMethod{
-		Name:       fn.Name,
-		ReturnType: normalizeTypeWithContext(fn.ReturnType, ft),
-		Params:     paramsFromNodes(fn.Params, ft),
-		Visibility: functionVisibility(fn),
-		IsStatic:   hasModifier(fn.Modifiers, "static"),
-		Abstract:   hasModifier(fn.Modifiers, "abstract"),
+		Name:           fn.Name,
+		DeclaringClass: className,
+		ReturnType:     normalizeTypeWithContext(fn.ReturnType, ft),
+		Params:         paramsFromNodes(fn.Params, ft),
+		Visibility:     functionVisibility(fn),
+		IsStatic:       hasModifier(fn.Modifiers, "static"),
+		Abstract:       hasModifier(fn.Modifiers, "abstract"),
+		Final:          hasModifier(fn.Modifiers, "final"),
 	}
 }
 

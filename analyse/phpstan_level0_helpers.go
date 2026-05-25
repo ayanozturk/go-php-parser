@@ -126,6 +126,32 @@ func resolveThrownClassName(node ast.Node, ft fileTypeContext) string {
 	return ""
 }
 
+func isSubclassOf(project *ProjectIndex, current, target string) bool {
+	if project == nil || current == "" || target == "" {
+		return false
+	}
+	if indexKey(current) == indexKey(target) {
+		return true
+	}
+	class, ok := project.ResolveClass(current)
+	if !ok {
+		return false
+	}
+	for _, parent := range class.Extends {
+		if isSubclassOf(project, parent, target) {
+			return true
+		}
+	}
+	return false
+}
+
+func callerClassName(class *ast.ClassNode, ft fileTypeContext) string {
+	if class == nil {
+		return ""
+	}
+	return ft.resolveClassLike(class.Name)
+}
+
 func isThrowableClass(name string, resolver SymbolResolver) bool {
 	if name == "" || isSpecialClassName(name) {
 		return false

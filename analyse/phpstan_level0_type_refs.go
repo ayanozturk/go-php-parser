@@ -9,7 +9,7 @@ import (
 func (r *PHPStanLevel0Rule) checkTypeReferences(filename string, nodes []ast.Node, ctx *AnalysisContext, fileCtx fileTypeContext) []AnalysisIssue {
 	var issues []AnalysisIssue
 	guards := collectReflectionGuards(nodes, fileCtx)
-	walkAll(nodes, func(node ast.Node, class *ast.ClassNode, ft fileTypeContext) {
+	walkAll(nodes, func(node ast.Node, class *ast.ClassNode, _ *ast.FunctionNode, ft fileTypeContext) {
 		switch n := node.(type) {
 		case *ast.UseNode:
 			switch n.Type {

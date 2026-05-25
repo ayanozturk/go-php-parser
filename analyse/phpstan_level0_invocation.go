@@ -3,7 +3,6 @@ package analyse
 import (
 	"fmt"
 	"go-phpcs/ast"
-	"strings"
 )
 
 func checkCallArguments(filename string, pos ast.Position, target, name string, args []ast.Node, method ResolvedMethod, issues *[]AnalysisIssue) {
@@ -79,6 +78,13 @@ func parameterBounds(params []ResolvedParam) (int, int, bool) {
 }
 
 func constructorFor(className string, ctx *AnalysisContext) ResolvedMethod {
+	if ctx.Project != nil {
+		for _, candidate := range ctx.Project.classLineage(className) {
+			if method, ok := ctx.Resolver.ResolveMethod(candidate, "__construct"); ok {
+				return method
+			}
+		}
+	}
 	method, ok := ctx.Resolver.ResolveMethod(className, "__construct")
 	if !ok {
 		return ResolvedMethod{Name: "__construct"}
@@ -86,14 +92,46 @@ func constructorFor(className string, ctx *AnalysisContext) ResolvedMethod {
 	return method
 }
 
-func checkMethodVisibility(filename string, pos ast.Position, method ResolvedMethod, className string, currentClass *ast.ClassNode, static bool, issues *[]AnalysisIssue) {
-	if method.Visibility == "private" && (currentClass == nil || !strings.EqualFold(currentClass.Name, className)) {
-		*issues = append(*issues, issue(filename, pos, level0InvocationCode, fmt.Sprintf("Call to private method %s() of class %s.", method.Name, className)))
+func checkMethodVisibility(filename string, pos ast.Position, method ResolvedMethod, className string, currentClass *ast.ClassNode, ft fileTypeContext, project *ProjectIndex, static bool, issues *[]AnalysisIssue) {
+	declaringClass := method.DeclaringClass
+	if declaringClass == "" {
+		declaringClass = className
 	}
-	if method.Visibility == "protected" && currentClass == nil {
-		*issues = append(*issues, issue(filename, pos, level0InvocationCode, fmt.Sprintf("Call to protected method %s() of class %s.", method.Name, className)))
+	caller := callerClassName(currentClass, ft)
+	switch method.Visibility {
+	case "private":
+		if caller == "" || indexKey(caller) != indexKey(declaringClass) {
+			*issues = append(*issues, issue(filename, pos, level0InvocationCode, fmt.Sprintf("Call to private method %s::%s().", declaringClass, method.Name)))
+		}
+	case "protected":
+		if caller == "" || !isSubclassOf(project, caller, declaringClass) {
+			*issues = append(*issues, issue(filename, pos, level0InvocationCode, fmt.Sprintf("Call to protected method %s::%s().", declaringClass, method.Name)))
+		}
 	}
 	if static && !method.IsStatic {
 		*issues = append(*issues, issue(filename, pos, level0InvocationCode, fmt.Sprintf("Static call to instance method %s::%s().", className, method.Name)))
+	}
+}
+
+func checkInstanceStaticMethodCall(filename string, pos ast.Position, method ResolvedMethod, className string, issues *[]AnalysisIssue) {
+	if method.IsStatic {
+		*issues = append(*issues, issue(filename, pos, level0InvocationCode, fmt.Sprintf("Call to static method %s::%s() on instance.", className, method.Name)))
+	}
+}
+
+func checkConstructorAccess(filename string, pos ast.Position, targetClass string, currentClass *ast.ClassNode, ft fileTypeContext, project *ProjectIndex, constructor ResolvedMethod, issues *[]AnalysisIssue) {
+	if constructor.Name != "__construct" || constructor.Visibility == "public" || constructor.Visibility == "" {
+		return
+	}
+	caller := callerClassName(currentClass, ft)
+	switch constructor.Visibility {
+	case "private":
+		if caller == "" || indexKey(caller) != indexKey(targetClass) {
+			*issues = append(*issues, issue(filename, pos, level0InvocationCode, fmt.Sprintf("Cannot instantiate class %s via private constructor.", targetClass)))
+		}
+	case "protected":
+		if caller == "" || !isSubclassOf(project, caller, targetClass) {
+			*issues = append(*issues, issue(filename, pos, level0InvocationCode, fmt.Sprintf("Cannot instantiate class %s via protected constructor.", targetClass)))
+		}
 	}
 }
