@@ -150,6 +150,30 @@ func checkRequiredMethodImplementations(filename, className string, pos ast.Posi
 		if method.Visibility == "public" && implemented.Visibility != "public" {
 			*issues = append(*issues, issue(filename, pos, level0ClassModelCode, fmt.Sprintf("Method %s::%s() implementing interface method must be public.", className, method.Name)))
 		}
+		checkRequiredMethodSignature(filename, pos, className, method, implemented, issues)
+	}
+}
+
+func checkRequiredMethodSignature(filename string, pos ast.Position, className string, required, implemented ResolvedMethod, issues *[]AnalysisIssue) {
+	requiredMin, requiredMax, requiredVariadic := parameterBounds(required.Params)
+	implementedMin, implementedMax, implementedVariadic := parameterBounds(implemented.Params)
+	if implementedMin > requiredMin {
+		*issues = append(*issues, issue(filename, pos, level0ClassModelCode, fmt.Sprintf("Method %s::%s() requires more required parameters than the inherited method.", className, implemented.Name)))
+	}
+	if !implementedVariadic && (requiredVariadic || implementedMax < requiredMax) {
+		*issues = append(*issues, issue(filename, pos, level0ClassModelCode, fmt.Sprintf("Method %s::%s() accepts fewer parameters than the inherited method.", className, implemented.Name)))
+	}
+	for idx, requiredParam := range required.Params {
+		if idx >= len(implemented.Params) {
+			break
+		}
+		implementedParam := implemented.Params[idx]
+		if requiredParam.Name != "" && implementedParam.Name != "" && requiredParam.Name != implementedParam.Name {
+			*issues = append(*issues, issue(filename, pos, level0ClassModelCode, fmt.Sprintf("Parameter %d of method %s::%s() is named $%s, expected $%s.", idx+1, className, implemented.Name, implementedParam.Name, requiredParam.Name)))
+		}
+	}
+	if required.ReturnType != "" && implemented.ReturnType != "" && !strings.EqualFold(required.ReturnType, implemented.ReturnType) {
+		*issues = append(*issues, issue(filename, pos, level0ClassModelCode, fmt.Sprintf("Return type %s of method %s::%s() is not compatible with inherited return type %s.", implemented.ReturnType, className, implemented.Name, required.ReturnType)))
 	}
 }
 

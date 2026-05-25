@@ -197,6 +197,50 @@ class CompleteImplementation implements Contract {
 	}
 }
 
+func TestLevel0ClassModelRequiredMethodSignatureCompatibility(t *testing.T) {
+	issues := runLevel0OnFiles(t, map[string]string{
+		"test.php": `<?php
+interface SignatureContract {
+    public function shape(string $name, int $count = 0): int;
+}
+
+class BadRequiredCount implements SignatureContract {
+    public function shape(string $name, int $count, string $extra): int {}
+}
+
+class BadMaxCount implements SignatureContract {
+    public function shape(string $name): int {}
+}
+
+class BadParamName implements SignatureContract {
+    public function shape(string $label, int $count = 0): int {}
+}
+
+class BadReturn implements SignatureContract {
+    public function shape(string $name, int $count = 0): string {}
+}
+
+class VariadicImplementation implements SignatureContract {
+    public function shape(string $name, int $count = 0, ...$rest): int {}
+}
+`,
+	})
+
+	for _, expected := range []string{
+		"Method BadRequiredCount::shape() requires more required parameters than the inherited method",
+		"Method BadMaxCount::shape() accepts fewer parameters than the inherited method",
+		"Parameter 1 of method BadParamName::shape() is named $label, expected $name",
+		"Return type string of method BadReturn::shape() is not compatible with inherited return type int",
+	} {
+		if !hasIssueContaining(issues, level0ClassModelCode, expected) {
+			t.Fatalf("expected %q issue, got %#v", expected, issues)
+		}
+	}
+	if hasIssueContaining(issues, level0ClassModelCode, "VariadicImplementation::shape") {
+		t.Fatalf("variadic compatible implementation should not be reported, got %#v", issues)
+	}
+}
+
 func TestLevel0DuplicateDeclarationsAreReportedForOwningFile(t *testing.T) {
 	issues := runLevel0OnFiles(t, map[string]string{
 		"a.php": `<?php
