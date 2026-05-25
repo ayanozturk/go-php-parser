@@ -251,10 +251,23 @@ func methodFromFunction(fn *ast.FunctionNode, ft fileTypeContext) ResolvedMethod
 		Name:       fn.Name,
 		ReturnType: normalizeTypeWithContext(fn.ReturnType, ft),
 		Params:     paramsFromNodes(fn.Params, ft),
-		Visibility: defaultVisibility(fn.Visibility),
+		Visibility: functionVisibility(fn),
 		IsStatic:   hasModifier(fn.Modifiers, "static"),
 		Abstract:   hasModifier(fn.Modifiers, "abstract"),
 	}
+}
+
+func functionVisibility(fn *ast.FunctionNode) string {
+	if fn.Visibility != "" {
+		return defaultVisibility(fn.Visibility)
+	}
+	if hasModifier(fn.Modifiers, "private") {
+		return "private"
+	}
+	if hasModifier(fn.Modifiers, "protected") {
+		return "protected"
+	}
+	return "public"
 }
 
 func paramsFromNodes(nodes []ast.Node, ft fileTypeContext) []ResolvedParam {

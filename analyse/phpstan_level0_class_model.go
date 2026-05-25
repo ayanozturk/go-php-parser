@@ -47,7 +47,7 @@ func (r *PHPStanLevel0Rule) checkClassModel(filename string, nodes []ast.Node, c
 						issues = append(issues, issue(filename, n.GetPos(), level0ClassModelCode, fmt.Sprintf("Class %s implements %s %s.", className, iface.Kind, iface.Name)))
 					}
 				}
-				checkClassMethodLegality(filename, className, n, &issues)
+				checkClassMethodLegality(filename, className, n, ctx, &issues)
 				walk(n.Properties, ft, className)
 				walk(n.Methods, ft, className)
 			case *ast.InterfaceNode:
@@ -77,7 +77,7 @@ func (r *PHPStanLevel0Rule) checkClassModel(filename string, nodes []ast.Node, c
 	return issues
 }
 
-func checkClassMethodLegality(filename, className string, class *ast.ClassNode, issues *[]AnalysisIssue) {
+func checkClassMethodLegality(filename, className string, class *ast.ClassNode, ctx *AnalysisContext, issues *[]AnalysisIssue) {
 	isAbstractClass := hasClassModifier(class, "abstract")
 	for _, methodNode := range class.Methods {
 		method, ok := methodNode.(*ast.FunctionNode)
@@ -98,6 +98,9 @@ func checkClassMethodLegality(filename, className string, class *ast.ClassNode, 
 				*issues = append(*issues, issue(filename, method.GetPos(), level0ClassModelCode, fmt.Sprintf("Abstract method %s::%s() cannot be final.", className, method.Name)))
 			}
 		}
+	}
+	if !isAbstractClass {
+		checkRequiredMethodImplementations(filename, className, class.GetPos(), ctx, issues)
 	}
 }
 
@@ -120,4 +123,88 @@ func hasClassModifier(class *ast.ClassNode, modifier string) bool {
 		}
 	}
 	return false
+}
+
+func checkRequiredMethodImplementations(filename, className string, pos ast.Position, ctx *AnalysisContext, issues *[]AnalysisIssue) {
+	project := ctx.Project
+	if project == nil {
+		return
+	}
+	class, ok := project.ResolveClass(className)
+	if !ok || class.Kind != "class" {
+		return
+	}
+	required := map[string]ResolvedMethod{}
+	for _, iface := range class.Implements {
+		collectAbstractMethods(project, iface, required)
+	}
+	for _, parent := range class.Extends {
+		collectUnimplementedParentAbstractMethods(project, parent, required)
+	}
+	for _, method := range required {
+		implemented, ok := findConcreteClassMethod(project, className, method.Name)
+		if !ok {
+			*issues = append(*issues, issue(filename, pos, level0ClassModelCode, fmt.Sprintf("Class %s must implement method %s().", className, method.Name)))
+			continue
+		}
+		if method.Visibility == "public" && implemented.Visibility != "public" {
+			*issues = append(*issues, issue(filename, pos, level0ClassModelCode, fmt.Sprintf("Method %s::%s() implementing interface method must be public.", className, method.Name)))
+		}
+	}
+}
+
+func collectAbstractMethods(project *ProjectIndex, className string, out map[string]ResolvedMethod) {
+	class, ok := project.ResolveClass(className)
+	if !ok {
+		return
+	}
+	for _, parent := range class.Extends {
+		collectAbstractMethods(project, parent, out)
+	}
+	for _, iface := range class.Implements {
+		collectAbstractMethods(project, iface, out)
+	}
+	for _, method := range project.Methods[indexKey(className)] {
+		if method.Abstract {
+			out[strings.ToLower(method.Name)] = method
+		}
+	}
+}
+
+func collectUnimplementedParentAbstractMethods(project *ProjectIndex, className string, out map[string]ResolvedMethod) {
+	class, ok := project.ResolveClass(className)
+	if !ok || class.Kind != "class" {
+		return
+	}
+	for _, parent := range class.Extends {
+		collectUnimplementedParentAbstractMethods(project, parent, out)
+	}
+	for _, method := range project.Methods[indexKey(className)] {
+		key := strings.ToLower(method.Name)
+		if method.Abstract {
+			out[key] = method
+		} else {
+			delete(out, key)
+		}
+	}
+}
+
+func findConcreteClassMethod(project *ProjectIndex, className, methodName string) (ResolvedMethod, bool) {
+	seen := map[string]struct{}{}
+	for className != "" {
+		key := indexKey(className)
+		if _, ok := seen[key]; ok {
+			return ResolvedMethod{}, false
+		}
+		seen[key] = struct{}{}
+		if method, ok := project.Methods[key][strings.ToLower(methodName)]; ok && !method.Abstract {
+			return method, true
+		}
+		class, ok := project.ResolveClass(className)
+		if !ok || len(class.Extends) == 0 {
+			return ResolvedMethod{}, false
+		}
+		className = class.Extends[0]
+	}
+	return ResolvedMethod{}, false
 }

@@ -141,6 +141,62 @@ interface BadInterface {
 	}
 }
 
+func TestLevel0ClassModelRequiredMethodImplementations(t *testing.T) {
+	issues := runLevel0OnFiles(t, map[string]string{
+		"test.php": `<?php
+interface RootContract {
+    public function inheritedRequirement();
+}
+
+interface Contract extends RootContract {
+    public function required();
+    public function mustBePublic();
+}
+
+class MissingMethods implements Contract {
+    public function inheritedRequirement() {}
+}
+
+class NonPublicImplementation implements Contract {
+    public function inheritedRequirement() {}
+    public function required() {}
+    protected function mustBePublic() {}
+}
+
+abstract class AbstractBase {
+    abstract public function fromParent();
+}
+
+class MissingParentMethod extends AbstractBase {}
+
+class CompleteImplementation implements Contract {
+    public function inheritedRequirement() {}
+    public function required() {}
+    public function mustBePublic() {}
+}
+`,
+	})
+
+	for _, expected := range []string{
+		"Class MissingMethods must implement method required()",
+		"Class MissingMethods must implement method mustBePublic()",
+		"Method NonPublicImplementation::mustBePublic() implementing interface method must be public",
+		"Class MissingParentMethod must implement method fromParent()",
+	} {
+		if !hasIssueContaining(issues, level0ClassModelCode, expected) {
+			t.Fatalf("expected %q issue, got %#v", expected, issues)
+		}
+	}
+	for _, unexpected := range []string{
+		"Class CompleteImplementation must implement",
+		"Class MissingMethods must implement method inheritedRequirement()",
+	} {
+		if hasIssueContaining(issues, level0ClassModelCode, unexpected) {
+			t.Fatalf("unexpected %q issue, got %#v", unexpected, issues)
+		}
+	}
+}
+
 func TestLevel0DuplicateDeclarationsAreReportedForOwningFile(t *testing.T) {
 	issues := runLevel0OnFiles(t, map[string]string{
 		"a.php": `<?php
