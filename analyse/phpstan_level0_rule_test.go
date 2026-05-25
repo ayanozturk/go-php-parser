@@ -103,6 +103,44 @@ class Calls {
 	}
 }
 
+func TestLevel0ClassModelModifierLegality(t *testing.T) {
+	issues := runLevel0OnFiles(t, map[string]string{
+		"test.php": `<?php
+final abstract class Impossible {}
+
+class ConcreteWithAbstract {
+    abstract public function missing();
+}
+
+abstract class BadAbstractMethods {
+    abstract private function hidden();
+    final abstract public function sealed();
+}
+
+class BadConstructor {
+    public function __construct(): void {}
+}
+
+interface BadInterface {
+    private function hidden();
+}
+`,
+	})
+
+	for _, expected := range []string{
+		"Class Impossible cannot be both final and abstract",
+		"Class ConcreteWithAbstract has abstract method missing() but is not abstract",
+		"Abstract method BadAbstractMethods::hidden() cannot be private",
+		"Abstract method BadAbstractMethods::sealed() cannot be final",
+		"Constructor BadConstructor::__construct() cannot have a return type",
+		"Interface method BadInterface::hidden() must be public",
+	} {
+		if !hasIssueContaining(issues, level0ClassModelCode, expected) {
+			t.Fatalf("expected %q issue, got %#v", expected, issues)
+		}
+	}
+}
+
 func TestLevel0DuplicateDeclarationsAreReportedForOwningFile(t *testing.T) {
 	issues := runLevel0OnFiles(t, map[string]string{
 		"a.php": `<?php

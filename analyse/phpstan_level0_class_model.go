@@ -3,6 +3,7 @@ package analyse
 import (
 	"fmt"
 	"go-phpcs/ast"
+	"strings"
 )
 
 func (r *PHPStanLevel0Rule) checkClassModel(filename string, nodes []ast.Node, ctx *AnalysisContext, fileCtx fileTypeContext) []AnalysisIssue {
@@ -25,6 +26,9 @@ func (r *PHPStanLevel0Rule) checkClassModel(filename string, nodes []ast.Node, c
 				walk(n.Body, nft, currentClass)
 			case *ast.ClassNode:
 				className := ft.resolveClassLike(n.Name)
+				if hasClassModifier(n, "final") && hasClassModifier(n, "abstract") {
+					issues = append(issues, issue(filename, n.GetPos(), level0ClassModelCode, fmt.Sprintf("Class %s cannot be both final and abstract.", className)))
+				}
 				if n.Extends != "" {
 					parentName := ft.resolveClassLike(n.Extends)
 					if parent, ok := ctx.Resolver.ResolveClass(parentName); !ok {
@@ -43,6 +47,7 @@ func (r *PHPStanLevel0Rule) checkClassModel(filename string, nodes []ast.Node, c
 						issues = append(issues, issue(filename, n.GetPos(), level0ClassModelCode, fmt.Sprintf("Class %s implements %s %s.", className, iface.Kind, iface.Name)))
 					}
 				}
+				checkClassMethodLegality(filename, className, n, &issues)
 				walk(n.Properties, ft, className)
 				walk(n.Methods, ft, className)
 			case *ast.InterfaceNode:
@@ -55,6 +60,7 @@ func (r *PHPStanLevel0Rule) checkClassModel(filename string, nodes []ast.Node, c
 						issues = append(issues, issue(filename, n.GetPos(), level0ClassModelCode, fmt.Sprintf("Interface %s extends %s %s.", interfaceName, resolved.Kind, resolved.Name)))
 					}
 				}
+				checkInterfaceMemberLegality(filename, interfaceName, n, &issues)
 			case *ast.TraitUseNode:
 				for _, trait := range n.Traits {
 					traitName := ft.resolveClassLike(trait)
@@ -69,4 +75,49 @@ func (r *PHPStanLevel0Rule) checkClassModel(filename string, nodes []ast.Node, c
 	}
 	walk(nodes, fileCtx, "")
 	return issues
+}
+
+func checkClassMethodLegality(filename, className string, class *ast.ClassNode, issues *[]AnalysisIssue) {
+	isAbstractClass := hasClassModifier(class, "abstract")
+	for _, methodNode := range class.Methods {
+		method, ok := methodNode.(*ast.FunctionNode)
+		if !ok {
+			continue
+		}
+		if strings.EqualFold(method.Name, "__construct") && method.ReturnType != "" {
+			*issues = append(*issues, issue(filename, method.GetPos(), level0ClassModelCode, fmt.Sprintf("Constructor %s::__construct() cannot have a return type.", className)))
+		}
+		if hasModifier(method.Modifiers, "abstract") {
+			if !isAbstractClass {
+				*issues = append(*issues, issue(filename, method.GetPos(), level0ClassModelCode, fmt.Sprintf("Class %s has abstract method %s() but is not abstract.", className, method.Name)))
+			}
+			if hasModifier(method.Modifiers, "private") {
+				*issues = append(*issues, issue(filename, method.GetPos(), level0ClassModelCode, fmt.Sprintf("Abstract method %s::%s() cannot be private.", className, method.Name)))
+			}
+			if hasModifier(method.Modifiers, "final") {
+				*issues = append(*issues, issue(filename, method.GetPos(), level0ClassModelCode, fmt.Sprintf("Abstract method %s::%s() cannot be final.", className, method.Name)))
+			}
+		}
+	}
+}
+
+func checkInterfaceMemberLegality(filename, interfaceName string, iface *ast.InterfaceNode, issues *[]AnalysisIssue) {
+	for _, member := range iface.Members {
+		method, ok := member.(*ast.InterfaceMethodNode)
+		if !ok {
+			continue
+		}
+		if method.Visibility != "" && method.Visibility != "public" {
+			*issues = append(*issues, issue(filename, method.GetPos(), level0ClassModelCode, fmt.Sprintf("Interface method %s::%s() must be public.", interfaceName, method.Name)))
+		}
+	}
+}
+
+func hasClassModifier(class *ast.ClassNode, modifier string) bool {
+	for _, part := range strings.Fields(class.Modifier) {
+		if strings.EqualFold(part, modifier) {
+			return true
+		}
+	}
+	return false
 }

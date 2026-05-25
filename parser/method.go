@@ -69,7 +69,7 @@ func (p *Parser) parseInterfaceDeclaration() ast.Node {
 		}
 		// Interface members: methods and constants
 		if p.tok.Type == token.T_PUBLIC || p.tok.Type == token.T_PRIVATE || p.tok.Type == token.T_PROTECTED {
-			// Advance past visibility
+			visibility := p.tok.Literal
 			p.nextToken()
 			// Skip any number of 'static', comments, and whitespace
 			for {
@@ -84,7 +84,7 @@ func (p *Parser) parseInterfaceDeclaration() ast.Node {
 					members = append(members, constant)
 				}
 			} else if p.tok.Type == token.T_FUNCTION {
-				if method := p.parseInterfaceMethod(); method != nil {
+				if method := p.parseInterfaceMethodWithVisibility(visibility); method != nil {
 					members = append(members, method)
 				}
 			} else {
@@ -123,6 +123,10 @@ func (p *Parser) parseInterfaceDeclaration() ast.Node {
 
 // parseInterfaceMethod parses a method declaration in an interface
 func (p *Parser) parseInterfaceMethod() ast.Node {
+	return p.parseInterfaceMethodWithVisibility("")
+}
+
+func (p *Parser) parseInterfaceMethodWithVisibility(initialVisibility string) ast.Node {
 	pos := p.tok.Pos
 
 	// Skip doc comments and regular comments before method signature
@@ -134,7 +138,7 @@ func (p *Parser) parseInterfaceMethod() ast.Node {
 	}
 
 	// Parse visibility modifier if present
-	var visibility string
+	visibility := initialVisibility
 	if p.tok.Type == token.T_PUBLIC || p.tok.Type == token.T_PRIVATE || p.tok.Type == token.T_PROTECTED {
 		visibility = p.tok.Literal
 		p.nextToken()

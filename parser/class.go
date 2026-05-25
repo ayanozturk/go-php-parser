@@ -16,6 +16,9 @@ func (p *Parser) parseClassDeclarationWithModifiers(modifiers []string) (ast.Nod
 		case p.tok.Type == token.T_READONLY:
 			modifiers = append(modifiers, p.tok.Literal)
 			p.nextToken()
+		case p.tok.Type == token.T_FINAL || p.tok.Type == token.T_ABSTRACT:
+			modifiers = append(modifiers, p.tok.Literal)
+			p.nextToken()
 		case p.tok.Type == token.T_STRING && (p.tok.Literal == "final" || p.tok.Literal == "abstract"):
 			modifiers = append(modifiers, p.tok.Literal)
 			p.nextToken()
