@@ -208,6 +208,60 @@ echo $reported;
 	}
 }
 
+func TestLevel0ReflectionGuardsSuppressUnknownSymbols(t *testing.T) {
+	issues := runLevel0OnFiles(t, map[string]string{
+		"test.php": `<?php
+if (class_exists(MissingGuarded::class)) {
+    new MissingGuarded();
+}
+if (function_exists('guarded_function')) {
+    guarded_function();
+}
+class GuardedMethods {
+    public function run() {
+        if (method_exists($this, 'guardedMethod')) {
+            $this->guardedMethod();
+        }
+    }
+}
+new StillMissing();
+unguarded_function();
+`,
+	})
+
+	for _, unexpected := range []string{
+		"MissingGuarded not found",
+		"Function guarded_function not found",
+		"Call to an undefined method GuardedMethods::guardedMethod",
+	} {
+		if hasIssueContaining(issues, level0SymbolsCode, unexpected) {
+			t.Fatalf("reflection guard should suppress %q, got %#v", unexpected, issues)
+		}
+	}
+	if !hasIssueContaining(issues, level0SymbolsCode, "Instantiated class StillMissing not found") {
+		t.Fatalf("expected unguarded class issue, got %#v", issues)
+	}
+	if !hasIssueContaining(issues, level0SymbolsCode, "Function unguarded_function not found") {
+		t.Fatalf("expected unguarded function issue, got %#v", issues)
+	}
+}
+
+func TestLevel0CompactReportsUndefinedVariables(t *testing.T) {
+	issues := runLevel0OnFiles(t, map[string]string{
+		"test.php": `<?php
+$defined = 1;
+compact('defined', 'missing');
+`,
+	})
+
+	if hasIssueContaining(issues, level0VariablesCode, "Undefined variable: $defined") {
+		t.Fatalf("defined compact variable should not be reported, got %#v", issues)
+	}
+	if !hasIssueContaining(issues, level0VariablesCode, "Undefined variable: $missing") {
+		t.Fatalf("expected compact undefined variable issue, got %#v", issues)
+	}
+}
+
 func TestLevel0CrossFileIndexResolvesKnownSymbols(t *testing.T) {
 	issues := runLevel0OnFiles(t, map[string]string{
 		"a.php": `<?php

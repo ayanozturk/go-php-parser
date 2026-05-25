@@ -178,6 +178,7 @@ func (r *PHPStanLevel0Rule) checkTypeReferences(filename string, nodes []ast.Nod
 
 func (r *PHPStanLevel0Rule) checkSymbolsAndCalls(filename string, nodes []ast.Node, ctx *AnalysisContext, fileCtx fileTypeContext) []AnalysisIssue {
 	var issues []AnalysisIssue
+	guards := collectReflectionGuards(nodes, fileCtx)
 	walkAll(nodes, func(node ast.Node, class *ast.ClassNode, ft fileTypeContext) {
 		switch n := node.(type) {
 		case *ast.NewNode:
@@ -187,6 +188,9 @@ func (r *PHPStanLevel0Rule) checkSymbolsAndCalls(filename string, nodes []ast.No
 			}
 			resolved, ok := ctx.Resolver.ResolveClass(className)
 			if !ok {
+				if guards.hasClass(className) {
+					return
+				}
 				issues = append(issues, issue(filename, n.GetPos(), level0SymbolsCode, fmt.Sprintf("Instantiated class %s not found.", className)))
 				return
 			}
@@ -207,12 +211,18 @@ func (r *PHPStanLevel0Rule) checkSymbolsAndCalls(filename string, nodes []ast.No
 				resolvedClass := resolveClassLikeForCall(className, class, ft)
 				if !isSpecialClassName(resolvedClass) {
 					if _, ok := ctx.Resolver.ResolveClass(resolvedClass); !ok {
+						if guards.hasClass(resolvedClass) {
+							return
+						}
 						issues = append(issues, issue(filename, n.GetPos(), level0SymbolsCode, fmt.Sprintf("Call to static method %s() on an unknown class %s.", methodName, resolvedClass)))
 						return
 					}
 				}
 				method, ok := ctx.Resolver.ResolveMethod(resolvedClass, methodName)
 				if !ok {
+					if guards.hasMethod(resolvedClass, methodName) {
+						return
+					}
 					issues = append(issues, issue(filename, n.GetPos(), level0SymbolsCode, fmt.Sprintf("Call to an undefined static method %s::%s().", resolvedClass, methodName)))
 					return
 				}
@@ -222,6 +232,9 @@ func (r *PHPStanLevel0Rule) checkSymbolsAndCalls(filename string, nodes []ast.No
 			}
 			resolvedName := resolveFunctionNameForCall(name, ft, ctx)
 			if !ctx.Resolver.FunctionExists(resolvedName) {
+				if guards.hasFunction(name) || guards.hasFunction(resolvedName) {
+					return
+				}
 				issues = append(issues, issue(filename, n.GetPos(), level0SymbolsCode, fmt.Sprintf("Function %s not found.", name)))
 				return
 			}
@@ -237,6 +250,9 @@ func (r *PHPStanLevel0Rule) checkSymbolsAndCalls(filename string, nodes []ast.No
 				}
 				method, ok := ctx.Resolver.ResolveMethod(className, n.Method)
 				if !ok {
+					if guards.hasMethod(className, n.Method) {
+						return
+					}
 					issues = append(issues, issue(filename, n.GetPos(), level0SymbolsCode, fmt.Sprintf("Call to an undefined method %s::%s().", className, n.Method)))
 					return
 				}
@@ -250,6 +266,9 @@ func (r *PHPStanLevel0Rule) checkSymbolsAndCalls(filename string, nodes []ast.No
 			}
 			resolvedClass, ok := ctx.Resolver.ResolveClass(className)
 			if !ok {
+				if guards.hasClass(className) || (n.Const == "class" && guards.hasClass(className)) {
+					return
+				}
 				issues = append(issues, issue(filename, n.GetPos(), level0SymbolsCode, fmt.Sprintf("Access to constant %s::%s on an unknown class %s.", className, n.Const, className)))
 				return
 			}
@@ -617,6 +636,105 @@ func walkAll(nodes []ast.Node, fn func(ast.Node, *ast.ClassNode, fileTypeContext
 	}
 }
 
+type reflectionGuards struct {
+	classes   map[string]struct{}
+	functions map[string]struct{}
+	constants map[string]struct{}
+	methods   map[string]struct{}
+}
+
+func collectReflectionGuards(nodes []ast.Node, fileCtx fileTypeContext) reflectionGuards {
+	guards := reflectionGuards{
+		classes:   map[string]struct{}{},
+		functions: map[string]struct{}{},
+		constants: map[string]struct{}{},
+		methods:   map[string]struct{}{},
+	}
+	walkAll(nodes, func(node ast.Node, class *ast.ClassNode, ft fileTypeContext) {
+		call, ok := node.(*ast.FunctionCallNode)
+		if !ok {
+			return
+		}
+		name := strings.ToLower(functionCallName(call))
+		switch name {
+		case "class_exists", "interface_exists", "trait_exists", "enum_exists":
+			if len(call.Args) == 0 {
+				return
+			}
+			if className, ok := classNameGuardValue(argumentValue(call.Args[0]), ft); ok {
+				guards.classes[indexKey(className)] = struct{}{}
+			}
+		case "function_exists":
+			if len(call.Args) == 0 {
+				return
+			}
+			if functionName, ok := stringLiteralValue(argumentValue(call.Args[0])); ok {
+				guards.functions[indexKey(functionName)] = struct{}{}
+				guards.functions[indexKey(ft.resolveClassLike(functionName))] = struct{}{}
+			}
+		case "defined":
+			if len(call.Args) == 0 {
+				return
+			}
+			if constantName, ok := stringLiteralValue(argumentValue(call.Args[0])); ok {
+				guards.constants[indexKey(constantName)] = struct{}{}
+			}
+		case "method_exists":
+			if len(call.Args) < 2 {
+				return
+			}
+			methodName, ok := stringLiteralValue(argumentValue(call.Args[1]))
+			if !ok {
+				return
+			}
+			if receiver, ok := methodGuardClass(argumentValue(call.Args[0]), class, ft); ok {
+				guards.methods[methodKey(receiver, methodName)] = struct{}{}
+			}
+		}
+	})
+	return guards
+}
+
+func (guards reflectionGuards) hasClass(name string) bool {
+	_, ok := guards.classes[indexKey(name)]
+	return ok
+}
+
+func (guards reflectionGuards) hasFunction(name string) bool {
+	_, ok := guards.functions[indexKey(name)]
+	return ok
+}
+
+func (guards reflectionGuards) hasMethod(className, methodName string) bool {
+	_, ok := guards.methods[methodKey(className, methodName)]
+	return ok
+}
+
+func classNameGuardValue(node ast.Node, ft fileTypeContext) (string, bool) {
+	if value, ok := stringLiteralValue(node); ok {
+		return ft.resolveClassLike(value), true
+	}
+	if fetch, ok := node.(*ast.ClassConstFetchNode); ok && fetch.Const == "class" {
+		return ft.resolveClassLike(fetch.Class), true
+	}
+	return "", false
+}
+
+func methodGuardClass(node ast.Node, current *ast.ClassNode, ft fileTypeContext) (string, bool) {
+	if receiver, ok := node.(*ast.VariableNode); ok && receiver.Name == "this" {
+		className := currentClassName(current, ft)
+		return className, className != ""
+	}
+	if className, ok := classNameGuardValue(node, ft); ok {
+		return className, true
+	}
+	return "", false
+}
+
+func methodKey(className, methodName string) string {
+	return indexKey(className) + "::" + strings.ToLower(strings.TrimSpace(methodName))
+}
+
 func checkTypeReference(filename string, pos ast.Position, subject, raw string, ft fileTypeContext, ctx *AnalysisContext, issues *[]AnalysisIssue) {
 	for _, name := range referencedClassTypes(raw, ft) {
 		if isSpecialClassName(name) {
@@ -777,6 +895,14 @@ func checkExprVars(filename string, node ast.Node, defined map[string]bool, issu
 	case *ast.FunctionCallNode:
 		name := strings.ToLower(functionCallName(n))
 		if name == "isset" || name == "empty" {
+			return
+		}
+		if name == "compact" {
+			for _, arg := range n.Args {
+				if variableName, ok := stringLiteralValue(argumentValue(arg)); ok && !defined[variableName] {
+					*issues = append(*issues, issue(filename, arg.GetPos(), level0VariablesCode, fmt.Sprintf("Undefined variable: $%s", variableName)))
+				}
+			}
 			return
 		}
 		for _, arg := range n.Args {
