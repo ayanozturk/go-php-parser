@@ -71,3 +71,24 @@ enum ExpressionParserType: string {
 		t.Fatalf("Expected 1 method, got %d", len(enumNode.Methods))
 	}
 }
+
+func TestParseEnumImplements(t *testing.T) {
+	php := `<?php
+enum Status: string implements \Serializable, JsonSerializable {
+    case Active = 'active';
+}`
+	nodes := parsePHP(t, php)
+	enumNode, ok := nodes[0].(*ast.EnumNode)
+	if !ok {
+		t.Fatalf("Expected *ast.EnumNode, got %T", nodes[0])
+	}
+	if enumNode.BackedBy != "string" {
+		t.Fatalf("expected string backing type, got %q", enumNode.BackedBy)
+	}
+	if len(enumNode.Implements) != 2 {
+		t.Fatalf("expected 2 implemented interfaces, got %d", len(enumNode.Implements))
+	}
+	if enumNode.Implements[0] != "\\Serializable" || enumNode.Implements[1] != "JsonSerializable" {
+		t.Fatalf("unexpected enum implements: %#v", enumNode.Implements)
+	}
+}

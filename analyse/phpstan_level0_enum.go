@@ -18,6 +18,11 @@ func checkEnumLegality(filename, enumName string, enum *ast.EnumNode, issues *[]
 	if backed && !isValidEnumBackingType(enum.BackedBy) {
 		*issues = append(*issues, issue(filename, enum.GetPos(), level0ClassModelCode, fmt.Sprintf("Backed enum %s can have only \"int\" or \"string\" type.", enumName)))
 	}
+	for _, implemented := range enum.Implements {
+		if strings.EqualFold(strings.TrimPrefix(implemented, `\`), "Serializable") {
+			*issues = append(*issues, issue(filename, enum.GetPos(), level0ClassModelCode, fmt.Sprintf("Enum %s cannot implement Serializable.", enumName)))
+		}
+	}
 
 	duplicateValues := map[string][]string{}
 	for _, enumCase := range enum.Cases {

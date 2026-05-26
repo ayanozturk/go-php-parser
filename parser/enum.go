@@ -32,6 +32,26 @@ func (p *Parser) parseEnum() (*ast.EnumNode, error) {
 		p.nextToken()
 	}
 
+	// Skip trailing comments/whitespace before implements or opening brace
+	p.skipCommentsAndWhitespace()
+
+	var implements []string
+	if p.tok.Type == token.T_IMPLEMENTS {
+		p.nextToken() // consume 'implements'
+		for {
+			ifaceNode, ok := p.parseFQCN().(*ast.IdentifierNode)
+			if !ok || ifaceNode == nil {
+				return nil, fmt.Errorf("expected interface name after implements, got %s", p.tok.Type)
+			}
+			implements = append(implements, ifaceNode.Value)
+
+			if p.tok.Type != token.T_COMMA {
+				break
+			}
+			p.nextToken() // consume comma
+		}
+	}
+
 	// Skip trailing comments/whitespace before opening brace
 	p.skipCommentsAndWhitespace()
 
@@ -76,11 +96,12 @@ func (p *Parser) parseEnum() (*ast.EnumNode, error) {
 	p.nextToken()
 
 	return &ast.EnumNode{
-		Name:     name,
-		BackedBy: backedBy,
-		Cases:    cases,
-		Methods:  methods,
-		Pos:      ast.Position(pos),
+		Name:       name,
+		BackedBy:   backedBy,
+		Implements: implements,
+		Cases:      cases,
+		Methods:    methods,
+		Pos:        ast.Position(pos),
 	}, nil
 }
 

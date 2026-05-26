@@ -7,11 +7,12 @@ import (
 
 // EnumNode represents a PHP enum definition
 type EnumNode struct {
-	Name     string
-	BackedBy string // Optional type that the enum is backed by (e.g., "int", "string")
-	Cases    []*EnumCaseNode
-	Methods  []Node
-	Pos      Position
+	Name       string
+	BackedBy   string // Optional type that the enum is backed by (e.g., "int", "string")
+	Implements []string
+	Cases      []*EnumCaseNode
+	Methods    []Node
+	Pos        Position
 }
 
 func (e *EnumNode) NodeType() string    { return "Enum" }
@@ -22,6 +23,9 @@ func (e *EnumNode) String() string {
 	parts = append(parts, fmt.Sprintf("Enum(%s)", e.Name))
 	if e.BackedBy != "" {
 		parts = append(parts, fmt.Sprintf(": %s", e.BackedBy))
+	}
+	if len(e.Implements) > 0 {
+		parts = append(parts, fmt.Sprintf("implements %s", strings.Join(e.Implements, ", ")))
 	}
 	return fmt.Sprintf("%s @ %d:%d", strings.Join(parts, " "), e.Pos.Line, e.Pos.Column)
 }

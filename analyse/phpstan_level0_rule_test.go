@@ -625,6 +625,10 @@ enum BadMethods: string {
     public static function from(string $value): self {}
 }
 
+enum BadSerializable implements \Serializable {
+    case A;
+}
+
 enum ValidBacked: string {
     case A = 'a';
     public function label(): string { return $this->name; }
@@ -644,6 +648,7 @@ enum ValidBacked: string {
 		"Enum BadMethods contains magic method __sleep()",
 		"Enum BadMethods cannot redeclare native method cases()",
 		"Enum BadMethods cannot redeclare native method from()",
+		"Enum BadSerializable cannot implement Serializable",
 	} {
 		if !hasIssueContaining(issues, level0ClassModelCode, expected) {
 			t.Fatalf("expected %q issue, got %#v", expected, issues)

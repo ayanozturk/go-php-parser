@@ -182,7 +182,7 @@ func (idx *ProjectIndex) indexNodes(filename string, nodes []ast.Node, ft fileTy
 			}
 		case *ast.EnumNode:
 			name := ft.resolveClassLike(n.Name)
-			idx.addClass(filename, ResolvedClass{Name: name, Kind: "enum", Final: true}, n.Pos)
+			idx.addClass(filename, ResolvedClass{Name: name, Implements: resolvedList(ft, n.Implements), Kind: "enum", Final: true}, n.Pos)
 			idx.indexClassMembers(name, nil, n.Methods, nil, ft)
 		case *ast.FunctionNode:
 			if currentClass != "" {
