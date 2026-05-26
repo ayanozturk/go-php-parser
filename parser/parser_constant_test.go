@@ -64,6 +64,7 @@ class Demo {
     private const SECRET = 1;
     protected const TOKEN = 2;
     public const NAME = 'demo';
+    final public const LOCKED = true;
 }`
 	lex := lexer.New(src)
 	p := New(lex, false)
@@ -75,8 +76,8 @@ class Demo {
 	if !ok {
 		t.Fatalf("expected ClassNode, got %T", nodes[0])
 	}
-	if len(classNode.Constants) != 3 {
-		t.Fatalf("expected 3 constants, got %d", len(classNode.Constants))
+	if len(classNode.Constants) != 4 {
+		t.Fatalf("expected 4 constants, got %d", len(classNode.Constants))
 	}
 	for i, want := range []string{"private", "protected", "public"} {
 		constant, ok := classNode.Constants[i].(*ast.ConstantNode)
@@ -86,5 +87,12 @@ class Demo {
 		if constant.Visibility != want {
 			t.Fatalf("constant %d visibility: got %q, want %q", i, constant.Visibility, want)
 		}
+	}
+	constant, ok := classNode.Constants[3].(*ast.ConstantNode)
+	if !ok {
+		t.Fatalf("expected ConstantNode, got %T", classNode.Constants[3])
+	}
+	if constant.Visibility != "public" || len(constant.Modifiers) != 2 || constant.Modifiers[0] != "final" || constant.Modifiers[1] != "public" {
+		t.Fatalf("final public constant modifiers not preserved: %#v", constant)
 	}
 }

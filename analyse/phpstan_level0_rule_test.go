@@ -755,6 +755,27 @@ interface BadConstants {
 	}
 }
 
+func TestLevel0FinalClassConstantLegality(t *testing.T) {
+	issues := runLevel0OnFiles(t, map[string]string{
+		"test.php": `<?php
+class Base {
+    final public const LOCKED = 1;
+    private final const SECRET = 2;
+}
+class Child extends Base {
+    public const LOCKED = 3;
+}
+`,
+	})
+
+	if !hasIssueContaining(issues, level0ClassModelCode, "Cannot override final constant Base::LOCKED") {
+		t.Fatalf("expected final constant override issue, got %#v", issues)
+	}
+	if !hasIssueContaining(issues, level0ClassModelCode, "Private constant Base::SECRET cannot be final") {
+		t.Fatalf("expected private final constant issue, got %#v", issues)
+	}
+}
+
 func TestLevel0CompactReportsUndefinedVariables(t *testing.T) {
 	issues := runLevel0OnFiles(t, map[string]string{
 		"test.php": `<?php

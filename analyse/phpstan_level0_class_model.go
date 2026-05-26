@@ -57,6 +57,7 @@ func (r *PHPStanLevel0Rule) checkClassModel(filename string, nodes []ast.Node, c
 					}
 				}
 				checkClassMethodLegality(filename, className, n, ctx, &issues)
+				checkClassConstantLegality(filename, className, n, ctx, &issues)
 				checkReadonlyClassProperties(filename, className, n, ctx, &issues)
 				walk(n.Properties, ft, className)
 				walk(n.Methods, ft, className)
@@ -119,6 +120,21 @@ func checkClassMethodLegality(filename, className string, class *ast.ClassNode, 
 	}
 	if !isAbstractClass {
 		checkRequiredMethodImplementations(filename, className, class.GetPos(), ctx, issues)
+	}
+}
+
+func checkClassConstantLegality(filename, className string, class *ast.ClassNode, ctx *AnalysisContext, issues *[]AnalysisIssue) {
+	for _, constNode := range class.Constants {
+		constant, ok := constNode.(*ast.ConstantNode)
+		if !ok {
+			continue
+		}
+		if hasModifier(constant.Modifiers, "final") && constant.Visibility == "private" {
+			*issues = append(*issues, issue(filename, constant.GetPos(), level0ClassModelCode, fmt.Sprintf("Private constant %s::%s cannot be final.", className, constant.Name)))
+		}
+		if parentConstant, ok := finalConstantInAncestors(ctx.Project, className, constant.Name); ok {
+			*issues = append(*issues, issue(filename, constant.GetPos(), level0ClassModelCode, fmt.Sprintf("Cannot override final constant %s::%s.", parentConstant.DeclaringClass, parentConstant.Name)))
+		}
 	}
 }
 
@@ -196,6 +212,26 @@ func finalMethodInAncestors(project *ProjectIndex, className, methodName string)
 		}
 	}
 	return ResolvedMethod{}, false
+}
+
+func finalConstantInAncestors(project *ProjectIndex, className, constName string) (ResolvedConstant, bool) {
+	if project == nil {
+		return ResolvedConstant{}, false
+	}
+	class, ok := project.ResolveClass(className)
+	if !ok {
+		return ResolvedConstant{}, false
+	}
+	for _, parent := range class.Extends {
+		if constant, ok := project.ClassConsts[indexKey(parent)][strings.ToLower(constName)]; ok && constant.Final && constant.Visibility != "private" {
+			constant.DeclaringClass = parent
+			return constant, true
+		}
+		if constant, ok := finalConstantInAncestors(project, parent, constName); ok {
+			return constant, true
+		}
+	}
+	return ResolvedConstant{}, false
 }
 
 func hasClassModifier(class *ast.ClassNode, modifier string) bool {
