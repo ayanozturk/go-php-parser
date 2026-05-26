@@ -42,6 +42,7 @@ func (p *Parser) parseClassDeclarationWithModifiers(modifiers []string) (ast.Nod
 
 func (p *Parser) parseClassDeclaration() (ast.Node, error) {
 	pos := p.tok.Pos
+	phpdoc := p.consumeCurrentDoc(pos)
 	p.nextToken() // consume 'class'
 
 	if p.tok.Type != token.T_STRING {
@@ -169,7 +170,7 @@ func (p *Parser) parseClassDeclaration() (ast.Node, error) {
 		Methods:    methods,
 		Constants:  constants,
 		Pos:        ast.Position(pos),
-		PHPDoc:     p.consumeCurrentDoc(pos),
+		PHPDoc:     phpdoc,
 	}, nil
 }
 

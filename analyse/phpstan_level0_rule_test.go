@@ -141,6 +141,50 @@ interface BadInterface {
 	}
 }
 
+func TestLevel0ConsistentConstructorTag(t *testing.T) {
+	issues := runLevel0OnFiles(t, map[string]string{
+		"test.php": `<?php
+/**
+ * @phpstan-consistent-constructor
+ */
+class Base {
+    public function __construct(string $name) {}
+}
+
+class BadChild extends Base {
+    protected function __construct(string $name, int $id) {}
+}
+
+/**
+ * @phpstan-consistent-constructor
+ */
+class PrivateTagged {
+    private function __construct() {}
+}
+
+/**
+ * @phpstan-consistent-constructor
+ */
+final class FinalPrivateTagged {
+    private function __construct() {}
+}
+`,
+	})
+
+	for _, expected := range []string{
+		"Constructor BadChild::__construct() visibility must be at least as visible as Base::__construct()",
+		"Method BadChild::__construct() requires more required parameters than the inherited method",
+		"Class PrivateTagged has @phpstan-consistent-constructor but its constructor is private",
+	} {
+		if !hasIssueContaining(issues, level0ClassModelCode, expected) {
+			t.Fatalf("expected %q issue, got %#v", expected, issues)
+		}
+	}
+	if hasIssueContaining(issues, level0ClassModelCode, "FinalPrivateTagged has @phpstan-consistent-constructor") {
+		t.Fatalf("final class with private consistent constructor should not be reported, got %#v", issues)
+	}
+}
+
 func TestLevel0ClassModelRequiredMethodImplementations(t *testing.T) {
 	issues := runLevel0OnFiles(t, map[string]string{
 		"test.php": `<?php

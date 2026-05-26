@@ -342,6 +342,7 @@ func TestParsePHPDocInClass(t *testing.T) {
  * @author Test Author
  */
 class TestClass {
+    public function visit(): void {}
 }`
 
 	l := lexer.New(input)

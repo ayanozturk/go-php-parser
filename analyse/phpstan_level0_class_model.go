@@ -57,6 +57,7 @@ func (r *PHPStanLevel0Rule) checkClassModel(filename string, nodes []ast.Node, c
 					}
 				}
 				checkClassMethodLegality(filename, className, n, ctx, &issues)
+				checkConsistentConstructorLegality(filename, className, n, ctx, &issues)
 				checkClassConstantLegality(filename, className, n, ctx, &issues)
 				checkReadonlyClassProperties(filename, className, n, ctx, &issues)
 				walk(n.Properties, ft, className)
@@ -136,6 +137,23 @@ func checkClassConstantLegality(filename, className string, class *ast.ClassNode
 			*issues = append(*issues, issue(filename, constant.GetPos(), level0ClassModelCode, fmt.Sprintf("Cannot override final constant %s::%s.", parentConstant.DeclaringClass, parentConstant.Name)))
 		}
 	}
+}
+
+func checkConsistentConstructorLegality(filename, className string, class *ast.ClassNode, ctx *AnalysisContext, issues *[]AnalysisIssue) {
+	if hasPHPStanConsistentConstructorTag(class.PHPDoc) && hasPrivateConstructor(ctx.Project, className) && !hasClassModifier(class, "final") {
+		*issues = append(*issues, issue(filename, class.GetPos(), level0ClassModelCode, fmt.Sprintf("Class %s has @phpstan-consistent-constructor but its constructor is private.", className)))
+	}
+	required, ok := consistentConstructorInAncestors(ctx.Project, className)
+	if !ok {
+		return
+	}
+	implemented, ok := ownConstructor(ctx.Project, className)
+	if !ok {
+		return
+	}
+	pos := constructorPos(class)
+	checkConstructorVisibilityCompatibility(filename, pos, className, required, implemented, issues)
+	checkRequiredMethodSignature(filename, pos, className, required, implemented, issues)
 }
 
 func checkInterfaceMemberLegality(filename, interfaceName string, iface *ast.InterfaceNode, issues *[]AnalysisIssue) {
@@ -234,6 +252,30 @@ func finalConstantInAncestors(project *ProjectIndex, className, constName string
 	return ResolvedConstant{}, false
 }
 
+func consistentConstructorInAncestors(project *ProjectIndex, className string) (ResolvedMethod, bool) {
+	if project == nil {
+		return ResolvedMethod{}, false
+	}
+	class, ok := project.ResolveClass(className)
+	if !ok {
+		return ResolvedMethod{}, false
+	}
+	for _, parent := range class.Extends {
+		if parentClass, ok := project.ResolveClass(parent); ok && parentClass.ConsistentConstructor {
+			constructor, ok := project.Methods[indexKey(parent)]["__construct"]
+			if !ok {
+				constructor = ResolvedMethod{Name: "__construct", DeclaringClass: parent, Visibility: "public"}
+			}
+			constructor.DeclaringClass = parent
+			return constructor, true
+		}
+		if constructor, ok := consistentConstructorInAncestors(project, parent); ok {
+			return constructor, true
+		}
+	}
+	return ResolvedMethod{}, false
+}
+
 func hasClassModifier(class *ast.ClassNode, modifier string) bool {
 	for _, part := range strings.Fields(class.Modifier) {
 		if strings.EqualFold(part, modifier) {
@@ -241,6 +283,54 @@ func hasClassModifier(class *ast.ClassNode, modifier string) bool {
 		}
 	}
 	return false
+}
+
+func hasPHPStanConsistentConstructorTag(doc *ast.PHPDocNode) bool {
+	return doc != nil && strings.Contains(doc.RawContent, "@phpstan-consistent-constructor")
+}
+
+func ownConstructor(project *ProjectIndex, className string) (ResolvedMethod, bool) {
+	if project == nil {
+		return ResolvedMethod{}, false
+	}
+	methods := project.Methods[indexKey(className)]
+	if methods == nil {
+		return ResolvedMethod{}, false
+	}
+	method, ok := methods["__construct"]
+	return method, ok
+}
+
+func hasPrivateConstructor(project *ProjectIndex, className string) bool {
+	constructor, ok := ownConstructor(project, className)
+	return ok && constructor.Visibility == "private"
+}
+
+func constructorPos(class *ast.ClassNode) ast.Position {
+	for _, methodNode := range class.Methods {
+		method, ok := methodNode.(*ast.FunctionNode)
+		if ok && strings.EqualFold(method.Name, "__construct") {
+			return method.GetPos()
+		}
+	}
+	return class.GetPos()
+}
+
+func checkConstructorVisibilityCompatibility(filename string, pos ast.Position, className string, required, implemented ResolvedMethod, issues *[]AnalysisIssue) {
+	if visibilityRank(implemented.Visibility) < visibilityRank(required.Visibility) {
+		*issues = append(*issues, issue(filename, pos, level0ClassModelCode, fmt.Sprintf("Constructor %s::__construct() visibility must be at least as visible as %s::__construct().", className, required.DeclaringClass)))
+	}
+}
+
+func visibilityRank(visibility string) int {
+	switch visibility {
+	case "private":
+		return 1
+	case "protected":
+		return 2
+	default:
+		return 3
+	}
 }
 
 func checkRequiredMethodImplementations(filename, className string, pos ast.Position, ctx *AnalysisContext, issues *[]AnalysisIssue) {

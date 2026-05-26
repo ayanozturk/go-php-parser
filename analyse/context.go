@@ -16,13 +16,14 @@ type SymbolResolver interface {
 }
 
 type ResolvedClass struct {
-	Name       string
-	Extends    []string
-	Implements []string
-	Kind       string
-	Final      bool
-	Abstract   bool
-	Readonly   bool
+	Name                  string
+	Extends               []string
+	Implements            []string
+	Kind                  string
+	Final                 bool
+	Abstract              bool
+	Readonly              bool
+	ConsistentConstructor bool
 }
 
 type ResolvedMethod struct {

@@ -9,6 +9,7 @@ import (
 // parseInterfaceDeclaration parses a PHP interface declaration
 func (p *Parser) parseInterfaceDeclaration() ast.Node {
 	pos := p.tok.Pos
+	phpdoc := p.consumeCurrentDoc(pos)
 	p.nextToken() // consume 'interface'
 
 	if p.tok.Type != token.T_STRING {
@@ -111,7 +112,6 @@ func (p *Parser) parseInterfaceDeclaration() ast.Node {
 	}
 	p.nextToken() // consume }
 
-	phpdoc := p.consumeCurrentDoc(pos)
 	return &ast.InterfaceNode{
 		Name:    name,
 		Extends: extends,

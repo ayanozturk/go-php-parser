@@ -159,13 +159,14 @@ func (idx *ProjectIndex) indexNodes(filename string, nodes []ast.Node, ft fileTy
 		case *ast.ClassNode:
 			name := ft.resolveClassLike(n.Name)
 			class := ResolvedClass{
-				Name:       name,
-				Extends:    resolvedList(ft, optionalList(n.Extends)),
-				Implements: resolvedList(ft, n.Implements),
-				Kind:       "class",
-				Final:      strings.Contains(n.Modifier, "final"),
-				Abstract:   strings.Contains(n.Modifier, "abstract"),
-				Readonly:   strings.Contains(n.Modifier, "readonly"),
+				Name:                  name,
+				Extends:               resolvedList(ft, optionalList(n.Extends)),
+				Implements:            resolvedList(ft, n.Implements),
+				Kind:                  "class",
+				Final:                 strings.Contains(n.Modifier, "final"),
+				Abstract:              strings.Contains(n.Modifier, "abstract"),
+				Readonly:              strings.Contains(n.Modifier, "readonly"),
+				ConsistentConstructor: hasPHPStanConsistentConstructorTag(n.PHPDoc),
 			}
 			idx.addClass(filename, class, n.Pos)
 			idx.indexClassMembers(name, n.Properties, n.Methods, n.Constants, ft)
