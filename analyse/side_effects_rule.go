@@ -61,6 +61,8 @@ func (r *SideEffectsRule) isSideEffectNode(node ast.Node) bool {
 		return false
 	case *ast.ExpressionStmt:
 		return r.isSideEffectExpr(n.Expr)
+	case *ast.AttributeNode:
+		return false
 	case *ast.ClassNode, *ast.FunctionNode, *ast.InterfaceNode, *ast.TraitNode, *ast.ConstantNode, *ast.EnumNode:
 		return false
 	default:

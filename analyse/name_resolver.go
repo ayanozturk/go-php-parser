@@ -142,21 +142,25 @@ func normalizeTypeWithContext(raw string, ctx fileTypeContext) string {
 
 	parts := splitTopLevelTypes(raw, '|')
 	for idx, part := range parts {
-		part = strings.TrimSpace(part)
-		if part == "" {
-			continue
+		intersectionParts := splitTopLevelTypes(part, '&')
+		for intersectionIdx, intersectionPart := range intersectionParts {
+			intersectionPart = strings.TrimSpace(intersectionPart)
+			if intersectionPart == "" {
+				continue
+			}
+			intersectionPart = canonicalizeDocType(strings.TrimPrefix(intersectionPart, `\`))
+			if len(splitTopLevelTypes(intersectionPart, '|')) > 1 {
+				intersectionParts[intersectionIdx] = intersectionPart
+				continue
+			}
+			atom, ok := normalizeTypeAtom(intersectionPart)
+			if ok && atom.kind == typeKindClass {
+				intersectionParts[intersectionIdx] = ctx.resolveClassLike(intersectionPart)
+				continue
+			}
+			intersectionParts[intersectionIdx] = intersectionPart
 		}
-		part = canonicalizeDocType(strings.TrimPrefix(part, `\`))
-		if len(splitTopLevelTypes(part, '|')) > 1 {
-			parts[idx] = part
-			continue
-		}
-		atom, ok := normalizeTypeAtom(part)
-		if ok && atom.kind == typeKindClass {
-			parts[idx] = ctx.resolveClassLike(part)
-			continue
-		}
-		parts[idx] = part
+		parts[idx] = strings.Join(intersectionParts, "&")
 	}
 
 	return prefix + strings.Join(parts, "|")

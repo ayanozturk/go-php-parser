@@ -78,6 +78,23 @@ function known($a) {}
 	}
 }
 
+func TestLevel0RecognizesCommonArrayBuiltins(t *testing.T) {
+	issues := runLevel0OnFiles(t, map[string]string{
+		"test.php": `<?php
+function run(array $rows): array
+{
+    return array_values(array_filter(array_column($rows, 'name')));
+}
+`,
+	})
+
+	for _, name := range []string{"array_column", "array_filter", "array_values"} {
+		if hasIssueContaining(issues, level0SymbolsCode, "Function "+name+" not found") {
+			t.Fatalf("expected %s to be recognized as builtin, got %#v", name, issues)
+		}
+	}
+}
+
 func TestLevel0ClassModelAndMethodChecks(t *testing.T) {
 	issues := runLevel0OnFiles(t, map[string]string{
 		"test.php": `<?php

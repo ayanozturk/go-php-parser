@@ -93,6 +93,32 @@ func TestMethodArgumentTypeNormalizesPhpDocAliasesAndGenerics(t *testing.T) {
 	}
 }
 
+func TestMethodArgumentTypeAllowsAliasedPhpunitMockIntersection(t *testing.T) {
+	php := `<?php
+namespace App\Tests;
+
+use App\Entity\User;
+use PHPUnit\Framework\MockObject\MockObject;
+
+class Consumer {
+    public function takesUser(User $user): void {
+    }
+}
+
+class ConsumerTest {
+    private User&MockObject $user;
+    private Consumer $consumer;
+
+    public function run(): void {
+        $this->consumer->takesUser($this->user);
+    }
+}`
+	issues := analysePHP(t, php)
+	if hasArgTypeIssue(issues) {
+		t.Fatalf("expected no A.ARG.TYPE issue for User&MockObject passed to User, got: %#v", issues)
+	}
+}
+
 func TestInheritedMethodSignatureUsedForArgumentTypes(t *testing.T) {
 	php := `<?php
     class BaseAccessor {

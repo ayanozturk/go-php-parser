@@ -22,6 +22,18 @@ const MY_CONSTANT = 'value';
 	}
 }
 
+func TestSideEffectsAttributeBeforeClassIsDeclarationOnly(t *testing.T) {
+	php := `<?php
+#[AllowMockObjectsWithoutExpectations]
+class MyTest {
+}
+`
+	issues := runSideEffectsAnalysis(t, php)
+	if len(issues) != 0 {
+		t.Fatalf("expected no issues for attributed class declaration, got %d: %v", len(issues), issues)
+	}
+}
+
 func TestSideEffectsOnlySideEffects(t *testing.T) {
 	php := `<?php
 echo "Hello World";

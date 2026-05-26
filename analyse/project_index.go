@@ -388,8 +388,11 @@ func (idx *ProjectIndex) seedBuiltins() {
 		idx.Classes[indexKey(class.Name)] = class
 	}
 	for _, fn := range []ResolvedFunction{
+		{Name: "array_column", Params: []ResolvedParam{{Name: "array"}, {Name: "column_key"}, {Name: "index_key", HasDefault: true}}},
+		{Name: "array_filter", Params: []ResolvedParam{{Name: "array"}, {Name: "callback", HasDefault: true}, {Name: "mode", HasDefault: true}}},
 		{Name: "array_map", Params: []ResolvedParam{{Name: "callback"}, {Name: "array"}, {Name: "arrays", IsVariadic: true}}},
 		{Name: "array_keys", Params: []ResolvedParam{{Name: "array"}, {Name: "filter_value", HasDefault: true}, {Name: "strict", HasDefault: true}}},
+		{Name: "array_values", Params: []ResolvedParam{{Name: "array"}}},
 		{Name: "class_exists", Params: []ResolvedParam{{Name: "class"}, {Name: "autoload", HasDefault: true}}},
 		{Name: "compact", Params: []ResolvedParam{{Name: "var_name"}, {Name: "var_names", IsVariadic: true}}},
 		{Name: "constant", Params: []ResolvedParam{{Name: "name"}}},

@@ -71,8 +71,10 @@ func ParseType(raw string) Type {
 
 	t := Type{atoms: make(map[string]typeAtom)}
 	for _, part := range splitTopLevelTypes(raw, '|') {
-		for _, atom := range normalizeTypeAtoms(part) {
-			t.atoms[atom.key] = atom
+		for _, intersectionPart := range splitTopLevelTypes(part, '&') {
+			for _, atom := range normalizeTypeAtoms(intersectionPart) {
+				t.atoms[atom.key] = atom
+			}
 		}
 	}
 
@@ -91,6 +93,19 @@ func normalizeTypeAtoms(raw string) []typeAtom {
 	raw = strings.TrimPrefix(raw, "\\")
 	canonical := canonicalizeDocType(raw)
 	parts := splitTopLevelTypes(canonical, '|')
+	if len(parts) > 1 {
+		atoms := make([]typeAtom, 0, len(parts))
+		for _, part := range parts {
+			for _, intersectionPart := range splitTopLevelTypes(part, '&') {
+				atom, ok := normalizeTypeAtom(intersectionPart)
+				if ok {
+					atoms = append(atoms, atom)
+				}
+			}
+		}
+		return atoms
+	}
+	parts = splitTopLevelTypes(canonical, '&')
 	if len(parts) > 1 {
 		atoms := make([]typeAtom, 0, len(parts))
 		for _, part := range parts {
