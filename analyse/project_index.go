@@ -68,11 +68,24 @@ func (idx *ProjectIndex) ConstantExists(name string) bool {
 }
 
 func (idx *ProjectIndex) ResolveClass(name string) (ResolvedClass, bool) {
-	class, ok := idx.Classes[indexKey(name)]
-	return class, ok
+	key := indexKey(name)
+	if class, ok := idx.Classes[key]; ok {
+		return class, true
+	}
+	if short := unqualifiedName(key); short != key && isBuiltinClassName(short) {
+		class, ok := idx.Classes[short]
+		return class, ok
+	}
+	if class, ok := idx.resolveKnownClassSuffix(key); ok {
+		return class, true
+	}
+	return ResolvedClass{}, false
 }
 
 func (idx *ProjectIndex) ResolveMethod(className, methodName string) (ResolvedMethod, bool) {
+	if strings.EqualFold(methodName, "constructFrom") && strings.HasPrefix(indexKey(className), "stripe\\") {
+		return ResolvedMethod{Name: "constructFrom", DeclaringClass: className, Visibility: "public", IsStatic: true}, true
+	}
 	for _, candidate := range idx.classLineage(className) {
 		methods := idx.Methods[indexKey(candidate)]
 		if methods == nil {
@@ -87,6 +100,9 @@ func (idx *ProjectIndex) ResolveMethod(className, methodName string) (ResolvedMe
 }
 
 func (idx *ProjectIndex) ResolveProperty(className, propertyName string) (ResolvedProperty, bool) {
+	if class, ok := idx.ResolveClass(className); ok && class.Kind == "enum" && strings.EqualFold(strings.TrimPrefix(propertyName, "$"), "value") {
+		return ResolvedProperty{Name: "value", Visibility: "public", Readonly: true}, true
+	}
 	for _, candidate := range idx.classLineage(className) {
 		properties := idx.Properties[indexKey(candidate)]
 		if properties == nil {
@@ -127,12 +143,16 @@ func (idx *ProjectIndex) classLineage(className string) []string {
 		if key == "" {
 			return
 		}
-		if _, ok := seen[key]; ok {
+		class, ok := idx.ResolveClass(name)
+		if ok {
+			key = indexKey(class.Name)
+			name = class.Name
+		}
+		if _, exists := seen[key]; exists {
 			return
 		}
 		seen[key] = struct{}{}
 		out = append(out, name)
-		class, ok := idx.Classes[key]
 		if !ok {
 			return
 		}
@@ -141,6 +161,9 @@ func (idx *ProjectIndex) classLineage(className string) []string {
 		}
 		for _, iface := range class.Implements {
 			walk(iface)
+		}
+		for _, trait := range class.Traits {
+			walk(trait)
 		}
 	}
 	walk(className)
@@ -162,6 +185,7 @@ func (idx *ProjectIndex) indexNodes(filename string, nodes []ast.Node, ft fileTy
 				Name:                  name,
 				Extends:               resolvedList(ft, optionalList(n.Extends)),
 				Implements:            resolvedList(ft, n.Implements),
+				Traits:                traitUsesFromMembers(n.Properties, ft),
 				Kind:                  "class",
 				Final:                 strings.Contains(n.Modifier, "final"),
 				Abstract:              strings.Contains(n.Modifier, "abstract"),
@@ -178,12 +202,18 @@ func (idx *ProjectIndex) indexNodes(filename string, nodes []ast.Node, ft fileTy
 			if n.Name != nil {
 				name := ft.resolveClassLike(n.Name.Name)
 				idx.addClass(filename, ResolvedClass{Name: name, Kind: "trait"}, n.Pos)
-				idx.indexNodes(filename, n.Body, ft, name)
+				idx.indexClassMembers(name, n.Body, nil, nil, ft)
 			}
 		case *ast.EnumNode:
 			name := ft.resolveClassLike(n.Name)
 			idx.addClass(filename, ResolvedClass{Name: name, Implements: resolvedList(ft, n.Implements), Kind: "enum", Final: true}, n.Pos)
 			idx.indexClassMembers(name, nil, n.Methods, nil, ft)
+			for _, enumCase := range n.Cases {
+				idx.addClassConstant(name, ResolvedConstant{Name: enumCase.Name, DeclaringClass: name, Visibility: "public"})
+			}
+			idx.addMethod(name, ResolvedMethod{Name: "cases", DeclaringClass: name, ReturnType: "array", Visibility: "public", IsStatic: true})
+			idx.addMethod(name, ResolvedMethod{Name: "from", DeclaringClass: name, Visibility: "public", IsStatic: true})
+			idx.addMethod(name, ResolvedMethod{Name: "tryFrom", DeclaringClass: name, ReturnType: "?" + name, Visibility: "public", IsStatic: true})
 		case *ast.FunctionNode:
 			if currentClass != "" {
 				idx.addMethod(currentClass, methodFromFunction(currentClass, n, ft))
@@ -347,6 +377,20 @@ func resolvedList(ft fileTypeContext, names []string) []string {
 	return out
 }
 
+func traitUsesFromMembers(members []ast.Node, ft fileTypeContext) []string {
+	var traits []string
+	for _, member := range members {
+		use, ok := member.(*ast.TraitUseNode)
+		if !ok {
+			continue
+		}
+		for _, trait := range use.Traits {
+			traits = append(traits, ft.resolveClassLike(trait))
+		}
+	}
+	return traits
+}
+
 func optionalList(value string) []string {
 	if strings.TrimSpace(value) == "" {
 		return nil
@@ -374,6 +418,63 @@ func indexKey(name string) string {
 	return strings.ToLower(strings.TrimPrefix(strings.TrimSpace(name), `\`))
 }
 
+func unqualifiedName(name string) string {
+	name = strings.TrimPrefix(strings.TrimSpace(name), `\`)
+	if i := strings.LastIndex(name, `\`); i >= 0 {
+		return name[i+1:]
+	}
+	return name
+}
+
+var builtinClassNames = map[string]struct{}{
+	"arrayaccess":         {},
+	"arrayiterator":       {},
+	"arrayobject":         {},
+	"closure":             {},
+	"countable":           {},
+	"dateinterval":        {},
+	"datetime":            {},
+	"datetimeimmutable":   {},
+	"datetimeinterface":   {},
+	"datetimezone":        {},
+	"error":               {},
+	"exception":           {},
+	"generator":           {},
+	"iterator":            {},
+	"iteratoraggregate":   {},
+	"reflectionclass":     {},
+	"reflectionexception": {},
+	"reflectionfunction":  {},
+	"reflectionmethod":    {},
+	"reflectionnamedtype": {},
+	"reflectionobject":    {},
+	"reflectionparameter": {},
+	"reflectionproperty":  {},
+	"sensitiveparameter":  {},
+	"simplexmlelement":    {},
+	"stdclass":            {},
+	"stringable":          {},
+	"throwable":           {},
+	"traversable":         {},
+	"valueerror":          {},
+}
+
+func isBuiltinClassName(name string) bool {
+	_, ok := builtinClassNames[indexKey(name)]
+	return ok
+}
+
+func (idx *ProjectIndex) resolveKnownClassSuffix(key string) (ResolvedClass, bool) {
+	parts := strings.Split(strings.TrimPrefix(key, `\`), `\`)
+	for i := 1; i < len(parts)-1; i++ {
+		suffix := strings.Join(parts[i:], `\`)
+		if class, ok := idx.Classes[suffix]; ok && strings.Contains(suffix, `\`) {
+			return class, true
+		}
+	}
+	return ResolvedClass{}, false
+}
+
 func (idx *ProjectIndex) seedBuiltins() {
 	for _, class := range []ResolvedClass{
 		{Name: "stdClass", Kind: "class"},
@@ -382,43 +483,216 @@ func (idx *ProjectIndex) seedBuiltins() {
 		{Name: "Error", Kind: "class", Extends: []string{"Throwable"}},
 		{Name: "DateTime", Kind: "class"},
 		{Name: "DateTimeImmutable", Kind: "class"},
+		{Name: "DateTimeInterface", Kind: "interface"},
+		{Name: "DateTimeZone", Kind: "class"},
 		{Name: "Closure", Kind: "class", Final: true},
 		{Name: "Stringable", Kind: "interface"},
+		{Name: "ReflectionClass", Kind: "class"},
+		{Name: "ReflectionException", Kind: "class", Extends: []string{"Exception"}},
+		{Name: "ReflectionFunction", Kind: "class"},
+		{Name: "ReflectionMethod", Kind: "class"},
+		{Name: "ReflectionNamedType", Kind: "class"},
+		{Name: "ReflectionObject", Kind: "class", Extends: []string{"ReflectionClass"}},
+		{Name: "ReflectionParameter", Kind: "class"},
+		{Name: "ReflectionProperty", Kind: "class"},
+		{Name: "ArrayAccess", Kind: "interface"},
+		{Name: "ArrayIterator", Kind: "class", Implements: []string{"Iterator", "Traversable"}},
+		{Name: "ArrayObject", Kind: "class", Implements: []string{"IteratorAggregate", "Traversable"}},
+		{Name: "Countable", Kind: "interface"},
+		{Name: "DateInterval", Kind: "class"},
+		{Name: "Generator", Kind: "class", Final: true},
+		{Name: "Iterator", Kind: "interface", Extends: []string{"Traversable"}},
+		{Name: "IteratorAggregate", Kind: "interface", Extends: []string{"Traversable"}},
+		{Name: "SensitiveParameter", Kind: "class", Final: true},
+		{Name: "SimpleXMLElement", Kind: "class"},
+		{Name: "Traversable", Kind: "interface"},
+		{Name: "ValueError", Kind: "class", Extends: []string{"Error"}},
+	} {
+		idx.Classes[indexKey(class.Name)] = class
+	}
+	for _, className := range []string{"DateTime", "DateTimeImmutable"} {
+		idx.addMethod(className, ResolvedMethod{Name: "createFromFormat", DeclaringClass: className, ReturnType: className + "|false", Visibility: "public", IsStatic: true})
+		idx.addMethod(className, ResolvedMethod{Name: "createFromInterface", DeclaringClass: className, ReturnType: className, Visibility: "public", IsStatic: true})
+		idx.addMethod(className, ResolvedMethod{Name: "getLastErrors", DeclaringClass: className, ReturnType: "array|false", Visibility: "public", IsStatic: true})
+	}
+	idx.addMethod("DateTime", ResolvedMethod{Name: "createFromImmutable", DeclaringClass: "DateTime", ReturnType: "DateTime", Visibility: "public", IsStatic: true})
+	idx.addMethod("DateTimeImmutable", ResolvedMethod{Name: "createFromMutable", DeclaringClass: "DateTimeImmutable", ReturnType: "DateTimeImmutable", Visibility: "public", IsStatic: true})
+	idx.addMethod("Closure", ResolvedMethod{Name: "fromCallable", DeclaringClass: "Closure", ReturnType: "Closure", Visibility: "public", IsStatic: true})
+	for _, constant := range []string{"ATOM", "COOKIE", "ISO8601", "RFC822", "RFC850", "RFC1036", "RFC1123", "RFC7231", "RFC2822", "RFC3339", "RFC3339_EXTENDED", "RSS", "W3C"} {
+		idx.addClassConstant("DateTime", ResolvedConstant{Name: constant, DeclaringClass: "DateTime", Visibility: "public"})
+		idx.addClassConstant("DateTimeImmutable", ResolvedConstant{Name: constant, DeclaringClass: "DateTimeImmutable", Visibility: "public"})
+		idx.addClassConstant("DateTimeInterface", ResolvedConstant{Name: constant, DeclaringClass: "DateTimeInterface", Visibility: "public"})
+	}
+	for _, method := range []string{
+		"addToAssertionCount", "any", "assertArrayHasKey", "assertArrayNotHasKey", "assertCount", "assertEquals", "assertFalse",
+		"assertFileExists", "assertGreaterThan", "assertGreaterThanOrEqual", "assertIsArray", "assertIsIterable", "assertIsString",
+		"assertNotEmpty", "assertNotNull", "assertSame", "assertStringContainsString", "assertStringNotContainsString", "assertTrue",
+		"assertResponseIsSuccessful", "assertResponseStatusCodeSame", "createConfiguredMock", "createConfiguredStub", "createMock", "createStub",
+		"exactly", "expectException", "expectExceptionMessage", "fail",
+		"isArray", "isInstanceOf", "markTestSkipped", "never", "once",
+	} {
+		idx.addMethod("PHPUnit\\Framework\\TestCase", ResolvedMethod{Name: method, DeclaringClass: "PHPUnit\\Framework\\TestCase", Visibility: "public"})
+		idx.addMethod("Symfony\\Bundle\\FrameworkBundle\\Test\\WebTestCase", ResolvedMethod{Name: method, DeclaringClass: "Symfony\\Bundle\\FrameworkBundle\\Test\\WebTestCase", Visibility: "public"})
+		idx.addMethod("Symfony\\Bundle\\FrameworkBundle\\Test\\KernelTestCase", ResolvedMethod{Name: method, DeclaringClass: "Symfony\\Bundle\\FrameworkBundle\\Test\\KernelTestCase", Visibility: "public"})
+	}
+	idx.addMethod("Stripe\\StripeObject", ResolvedMethod{Name: "constructFrom", DeclaringClass: "Stripe\\StripeObject", Visibility: "public", IsStatic: true})
+	for _, method := range []string{"areNotAbstract", "areNotInterfaces", "haveClassName", "haveMethodMatching", "havePathMatching"} {
+		idx.addMethod("Phpat\\Selector\\Selector", ResolvedMethod{Name: method, DeclaringClass: "Phpat\\Selector\\Selector", Visibility: "public", IsStatic: true})
+	}
+	for _, class := range []ResolvedClass{
+		{Name: "Phpat\\Rule\\Rule", Kind: "class"},
+		{Name: "Phpat\\Rule\\Assertion\\Declaration\\ShouldExtend", Kind: "class"},
+		{Name: "Phpat\\Rule\\Assertion\\Declaration\\ShouldImplement", Kind: "class"},
+		{Name: "Phpat\\Rule\\Assertion\\Relation\\ShouldNotDependOn", Kind: "class"},
 	} {
 		idx.Classes[indexKey(class.Name)] = class
 	}
 	for _, fn := range []ResolvedFunction{
+		{Name: "abs", Params: []ResolvedParam{{Name: "num"}}},
+		{Name: "addslashes", Params: []ResolvedParam{{Name: "string"}}},
+		{Name: "array_any", Params: []ResolvedParam{{Name: "array"}, {Name: "callback"}}},
+		{Name: "array_chunk", Params: []ResolvedParam{{Name: "array"}, {Name: "length"}, {Name: "preserve_keys", HasDefault: true}}},
 		{Name: "array_column", Params: []ResolvedParam{{Name: "array"}, {Name: "column_key"}, {Name: "index_key", HasDefault: true}}},
+		{Name: "array_diff", Params: []ResolvedParam{{Name: "array"}, {Name: "arrays", IsVariadic: true}}},
+		{Name: "array_fill", Params: []ResolvedParam{{Name: "start_index"}, {Name: "count"}, {Name: "value"}}},
+		{Name: "array_fill_keys", Params: []ResolvedParam{{Name: "keys"}, {Name: "value"}}},
 		{Name: "array_filter", Params: []ResolvedParam{{Name: "array"}, {Name: "callback", HasDefault: true}, {Name: "mode", HasDefault: true}}},
+		{Name: "array_intersect_assoc", Params: []ResolvedParam{{Name: "array"}, {Name: "arrays", IsVariadic: true}}},
+		{Name: "array_intersect_key", Params: []ResolvedParam{{Name: "array"}, {Name: "arrays", IsVariadic: true}}},
+		{Name: "array_key_exists", Params: []ResolvedParam{{Name: "key"}, {Name: "array"}}},
+		{Name: "array_key_first", Params: []ResolvedParam{{Name: "array"}}},
 		{Name: "array_map", Params: []ResolvedParam{{Name: "callback"}, {Name: "array"}, {Name: "arrays", IsVariadic: true}}},
+		{Name: "array_merge", Params: []ResolvedParam{{Name: "arrays", IsVariadic: true}}},
+		{Name: "array_merge_recursive", Params: []ResolvedParam{{Name: "arrays", IsVariadic: true}}},
+		{Name: "array_pop", Params: []ResolvedParam{{Name: "array"}}},
+		{Name: "array_push", Params: []ResolvedParam{{Name: "array"}, {Name: "values", IsVariadic: true}}},
+		{Name: "array_reduce", Params: []ResolvedParam{{Name: "array"}, {Name: "callback"}, {Name: "initial", HasDefault: true}}},
+		{Name: "array_search", Params: []ResolvedParam{{Name: "needle"}, {Name: "haystack"}, {Name: "strict", HasDefault: true}}},
+		{Name: "array_shift", Params: []ResolvedParam{{Name: "array"}}},
 		{Name: "array_keys", Params: []ResolvedParam{{Name: "array"}, {Name: "filter_value", HasDefault: true}, {Name: "strict", HasDefault: true}}},
+		{Name: "array_slice", Params: []ResolvedParam{{Name: "array"}, {Name: "offset"}, {Name: "length", HasDefault: true}, {Name: "preserve_keys", HasDefault: true}}},
+		{Name: "array_unique", Params: []ResolvedParam{{Name: "array"}, {Name: "flags", HasDefault: true}}},
+		{Name: "array_unshift", Params: []ResolvedParam{{Name: "array"}, {Name: "values", IsVariadic: true}}},
+		{Name: "array_sum", Params: []ResolvedParam{{Name: "array"}}},
 		{Name: "array_values", Params: []ResolvedParam{{Name: "array"}}},
+		{Name: "assert", Params: []ResolvedParam{{Name: "assertion"}, {Name: "description", HasDefault: true}}},
+		{Name: "base64_encode", Params: []ResolvedParam{{Name: "string"}}},
+		{Name: "basename", Params: []ResolvedParam{{Name: "path"}, {Name: "suffix", HasDefault: true}}},
+		{Name: "bin2hex", Params: []ResolvedParam{{Name: "string"}}},
+		{Name: "ceil", Params: []ResolvedParam{{Name: "num"}}},
+		{Name: "checkdate", Params: []ResolvedParam{{Name: "month"}, {Name: "day"}, {Name: "year"}}},
 		{Name: "class_exists", Params: []ResolvedParam{{Name: "class"}, {Name: "autoload", HasDefault: true}}},
 		{Name: "compact", Params: []ResolvedParam{{Name: "var_name"}, {Name: "var_names", IsVariadic: true}}},
 		{Name: "constant", Params: []ResolvedParam{{Name: "name"}}},
+		{Name: "count", Params: []ResolvedParam{{Name: "value"}, {Name: "mode", HasDefault: true}}},
+		{Name: "crc32", Params: []ResolvedParam{{Name: "string"}}},
 		{Name: "define", Params: []ResolvedParam{{Name: "constant_name"}, {Name: "value"}, {Name: "case_insensitive", HasDefault: true}}},
 		{Name: "defined", Params: []ResolvedParam{{Name: "constant_name"}}},
 		{Name: "die", Params: []ResolvedParam{{Name: "status", HasDefault: true}}},
+		{Name: "dirname", Params: []ResolvedParam{{Name: "path"}, {Name: "levels", HasDefault: true}}},
 		{Name: "empty", Params: []ResolvedParam{{Name: "var"}}},
 		{Name: "enum_exists", Params: []ResolvedParam{{Name: "enum"}, {Name: "autoload", HasDefault: true}}},
+		{Name: "end", Params: []ResolvedParam{{Name: "array"}}},
+		{Name: "eval", Params: []ResolvedParam{{Name: "code"}}},
 		{Name: "exit", Params: []ResolvedParam{{Name: "status", HasDefault: true}}},
+		{Name: "explode", Params: []ResolvedParam{{Name: "separator"}, {Name: "string"}, {Name: "limit", HasDefault: true}}},
 		{Name: "extension_loaded", Params: []ResolvedParam{{Name: "extension"}}},
+		{Name: "file_exists", Params: []ResolvedParam{{Name: "filename"}}},
+		{Name: "filter_var", Params: []ResolvedParam{{Name: "value"}, {Name: "filter", HasDefault: true}, {Name: "options", HasDefault: true}}},
+		{Name: "floor", Params: []ResolvedParam{{Name: "num"}}},
+		{Name: "fpassthru", Params: []ResolvedParam{{Name: "stream"}}},
+		{Name: "func_get_args"},
 		{Name: "function_exists", Params: []ResolvedParam{{Name: "function"}}},
+		{Name: "get_class", Params: []ResolvedParam{{Name: "object", HasDefault: true}}},
+		{Name: "get_object_vars", Params: []ResolvedParam{{Name: "object"}}},
+		{Name: "getenv", Params: []ResolvedParam{{Name: "name", HasDefault: true}, {Name: "local_only", HasDefault: true}}},
+		{Name: "glob", Params: []ResolvedParam{{Name: "pattern"}, {Name: "flags", HasDefault: true}}},
+		{Name: "hash", Params: []ResolvedParam{{Name: "algo"}, {Name: "data"}, {Name: "binary", HasDefault: true}, {Name: "options", HasDefault: true}}},
+		{Name: "http_build_query", Params: []ResolvedParam{{Name: "data"}, {Name: "numeric_prefix", HasDefault: true}, {Name: "arg_separator", HasDefault: true}, {Name: "encoding_type", HasDefault: true}}},
+		{Name: "htmlspecialchars", Params: []ResolvedParam{{Name: "string"}, {Name: "flags", HasDefault: true}, {Name: "encoding", HasDefault: true}, {Name: "double_encode", HasDefault: true}}},
+		{Name: "implode", Params: []ResolvedParam{{Name: "separator"}, {Name: "array", HasDefault: true}}},
+		{Name: "in_array", Params: []ResolvedParam{{Name: "needle"}, {Name: "haystack"}, {Name: "strict", HasDefault: true}}},
+		{Name: "intdiv", Params: []ResolvedParam{{Name: "num1"}, {Name: "num2"}}},
+		{Name: "intval", Params: []ResolvedParam{{Name: "value"}, {Name: "base", HasDefault: true}}},
 		{Name: "interface_exists", Params: []ResolvedParam{{Name: "interface"}, {Name: "autoload", HasDefault: true}}},
 		{Name: "isset", Params: []ResolvedParam{{Name: "var"}, {Name: "vars", IsVariadic: true}}},
 		{Name: "is_array", Params: []ResolvedParam{{Name: "value"}}},
 		{Name: "is_bool", Params: []ResolvedParam{{Name: "value"}}},
+		{Name: "is_callable", Params: []ResolvedParam{{Name: "value"}, {Name: "syntax_only", HasDefault: true}, {Name: "callable_name", HasDefault: true}}},
+		{Name: "is_countable", Params: []ResolvedParam{{Name: "value"}}},
+		{Name: "is_dir", Params: []ResolvedParam{{Name: "filename"}}},
+		{Name: "is_file", Params: []ResolvedParam{{Name: "filename"}}},
+		{Name: "is_finite", Params: []ResolvedParam{{Name: "num"}}},
 		{Name: "is_float", Params: []ResolvedParam{{Name: "value"}}},
 		{Name: "is_int", Params: []ResolvedParam{{Name: "value"}}},
 		{Name: "is_null", Params: []ResolvedParam{{Name: "value"}}},
+		{Name: "is_numeric", Params: []ResolvedParam{{Name: "value"}}},
 		{Name: "is_object", Params: []ResolvedParam{{Name: "value"}}},
+		{Name: "is_resource", Params: []ResolvedParam{{Name: "value"}}},
+		{Name: "is_scalar", Params: []ResolvedParam{{Name: "value"}}},
 		{Name: "is_string", Params: []ResolvedParam{{Name: "value"}}},
+		{Name: "iterator_count", Params: []ResolvedParam{{Name: "iterator"}}},
+		{Name: "iterator_to_array", Params: []ResolvedParam{{Name: "iterator"}, {Name: "preserve_keys", HasDefault: true}}},
+		{Name: "json_last_error"},
+		{Name: "ksort", Params: []ResolvedParam{{Name: "array"}, {Name: "flags", HasDefault: true}}},
+		{Name: "lcfirst", Params: []ResolvedParam{{Name: "string"}}},
+		{Name: "libxml_clear_errors"},
+		{Name: "libxml_get_errors"},
+		{Name: "libxml_use_internal_errors", Params: []ResolvedParam{{Name: "use_errors", HasDefault: true}}},
+		{Name: "ltrim", Params: []ResolvedParam{{Name: "string"}, {Name: "characters", HasDefault: true}}},
+		{Name: "max", Params: []ResolvedParam{{Name: "value"}, {Name: "values", IsVariadic: true}}},
+		{Name: "mb_strtoupper", Params: []ResolvedParam{{Name: "string"}, {Name: "encoding", HasDefault: true}}},
+		{Name: "mb_strlen", Params: []ResolvedParam{{Name: "string"}, {Name: "encoding", HasDefault: true}}},
+		{Name: "mb_substr", Params: []ResolvedParam{{Name: "string"}, {Name: "start"}, {Name: "length", HasDefault: true}, {Name: "encoding", HasDefault: true}}},
+		{Name: "md5", Params: []ResolvedParam{{Name: "string"}, {Name: "binary", HasDefault: true}}},
 		{Name: "method_exists", Params: []ResolvedParam{{Name: "object_or_class"}, {Name: "method"}}},
+		{Name: "microtime", Params: []ResolvedParam{{Name: "as_float", HasDefault: true}}},
+		{Name: "min", Params: []ResolvedParam{{Name: "value"}, {Name: "values", IsVariadic: true}}},
+		{Name: "number_format", Params: []ResolvedParam{{Name: "num"}, {Name: "decimals", HasDefault: true}, {Name: "decimal_separator", HasDefault: true}, {Name: "thousands_separator", HasDefault: true}}},
+		{Name: "parse_str", Params: []ResolvedParam{{Name: "string"}, {Name: "result"}}},
+		{Name: "pathinfo", Params: []ResolvedParam{{Name: "path"}, {Name: "flags", HasDefault: true}}},
 		{Name: "preg_match", Params: []ResolvedParam{{Name: "pattern"}, {Name: "subject"}, {Name: "matches", HasDefault: true}}},
+		{Name: "preg_quote", Params: []ResolvedParam{{Name: "str"}, {Name: "delimiter", HasDefault: true}}},
 		{Name: "printf", Params: []ResolvedParam{{Name: "format"}, {Name: "values", IsVariadic: true}}},
+		{Name: "random_bytes", Params: []ResolvedParam{{Name: "length"}}},
+		{Name: "reset", Params: []ResolvedParam{{Name: "array"}}},
+		{Name: "range", Params: []ResolvedParam{{Name: "start"}, {Name: "end"}, {Name: "step", HasDefault: true}}},
+		{Name: "round", Params: []ResolvedParam{{Name: "num"}, {Name: "precision", HasDefault: true}, {Name: "mode", HasDefault: true}}},
+		{Name: "rtrim", Params: []ResolvedParam{{Name: "string"}, {Name: "characters", HasDefault: true}}},
+		{Name: "serialize", Params: []ResolvedParam{{Name: "value"}}},
+		{Name: "sha1", Params: []ResolvedParam{{Name: "string"}, {Name: "binary", HasDefault: true}}},
+		{Name: "sort", Params: []ResolvedParam{{Name: "array"}, {Name: "flags", HasDefault: true}}},
 		{Name: "sprintf", Params: []ResolvedParam{{Name: "format"}, {Name: "values", IsVariadic: true}}},
+		{Name: "stripos", Params: []ResolvedParam{{Name: "haystack"}, {Name: "needle"}, {Name: "offset", HasDefault: true}}},
 		{Name: "str_contains", Params: []ResolvedParam{{Name: "haystack"}, {Name: "needle"}}},
+		{Name: "str_ends_with", Params: []ResolvedParam{{Name: "haystack"}, {Name: "needle"}}},
+		{Name: "str_pad", Params: []ResolvedParam{{Name: "string"}, {Name: "length"}, {Name: "pad_string", HasDefault: true}, {Name: "pad_type", HasDefault: true}}},
+		{Name: "str_repeat", Params: []ResolvedParam{{Name: "string"}, {Name: "times"}}},
+		{Name: "str_replace", Params: []ResolvedParam{{Name: "search"}, {Name: "replace"}, {Name: "subject"}, {Name: "count", HasDefault: true}}},
+		{Name: "str_starts_with", Params: []ResolvedParam{{Name: "haystack"}, {Name: "needle"}}},
+		{Name: "strcasecmp", Params: []ResolvedParam{{Name: "string1"}, {Name: "string2"}}},
+		{Name: "strcmp", Params: []ResolvedParam{{Name: "string1"}, {Name: "string2"}}},
+		{Name: "strlen", Params: []ResolvedParam{{Name: "string"}}},
+		{Name: "strpos", Params: []ResolvedParam{{Name: "haystack"}, {Name: "needle"}, {Name: "offset", HasDefault: true}}},
+		{Name: "strrpos", Params: []ResolvedParam{{Name: "haystack"}, {Name: "needle"}, {Name: "offset", HasDefault: true}}},
+		{Name: "strtolower", Params: []ResolvedParam{{Name: "string"}}},
+		{Name: "strtoupper", Params: []ResolvedParam{{Name: "string"}}},
+		{Name: "strtr", Params: []ResolvedParam{{Name: "string"}, {Name: "from"}, {Name: "to", HasDefault: true}}},
+		{Name: "substr", Params: []ResolvedParam{{Name: "string"}, {Name: "offset"}, {Name: "length", HasDefault: true}}},
+		{Name: "substr_count", Params: []ResolvedParam{{Name: "haystack"}, {Name: "needle"}, {Name: "offset", HasDefault: true}, {Name: "length", HasDefault: true}}},
+		{Name: "sys_get_temp_dir"},
+		{Name: "time"},
 		{Name: "trait_exists", Params: []ResolvedParam{{Name: "trait"}, {Name: "autoload", HasDefault: true}}},
+		{Name: "trim", Params: []ResolvedParam{{Name: "string"}, {Name: "characters", HasDefault: true}}},
+		{Name: "trigger_error", Params: []ResolvedParam{{Name: "message"}, {Name: "error_level", HasDefault: true}}},
+		{Name: "uasort", Params: []ResolvedParam{{Name: "array"}, {Name: "callback"}}},
+		{Name: "ucfirst", Params: []ResolvedParam{{Name: "string"}}},
+		{Name: "ucwords", Params: []ResolvedParam{{Name: "string"}, {Name: "separators", HasDefault: true}}},
+		{Name: "uniqid", Params: []ResolvedParam{{Name: "prefix", HasDefault: true}, {Name: "more_entropy", HasDefault: true}}},
+		{Name: "urlencode", Params: []ResolvedParam{{Name: "string"}}},
+		{Name: "unset", Params: []ResolvedParam{{Name: "var"}, {Name: "vars", IsVariadic: true}}},
+		{Name: "usleep", Params: []ResolvedParam{{Name: "microseconds"}}},
+		{Name: "usort", Params: []ResolvedParam{{Name: "array"}, {Name: "callback"}}},
 	} {
 		idx.Functions[indexKey(fn.Name)] = fn
 	}

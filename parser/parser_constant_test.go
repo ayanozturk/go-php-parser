@@ -56,6 +56,12 @@ func TestParseConstant(t *testing.T) {
 		node := parseConstantFromSource(src, token.T_PROTECTED)
 		checkConstantNode(t, node, "BAZ", "hi", "protected", "")
 	})
+
+	t.Run("with array type before name", func(t *testing.T) {
+		src := "<?php\nprivate const array NAMES = ['a'];"
+		node := parseConstantFromSource(src, token.T_PRIVATE)
+		checkConstantNode(t, node, "NAMES", "array", "private", "array")
+	})
 }
 
 func TestParseClassConstantKeepsModifierVisibility(t *testing.T) {

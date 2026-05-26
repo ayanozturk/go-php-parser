@@ -759,6 +759,7 @@ func TestParseTraitUseInClass(t *testing.T) {
 class MultiSelectPromptRenderer {
     use Concerns\DrawsBoxes;
 }
+
 `
 
 	l := lexer.New(php)
@@ -774,6 +775,45 @@ class MultiSelectPromptRenderer {
 	}
 	if _, ok := classNode.Properties[0].(*ast.TraitUseNode); !ok {
 		t.Fatalf("expected first class property slot to contain TraitUseNode, got %T", classNode.Properties[0])
+	}
+}
+
+func TestParseReadonlyClassKeepsMethodsAfterPromotedConstructor(t *testing.T) {
+	src := `<?php
+final readonly class PreferenceView
+{
+    public function __construct(
+        public array $preferredDays,
+        public ?string $planningNotes,
+    ) {
+    }
+
+    public static function empty(): self
+    {
+        return new self([], null);
+    }
+
+    public static function fromEntity(?Preference $preference): self
+    {
+        return new self([], null);
+    }
+}
+`
+	p := New(lexer.New(src), false)
+	nodes := p.Parse()
+	if len(p.Errors()) > 0 {
+		t.Fatalf("unexpected parser errors: %v", p.Errors())
+	}
+	classNode, ok := nodes[0].(*ast.ClassNode)
+	if !ok {
+		t.Fatalf("expected ClassNode, got %T", nodes[0])
+	}
+	if len(classNode.Methods) != 3 {
+		t.Fatalf("expected constructor and static factories, got %d methods", len(classNode.Methods))
+	}
+	method, ok := classNode.Methods[2].(*ast.FunctionNode)
+	if !ok || method.Name != "fromEntity" {
+		t.Fatalf("expected fromEntity method, got %#v", classNode.Methods[1])
 	}
 }
 

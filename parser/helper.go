@@ -32,6 +32,7 @@ func isValidMethodNameToken(t token.TokenType) bool {
 		token.T_CONTINUE,
 		token.T_DEFAULT,
 		token.T_CONST,
+		token.T_EMPTY,
 		token.T_ENUM,
 		token.T_NAMESPACE,
 		token.T_NEVER,

@@ -30,13 +30,9 @@ func (r *PHPStanLevel0Rule) checkTypeReferences(filename string, nodes []ast.Nod
 					issues = append(issues, issue(filename, n.GetPos(), level0SymbolsCode, fmt.Sprintf("Used constant %s not found.", n.Path)))
 				}
 			default:
-				name := strings.TrimPrefix(n.Path, `\`)
-				if _, ok := ctx.Resolver.ResolveClass(name); !ok {
-					if guards.hasClass(name) {
-						return
-					}
-					issues = append(issues, issue(filename, n.GetPos(), level0SymbolsCode, fmt.Sprintf("Used class %s not found.", name)))
-				}
+				// Class imports can legally alias a namespace prefix, especially for attributes
+				// such as "use Doctrine\ORM\Mapping as ORM; #[ORM\Entity]".
+				// Concrete class references are checked at their use sites.
 			}
 		case *ast.FunctionNode:
 			for _, param := range n.Params {

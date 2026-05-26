@@ -38,12 +38,17 @@ func walkAll(nodes []ast.Node, fn func(ast.Node, *ast.ClassNode, *ast.FunctionNo
 				walk(child, class, currentFn, ft)
 			}
 		case *ast.TraitNode:
+			traitClass := class
+			if n.Name != nil {
+				traitClass = &ast.ClassNode{Name: n.Name.Name}
+			}
 			for _, child := range n.Body {
-				walk(child, class, currentFn, ft)
+				walk(child, traitClass, currentFn, ft)
 			}
 		case *ast.EnumNode:
+			enumClass := &ast.ClassNode{Name: n.Name}
 			for _, child := range n.Methods {
-				walk(child, class, currentFn, ft)
+				walk(child, enumClass, currentFn, ft)
 			}
 		case *ast.ExpressionStmt:
 			walk(n.Expr, class, currentFn, ft)

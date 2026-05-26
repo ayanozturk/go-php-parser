@@ -19,6 +19,7 @@ type ResolvedClass struct {
 	Name                  string
 	Extends               []string
 	Implements            []string
+	Traits                []string
 	Kind                  string
 	Final                 bool
 	Abstract              bool

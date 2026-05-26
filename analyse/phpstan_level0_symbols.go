@@ -40,15 +40,19 @@ func (r *PHPStanLevel0Rule) checkSymbolsAndCalls(filename string, nodes []ast.No
 				return
 			}
 			if className, methodName, ok := strings.Cut(name, "::"); ok {
-				resolvedClass := resolveClassLikeForCall(className, class, ft)
-				if !isSpecialClassName(resolvedClass) {
-					if _, ok := ctx.Resolver.ResolveClass(resolvedClass); !ok {
-						if guards.hasClass(resolvedClass) {
-							return
-						}
-						issues = append(issues, issue(filename, n.GetPos(), level0SymbolsCode, fmt.Sprintf("Call to static method %s() on an unknown class %s.", methodName, resolvedClass)))
+				if strings.HasPrefix(className, "$") {
+					return
+				}
+				resolvedClass := resolveClassLikeForCall(className, class, ft, ctx)
+				if isSpecialClassName(resolvedClass) {
+					return
+				}
+				if _, ok := ctx.Resolver.ResolveClass(resolvedClass); !ok {
+					if guards.hasClass(resolvedClass) {
 						return
 					}
+					issues = append(issues, issue(filename, n.GetPos(), level0SymbolsCode, fmt.Sprintf("Call to static method %s() on an unknown class %s.", methodName, resolvedClass)))
+					return
 				}
 				method, ok := ctx.Resolver.ResolveMethod(resolvedClass, methodName)
 				if !ok {
@@ -85,11 +89,13 @@ func (r *PHPStanLevel0Rule) checkSymbolsAndCalls(filename string, nodes []ast.No
 				}
 				className := currentClassName(class, ft)
 				if className == "" {
-					issues = append(issues, issue(filename, n.GetPos(), level0SymbolsCode, fmt.Sprintf("Undefined variable: $%s", receiver.Name)))
 					return
 				}
 				method, ok := ctx.Resolver.ResolveMethod(className, n.Method)
 				if !ok {
+					if resolvedClass, classOK := ctx.Resolver.ResolveClass(className); classOK && resolvedClass.Kind == "trait" {
+						return
+					}
 					if guards.hasMethod(className, n.Method) {
 						return
 					}
@@ -112,12 +118,18 @@ func (r *PHPStanLevel0Rule) checkSymbolsAndCalls(filename string, nodes []ast.No
 			checkInstanceStaticMethodCall(filename, n.GetPos(), method, className, &issues)
 			checkCallArguments(filename, n.GetPos(), "Method "+className+"::"+method.Name+"()", method.Name, n.Args, method, &issues)
 		case *ast.ClassConstFetchNode:
-			className := resolveClassLikeForCall(n.Class, class, ft)
+			if strings.HasPrefix(n.Class, "$") {
+				return
+			}
+			className := resolveClassLikeForCall(n.Class, class, ft, ctx)
 			if isSpecialClassName(className) || strings.HasPrefix(className, "$") {
 				return
 			}
 			resolvedClass, ok := ctx.Resolver.ResolveClass(className)
 			if !ok {
+				if n.Const == "class" {
+					return
+				}
 				if guards.hasClass(className) || (n.Const == "class" && guards.hasClass(className)) {
 					return
 				}
@@ -165,10 +177,12 @@ func (r *PHPStanLevel0Rule) checkSymbolsAndCalls(filename string, nodes []ast.No
 			}
 			className := currentClassName(class, ft)
 			if className == "" {
-				issues = append(issues, issue(filename, n.GetPos(), level0SymbolsCode, "Undefined variable: $this"))
 				return
 			}
 			if _, ok := ctx.Resolver.ResolveProperty(className, n.Property); !ok {
+				if resolvedClass, classOK := ctx.Resolver.ResolveClass(className); classOK && resolvedClass.Kind == "trait" {
+					return
+				}
 				issues = append(issues, issue(filename, n.GetPos(), level0SymbolsCode, fmt.Sprintf("Access to an undefined property %s::$%s.", className, n.Property)))
 			}
 		}

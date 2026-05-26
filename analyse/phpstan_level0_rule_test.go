@@ -81,16 +81,113 @@ function known($a) {}
 func TestLevel0RecognizesCommonArrayBuiltins(t *testing.T) {
 	issues := runLevel0OnFiles(t, map[string]string{
 		"test.php": `<?php
+use function count;
+
 function run(array $rows): array
 {
-    return array_values(array_filter(array_column($rows, 'name')));
+    if (array_key_exists('name', $rows)) {
+        return array_values(array_filter(array_column($rows, 'name')));
+    }
+    return [trim((string) count($rows))];
 }
 `,
 	})
 
-	for _, name := range []string{"array_column", "array_filter", "array_values"} {
+	for _, name := range []string{"array_column", "array_filter", "array_key_exists", "array_values", "count", "trim"} {
 		if hasIssueContaining(issues, level0SymbolsCode, "Function "+name+" not found") {
 			t.Fatalf("expected %s to be recognized as builtin, got %#v", name, issues)
+		}
+	}
+}
+
+func TestLevel0RecognizesEnumCasesAndNativeMethods(t *testing.T) {
+	issues := runLevel0OnFiles(t, map[string]string{
+		"test.php": `<?php
+enum Status: string {
+    case ACTIVE = 'active';
+}
+
+function run(): void
+{
+    Status::ACTIVE;
+    Status::from('active');
+    Status::tryFrom('missing');
+    Status::cases();
+}
+`,
+	})
+
+	for _, unexpected := range []string{
+		"Access to undefined constant Status::ACTIVE",
+		"Call to an undefined static method Status::from",
+		"Call to an undefined static method Status::tryFrom",
+		"Call to an undefined static method Status::cases",
+	} {
+		if hasIssueContaining(issues, level0SymbolsCode, unexpected) {
+			t.Fatalf("expected enum member %q to be recognized, got %#v", unexpected, issues)
+		}
+	}
+}
+
+func TestLevel0TreatsClassImportsAsPotentialNamespaceAliases(t *testing.T) {
+	issues := runLevel0OnFiles(t, map[string]string{
+		"test.php": `<?php
+namespace App;
+
+use Doctrine\ORM\Mapping as ORM;
+
+#[ORM\Entity]
+class User {}
+`,
+	})
+
+	if hasIssueContaining(issues, level0SymbolsCode, "Used class Doctrine\\ORM\\Mapping not found") {
+		t.Fatalf("namespace-style class import should be checked at use sites, got %#v", issues)
+	}
+}
+
+func TestLevel0AllowsThisInsideTraitMethods(t *testing.T) {
+	issues := runLevel0OnFiles(t, map[string]string{
+		"test.php": `<?php
+trait HelperTrait {
+    public function helper(): void
+    {
+        $this->local();
+    }
+
+    private function local(): void {}
+}
+`,
+	})
+
+	if hasIssueContaining(issues, level0SymbolsCode, "Undefined variable: $this") {
+		t.Fatalf("trait methods should have object context, got %#v", issues)
+	}
+	if hasIssueContaining(issues, level0SymbolsCode, "Call to an undefined method HelperTrait::local") {
+		t.Fatalf("trait methods should resolve other trait methods, got %#v", issues)
+	}
+}
+
+func TestLevel0ResolvesNamespacedBuiltinClassFallback(t *testing.T) {
+	issues := runLevel0OnFiles(t, map[string]string{
+		"test.php": `<?php
+namespace App;
+
+function run(DateTimeImmutable $date): void
+{
+    $reflection = new ReflectionClass($date);
+    DateTime::createFromFormat('Y-m-d', '2026-05-26');
+}
+`,
+	})
+
+	for _, unexpected := range []string{
+		"Parameter $date references unknown class App\\DateTimeImmutable",
+		"Instantiated class App\\ReflectionClass not found",
+		"Call to an undefined static method App\\DateTime::createFromFormat",
+	} {
+		if hasIssueContaining(issues, level0SymbolsCode, unexpected) {
+			t.Fatalf("expected builtin class fallback for %q, got %#v", unexpected, issues)
 		}
 	}
 }
@@ -346,7 +443,6 @@ try {
 	})
 
 	for _, expected := range []string{
-		"Used class Missing\\Thing not found",
 		"Used function missing_fn not found",
 		"Used constant MISSING_CONST not found",
 		"Attribute class MissingAttr not found",

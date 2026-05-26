@@ -25,7 +25,7 @@ func (p *Parser) parseConstantWithModifiers(modifiers []string) *ast.ConstantNod
 	}
 	p.nextToken() // consume 'const'
 	typeStr := ""
-	if p.tok.Type == token.T_STRING && p.peekToken().Type == token.T_STRING {
+	if isConstTypeToken(p.tok.Type) && p.peekToken().Type == token.T_STRING {
 		typeStr = p.tok.Literal
 		p.nextToken()
 	}
@@ -64,6 +64,15 @@ func (p *Parser) parseConstantWithModifiers(modifiers []string) *ast.ConstantNod
 		Modifiers:  append([]string(nil), modifiers...),
 		Value:      value,
 		Pos:        ast.Position(pos),
+	}
+}
+
+func isConstTypeToken(tokenType token.TokenType) bool {
+	switch tokenType {
+	case token.T_ARRAY, token.T_CALLABLE, token.T_STRING:
+		return true
+	default:
+		return false
 	}
 }
 

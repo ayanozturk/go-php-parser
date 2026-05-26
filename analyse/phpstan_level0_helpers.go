@@ -25,7 +25,7 @@ func resolveNewClassName(node *ast.NewNode, ft fileTypeContext) string {
 	return ""
 }
 
-func resolveClassLikeForCall(name string, current *ast.ClassNode, ft fileTypeContext) string {
+func resolveClassLikeForCall(name string, current *ast.ClassNode, ft fileTypeContext, ctx *AnalysisContext) string {
 	switch strings.ToLower(strings.TrimPrefix(name, `\`)) {
 	case "self", "static":
 		if current != nil {
@@ -33,6 +33,12 @@ func resolveClassLikeForCall(name string, current *ast.ClassNode, ft fileTypeCon
 		}
 	case "parent":
 		if current != nil {
+			if ctx != nil && ctx.Project != nil {
+				currentName := ft.resolveClassLike(current.Name)
+				if class, ok := ctx.Project.ResolveClass(currentName); ok && len(class.Extends) > 0 {
+					return class.Extends[0]
+				}
+			}
 			if class, ok := ft.resolveClass(ft.resolveClassLike(current.Name)); ok && len(class.Extends) > 0 {
 				return class.Extends[0]
 			}
