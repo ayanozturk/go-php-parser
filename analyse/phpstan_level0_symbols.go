@@ -141,7 +141,9 @@ func (r *PHPStanLevel0Rule) checkSymbolsAndCalls(filename string, nodes []ast.No
 			}
 			if n.Const != "class" {
 				constantName := className + "::" + n.Const
-				if !ctx.Resolver.ConstantExists(constantName) {
+				if constant, ok := resolveClassConstant(ctx.Project, className, n.Const); ok {
+					checkConstantVisibility(filename, n.GetPos(), constant, className, class, ft, ctx.Project, &issues)
+				} else if !ctx.Resolver.ConstantExists(constantName) {
 					if guards.hasConstant(constantName) {
 						return
 					}
@@ -172,6 +174,31 @@ func (r *PHPStanLevel0Rule) checkSymbolsAndCalls(filename string, nodes []ast.No
 		}
 	})
 	return issues
+}
+
+func resolveClassConstant(project *ProjectIndex, className, constName string) (ResolvedConstant, bool) {
+	if project == nil {
+		return ResolvedConstant{}, false
+	}
+	return project.ResolveConstant(className, constName)
+}
+
+func checkConstantVisibility(filename string, pos ast.Position, constant ResolvedConstant, className string, currentClass *ast.ClassNode, ft fileTypeContext, project *ProjectIndex, issues *[]AnalysisIssue) {
+	declaringClass := constant.DeclaringClass
+	if declaringClass == "" {
+		declaringClass = className
+	}
+	caller := callerClassName(currentClass, ft)
+	switch constant.Visibility {
+	case "private":
+		if caller == "" || indexKey(caller) != indexKey(declaringClass) {
+			*issues = append(*issues, issue(filename, pos, level0SymbolsCode, fmt.Sprintf("Access to private constant %s::%s.", declaringClass, constant.Name)))
+		}
+	case "protected":
+		if caller == "" || !isSubclassOf(project, caller, declaringClass) {
+			*issues = append(*issues, issue(filename, pos, level0SymbolsCode, fmt.Sprintf("Access to protected constant %s::%s.", declaringClass, constant.Name)))
+		}
+	}
 }
 
 func methodCallClassName(object ast.Node, ft fileTypeContext) string {

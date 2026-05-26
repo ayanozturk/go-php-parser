@@ -703,6 +703,58 @@ unguarded_function();
 	}
 }
 
+func TestLevel0ClassConstantVisibility(t *testing.T) {
+	issues := runLevel0OnFiles(t, map[string]string{
+		"test.php": `<?php
+class Base {
+    private const SECRET = 1;
+    protected const TOKEN = 2;
+    public const NAME = 'base';
+}
+class Child extends Base {
+    public function ok() {
+        return self::TOKEN;
+    }
+}
+echo Base::SECRET;
+echo Base::TOKEN;
+echo Child::NAME;
+`,
+	})
+
+	if !hasIssueContaining(issues, level0SymbolsCode, "Access to private constant Base::SECRET") {
+		t.Fatalf("expected private constant issue, got %#v", issues)
+	}
+	if !hasIssueContaining(issues, level0SymbolsCode, "Access to protected constant Base::TOKEN") {
+		t.Fatalf("expected protected constant issue, got %#v", issues)
+	}
+	if hasIssueContaining(issues, level0SymbolsCode, "Access to undefined constant Child::NAME") {
+		t.Fatalf("inherited public constant should resolve, got %#v", issues)
+	}
+}
+
+func TestLevel0InterfaceConstantsMustBePublic(t *testing.T) {
+	issues := runLevel0OnFiles(t, map[string]string{
+		"test.php": `<?php
+interface BadConstants {
+    private const SECRET = 1;
+    protected const TOKEN = 2;
+    public const NAME = 'ok';
+}
+`,
+	})
+
+	if !hasIssueContaining(issues, level0ClassModelCode, "Interface constant BadConstants::SECRET must be public") {
+		t.Fatalf("expected private interface constant issue, got %#v", issues)
+	}
+	if !hasIssueContaining(issues, level0ClassModelCode, "Interface constant BadConstants::TOKEN must be public") {
+		t.Fatalf("expected protected interface constant issue, got %#v", issues)
+	}
+	if hasIssueContaining(issues, level0ClassModelCode, "BadConstants::NAME must be public") {
+		t.Fatalf("public interface constant should not be reported, got %#v", issues)
+	}
+}
+
 func TestLevel0CompactReportsUndefinedVariables(t *testing.T) {
 	issues := runLevel0OnFiles(t, map[string]string{
 		"test.php": `<?php

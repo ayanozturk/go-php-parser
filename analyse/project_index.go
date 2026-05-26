@@ -6,13 +6,14 @@ import (
 )
 
 type ProjectIndex struct {
-	Classes    map[string]ResolvedClass
-	Methods    map[string]map[string]ResolvedMethod
-	Properties map[string]map[string]ResolvedProperty
-	Functions  map[string]ResolvedFunction
-	Constants  map[string]struct{}
-	FileTypes  map[string]fileTypeContext
-	Duplicates []DuplicateSymbol
+	Classes     map[string]ResolvedClass
+	Methods     map[string]map[string]ResolvedMethod
+	Properties  map[string]map[string]ResolvedProperty
+	ClassConsts map[string]map[string]ResolvedConstant
+	Functions   map[string]ResolvedFunction
+	Constants   map[string]struct{}
+	FileTypes   map[string]fileTypeContext
+	Duplicates  []DuplicateSymbol
 }
 
 type DuplicateSymbol struct {
@@ -23,12 +24,13 @@ type DuplicateSymbol struct {
 
 func NewProjectIndex() *ProjectIndex {
 	idx := &ProjectIndex{
-		Classes:    make(map[string]ResolvedClass),
-		Methods:    make(map[string]map[string]ResolvedMethod),
-		Properties: make(map[string]map[string]ResolvedProperty),
-		Functions:  make(map[string]ResolvedFunction),
-		Constants:  make(map[string]struct{}),
-		FileTypes:  make(map[string]fileTypeContext),
+		Classes:     make(map[string]ResolvedClass),
+		Methods:     make(map[string]map[string]ResolvedMethod),
+		Properties:  make(map[string]map[string]ResolvedProperty),
+		ClassConsts: make(map[string]map[string]ResolvedConstant),
+		Functions:   make(map[string]ResolvedFunction),
+		Constants:   make(map[string]struct{}),
+		FileTypes:   make(map[string]fileTypeContext),
 	}
 	idx.seedBuiltins()
 	return idx
@@ -55,8 +57,14 @@ func (idx *ProjectIndex) FunctionExists(name string) bool {
 }
 
 func (idx *ProjectIndex) ConstantExists(name string) bool {
-	_, ok := idx.Constants[indexKey(name)]
-	return ok
+	if _, ok := idx.Constants[indexKey(name)]; ok {
+		return true
+	}
+	if className, constName, ok := strings.Cut(name, "::"); ok {
+		_, ok := idx.ResolveConstant(className, constName)
+		return ok
+	}
+	return false
 }
 
 func (idx *ProjectIndex) ResolveClass(name string) (ResolvedClass, bool) {
@@ -89,6 +97,20 @@ func (idx *ProjectIndex) ResolveProperty(className, propertyName string) (Resolv
 		}
 	}
 	return ResolvedProperty{}, false
+}
+
+func (idx *ProjectIndex) ResolveConstant(className, constantName string) (ResolvedConstant, bool) {
+	for _, candidate := range idx.classLineage(className) {
+		constants := idx.ClassConsts[indexKey(candidate)]
+		if constants == nil {
+			continue
+		}
+		if constant, ok := constants[strings.ToLower(constantName)]; ok {
+			constant.DeclaringClass = candidate
+			return constant, true
+		}
+	}
+	return ResolvedConstant{}, false
 }
 
 func (idx *ProjectIndex) ResolveFunction(name string) (ResolvedFunction, bool) {
@@ -198,7 +220,7 @@ func (idx *ProjectIndex) indexClassMembers(className string, properties, methods
 	}
 	for _, constNode := range constants {
 		if c, ok := constNode.(*ast.ConstantNode); ok {
-			idx.Constants[indexKey(className+"::"+c.Name)] = struct{}{}
+			idx.addClassConstant(className, constantFromNode(className, c, ft))
 		}
 	}
 }
@@ -213,7 +235,7 @@ func (idx *ProjectIndex) indexInterfaceMembers(className string, members []ast.N
 			}
 			idx.addMethod(className, ResolvedMethod{Name: m.Name, DeclaringClass: className, ReturnType: normalizeTypeWithContext(returnType, ft), Params: paramsFromNodes(m.Params, ft), Visibility: "public", Abstract: true})
 		case *ast.ConstantNode:
-			idx.Constants[indexKey(className+"::"+m.Name)] = struct{}{}
+			idx.addClassConstant(className, constantFromNode(className, m, ft))
 		}
 	}
 }
@@ -247,6 +269,15 @@ func (idx *ProjectIndex) addProperty(className string, property ResolvedProperty
 	idx.Properties[key][strings.ToLower(property.Name)] = property
 }
 
+func (idx *ProjectIndex) addClassConstant(className string, constant ResolvedConstant) {
+	key := indexKey(className)
+	if idx.ClassConsts[key] == nil {
+		idx.ClassConsts[key] = make(map[string]ResolvedConstant)
+	}
+	idx.ClassConsts[key][strings.ToLower(constant.Name)] = constant
+	idx.Constants[indexKey(className+"::"+constant.Name)] = struct{}{}
+}
+
 func methodFromFunction(className string, fn *ast.FunctionNode, ft fileTypeContext) ResolvedMethod {
 	return ResolvedMethod{
 		Name:           fn.Name,
@@ -257,6 +288,16 @@ func methodFromFunction(className string, fn *ast.FunctionNode, ft fileTypeConte
 		IsStatic:       hasModifier(fn.Modifiers, "static"),
 		Abstract:       hasModifier(fn.Modifiers, "abstract"),
 		Final:          hasModifier(fn.Modifiers, "final"),
+	}
+}
+
+func constantFromNode(className string, c *ast.ConstantNode, ft fileTypeContext) ResolvedConstant {
+	return ResolvedConstant{
+		Name:           c.Name,
+		DeclaringClass: className,
+		Type:           normalizeTypeWithContext(c.Type, ft),
+		Visibility:     defaultVisibility(c.Visibility),
+		Final:          hasModifier(c.Modifiers, "final"),
 	}
 }
 

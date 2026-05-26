@@ -44,6 +44,14 @@ type ResolvedProperty struct {
 	Readonly   bool
 }
 
+type ResolvedConstant struct {
+	Name           string
+	DeclaringClass string
+	Type           string
+	Visibility     string
+	Final          bool
+}
+
 type ResolvedFunction struct {
 	Name       string
 	ReturnType string

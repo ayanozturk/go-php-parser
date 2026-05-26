@@ -128,7 +128,7 @@ func (p *Parser) parseClassDeclaration() (ast.Node, error) {
 			continue
 		}
 		if p.tok.Type == token.T_CONST {
-			if constant := p.parseConstant(); constant != nil {
+			if constant := p.parseConstantWithModifiers(modifiers); constant != nil {
 				constants = append(constants, constant)
 			}
 			continue
@@ -260,7 +260,7 @@ func (p *Parser) parseAnonymousClassExpression() (ast.Node, []ast.Node) {
 			continue
 		}
 		if p.tok.Type == token.T_CONST {
-			if constant := p.parseConstant(); constant != nil {
+			if constant := p.parseConstantWithModifiers(modifiers); constant != nil {
 				constants = append(constants, constant)
 			}
 			continue

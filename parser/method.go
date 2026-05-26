@@ -80,7 +80,7 @@ func (p *Parser) parseInterfaceDeclaration() ast.Node {
 				}
 			}
 			if p.tok.Type == token.T_CONST {
-				if constant := p.parseConstant(); constant != nil {
+				if constant := p.parseConstantWithModifiers([]string{visibility}); constant != nil {
 					members = append(members, constant)
 				}
 			} else if p.tok.Type == token.T_FUNCTION {

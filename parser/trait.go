@@ -48,7 +48,7 @@ func (p *Parser) parseTraitDeclaration() (ast.Node, error) {
 			continue
 		}
 		if p.tok.Type == token.T_CONST {
-			if constant := p.parseConstant(); constant != nil {
+			if constant := p.parseConstantWithModifiers(modifiers); constant != nil {
 				body = append(body, constant)
 			}
 			continue

@@ -57,3 +57,34 @@ func TestParseConstant(t *testing.T) {
 		checkConstantNode(t, node, "BAZ", "hi", "protected", "")
 	})
 }
+
+func TestParseClassConstantKeepsModifierVisibility(t *testing.T) {
+	src := `<?php
+class Demo {
+    private const SECRET = 1;
+    protected const TOKEN = 2;
+    public const NAME = 'demo';
+}`
+	lex := lexer.New(src)
+	p := New(lex, false)
+	nodes := p.Parse()
+	if len(p.Errors()) > 0 {
+		t.Fatalf("unexpected parser errors: %v", p.Errors())
+	}
+	classNode, ok := nodes[0].(*ast.ClassNode)
+	if !ok {
+		t.Fatalf("expected ClassNode, got %T", nodes[0])
+	}
+	if len(classNode.Constants) != 3 {
+		t.Fatalf("expected 3 constants, got %d", len(classNode.Constants))
+	}
+	for i, want := range []string{"private", "protected", "public"} {
+		constant, ok := classNode.Constants[i].(*ast.ConstantNode)
+		if !ok {
+			t.Fatalf("expected ConstantNode, got %T", classNode.Constants[i])
+		}
+		if constant.Visibility != want {
+			t.Fatalf("constant %d visibility: got %q, want %q", i, constant.Visibility, want)
+		}
+	}
+}

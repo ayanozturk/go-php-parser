@@ -8,11 +8,15 @@ import (
 // parseConstant parses a PHP constant declaration.
 // Supports both legacy `const NAME = VALUE;` and typed `const TYPE NAME = VALUE;` forms.
 func (p *Parser) parseConstant() *ast.ConstantNode {
+	return p.parseConstantWithModifiers(nil)
+}
+
+func (p *Parser) parseConstantWithModifiers(modifiers []string) *ast.ConstantNode {
 	pos := p.tok.Pos
-	visibility := ""
-	// Check for visibility modifier
-	if p.tok.Type == token.T_PUBLIC || p.tok.Type == token.T_PROTECTED || p.tok.Type == token.T_PRIVATE {
+	visibility := visibilityFromModifiers(modifiers)
+	if len(modifiers) == 0 && (p.tok.Type == token.T_PUBLIC || p.tok.Type == token.T_PROTECTED || p.tok.Type == token.T_PRIVATE) {
 		visibility = p.tok.Literal
+		modifiers = append(modifiers, p.tok.Literal)
 		p.nextToken()
 	}
 	if p.tok.Type != token.T_CONST {
@@ -57,7 +61,18 @@ func (p *Parser) parseConstant() *ast.ConstantNode {
 		Name:       name,
 		Type:       typeStr,
 		Visibility: visibility,
+		Modifiers:  append([]string(nil), modifiers...),
 		Value:      value,
 		Pos:        ast.Position(pos),
 	}
+}
+
+func visibilityFromModifiers(modifiers []string) string {
+	for _, modifier := range modifiers {
+		switch modifier {
+		case "public", "protected", "private":
+			return modifier
+		}
+	}
+	return ""
 }

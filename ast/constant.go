@@ -8,6 +8,7 @@ type ConstantNode struct {
 	Name       string
 	Type       string // e.g. "int", "string", etc.
 	Visibility string // "public", "protected", "private", or ""
+	Modifiers  []string
 	Value      Node
 	Pos        Position
 }

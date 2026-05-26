@@ -124,12 +124,15 @@ func checkClassMethodLegality(filename, className string, class *ast.ClassNode, 
 
 func checkInterfaceMemberLegality(filename, interfaceName string, iface *ast.InterfaceNode, issues *[]AnalysisIssue) {
 	for _, member := range iface.Members {
-		method, ok := member.(*ast.InterfaceMethodNode)
-		if !ok {
-			continue
-		}
-		if method.Visibility != "" && method.Visibility != "public" {
-			*issues = append(*issues, issue(filename, method.GetPos(), level0ClassModelCode, fmt.Sprintf("Interface method %s::%s() must be public.", interfaceName, method.Name)))
+		switch n := member.(type) {
+		case *ast.InterfaceMethodNode:
+			if n.Visibility != "" && n.Visibility != "public" {
+				*issues = append(*issues, issue(filename, n.GetPos(), level0ClassModelCode, fmt.Sprintf("Interface method %s::%s() must be public.", interfaceName, n.Name)))
+			}
+		case *ast.ConstantNode:
+			if n.Visibility != "" && n.Visibility != "public" {
+				*issues = append(*issues, issue(filename, n.GetPos(), level0ClassModelCode, fmt.Sprintf("Interface constant %s::%s must be public.", interfaceName, n.Name)))
+			}
 		}
 	}
 }
