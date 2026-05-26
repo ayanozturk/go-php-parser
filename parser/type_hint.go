@@ -10,7 +10,7 @@ func (p *Parser) parseTypeHint() string {
 	// Only emit errors for real type hints, not when inside docblocks/comments
 	isDocblockContext := p.tok.Type == token.T_DOC_COMMENT
 	typeHint := ""
-	lastWasPipe := false
+	lastWasSeparator := false
 	segmentCount := 0
 	for {
 		// Nullable type
@@ -61,7 +61,7 @@ func (p *Parser) parseTypeHint() string {
 		if typeSegment != "" {
 			typeHint += typeSegment
 			segmentCount++
-			lastWasPipe = false
+			lastWasSeparator = false
 			if p.tok.Type == token.T_LBRACKET {
 				typeHint += "[]"
 				p.nextToken()
@@ -75,34 +75,34 @@ func (p *Parser) parseTypeHint() string {
 			}
 		} else {
 			// Only emit error if the segment is truly empty and not just at start/end
-			if lastWasPipe && segmentCount > 0 {
+			if lastWasSeparator && segmentCount > 0 {
 				if !isDocblockContext {
 					p.addError("empty type segment in union type")
 				}
 			}
 			break
 		}
-		if p.tok.Type == token.T_PIPE {
-			if lastWasPipe {
+		if p.tok.Type == token.T_PIPE || p.tok.Type == token.T_AMPERSAND {
+			if lastWasSeparator {
 				if !isDocblockContext {
-					p.addError("consecutive '|' in union type")
+					p.addError("consecutive type separators in type hint")
 				}
 			}
-			typeHint += "|"
+			typeHint += p.tok.Literal
 			p.nextToken()
-			lastWasPipe = true
+			lastWasSeparator = true
 			continue
 		}
 		break
 	}
-	if lastWasPipe {
+	if lastWasSeparator {
 		if !isDocblockContext {
-			p.addError("union type ends with '|' or has empty segment")
+			p.addError("type hint ends with a separator or has empty segment")
 		}
 	}
-	if segmentCount == 0 && lastWasPipe {
+	if segmentCount == 0 && lastWasSeparator {
 		if !isDocblockContext {
-			p.addError("empty union type")
+			p.addError("empty compound type")
 		}
 	}
 

@@ -335,6 +335,50 @@ class Foo {
 	}
 }
 
+func TestParseMethodWithIntersectionReturnTypeKeepsFollowingMethods(t *testing.T) {
+	php := `<?php
+class Foo {
+    private function makeThing(): Shift&MockObject
+    {
+        return $this->createMock(Shift::class);
+    }
+
+    private function setupBasicShiftAndUser(): void
+    {
+    }
+}`
+	l := lexer.New(php)
+	p := New(l, true)
+	nodes := p.Parse()
+	if len(p.Errors()) > 0 {
+		t.Fatalf("Parser errors: %v", p.Errors())
+	}
+	if len(nodes) != 1 {
+		t.Fatalf("Expected one node, got %d", len(nodes))
+	}
+	classNode, ok := nodes[0].(*ast.ClassNode)
+	if !ok {
+		t.Fatalf("Expected ClassNode, got %T", nodes[0])
+	}
+	if len(classNode.Methods) != 2 {
+		t.Fatalf("Expected two methods, got %d", len(classNode.Methods))
+	}
+	first, ok := classNode.Methods[0].(*ast.FunctionNode)
+	if !ok {
+		t.Fatalf("Expected first method to be FunctionNode, got %T", classNode.Methods[0])
+	}
+	if first.ReturnType != "Shift&MockObject" {
+		t.Fatalf("Expected intersection return type, got %q", first.ReturnType)
+	}
+	second, ok := classNode.Methods[1].(*ast.FunctionNode)
+	if !ok {
+		t.Fatalf("Expected second method to be FunctionNode, got %T", classNode.Methods[1])
+	}
+	if second.Name != "setupBasicShiftAndUser" {
+		t.Fatalf("Expected following helper method, got %q", second.Name)
+	}
+}
+
 func TestParsePHPDocInClass(t *testing.T) {
 	input := `<?php
 /**
