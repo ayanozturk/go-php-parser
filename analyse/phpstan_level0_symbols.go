@@ -62,7 +62,7 @@ func (r *PHPStanLevel0Rule) checkSymbolsAndCalls(filename string, nodes []ast.No
 					issues = append(issues, issue(filename, n.GetPos(), level0SymbolsCode, fmt.Sprintf("Call to an undefined static method %s::%s().", resolvedClass, methodName)))
 					return
 				}
-				checkMethodVisibility(filename, n.GetPos(), method, resolvedClass, class, ft, ctx.Project, true, &issues)
+				checkMethodVisibility(filename, n.GetPos(), method, resolvedClass, class, ft, ctx.Project, !isSpecialClassName(className), &issues)
 				checkCallArguments(filename, n.GetPos(), "Static method "+resolvedClass+"::"+method.Name+"()", method.Name, n.Args, method, &issues)
 				return
 			}

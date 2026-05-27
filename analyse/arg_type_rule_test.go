@@ -414,6 +414,34 @@ func TestMethodArgumentTypeRefinedInsideInstanceofAndBranch(t *testing.T) {
 	}
 }
 
+func TestMethodArgumentTypeRefinedInRightSideOfAndCondition(t *testing.T) {
+	php := `<?php
+    namespace App;
+
+    class Shift {
+    }
+
+    class Example {
+        public function findShift(): ?Shift {
+            return new Shift();
+        }
+
+        public function isShiftAccessibleToCompany(Shift $shift): bool {
+            return true;
+        }
+
+        public function run(): void {
+            $shift = $this->findShift();
+            if ($shift && $this->isShiftAccessibleToCompany($shift)) {
+            }
+        }
+    }`
+	issues := analysePHP(t, php)
+	if hasArgTypeIssue(issues) {
+		t.Fatalf("expected no A.ARG.TYPE issue for variable refined on right side of &&, got: %#v", issues)
+	}
+}
+
 func TestMethodArgumentTypeNotRefinedWithoutInstanceofBranch(t *testing.T) {
 	php := `<?php
     namespace App;

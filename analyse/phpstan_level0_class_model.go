@@ -153,7 +153,7 @@ func checkConsistentConstructorLegality(filename, className string, class *ast.C
 	}
 	pos := constructorPos(class)
 	checkConstructorVisibilityCompatibility(filename, pos, className, required, implemented, issues)
-	checkRequiredMethodSignature(filename, pos, className, required, implemented, issues)
+	checkRequiredMethodSignature(filename, pos, className, required, implemented, ctx, issues)
 }
 
 func checkInterfaceMemberLegality(filename, interfaceName string, iface *ast.InterfaceNode, issues *[]AnalysisIssue) {
@@ -178,9 +178,6 @@ func checkReadonlyClassProperties(filename, className string, class *ast.ClassNo
 		if !ok {
 			continue
 		}
-		if classReadonly && !property.IsReadonly {
-			*issues = append(*issues, issue(filename, property.GetPos(), level0ClassModelCode, fmt.Sprintf("Readonly class %s cannot have non-readonly property $%s.", className, property.Name)))
-		}
 		if class.Extends != "" {
 			parentName := ""
 			if ctx.Project != nil {
@@ -191,23 +188,8 @@ func checkReadonlyClassProperties(filename, className string, class *ast.ClassNo
 			if parentName == "" {
 				continue
 			}
-			if parentProperty, ok := ctx.Resolver.ResolveProperty(parentName, property.Name); ok && parentProperty.Readonly && !property.IsReadonly {
+			if parentProperty, ok := ctx.Resolver.ResolveProperty(parentName, property.Name); ok && parentProperty.Readonly && !property.IsReadonly && !classReadonly {
 				*issues = append(*issues, issue(filename, property.GetPos(), level0ClassModelCode, fmt.Sprintf("Property %s::$%s overriding readonly property must be readonly.", className, property.Name)))
-			}
-		}
-	}
-	for _, methodNode := range class.Methods {
-		fn, ok := methodNode.(*ast.FunctionNode)
-		if !ok || !strings.EqualFold(fn.Name, "__construct") {
-			continue
-		}
-		for _, paramNode := range fn.Params {
-			param, ok := paramNode.(*ast.ParamNode)
-			if !ok || !param.IsPromoted {
-				continue
-			}
-			if classReadonly && !param.IsReadonly {
-				*issues = append(*issues, issue(filename, param.GetPos(), level0ClassModelCode, fmt.Sprintf("Readonly class %s cannot have non-readonly property $%s.", className, param.Name)))
 			}
 		}
 	}
@@ -358,11 +340,11 @@ func checkRequiredMethodImplementations(filename, className string, pos ast.Posi
 		if method.Visibility == "public" && implemented.Visibility != "public" {
 			*issues = append(*issues, issue(filename, pos, level0ClassModelCode, fmt.Sprintf("Method %s::%s() implementing interface method must be public.", className, method.Name)))
 		}
-		checkRequiredMethodSignature(filename, pos, className, method, implemented, issues)
+		checkRequiredMethodSignature(filename, pos, className, method, implemented, &AnalysisContext{Resolver: project, Project: project}, issues)
 	}
 }
 
-func checkRequiredMethodSignature(filename string, pos ast.Position, className string, required, implemented ResolvedMethod, issues *[]AnalysisIssue) {
+func checkRequiredMethodSignature(filename string, pos ast.Position, className string, required, implemented ResolvedMethod, ctx *AnalysisContext, issues *[]AnalysisIssue) {
 	requiredMin, requiredMax, requiredVariadic := parameterBounds(required.Params)
 	implementedMin, implementedMax, implementedVariadic := parameterBounds(implemented.Params)
 	if implementedMin > requiredMin {
@@ -380,9 +362,16 @@ func checkRequiredMethodSignature(filename string, pos ast.Position, className s
 			*issues = append(*issues, issue(filename, pos, level0ClassModelCode, fmt.Sprintf("Parameter %d of method %s::%s() is named $%s, expected $%s.", idx+1, className, implemented.Name, implementedParam.Name, requiredParam.Name)))
 		}
 	}
-	if required.ReturnType != "" && implemented.ReturnType != "" && !strings.EqualFold(required.ReturnType, implemented.ReturnType) {
+	if required.ReturnType != "" && implemented.ReturnType != "" && !returnTypeCompatible(required.ReturnType, implemented.ReturnType, ctx) {
 		*issues = append(*issues, issue(filename, pos, level0ClassModelCode, fmt.Sprintf("Return type %s of method %s::%s() is not compatible with inherited return type %s.", implemented.ReturnType, className, implemented.Name, required.ReturnType)))
 	}
+}
+
+func returnTypeCompatible(required, implemented string, ctx *AnalysisContext) bool {
+	if strings.EqualFold(required, implemented) {
+		return true
+	}
+	return ParseType(required).AcceptsWithContext(ParseType(implemented), nil, ctx)
 }
 
 func collectAbstractMethods(project *ProjectIndex, className string, out map[string]ResolvedMethod) {

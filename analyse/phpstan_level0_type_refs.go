@@ -71,7 +71,7 @@ func (r *PHPStanLevel0Rule) checkTypeReferences(filename string, nodes []ast.Nod
 			}
 		case *ast.AttributeNode:
 			name := ft.resolveClassLike(n.Name)
-			resolved, ok := ctx.Resolver.ResolveClass(name)
+			_, ok := ctx.Resolver.ResolveClass(name)
 			if !ok {
 				if guards.hasClass(name) {
 					return
@@ -79,7 +79,6 @@ func (r *PHPStanLevel0Rule) checkTypeReferences(filename string, nodes []ast.Nod
 				issues = append(issues, issue(filename, n.GetPos(), level0SymbolsCode, fmt.Sprintf("Attribute class %s not found.", name)))
 				return
 			}
-			checkCallArguments(filename, n.GetPos(), "Attribute class "+resolved.Name+" constructor", "__construct", n.Arguments, constructorFor(resolved.Name, ctx), &issues)
 		}
 	})
 	return issues

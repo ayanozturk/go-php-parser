@@ -447,7 +447,12 @@ func walkExprForArgTypes(node ast.Node, scope *functionScope, ctx *AnalysisConte
 		walkExprForArgTypes(n.Object, scope, ctx, filename, issues)
 	case *ast.BinaryExpr:
 		walkExprForArgTypes(n.Left, scope, ctx, filename, issues)
-		walkExprForArgTypes(n.Right, scope, ctx, filename, issues)
+		switch n.Operator {
+		case "&&", "and":
+			walkExprForArgTypes(n.Right, scopeForConditionTrue(scope, n.Left), ctx, filename, issues)
+		default:
+			walkExprForArgTypes(n.Right, scope, ctx, filename, issues)
+		}
 	case *ast.ConcatNode:
 		for _, part := range n.Parts {
 			walkExprForArgTypes(part, scope, ctx, filename, issues)

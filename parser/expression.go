@@ -563,6 +563,14 @@ func (p *Parser) parseSimpleStaticAccess(fqcn string, fqcnPos token.Position) as
 		p.nextToken()
 		if p.tok.Type == token.T_LPAREN {
 			p.nextToken() // consume '('
+			if p.tok.Type == token.T_ELLIPSIS && p.peekToken().Type == token.T_RPAREN {
+				p.nextToken() // consume '...'
+				p.nextToken() // consume ')'
+				return p.parsePostfixExpression(&ast.FirstClassCallableNode{
+					Name: &ast.IdentifierNode{Value: fqcn + "::" + memberName, Pos: ast.Position(fqcnPos)},
+					Pos:  ast.Position(fqcnPos),
+				})
+			}
 			args := p.parseFunctionCallArguments()
 			if p.tok.Type != token.T_RPAREN {
 				p.addError("line %d:%d: expected ) after arguments for static call %s::%s, got %s", p.tok.Pos.Line, p.tok.Pos.Column, fqcn, memberName, p.tok.Literal)
@@ -1116,6 +1124,14 @@ func (p *Parser) parseStaticAccessOnNode(expr ast.Node) ast.Node {
 		p.nextToken()
 		if p.tok.Type == token.T_LPAREN {
 			p.nextToken() // consume '('
+			if p.tok.Type == token.T_ELLIPSIS && p.peekToken().Type == token.T_RPAREN {
+				p.nextToken() // consume '...'
+				p.nextToken() // consume ')'
+				return p.parsePostfixExpression(&ast.FirstClassCallableNode{
+					Name: &ast.IdentifierNode{Value: className + "::" + memberName, Pos: expr.GetPos()},
+					Pos:  expr.GetPos(),
+				})
+			}
 			args := p.parseFunctionCallArguments()
 			if p.tok.Type != token.T_RPAREN {
 				p.addError("line %d:%d: expected ) after arguments for static call %s::%s, got %s", p.tok.Pos.Line, p.tok.Pos.Column, className, memberName, p.tok.Literal)

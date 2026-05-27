@@ -129,6 +129,99 @@ function run(): void
 	}
 }
 
+func TestLevel0BuiltinMethodsHaveUsableInvocationBounds(t *testing.T) {
+	issues := runLevel0OnFiles(t, map[string]string{
+		"test.php": `<?php
+enum Status: string {
+    case ACTIVE = 'active';
+}
+
+final class Demo {
+    public function run(): void {
+        Status::from('active');
+        DateTime::createFromFormat('Y-m-d', '2026-05-27');
+        new ReflectionClass(self::class);
+    }
+}
+`,
+	})
+
+	for _, unexpected := range []string{
+		"DateTime::createFromFormat() invoked with 2 parameters, at most 0 allowed",
+		"ReflectionClass constructor invoked with 1 parameter, at most 0 allowed",
+		"Status::from() invoked with 1 parameter, at most 0 allowed",
+	} {
+		if hasIssueContaining(issues, level0InvocationCode, unexpected) {
+			t.Fatalf("unexpected invocation false positive %q, got %#v", unexpected, issues)
+		}
+	}
+}
+
+func TestLevel0ParentConstructorCallIsNotStaticInstanceCall(t *testing.T) {
+	issues := runLevel0OnFiles(t, map[string]string{
+		"test.php": `<?php
+class Base {
+    public function __construct(string $name) {}
+}
+
+class Child extends Base {
+    public function __construct() {
+        parent::__construct('child');
+    }
+}
+`,
+	})
+
+	if hasIssueContaining(issues, level0InvocationCode, "Static call to instance method Base::__construct") {
+		t.Fatalf("parent constructor call should not be reported as static instance call, got %#v", issues)
+	}
+}
+
+func TestLevel0TraitPrivateAndProtectedMethodsAreCallableFromUsingClass(t *testing.T) {
+	issues := runLevel0OnFiles(t, map[string]string{
+		"test.php": `<?php
+trait Helpers {
+    private function privateHelper(): void {}
+    protected function protectedHelper(): void {}
+}
+
+class UsesHelpers {
+    use Helpers;
+
+    public function run(): void {
+        $this->privateHelper();
+        $this->protectedHelper();
+    }
+}
+`,
+	})
+
+	if hasIssueContaining(issues, level0InvocationCode, "Call to private method Helpers::privateHelper") {
+		t.Fatalf("private trait method should be callable from using class, got %#v", issues)
+	}
+	if hasIssueContaining(issues, level0InvocationCode, "Call to protected method Helpers::protectedHelper") {
+		t.Fatalf("protected trait method should be callable from using class, got %#v", issues)
+	}
+}
+
+func TestLevel0DoesNotValidateAttributeConstructorArity(t *testing.T) {
+	issues := runLevel0OnFiles(t, map[string]string{
+		"test.php": `<?php
+#[Attribute]
+class NeedsArg {
+    public function __construct(string $name) {}
+}
+
+#[NeedsArg]
+class Demo {}
+`,
+	})
+
+	if hasIssueContaining(issues, level0InvocationCode, "Attribute class NeedsArg constructor invoked with 0 parameters") {
+		t.Fatalf("attribute constructor arity should not be reported at level 0, got %#v", issues)
+	}
+}
+
 func TestLevel0TreatsClassImportsAsPotentialNamespaceAliases(t *testing.T) {
 	issues := runLevel0OnFiles(t, map[string]string{
 		"test.php": `<?php
@@ -396,6 +489,53 @@ class VariadicImplementation implements SignatureContract {
 	}
 	if hasIssueContaining(issues, level0ClassModelCode, "VariadicImplementation::shape") {
 		t.Fatalf("variadic compatible implementation should not be reported, got %#v", issues)
+	}
+}
+
+func TestLevel0ClassModelReturnTypeCovariance(t *testing.T) {
+	issues := runLevel0OnFiles(t, map[string]string{
+		"test.php": `<?php
+interface Entity {
+    public function getId(): string|int|null;
+}
+
+class User implements Entity {
+    public function getId(): ?string {
+        return null;
+    }
+}
+
+interface Handler {
+    public function handle(): mixed;
+}
+
+class SpecificHandler implements Handler {
+    public function handle(): string {
+        return 'ok';
+    }
+}
+
+interface ResponseHandler {
+    public function response(): ?Response;
+}
+
+class Response {}
+class ConcreteResponseHandler implements ResponseHandler {
+    public function response(): Response {
+        return new Response();
+    }
+}
+`,
+	})
+
+	if hasIssueContaining(issues, level0ClassModelCode, "Return type ?string of method User::getId() is not compatible") {
+		t.Fatalf("nullable subtype should satisfy union parent return, got %#v", issues)
+	}
+	if hasIssueContaining(issues, level0ClassModelCode, "Return type string of method SpecificHandler::handle() is not compatible") {
+		t.Fatalf("specific return should satisfy mixed parent return, got %#v", issues)
+	}
+	if hasIssueContaining(issues, level0ClassModelCode, "Return type Response of method ConcreteResponseHandler::response() is not compatible") {
+		t.Fatalf("non-null return should satisfy nullable parent return, got %#v", issues)
 	}
 }
 
@@ -678,26 +818,26 @@ class Child extends Base {
 	}
 }
 
-func TestLevel0ReadonlyClassProperties(t *testing.T) {
+func TestLevel0ReadonlyClassPropertiesAreImplicitlyReadonly(t *testing.T) {
 	issues := runLevel0OnFiles(t, map[string]string{
 		"test.php": `<?php
-readonly class BadProperty {
-    public int $mutable;
+readonly class ValueObject {
+    public int $id;
 }
 readonly class ReadonlyParent {
     public readonly int $inherited;
 }
-readonly class BadOverride extends ReadonlyParent {
+readonly class Child extends ReadonlyParent {
     public int $inherited;
 }
 `,
 	})
 
-	if !hasIssueContaining(issues, level0ClassModelCode, "Readonly class BadProperty cannot have non-readonly property $mutable") {
-		t.Fatalf("expected readonly class property issue, got %#v", issues)
+	if hasIssueContaining(issues, level0ClassModelCode, "cannot have non-readonly property") {
+		t.Fatalf("readonly class properties are implicitly readonly, got %#v", issues)
 	}
-	if !hasIssueContaining(issues, level0ClassModelCode, "overriding readonly property must be readonly") {
-		t.Fatalf("expected readonly override issue, got %#v", issues)
+	if hasIssueContaining(issues, level0ClassModelCode, "overriding readonly property must be readonly") {
+		t.Fatalf("readonly child class properties are implicitly readonly, got %#v", issues)
 	}
 }
 

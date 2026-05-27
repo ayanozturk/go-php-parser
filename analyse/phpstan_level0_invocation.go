@@ -100,17 +100,33 @@ func checkMethodVisibility(filename string, pos ast.Position, method ResolvedMet
 	caller := callerClassName(currentClass, ft)
 	switch method.Visibility {
 	case "private":
-		if caller == "" || indexKey(caller) != indexKey(declaringClass) {
+		if caller == "" || (indexKey(caller) != indexKey(declaringClass) && !classUsesTrait(project, caller, declaringClass)) {
 			*issues = append(*issues, issue(filename, pos, level0InvocationCode, fmt.Sprintf("Call to private method %s::%s().", declaringClass, method.Name)))
 		}
 	case "protected":
-		if caller == "" || !isSubclassOf(project, caller, declaringClass) {
+		if caller == "" || (!isSubclassOf(project, caller, declaringClass) && !classUsesTrait(project, caller, declaringClass)) {
 			*issues = append(*issues, issue(filename, pos, level0InvocationCode, fmt.Sprintf("Call to protected method %s::%s().", declaringClass, method.Name)))
 		}
 	}
 	if static && !method.IsStatic {
 		*issues = append(*issues, issue(filename, pos, level0InvocationCode, fmt.Sprintf("Static call to instance method %s::%s().", className, method.Name)))
 	}
+}
+
+func classUsesTrait(project *ProjectIndex, className, traitName string) bool {
+	if project == nil || className == "" || traitName == "" {
+		return false
+	}
+	trait, ok := project.ResolveClass(traitName)
+	if !ok || trait.Kind != "trait" {
+		return false
+	}
+	for _, candidate := range project.classLineage(className) {
+		if indexKey(candidate) == indexKey(trait.Name) {
+			return true
+		}
+	}
+	return false
 }
 
 func checkInstanceStaticMethodCall(filename string, pos ast.Position, method ResolvedMethod, className string, issues *[]AnalysisIssue) {

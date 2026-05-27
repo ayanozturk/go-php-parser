@@ -83,9 +83,6 @@ func (idx *ProjectIndex) ResolveClass(name string) (ResolvedClass, bool) {
 }
 
 func (idx *ProjectIndex) ResolveMethod(className, methodName string) (ResolvedMethod, bool) {
-	if strings.EqualFold(methodName, "constructFrom") && strings.HasPrefix(indexKey(className), "stripe\\") {
-		return ResolvedMethod{Name: "constructFrom", DeclaringClass: className, Visibility: "public", IsStatic: true}, true
-	}
 	for _, candidate := range idx.classLineage(className) {
 		methods := idx.Methods[indexKey(candidate)]
 		if methods == nil {
@@ -212,8 +209,8 @@ func (idx *ProjectIndex) indexNodes(filename string, nodes []ast.Node, ft fileTy
 				idx.addClassConstant(name, ResolvedConstant{Name: enumCase.Name, DeclaringClass: name, Visibility: "public"})
 			}
 			idx.addMethod(name, ResolvedMethod{Name: "cases", DeclaringClass: name, ReturnType: "array", Visibility: "public", IsStatic: true})
-			idx.addMethod(name, ResolvedMethod{Name: "from", DeclaringClass: name, Visibility: "public", IsStatic: true})
-			idx.addMethod(name, ResolvedMethod{Name: "tryFrom", DeclaringClass: name, ReturnType: "?" + name, Visibility: "public", IsStatic: true})
+			idx.addMethod(name, ResolvedMethod{Name: "from", DeclaringClass: name, ReturnType: name, Params: []ResolvedParam{{Name: "value"}}, Visibility: "public", IsStatic: true})
+			idx.addMethod(name, ResolvedMethod{Name: "tryFrom", DeclaringClass: name, ReturnType: "?" + name, Params: []ResolvedParam{{Name: "value"}}, Visibility: "public", IsStatic: true})
 		case *ast.FunctionNode:
 			if currentClass != "" {
 				idx.addMethod(currentClass, methodFromFunction(currentClass, n, ft))
@@ -442,6 +439,8 @@ var builtinClassNames = map[string]struct{}{
 	"generator":           {},
 	"iterator":            {},
 	"iteratoraggregate":   {},
+	"jsonexception":       {},
+	"jsonserializable":    {},
 	"reflectionclass":     {},
 	"reflectionexception": {},
 	"reflectionfunction":  {},
@@ -503,6 +502,8 @@ func (idx *ProjectIndex) seedBuiltins() {
 		{Name: "Generator", Kind: "class", Final: true},
 		{Name: "Iterator", Kind: "interface", Extends: []string{"Traversable"}},
 		{Name: "IteratorAggregate", Kind: "interface", Extends: []string{"Traversable"}},
+		{Name: "JsonException", Kind: "class", Extends: []string{"Exception"}},
+		{Name: "JsonSerializable", Kind: "interface"},
 		{Name: "SensitiveParameter", Kind: "class", Final: true},
 		{Name: "SimpleXMLElement", Kind: "class"},
 		{Name: "Traversable", Kind: "interface"},
@@ -511,41 +512,26 @@ func (idx *ProjectIndex) seedBuiltins() {
 		idx.Classes[indexKey(class.Name)] = class
 	}
 	for _, className := range []string{"DateTime", "DateTimeImmutable"} {
-		idx.addMethod(className, ResolvedMethod{Name: "createFromFormat", DeclaringClass: className, ReturnType: className + "|false", Visibility: "public", IsStatic: true})
-		idx.addMethod(className, ResolvedMethod{Name: "createFromInterface", DeclaringClass: className, ReturnType: className, Visibility: "public", IsStatic: true})
+		idx.addMethod(className, ResolvedMethod{Name: "createFromFormat", DeclaringClass: className, ReturnType: className + "|false", Params: []ResolvedParam{{Name: "format"}, {Name: "datetime"}, {Name: "timezone", HasDefault: true}}, Visibility: "public", IsStatic: true})
+		idx.addMethod(className, ResolvedMethod{Name: "createFromInterface", DeclaringClass: className, ReturnType: className, Params: []ResolvedParam{{Name: "object"}}, Visibility: "public", IsStatic: true})
 		idx.addMethod(className, ResolvedMethod{Name: "getLastErrors", DeclaringClass: className, ReturnType: "array|false", Visibility: "public", IsStatic: true})
 	}
-	idx.addMethod("DateTime", ResolvedMethod{Name: "createFromImmutable", DeclaringClass: "DateTime", ReturnType: "DateTime", Visibility: "public", IsStatic: true})
-	idx.addMethod("DateTimeImmutable", ResolvedMethod{Name: "createFromMutable", DeclaringClass: "DateTimeImmutable", ReturnType: "DateTimeImmutable", Visibility: "public", IsStatic: true})
-	idx.addMethod("Closure", ResolvedMethod{Name: "fromCallable", DeclaringClass: "Closure", ReturnType: "Closure", Visibility: "public", IsStatic: true})
+	idx.addMethod("DateTime", ResolvedMethod{Name: "createFromImmutable", DeclaringClass: "DateTime", ReturnType: "DateTime", Params: []ResolvedParam{{Name: "object"}}, Visibility: "public", IsStatic: true})
+	idx.addMethod("DateTimeImmutable", ResolvedMethod{Name: "createFromMutable", DeclaringClass: "DateTimeImmutable", ReturnType: "DateTimeImmutable", Params: []ResolvedParam{{Name: "object"}}, Visibility: "public", IsStatic: true})
+	idx.addMethod("Closure", ResolvedMethod{Name: "fromCallable", DeclaringClass: "Closure", ReturnType: "Closure", Params: []ResolvedParam{{Name: "callback"}}, Visibility: "public", IsStatic: true})
+	idx.addMethod("DateTimeZone", ResolvedMethod{Name: "__construct", DeclaringClass: "DateTimeZone", Params: []ResolvedParam{{Name: "timezone"}}, Visibility: "public"})
+	idx.addMethod("DateInterval", ResolvedMethod{Name: "__construct", DeclaringClass: "DateInterval", Params: []ResolvedParam{{Name: "duration"}}, Visibility: "public"})
+	idx.addMethod("ArrayObject", ResolvedMethod{Name: "__construct", DeclaringClass: "ArrayObject", Params: []ResolvedParam{{Name: "array", HasDefault: true}, {Name: "flags", HasDefault: true}, {Name: "iteratorClass", HasDefault: true}}, Visibility: "public"})
+	idx.addMethod("Error", ResolvedMethod{Name: "__construct", DeclaringClass: "Error", Params: []ResolvedParam{{Name: "message", HasDefault: true}, {Name: "code", HasDefault: true}, {Name: "previous", HasDefault: true}}, Visibility: "public"})
+	idx.addMethod("Exception", ResolvedMethod{Name: "__construct", DeclaringClass: "Exception", Params: []ResolvedParam{{Name: "message", HasDefault: true}, {Name: "code", HasDefault: true}, {Name: "previous", HasDefault: true}}, Visibility: "public"})
+	idx.addMethod("ReflectionClass", ResolvedMethod{Name: "__construct", DeclaringClass: "ReflectionClass", Params: []ResolvedParam{{Name: "objectOrClass"}}, Visibility: "public"})
+	idx.addMethod("ReflectionMethod", ResolvedMethod{Name: "__construct", DeclaringClass: "ReflectionMethod", Params: []ResolvedParam{{Name: "objectOrMethod"}, {Name: "method", HasDefault: true}}, Visibility: "public"})
+	idx.addMethod("ReflectionProperty", ResolvedMethod{Name: "__construct", DeclaringClass: "ReflectionProperty", Params: []ResolvedParam{{Name: "class"}, {Name: "property"}}, Visibility: "public"})
+	idx.addMethod("ReflectionObject", ResolvedMethod{Name: "__construct", DeclaringClass: "ReflectionObject", Params: []ResolvedParam{{Name: "object"}}, Visibility: "public"})
 	for _, constant := range []string{"ATOM", "COOKIE", "ISO8601", "RFC822", "RFC850", "RFC1036", "RFC1123", "RFC7231", "RFC2822", "RFC3339", "RFC3339_EXTENDED", "RSS", "W3C"} {
 		idx.addClassConstant("DateTime", ResolvedConstant{Name: constant, DeclaringClass: "DateTime", Visibility: "public"})
 		idx.addClassConstant("DateTimeImmutable", ResolvedConstant{Name: constant, DeclaringClass: "DateTimeImmutable", Visibility: "public"})
 		idx.addClassConstant("DateTimeInterface", ResolvedConstant{Name: constant, DeclaringClass: "DateTimeInterface", Visibility: "public"})
-	}
-	for _, method := range []string{
-		"addToAssertionCount", "any", "assertArrayHasKey", "assertArrayNotHasKey", "assertCount", "assertEquals", "assertFalse",
-		"assertFileExists", "assertGreaterThan", "assertGreaterThanOrEqual", "assertIsArray", "assertIsIterable", "assertIsString",
-		"assertNotEmpty", "assertNotNull", "assertSame", "assertStringContainsString", "assertStringNotContainsString", "assertTrue",
-		"assertResponseIsSuccessful", "assertResponseStatusCodeSame", "createConfiguredMock", "createConfiguredStub", "createMock", "createStub",
-		"exactly", "expectException", "expectExceptionMessage", "fail",
-		"isArray", "isInstanceOf", "markTestSkipped", "never", "once",
-	} {
-		idx.addMethod("PHPUnit\\Framework\\TestCase", ResolvedMethod{Name: method, DeclaringClass: "PHPUnit\\Framework\\TestCase", Visibility: "public"})
-		idx.addMethod("Symfony\\Bundle\\FrameworkBundle\\Test\\WebTestCase", ResolvedMethod{Name: method, DeclaringClass: "Symfony\\Bundle\\FrameworkBundle\\Test\\WebTestCase", Visibility: "public"})
-		idx.addMethod("Symfony\\Bundle\\FrameworkBundle\\Test\\KernelTestCase", ResolvedMethod{Name: method, DeclaringClass: "Symfony\\Bundle\\FrameworkBundle\\Test\\KernelTestCase", Visibility: "public"})
-	}
-	idx.addMethod("Stripe\\StripeObject", ResolvedMethod{Name: "constructFrom", DeclaringClass: "Stripe\\StripeObject", Visibility: "public", IsStatic: true})
-	for _, method := range []string{"areNotAbstract", "areNotInterfaces", "haveClassName", "haveMethodMatching", "havePathMatching"} {
-		idx.addMethod("Phpat\\Selector\\Selector", ResolvedMethod{Name: method, DeclaringClass: "Phpat\\Selector\\Selector", Visibility: "public", IsStatic: true})
-	}
-	for _, class := range []ResolvedClass{
-		{Name: "Phpat\\Rule\\Rule", Kind: "class"},
-		{Name: "Phpat\\Rule\\Assertion\\Declaration\\ShouldExtend", Kind: "class"},
-		{Name: "Phpat\\Rule\\Assertion\\Declaration\\ShouldImplement", Kind: "class"},
-		{Name: "Phpat\\Rule\\Assertion\\Relation\\ShouldNotDependOn", Kind: "class"},
-	} {
-		idx.Classes[indexKey(class.Name)] = class
 	}
 	for _, fn := range []ResolvedFunction{
 		{Name: "abs", Params: []ResolvedParam{{Name: "num"}}},

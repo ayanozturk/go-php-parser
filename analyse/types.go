@@ -441,6 +441,11 @@ func canonicalClassName(name string, scope *functionScope, ctx *AnalysisContext)
 	if name == "" {
 		return ""
 	}
+	if ctx != nil && ctx.Resolver != nil {
+		if resolved, ok := ctx.Resolver.ResolveClass(name); ok && resolved.Name != "" {
+			return strings.TrimPrefix(resolved.Name, `\`)
+		}
+	}
 	if scope == nil {
 		return name
 	}

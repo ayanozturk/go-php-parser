@@ -312,6 +312,40 @@ $result = array_filter($users, $this->isUserCompliant(...));
 	}
 }
 
+func TestParseStaticMethodFirstClassCallableAsArgument(t *testing.T) {
+	php := `<?php
+$result = array_map(InvoiceData::fromDTO(...), $invoices);
+`
+	l := lexer.New(php)
+	p := New(l, true)
+	nodes := p.Parse()
+	if len(p.Errors()) > 0 {
+		t.Fatalf("Parser errors: %v", p.Errors())
+	}
+	stmt, ok := nodes[0].(*ast.ExpressionStmt)
+	if !ok {
+		t.Fatalf("Expected ExpressionStmt, got %T", nodes[0])
+	}
+	assign, ok := stmt.Expr.(*ast.AssignmentNode)
+	if !ok {
+		t.Fatalf("Expected AssignmentNode, got %T", stmt.Expr)
+	}
+	call, ok := assign.Right.(*ast.FunctionCallNode)
+	if !ok {
+		t.Fatalf("Expected FunctionCallNode, got %T", assign.Right)
+	}
+	if len(call.Args) != 2 {
+		t.Fatalf("Expected array_map to keep both arguments, got %d", len(call.Args))
+	}
+	callable, ok := call.Args[0].(*ast.FirstClassCallableNode)
+	if !ok {
+		t.Fatalf("Expected static first-class callable argument, got %T", call.Args[0])
+	}
+	if callable.Name.Value != "InvoiceData::fromDTO" {
+		t.Fatalf("Expected callable name InvoiceData::fromDTO, got %q", callable.Name.Value)
+	}
+}
+
 func TestParseNullCoalescingAssignment(t *testing.T) {
 	php := `<?php $a ??= 1; $this->foo ??= 2;` // property fetch
 	l := lexer.New(php)
