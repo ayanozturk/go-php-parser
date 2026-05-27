@@ -1,6 +1,11 @@
 package analyse
 
-import "testing"
+import (
+	"go-phpcs/ast"
+	"go-phpcs/lexer"
+	"go-phpcs/parser"
+	"testing"
+)
 
 func hasArgTypeIssue(issues []AnalysisIssue) bool {
 	for _, iss := range issues {
@@ -9,6 +14,19 @@ func hasArgTypeIssue(issues []AnalysisIssue) bool {
 		}
 	}
 	return false
+}
+
+func analysePHPArgTypesWithProject(t *testing.T, code string) []AnalysisIssue {
+	t.Helper()
+	l := lexer.New(code)
+	p := parser.New(l, false)
+	nodes := p.Parse()
+	if len(p.Errors()) > 0 {
+		t.Fatalf("parser errors: %v", p.Errors())
+	}
+	project := BuildProjectIndex(map[string][]ast.Node{"test.php": nodes})
+	ctx := &AnalysisContext{Resolver: project, Project: project}
+	return (&ArgumentTypeRule{}).CheckIssues(nodes, "test.php", ctx)
 }
 
 func TestMethodArgumentTypeMismatch(t *testing.T) {
@@ -439,6 +457,23 @@ func TestMethodArgumentTypeRefinedInRightSideOfAndCondition(t *testing.T) {
 	issues := analysePHP(t, php)
 	if hasArgTypeIssue(issues) {
 		t.Fatalf("expected no A.ARG.TYPE issue for variable refined on right side of &&, got: %#v", issues)
+	}
+}
+
+func TestMethodArgumentTypeAcceptsDateTimeForDateTimeInterface(t *testing.T) {
+	php := `<?php
+    class Example {
+        public function createForWeek(DateTimeInterface $weekEnd): void {
+        }
+
+        public function run(): void {
+            $weekEnd = new DateTime();
+            $this->createForWeek($weekEnd);
+        }
+    }`
+	issues := analysePHPArgTypesWithProject(t, php)
+	if hasArgTypeIssue(issues) {
+		t.Fatalf("expected DateTime to satisfy DateTimeInterface, got: %#v", issues)
 	}
 }
 
