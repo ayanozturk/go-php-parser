@@ -46,6 +46,11 @@ func main() {
 		log.Fatalf("Error loading config: %v", err)
 	}
 
+	if args.CommandName == "config" {
+		config.PrintEffectiveConfig(outWriter, c, configPath)
+		return
+	}
+
 	filesToScan, err := config.GetFilesToScan(c)
 	if err != nil {
 		log.Fatalf("Error scanning files: %v", err)

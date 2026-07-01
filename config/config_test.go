@@ -1,6 +1,7 @@
 package config
 
 import (
+	"bytes"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -116,6 +117,65 @@ func TestDiscoverConfigNoConfig(t *testing.T) {
 	_, err := DiscoverConfig(t.TempDir())
 	if err == nil {
 		t.Fatal("expected error for missing config, got nil")
+	}
+}
+
+func TestPrintEffectiveConfig(t *testing.T) {
+	level := 0
+	cfg := &Config{
+		Path:          "./src",
+		Extensions:    []string{"php", "inc"},
+		Ignore:        []string{"vendor"},
+		Rules:         []string{"PSR12.Files.EndFileNewline"},
+		AnalysisLevel: &level,
+		Overrides: overrides.RuleOverrides{
+			"Z.Rule": {Classes: []string{"LegacyZ"}},
+			"A.Rule": {Classes: []string{"/LegacyA.*/"}},
+		},
+	}
+
+	var buf bytes.Buffer
+	PrintEffectiveConfig(&buf, cfg, "go-phpcs.yaml")
+
+	want := `config_file: "go-phpcs.yaml"
+path: "./src"
+extensions:
+  - "php"
+  - "inc"
+ignore:
+  - "vendor"
+rules:
+  - "PSR12.Files.EndFileNewline"
+analysis_level: 0
+overrides:
+  "A.Rule":
+    classes:
+      - "/LegacyA.*/"
+  "Z.Rule":
+    classes:
+      - "LegacyZ"
+`
+	if got := buf.String(); got != want {
+		t.Fatalf("unexpected effective config:\ngot:\n%s\nwant:\n%s", got, want)
+	}
+}
+
+func TestPrintEffectiveConfigEmptyValues(t *testing.T) {
+	cfg := &Config{}
+
+	var buf bytes.Buffer
+	PrintEffectiveConfig(&buf, cfg, "")
+
+	want := `config_file: ""
+path: ""
+extensions: []
+ignore: []
+rules: []
+analysis_level: null
+overrides: {}
+`
+	if got := buf.String(); got != want {
+		t.Fatalf("unexpected effective config:\ngot:\n%s\nwant:\n%s", got, want)
 	}
 }
 

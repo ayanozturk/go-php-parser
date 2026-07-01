@@ -18,6 +18,7 @@ func TestCommandsMapIntegrity(t *testing.T) {
 		"tokens":     {"Print the tokens from the lexer"},
 		"style":      {"Check code style (e.g., function naming)"},
 		"list-files": {"List all PHP files selected by the current configuration"},
+		"config":     {"Print the effective resolved configuration"},
 	}
 	for name, meta := range expected {
 		cmd, ok := Commands[name]

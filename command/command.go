@@ -90,6 +90,13 @@ var Commands = map[string]Command{
 			fmt.Fprintln(w, "Use list-files without a file argument to list files selected by config.")
 		},
 	},
+	"config": {
+		Name:        "config",
+		Description: "Print the effective resolved configuration",
+		Execute: func(_ []ast.Node, _ string, w io.Writer) {
+			fmt.Fprintln(w, "Use config without a file argument to print the effective resolved configuration.")
+		},
+	},
 }
 
 // PrintUsage prints the usage information for all available commands
