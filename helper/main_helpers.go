@@ -21,6 +21,7 @@ import (
 type CliArgs struct {
 	Profile         bool
 	CommandName     string
+	ConfigPath      string
 	outputFile      string
 	outputFileShort string
 	debug           bool
@@ -31,6 +32,7 @@ type CliArgs struct {
 }
 
 func ParseCLIArgs(filesToScan []string) CliArgs {
+	configPath := flag.String("config", "", "Path to config file (default: discover go-phpcs.yaml, go-phpcs.yml, config.yaml)")
 	profile := flag.Bool("profile", false, "Enable CPU and memory profiling (cpu.prof, mem.prof)")
 	outputFile := flag.String("output", "", "Write all output (including summary) to this file")
 	outputFileShort := flag.String("o", "", "Write all output (including summary) to this file (shorthand)")
@@ -60,6 +62,7 @@ func ParseCLIArgs(filesToScan []string) CliArgs {
 	return CliArgs{
 		Profile:         *profile,
 		CommandName:     commandName,
+		ConfigPath:      *configPath,
 		outputFile:      *outputFile,
 		outputFileShort: *outputFileShort,
 		debug:           *debug,

@@ -1,6 +1,7 @@
 package config
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 
@@ -9,6 +10,12 @@ import (
 	"gopkg.in/yaml.v2"
 )
 
+var DefaultConfigFilenames = []string{
+	"go-phpcs.yaml",
+	"go-phpcs.yml",
+	"config.yaml",
+}
+
 type Config struct {
 	Path          string                  `yaml:"path"`
 	Extensions    []string                `yaml:"extensions"`
@@ -16,6 +23,28 @@ type Config struct {
 	Rules         []string                `yaml:"rules"`
 	AnalysisLevel *int                    `yaml:"analysis_level"`
 	Overrides     overrides.RuleOverrides `yaml:"overrides"`
+}
+
+func DiscoverConfig(dir string) (string, error) {
+	if dir == "" {
+		dir = "."
+	}
+
+	for _, name := range DefaultConfigFilenames {
+		candidate := filepath.Join(dir, name)
+		info, err := os.Stat(candidate)
+		if err == nil {
+			if info.IsDir() {
+				continue
+			}
+			return candidate, nil
+		}
+		if !os.IsNotExist(err) {
+			return "", err
+		}
+	}
+
+	return "", fmt.Errorf("no config file found; checked %s", DefaultConfigFilenames)
 }
 
 func LoadConfig(filename string) (*Config, error) {

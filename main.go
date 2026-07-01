@@ -15,26 +15,8 @@ import (
 
 func main() {
 
-	c, err := config.LoadConfig("config.yaml")
-	if err != nil {
-		log.Fatalf("Error loading config: %v", err)
-	}
-
-	filesToScan, err := config.GetFilesToScan(c)
-	if err != nil {
-		log.Fatalf("Error scanning files: %v", err)
-	}
-
-	args := helper.ParseCLIArgs(filesToScan)
+	args := helper.ParseCLIArgs(nil)
 	outWriter := helper.SetupOutputFile(args)
-	if args.CommandName == "list-style-rules" {
-		command.Commands["list-style-rules"].Execute(nil, "", outWriter)
-		os.Exit(0)
-	}
-	if args.CommandName == "list-files" {
-		helper.PrintFileList(outWriter, filesToScan)
-		os.Exit(0)
-	}
 	defer func() {
 		// Flush buffered writer if applicable, then close.
 		if bw, ok := outWriter.(*bufio.Writer); ok {
@@ -44,6 +26,36 @@ func main() {
 			f.Close()
 		}
 	}()
+
+	if args.CommandName == "list-style-rules" {
+		command.Commands["list-style-rules"].Execute(nil, "", outWriter)
+		return
+	}
+
+	configPath := args.ConfigPath
+	if configPath == "" {
+		discovered, err := config.DiscoverConfig(".")
+		if err != nil {
+			log.Fatalf("Error discovering config: %v", err)
+		}
+		configPath = discovered
+	}
+
+	c, err := config.LoadConfig(configPath)
+	if err != nil {
+		log.Fatalf("Error loading config: %v", err)
+	}
+
+	filesToScan, err := config.GetFilesToScan(c)
+	if err != nil {
+		log.Fatalf("Error scanning files: %v", err)
+	}
+
+	if args.CommandName == "list-files" {
+		helper.PrintFileList(outWriter, filesToScan)
+		return
+	}
+
 	if len(flag.Args()) < 2 && len(filesToScan) == 0 {
 		fmt.Fprintln(outWriter, "Usage: go-phpcs <command> <file>")
 		command.PrintUsage()

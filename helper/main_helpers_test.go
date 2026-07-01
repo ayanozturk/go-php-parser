@@ -34,7 +34,7 @@ func TestParseCLIArgsWithFlags(t *testing.T) {
 	origArgs := os.Args
 	defer func() { os.Args = origArgs }()
 	// Flags must come before positional arguments for Go's flag package
-	os.Args = []string{"cmd", "-profile", "-output", "out.log", "-o", "short.log", "-debug", "-p", "4", "-fix", "lint", "file.php"}
+	os.Args = []string{"cmd", "-config", "custom.yaml", "-profile", "-output", "out.log", "-o", "short.log", "-debug", "-p", "4", "-fix", "lint", "file.php"}
 	flag.CommandLine = flag.NewFlagSet(os.Args[0], flag.ExitOnError)
 	args := ParseCLIArgs(nil)
 	if !args.Profile {
@@ -48,6 +48,9 @@ func TestParseCLIArgsWithFlags(t *testing.T) {
 	}
 	if args.outputFile != "out.log" {
 		t.Errorf("Expected outputFile to be 'out.log', got %s", args.outputFile)
+	}
+	if args.ConfigPath != "custom.yaml" {
+		t.Errorf("Expected ConfigPath to be 'custom.yaml', got %s", args.ConfigPath)
 	}
 	if args.outputFileShort != "short.log" {
 		t.Errorf("Expected outputFileShort to be 'short.log', got %s", args.outputFileShort)

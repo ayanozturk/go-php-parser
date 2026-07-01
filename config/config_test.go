@@ -76,6 +76,49 @@ func TestLoadConfig_InvalidYAML(t *testing.T) {
 	}
 }
 
+func TestDiscoverConfigPrefersGoPHPCSYAML(t *testing.T) {
+	dir := t.TempDir()
+	for _, name := range []string{"config.yaml", "go-phpcs.yml", "go-phpcs.yaml"} {
+		if err := os.WriteFile(filepath.Join(dir, name), []byte("path: .\n"), 0644); err != nil {
+			t.Fatalf("failed to write %s: %v", name, err)
+		}
+	}
+
+	got, err := DiscoverConfig(dir)
+	if err != nil {
+		t.Fatalf("DiscoverConfig failed: %v", err)
+	}
+
+	want := filepath.Join(dir, "go-phpcs.yaml")
+	if got != want {
+		t.Fatalf("unexpected discovered config: got %q, want %q", got, want)
+	}
+}
+
+func TestDiscoverConfigFallsBackToLegacyConfigYAML(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "config.yaml"), []byte("path: .\n"), 0644); err != nil {
+		t.Fatalf("failed to write config.yaml: %v", err)
+	}
+
+	got, err := DiscoverConfig(dir)
+	if err != nil {
+		t.Fatalf("DiscoverConfig failed: %v", err)
+	}
+
+	want := filepath.Join(dir, "config.yaml")
+	if got != want {
+		t.Fatalf("unexpected discovered config: got %q, want %q", got, want)
+	}
+}
+
+func TestDiscoverConfigNoConfig(t *testing.T) {
+	_, err := DiscoverConfig(t.TempDir())
+	if err == nil {
+		t.Fatal("expected error for missing config, got nil")
+	}
+}
+
 func TestGetFilesToScan(t *testing.T) {
 	dir, err := os.MkdirTemp("", "scanroot-")
 	if err != nil {
