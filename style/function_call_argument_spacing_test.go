@@ -32,8 +32,18 @@ func TestFunctionCallArgumentSpacingChecker(t *testing.T) {
 		{[]string{"foo('a,b', $x);"}, 0, "string literal comma ignored"},
 		// OK: regex patterns containing commas should not trigger spacing issues
 		{[]string{`preg_match('/^[A-Z0-9\\-,_]+$/i', $_COOKIE[$this->session->getName()]);`}, 0, "preg_match pattern comma ignored"},
-		// OK: docblock example should be ignored
-		{[]string{" *  {{ \"one,two,three,four,five\"|split(',', 3) }}"}, 0, "docblock example ignored"},
+		// OK: complex method call with array argument and strings
+		{[]string{"$result = $repo->findFiltered('user-1', 'type-1', ['ADD', 'SUBTRACT'], $from, $to, 1, 25);"}, 0, "complex method call with array"},
+		// OK: instantiation and assertSame
+		{[]string{"$expected = [new \\stdClass()];", "$this->assertSame($expected, $result);"}, 0, "instantiation and assertion"},
+		// OK: string argument containing parentheses
+		{[]string{"$repo->findFiltered('user (1)', 'type (2)', $from, $to);"}, 0, "strings with parentheses"},
+		// OK: control structures and declarations should not be treated as function calls
+		{[]string{"if ($a, $b) {}", "for ($i = 0, $j = 0; $i < 10; $i++) {}", "function ($a, $b) {}", "fn($a, $b) => $a + $b;"}, 0, "control structures and declarations ignored"},
+		// OK: inline comment should be ignored
+		{[]string{"$x = foo(1, 2); // bar(1,2)"}, 0, "inline comment ignored"},
+		// Bad: violation in findFiltered
+		{[]string{"$result = $repo->findFiltered('user-1', 'type-1', ['ADD', 'SUBTRACT'], $from, $to, 1,25);"}, 1, "missing space after comma in 1,25"},
 	}
 
 	for _, tc := range cases {

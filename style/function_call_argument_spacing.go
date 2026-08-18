@@ -7,6 +7,54 @@ import (
 
 type FunctionCallArgumentSpacingChecker struct{}
 
+var nonCallKeywords = map[string]struct{}{
+	"if":           {},
+	"elseif":       {},
+	"else":         {},
+	"for":          {},
+	"foreach":      {},
+	"while":        {},
+	"do":           {},
+	"switch":       {},
+	"case":         {},
+	"declare":      {},
+	"catch":        {},
+	"finally":      {},
+	"match":        {},
+	"function":     {},
+	"fn":           {},
+	"array":        {},
+	"list":         {},
+	"isset":        {},
+	"unset":        {},
+	"empty":        {},
+	"eval":         {},
+	"exit":         {},
+	"die":          {},
+	"include":      {},
+	"include_once": {},
+	"require":      {},
+	"require_once": {},
+	"print":        {},
+	"echo":         {},
+	"return":       {},
+	"throw":        {},
+	"yield":        {},
+	"new":          {},
+	"clone":        {},
+	"use":          {},
+	"and":          {},
+	"or":           {},
+	"xor":          {},
+	"as":           {},
+	"instanceof":   {},
+}
+
+func isNonCallKeyword(name string) bool {
+	_, ok := nonCallKeywords[name]
+	return ok
+}
+
 func isCommentOnlyLine(line string) bool {
 	trimmed := strings.TrimSpace(line)
 	return strings.HasPrefix(trimmed, "//") ||
@@ -16,52 +64,64 @@ func isCommentOnlyLine(line string) bool {
 		strings.HasPrefix(trimmed, "*/")
 }
 
-// Detects bad comma spacing without regex: any of
-// 1) one or more spaces before comma
-// 2) two or more spaces after comma
-// 3) no space after comma (next is non-space)
-func hasBadCommaSpacing(args string) bool {
+// Detects bad comma spacing without regex:
+// 1) space before comma: foo(a , b)
+// 2) two or more spaces after comma: foo(a,  b)
+// 3) no space after comma: foo(a,b)
+// Returns whether an issue was found and the comma's 0-based offset in args.
+func hasBadCommaSpacing(args string) (bool, int) {
 	parenDepth := 0
 	bracketDepth := 0
 	braceDepth := 0
 	inSingleQuote := false
 	inDoubleQuote := false
+	inBacktick := false
 	escaped := false
 
 	for i := 0; i < len(args); i++ {
+		ch := args[i]
+
 		if escaped {
 			escaped = false
 			continue
 		}
 
 		if inSingleQuote {
-			if args[i] == '\\' {
+			if ch == '\\' {
 				escaped = true
-				continue
-			}
-			if args[i] == '\'' {
+			} else if ch == '\'' {
 				inSingleQuote = false
 			}
 			continue
 		}
 
 		if inDoubleQuote {
-			if args[i] == '\\' {
+			if ch == '\\' {
 				escaped = true
-				continue
-			}
-			if args[i] == '"' {
+			} else if ch == '"' {
 				inDoubleQuote = false
 			}
 			continue
 		}
 
-		switch args[i] {
+		if inBacktick {
+			if ch == '\\' {
+				escaped = true
+			} else if ch == '`' {
+				inBacktick = false
+			}
+			continue
+		}
+
+		switch ch {
 		case '\'':
 			inSingleQuote = true
 			continue
 		case '"':
 			inDoubleQuote = true
+			continue
+		case '`':
+			inBacktick = true
 			continue
 		case '(':
 			parenDepth++
@@ -87,15 +147,27 @@ func hasBadCommaSpacing(args string) bool {
 				braceDepth--
 			}
 			continue
+		case '/':
+			if i+1 < len(args) && args[i+1] == '/' {
+				return false, -1
+			}
+			if i+1 < len(args) && args[i+1] == '*' {
+				end := strings.Index(args[i+2:], "*/")
+				if end != -1 {
+					i = i + 2 + end + 1
+					continue
+				}
+				return false, -1
+			}
 		}
 
 		if parenDepth > 0 || bracketDepth > 0 || braceDepth > 0 {
 			continue
 		}
 
-		if args[i] == ',' {
+		if ch == ',' {
 			if i > 0 && (args[i-1] == ' ' || args[i-1] == '\t') {
-				return true
+				return true, i
 			}
 
 			j := i + 1
@@ -105,15 +177,118 @@ func hasBadCommaSpacing(args string) bool {
 				j++
 			}
 			if spaceCount >= 2 {
-				return true
+				return true, i
 			}
-			if j < len(args) && spaceCount == 0 {
-				return true
+			if j >= len(args) {
+				continue
+			}
+			if spaceCount == 0 {
+				return true, i
 			}
 		}
 	}
 
-	return false
+	return false, -1
+}
+
+// findMatchingParen finds the index of the matching closing parenthesis for line[openParenIdx],
+// respecting strings, escapes, and nested brackets/braces/parentheses.
+func findMatchingParen(line string, openParenIdx int) int {
+	parenDepth := 1
+	bracketDepth := 0
+	braceDepth := 0
+	inSingleQuote := false
+	inDoubleQuote := false
+	inBacktick := false
+	escaped := false
+
+	for j := openParenIdx + 1; j < len(line); j++ {
+		ch := line[j]
+
+		if escaped {
+			escaped = false
+			continue
+		}
+
+		if inSingleQuote {
+			if ch == '\\' {
+				escaped = true
+			} else if ch == '\'' {
+				inSingleQuote = false
+			}
+			continue
+		}
+
+		if inDoubleQuote {
+			if ch == '\\' {
+				escaped = true
+			} else if ch == '"' {
+				inDoubleQuote = false
+			}
+			continue
+		}
+
+		if inBacktick {
+			if ch == '\\' {
+				escaped = true
+			} else if ch == '`' {
+				inBacktick = false
+			}
+			continue
+		}
+
+		switch ch {
+		case '\'':
+			inSingleQuote = true
+			continue
+		case '"':
+			inDoubleQuote = true
+			continue
+		case '`':
+			inBacktick = true
+			continue
+		case '(':
+			parenDepth++
+			continue
+		case ')':
+			parenDepth--
+			if parenDepth == 0 {
+				return j
+			}
+			continue
+		case '[':
+			bracketDepth++
+			continue
+		case ']':
+			if bracketDepth > 0 {
+				bracketDepth--
+			}
+			continue
+		case '{':
+			braceDepth++
+			continue
+		case '}':
+			if braceDepth > 0 {
+				braceDepth--
+			}
+			continue
+		case '/':
+			if j+1 < len(line) && line[j+1] == '/' {
+				return -1
+			}
+			if j+1 < len(line) && line[j+1] == '*' {
+				end := strings.Index(line[j+2:], "*/")
+				if end != -1 {
+					j = j + 2 + end + 1
+					continue
+				}
+				return -1
+			}
+		case '#':
+			return -1
+		}
+	}
+	return -1
 }
 
 func (c *FunctionCallArgumentSpacingChecker) CheckIssues(lines []string, filename string) []StyleIssue {
@@ -126,42 +301,122 @@ func (c *FunctionCallArgumentSpacingChecker) CheckIssues(lines []string, filenam
 			continue
 		}
 
+		inSingleQuote := false
+		inDoubleQuote := false
+		inBacktick := false
+		escaped := false
+
 		for idx := 0; idx < len(line); {
-			start := idx
-			for idx < len(line) && (isIdentChar(line[idx]) || (idx > start && isDigit(line[idx]))) {
+			if escaped {
+				escaped = false
 				idx++
+				continue
 			}
-			if idx < len(line) && line[idx] == '(' && start != idx {
-				parenDepth := 1
-				j := idx + 1
-				for ; j < len(line) && parenDepth > 0; j++ {
-					if line[j] == '(' {
-						parenDepth++
-					} else if line[j] == ')' {
-						parenDepth--
-					}
+
+			if inSingleQuote {
+				if line[idx] == '\\' {
+					escaped = true
+				} else if line[idx] == '\'' {
+					inSingleQuote = false
 				}
-				if parenDepth == 0 {
-					argsStart := idx + 1
-					argsEnd := j - 1
-					if argsEnd >= argsStart && argsEnd <= len(line) {
-						args := line[argsStart:argsEnd]
-						if hasBadCommaSpacing(args) {
-							issues = append(issues, StyleIssue{
-								Filename: filename,
-								Line:     i + 1,
-								Type:     Error,
-								Fixable:  true,
-								Message:  "Incorrect spacing between function call arguments",
-								Code:     "Generic.Functions.FunctionCallArgumentSpacing",
-							})
-						}
-					}
-					idx = j
+				idx++
+				continue
+			}
+
+			if inDoubleQuote {
+				if line[idx] == '\\' {
+					escaped = true
+				} else if line[idx] == '"' {
+					inDoubleQuote = false
+				}
+				idx++
+				continue
+			}
+
+			if inBacktick {
+				if line[idx] == '\\' {
+					escaped = true
+				} else if line[idx] == '`' {
+					inBacktick = false
+				}
+				idx++
+				continue
+			}
+
+			if line[idx] == '\'' {
+				inSingleQuote = true
+				idx++
+				continue
+			}
+			if line[idx] == '"' {
+				inDoubleQuote = true
+				idx++
+				continue
+			}
+			if line[idx] == '`' {
+				inBacktick = true
+				idx++
+				continue
+			}
+
+			// Inline comment
+			if line[idx] == '/' && idx+1 < len(line) && line[idx+1] == '/' {
+				break
+			}
+			if line[idx] == '#' {
+				break
+			}
+			if line[idx] == '/' && idx+1 < len(line) && line[idx+1] == '*' {
+				end := strings.Index(line[idx+2:], "*/")
+				if end != -1 {
+					idx = idx + 2 + end + 2
 					continue
 				}
 				break
 			}
+
+			start := idx
+			for idx < len(line) && (isIdentChar(line[idx]) || (idx > start && isDigit(line[idx]))) {
+				idx++
+			}
+
+			if start != idx {
+				funcName := line[start:idx]
+				parenIdx := idx
+				for parenIdx < len(line) && (line[parenIdx] == ' ' || line[parenIdx] == '\t') {
+					parenIdx++
+				}
+
+				if parenIdx < len(line) && line[parenIdx] == '(' {
+					if !isNonCallKeyword(funcName) {
+						beforeIdent := strings.TrimSpace(line[:start])
+						isDecl := strings.HasSuffix(beforeIdent, "function") || strings.HasSuffix(beforeIdent, "fn")
+						if !isDecl {
+							closeParenIdx := findMatchingParen(line, parenIdx)
+							if closeParenIdx != -1 {
+								args := line[parenIdx+1 : closeParenIdx]
+								if hasBad, commaOffset := hasBadCommaSpacing(args); hasBad {
+									col := parenIdx + 1 + commaOffset + 1
+									issues = append(issues, StyleIssue{
+										Filename: filename,
+										Line:     i + 1,
+										Column:   col,
+										Type:     Error,
+										Fixable:  true,
+										Message:  "Incorrect spacing between function call arguments",
+										Code:     "Generic.Functions.FunctionCallArgumentSpacing",
+									})
+								}
+								idx = closeParenIdx + 1
+								continue
+							}
+						}
+					}
+				}
+				idx = parenIdx
+				continue
+			}
+
 			idx++
 		}
 	}
@@ -198,42 +453,114 @@ func (f FunctionCallArgumentSpacingFixer) Fix(content string) (fixedContent stri
 
 func fixFunctionCallSpacingInLine(line string) string {
 	out := getBuilder()
+	inSingleQuote := false
+	inDoubleQuote := false
+	inBacktick := false
+	escaped := false
+
 	for i := 0; i < len(line); {
+		if escaped {
+			escaped = false
+			out.WriteByte(line[i])
+			i++
+			continue
+		}
+
+		if inSingleQuote {
+			if line[i] == '\\' {
+				escaped = true
+			} else if line[i] == '\'' {
+				inSingleQuote = false
+			}
+			out.WriteByte(line[i])
+			i++
+			continue
+		}
+
+		if inDoubleQuote {
+			if line[i] == '\\' {
+				escaped = true
+			} else if line[i] == '"' {
+				inDoubleQuote = false
+			}
+			out.WriteByte(line[i])
+			i++
+			continue
+		}
+
+		if inBacktick {
+			if line[i] == '\\' {
+				escaped = true
+			} else if line[i] == '`' {
+				inBacktick = false
+			}
+			out.WriteByte(line[i])
+			i++
+			continue
+		}
+
+		if line[i] == '\'' {
+			inSingleQuote = true
+			out.WriteByte(line[i])
+			i++
+			continue
+		}
+		if line[i] == '"' {
+			inDoubleQuote = true
+			out.WriteByte(line[i])
+			i++
+			continue
+		}
+		if line[i] == '`' {
+			inBacktick = true
+			out.WriteByte(line[i])
+			i++
+			continue
+		}
+
+		if line[i] == '/' && i+1 < len(line) && line[i+1] == '/' {
+			out.WriteString(line[i:])
+			break
+		}
+		if line[i] == '#' {
+			out.WriteString(line[i:])
+			break
+		}
+
 		start := i
 		for i < len(line) && (isIdentChar(line[i]) || (i > start && isDigit(line[i]))) {
 			i++
 		}
-		if start != i && (i >= len(line) || line[i] != '(') {
+
+		if start != i {
+			funcName := line[start:i]
+			parenIdx := i
+			for parenIdx < len(line) && (line[parenIdx] == ' ' || line[parenIdx] == '\t') {
+				parenIdx++
+			}
+
+			if parenIdx < len(line) && line[parenIdx] == '(' && !isNonCallKeyword(funcName) {
+				beforeIdent := strings.TrimSpace(line[:start])
+				isDecl := strings.HasSuffix(beforeIdent, "function") || strings.HasSuffix(beforeIdent, "fn")
+				if !isDecl {
+					closeParenIdx := findMatchingParen(line, parenIdx)
+					if closeParenIdx != -1 {
+						args := line[parenIdx+1 : closeParenIdx]
+						fixedArgs := fixArgumentSpacing(args)
+						out.WriteString(line[start:parenIdx] + "(" + fixedArgs + ")")
+						i = closeParenIdx + 1
+						continue
+					}
+				}
+			}
 			out.WriteString(line[start:i])
 			continue
 		}
-		if i < len(line) && line[i] == '(' && start != i {
-			funcName := line[start:i]
-			parenDepth := 1
-			j := i + 1
-			for ; j < len(line) && parenDepth > 0; j++ {
-				if line[j] == '(' {
-					parenDepth++
-				} else if line[j] == ')' {
-					parenDepth--
-				}
-			}
-			if parenDepth == 0 {
-				args := ""
-				if j-1 >= i+1 && j-1 <= len(line) {
-					args = line[i+1 : j-1]
-				}
-				fixedArgs := fixArgumentSpacing(args)
-				out.WriteString(funcName + "(" + fixedArgs + ")")
-				i = j
-				continue
-			}
-			out.WriteString(line[start:])
-			break
-		}
+
 		out.WriteByte(line[i])
 		i++
 	}
+
 	result := out.String()
 	putBuilder(out)
 	return result
@@ -258,6 +585,7 @@ func splitFunctionArguments(args string) []string {
 		inUnpack      bool
 		inSingleQuote bool
 		inDoubleQuote bool
+		inBacktick    bool
 		escaped       bool
 	)
 
@@ -295,6 +623,17 @@ func splitFunctionArguments(args string) []string {
 			continue
 		}
 
+		if inBacktick {
+			if i < len(args) && args[i] == '\\' {
+				escaped = true
+				continue
+			}
+			if i < len(args) && args[i] == '`' {
+				inBacktick = false
+			}
+			continue
+		}
+
 		if i < len(args) {
 			switch args[i] {
 			case '\'':
@@ -303,18 +642,27 @@ func splitFunctionArguments(args string) []string {
 			case '"':
 				inDoubleQuote = true
 				continue
+			case '`':
+				inBacktick = true
+				continue
 			case '(':
 				parenDepth++
 			case ')':
-				parenDepth--
+				if parenDepth > 0 {
+					parenDepth--
+				}
 			case '[':
 				bracketDepth++
 			case ']':
-				bracketDepth--
+				if bracketDepth > 0 {
+					bracketDepth--
+				}
 			case '{':
 				braceDepth++
 			case '}':
-				braceDepth--
+				if braceDepth > 0 {
+					braceDepth--
+				}
 			}
 		}
 
