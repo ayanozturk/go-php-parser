@@ -4,7 +4,6 @@ import (
 	"go-phpcs/ast"
 	"go-phpcs/token"
 	"strconv"
-	"strings"
 )
 
 const errExpectedRParenFunctionCall = "line %d:%d: expected ) after arguments for function call %s, got %s"
@@ -14,7 +13,7 @@ func (p *Parser) parseExpression() ast.Node {
 }
 
 // parseExpressionWithPrecedence parses expressions with correct precedence. Only validateAssignmentTarget for top-level expressions.
-func (p *Parser) parseExpressionWithPrecedence(minPrec int, validateAssignmentTarget bool, stopTypes ...token.TokenType) ast.Node {
+func (p *Parser) parseExpressionWithPrecedence(minPrec int, validateAssignmentTarget bool) ast.Node {
 	for p.tok.Type == token.T_COMMENT || p.tok.Type == token.T_DOC_COMMENT || p.tok.Type == token.T_WHITESPACE {
 		p.nextToken()
 	}
@@ -24,18 +23,18 @@ func (p *Parser) parseExpressionWithPrecedence(minPrec int, validateAssignmentTa
 			return nil
 		}
 		left = p.parsePostfixExpression(left)
-		return p.parseBinaryAndTernaryOperators(left, minPrec, validateAssignmentTarget, stopTypes...)
+		return p.parseBinaryAndTernaryOperators(left, minPrec, validateAssignmentTarget)
 	}
 	if p.tok.Type == token.T_LIST && validateAssignmentTarget {
 		left := p.parseListLiteral(true)
 		if left == nil {
 			return nil
 		}
-		return p.parseBinaryAndTernaryOperators(left, minPrec, validateAssignmentTarget, stopTypes...)
+		return p.parseBinaryAndTernaryOperators(left, minPrec, validateAssignmentTarget)
 	}
 
-	if left := p.parseUnaryExpression(stopTypes...); left != nil {
-		return p.parseBinaryAndTernaryOperators(left, minPrec, validateAssignmentTarget, stopTypes...)
+	if left := p.parseUnaryExpression(); left != nil {
+		return p.parseBinaryAndTernaryOperators(left, minPrec, validateAssignmentTarget)
 	}
 
 	left := p.parseSimpleExpression()
@@ -43,16 +42,16 @@ func (p *Parser) parseExpressionWithPrecedence(minPrec int, validateAssignmentTa
 		return p.recoverFromExpressionError()
 	}
 
-	return p.parseBinaryAndTernaryOperators(left, minPrec, validateAssignmentTarget, stopTypes...)
+	return p.parseBinaryAndTernaryOperators(left, minPrec, validateAssignmentTarget)
 }
 
 // parseUnaryExpression handles unary and throw expressions.
-func (p *Parser) parseUnaryExpression(stopTypes ...token.TokenType) ast.Node {
+func (p *Parser) parseUnaryExpression() ast.Node {
 	switch p.tok.Type {
 	case token.T_PLUS, token.T_MINUS:
 		opTok := p.tok
 		p.nextToken()
-		right := p.parseExpressionWithPrecedence(100, false, stopTypes...)
+		right := p.parseExpressionWithPrecedence(100, false)
 		if right == nil {
 			p.addError("line %d:%d: expected operand after unary operator %s", opTok.Pos.Line, opTok.Pos.Column, opTok.Literal)
 			return nil
@@ -65,7 +64,7 @@ func (p *Parser) parseUnaryExpression(stopTypes ...token.TokenType) ast.Node {
 	case token.T_INC, token.T_DEC:
 		opTok := p.tok
 		p.nextToken()
-		right := p.parseExpressionWithPrecedence(100, false, stopTypes...)
+		right := p.parseExpressionWithPrecedence(100, false)
 		if right == nil {
 			p.addError("line %d:%d: expected operand after unary operator %s", opTok.Pos.Line, opTok.Pos.Column, opTok.Literal)
 			return nil
@@ -78,7 +77,7 @@ func (p *Parser) parseUnaryExpression(stopTypes ...token.TokenType) ast.Node {
 	case token.T_NOT:
 		notTok := p.tok
 		p.nextToken()
-		right := p.parseExpressionWithPrecedence(100, false, stopTypes...)
+		right := p.parseExpressionWithPrecedence(100, false)
 		if right == nil {
 			p.addError("line %d:%d: expected operand after unary operator !", notTok.Pos.Line, notTok.Pos.Column)
 			return nil
@@ -91,7 +90,7 @@ func (p *Parser) parseUnaryExpression(stopTypes ...token.TokenType) ast.Node {
 	case token.T_AT:
 		atTok := p.tok
 		p.nextToken()
-		right := p.parseExpressionWithPrecedence(100, false, stopTypes...)
+		right := p.parseExpressionWithPrecedence(100, false)
 		if right == nil {
 			p.addError("line %d:%d: expected operand after unary operator @", atTok.Pos.Line, atTok.Pos.Column)
 			return nil
@@ -104,7 +103,7 @@ func (p *Parser) parseUnaryExpression(stopTypes ...token.TokenType) ast.Node {
 	case token.T_AMPERSAND:
 		ampTok := p.tok
 		p.nextToken()
-		right := p.parseExpressionWithPrecedence(100, false, stopTypes...)
+		right := p.parseExpressionWithPrecedence(100, false)
 		if right == nil {
 			p.addError("line %d:%d: expected operand after unary operator &", ampTok.Pos.Line, ampTok.Pos.Column)
 			return nil
@@ -117,7 +116,7 @@ func (p *Parser) parseUnaryExpression(stopTypes ...token.TokenType) ast.Node {
 	case token.T_TILDE:
 		tildeTok := p.tok
 		p.nextToken()
-		right := p.parseExpressionWithPrecedence(100, false, stopTypes...)
+		right := p.parseExpressionWithPrecedence(100, false)
 		if right == nil {
 			p.addError("line %d:%d: expected operand after unary operator ~", tildeTok.Pos.Line, tildeTok.Pos.Column)
 			return nil
@@ -130,7 +129,7 @@ func (p *Parser) parseUnaryExpression(stopTypes ...token.TokenType) ast.Node {
 	case token.T_CLONE:
 		cloneTok := p.tok
 		p.nextToken()
-		right := p.parseExpressionWithPrecedence(100, false, stopTypes...)
+		right := p.parseExpressionWithPrecedence(100, false)
 		if right == nil {
 			p.addError("line %d:%d: expected operand after clone", cloneTok.Pos.Line, cloneTok.Pos.Column)
 			return nil
@@ -143,7 +142,7 @@ func (p *Parser) parseUnaryExpression(stopTypes ...token.TokenType) ast.Node {
 	case token.T_THROW:
 		throwTok := p.tok
 		p.nextToken()
-		expr := p.parseExpressionWithPrecedence(100, false, stopTypes...)
+		expr := p.parseExpressionWithPrecedence(100, false)
 		if expr == nil {
 			p.addError("line %d:%d: expected expression after throw, got %s", throwTok.Pos.Line, throwTok.Pos.Column, p.tok.Literal)
 			return nil
@@ -156,7 +155,7 @@ func (p *Parser) parseUnaryExpression(stopTypes ...token.TokenType) ast.Node {
 		if p.tok.Literal == "!" {
 			opTok := p.tok
 			p.nextToken()
-			right := p.parseExpressionWithPrecedence(100, false, stopTypes...)
+			right := p.parseExpressionWithPrecedence(100, false)
 			if right == nil {
 				p.addError("line %d:%d: expected operand after unary operator %s", opTok.Pos.Line, opTok.Pos.Column, opTok.Literal)
 				return nil
@@ -172,7 +171,7 @@ func (p *Parser) parseUnaryExpression(stopTypes ...token.TokenType) ast.Node {
 }
 
 // parseBinaryAndTernaryOperators handles binary and ternary expressions.
-func (p *Parser) parseBinaryAndTernaryOperators(left ast.Node, minPrec int, validateAssignmentTarget bool, stopTypes ...token.TokenType) ast.Node {
+func (p *Parser) parseBinaryAndTernaryOperators(left ast.Node, minPrec int, validateAssignmentTarget bool) ast.Node {
 	for {
 		for p.tok.Type == token.T_COMMENT || p.tok.Type == token.T_DOC_COMMENT || p.tok.Type == token.T_WHITESPACE {
 			p.nextToken()
@@ -184,16 +183,14 @@ func (p *Parser) parseBinaryAndTernaryOperators(left ast.Node, minPrec int, vali
 			continue
 		}
 		// Stop tokens
-		for _, stop := range stopTypes {
-			if p.tok.Type == stop {
-				return left
-			}
+		if p.stopLen > 0 && p.isStopToken(p.tok.Type) {
+			return left
 		}
 		prec, isOp := PhpOperatorPrecedence[p.tok.Type]
 		if !isOp || prec < minPrec {
 			break
 		}
-		left = p.parseBinaryOperator(left, prec, validateAssignmentTarget, stopTypes...)
+		left = p.parseBinaryOperator(left, prec, validateAssignmentTarget)
 		if left == nil {
 			return nil
 		}
@@ -224,7 +221,7 @@ func (p *Parser) parseTernaryExpression(left ast.Node, ternaryPrec int) ast.Node
 }
 
 // parseBinaryOperator handles a single binary operator application.
-func (p *Parser) parseBinaryOperator(left ast.Node, prec int, validateAssignmentTarget bool, stopTypes ...token.TokenType) ast.Node {
+func (p *Parser) parseBinaryOperator(left ast.Node, prec int, validateAssignmentTarget bool) ast.Node {
 	op := p.tok.Type
 	operator := p.tok.Literal
 	if op == token.T_BOOLEAN_OR {
@@ -240,18 +237,18 @@ func (p *Parser) parseBinaryOperator(left ast.Node, prec int, validateAssignment
 	p.nextToken()
 	var right ast.Node
 	if op == token.T_BOOLEAN_OR || op == token.T_BOOLEAN_AND {
-		right = p.parseExpressionWithPrecedence(0, true, stopTypes...)
+		right = p.parseExpressionWithPrecedence(0, true)
 	} else if op == token.T_INSTANCEOF {
 		right = p.parseSimpleExpression()
 	} else {
-		right = p.parseExpressionWithPrecedence(nextMinPrec, false, stopTypes...)
+		right = p.parseExpressionWithPrecedence(nextMinPrec, false)
 	}
 	if right == nil {
 		p.addError("line %d:%d: expected right operand after operator %s", pos.Line, pos.Column, operator)
 		return nil
 	}
 	if !isAssignmentOperator(op) && isAssignmentOperator(p.tok.Type) && isValidAssignmentTarget(right) {
-		right = p.parseBinaryOperator(right, PhpOperatorPrecedence[p.tok.Type], false, stopTypes...)
+		right = p.parseBinaryOperator(right, PhpOperatorPrecedence[p.tok.Type], false)
 		if right == nil {
 			return nil
 		}
@@ -482,14 +479,29 @@ func (p *Parser) parseNewClassPostfixExpression(expr ast.Node) ast.Node {
 
 func (p *Parser) parseSimpleFQCNOrFunctionCall() ast.Node {
 	fqcnPos := p.tok.Pos
-	var fqcnBuilder strings.Builder
-	// Handle leading \ for fully qualified names
-	if p.tok.Type == token.T_NS_SEPARATOR {
-		fqcnBuilder.WriteString("\\")
+	var fqcn string
+	if p.tok.Type == token.T_STRING && p.peekToken().Type != token.T_NS_SEPARATOR {
+		fqcn = p.tok.Literal
 		p.nextToken()
+	} else {
+		p.nameBuf.Reset()
+		if p.tok.Type == token.T_NS_SEPARATOR {
+			p.nameBuf.WriteString("\\")
+			p.nextToken()
+		}
+		for {
+			if p.tok.Type == token.T_NS_SEPARATOR {
+				p.nameBuf.WriteString("\\")
+				p.nextToken()
+			} else if p.tok.Type == token.T_STRING || p.tok.Type == token.T_STATIC || p.tok.Type == token.T_SELF || p.tok.Type == token.T_PARENT {
+				p.nameBuf.WriteString(p.tok.Literal)
+				p.nextToken()
+			} else {
+				break
+			}
+		}
+		fqcn = p.nameBuf.String()
 	}
-	fqcnBuilder.WriteString(p.collectFQCNString())
-	fqcn := fqcnBuilder.String()
 	if p.tok.Type == token.T_DOUBLE_COLON {
 		return p.parseSimpleStaticAccess(fqcn, fqcnPos)
 	}
@@ -529,22 +541,6 @@ func (p *Parser) parseSimpleFQCNOrFunctionCall() ast.Node {
 		return p.parsePostfixExpression(expr)
 	}
 	return p.parsePostfixExpression(expr)
-}
-
-func (p *Parser) collectFQCNString() string {
-	var fqcnBuilder strings.Builder
-	for {
-		if p.tok.Type == token.T_NS_SEPARATOR {
-			fqcnBuilder.WriteString("\\")
-			p.nextToken()
-		} else if p.tok.Type == token.T_STRING || p.tok.Type == token.T_STATIC || p.tok.Type == token.T_SELF || p.tok.Type == token.T_PARENT {
-			fqcnBuilder.WriteString(p.tok.Literal)
-			p.nextToken()
-		} else {
-			break
-		}
-	}
-	return fqcnBuilder.String()
 }
 
 func (p *Parser) parseSimpleStaticAccess(fqcn string, fqcnPos token.Position) ast.Node {
@@ -998,7 +994,7 @@ func (p *Parser) parseSimpleYieldExpression() ast.Node {
 		}
 	}
 
-	value := p.parseExpressionWithPrecedence(0, false, token.T_DOUBLE_ARROW, token.T_SEMICOLON)
+	value := p.parseExpressionWithPrecedenceStop(0, false, token.T_DOUBLE_ARROW, token.T_SEMICOLON)
 	if value == nil {
 		p.addError("line %d:%d: expected expression after yield", pos.Line, pos.Column)
 		return nil
@@ -1008,7 +1004,7 @@ func (p *Parser) parseSimpleYieldExpression() ast.Node {
 	if p.tok.Type == token.T_DOUBLE_ARROW {
 		key = value
 		p.nextToken() // consume =>
-		value = p.parseExpressionWithPrecedence(0, false, token.T_SEMICOLON)
+		value = p.parseExpressionWithPrecedenceStop(0, false, token.T_SEMICOLON)
 		if value == nil {
 			p.addError("line %d:%d: expected expression after => in yield", p.tok.Pos.Line, p.tok.Pos.Column)
 			return nil

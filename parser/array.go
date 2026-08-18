@@ -9,7 +9,7 @@ func (p *Parser) parseArrayElement() ast.Node {
 	pos := p.tok.Pos
 	byRef, unpack := p.parseArrayElementFlags()
 	var key ast.Node
-	value := p.parseExpressionWithPrecedence(0, false, token.T_DOUBLE_ARROW, token.T_COMMA, token.T_RBRACKET, token.T_RPAREN)
+	value := p.parseExpressionWithPrecedenceStop(0, false, token.T_DOUBLE_ARROW, token.T_COMMA, token.T_RBRACKET, token.T_RPAREN)
 	if value == nil {
 		return nil
 	}

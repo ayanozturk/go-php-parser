@@ -2,13 +2,12 @@ package parser
 
 import (
 	"go-phpcs/token"
-	"strings"
 )
 
 // parseFullTypeHint parses a type hint, including nested parentheses and unions/intersections, until a non-type token or variable is encountered
 func parseFullTypeHint(p *Parser) string {
 	parenLevel := 0
-	typeHintBuilder := strings.Builder{}
+	p.nameBuf.Reset()
 	for {
 		// Skip whitespace and comments between type tokens
 		if p.tok.Type == token.T_WHITESPACE || p.tok.Type == token.T_COMMENT || p.tok.Type == token.T_DOC_COMMENT {
@@ -17,13 +16,13 @@ func parseFullTypeHint(p *Parser) string {
 		}
 		if p.tok.Type == token.T_LPAREN {
 			parenLevel++
-			typeHintBuilder.WriteString("(")
+			p.nameBuf.WriteString("(")
 			p.nextToken()
 			continue
 		}
 		if p.tok.Type == token.T_RPAREN {
 			parenLevel--
-			typeHintBuilder.WriteString(")")
+			p.nameBuf.WriteString(")")
 			p.nextToken()
 			if parenLevel == 0 && (p.tok.Type != token.T_PIPE && p.tok.Type != token.T_AMPERSAND) {
 				break
@@ -34,7 +33,7 @@ func parseFullTypeHint(p *Parser) string {
 			break
 		}
 		if p.tok.Type == token.T_PIPE || p.tok.Type == token.T_AMPERSAND || p.tok.Type == token.T_QUESTION {
-			typeHintBuilder.WriteString(p.tok.Literal)
+			p.nameBuf.WriteString(p.tok.Literal)
 			p.nextToken()
 			continue
 		}
@@ -42,17 +41,17 @@ func parseFullTypeHint(p *Parser) string {
 			p.tok.Type == token.T_STATIC || p.tok.Type == token.T_SELF || p.tok.Type == token.T_PARENT ||
 			p.tok.Type == token.T_NEW || p.tok.Type == token.T_MIXED || p.tok.Type == token.T_NULL ||
 			p.tok.Type == token.T_FALSE {
-			typeHintBuilder.WriteString(p.tok.Literal)
+			p.nameBuf.WriteString(p.tok.Literal)
 			p.nextToken()
 			continue
 		}
 		if p.tok.Type == token.T_STRING {
-			typeHintBuilder.WriteString(p.tok.Literal)
+			p.nameBuf.WriteString(p.tok.Literal)
 			p.nextToken()
 			continue
 		}
 		// Stop if we hit the variable name or anything that can't be part of a type
 		break
 	}
-	return typeHintBuilder.String()
+	return p.nameBuf.String()
 }

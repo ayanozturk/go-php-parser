@@ -19,19 +19,30 @@ type Parser struct {
 	errors             []error
 	debug              bool
 	currentDoc         string // Current PHPDoc comment being tracked
+	modifierArr        [4]string
 	modifierBuf        []string
 	nameBuf            strings.Builder
+	stopBuf            [4]token.TokenType
+	stopLen            int
 }
 
 func New(l *lexer.Lexer, debug bool) *Parser {
 	p := &Parser{
-		l:           l,
-		errors:      []error{},
-		debug:       debug,
-		modifierBuf: make([]string, 0, 4),
+		l:     l,
+		debug: debug,
 	}
+	p.modifierBuf = p.modifierArr[:0]
 	p.nextToken() // Initialize first token
 	return p
+}
+
+func (p *Parser) isStopToken(t token.TokenType) bool {
+	for i := 0; i < p.stopLen; i++ {
+		if p.stopBuf[i] == t {
+			return true
+		}
+	}
+	return false
 }
 
 func (p *Parser) nextToken() {
@@ -127,20 +138,26 @@ func (p *Parser) peekToken() token.Token {
 // parseFQCN parses a fully qualified class name, e.g. \Foo\Bar
 func (p *Parser) parseFQCN() ast.Node {
 	pos := p.tok.Pos
-	p.nameBuf.Reset()
-	for {
-		if p.tok.Type == token.T_NS_SEPARATOR {
-			p.nameBuf.WriteString("\\")
-			p.nextToken()
+	var fqcn string
+	if (p.tok.Type == token.T_STRING || p.tok.Type == token.T_STATIC || p.tok.Type == token.T_SELF || p.tok.Type == token.T_PARENT) && p.peekToken().Type != token.T_NS_SEPARATOR {
+		fqcn = p.tok.Literal
+		p.nextToken()
+	} else {
+		p.nameBuf.Reset()
+		for {
+			if p.tok.Type == token.T_NS_SEPARATOR {
+				p.nameBuf.WriteString("\\")
+				p.nextToken()
+			}
+			if p.tok.Type == token.T_STRING || p.tok.Type == token.T_STATIC || p.tok.Type == token.T_SELF || p.tok.Type == token.T_PARENT {
+				p.nameBuf.WriteString(p.tok.Literal)
+				p.nextToken()
+			} else {
+				break
+			}
 		}
-		if p.tok.Type == token.T_STRING || p.tok.Type == token.T_STATIC || p.tok.Type == token.T_SELF || p.tok.Type == token.T_PARENT {
-			p.nameBuf.WriteString(p.tok.Literal)
-			p.nextToken()
-		} else {
-			break
-		}
+		fqcn = p.nameBuf.String()
 	}
-	fqcn := p.nameBuf.String()
 	if fqcn == "" {
 		p.addError("line %d:%d: expected fully qualified class name, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal)
 		return nil

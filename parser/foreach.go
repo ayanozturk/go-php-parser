@@ -12,7 +12,13 @@ func (p *Parser) parseExpressionWithStop(stopTypes ...token.TokenType) ast.Node 
 
 // parseExpressionWithPrecedenceStop is like parseExpressionWithPrecedence but stops if it sees a stop token.
 func (p *Parser) parseExpressionWithPrecedenceStop(minPrec int, validateAssignmentTarget bool, stopTypes ...token.TokenType) ast.Node {
-	return p.parseExpressionWithPrecedence(minPrec, validateAssignmentTarget, stopTypes...)
+	prevBuf := p.stopBuf
+	prevLen := p.stopLen
+	p.stopLen = copy(p.stopBuf[:], stopTypes)
+	res := p.parseExpressionWithPrecedence(minPrec, validateAssignmentTarget)
+	p.stopBuf = prevBuf
+	p.stopLen = prevLen
+	return res
 }
 
 // parseForeachStatement parses a PHP foreach statement

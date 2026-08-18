@@ -83,7 +83,7 @@ retry:
 		p.nextToken() // consume continue/break
 		var expr ast.Node
 		if p.tok.Type != token.T_SEMICOLON {
-			expr = p.parseExpressionWithPrecedence(0, false, token.T_SEMICOLON)
+			expr = p.parseExpressionWithPrecedenceStop(0, false, token.T_SEMICOLON)
 			if expr == nil {
 				return nil, nil
 			}
