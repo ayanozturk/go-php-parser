@@ -68,10 +68,11 @@ type ResolvedParam struct {
 }
 
 type AnalysisContext struct {
-	Resolver      SymbolResolver
-	PHPVersion    string
-	Project       *ProjectIndex
-	AnalysisLevel *int
+	Resolver           SymbolResolver
+	PHPVersion         string
+	Project            *ProjectIndex
+	AnalysisLevel      *int
+	DisabledIssueCodes map[string]bool
 
 	fileTypeContext     fileTypeContext
 	hasFileTypeContext  bool

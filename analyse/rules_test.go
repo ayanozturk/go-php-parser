@@ -73,6 +73,25 @@ func TestRunAnalysisRulesPreservesContextPHPVersion(t *testing.T) {
 	}
 }
 
+func TestRunAnalysisRulesFiltersDisabledIssueCodes(t *testing.T) {
+	ClearAnalysisRules()
+	defer ClearAnalysisRules()
+
+	RegisterAnalysisRule("GROUPED.RULE", func(filename string, nodes []ast.Node) []AnalysisIssue {
+		return []AnalysisIssue{
+			{Filename: filename, Code: "ENABLED", Message: "keep"},
+			{Filename: filename, Code: "DISABLED", Message: "drop"},
+		}
+	})
+
+	issues := RunAnalysisRulesWithContext("test.php", nil, &AnalysisContext{
+		DisabledIssueCodes: map[string]bool{"DISABLED": true},
+	})
+	if len(issues) != 1 || issues[0].Code != "ENABLED" {
+		t.Fatalf("expected only enabled issue, got %#v", issues)
+	}
+}
+
 func TestClearAnalysisRules(t *testing.T) {
 	ClearAnalysisRules()
 

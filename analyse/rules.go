@@ -110,7 +110,13 @@ func RunAnalysisRulesWithContext(filename string, nodes []ast.Node, ctx *Analysi
 	if ctx == nil {
 		ctx = &AnalysisContext{}
 	} else {
-		ctx = &AnalysisContext{Resolver: ctx.Resolver, PHPVersion: ctx.PHPVersion, Project: ctx.Project, AnalysisLevel: ctx.AnalysisLevel}
+		ctx = &AnalysisContext{
+			Resolver:           ctx.Resolver,
+			PHPVersion:         ctx.PHPVersion,
+			Project:            ctx.Project,
+			AnalysisLevel:      ctx.AnalysisLevel,
+			DisabledIssueCodes: ctx.DisabledIssueCodes,
+		}
 	}
 	codes := ListRegisteredAnalysisRuleCodes()
 
@@ -125,12 +131,24 @@ func RunAnalysisRulesWithContext(filename string, nodes []ast.Node, ctx *Analysi
 			}
 		}
 		if entry.contextual != nil {
-			issues = append(issues, entry.contextual(filename, nodes, ctx)...)
+			issues = appendEnabledIssues(issues, entry.contextual(filename, nodes, ctx), ctx.DisabledIssueCodes)
 			continue
 		}
 		if entry.legacy != nil {
-			issues = append(issues, entry.legacy(filename, nodes)...)
+			issues = appendEnabledIssues(issues, entry.legacy(filename, nodes), ctx.DisabledIssueCodes)
 		}
 	}
 	return issues
+}
+
+func appendEnabledIssues(dst, candidates []AnalysisIssue, disabled map[string]bool) []AnalysisIssue {
+	if len(disabled) == 0 {
+		return append(dst, candidates...)
+	}
+	for _, issue := range candidates {
+		if !disabled[issue.Code] {
+			dst = append(dst, issue)
+		}
+	}
+	return dst
 }

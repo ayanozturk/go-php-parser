@@ -34,6 +34,8 @@ PHP Strom advertises controls for undefined symbols, undefined variables, and ty
 
 Add an explicit enabled-rule or enabled-category set to the analysis API. PHP Strom should map its user-facing settings to those categories and pass them into each analysis request. Unsupported settings should not be advertised as functional.
 
+Status: `AnalysisContext` now accepts disabled issue codes, including codes emitted by grouped analysis passes. PHP Strom maps its undefined-symbol, undefined-variable, and type-error toggles to this selection contract. Settings for strict types, relaxed checking, mixed-type handling, and documented-type checking were removed from the advertised configuration because those semantics are not implemented.
+
 ### 4. Remove the duplicate PHP Strom parser
 
 PHP Strom's `server/parser` implementation is not used by production language features. Its `cmd/parse-test` utility therefore measures a different parser from the one users run, which can give misleading compatibility results.
