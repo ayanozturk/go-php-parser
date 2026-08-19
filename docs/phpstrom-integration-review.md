@@ -26,6 +26,8 @@ Correct the lexer accounting and add tests for the first token, indentation, lin
 
 The parser should use byte offsets as its canonical internal coordinate and expose conversion at integration boundaries. PHP Strom must convert offsets to the UTF-16 code-unit positions required by LSP.
 
+Status: the lexer now reports one-based rune columns correctly and retains byte offsets, with regression coverage for file starts, new lines, indentation, and multibyte string content. Complete AST spans and PHP Strom's byte-offset-to-UTF-16 conversion remain follow-up work.
+
 ### 3. Connect PHP Strom diagnostic settings to analysis rules
 
 PHP Strom advertises controls for undefined symbols, undefined variables, and type errors. These values exist in its server configuration structure, but they are not updated from settings or passed to this module. Without an analysis level, `RunAnalysisRulesWithContext` runs every registered rule, including higher-level rules.

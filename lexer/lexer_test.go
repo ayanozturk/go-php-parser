@@ -460,6 +460,39 @@ func TestLexerPeekTokenPreservesState(t *testing.T) {
 	}
 }
 
+func TestLexerReportsOneBasedRunePositionsAndByteOffsets(t *testing.T) {
+	tests := []struct {
+		name       string
+		input      string
+		tokenIndex int
+		literal    string
+		line       int
+		column     int
+		offset     int
+	}{
+		{name: "first token", input: "foo", literal: "foo", line: 1, column: 1, offset: 0},
+		{name: "first token after newline", input: "\nfoo", literal: "foo", line: 2, column: 1, offset: 1},
+		{name: "indented token", input: "\n  foo", literal: "foo", line: 2, column: 3, offset: 3},
+		{name: "unicode string uses rune columns and byte offsets", input: `"😀" foo`, tokenIndex: 1, literal: "foo", line: 1, column: 5, offset: 7},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			lex := New(tt.input)
+			var tok token.Token
+			for i := 0; i <= tt.tokenIndex; i++ {
+				tok = lex.NextToken()
+			}
+			if tok.Literal != tt.literal {
+				t.Fatalf("expected literal %q, got %q", tt.literal, tok.Literal)
+			}
+			if tok.Pos.Line != tt.line || tok.Pos.Column != tt.column || tok.Pos.Offset != tt.offset {
+				t.Fatalf("expected position %d:%d offset %d, got %d:%d offset %d", tt.line, tt.column, tt.offset, tok.Pos.Line, tok.Pos.Column, tok.Pos.Offset)
+			}
+		})
+	}
+}
+
 func TestLexerTruncatedOperatorsDoNotPanic(t *testing.T) {
 	inputs := []string{"..", "<<", "=="}
 	for _, input := range inputs {

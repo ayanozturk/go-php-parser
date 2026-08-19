@@ -46,7 +46,7 @@ func New(input string) *Lexer {
 	l := &Lexer{
 		input:  input,
 		line:   1,
-		column: 1,
+		column: 0,
 	}
 	l.readChar()
 	return l
@@ -54,6 +54,18 @@ func New(input string) *Lexer {
 
 // readChar reads the next rune from input and advances position, supporting Unicode.
 func (l *Lexer) readChar() {
+	// line and column describe the rune being loaded. Advance from the
+	// previous rune before decoding the next one so the first rune of both the
+	// file and every subsequent line is reported at column 1.
+	if l.readPos == 0 {
+		l.column = 1
+	} else if l.char == '\n' {
+		l.line++
+		l.column = 1
+	} else {
+		l.column++
+	}
+
 	if l.readPos >= len(l.input) {
 		l.char = 0
 		l.size = 0
@@ -68,13 +80,6 @@ func (l *Lexer) readChar() {
 	}
 	l.pos = l.readPos
 	l.readPos += l.size
-
-	if l.char == '\n' {
-		l.line++
-		l.column = 1
-	} else {
-		l.column++
-	}
 }
 
 // peekChar peeks the next rune without advancing position (Unicode-aware).
@@ -191,7 +196,7 @@ func (l *Lexer) readString(quote byte) string {
 
 	if !hasEscapesOrNewlines && end < len(l.input) && l.input[end] == quote {
 		str := l.input[l.pos:end]
-		l.column += (end - l.pos)
+		l.column += utf8.RuneCountInString(str)
 		l.pos = end
 		l.readPos = end + 1
 		l.char = rune(quote)
