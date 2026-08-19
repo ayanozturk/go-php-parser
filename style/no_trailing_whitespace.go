@@ -1,7 +1,7 @@
 package style
 
 import (
-	"go-phpcs/ast"
+	"github.com/ayanozturk/go-php-parser/ast"
 )
 
 // NoTrailingWhitespaceChecker checks for trailing whitespace at the end of lines (PSR-12 2.2)

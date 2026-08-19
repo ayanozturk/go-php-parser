@@ -1,8 +1,8 @@
 package parser
 
 import (
-	"go-phpcs/ast"
-	"go-phpcs/token"
+	"github.com/ayanozturk/go-php-parser/ast"
+	"github.com/ayanozturk/go-php-parser/token"
 )
 
 // parseConstant parses a PHP constant declaration.

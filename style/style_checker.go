@@ -1,6 +1,6 @@
 package style
 
-import "go-phpcs/ast"
+import "github.com/ayanozturk/go-php-parser/ast"
 
 // StyleChecker defines the interface for all style checkers.
 type StyleChecker interface {

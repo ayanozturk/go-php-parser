@@ -4,9 +4,9 @@ import (
 	"bufio"
 	"flag"
 	"fmt"
-	"go-phpcs/command"
-	"go-phpcs/config"
-	"go-phpcs/helper"
+	"github.com/ayanozturk/go-php-parser/command"
+	"github.com/ayanozturk/go-php-parser/config"
+	"github.com/ayanozturk/go-php-parser/helper"
 	"log"
 	_ "net/http/pprof" // registers /debug/pprof handlers on DefaultServeMux
 	"os"

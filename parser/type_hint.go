@@ -2,7 +2,7 @@ package parser
 
 import (
 	"fmt"
-	"go-phpcs/token"
+	"github.com/ayanozturk/go-php-parser/token"
 )
 
 // parseTypeHint parses a type hint (nullable, union, FQCN, etc.)

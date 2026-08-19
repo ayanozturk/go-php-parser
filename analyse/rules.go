@@ -1,7 +1,7 @@
 package analyse
 
 import (
-	"go-phpcs/ast"
+	"github.com/ayanozturk/go-php-parser/ast"
 	"sort"
 	"sync"
 )

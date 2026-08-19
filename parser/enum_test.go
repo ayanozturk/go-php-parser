@@ -3,8 +3,8 @@ package parser
 import (
 	"testing"
 
-	"go-phpcs/ast"
-	"go-phpcs/lexer"
+	"github.com/ayanozturk/go-php-parser/ast"
+	"github.com/ayanozturk/go-php-parser/lexer"
 )
 
 func TestParseEnum(t *testing.T) {

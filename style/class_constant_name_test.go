@@ -1,8 +1,8 @@
 package style
 
 import (
-	"go-phpcs/lexer"
-	"go-phpcs/parser"
+	"github.com/ayanozturk/go-php-parser/lexer"
+	"github.com/ayanozturk/go-php-parser/parser"
 	"testing"
 )
 

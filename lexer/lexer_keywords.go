@@ -1,7 +1,7 @@
 package lexer
 
 import (
-	"go-phpcs/token"
+	"github.com/ayanozturk/go-php-parser/token"
 )
 
 // keywordTokenMap maps PHP keywords to their token types.

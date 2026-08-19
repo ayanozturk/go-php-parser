@@ -1,6 +1,6 @@
 package analyse
 
-import "go-phpcs/ast"
+import "github.com/ayanozturk/go-php-parser/ast"
 
 const (
 	level0SymbolsCode    = "PHPStan.Level0.Symbols"

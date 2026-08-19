@@ -2,8 +2,8 @@
 package style
 
 import (
-	"go-phpcs/ast"
-	"go-phpcs/style/helper"
+	"github.com/ayanozturk/go-php-parser/ast"
+	"github.com/ayanozturk/go-php-parser/style/helper"
 	"strings"
 )
 

@@ -1,7 +1,7 @@
 package parser
 
 import (
-	"go-phpcs/token"
+	"github.com/ayanozturk/go-php-parser/token"
 )
 
 // parseFullTypeHint parses a type hint, including nested parentheses and unions/intersections, until a non-type token or variable is encountered

@@ -1,7 +1,7 @@
 package analyse
 
 import (
-	"go-phpcs/ast"
+	"github.com/ayanozturk/go-php-parser/ast"
 )
 
 // AssignmentInConditionRule detects assignments inside conditional statements

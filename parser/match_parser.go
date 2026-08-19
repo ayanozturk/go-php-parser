@@ -1,8 +1,8 @@
 package parser
 
 import (
-	"go-phpcs/ast"
-	"go-phpcs/token"
+	"github.com/ayanozturk/go-php-parser/ast"
+	"github.com/ayanozturk/go-php-parser/token"
 )
 
 // parseMatchExpression parses a PHP 8.0+ match expression

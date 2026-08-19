@@ -7,7 +7,7 @@ import (
 	"reflect"
 	"testing"
 
-	"go-phpcs/overrides"
+	"github.com/ayanozturk/go-php-parser/overrides"
 )
 
 func TestLoadConfig_Success(t *testing.T) {

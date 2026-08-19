@@ -1,8 +1,8 @@
 package parser
 
 import (
-	"go-phpcs/ast"
-	"go-phpcs/token"
+	"github.com/ayanozturk/go-php-parser/ast"
+	"github.com/ayanozturk/go-php-parser/token"
 )
 
 // expect checks if the current token matches the expected type. If so, advances to the next token and returns true.

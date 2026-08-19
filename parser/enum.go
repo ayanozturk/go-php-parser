@@ -2,8 +2,8 @@ package parser
 
 import (
 	"fmt"
-	"go-phpcs/ast"
-	"go-phpcs/token"
+	"github.com/ayanozturk/go-php-parser/ast"
+	"github.com/ayanozturk/go-php-parser/token"
 )
 
 // parseEnum parses an enum declaration

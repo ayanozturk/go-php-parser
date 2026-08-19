@@ -1,9 +1,9 @@
 package analyse
 
 import (
-	"go-phpcs/ast"
-	"go-phpcs/lexer"
-	"go-phpcs/parser"
+	"github.com/ayanozturk/go-php-parser/ast"
+	"github.com/ayanozturk/go-php-parser/lexer"
+	"github.com/ayanozturk/go-php-parser/parser"
 	"strings"
 	"testing"
 )

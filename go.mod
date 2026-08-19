@@ -1,4 +1,4 @@
-module go-phpcs
+module github.com/ayanozturk/go-php-parser
 
 go 1.23
 

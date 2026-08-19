@@ -1,7 +1,7 @@
 package parser
 
 import (
-	"go-phpcs/lexer"
+	"github.com/ayanozturk/go-php-parser/lexer"
 	"testing"
 )
 

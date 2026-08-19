@@ -1,6 +1,6 @@
 package analyse
 
-import "go-phpcs/ast"
+import "github.com/ayanozturk/go-php-parser/ast"
 
 func InferTypeAtPosition(nodes []ast.Node, line, column int, ident string, ctx *AnalysisContext) (string, bool) {
 	target, ok := InferHoverTargetAtPosition(nodes, line, column, ident, ctx)

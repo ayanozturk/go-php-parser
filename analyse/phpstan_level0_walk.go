@@ -1,6 +1,6 @@
 package analyse
 
-import "go-phpcs/ast"
+import "github.com/ayanozturk/go-php-parser/ast"
 
 func walkAll(nodes []ast.Node, fn func(ast.Node, *ast.ClassNode, *ast.FunctionNode, fileTypeContext)) {
 	var walk func(ast.Node, *ast.ClassNode, *ast.FunctionNode, fileTypeContext)

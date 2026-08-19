@@ -1,6 +1,6 @@
 package style
 
-import "go-phpcs/overrides"
+import "github.com/ayanozturk/go-php-parser/overrides"
 
 func FilterIssues(issues []StyleIssue, matcher *overrides.Compiled) []StyleIssue {
 	if matcher == nil {

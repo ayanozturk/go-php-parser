@@ -1,7 +1,7 @@
 package style
 
 import (
-	"go-phpcs/ast"
+	"github.com/ayanozturk/go-php-parser/ast"
 )
 
 const endFileNewlineCode = "PSR12.Files.EndFileNewline"

@@ -2,9 +2,9 @@ package parser
 
 import (
 	"context"
-	"go-phpcs/ast"
-	"go-phpcs/lexer"
-	"go-phpcs/token"
+	"github.com/ayanozturk/go-php-parser/ast"
+	"github.com/ayanozturk/go-php-parser/lexer"
+	"github.com/ayanozturk/go-php-parser/token"
 	"strings"
 )
 

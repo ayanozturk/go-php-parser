@@ -2,7 +2,7 @@ package analyse
 
 import (
 	"fmt"
-	"go-phpcs/ast"
+	"github.com/ayanozturk/go-php-parser/ast"
 	"strconv"
 	"strings"
 )
