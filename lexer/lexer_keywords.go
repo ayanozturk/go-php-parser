@@ -24,6 +24,7 @@ var keywordTokenMap = map[string]token.TokenType{
 	"instanceof":   token.T_INSTANCEOF,
 	"implements":   token.T_IMPLEMENTS,
 	"echo":         token.T_ECHO,
+	"print":        token.T_PRINT,
 	"new":          token.T_NEW,
 	"public":       token.T_PUBLIC,
 	"private":      token.T_PRIVATE,

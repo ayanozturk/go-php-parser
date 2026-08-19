@@ -50,9 +50,7 @@ func (p *Parser) nextToken() {
 }
 
 func (p *Parser) addError(format string, args ...interface{}) {
-	if p.debug {
-		p.errors = append(p.errors, ErrorDeferred{Format: format, Args: args})
-	}
+	p.errors = append(p.errors, ErrorDeferred{Format: format, Args: args})
 }
 
 // Errors returns the list of errors encountered during parsing

@@ -136,7 +136,7 @@ func TestSideEffectsUseAndClassDeclarationOnly(t *testing.T) {
 	php := `<?php
 namespace MyNamespace;
 
-use Foo\\Bar;
+use Foo\Bar;
 
 final class MyClass {}
 `

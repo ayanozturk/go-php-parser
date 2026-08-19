@@ -38,6 +38,8 @@ retry:
 	switch p.tok.Type {
 	case token.T_USE:
 		return p.parseUseDeclaration()
+	case token.T_CONST:
+		return p.parseConstant(), nil
 	case token.T_TRAIT:
 		return p.parseTraitDeclaration()
 	case token.T_COMMENT:
@@ -185,15 +187,16 @@ retry:
 			return nil, fmt.Errorf("failed to parse interface declaration")
 		}
 		return node, nil
-	case token.T_ECHO:
+	case token.T_ECHO, token.T_PRINT:
 		pos := p.tok.Pos
-		p.nextToken() // consume echo
+		keyword := p.tok.Literal
+		p.nextToken() // consume echo/print
 		expr := p.parseExpression()
 		if expr == nil {
 			return nil, nil
 		}
 		if p.tok.Type != token.T_SEMICOLON {
-			p.addError("line %d:%d: expected ; after echo statement, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal)
+			p.addError("line %d:%d: expected ; after %s statement, got %s", p.tok.Pos.Line, p.tok.Pos.Column, keyword, p.tok.Literal)
 			return nil, nil
 		}
 		p.nextToken() // consume ;

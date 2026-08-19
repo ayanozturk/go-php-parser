@@ -118,6 +118,7 @@ const (
 	T_DEFAULT    TokenType = "T_DEFAULT"
 	T_DO         TokenType = "T_DO"
 	T_ECHO       TokenType = "T_ECHO"
+	T_PRINT      TokenType = "T_PRINT"
 	T_ELSE       TokenType = "T_ELSE"
 	T_ELSEIF     TokenType = "T_ELSEIF"
 	T_EMPTY      TokenType = "T_EMPTY"

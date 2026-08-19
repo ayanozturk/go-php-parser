@@ -64,6 +64,42 @@ func TestParserInfiniteLoopScenarios(t *testing.T) {
 	}
 }
 
+func TestParserRecordsErrorsWhenDebugIsDisabled(t *testing.T) {
+	l := lexer.New(`<?php
+		if () {
+			echo "test";
+		}
+	`)
+	p := New(l, false)
+	_ = p.Parse()
+
+	if len(p.Errors()) == 0 {
+		t.Fatal("expected malformed PHP to produce parser errors with debug disabled")
+	}
+}
+
+func TestParserAcceptsTopLevelConstAndPrint(t *testing.T) {
+	l := lexer.New(`<?php
+		const MESSAGE = "hello";
+		print MESSAGE;
+	`)
+	p := New(l, false)
+	nodes := p.Parse()
+
+	if errors := p.Errors(); len(errors) > 0 {
+		t.Fatalf("expected valid declarations and print statement to parse, got %v", errors)
+	}
+	if len(nodes) != 2 {
+		t.Fatalf("expected two top-level nodes, got %d", len(nodes))
+	}
+	if _, ok := nodes[0].(*ast.ConstantNode); !ok {
+		t.Fatalf("expected first node to be ConstantNode, got %T", nodes[0])
+	}
+	if _, ok := nodes[1].(*ast.ExpressionStmt); !ok {
+		t.Fatalf("expected second node to be ExpressionStmt, got %T", nodes[1])
+	}
+}
+
 func TestInstanceOf(t *testing.T) {
 	l := lexer.New(`<?php
 		if ($a instanceof \Exception) {
