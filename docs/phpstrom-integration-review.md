@@ -50,6 +50,8 @@ PHP Strom currently requires a zero pseudo-version and replaces it with a relati
 
 Change this module to a canonical import path such as `github.com/ayanozturk/go-php-parser`, publish semantic version tags, and pin PHP Strom to a released version. A local `go.work` override can continue to support coordinated development without becoming part of the published dependency contract.
 
+Status: the module now uses `github.com/ayanozturk/go-php-parser`, and PHP Strom pins an exact pseudo-version in `server/go.mod`. Normal build and test targets use that pinned module; explicit `*-dev` targets opt into a sibling checkout through a generated Go workspace. Publishing a semantic version tag remains a release follow-up.
+
 ### 6. Add complete source spans
 
 AST nodes currently expose only a start position. Exact editor operations such as diagnostics, selection ranges, rename, references, and highlighting need both start and end positions. Without spans, PHP Strom falls back to scanning source text around a cursor, which is fragile for Unicode and complex syntax.
