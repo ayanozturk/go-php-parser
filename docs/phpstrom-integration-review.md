@@ -42,6 +42,8 @@ PHP Strom's `server/parser` implementation is not used by production language fe
 
 Remove the duplicate implementation or clearly isolate it as experimental. Compatibility and performance tools should call this repository through the same entry point and options used by the production language server.
 
+Status: PHP Strom's duplicate `server/parser` package was removed. Its `cmd/parse-test` utility now calls the production `indexer.ParseSourceForIndexWithContext` adapter and reports recovered production symbols and parser errors.
+
 ### 5. Make the Go dependency reproducible
 
 PHP Strom currently requires a zero pseudo-version and replaces it with a relative filesystem path. Its build setup clones the parser's mutable `main` branch when no sibling checkout exists and reuses that cache indefinitely.
