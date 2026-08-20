@@ -231,6 +231,11 @@ func (l *Lexer) lexSlash(pos token.Position) token.Token {
 		comment := l.readBlockComment(commentStart)
 		return token.Token{Type: token.T_COMMENT, Literal: comment, Pos: pos}
 	}
+	if l.peekChar() == '=' {
+		l.readChar()
+		l.readChar()
+		return token.Token{Type: token.T_DIV_EQUAL, Literal: "/=", Pos: pos}
+	}
 	tok := token.Token{Type: token.T_DIVIDE, Literal: asciiString(l.char), Pos: pos}
 	l.readChar()
 	return tok

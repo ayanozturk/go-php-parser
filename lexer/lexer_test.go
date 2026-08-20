@@ -170,6 +170,20 @@ func TestLexerModuloOperators(t *testing.T) {
 	}
 }
 
+func TestLexerDivisionOperators(t *testing.T) {
+	lex := New("/ /=")
+
+	tok := lex.NextToken()
+	if tok.Type != token.T_DIVIDE || tok.Literal != "/" {
+		t.Errorf("expected T_DIVIDE, got %v %q", tok.Type, tok.Literal)
+	}
+
+	tok = lex.NextToken()
+	if tok.Type != token.T_DIV_EQUAL || tok.Literal != "/=" {
+		t.Errorf("expected T_DIV_EQUAL, got %v %q", tok.Type, tok.Literal)
+	}
+}
+
 func TestLexerExponentiationOperators(t *testing.T) {
 	lex := New("** **= *=")
 

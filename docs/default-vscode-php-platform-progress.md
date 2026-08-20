@@ -6,7 +6,7 @@ This file records reproducible evidence for the cooperating `go-php-parser` engi
 
 ## Current baseline
 
-- Engine checkout: `/Users/ayan/Projects/go-php-parser`, `main` at `2d18703` before this progress file is committed.
+- Engine checkout: `/Users/ayan/Projects/go-php-parser`, `main` at pushed commit `5cc3f05` before the current `/=` fix is committed.
 - Extension checkout: `/Users/ayan/Projects/vscode-php-strom`, `main` at pushed commit `7889e04`.
 - Production extension builds pin `github.com/ayanozturk/go-php-parser` at pseudo-version `v0.0.0-20260819211345-919aef879297`; `make test-server-dev` validates the sibling engine checkout through a generated, ignored Go workspace.
 - Go toolchain observed: Go 1.26.2. Node toolchain observed: Node 22.20.0.
@@ -87,6 +87,16 @@ Representative workload: 23,556 indexed PHP files, 3,678,678 LOC, 135.68 MB, 151
 - `make test-server-dev`: pass against the sibling engine checkout.
 - Engine `go test ./...`, `go vet ./...`, and `go test -race ./...`: pass.
 - Committed and pushed to `vscode-php-strom/main` as `7889e04`. The audited lockfile remediation was committed separately as `9dfa9c3`.
+
+### 2026-08-20 — Features: parse division assignment and locate syntax diagnostics
+
+- Reproduced a false-positive cascade in `/Users/ayan/Projects/hr/src/Command/GenerateApiDocsCommand.php`: valid `$bytes /= 1024;` was lexed as separate `/` and `=` tokens, producing nine editor diagnostics. `php -l` and `mago analyse` both accepted the file.
+- Added lexer coverage proving `/` remains `T_DIVIDE` while `/=` emits the existing `T_DIV_EQUAL` token, plus a parser regression test for division assignment in a function body.
+- Updated `vscode-php-strom` parse diagnostics to derive LSP ranges from the parser's `line N:C:` prefix instead of highlighting line 1 for every syntax error; unstructured panic/recovery messages retain the safe line-1 fallback.
+- Local-parser `cmd/parse-test` scan of the reported HR file: 1 file, 0 timeouts, 0 panics, 0 parse errors.
+- Engine `go test ./...`, `go vet ./...`, and `go test -race ./...`: pass.
+- Extension `make test-server-dev`: pass against the sibling engine checkout, including the diagnostic-range tests.
+- No benchmark was run because this is a constant-time lexer branch and diagnostic-location correctness fix, not a performance optimization; no performance improvement is claimed.
 
 ## Next ranked candidates
 

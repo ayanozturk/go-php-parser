@@ -100,6 +100,22 @@ func TestParserAcceptsTopLevelConstAndPrint(t *testing.T) {
 	}
 }
 
+func TestParserAcceptsDivisionAssignment(t *testing.T) {
+	l := lexer.New(`<?php
+function formatBytes(int $bytes): int
+{
+    $bytes /= 1024;
+    return $bytes;
+}
+`)
+	p := New(l, false)
+	_ = p.Parse()
+
+	if errors := p.Errors(); len(errors) > 0 {
+		t.Fatalf("expected division assignment to parse, got %v", errors)
+	}
+}
+
 func TestInstanceOf(t *testing.T) {
 	l := lexer.New(`<?php
 		if ($a instanceof \Exception) {
