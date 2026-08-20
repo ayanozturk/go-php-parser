@@ -396,11 +396,11 @@ func (p *Parser) parseSimpleNew() ast.Node {
 		if classExpr == nil {
 			return nil
 		}
-		return &ast.NewNode{
+		return p.parsePostfixExpression(&ast.NewNode{
 			ClassExpr: classExpr,
 			Args:      args,
 			Pos:       ast.Position(pos),
-		}
+		})
 	}
 	if p.tok.Type != token.T_STRING && p.tok.Type != token.T_STATIC && p.tok.Type != token.T_SELF && p.tok.Type != token.T_PARENT && p.tok.Type != token.T_NS_SEPARATOR && p.tok.Type != token.T_VARIABLE && p.tok.Type != token.T_LPAREN {
 		p.addError("line %d:%d: expected class name after new, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal)
@@ -447,12 +447,12 @@ func (p *Parser) parseSimpleNew() ast.Node {
 		}
 		p.nextToken() // consume )
 	}
-	return &ast.NewNode{
+	return p.parsePostfixExpression(&ast.NewNode{
 		ClassName: className,
 		ClassExpr: classExpr,
 		Args:      args,
 		Pos:       ast.Position(pos),
-	}
+	})
 }
 
 func (p *Parser) parseNewClassPostfixExpression(expr ast.Node) ast.Node {
@@ -729,7 +729,7 @@ func (p *Parser) parseFunctionCallArguments() []ast.Node {
 			p.nextToken() // consume ...
 		}
 		var arg ast.Node
-		if p.tok.Type == token.T_STRING && p.peekToken().Type == token.T_COLON {
+		if (p.tok.Type == token.T_STRING || isValidMethodNameToken(p.tok.Type)) && p.peekToken().Type == token.T_COLON {
 			argPos := p.tok.Pos
 			name := p.tok.Literal
 			p.nextToken() // consume name

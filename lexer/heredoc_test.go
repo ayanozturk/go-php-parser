@@ -119,3 +119,32 @@ func TestLexerNowdocWithUnicodeContinuesAfterTerminator(t *testing.T) {
 		t.Fatal("expected lexer to continue after unicode nowdoc content")
 	}
 }
+
+func TestLexerIndentedNowdocTerminatorDedentsBody(t *testing.T) {
+	input := "<?php\n$sql = <<<'SQL'\n        SELECT 1\n    SQL;\n$end = 1;"
+	l := New(input)
+
+	var body string
+	var seenSemicolon, seenEndVar bool
+	for {
+		tok := l.NextToken()
+		switch {
+		case tok.Type == token.T_ENCAPSED_AND_WHITESPACE:
+			body = tok.Literal
+		case tok.Type == token.T_SEMICOLON:
+			seenSemicolon = true
+		case tok.Type == token.T_VARIABLE && tok.Literal == "$end":
+			seenEndVar = true
+		}
+		if seenEndVar || tok.Type == token.T_EOF {
+			break
+		}
+	}
+
+	if body != "    SELECT 1\n" {
+		t.Fatalf("unexpected dedented nowdoc body: %q", body)
+	}
+	if !seenSemicolon || !seenEndVar {
+		t.Fatalf("expected lexer to continue after indented terminator; semicolon=%v end=%v", seenSemicolon, seenEndVar)
+	}
+}

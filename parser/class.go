@@ -107,10 +107,14 @@ func (p *Parser) parseClassDeclaration() (ast.Node, error) {
 	for p.tok.Type != token.T_RBRACE && p.tok.Type != token.T_EOF {
 		// Collect all modifiers before method/property/constant
 		modifiers := p.parseModifiers()
+		if p.tok.Type == token.T_RBRACE || p.tok.Type == token.T_EOF {
+			break
+		}
 		// Parse type hint if present (for property)
 		var typeHint string
-		if p.tok.Type == token.T_STRING || p.tok.Type == token.T_NS_SEPARATOR || p.tok.Type == token.T_CALLABLE || p.tok.Type == token.T_ARRAY || p.tok.Type == token.T_QUESTION {
+		if p.tok.Type == token.T_STRING || p.tok.Type == token.T_NS_SEPARATOR || p.tok.Type == token.T_CALLABLE || p.tok.Type == token.T_ARRAY || p.tok.Type == token.T_MIXED || p.tok.Type == token.T_QUESTION {
 			typeHint = p.parseTypeHint()
+			p.skipCommentsAndWhitespace()
 		}
 		if p.tok.Type == token.T_FUNCTION {
 			if method, err := p.parseFunction(modifiers); method != nil {
@@ -239,10 +243,14 @@ func (p *Parser) parseAnonymousClassExpression() (ast.Node, []ast.Node) {
 	var traitUses []ast.Node
 	for p.tok.Type != token.T_RBRACE && p.tok.Type != token.T_EOF {
 		modifiers := p.parseModifiers()
+		if p.tok.Type == token.T_RBRACE || p.tok.Type == token.T_EOF {
+			break
+		}
 
 		var typeHint string
-		if p.tok.Type == token.T_STRING || p.tok.Type == token.T_NS_SEPARATOR || p.tok.Type == token.T_CALLABLE || p.tok.Type == token.T_ARRAY || p.tok.Type == token.T_QUESTION {
+		if p.tok.Type == token.T_STRING || p.tok.Type == token.T_NS_SEPARATOR || p.tok.Type == token.T_CALLABLE || p.tok.Type == token.T_ARRAY || p.tok.Type == token.T_MIXED || p.tok.Type == token.T_QUESTION {
 			typeHint = p.parseTypeHint()
+			p.skipCommentsAndWhitespace()
 		}
 		if p.tok.Type == token.T_FUNCTION {
 			if method, err := p.parseFunction(modifiers); method != nil {

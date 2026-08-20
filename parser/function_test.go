@@ -456,3 +456,38 @@ function foo() {
 		t.Fatalf("Expected initializer 1 for x, got %v", decl.Vars[0].Init)
 	}
 }
+
+func TestParseNeverReturnTypePreservesFollowingMethod(t *testing.T) {
+	input := `<?php
+class DepartmentData {
+    public static function fromEntity(object $entity): never {}
+
+    public function toArray(): array {
+        return [];
+    }
+}`
+
+	p := New(lexer.New(input), false)
+	nodes := p.Parse()
+	if len(p.Errors()) > 0 {
+		t.Fatalf("Parser returned errors: %v", p.Errors())
+	}
+	if len(nodes) != 1 {
+		t.Fatalf("Expected one class node, got %d", len(nodes))
+	}
+	classNode, ok := nodes[0].(*ast.ClassNode)
+	if !ok {
+		t.Fatalf("Expected ClassNode, got %T", nodes[0])
+	}
+	if len(classNode.Methods) != 2 {
+		t.Fatalf("Expected both methods to be preserved, got %d", len(classNode.Methods))
+	}
+	first, ok := classNode.Methods[0].(*ast.FunctionNode)
+	if !ok || first.ReturnType != "never" {
+		t.Fatalf("Expected never return type, got %#v", classNode.Methods[0])
+	}
+	second, ok := classNode.Methods[1].(*ast.FunctionNode)
+	if !ok || second.Name != "toArray" || second.ReturnType != "array" {
+		t.Fatalf("Expected following toArray method, got %#v", classNode.Methods[1])
+	}
+}

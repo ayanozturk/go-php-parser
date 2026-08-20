@@ -88,6 +88,9 @@ func (p *Parser) Parse() []ast.Node {
 	for p.tok.Type == token.T_WHITESPACE || p.tok.Type == token.T_COMMENT {
 		p.nextToken()
 	}
+	if p.tok.Type == token.T_EOF {
+		return nodes
+	}
 
 	// Expect PHP open tag first
 	if p.tok.Type != token.T_OPEN_TAG {

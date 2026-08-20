@@ -708,6 +708,123 @@ class CoreExtension {
 	}
 }
 
+func TestParseForKeywordStaticMethodWithEnumCaseArgument(t *testing.T) {
+	php := `<?php
+enum TaskStatus: string {
+    case BACKLOG = 'backlog';
+}
+
+final class TaskStatusDisplay {
+    public static function for(TaskStatus $status): self
+    {
+        return new self();
+    }
+}
+
+$display = TaskStatusDisplay::for(TaskStatus::BACKLOG);
+`
+
+	l := lexer.New(php)
+	p := New(l, true)
+	_ = p.Parse()
+
+	if len(p.Errors()) > 0 {
+		t.Fatalf("unexpected parser errors: %v", p.Errors())
+	}
+}
+
+func TestParseAdditionalValidClassMemberSyntax(t *testing.T) {
+	php := `<?php
+class Example {
+    public readonly mixed $data;
+    private Collection /*<int, Item>*/ $items;
+
+    public function new(): self
+    {
+        return $this;
+    }
+
+    // A trailing class-body comment is valid.
+}
+
+$example = Example::new();
+`
+
+	l := lexer.New(php)
+	p := New(l, true)
+	_ = p.Parse()
+
+	if len(p.Errors()) > 0 {
+		t.Fatalf("unexpected parser errors: %v", p.Errors())
+	}
+}
+
+func TestParseDirectNewExpressionMethodChain(t *testing.T) {
+	php := `<?php
+$email = new TemplatedEmail()
+    ->from($sender)
+    ->to($recipient)
+    ->subject('Welcome');
+`
+
+	l := lexer.New(php)
+	p := New(l, true)
+	_ = p.Parse()
+
+	if len(p.Errors()) > 0 {
+		t.Fatalf("unexpected parser errors: %v", p.Errors())
+	}
+}
+
+func TestParseKeywordNamedArgument(t *testing.T) {
+	php := `<?php
+$constraint = new Regex(
+    pattern: '/example/',
+    match: false,
+);
+`
+
+	l := lexer.New(php)
+	p := New(l, true)
+	_ = p.Parse()
+
+	if len(p.Errors()) > 0 {
+		t.Fatalf("unexpected parser errors: %v", p.Errors())
+	}
+}
+
+func TestParseCommentOnlyAnonymousClass(t *testing.T) {
+	php := `<?php
+$context = new class() {
+    // Intentionally no members.
+};
+`
+
+	l := lexer.New(php)
+	p := New(l, true)
+	_ = p.Parse()
+
+	if len(p.Errors()) > 0 {
+		t.Fatalf("unexpected parser errors: %v", p.Errors())
+	}
+}
+
+func TestParseIndentedNowdocFunctionArgument(t *testing.T) {
+	php := `<?php
+$this->addSql(<<<'SQL'
+    ALTER TABLE tasks ADD completed_date DATETIME DEFAULT NULL
+SQL);
+`
+
+	l := lexer.New(php)
+	p := New(l, true)
+	_ = p.Parse()
+
+	if len(p.Errors()) > 0 {
+		t.Fatalf("unexpected parser errors: %v", p.Errors())
+	}
+}
+
 func TestParseVariableArrayKey(t *testing.T) {
 	php := `<?php
 return [$name => $template];

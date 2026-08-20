@@ -122,6 +122,61 @@ Representative workload: 23,556 indexed PHP files, 3,678,678 LOC, 135.68 MB, 151
 
 ## Next ranked candidates
 
+### 2026-08-20 — Features: accept `for` as a contextual method name
+
+- Reproduced valid PHP using `public static function for(...)` and `TaskStatusDisplay::for(TaskStatus::BACKLOG)`; PHP accepts the enum case and contextual keyword method name, while the parser rejected `T_FOR` in both positions.
+- Added an end-to-end parser regression covering a backed enum, the keyword-named declaration, and the static call with an enum-case argument.
+- The HR `src/ValueObject` corpus improved from 1 parse-error file to 0 across 81 files; the full `src` corpus improved from 14 to 13 parse-error files across 1,091 files, with 0 panics and 0 timeouts.
+- `go test ./...`, `go vet ./...`, and `git diff --check`: pass. Extension server `go test ./...`, TypeScript compile, webpack package, and VSIX packaging: pass; webpack retains its known dynamic-require warning.
+- This is a constant-time token classification correction; no performance improvement is claimed.
+
+### 2026-08-20 — Features: eliminate remaining HR parser false positives
+
+- Verified all 13 remaining parser-failing HR files with PHP 8.4 `php -l`; every file was valid PHP.
+- Grouped the failures into four shared grammar gaps: `new` as a contextual method name, trailing comments before a class closing brace, `mixed` typed properties, and comments between a property type and variable.
+- Added adversarial regression coverage combining the four forms, and extended the corpus scanner to print at most five diagnostics per failing file for reproducible triage.
+- The full `/Users/ayan/Projects/hr/src` corpus improved from 13 parser-failing files to 0 across 1,091 files, with 0 panics and 0 timeouts.
+- Engine `go test ./...`, `go vet ./...`, `go test -race ./...`, and `git diff --check`: pass.
+- Extension local-parser and pinned-parser tests pass, including race and vet; `npm run lint`, `npm run compile`, `npm run package`, `npm audit --audit-level=low`, and `git diff --check`: pass. Audit reports 0 vulnerabilities; packaging retains the known dynamic-require warning.
+- These changes add constant-time token checks and skip already-tokenized comments; no performance improvement is claimed.
+
+### 2026-08-20 — Features: validate and clear full-body HR diagnostics
+
+- Found that `cmd/parse-test` used the symbol-indexing path, which intentionally skipped function bodies and could not reproduce editor diagnostics in `Mail/OnboardingEmail.php`; changed it to the full production diagnostic parser and retained bounded error details.
+- Reproduced and fixed direct fluent calls on constructor expressions such as `new TemplatedEmail()->from(...)`, with a focused regression test.
+- The corrected full-body scan exposed and fixed one final false positive for keyword-named arguments such as Symfony Regex's `match: false`, also with regression coverage.
+- PHP 8.4 `php -l` and the full diagnostic parser now both accept `Mail/OnboardingEmail.php` and `Form/ContactUsFormType.php`.
+- Corrected full-body scan: 1,091 HR source files, 0 parser-error files, 0 panics, and 0 timeouts.
+- Engine full tests, vet, race tests, and diff checks pass. Extension local-parser tests, lint, compile, package, extension-host tests, audit, and diff checks pass; audit reports 0 vulnerabilities and packaging retains the known dynamic-require warning.
+- The parser changes reuse the existing postfix loop and add a constant-time identifier classification; no performance improvement is claimed.
+
+### 2026-08-20 — Maintenance: group syntax diagnostics as Parser Errors
+
+- Parser diagnostics previously had no LSP code, causing the project Problems tree to create one group per raw recovery message.
+- Assigned every parser diagnostic the stable `Parser Errors` code; the existing view now groups genuine syntax findings together while analysis and style findings retain their rule-specific groups.
+- Added a provider regression proving syntax diagnostics retain the grouping code with parser debug disabled.
+- Pinned and local-parser provider tests pass. Extension full Go tests, vet, race tests, lint, compile, package, extension-host tests, audit, and diff checks pass; audit reports 0 vulnerabilities and packaging retains the known dynamic-require warning.
+- This changes diagnostic metadata and view organization only; parsing, severity, ranges, messages, security boundaries, and performance are unchanged.
+
+### 2026-08-20 — Features: parse HR anonymous classes and flexible heredocs
+
+- Verified `tests/Unit/Service/FeatureCheckerRefactoredTest.php` and `migrations/Version20250704150715.php` with PHP 8.4 `php -l`; both parser findings were false positives.
+- Anonymous classes now accept a trailing comment before the closing brace and share normal-class handling for `mixed` properties and comments between a type and property variable.
+- Heredoc/nowdoc lexing now accepts PHP's indented closing marker, permits a closing identifier followed by `)`, and removes the closing indentation from body lines. Regression tests verify token continuation and the dedented value.
+- Empty and whitespace-only PHP files are accepted like `php -l`, while non-empty files without `<?php` retain the missing-open-tag diagnostic.
+- Full-body scans: 771 HR unit-test files and 79 migration files, 0 parser errors, 0 panics, and 0 timeouts.
+- Engine full tests, vet, race tests, and diff checks pass. Extension local-parser tests, lint, compile, package, extension-host tests, audit, and diff checks pass; audit reports 0 vulnerabilities and packaging retains the known dynamic-require warning.
+- The lexer performs a linear per-line indentation check already bounded by source size; no performance improvement is claimed.
+
+### 2026-08-20 — Features: run full workspace analysis after VS Code reload
+
+- Changed `phpstrom.diagnostics.workspaceScanOnStart` from opt-in to enabled by default, so fresh activation and a full VS Code reload index and analyse every associated workspace PHP file through the existing bounded workspace scan.
+- Preserved an explicit `false` user/workspace setting as an opt-out for unusually large projects; manual `PHP Strom: Refresh Problems Scan` remains available.
+- Added an extension-host manifest regression proving the shipped default is enabled and aligned the runtime fallback with the manifest.
+- Pinned/local server tests, vet, race tests, TypeScript lint/compile/package, extension-host tests, audit, and diff checks pass. Audit reports 0 vulnerabilities; packaging retains the known dynamic-require warning.
+- Startup now intentionally performs the configured full scan, so reload cost scales with the associated, non-excluded workspace PHP corpus and existing file-size/diagnostic caps; no startup-speed improvement is claimed.
+- Release validation completed for extension 0.1.19 (patch from 0.1.18): engine full tests/vet/race, pinned and local-parser server tests/vet/race, TypeScript lint/compile/package, extension-host tests, npm audit with 0 vulnerabilities, manifest-lockfile consistency, and both repositories' diff checks passed.
+
 1. **Security:** prevent workspace discovery from following symlinked `.php` files outside configured roots or opening special files such as named pipes, without adding a per-file regression to the regular-file hot path.
 2. **Security:** add deterministic parser/indexer fuzz targets with malformed PHP seeds, panic-error assertions, cancellation checks, and a documented short CI fuzz budget.
 3. **Performance:** create repeatable cold/warm index and incremental-edit benchmarks with stable corpus/configuration metadata and peak-RSS/allocation capture.

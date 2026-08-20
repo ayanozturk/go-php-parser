@@ -73,14 +73,17 @@ func (l *Lexer) skipToNextLine() {
 func (l *Lexer) readHeredocBody(identifier string) string {
 	bodyStart := l.pos
 	bodyEnd := -1
+	terminatorIndent := ""
 	// PHP identifiers are ASCII-only, so byte length == rune count.
 	identByteLen := len(identifier)
 	for l.char != 0 {
 		lineStart := l.pos
-		if l.isEndOfHeredocLine(identifier) {
+		indent, ok := l.heredocTerminatorIndent(identifier)
+		if ok {
 			bodyEnd = lineStart
+			terminatorIndent = indent
 			// Advance past identifier using precomputed byte length.
-			end := l.pos + identByteLen
+			end := l.pos + len(indent) + identByteLen
 			for l.pos < end {
 				l.readChar()
 			}
@@ -91,24 +94,45 @@ func (l *Lexer) readHeredocBody(identifier string) string {
 	if bodyEnd == -1 {
 		bodyEnd = l.pos
 	}
-	return l.input[bodyStart:bodyEnd]
+	body := l.input[bodyStart:bodyEnd]
+	if terminatorIndent != "" {
+		body = dedentHeredocBody(body, terminatorIndent)
+	}
+	return body
 }
 
-func (l *Lexer) isEndOfHeredocLine(identifier string) bool {
+func (l *Lexer) heredocTerminatorIndent(identifier string) (string, bool) {
 	if identifier == "" {
-		return false
+		return "", false
 	}
-	if !strings.HasPrefix(l.input[l.pos:], identifier) {
-		return false
+	identifierPos := l.pos
+	for identifierPos < len(l.input) && (l.input[identifierPos] == ' ' || l.input[identifierPos] == '\t') {
+		identifierPos++
+	}
+	if !strings.HasPrefix(l.input[identifierPos:], identifier) {
+		return "", false
 	}
 	var nextChar rune
-	nextPos := l.pos + len(identifier)
+	nextPos := identifierPos + len(identifier)
 	if nextPos < len(l.input) {
 		nextChar, _ = utf8.DecodeRuneInString(l.input[nextPos:])
 	} else {
 		nextChar = 0
 	}
-	return nextChar == '\n' || nextChar == ';' || nextChar == 0
+	if isLetter(nextChar) || isDigit(nextChar) || nextChar == '_' {
+		return "", false
+	}
+	return l.input[l.pos:identifierPos], true
+}
+
+func dedentHeredocBody(body, indent string) string {
+	lines := strings.SplitAfter(body, "\n")
+	for i, line := range lines {
+		if strings.HasPrefix(line, indent) {
+			lines[i] = strings.TrimPrefix(line, indent)
+		}
+	}
+	return strings.Join(lines, "")
 }
 
 // nextHeredocToken emits the next queued heredoc token
