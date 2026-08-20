@@ -76,7 +76,7 @@ func findHoverTypeMatch(nodes []ast.Node, query hoverTypeQuery, ctx *AnalysisCon
 				walk(methodNode, n)
 			}
 		case *ast.FunctionNode:
-			scope := newFunctionScope(class, n, fileCtx)
+			scope := analysisFunctionScope(ctx, class, n, fileCtx)
 			walkStatementsForHoverTypes(n.Body, scope, ctx, query, &best)
 		case *ast.NamespaceNode:
 			for _, child := range n.Body {
@@ -99,8 +99,9 @@ func walkStatementsForHoverTypes(nodes []ast.Node, scope *functionScope, ctx *An
 			walkExprForHoverTypes(n.Expr, scope, ctx, query, best)
 			applyExpressionScope(scope, n.Expr, ctx)
 		case *ast.AssignmentNode:
-			walkExprForHoverTypes(n, scope, ctx, query, best)
+			walkExprForHoverTypes(n.Right, scope, ctx, query, best)
 			applyAssignmentScope(scope, n, ctx)
+			walkExprForHoverTypes(n.Left, scope, ctx, query, best)
 		case *ast.ReturnNode:
 			walkExprForHoverTypes(n.Expr, scope, ctx, query, best)
 		case *ast.IfNode:
@@ -113,6 +114,8 @@ func walkStatementsForHoverTypes(nodes []ast.Node, scope *functionScope, ctx *An
 			if n.Else != nil {
 				walkStatementsForHoverTypes(n.Else.Body, scope.clone(), ctx, query, best)
 			}
+			applyTerminatingIfFalseScope(scope, n)
+			applyLazyInitPropertyScope(scope, n, ctx)
 		case *ast.BlockNode:
 			walkStatementsForHoverTypes(n.Statements, scope.clone(), ctx, query, best)
 		case *ast.WhileNode:
@@ -169,8 +172,10 @@ func walkExprForHoverTypes(node ast.Node, scope *functionScope, ctx *AnalysisCon
 			walkExprForHoverTypes(argumentValue(arg), scope, ctx, query, best)
 		}
 	case *ast.AssignmentNode:
-		walkExprForHoverTypes(n.Left, scope, ctx, query, best)
 		walkExprForHoverTypes(n.Right, scope, ctx, query, best)
+		assignedScope := scope.clone()
+		applyAssignmentScope(assignedScope, n, ctx)
+		walkExprForHoverTypes(n.Left, assignedScope, ctx, query, best)
 	case *ast.BinaryExpr:
 		walkExprForHoverTypes(n.Left, scope, ctx, query, best)
 		walkExprForHoverTypes(n.Right, scope, ctx, query, best)

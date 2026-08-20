@@ -165,3 +165,22 @@ func TestGetParamTypeFromPHPDoc(t *testing.T) {
 		})
 	}
 }
+
+func TestParsePHPDocGenerics(t *testing.T) {
+	doc := ParsePHPDoc(`/**
+ * @template T of EntityInterface
+ * @template-covariant TValue
+ * @template-extends BaseRepository<T>
+ * @implements IteratorAggregate<string, list<TValue>>
+ */`)
+
+	if len(doc.Templates) != 2 || doc.Templates[0].Name != "T" || doc.Templates[0].Bound != "EntityInterface" || doc.Templates[1].Name != "TValue" {
+		t.Fatalf("unexpected templates: %#v", doc.Templates)
+	}
+	if len(doc.Extends) != 1 || doc.Extends[0].Name != "BaseRepository" || len(doc.Extends[0].TypeArguments) != 1 || doc.Extends[0].TypeArguments[0] != "T" {
+		t.Fatalf("unexpected extends references: %#v", doc.Extends)
+	}
+	if len(doc.Implements) != 1 || doc.Implements[0].Name != "IteratorAggregate" || len(doc.Implements[0].TypeArguments) != 2 || doc.Implements[0].TypeArguments[1] != "list<TValue>" {
+		t.Fatalf("unexpected implements references: %#v", doc.Implements)
+	}
+}

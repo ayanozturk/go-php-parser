@@ -8,6 +8,7 @@ import (
 // parseFunction parses a PHP function declaration
 func (p *Parser) parseFunction(modifiers []string) (ast.Node, error) {
 	pos := p.tok.Pos
+	phpdoc := p.consumeCurrentDoc(pos)
 	p.nextToken() // consume 'function'
 
 	var savedModifiers []string
@@ -122,7 +123,7 @@ func (p *Parser) parseFunction(modifiers []string) (ast.Node, error) {
 				ReturnType: returnType,
 				Modifiers:  savedModifiers,
 				Body:       nil,
-				PHPDoc:     p.consumeCurrentDoc(pos),
+				PHPDoc:     phpdoc,
 				Pos:        ast.Position(pos),
 			}, nil
 		}
@@ -146,7 +147,7 @@ func (p *Parser) parseFunction(modifiers []string) (ast.Node, error) {
 			ReturnType: returnType,
 			Modifiers:  savedModifiers,
 			Body:       nil,
-			PHPDoc:     p.consumeCurrentDoc(pos),
+			PHPDoc:     phpdoc,
 			Pos:        ast.Position(pos),
 		}, nil
 	}
@@ -196,7 +197,7 @@ func (p *Parser) parseFunction(modifiers []string) (ast.Node, error) {
 		ReturnType: returnType,
 		Modifiers:  savedModifiers,
 		Body:       body,
-		PHPDoc:     p.consumeCurrentDoc(pos),
+		PHPDoc:     phpdoc,
 		Pos:        ast.Position(pos),
 	}, nil
 }

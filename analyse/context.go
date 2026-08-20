@@ -19,12 +19,21 @@ type ResolvedClass struct {
 	Name                  string
 	Extends               []string
 	Implements            []string
+	TemplateParams        []string
+	GenericParents        []ResolvedGenericParent
 	Traits                []string
 	Kind                  string
 	Final                 bool
 	Abstract              bool
 	Readonly              bool
 	ConsistentConstructor bool
+}
+
+// ResolvedGenericParent binds a class-like inheritance target to the type
+// arguments supplied by an @extends or @implements PHPDoc annotation.
+type ResolvedGenericParent struct {
+	Name          string
+	TypeArguments []string
 }
 
 type ResolvedMethod struct {

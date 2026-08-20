@@ -183,7 +183,11 @@ func (p *Parser) parseModifiers() []string {
 			p.modifierBuf = append(p.modifierBuf, p.tok.Literal)
 			p.nextToken()
 			continue
-		case token.T_COMMENT, token.T_DOC_COMMENT, token.T_ATTRIBUTE:
+		case token.T_DOC_COMMENT:
+			p.currentDoc = p.tok.Literal
+			p.nextToken()
+			continue
+		case token.T_COMMENT, token.T_ATTRIBUTE:
 			p.nextToken()
 			continue
 		}

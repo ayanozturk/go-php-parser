@@ -636,16 +636,16 @@ func inferMethodCallType(node *ast.MethodCallNode, scope *functionScope, ctx *An
 			return ParseType(method.ReturnType)
 		}
 	}
+	if ctx != nil && ctx.Resolver != nil {
+		if method, ok := ctx.Resolver.ResolveMethod(className, node.Method); ok {
+			return ParseType(method.ReturnType)
+		}
+	}
 	if scope != nil {
 		if classData, ok := analysisClassScopeDataByName(ctx, className, scope.typeCtx); ok {
 			if method, ok := classData.methods[strings.ToLower(node.Method)]; ok {
 				return ParseType(method.ReturnType)
 			}
-		}
-	}
-	if ctx != nil && ctx.Resolver != nil {
-		if method, ok := ctx.Resolver.ResolveMethod(className, node.Method); ok {
-			return ParseType(method.ReturnType)
 		}
 	}
 	return MixedType()

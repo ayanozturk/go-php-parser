@@ -186,6 +186,60 @@ func TestInheritedMethodSignatureDetectsArgumentTypeMismatch(t *testing.T) {
 	}
 }
 
+func TestInheritedGenericMethodReturnTypeIsBoundForArgumentTypes(t *testing.T) {
+	php := `<?php
+namespace App;
+
+class Record {}
+
+/**
+ * @template T
+ */
+abstract class GenericStore {
+    /**
+     * @return T|null
+     */
+    public function lookup(string $id): ?object {}
+}
+
+/** @extends GenericStore<Record> */
+class RecordStore extends GenericStore {}
+
+class RecordProcessor {
+    public function process(Record $record): void {}
+}
+
+class Controller {
+    private RecordStore $store;
+    private RecordProcessor $processor;
+
+    public function run(string $id): void {
+        $record = $this->store->lookup($id);
+        if (!$record) {
+            return;
+        }
+        $this->processor->process($record);
+    }
+}`
+
+	l := lexer.New(php)
+	p := parser.New(l, false)
+	nodes := p.Parse()
+	if len(p.Errors()) > 0 {
+		t.Fatalf("parser errors: %v", p.Errors())
+	}
+	project := BuildProjectIndex(map[string][]ast.Node{"test.php": nodes})
+	method, ok := project.ResolveMethod(`App\RecordStore`, "lookup")
+	if !ok || method.ReturnType != `App\Record|null` {
+		t.Fatalf("expected bound generic return type, got %#v, %t", method, ok)
+	}
+	ctx := &AnalysisContext{Resolver: project, Project: project}
+	issues := (&ArgumentTypeRule{}).CheckIssues(nodes, "test.php", ctx)
+	if hasArgTypeIssue(issues) {
+		t.Fatalf("expected bound generic return type to satisfy argument type, got: %#v", issues)
+	}
+}
+
 func TestMethodArgumentTypeRefinedAfterNullGuardThrow(t *testing.T) {
 	php := `<?php
     class DocumentPolicy {

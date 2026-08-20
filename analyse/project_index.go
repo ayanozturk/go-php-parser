@@ -83,13 +83,39 @@ func (idx *ProjectIndex) ResolveClass(name string) (ResolvedClass, bool) {
 }
 
 func (idx *ProjectIndex) ResolveMethod(className, methodName string) (ResolvedMethod, bool) {
-	for _, candidate := range idx.classLineage(className) {
-		methods := idx.Methods[indexKey(candidate)]
-		if methods == nil {
+	return idx.resolveMethodWithTemplates(className, methodName, nil, make(map[string]struct{}))
+}
+
+func (idx *ProjectIndex) resolveMethodWithTemplates(className, methodName string, bindings map[string]string, seen map[string]struct{}) (ResolvedMethod, bool) {
+	class, ok := idx.ResolveClass(className)
+	if !ok {
+		return ResolvedMethod{}, false
+	}
+	key := indexKey(class.Name)
+	if _, exists := seen[key]; exists {
+		return ResolvedMethod{}, false
+	}
+	seen[key] = struct{}{}
+	defer delete(seen, key)
+	if method, found := idx.Methods[key][strings.ToLower(methodName)]; found {
+		method.DeclaringClass = class.Name
+		method.ReturnType = ApplyTemplateBindings(method.ReturnType, bindings)
+		for i := range method.Params {
+			method.Params[i].Type = ApplyTemplateBindings(method.Params[i].Type, bindings)
+		}
+		return method, true
+	}
+	parents := append(append([]string(nil), class.Extends...), class.Implements...)
+	for _, parentName := range parents {
+		parent, parentOK := idx.ResolveClass(parentName)
+		if !parentOK {
 			continue
 		}
-		if method, ok := methods[strings.ToLower(methodName)]; ok {
-			method.DeclaringClass = candidate
+		parentBindings := map[string]string(nil)
+		if relation, relationOK := genericRelationTo(class, parentName); relationOK {
+			parentBindings = bindGenericParent(parent, relation, bindings)
+		}
+		if method, found := idx.resolveMethodWithTemplates(parent.Name, methodName, parentBindings, seen); found {
 			return method, true
 		}
 	}
@@ -178,10 +204,13 @@ func (idx *ProjectIndex) indexNodes(filename string, nodes []ast.Node, ft fileTy
 			idx.indexNodes(filename, n.Body, nft, currentClass)
 		case *ast.ClassNode:
 			name := ft.resolveClassLike(n.Name)
+			templates, genericParents := resolvedGenericMetadata(n.PHPDoc, ft)
 			class := ResolvedClass{
 				Name:                  name,
 				Extends:               resolvedList(ft, optionalList(n.Extends)),
 				Implements:            resolvedList(ft, n.Implements),
+				TemplateParams:        templates,
+				GenericParents:        genericParents,
 				Traits:                traitUsesFromMembers(n.Properties, ft),
 				Kind:                  "class",
 				Final:                 strings.Contains(n.Modifier, "final"),
@@ -190,21 +219,22 @@ func (idx *ProjectIndex) indexNodes(filename string, nodes []ast.Node, ft fileTy
 				ConsistentConstructor: hasPHPStanConsistentConstructorTag(n.PHPDoc),
 			}
 			idx.addClass(filename, class, n.Pos)
-			idx.indexClassMembers(name, n.Properties, n.Methods, n.Constants, ft)
+			idx.indexClassMembers(name, n.Properties, n.Methods, n.Constants, ft, templates)
 		case *ast.InterfaceNode:
 			name := ft.resolveClassLike(n.Name)
-			idx.addClass(filename, ResolvedClass{Name: name, Extends: resolvedList(ft, n.Extends), Kind: "interface"}, n.Pos)
-			idx.indexInterfaceMembers(name, n.Members, ft)
+			templates, genericParents := resolvedGenericMetadata(n.PHPDoc, ft)
+			idx.addClass(filename, ResolvedClass{Name: name, Extends: resolvedList(ft, n.Extends), TemplateParams: templates, GenericParents: genericParents, Kind: "interface"}, n.Pos)
+			idx.indexInterfaceMembers(name, n.Members, ft, templates)
 		case *ast.TraitNode:
 			if n.Name != nil {
 				name := ft.resolveClassLike(n.Name.Name)
 				idx.addClass(filename, ResolvedClass{Name: name, Kind: "trait"}, n.Pos)
-				idx.indexClassMembers(name, n.Body, nil, nil, ft)
+				idx.indexClassMembers(name, n.Body, nil, nil, ft, nil)
 			}
 		case *ast.EnumNode:
 			name := ft.resolveClassLike(n.Name)
 			idx.addClass(filename, ResolvedClass{Name: name, Implements: resolvedList(ft, n.Implements), Kind: "enum", Final: true}, n.Pos)
-			idx.indexClassMembers(name, nil, n.Methods, nil, ft)
+			idx.indexClassMembers(name, nil, n.Methods, nil, ft, nil)
 			for _, enumCase := range n.Cases {
 				idx.addClassConstant(name, ResolvedConstant{Name: enumCase.Name, DeclaringClass: name, Visibility: "public"})
 			}
@@ -213,7 +243,7 @@ func (idx *ProjectIndex) indexNodes(filename string, nodes []ast.Node, ft fileTy
 			idx.addMethod(name, ResolvedMethod{Name: "tryFrom", DeclaringClass: name, ReturnType: "?" + name, Params: []ResolvedParam{{Name: "value"}}, Visibility: "public", IsStatic: true})
 		case *ast.FunctionNode:
 			if currentClass != "" {
-				idx.addMethod(currentClass, methodFromFunction(currentClass, n, ft))
+				idx.addMethod(currentClass, methodFromFunction(currentClass, n, ft, nil))
 				continue
 			}
 			name := ft.resolveClassLike(n.Name)
@@ -224,7 +254,7 @@ func (idx *ProjectIndex) indexNodes(filename string, nodes []ast.Node, ft fileTy
 	}
 }
 
-func (idx *ProjectIndex) indexClassMembers(className string, properties, methods, constants []ast.Node, ft fileTypeContext) {
+func (idx *ProjectIndex) indexClassMembers(className string, properties, methods, constants []ast.Node, ft fileTypeContext, templateParams []string) {
 	for _, propNode := range properties {
 		switch p := propNode.(type) {
 		case *ast.PropertyNode:
@@ -238,12 +268,12 @@ func (idx *ProjectIndex) indexClassMembers(className string, properties, methods
 		case *ast.TraitUseNode:
 			// Trait use is checked by level-0 rules; no index entry needed.
 		case *ast.FunctionNode:
-			idx.addMethod(className, methodFromFunction(className, p, ft))
+			idx.addMethod(className, methodFromFunction(className, p, ft, templateParams))
 		}
 	}
 	for _, methodNode := range methods {
 		if fn, ok := methodNode.(*ast.FunctionNode); ok {
-			idx.addMethod(className, methodFromFunction(className, fn, ft))
+			idx.addMethod(className, methodFromFunction(className, fn, ft, templateParams))
 		}
 	}
 	for _, constNode := range constants {
@@ -253,7 +283,8 @@ func (idx *ProjectIndex) indexClassMembers(className string, properties, methods
 	}
 }
 
-func (idx *ProjectIndex) indexInterfaceMembers(className string, members []ast.Node, ft fileTypeContext) {
+func (idx *ProjectIndex) indexInterfaceMembers(className string, members []ast.Node, ft fileTypeContext, templateParams []string) {
+	templates := templateNames(templateParams)
 	for _, member := range members {
 		switch m := member.(type) {
 		case *ast.InterfaceMethodNode:
@@ -261,7 +292,10 @@ func (idx *ProjectIndex) indexInterfaceMembers(className string, members []ast.N
 			if m.ReturnType != nil {
 				returnType = m.ReturnType.TokenLiteral()
 			}
-			idx.addMethod(className, ResolvedMethod{Name: m.Name, DeclaringClass: className, ReturnType: normalizeTypeWithContext(returnType, ft), Params: paramsFromNodes(m.Params, ft), Visibility: "public", Abstract: true})
+			if m.PHPDoc != nil && m.PHPDoc.ReturnType != "" {
+				returnType = m.PHPDoc.ReturnType
+			}
+			idx.addMethod(className, ResolvedMethod{Name: m.Name, DeclaringClass: className, ReturnType: normalizeTemplateAwareType(returnType, ft, templates), Params: paramsFromNodesWithPHPDoc(m.Params, m.PHPDoc, ft, templates), Visibility: "public", Abstract: true})
 		case *ast.ConstantNode:
 			idx.addClassConstant(className, constantFromNode(className, m, ft))
 		}
@@ -306,17 +340,43 @@ func (idx *ProjectIndex) addClassConstant(className string, constant ResolvedCon
 	idx.Constants[indexKey(className+"::"+constant.Name)] = struct{}{}
 }
 
-func methodFromFunction(className string, fn *ast.FunctionNode, ft fileTypeContext) ResolvedMethod {
+func methodFromFunction(className string, fn *ast.FunctionNode, ft fileTypeContext, templateParams []string) ResolvedMethod {
+	returnType := fn.ReturnType
+	if fn.PHPDoc != nil && fn.PHPDoc.ReturnType != "" {
+		returnType = fn.PHPDoc.ReturnType
+	}
+	templates := templateNames(templateParams)
 	return ResolvedMethod{
 		Name:           fn.Name,
 		DeclaringClass: className,
-		ReturnType:     normalizeTypeWithContext(fn.ReturnType, ft),
-		Params:         paramsFromNodes(fn.Params, ft),
+		ReturnType:     normalizeTemplateAwareType(returnType, ft, templates),
+		Params:         paramsFromNodesWithPHPDoc(fn.Params, fn.PHPDoc, ft, templates),
 		Visibility:     functionVisibility(fn),
 		IsStatic:       hasModifier(fn.Modifiers, "static"),
 		Abstract:       hasModifier(fn.Modifiers, "abstract"),
 		Final:          hasModifier(fn.Modifiers, "final"),
 	}
+}
+
+func resolvedGenericMetadata(doc *ast.PHPDocNode, ft fileTypeContext) ([]string, []ResolvedGenericParent) {
+	if doc == nil {
+		return nil, nil
+	}
+	templates := make([]string, 0, len(doc.Templates))
+	for _, template := range doc.Templates {
+		templates = append(templates, template.Name)
+	}
+	templateSet := templateNames(templates)
+	references := append(append([]ast.PHPDocTypeReference(nil), doc.Extends...), doc.Implements...)
+	parents := make([]ResolvedGenericParent, 0, len(references))
+	for _, ref := range references {
+		parent := ResolvedGenericParent{Name: ft.resolveClassLike(ref.Name)}
+		for _, argument := range ref.TypeArguments {
+			parent.TypeArguments = append(parent.TypeArguments, normalizeTemplateAwareType(argument, ft, templateSet))
+		}
+		parents = append(parents, parent)
+	}
+	return templates, parents
 }
 
 func constantFromNode(className string, c *ast.ConstantNode, ft fileTypeContext) ResolvedConstant {
@@ -343,6 +403,10 @@ func functionVisibility(fn *ast.FunctionNode) string {
 }
 
 func paramsFromNodes(nodes []ast.Node, ft fileTypeContext) []ResolvedParam {
+	return paramsFromNodesWithPHPDoc(nodes, nil, ft, nil)
+}
+
+func paramsFromNodesWithPHPDoc(nodes []ast.Node, doc *ast.PHPDocNode, ft fileTypeContext, templates map[string]struct{}) []ResolvedParam {
 	params := make([]ResolvedParam, 0, len(nodes))
 	for _, node := range nodes {
 		param, ok := node.(*ast.ParamNode)
@@ -353,9 +417,14 @@ func paramsFromNodes(nodes []ast.Node, ft fileTypeContext) []ResolvedParam {
 		if typ == "" && param.UnionType != nil {
 			typ = param.UnionType.TokenLiteral()
 		}
+		if doc != nil {
+			if documented := doc.GetParamTypeFromPHPDoc(param.Name); documented != "" {
+				typ = documented
+			}
+		}
 		params = append(params, ResolvedParam{
 			Name:       param.Name,
-			Type:       normalizeTypeWithContext(typ, ft),
+			Type:       normalizeTemplateAwareType(typ, ft, templates),
 			HasDefault: param.DefaultValue != nil,
 			IsVariadic: param.IsVariadic,
 		})

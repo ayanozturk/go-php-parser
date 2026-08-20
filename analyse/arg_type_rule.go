@@ -602,15 +602,17 @@ func resolveMethodForCall(call *ast.MethodCallNode, scope *functionScope, ctx *A
 			return method, true
 		}
 	}
+	if ctx != nil && ctx.Resolver != nil {
+		if method, ok := ctx.Resolver.ResolveMethod(className, call.Method); ok {
+			return method, true
+		}
+	}
 	if scope != nil {
 		if classData, ok := analysisClassScopeDataByName(ctx, className, scope.typeCtx); ok {
 			if method, ok := classData.methods[strings.ToLower(call.Method)]; ok {
 				return method, true
 			}
 		}
-	}
-	if ctx != nil && ctx.Resolver != nil {
-		return ctx.Resolver.ResolveMethod(className, call.Method)
 	}
 	return ResolvedMethod{}, false
 }

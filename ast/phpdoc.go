@@ -11,8 +11,25 @@ type PHPDocNode struct {
 	Params      []PHPDocParam
 	ReturnType  string
 	VarType     string
+	Templates   []PHPDocTemplate
+	Extends     []PHPDocTypeReference
+	Implements  []PHPDocTypeReference
 	Description string
 	Pos         Position
+}
+
+// PHPDocTemplate describes a class or method template declaration such as
+// @template T of EntityInterface.
+type PHPDocTemplate struct {
+	Name  string
+	Bound string
+}
+
+// PHPDocTypeReference describes a generic inheritance annotation such as
+// @extends Repository<User>.
+type PHPDocTypeReference struct {
+	Name          string
+	TypeArguments []string
 }
 
 func (p *PHPDocNode) NodeType() string    { return "PHPDoc" }
@@ -84,6 +101,21 @@ func ParsePHPDoc(rawContent string) *PHPDocNode {
 			if len(parts) >= 2 {
 				phpdoc.VarType = parts[1]
 			}
+		} else if tag, value, ok := phpDocTag(line); ok && isTemplateTag(tag) {
+			inDescription = false
+			if template, ok := parsePHPDocTemplate(value); ok {
+				phpdoc.Templates = append(phpdoc.Templates, template)
+			}
+		} else if tag, value, ok := phpDocTag(line); ok && isExtendsTag(tag) {
+			inDescription = false
+			if ref, ok := parsePHPDocTypeReference(value); ok {
+				phpdoc.Extends = append(phpdoc.Extends, ref)
+			}
+		} else if tag, value, ok := phpDocTag(line); ok && isImplementsTag(tag) {
+			inDescription = false
+			if ref, ok := parsePHPDocTypeReference(value); ok {
+				phpdoc.Implements = append(phpdoc.Implements, ref)
+			}
 		} else if strings.HasPrefix(line, "@") {
 			// Any other @tag should stop description parsing
 			inDescription = false
@@ -94,6 +126,114 @@ func ParsePHPDoc(rawContent string) *PHPDocNode {
 
 	phpdoc.Description = strings.Join(descriptionLines, " ")
 	return phpdoc
+}
+
+func phpDocTag(line string) (string, string, bool) {
+	parts := strings.Fields(line)
+	if len(parts) < 2 || !strings.HasPrefix(parts[0], "@") {
+		return "", "", false
+	}
+	return strings.ToLower(strings.TrimPrefix(parts[0], "@")), strings.Join(parts[1:], " "), true
+}
+
+func isTemplateTag(tag string) bool {
+	switch tag {
+	case "template", "template-covariant", "template-contravariant", "phpstan-template", "psalm-template":
+		return true
+	default:
+		return false
+	}
+}
+
+func isExtendsTag(tag string) bool {
+	switch tag {
+	case "extends", "template-extends", "phpstan-extends", "psalm-extends":
+		return true
+	default:
+		return false
+	}
+}
+
+func isImplementsTag(tag string) bool {
+	switch tag {
+	case "implements", "template-implements", "phpstan-implements", "psalm-implements":
+		return true
+	default:
+		return false
+	}
+}
+
+func parsePHPDocTemplate(value string) (PHPDocTemplate, bool) {
+	parts := strings.Fields(value)
+	if len(parts) == 0 {
+		return PHPDocTemplate{}, false
+	}
+	template := PHPDocTemplate{Name: parts[0]}
+	if len(parts) >= 3 && (strings.EqualFold(parts[1], "of") || strings.EqualFold(parts[1], "as")) {
+		template.Bound = parts[2]
+	}
+	return template, template.Name != ""
+}
+
+func parsePHPDocTypeReference(value string) (PHPDocTypeReference, bool) {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return PHPDocTypeReference{}, false
+	}
+	// Ignore a trailing prose description while preserving whitespace inside
+	// nested generic expressions.
+	depth := 0
+	for idx, r := range value {
+		switch r {
+		case '<', '(', '{', '[':
+			depth++
+		case '>', ')', '}', ']':
+			if depth > 0 {
+				depth--
+			}
+		case ' ', '\t':
+			if depth == 0 {
+				value = value[:idx]
+				goto parsedType
+			}
+		}
+	}
+parsedType:
+	open := strings.Index(value, "<")
+	if open < 0 {
+		return PHPDocTypeReference{Name: value}, true
+	}
+	if !strings.HasSuffix(value, ">") || open == 0 {
+		return PHPDocTypeReference{}, false
+	}
+	ref := PHPDocTypeReference{Name: strings.TrimSpace(value[:open])}
+	for _, argument := range splitPHPDocGenericArguments(value[open+1 : len(value)-1]) {
+		if argument = strings.TrimSpace(argument); argument != "" {
+			ref.TypeArguments = append(ref.TypeArguments, argument)
+		}
+	}
+	return ref, ref.Name != ""
+}
+
+func splitPHPDocGenericArguments(raw string) []string {
+	start, depth := 0, 0
+	var parts []string
+	for idx, r := range raw {
+		switch r {
+		case '<', '(', '{', '[':
+			depth++
+		case '>', ')', '}', ']':
+			if depth > 0 {
+				depth--
+			}
+		case ',':
+			if depth == 0 {
+				parts = append(parts, raw[start:idx])
+				start = idx + 1
+			}
+		}
+	}
+	return append(parts, raw[start:])
 }
 
 // ExtractPHPDocFromComment checks if a comment is a PHPDoc comment and parses it
