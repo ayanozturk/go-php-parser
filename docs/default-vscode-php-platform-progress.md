@@ -6,8 +6,8 @@ This file records reproducible evidence for the cooperating `go-php-parser` engi
 
 ## Current baseline
 
-- Engine checkout: `/Users/ayan/Projects/go-php-parser`, `main` at pushed feature commit `1bdc065` before this evidence-only progress update.
-- Extension checkout: `/Users/ayan/Projects/vscode-php-strom`, `main` at pushed commit `f3d205b`.
+- Engine checkout: `/Users/ayan/Projects/go-php-parser`, `main` at pushed progress commit `d7796a6` before this security update.
+- Extension checkout: `/Users/ayan/Projects/vscode-php-strom`, `main` at local security commit `a6ab54d` (not pushed during this run).
 - Production extension builds pin `github.com/ayanozturk/go-php-parser` at pseudo-version `v0.0.0-20260820080800-1bdc0650cf06`; `make test-server-dev` validates the sibling engine checkout through a generated, ignored Go workspace.
 - Go toolchain observed: Go 1.26.2. Node toolchain observed: Node 22.20.0.
 - Checked-in representative corpus: 32,990 PHP files across Composer, Drupal, Laravel, PHPUnit, and Symfony under `test_projects` (428 MB on disk, including installed dependencies).
@@ -21,7 +21,8 @@ This file records reproducible evidence for the cooperating `go-php-parser` engi
 - Neither Go repository currently has a `Fuzz...` target. Malformed/untrusted PHP fuzzing is therefore not continuously exercised.
 - The parser recovers panics into `Parser panic:` errors and supports cooperative context cancellation. The language-server indexer applies a 20-second per-file parse timeout and a four-worker cap.
 - Before the 2026-08-19 change, the indexer used `os.ReadFile` before enforcing `files.maxSize`, so the configured gate did not bound allocation for oversized or growing files.
-- Remaining concrete file-boundary risk: `phpstrom.readDocumentTextFromDisk` still reads an LSP-provided file URI with unbounded `os.ReadFile`; workspace/symlink boundary semantics are not covered by adversarial tests.
+- Save, close, and workspace-diagnostic disk reloads now apply `files.maxSize`, reject non-file or non-regular resources, resolve symlinks before validating configured workspace roots, and retain bounded single-file mode when no workspace is open.
+- Remaining concrete file-boundary risk: workspace discovery treats symlinked or special `.php` directory entries as candidate files; the index reader can therefore follow a static symlink outside the workspace or block opening a named pipe. This requires a separate hot-path-safe fix and adversarial regression coverage.
 
 ## Performance baseline
 
@@ -51,7 +52,7 @@ Representative workload: 23,556 indexed PHP files, 3,678,678 LOC, 135.68 MB, 151
 - PHPStan benchmark: level 0 remains partial; levels 1 and 2 are largely uncovered; level 3 return/property checks are partial. Missing areas include control-flow precision, arbitrary-expression method checks, PHPDoc validation, broader built-in signatures, and complete modern-syntax coverage.
 - PHPCS benchmark: the repository comparison records 16 style rules, far below the breadth of PHPCS standards. Security-oriented source rules such as eval/backtick/forbidden-function checks are not implemented.
 - PHP version/framework coverage is represented by the five-project corpus, but the 1,888 failing files demonstrate substantial parser-recovery gaps. Blade/mixed-template files are included in the failures and should be classified separately from pure-PHP parser failures.
-- Extension integration gaps include missing adversarial file-boundary tests, stale architecture documentation, and no reproducible cold-start/incremental-edit/cancellation benchmark suite.
+- Extension integration gaps include workspace-discovery symlink/special-file coverage, stale architecture documentation, and no reproducible cold-start/incremental-edit/cancellation benchmark suite.
 
 ## Completed changes and validation
 
@@ -102,9 +103,26 @@ Representative workload: 23,556 indexed PHP files, 3,678,678 LOC, 135.68 MB, 151
 - No benchmark was run because this is a constant-time lexer branch and diagnostic-location correctness fix, not a performance optimization; no performance improvement is claimed.
 - Committed and pushed the engine fix as `1bdc065`; committed and pushed the pinned dependency and diagnostic-location integration as `f3d205b`.
 
+### 2026-08-20 — Security: bound and confine diagnostic disk reloads
+
+- Reproduced three reachable failures in `vscode-php-strom/server/phpstrom/handler_save_test.go`: `didSave` replaced bounded in-memory text with oversized disk content, while `didClose` re-read and indexed both an outside-workspace file and an in-workspace symlink targeting a file outside the workspace.
+- Reused the indexer's limit+1 reader for save, close, and workspace-diagnostic disk reads, enforcing the current `phpstrom.files.maxSize` without allocating oversized contents.
+- File URI handling now rejects non-file schemes, opaque/query/fragment forms, relative paths, and unsupported authorities; it preserves encoded in-workspace paths, Windows drive paths, Windows UNC authorities, and bounded single-file mode.
+- Disk reloads resolve symlinks and regular-file metadata before checking canonical target paths against canonical workspace roots. Unknown `didClose` notifications cannot initiate disk reads.
+- Adversarial tests cover oversized reloads, encoded valid paths, non-file/relative/opaque/query/fragment URI rejection, outside-workspace paths, symlink escapes, and forged `didClose` notifications for unopened documents.
+- Targeted `GOWORK=off go test ./phpstrom ./indexer -count=1`, `GOWORK=off go test -race ./phpstrom ./indexer -count=1`, and scoped `go vet`: pass.
+- Extension `GOWORK=off go test ./...`, `GOWORK=off go vet ./...`, and `GOWORK=off go test -race ./...`: pass.
+- `make test-server-dev`: pass against sibling engine commit `1bdc065`; six pinned-parser builds (`darwin/linux/windows` x `arm64/amd64`): pass.
+- Clean `npm ci`: pass; 530 packages installed and 531 audited. `npm audit --audit-level=low`: pass with 0 vulnerabilities.
+- `npm run lint`, `npm run compile`, `npm run package`, and `npm test`: pass; packaging retains the documented `vscode-languageserver-types` dynamic-require warning and the extension-host smoke test passed in VS Code 1.89.1.
+- Engine `go test ./...`, `go vet ./...`, and `go test -race ./...`: pass.
+- A first implementation added a metadata syscall to every indexed file and produced warm runs of 2.122s, 1.960s, and 1.939s (median 1.960s versus the recorded 1.727s median); it was not retained.
+- The final index-reader hot path differs only by exported symbol name: baseline and changed functions are both 720 bytes and have identical opcode hashes (`eaeb3035c153cb2301335880b3c19b0e82fc0cf4db0a0698df817f62aacefdb3`). Interleaved wall-clock runs were noisy under concurrent load, so no timing improvement or parity claim is made.
+- Committed the extension change locally as `a6ab54d`; no push, release, publication, or marketplace installation was performed.
+
 ## Next ranked candidates
 
-1. **Security:** bound and workspace-validate `readDocumentTextFromDisk` for save/closed-file diagnostics, including oversized files, encoded file URIs, symlink targets, and non-file schemes.
+1. **Security:** prevent workspace discovery from following symlinked `.php` files outside configured roots or opening special files such as named pipes, without adding a per-file regression to the regular-file hot path.
 2. **Security:** add deterministic parser/indexer fuzz targets with malformed PHP seeds, panic-error assertions, cancellation checks, and a documented short CI fuzz budget.
 3. **Performance:** create repeatable cold/warm index and incremental-edit benchmarks with stable corpus/configuration metadata and peak-RSS/allocation capture.
 4. **Maintenance:** correct `FEATURES.md` to the production architecture and decide whether the excluded legacy TypeScript server should be removed.
