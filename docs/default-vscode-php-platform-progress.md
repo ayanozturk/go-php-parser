@@ -6,9 +6,9 @@ This file records reproducible evidence for the cooperating `go-php-parser` engi
 
 ## Current baseline
 
-- Engine checkout: `/Users/ayan/Projects/go-php-parser`, `main` at pushed commit `5cc3f05` before the current `/=` fix is committed.
-- Extension checkout: `/Users/ayan/Projects/vscode-php-strom`, `main` at pushed commit `7889e04`.
-- Production extension builds pin `github.com/ayanozturk/go-php-parser` at pseudo-version `v0.0.0-20260819211345-919aef879297`; `make test-server-dev` validates the sibling engine checkout through a generated, ignored Go workspace.
+- Engine checkout: `/Users/ayan/Projects/go-php-parser`, `main` at pushed feature commit `1bdc065` before this evidence-only progress update.
+- Extension checkout: `/Users/ayan/Projects/vscode-php-strom`, `main` at pushed commit `f3d205b`.
+- Production extension builds pin `github.com/ayanozturk/go-php-parser` at pseudo-version `v0.0.0-20260820080800-1bdc0650cf06`; `make test-server-dev` validates the sibling engine checkout through a generated, ignored Go workspace.
 - Go toolchain observed: Go 1.26.2. Node toolchain observed: Node 22.20.0.
 - Checked-in representative corpus: 32,990 PHP files across Composer, Drupal, Laravel, PHPUnit, and Symfony under `test_projects` (428 MB on disk, including installed dependencies).
 - `go run ./cmd/compat-metrics -root test_projects -workers 4 -top 2`: 94.28% file compatibility (31,102 passing, 1,888 failing), 156,002 parse errors, 2.779s. Per project: Composer 98.15%, Drupal 96.37%, Laravel 92.00%, PHPUnit 90.60%, Symfony 93.47%.
@@ -96,7 +96,11 @@ Representative workload: 23,556 indexed PHP files, 3,678,678 LOC, 135.68 MB, 151
 - Local-parser `cmd/parse-test` scan of the reported HR file: 1 file, 0 timeouts, 0 panics, 0 parse errors.
 - Engine `go test ./...`, `go vet ./...`, and `go test -race ./...`: pass.
 - Extension `make test-server-dev`: pass against the sibling engine checkout, including the diagnostic-range tests.
+- Extension pinned-module `GOWORK=off go test ./...`, `GOWORK=off go vet ./...`, and `GOWORK=off go test -race ./...`: pass.
+- Extension `npm run lint`, `npm run compile`, and `npm test`: pass; `npm audit --audit-level=low` reports 0 vulnerabilities.
+- Extension `npm run package`: pass with the existing `vscode-languageserver-types` dynamic-require warning.
 - No benchmark was run because this is a constant-time lexer branch and diagnostic-location correctness fix, not a performance optimization; no performance improvement is claimed.
+- Committed and pushed the engine fix as `1bdc065`; committed and pushed the pinned dependency and diagnostic-location integration as `f3d205b`.
 
 ## Next ranked candidates
 
