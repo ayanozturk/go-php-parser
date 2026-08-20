@@ -139,6 +139,24 @@ func TestExtractPHPDocFromComment(t *testing.T) {
 	}
 }
 
+func TestParsePHPDocPreservesWhitespaceInsideGenericTypes(t *testing.T) {
+	doc := ParsePHPDoc(`/**
+ * @param Map<string, Item> $items Items to process
+ * @return Sequence<string, Item> Processed items
+ * @var Bucket<int, Item>
+ */`)
+
+	if doc.ReturnType != "Sequence<string, Item>" {
+		t.Fatalf("expected complete generic return type, got %q", doc.ReturnType)
+	}
+	if doc.VarType != "Bucket<int, Item>" {
+		t.Fatalf("expected complete generic var type, got %q", doc.VarType)
+	}
+	if len(doc.Params) != 1 || doc.Params[0].Type != "Map<string, Item>" || doc.Params[0].Name != "items" {
+		t.Fatalf("expected complete generic param type, got %#v", doc.Params)
+	}
+}
+
 func TestGetParamTypeFromPHPDoc(t *testing.T) {
 	phpdoc := &PHPDocNode{
 		Params: []PHPDocParam{

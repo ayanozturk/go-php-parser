@@ -75,32 +75,24 @@ func ParsePHPDoc(rawContent string) *PHPDocNode {
 		// Check for @param tags
 		if strings.HasPrefix(line, "@param") {
 			inDescription = false
-			parts := strings.Fields(line)
-			if len(parts) >= 3 {
+			typeName, remainder := splitPHPDocTypeAndRest(strings.TrimSpace(strings.TrimPrefix(line, "@param")))
+			parts := strings.Fields(remainder)
+			if typeName != "" && len(parts) >= 1 {
 				param := PHPDocParam{
-					Type: parts[1],
-					Name: strings.TrimPrefix(parts[2], "$"),
+					Type: typeName,
+					Name: strings.TrimPrefix(parts[0], "$"),
 				}
-				if len(parts) > 3 {
-					param.Description = strings.Join(parts[3:], " ")
+				if len(parts) > 1 {
+					param.Description = strings.Join(parts[1:], " ")
 				}
 				phpdoc.Params = append(phpdoc.Params, param)
 			}
 		} else if strings.HasPrefix(line, "@return") {
 			inDescription = false
-			parts := strings.Fields(line)
-			if len(parts) >= 2 {
-				phpdoc.ReturnType = parts[1]
-				if len(parts) > 2 {
-					// Could include description, but for now just capture the type
-				}
-			}
+			phpdoc.ReturnType, _ = splitPHPDocTypeAndRest(strings.TrimSpace(strings.TrimPrefix(line, "@return")))
 		} else if strings.HasPrefix(line, "@var") {
 			inDescription = false
-			parts := strings.Fields(line)
-			if len(parts) >= 2 {
-				phpdoc.VarType = parts[1]
-			}
+			phpdoc.VarType, _ = splitPHPDocTypeAndRest(strings.TrimSpace(strings.TrimPrefix(line, "@var")))
 		} else if tag, value, ok := phpDocTag(line); ok && isTemplateTag(tag) {
 			inDescription = false
 			if template, ok := parsePHPDocTemplate(value); ok {
@@ -126,6 +118,26 @@ func ParsePHPDoc(rawContent string) *PHPDocNode {
 
 	phpdoc.Description = strings.Join(descriptionLines, " ")
 	return phpdoc
+}
+
+func splitPHPDocTypeAndRest(value string) (string, string) {
+	value = strings.TrimSpace(value)
+	depth := 0
+	for idx, r := range value {
+		switch r {
+		case '<', '(', '{', '[':
+			depth++
+		case '>', ')', '}', ']':
+			if depth > 0 {
+				depth--
+			}
+		case ' ', '\t':
+			if depth == 0 {
+				return strings.TrimSpace(value[:idx]), strings.TrimSpace(value[idx:])
+			}
+		}
+	}
+	return value, ""
 }
 
 func phpDocTag(line string) (string, string, bool) {

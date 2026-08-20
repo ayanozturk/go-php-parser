@@ -81,3 +81,26 @@ class Foo {
 		t.Fatal("No AST nodes returned")
 	}
 }
+
+func TestParseMethodChainOnNewExpressionAcrossLines(t *testing.T) {
+	php := `<?php
+class Factory {
+    public function build(): void {
+        try {
+            $value = new Factory()
+                ->from('enabled')
+                ->finish();
+        } catch (\Throwable $error) {
+        }
+    }
+}
+`
+	p := New(lexer.New(php), false)
+	nodes := p.Parse()
+	if errors := p.Errors(); len(errors) > 0 {
+		t.Fatalf("unexpected parser errors: %v", errors)
+	}
+	if len(nodes) == 0 {
+		t.Fatal("expected parsed nodes")
+	}
+}

@@ -624,6 +624,11 @@ func inferMethodCallType(node *ast.MethodCallNode, scope *functionScope, ctx *An
 		if method, ok := resolveSameClassMethod(scope, node.Method); ok {
 			return ParseType(method.ReturnType)
 		}
+		if scope != nil && ctx != nil && ctx.Resolver != nil {
+			if method, ok := ctx.Resolver.ResolveMethod(scope.className, node.Method); ok {
+				return ParseType(method.ReturnType)
+			}
+		}
 	}
 
 	objectType := inferType(node.Object, scope, ctx)

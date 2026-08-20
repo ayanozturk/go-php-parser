@@ -1,10 +1,11 @@
 package analyse
 
 import (
+	"testing"
+
 	"github.com/ayanozturk/go-php-parser/ast"
 	"github.com/ayanozturk/go-php-parser/lexer"
 	"github.com/ayanozturk/go-php-parser/parser"
-	"testing"
 )
 
 func TestInferHoverTargetAtPositionIgnoresNewKeyword(t *testing.T) {
@@ -55,12 +56,7 @@ class Controller {
         $this->processor->process($record);
     }
 }`
-	l := lexer.New(php)
-	p := parser.New(l, false)
-	nodes := p.Parse()
-	if len(p.Errors()) > 0 {
-		t.Fatalf("parser errors: %v", p.Errors())
-	}
+	nodes := parseHoverFixture(t, php)
 	project := BuildProjectIndex(map[string][]ast.Node{"test.php": nodes})
 	ctx := &AnalysisContext{Resolver: project, Project: project}
 
@@ -72,4 +68,43 @@ class Controller {
 	if !ok || afterGuard.Type != `App\Record` {
 		t.Fatalf("expected non-null hover type after terminating guard, got %#v, %t", afterGuard, ok)
 	}
+}
+
+func TestInferHoverTypeResolvesInheritedMethodOnCurrentObject(t *testing.T) {
+	basePHP := `<?php
+namespace Web;
+use Domain\Member;
+abstract class BaseEndpoint {
+    protected function currentMember(): Member {}
+}`
+	childPHP := `<?php
+namespace Web;
+class TeamEndpoint extends BaseEndpoint {
+    public function run(): void {
+        $member = $this->currentMember();
+    }
+}`
+	baseNodes := parseHoverFixture(t, basePHP)
+	childNodes := parseHoverFixture(t, childPHP)
+	project := BuildProjectIndex(map[string][]ast.Node{
+		"base.php":  baseNodes,
+		"child.php": childNodes,
+	})
+	ctx := &AnalysisContext{Resolver: project, Project: project}
+
+	target, ok := InferHoverTargetAtPosition(childNodes, 5, 10, "member", ctx)
+	if !ok || target.Type != `Domain\Member` {
+		t.Fatalf("expected inherited current-object method return type, got %#v, %t", target, ok)
+	}
+}
+
+func parseHoverFixture(t *testing.T, php string) []ast.Node {
+	t.Helper()
+	l := lexer.New(php)
+	p := parser.New(l, false)
+	nodes := p.Parse()
+	if len(p.Errors()) > 0 {
+		t.Fatalf("parser errors: %v", p.Errors())
+	}
+	return nodes
 }
