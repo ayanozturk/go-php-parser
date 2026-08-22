@@ -1,15 +1,15 @@
 # Default VS Code PHP Platform Progress
 
-Last updated: 2026-08-20 (Europe/London)
+Last updated: 2026-08-21 (Europe/London)
 
 This file records reproducible evidence for the cooperating `go-php-parser` engine and `vscode-php-strom` extension. PHPStan, PHPCS, and Mago are benchmark references only; no parity claim is made.
 
 ## Current baseline
 
-- Engine checkout: `/Users/ayan/Projects/go-php-parser`, `main` at pushed progress commit `d7796a6` before this security update.
-- Extension checkout: `/Users/ayan/Projects/vscode-php-strom`, `main` at local security commit `a6ab54d` (not pushed during this run).
-- Production extension builds pin `github.com/ayanozturk/go-php-parser` at pseudo-version `v0.0.0-20260820080800-1bdc0650cf06`; `make test-server-dev` validates the sibling engine checkout through a generated, ignored Go workspace.
-- Go toolchain observed: Go 1.26.2. Node toolchain observed: Node 22.20.0.
+- Engine checkout: `/Users/ayan/Projects/go-php-parser`, `main` at pushed engine commit `8799ed1` before this progress update.
+- Extension checkout: `/Users/ayan/Projects/vscode-php-strom`, `main` at pushed integration commit `23dc399` before this security update; the validated release target is `0.1.23`.
+- Production extension builds pin `github.com/ayanozturk/go-php-parser` at pseudo-version `v0.0.0-20260820125828-8799ed160392`; `make test-server-dev` validates the sibling engine checkout through a generated, ignored Go workspace.
+- Go toolchain observed: Go 1.26.2. Node toolchain observed: Node 22.20.0 and npm 11.7.0.
 - Checked-in representative corpus: 32,990 PHP files across Composer, Drupal, Laravel, PHPUnit, and Symfony under `test_projects` (428 MB on disk, including installed dependencies).
 - `go run ./cmd/compat-metrics -root test_projects -workers 4 -top 2`: 94.28% file compatibility (31,102 passing, 1,888 failing), 156,002 parse errors, 2.779s. Per project: Composer 98.15%, Drupal 96.37%, Laravel 92.00%, PHPUnit 90.60%, Symfony 93.47%.
 
@@ -22,7 +22,8 @@ This file records reproducible evidence for the cooperating `go-php-parser` engi
 - The parser recovers panics into `Parser panic:` errors and supports cooperative context cancellation. The language-server indexer applies a 20-second per-file parse timeout and a four-worker cap.
 - Before the 2026-08-19 change, the indexer used `os.ReadFile` before enforcing `files.maxSize`, so the configured gate did not bound allocation for oversized or growing files.
 - Save, close, and workspace-diagnostic disk reloads now apply `files.maxSize`, reject non-file or non-regular resources, resolve symlinks before validating configured workspace roots, and retain bounded single-file mode when no workspace is open.
-- Remaining concrete file-boundary risk: workspace discovery treats symlinked or special `.php` directory entries as candidate files; the index reader can therefore follow a static symlink outside the workspace or block opening a named pipe. This requires a separate hot-path-safe fix and adversarial regression coverage.
+- Workspace discovery now rejects symlinked and special directory entries before association matching. On macOS/Linux, bounded reads additionally use nonblocking, no-follow opens and reject non-regular descriptors, closing the static symlink escape, named-pipe hang, and discovery-to-open substitution paths without a per-file metadata lookup during discovery.
+- The Windows/other-platform bounded-reader fallback rejects non-regular descriptors after opening; Windows workspace discovery rejects reparse-point symlinks and filesystem special entries from `DirEntry.Type`. The nonblocking/no-follow open hardening is compiled for the supported macOS/Linux targets where POSIX named pipes are reachable directory entries.
 
 ## Performance baseline
 
@@ -40,6 +41,7 @@ Representative workload: 23,556 indexed PHP files, 3,678,678 LOC, 135.68 MB, 151
 - Final implementation warm runs: 1.799s, 1.727s, 1.685s (median 1.727s); median HeapAlloc 613.25 MB and median Sys 755.48 MB.
 - Cache warmth differs between the single first run and the three final runs. These measurements show the initial regression was removed, but they do not establish a performance improvement.
 - No equivalent local PHPStan or PHPCS executable was available. Mago was available at `/opt/homebrew/bin/mago`, but no equivalent configured analysis workload was established, so no cross-tool timing claim is recorded.
+- 2026-08-21 interleaved A/B runs compared the changed extension with a detached `23dc399` checkout on the same 23,556-file, 135.68 MB workload. All ten measured runs indexed 23,556 files and 151,587 symbols. Changed times were 1.974s, 1.924s, 1.875s, 1.942s, and 1.891s (median 1.924s); baseline times were 1.949s, 1.885s, 1.917s, 1.842s, and 1.936s (median 1.917s). The +0.4% median difference is within run noise; no performance improvement or regression is claimed.
 
 ## Maintainability and architecture risks
 
@@ -52,7 +54,7 @@ Representative workload: 23,556 indexed PHP files, 3,678,678 LOC, 135.68 MB, 151
 - PHPStan benchmark: level 0 remains partial; levels 1 and 2 are largely uncovered; level 3 return/property checks are partial. Missing areas include control-flow precision, arbitrary-expression method checks, PHPDoc validation, broader built-in signatures, and complete modern-syntax coverage.
 - PHPCS benchmark: the repository comparison records 16 style rules, far below the breadth of PHPCS standards. Security-oriented source rules such as eval/backtick/forbidden-function checks are not implemented.
 - PHP version/framework coverage is represented by the five-project corpus, but the 1,888 failing files demonstrate substantial parser-recovery gaps. Blade/mixed-template files are included in the failures and should be classified separately from pure-PHP parser failures.
-- Extension integration gaps include workspace-discovery symlink/special-file coverage, stale architecture documentation, and no reproducible cold-start/incremental-edit/cancellation benchmark suite.
+- Extension integration gaps include stale architecture documentation and no reproducible cold-start/incremental-edit/cancellation benchmark suite. Workspace-discovery symlink/special-file coverage is now present for the supported macOS/Linux security boundary.
 
 ## Completed changes and validation
 
@@ -120,8 +122,6 @@ Representative workload: 23,556 indexed PHP files, 3,678,678 LOC, 135.68 MB, 151
 - The final index-reader hot path differs only by exported symbol name: baseline and changed functions are both 720 bytes and have identical opcode hashes (`eaeb3035c153cb2301335880b3c19b0e82fc0cf4db0a0698df817f62aacefdb3`). Interleaved wall-clock runs were noisy under concurrent load, so no timing improvement or parity claim is made.
 - Committed the extension change locally as `a6ab54d`; no push, release, publication, or marketplace installation was performed.
 
-## Next ranked candidates
-
 ### 2026-08-20 — Features: accept `for` as a contextual method name
 
 - Reproduced valid PHP using `public static function for(...)` and `TaskStatusDisplay::for(TaskStatus::BACKLOG)`; PHP accepts the enum case and contextual keyword method name, while the parser rejected `T_FOR` in both positions.
@@ -177,8 +177,22 @@ Representative workload: 23,556 indexed PHP files, 3,678,678 LOC, 135.68 MB, 151
 - Startup now intentionally performs the configured full scan, so reload cost scales with the associated, non-excluded workspace PHP corpus and existing file-size/diagnostic caps; no startup-speed improvement is claimed.
 - Release validation completed for extension 0.1.19 (patch from 0.1.18): engine full tests/vet/race, pinned and local-parser server tests/vet/race, TypeScript lint/compile/package, extension-host tests, npm audit with 0 vulnerabilities, manifest-lockfile consistency, and both repositories' diff checks passed.
 
-1. **Security:** prevent workspace discovery from following symlinked `.php` files outside configured roots or opening special files such as named pipes, without adding a per-file regression to the regular-file hot path.
-2. **Security:** add deterministic parser/indexer fuzz targets with malformed PHP seeds, panic-error assertions, cancellation checks, and a documented short CI fuzz budget.
-3. **Performance:** create repeatable cold/warm index and incremental-edit benchmarks with stable corpus/configuration metadata and peak-RSS/allocation capture.
-4. **Maintenance:** correct `FEATURES.md` to the production architecture and decide whether the excluded legacy TypeScript server should be removed.
-5. **Features:** after the higher-priority gates, classify and minimize the largest pure-PHP corpus failures before expanding PHPStan/PHPCS diagnostic breadth.
+### 2026-08-21 — Security: reject symlinked and special workspace entries
+
+- Reproduced the boundary failure with an adversarial workspace containing one regular PHP file, an outside-workspace PHP symlink, a symlinked directory, and a PHP-named FIFO: discovery incorrectly returned the regular file, symlink, and FIFO.
+- Discovery now checks the `os.DirEntry` type before association matching, skipping symlinks and non-regular entries without calling `Info` for ordinary files. macOS/Linux bounded reads use one nonblocking, no-follow open plus the existing descriptor stat; symlink and FIFO reads are rejected, and FIFO regression coverage proves the call returns within one second.
+- Corrected a pre-existing extension-host baseline failure found during validation: commit `a8088a7` changed the runtime fallback and smoke-test contract for `phpstrom.diagnostics.workspaceScanOnStart` to `false`, but the shipped manifest remained `true`. The manifest now matches the newer performance decision, so startup still indexes symbols while full workspace diagnostics remain available manually or via explicit opt-in.
+- Focused `GOWORK=off go test ./indexer` and `GOWORK=off go test -race ./indexer` adversarial runs: pass. Indexer test binaries compile for `darwin/linux/windows` on `arm64/amd64`: pass.
+- Extension pinned-module `GOWORK=off go test ./...`, `GOWORK=off go vet ./...`, and `GOWORK=off go test -race ./...`: pass. `make test-server-dev` plus sibling-parser Go vet/race: pass. `make build-server` builds all six marketplace targets.
+- Engine `go test ./...`, `go vet ./...`, and `go test -race ./...`: pass.
+- Clean `npm ci`: pass (530 packages installed, 531 audited). `npm audit --audit-level=low`: pass with 0 vulnerabilities. `npm run lint`, `npm run compile`, `npm run package`, and the VS Code 1.89.1 extension-host `npm test`: pass; webpack retains the known `vscode-languageserver-types` dynamic-require warning.
+- Version-sensitive checks after the patch bump from 0.1.22 to 0.1.23 confirmed manifest/lockfile consistency and repeated lint, compile, webpack package, extension-host tests, audit, and `git diff --check` successfully.
+- `make install`: pass; rebuilt all six server targets, packaged `phpstrom-0.1.23.vsix` (24 files, 19.89 MB), and installed it successfully into local VS Code. Packaging retains the known dynamic-require warning; the VS Code CLI also emitted its existing Node `url.parse()` deprecation warning.
+- A malformed zsh cross-build loop produced no valid build result and is not counted. The corrected six-target `go test -c` builds and later `make build-server` both pass. A sibling-parser vet command initially ran from the repository root and failed module discovery; the same command passed from `server/` with the generated Go workspace.
+
+## Next ranked candidates
+
+1. **Security:** add deterministic parser/indexer fuzz targets with malformed PHP seeds, panic-error assertions, cancellation checks, and a documented short CI fuzz budget.
+2. **Performance:** create repeatable cold/warm index and incremental-edit benchmarks with stable corpus/configuration metadata and peak-RSS/allocation capture.
+3. **Maintenance:** correct `FEATURES.md` to the production architecture and decide whether the excluded legacy TypeScript server should be removed.
+4. **Features:** after the higher-priority gates, classify and minimize the largest pure-PHP corpus failures before expanding PHPStan/PHPCS diagnostic breadth.
