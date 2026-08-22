@@ -1,24 +1,24 @@
 # Default VS Code PHP Platform Progress
 
-Last updated: 2026-08-21 (Europe/London)
+Last updated: 2026-08-22 (Europe/London)
 
 This file records reproducible evidence for the cooperating `go-php-parser` engine and `vscode-php-strom` extension. PHPStan, PHPCS, and Mago are benchmark references only; no parity claim is made.
 
 ## Current baseline
 
-- Engine checkout: `/Users/ayan/Projects/go-php-parser`, `main` at pushed engine commit `8799ed1` before this progress update.
-- Extension checkout: `/Users/ayan/Projects/vscode-php-strom`, `main` at pushed integration commit `23dc399` before this security update; the validated release target is `0.1.23`.
-- Production extension builds pin `github.com/ayanozturk/go-php-parser` at pseudo-version `v0.0.0-20260820125828-8799ed160392`; `make test-server-dev` validates the sibling engine checkout through a generated, ignored Go workspace.
+- Engine checkout: `/Users/ayan/Projects/go-php-parser`, `main` at pushed engine commit `4350d06` before this fuzzing update.
+- Extension checkout: `/Users/ayan/Projects/vscode-php-strom`, `main` at pushed security commit `f2793dc` before this update; the validated release target is `0.1.24`.
+- Before this delivery, production extension builds pin `github.com/ayanozturk/go-php-parser` at pseudo-version `v0.0.0-20260820125828-8799ed160392`. The `0.1.24` release advances the pin to the engine security commit, while `make test-server-dev` continues to validate the sibling checkout through a generated, ignored Go workspace.
 - Go toolchain observed: Go 1.26.2. Node toolchain observed: Node 22.20.0 and npm 11.7.0.
 - Checked-in representative corpus: 32,990 PHP files across Composer, Drupal, Laravel, PHPUnit, and Symfony under `test_projects` (428 MB on disk, including installed dependencies).
-- `go run ./cmd/compat-metrics -root test_projects -workers 4 -top 2`: 94.28% file compatibility (31,102 passing, 1,888 failing), 156,002 parse errors, 2.779s. Per project: Composer 98.15%, Drupal 96.37%, Laravel 92.00%, PHPUnit 90.60%, Symfony 93.47%.
+- `go run ./cmd/compat-metrics -root test_projects -workers 4 -top 2`: 96.05% file compatibility (31,686 passing, 1,304 failing), 146,218 parse errors, 2.716s. Per project: Composer 98.15%, Drupal 96.81%, Laravel 94.47%, PHPUnit 93.08%, Symfony 96.52%.
 
 ## Security and fuzzing
 
-- Clean `npm ci` plus `npm audit --audit-level=low`: 0 known vulnerabilities across 531 installed dependencies on 2026-08-20.
+- Clean `npm ci` plus `npm audit --audit-level=low`: 0 known vulnerabilities across 531 installed dependencies on 2026-08-22.
 - GitHub remote verification after push: 0 open Dependabot alerts, 33 fixed Dependabot alerts, and 0 open secret-scanning alerts. The push-time banner briefly reported 26 alerts while GitHub recalculated the default branch; the alerts API is the recorded final state.
 - `govulncheck`, `gosec`, `staticcheck`, and `golangci-lint` were not installed; no result is claimed for them.
-- Neither Go repository currently has a `Fuzz...` target. Malformed/untrusted PHP fuzzing is therefore not continuously exercised.
+- Both Go repositories now have deterministic malformed-PHP fuzz targets. Pinned GitHub Actions smoke jobs run the parser panic/cancellation targets for 15s/10s and the production index/diagnostic wrapper for 20s, each with a 10-minute job timeout and read-only repository permissions.
 - The parser recovers panics into `Parser panic:` errors and supports cooperative context cancellation. The language-server indexer applies a 20-second per-file parse timeout and a four-worker cap.
 - Before the 2026-08-19 change, the indexer used `os.ReadFile` before enforcing `files.maxSize`, so the configured gate did not bound allocation for oversized or growing files.
 - Save, close, and workspace-diagnostic disk reloads now apply `files.maxSize`, reject non-file or non-regular resources, resolve symlinks before validating configured workspace roots, and retain bounded single-file mode when no workspace is open.
@@ -42,6 +42,7 @@ Representative workload: 23,556 indexed PHP files, 3,678,678 LOC, 135.68 MB, 151
 - Cache warmth differs between the single first run and the three final runs. These measurements show the initial regression was removed, but they do not establish a performance improvement.
 - No equivalent local PHPStan or PHPCS executable was available. Mago was available at `/opt/homebrew/bin/mago`, but no equivalent configured analysis workload was established, so no cross-tool timing claim is recorded.
 - 2026-08-21 interleaved A/B runs compared the changed extension with a detached `23dc399` checkout on the same 23,556-file, 135.68 MB workload. All ten measured runs indexed 23,556 files and 151,587 symbols. Changed times were 1.974s, 1.924s, 1.875s, 1.942s, and 1.891s (median 1.924s); baseline times were 1.949s, 1.885s, 1.917s, 1.842s, and 1.936s (median 1.917s). The +0.4% median difference is within run noise; no performance improvement or regression is claimed.
+- 2026-08-22 sequential parser microbenchmarks (`go test ./parser -run='^$' -bench='^BenchmarkParse$' -benchtime=500ms -count=10`) compared detached `4350d06` with the final nil-guard placement. Baseline median was 8,769.5 ns/op and changed median was 8,848.5 ns/op (+0.9%); ranges overlap and the runs were not interleaved, so no performance regression or improvement is claimed. The retained guard executes only after a fallible postfix parse, not on ordinary expressions.
 
 ## Maintainability and architecture risks
 
@@ -53,7 +54,7 @@ Representative workload: 23,556 indexed PHP files, 3,678,678 LOC, 135.68 MB, 151
 
 - PHPStan benchmark: level 0 remains partial; levels 1 and 2 are largely uncovered; level 3 return/property checks are partial. Missing areas include control-flow precision, arbitrary-expression method checks, PHPDoc validation, broader built-in signatures, and complete modern-syntax coverage.
 - PHPCS benchmark: the repository comparison records 16 style rules, far below the breadth of PHPCS standards. Security-oriented source rules such as eval/backtick/forbidden-function checks are not implemented.
-- PHP version/framework coverage is represented by the five-project corpus, but the 1,888 failing files demonstrate substantial parser-recovery gaps. Blade/mixed-template files are included in the failures and should be classified separately from pure-PHP parser failures.
+- PHP version/framework coverage is represented by the five-project corpus, but the 1,304 failing files demonstrate substantial parser-recovery gaps. Blade/mixed-template files are included in the failures and should be classified separately from pure-PHP parser failures.
 - Extension integration gaps include stale architecture documentation and no reproducible cold-start/incremental-edit/cancellation benchmark suite. Workspace-discovery symlink/special-file coverage is now present for the supported macOS/Linux security boundary.
 
 ## Completed changes and validation
@@ -190,9 +191,20 @@ Representative workload: 23,556 indexed PHP files, 3,678,678 LOC, 135.68 MB, 151
 - `make install`: pass; rebuilt all six server targets, packaged `phpstrom-0.1.23.vsix` (24 files, 19.89 MB), and installed it successfully into local VS Code. Packaging retains the known dynamic-require warning; the VS Code CLI also emitted its existing Node `url.parse()` deprecation warning.
 - A malformed zsh cross-build loop produced no valid build result and is not counted. The corrected six-target `go test -c` builds and later `make build-server` both pass. A sibling-parser vet command initially ran from the repository root and failed module discovery; the same command passed from `server/` with the generated Go workspace.
 
+### 2026-08-22 — Security: fuzz malformed PHP and stop nil postfix recovery
+
+- Baseline `go test ./parser -list '^Fuzz'` and pinned extension `go test ./indexer -list '^Fuzz'` listed no fuzz targets, leaving malformed/untrusted input outside continuous adversarial coverage.
+- Added bounded 64 KiB fuzz targets for the engine parser and the extension's production full-diagnostic and symbol-index parse paths. Deterministic seeds include truncated structures, unterminated heredoc/comments, invalid UTF-8, and a minimized chained-postfix reproducer. The targets fail on any recovered `Parser panic:` diagnostic and prove pre-cancelled parses report cancellation.
+- The first five-second engine run found a real nil-pointer panic from `<?phpA[0(00`: a failed array-access parse returned `nil`, but the postfix loop continued into a following call expression and dereferenced it. The loop now returns immediately after any fallible postfix parser fails, covering object, static, array, and variable-call chains.
+- Added read-only, SHA-pinned GitHub Actions workflows in both repositories. The engine budgets malformed/cancellation fuzzing at 15s/10s; the extension budgets its production-wrapper target at 20s. Each job has a 10-minute outer timeout.
+- Final local fuzz evidence: malformed parser target 1,886,552 executions in 10s; cancellation target 2,010,941 executions in 10s; production indexer target 1,130,906 executions in 10s. Deterministic seed runs pass in both repositories.
+- Engine `go test ./...`, `go vet ./...`, `go test -race ./...`, and `git diff --check`: pass. The five-project compatibility scan completed without a process crash in 2.716s with 31,686/32,990 files compatible, 1,304 failing files, and 146,218 parse errors.
+- Extension `make test-server-dev`, sibling-parser Go vet/race, `npm run lint`, `npm run compile`, `npm run package`, VS Code 1.89.1 extension-host `npm test`, clean `npm ci`, `npm audit --audit-level=low`, and `git diff --check`: pass. Audit reports 0 vulnerabilities; packaging retains the known `vscode-languageserver-types` dynamic-require warning.
+- This security fix adds nil checks only after fallible postfix parsing. The sequential microbenchmark median was +0.9% with overlapping ranges; no performance change is claimed.
+
 ## Next ranked candidates
 
-1. **Security:** add deterministic parser/indexer fuzz targets with malformed PHP seeds, panic-error assertions, cancellation checks, and a documented short CI fuzz budget.
+1. **Security:** extend deterministic fuzzing into PHPDoc/type parsing and rule execution, then add a scheduled longer budget with reviewed minimized corpus seeds.
 2. **Performance:** create repeatable cold/warm index and incremental-edit benchmarks with stable corpus/configuration metadata and peak-RSS/allocation capture.
 3. **Maintenance:** correct `FEATURES.md` to the production architecture and decide whether the excluded legacy TypeScript server should be removed.
 4. **Features:** after the higher-priority gates, classify and minimize the largest pure-PHP corpus failures before expanding PHPStan/PHPCS diagnostic breadth.

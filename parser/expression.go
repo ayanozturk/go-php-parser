@@ -1085,18 +1085,30 @@ func (p *Parser) parsePostfixExpression(expr ast.Node) ast.Node {
 		}
 		if p.tok.Type == token.T_OBJECT_OPERATOR || p.tok.Type == token.T_NULLSAFE_OBJECT_OPERATOR {
 			expr = p.parseSimpleObjectOrMethod(expr)
+			if expr == nil {
+				return nil
+			}
 			continue
 		}
 		if p.tok.Type == token.T_DOUBLE_COLON {
 			expr = p.parseStaticAccessOnNode(expr)
+			if expr == nil {
+				return nil
+			}
 			continue
 		}
 		if p.tok.Type == token.T_LBRACKET {
 			expr = p.parseSimpleArrayAccess(expr)
+			if expr == nil {
+				return nil
+			}
 			continue
 		}
 		if p.tok.Type == token.T_LPAREN {
 			expr = p.parseSimpleVariableFunctionCall(expr)
+			if expr == nil {
+				return nil
+			}
 			continue
 		}
 		break
