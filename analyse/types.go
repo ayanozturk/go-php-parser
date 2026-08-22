@@ -163,14 +163,15 @@ func (t Type) AcceptsWithContext(actual Type, scope *functionScope, ctx *Analysi
 	if t.hasBuiltin("mixed") || actual.hasBuiltin("mixed") {
 		return true
 	}
+	// PHPUnit and Mockery describe generated doubles as intersections such as
+	// MockObject&RealInstanceType. Until template bindings preserve the concrete
+	// mocked class here, the mock marker is the reliable evidence that the value
+	// is object-like; the unbound template atom must not create a false mismatch.
+	if t.acceptsObjectLike() && actual.hasMockObjectType() {
+		return true
+	}
 
 	for _, actualAtom := range actual.sortedAtoms() {
-		// PHPUnit / Mockery mock types are always compatible with any declared
-		// type — they implement whatever interface or extend whatever class they
-		// were created for. Skipping them avoids false positives in test code.
-		if isMockObjectType(actualAtom.display) {
-			continue
-		}
 		matched := false
 		for _, declaredAtom := range t.sortedAtoms() {
 			if atomsCompatibleWithContext(declaredAtom, actualAtom, scope, ctx) {
@@ -186,6 +187,27 @@ func (t Type) AcceptsWithContext(actual Type, scope *functionScope, ctx *Analysi
 	return true
 }
 
+func (t Type) acceptsObjectLike() bool {
+	if t.hasBuiltin("object") {
+		return true
+	}
+	for _, atom := range t.atoms {
+		if atom.kind == typeKindClass {
+			return true
+		}
+	}
+	return false
+}
+
+func (t Type) hasMockObjectType() bool {
+	for _, atom := range t.atoms {
+		if isMockObjectType(atom.display) {
+			return true
+		}
+	}
+	return false
+}
+
 // isMockObjectType returns true for PHPUnit and Mockery mock framework types
 // that are always valid substitutes for the type they were created from.
 func isMockObjectType(name string) bool {
@@ -193,6 +215,8 @@ func isMockObjectType(name string) bool {
 	case `PHPUnit\Framework\MockObject\MockObject`,
 		`PHPUnit\Framework\MockObject\MockObjectForAbstractClass`,
 		`PHPUnit\Framework\MockObject\MockObjectForTrait`,
+		`PHPUnit\Framework\MockObject\Stub`,
+		`PHPUnit\Framework\MockObject\StubInternal`,
 		`Mockery\MockInterface`,
 		`Mockery\LegacyMockInterface`:
 		return true
