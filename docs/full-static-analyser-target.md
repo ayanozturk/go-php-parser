@@ -1,0 +1,370 @@
+# Full Static Analyser and Mago-Class Performance Target
+
+## Status
+
+- Project target: approved
+- Target repositories: `go-php-parser` and `vscode-php-strom`
+- Baseline date: 2026-08-23 (Europe/London)
+- Benchmark references: Mago for performance and modern PHP type analysis, PHPStan and Psalm for diagnostic depth, and PHPCS for source-style breadth
+
+## Mission
+
+Evolve `go-php-parser` from a parser with independent style and analysis rules into a complete, production-grade PHP static analyser, and deliver it through PHP Strom as a fast incremental editor experience.
+
+The finished analyser must be competitive with Mago on performance without obtaining speed by doing less work. It must combine:
+
+- broad PHP 8.x syntax support;
+- project-wide symbol and dependency resolution;
+- flow-sensitive and interprocedural type analysis;
+- PHPDoc, generic, conditional, callable, and shape types;
+- useful framework-aware extension points;
+- predictable diagnostics with low false-positive and false-negative rates;
+- safe operation on malformed and partially typed code;
+- cold full-project analysis performance comparable to Mago;
+- low-latency incremental analysis for PHP Strom.
+
+This is a correctness, coverage, reliability, and performance target. None of those dimensions may be traded away invisibly to improve another.
+
+## Definition of success
+
+The project may claim that it is a full static analyser only when all of the following are true:
+
+1. It parses supported PHP versions and builds a complete semantic model for the configured project and dependencies.
+2. It performs control-flow-sensitive type checking across functions, methods, closures, traits, inheritance, and common dynamic PHP patterns.
+3. It supports the PHPDoc type constructs used by the reference corpus, including generics and type aliases, with documented diagnostics for unsupported constructs.
+4. It can run as a standalone cold analyser and as an incremental language-server engine.
+5. It completes the reference corpora without a panic, timeout, data race, or silent file omission.
+6. Its diagnostic quality passes the correctness gates in this document.
+7. Its full-analysis performance passes the comparable-performance gate in this document.
+
+Passing a fast symbol-index benchmark does not satisfy this definition.
+
+## Benchmark reference and current evidence
+
+Mago's public site reports a 1.46-second static-analysis run over approximately 7 million LOC. The benchmark is a cold analyzer run against WordPress and is configured to scan `src`, `tests`, and `vendor`. Its strict configuration enables dead-code, unused-definition, throws, missing-type-hint, finality, and related checks.
+
+Primary sources:
+
+- [Mago homepage and headline benchmark](https://mago.carthage.software/latest/en/)
+- [Mago benchmark methodology](https://mago.carthage.software/1.47.2/en/benchmarks/)
+- [Reproducible PHP toolchain benchmark suite](https://github.com/carthage-software/php-toolchain-benchmarks)
+- [WordPress Mago benchmark configuration](https://raw.githubusercontent.com/carthage-software/php-toolchain-benchmarks/main/project-configurations/wordpress/mago.toml)
+- [Published benchmark data](https://carthage-software.github.io/php-toolchain-benchmarks/latest.json)
+
+The published result was last refreshed on 2026-04-15. The 1.46-second entry is for Mago 1.20.1 even though the current documentation is newer. The public methodology does not identify the benchmark CPU and memory configuration. Absolute times must therefore be reproduced on the same machine before making a comparative claim.
+
+### Local machine used for the initial baseline
+
+- Apple M1, 8 cores (4 performance and 4 efficiency)
+- 8 GB memory
+- Go 1.26.2, `darwin/arm64`
+
+### Existing symbol-index baseline
+
+PHP Strom's existing `cmd/benchmark-indexer` is not a static-analysis benchmark. It excludes `vendor`, skips function bodies, and measures file discovery, parsing for symbols, and index construction with at most four workers.
+
+On a local 4,042,704-LOC corpus, five cold-process invocations produced:
+
+- times: 4.050s, 4.222s, 5.458s, 2.909s, and 3.363s;
+- median: 4.050s;
+- median throughput: approximately 998,000 LOC/s;
+- observed throughput range: approximately 741,000 to 1,390,000 LOC/s;
+- observed Go system memory: approximately 751 to 825 MB.
+
+Mago's headline result is approximately 4.79 million LOC/s. It is therefore about 4.8 times the throughput of this easier symbol-only local benchmark, before accounting for hardware differences.
+
+### Initial full-diagnostics baseline
+
+An ephemeral harness reproduced PHP Strom's cold sequence: symbol indexing followed by the configured two-worker workspace diagnostics pass.
+
+On a local 249,780-LOC corpus:
+
+- symbol indexing: 0.253s;
+- diagnostics: 0.903s;
+- total: 1.156s;
+- total throughput: approximately 216,000 LOC/s;
+- diagnostics produced: 34,091;
+- failures: zero;
+- end-of-run Go memory: 184.6 MB heap and 212.9 MB system memory.
+
+The diagnostic count is not a quality result. It requires classification against expected findings before it can support a correctness claim.
+
+On the 4,042,704-LOC corpus:
+
+- symbol indexing completed in 4.637s;
+- full diagnostics did not complete;
+- concurrent analysis reached a nil-pointer panic through per-file project-index construction.
+
+This failure is a release-blocking scalability defect for the full-analyser target. No large-corpus full-analysis throughput is currently claimed.
+
+## Comparable-performance contract
+
+All performance claims must use a checked-in, reproducible harness and record:
+
+- repository URL and exact commit or tag;
+- dependency lock state and setup command;
+- included and excluded paths;
+- PHP version and analyser configuration;
+- analyser commit, Go version, build flags, and environment variables;
+- CPU, logical and physical core count, memory, operating system, and architecture;
+- cold or warm cache state;
+- run count, mean, median, minimum, maximum, standard deviation, and coefficient of variation;
+- peak RSS for the whole process tree;
+- files discovered, files analysed, LOC, bytes, and diagnostics emitted;
+- parse failures, analysis failures, panics, timeouts, and skipped files;
+- rule and feature coverage enabled for each compared tool.
+
+### Required workloads
+
+The shared external suite must include the same projects used by the Mago benchmark:
+
+- `php-standard-library/php-standard-library`;
+- `WordPress/wordpress-develop`;
+- `magento/magento2`.
+
+The project must also retain representative framework corpora for Symfony, Laravel, Doctrine, Composer, Drupal, PHPUnit, and modern PHP syntax. Private corpora may be used to find defects but must not be required to reproduce a public performance claim.
+
+### Cold-run protocol
+
+1. Build a release binary once, outside the timed region.
+2. Remove analyser caches before every measured run.
+3. Preserve operating-system cache state consistently across compared tools, or explicitly measure and label both filesystem-cold and process-cold variants.
+4. Run tools interleaved to reduce drift from temperature and background load.
+5. Use at least ten measured runs after an unmeasured validation run.
+6. Reject a comparison when CPU stability, file counts, configuration, or semantic coverage differs materially.
+
+### No-benchmark-gaming rules
+
+- Do not exclude dependencies that the compared configuration includes.
+- Do not skip function bodies, tests, generated PHP, or error-producing files unless every compared tool receives the same exclusion.
+- Do not disable expensive rules only for the measured analyser.
+- Do not count indexing as full analysis.
+- Do not omit startup, configuration loading, dependency discovery, parsing, result reduction, or diagnostic construction from a cold full-analysis time.
+- Report crashes, skipped files, and timeouts as failed runs, not as faster results.
+- Keep correctness and rule-coverage results beside every performance result.
+
+## Final performance target
+
+On the same machine, corpus revision, paths, dependencies, cache state, and mutually supported strict-analysis configuration:
+
+- cold full-analysis mean must be no more than 1.5 times Mago's mean;
+- stretch target: equal or faster than Mago;
+- peak RSS must be no more than 1.25 times Mago's peak RSS unless a documented interactive-mode trade-off is approved;
+- coefficient of variation should be at most 5%;
+- 100% of selected PHP files must be accounted for;
+- there must be zero panics, fatal analysis failures, data races, or per-file timeouts;
+- diagnostic correctness and coverage gates must pass in the same build.
+
+Against the currently published 1.46-second result, the provisional cold target is at most 2.19 seconds and the stretch target is at most 1.46 seconds. These absolute values are illustrative; the authoritative comparison is the contemporaneous same-machine relative result.
+
+## Diagnostic correctness and coverage gates
+
+Performance is not comparable unless the analyser performs comparable semantic work.
+
+### Parser and source model
+
+- Support all valid syntax for the declared PHP 8.x range.
+- Distinguish pure PHP, mixed templates, generated files, and unsupported extensions in compatibility reports.
+- Add complete byte spans to AST and diagnostics, with tested UTF-16 conversion at the LSP boundary.
+- Preserve useful partial trees for incomplete editor input without panics or uncontrolled cascades.
+- Reach at least 99.99% parse compatibility on the checked-in representative corpus before a release candidate; every remaining failure must be classified.
+
+### Semantic model
+
+- Namespaces, imports, aliases, constants, functions, classes, interfaces, traits, enums, properties, methods, and promoted properties.
+- Inheritance, trait composition and adaptations, interface contracts, visibility, finality, readonly semantics, and variance.
+- Composer autoload roots, project source roots, configured dependency roots, stubs, and PHP-version-specific built-ins.
+- Stable symbol identities, declaration spans, references, and an immutable project snapshot suitable for parallel queries.
+
+### Type system
+
+- Native union, intersection, nullable, literal, `never`, `void`, `mixed`, `object`, iterable, callable, and class-string types.
+- Array/list shapes, keyed arrays, non-empty variants, integer ranges, literal strings, and object shapes where supported by reference annotations.
+- PHPDoc templates, bounds, covariance and contravariance, generic inheritance, type aliases, imports, conditional types, indexed access, key/value projections, and callable signatures.
+- `self`, `static`, parent, late-static binding, `$this`, and fluent-return semantics.
+- Sound normalization, subtyping, narrowing, widening, substitution, and recursion limits.
+
+### Flow and interprocedural analysis
+
+- Control-flow graphs for functions, methods, and closures.
+- Reachability, definite assignment, return completeness, throw paths, and termination.
+- Branch narrowing from comparisons, assertions, `instanceof`, null checks, array-key checks, match/switch, coalescing, and short-circuit expressions.
+- Loop fixed points with bounded convergence.
+- Call argument and return checking, named and unpacked arguments, by-reference effects, variadics, generators, closures, and first-class callables.
+- Property initialization and mutation, constructor flow, readonly constraints, and dynamic-property rules.
+- Interprocedural summaries with dependency invalidation rather than whole-project recomputation for every edit.
+
+### Framework and dynamic-code support
+
+- Extension contracts for dynamic return types, assertions, method/property reflection, generated members, service containers, and ORM repositories.
+- First-party compatibility packs should prioritize Composer, PHPUnit, Symfony, Doctrine, and Laravel patterns used by the reference corpora.
+- Dynamic support must be testable and must not silently weaken ordinary type checking.
+
+### Quality measurement
+
+- Differential fixtures against PHPStan, Psalm, and Mago for mutually supported semantics.
+- Curated true-positive, false-positive, and false-negative suites.
+- Every fixed user-reported false positive receives neutral synthetic regression coverage.
+- Diagnostic stability checks ensure unrelated edits do not reorder or rewrite findings nondeterministically.
+- Rule documentation states intent, severity, configuration, known limitations, and reference behavior.
+
+## Target architecture
+
+### Single-source pipeline
+
+Each file should be read and lexed once per content version. Parsing, symbol extraction, semantic facts, diagnostics, and editor features must share the resulting immutable snapshot.
+
+The current cold workspace path first parses with function bodies skipped and later reads and parses files again for diagnostics. Remove that duplication for full-analysis runs. Retain a deliberately lighter index-only mode only when it is named and measured separately.
+
+### Compact representations
+
+Go can reach the target, but a pointer-heavy heap graph will make garbage collection and cache locality limiting factors. The preferred design is:
+
+- token and node storage in contiguous slices;
+- integer node, type, symbol, and string IDs;
+- interned identifiers and normalized types;
+- compact tagged unions rather than pervasive interface values where profiling supports the change;
+- file- or worker-owned allocation slabs for short-lived analysis facts;
+- explicit lifetime boundaries so whole phases can release memory together;
+- bounded pools only where benchmarks prove reuse is beneficial.
+
+### Shared semantic facts
+
+Independent rules currently traverse the same AST repeatedly. Build reusable per-file facts in coordinated passes:
+
+- scope and declaration tables;
+- control-flow graph and reachability;
+- expression types and narrowing facts;
+- reads, writes, calls, throws, and return effects;
+- suppression and source-location maps.
+
+Rules should query these facts instead of rebuilding them. A fused visitor is preferred where it reduces traversal and allocation without coupling unrelated diagnostics.
+
+### Project graph and concurrency
+
+- Build one immutable project graph per revision.
+- Never rebuild the entire project index as an uncoordinated per-file cache fallback.
+- Fix the large-corpus project-index panic before increasing concurrency.
+- Separate CLI and LSP scheduling policies: batch analysis may use all effective cores, while interactive mode reserves capacity for editor requests.
+- Partition work by strongly connected dependency components when inter-file ordering matters.
+- Use deterministic reduction so concurrency does not change diagnostic output.
+
+### Incremental analysis
+
+- Hash file content and semantic exports separately.
+- Reanalyse dependants only when exported semantic facts change.
+- Cache parsed snapshots, declarations, type summaries, and diagnostics by content and configuration fingerprint.
+- Bound cache memory and expose cache hit, invalidation, and eviction metrics.
+- Cancel obsolete editor work promptly and never publish results for stale document versions.
+
+## Delivery milestones
+
+### M0 — Reproducible baseline and stability
+
+Exit criteria:
+
+- Add a standalone production `analyze` command that exercises the same engine as PHP Strom.
+- Add the external three-project benchmark harness with pinned revisions and generated machine-readable reports.
+- Measure index-only, cold full analysis, warm full analysis, and incremental edits separately.
+- Reproduce and fix the large-corpus project-index panic with adversarial regression coverage.
+- Account for every discovered file and classify parser failures.
+- Record rule coverage and diagnostic counts beside timing and RSS.
+
+### M1 — Complete semantic foundation
+
+Exit criteria:
+
+- Complete source spans and structured diagnostics.
+- Immutable project graph and stable symbol identities.
+- Control-flow graph, reusable semantic-fact store, and foundational type operations.
+- Full PHPStan level 0 behavior for the agreed corpus and documented progress through levels 1–3.
+- Cold WordPress analysis completes reliably in at most 60 seconds and 2 GB peak RSS on the reference machine.
+
+### M2 — Broad type-analysis capability
+
+Exit criteria:
+
+- Generic PHPDoc, shapes, callable types, flow narrowing, property initialization, trait/interface contracts, and interprocedural summaries meet their fixture gates.
+- PHPStan levels 0–6 are substantially covered, with explicit coverage metrics rather than name-only claims.
+- Symfony, Doctrine, Composer, and PHPUnit compatibility packs pass their integration suites.
+- Cold WordPress analysis completes in at most 10 seconds and 1.5 GB peak RSS on the reference machine.
+
+### M3 — Full-analyser release candidate
+
+Exit criteria:
+
+- The parser and semantic coverage gates in this document pass.
+- Differential false-positive and false-negative suites meet release thresholds chosen from reviewed evidence.
+- Magento and PSL complete under the same reliability contract as WordPress.
+- Cold WordPress analysis completes in at most 5 seconds and 1.25 GB peak RSS on the reference machine.
+- PHP Strom incremental analysis meets the latency budget below.
+
+### M4 — Comparable-performance release
+
+Exit criteria:
+
+- Cold full analysis is at most 1.5 times the contemporaneous Mago mean on all required workloads where both tools complete.
+- The WordPress stretch investigation records the remaining gap to equal-or-faster performance.
+- Peak RSS, variance, file accounting, reliability, and semantic-coverage gates pass.
+- Results are reproduced in CI or on a documented stable benchmark host and published with raw machine-readable evidence.
+
+## PHP Strom interactive targets
+
+Batch speed alone is insufficient for an editor analyser. On a representative warm workspace and supported development machine:
+
+- open-document diagnostic latency: p50 at most 50ms, p95 at most 100ms;
+- incremental edit affecting only local facts: p95 at most 100ms;
+- incremental edit changing exported symbols: p95 at most 300ms for the affected dependency slice;
+- cancellation acknowledgement: p95 at most 25ms;
+- no stale diagnostics after a newer document version is accepted;
+- background work must not prevent completion, hover, definition, or signature-help responses from meeting their own latency budgets.
+
+These targets require a dedicated trace-based benchmark; synthetic single-file timing alone is insufficient.
+
+## Verification and release gates
+
+Every milestone delivery must run the checks appropriate to its changes, including:
+
+- engine unit, integration, race, fuzz-seed, and compatibility tests;
+- extension pinned-module and sibling-development tests;
+- deterministic benchmark smoke tests in normal CI;
+- scheduled full benchmark and longer fuzz runs;
+- `go vet`, diff checks, TypeScript lint/compile/package, and extension-host tests;
+- cross-platform builds for every shipped language-server target;
+- performance comparison against the previous release using interleaved runs;
+- investigation of regressions larger than 5%, with no unsupported improvement claim inside normal run noise.
+
+A release must not advance the parser version pinned by PHP Strom until the engine commit is pushed and the pinned and sibling-development paths have both passed.
+
+## Repository responsibilities
+
+### `go-php-parser`
+
+- parser, AST/spans, semantic IR, type system, project graph, analysis engine, diagnostics, standalone CLI, benchmark protocol, and correctness suites;
+- stable APIs for immutable snapshots, cancellation, configuration, and machine-readable reports;
+- public benchmark evidence and analyzer capability documentation.
+
+### `vscode-php-strom`
+
+- workspace discovery, dependency/configuration mapping, versioned document snapshots, incremental scheduling, cancellation, LSP conversion, diagnostic publication, and editor latency benchmarks;
+- pinned production dependency plus explicit sibling-development workflow;
+- integration tests proving the editor and standalone CLI use equivalent analysis semantics.
+
+## Immediate next actions
+
+1. Add the checked-in cold/full/incremental benchmark command and result schema.
+2. Pin and automate the Mago benchmark projects and configuration.
+3. Minimize and fix the large-corpus project-index panic before further performance tuning.
+4. Profile allocations, GC, parsing duplication, project-index construction, and per-rule AST walks.
+5. Design the immutable semantic snapshot and shared fact-store interfaces.
+6. Establish the first diagnostic differential suite and publish a capability matrix.
+7. Rebaseline on the same machine against the current Mago release before setting milestone dates.
+
+## Decision log
+
+- Go remains the implementation language. The target is considered achievable in Go; architecture, allocation behavior, semantic work, and concurrency are the primary constraints.
+- Mago is a performance and capability benchmark, not a dependency and not an authority for PHP semantics.
+- Relative same-machine results are authoritative; a stale absolute headline is contextual evidence only.
+- Index-only and full-analysis performance will always be reported separately.
+- Correctness and semantic coverage are release gates for performance claims.
+- Private source code may expose failures but will not be copied into public fixtures or required for benchmark reproduction.

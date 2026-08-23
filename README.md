@@ -2,6 +2,10 @@
 
 A PHP parser and code style checker written in Go that generates an Abstract Syntax Tree (AST) from PHP source code and applies style rules to generate a report.
 
+## Project Target
+
+The long-term target is a production-grade, full PHP static analyser with cold full-project performance comparable to Mago, without sacrificing semantic coverage or diagnostic quality. See [Full Static Analyser and Mago-Class Performance Target](docs/full-static-analyser-target.md) for the benchmark contract, architecture, milestones, and acceptance gates.
+
 ## Features
 
 ### Language Support

@@ -41,7 +41,67 @@ var builtinTypeNames = map[string]struct{}{
 	"void":     {},
 }
 
-var parsedTypeCache sync.Map
+const (
+	parsedTypeCacheMaxEntries  = 4096
+	parsedTypeCacheMaxKeyBytes = 1 << 20
+	parsedTypeCacheMaxKeySize  = 1024
+)
+
+type boundedTypeCache struct {
+	values   sync.Map
+	mu       sync.Mutex
+	order    []string
+	head     int
+	keyBytes int
+}
+
+func newBoundedTypeCache() *boundedTypeCache {
+	return &boundedTypeCache{order: make([]string, 0, parsedTypeCacheMaxEntries)}
+}
+
+func (c *boundedTypeCache) Load(key string) (Type, bool) {
+	value, ok := c.values.Load(key)
+	if !ok {
+		return Type{}, false
+	}
+	return value.(Type), true
+}
+
+func (c *boundedTypeCache) Store(key string, value Type) {
+	if len(key) > parsedTypeCacheMaxKeySize {
+		return
+	}
+
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if _, loaded := c.values.Load(key); loaded {
+		return
+	}
+
+	for len(c.order)-c.head >= parsedTypeCacheMaxEntries || c.keyBytes+len(key) > parsedTypeCacheMaxKeyBytes {
+		oldest := c.order[c.head]
+		c.head++
+		c.keyBytes -= len(oldest)
+		c.values.Delete(oldest)
+	}
+	if c.head > 0 && c.head*2 >= len(c.order) {
+		copy(c.order, c.order[c.head:])
+		c.order = c.order[:len(c.order)-c.head]
+		c.head = 0
+	}
+
+	c.values.Store(key, value)
+	c.order = append(c.order, key)
+	c.keyBytes += len(key)
+}
+
+func (c *boundedTypeCache) size() (entries, keyBytes int) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return len(c.order) - c.head, c.keyBytes
+}
+
+var parsedTypeCache = newBoundedTypeCache()
 
 func EmptyType() Type {
 	return Type{}
@@ -66,7 +126,7 @@ func ParseType(raw string) Type {
 	}
 
 	if cached, ok := parsedTypeCache.Load(raw); ok {
-		return cached.(Type)
+		return cached
 	}
 
 	t := Type{atoms: make(map[string]typeAtom)}

@@ -58,7 +58,7 @@ func ParsePHPDoc(rawContent string) *PHPDocNode {
 
 	// Remove the /** */ wrapper
 	content := strings.TrimSpace(rawContent)
-	if strings.HasPrefix(content, "/**") && strings.HasSuffix(content, "*/") {
+	if len(content) >= len("/**")+len("*/") && strings.HasPrefix(content, "/**") && strings.HasSuffix(content, "*/") {
 		content = content[3 : len(content)-2]
 	}
 

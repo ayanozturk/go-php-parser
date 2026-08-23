@@ -1,5 +1,7 @@
 # Next Feature Plan For go-php-parser
 
+> The primary long-term project target is now [Full Static Analyser and Mago-Class Performance Target](full-static-analyser-target.md). This document remains the near-term CLI and adoption plan; implementations must align with the full-analyser correctness, benchmark, and architecture gates.
+
 ## Summary
 
 This roadmap focuses on the next practical features for `go-php-parser`: a fast PHP parser with style rules, early analysis rules, autofix support, config, reporting, and compatibility metrics.
