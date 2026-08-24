@@ -3,9 +3,15 @@ package lexer
 // readLineComment slices the line comment directly from input (zero allocation).
 // commentStart is the byte offset of the first '/'.
 // Called with l.char at the second '/'.
+// Per PHP semantics, a single-line comment is also terminated by a "?>"
+// close tag (which is left unconsumed for the next token to lex), not just
+// by a newline or EOF.
 func (l *Lexer) readLineComment(commentStart int) string {
 	l.readChar() // move past second '/'
 	for l.char != '\n' && l.char != 0 {
+		if l.char == '?' && l.peekChar() == '>' {
+			break
+		}
 		l.readChar()
 	}
 	return l.input[commentStart:l.pos]
@@ -13,10 +19,14 @@ func (l *Lexer) readLineComment(commentStart int) string {
 
 // readHashComment slices the hash comment directly from input (zero allocation).
 // Called with l.char at '#'.
+// See readLineComment for the "?>" termination rule.
 func (l *Lexer) readHashComment() string {
 	commentStart := l.pos
 	l.readChar() // move past '#'
 	for l.char != '\n' && l.char != 0 {
+		if l.char == '?' && l.peekChar() == '>' {
+			break
+		}
 		l.readChar()
 	}
 	return l.input[commentStart:l.pos]

@@ -26,6 +26,10 @@ func (p *Parser) parseIfStatement() (ast.Node, error) {
 	}
 	p.nextToken()
 
+	if p.tok.Type == token.T_COLON {
+		return p.parseIfAlternative(pos, condition)
+	}
+
 	body, err := p.parseConditionalBody("if")
 	if err != nil {
 		return nil, err
@@ -53,6 +57,74 @@ func (p *Parser) parseIfStatement() (ast.Node, error) {
 		if elseNode == nil || err != nil {
 			return nil, err
 		}
+	}
+
+	return &ast.IfNode{
+		Condition: condition,
+		Body:      body,
+		ElseIfs:   elseifs,
+		Else:      elseNode,
+		Pos:       ast.Position(pos),
+	}, nil
+}
+
+// parseIfAlternative parses PHP's alternative (colon) if syntax:
+//
+//	if (...): ... elseif (...): ... else: ... endif;
+//
+// The caller has already parsed the condition and consumed up through and
+// including the opening ':'.
+func (p *Parser) parseIfAlternative(pos token.Position, condition ast.Node) (ast.Node, error) {
+	p.nextToken() // consume ':'
+	body := p.parseAltBody(token.T_ELSEIF, token.T_ELSE, token.T_ENDIF)
+
+	var elseifs []*ast.ElseIfNode
+	for p.tok.Type == token.T_ELSEIF {
+		eiPos := p.tok.Pos
+		p.nextToken() // consume elseif
+		if p.tok.Type != token.T_LPAREN {
+			p.addError("line %d:%d: expected ( after elseif, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal)
+			return nil, nil
+		}
+		p.nextToken()
+		cond := p.parseExpression()
+		if cond == nil {
+			return nil, nil
+		}
+		if p.tok.Type != token.T_RPAREN {
+			p.addError("line %d:%d: expected ) after elseif condition, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal)
+			return nil, nil
+		}
+		p.nextToken()
+		if p.tok.Type != token.T_COLON {
+			p.addError("line %d:%d: expected : after elseif condition in alternative syntax, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal)
+			return nil, nil
+		}
+		p.nextToken() // consume ':'
+		eiBody := p.parseAltBody(token.T_ELSEIF, token.T_ELSE, token.T_ENDIF)
+		elseifs = append(elseifs, &ast.ElseIfNode{Condition: cond, Body: eiBody, Pos: ast.Position(eiPos)})
+	}
+
+	var elseNode *ast.ElseNode
+	if p.tok.Type == token.T_ELSE {
+		elsePos := p.tok.Pos
+		p.nextToken() // consume else
+		if p.tok.Type != token.T_COLON {
+			p.addError("line %d:%d: expected : after else in alternative syntax, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal)
+			return nil, nil
+		}
+		p.nextToken() // consume ':'
+		elseBody := p.parseAltBody(token.T_ENDIF)
+		elseNode = &ast.ElseNode{Body: elseBody, Pos: ast.Position(elsePos)}
+	}
+
+	if p.tok.Type != token.T_ENDIF {
+		p.addError("line %d:%d: expected endif to close alternative if syntax, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal)
+		return nil, nil
+	}
+	p.nextToken() // consume endif
+	if !p.consumeAltTerminator("endif") {
+		return nil, nil
 	}
 
 	return &ast.IfNode{

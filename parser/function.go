@@ -156,6 +156,14 @@ func (p *Parser) parseFunction(modifiers []string) (ast.Node, error) {
 	var body []ast.Node
 	braceDepth := 1
 	for braceDepth > 0 && p.tok.Type != token.T_EOF {
+		// Consume open/close PHP tag transitions ourselves so we return to
+		// this loop's own brace-depth check after each one, rather than
+		// letting parseStatement's internal retry jump straight from an
+		// open tag into whatever follows (which could be the closing '}').
+		if p.tok.Type == token.T_OPEN_TAG || p.tok.Type == token.T_CLOSE_TAG {
+			p.nextToken()
+			continue
+		}
 		if p.tok.Type == token.T_LBRACE {
 			braceDepth++
 			p.nextToken()

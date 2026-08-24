@@ -37,6 +37,9 @@ retry:
 		p.nextToken()
 		goto retry
 	}
+	if p.tok.Type == token.T_EOF {
+		return nil, nil
+	}
 	if p.tok.Type == token.T_LBRACE {
 		pos := p.tok.Pos
 		p.nextToken() // consume {
@@ -230,10 +233,45 @@ retry:
 			return nil, fmt.Errorf("failed to parse interface declaration")
 		}
 		return node, nil
-	case token.T_ECHO, token.T_PRINT:
+	case token.T_ECHO:
+		pos := p.tok.Pos
+		p.nextToken() // consume echo
+		expr := p.parseExpression()
+		if expr == nil {
+			return nil, nil
+		}
+		exprs := []ast.Node{&ast.ExpressionStmt{Expr: expr, Pos: ast.Position(pos)}}
+		for p.tok.Type == token.T_COMMA {
+			commaPos := p.tok.Pos
+			p.nextToken() // consume ,
+			next := p.parseExpression()
+			if next == nil {
+				return nil, nil
+			}
+			exprs = append(exprs, &ast.ExpressionStmt{Expr: next, Pos: ast.Position(commaPos)})
+		}
+		if p.tok.Type == token.T_SEMICOLON {
+			p.nextToken() // consume ;
+		} else if p.tok.Type != token.T_CLOSE_TAG && p.tok.Type != token.T_EOF {
+			// A closing "?>" tag (or EOF) implicitly terminates the
+			// statement, same as PHP allows (e.g. "<?= $x ?>").
+			p.addError("line %d:%d: expected ; after echo statement, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal)
+			return nil, nil
+		}
+		if len(exprs) == 1 {
+			// Common case: keep the exact same shape as before (a bare
+			// ExpressionStmt) so existing consumers that pattern-match on
+			// ExpressionStmt for single-expression echoes are unaffected.
+			return exprs[0], nil
+		}
+		// echo with multiple comma-separated expressions: wrap the
+		// synthesized per-expression statements in a BlockNode, which
+		// every AST walker already knows how to recurse into.
+		return &ast.BlockNode{Statements: exprs, Pos: ast.Position(pos)}, nil
+	case token.T_PRINT:
 		pos := p.tok.Pos
 		keyword := p.tok.Literal
-		p.nextToken() // consume echo/print
+		p.nextToken() // consume print
 		expr := p.parseExpression()
 		if expr == nil {
 			return nil, nil
@@ -379,7 +417,19 @@ func attributeNameFromLiteral(literal string) string {
 
 func (p *Parser) parseBlockStatement() []ast.Node {
 	var statements []ast.Node
-	for p.tok.Type != token.T_RBRACE && p.tok.Type != token.T_EOF {
+	for p.tok.Type != token.T_EOF {
+		// Consume open/close PHP tag transitions ourselves so we return to
+		// this loop's own stop-condition check (T_RBRACE) after each one,
+		// rather than letting parseStatement's internal retry jump straight
+		// from an open tag into whatever follows (which could be the very
+		// '}' that should terminate this block).
+		if p.tok.Type == token.T_OPEN_TAG || p.tok.Type == token.T_CLOSE_TAG {
+			p.nextToken()
+			continue
+		}
+		if p.tok.Type == token.T_RBRACE {
+			break
+		}
 		prevOffset := p.tok.Pos.Offset
 		stmt, err := p.parseStatement()
 		if err != nil {

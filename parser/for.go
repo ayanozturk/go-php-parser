@@ -31,6 +31,20 @@ func (p *Parser) parseForStatement() (ast.Node, error) {
 	}
 	p.nextToken() // consume token after ')'
 
+	if p.tok.Type == token.T_COLON {
+		p.nextToken() // consume ':'
+		body := p.parseAltBody(token.T_ENDFOR)
+		if p.tok.Type != token.T_ENDFOR {
+			p.addError("line %d:%d: expected endfor to close alternative for syntax, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal)
+			return nil, nil
+		}
+		p.nextToken() // consume endfor
+		if !p.consumeAltTerminator("endfor") {
+			return nil, nil
+		}
+		return &ast.BlockNode{Statements: body, Pos: ast.Position(pos)}, nil
+	}
+
 	// Body
 	var body []ast.Node
 	if p.tok.Type == token.T_LBRACE {

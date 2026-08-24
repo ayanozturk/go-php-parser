@@ -26,6 +26,20 @@ func (p *Parser) parseWhileStatement() (ast.Node, error) {
 	}
 	p.nextToken() // consume )
 
+	if p.tok.Type == token.T_COLON {
+		p.nextToken() // consume ':'
+		body := p.parseAltBody(token.T_ENDWHILE)
+		if p.tok.Type != token.T_ENDWHILE {
+			p.addError("line %d:%d: expected endwhile to close alternative while syntax, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal)
+			return nil, nil
+		}
+		p.nextToken() // consume endwhile
+		if !p.consumeAltTerminator("endwhile") {
+			return nil, nil
+		}
+		return &ast.WhileNode{Condition: condition, Body: body, Pos: ast.Position(pos)}, nil
+	}
+
 	body, err := p.parseLoopBody("while")
 	if err != nil {
 		return nil, err

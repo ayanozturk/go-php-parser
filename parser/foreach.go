@@ -127,6 +127,27 @@ func (p *Parser) parseForeachStatement() (ast.Node, error) {
 	}
 	p.nextToken() // consume ')'
 
+	if p.tok.Type == token.T_COLON {
+		p.nextToken() // consume ':'
+		body := p.parseAltBody(token.T_ENDFOREACH)
+		if p.tok.Type != token.T_ENDFOREACH {
+			p.addError("line %d:%d: expected endforeach to close alternative foreach syntax, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal)
+			return nil, nil
+		}
+		p.nextToken() // consume endforeach
+		if !p.consumeAltTerminator("endforeach") {
+			return nil, nil
+		}
+		return &ast.ForeachNode{
+			Expr:     expr,
+			KeyVar:   keyVar,
+			ValueVar: valueVar,
+			ByRef:    byRef,
+			Body:     body,
+			Pos:      ast.Position(pos),
+		}, nil
+	}
+
 	// Parse body (block or single statement)
 	var body []ast.Node
 	if p.tok.Type == token.T_LBRACE {

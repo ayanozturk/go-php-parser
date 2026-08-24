@@ -493,7 +493,7 @@ func (p *Parser) parseSimpleFQCNOrFunctionCall() ast.Node {
 			if p.tok.Type == token.T_NS_SEPARATOR {
 				p.nameBuf.WriteString("\\")
 				p.nextToken()
-			} else if p.tok.Type == token.T_STRING || p.tok.Type == token.T_STATIC || p.tok.Type == token.T_SELF || p.tok.Type == token.T_PARENT {
+			} else if p.tok.Type == token.T_STRING || p.tok.Type == token.T_STATIC || p.tok.Type == token.T_SELF || p.tok.Type == token.T_PARENT || p.tok.Type == token.T_TRUE || p.tok.Type == token.T_FALSE || p.tok.Type == token.T_NULL {
 				p.nameBuf.WriteString(p.tok.Literal)
 				p.nextToken()
 			} else {

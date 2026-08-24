@@ -49,7 +49,13 @@ func isValidMethodNameToken(t token.TokenType) bool {
 		token.T_REQUIRE,
 		token.T_CLONE,
 		token.T_GLOBAL,
-		token.T_STATIC:
+		token.T_STATIC,
+		token.T_PUBLIC,
+		token.T_PRIVATE,
+		token.T_PROTECTED,
+		token.T_ABSTRACT,
+		token.T_FINAL,
+		token.T_USE:
 		// Add more keywords as needed if legal as method names in PHP
 		// See https://www.php.net/manual/en/reserved.keywords.php
 		// PHP allows most keywords as method names except some special ones (class, function, etc.)

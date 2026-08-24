@@ -26,18 +26,24 @@ func (p *Parser) parseSwitchStatement() (ast.Node, error) {
 	}
 	p.nextToken() // consume )
 
-	if p.tok.Type != token.T_LBRACE {
+	if p.tok.Type != token.T_LBRACE && p.tok.Type != token.T_COLON {
 		p.addError("line %d:%d: expected { after switch, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal)
 		return nil, nil
 	}
-	p.nextToken() // consume {
+	altSyntax := p.tok.Type == token.T_COLON
+	p.nextToken() // consume { or :
+
+	closeTok := token.T_RBRACE
+	if altSyntax {
+		closeTok = token.T_ENDSWITCH
+	}
 
 	var cases []*ast.SwitchCaseNode
-	for p.tok.Type != token.T_RBRACE && p.tok.Type != token.T_EOF {
+	for p.tok.Type != closeTok && p.tok.Type != token.T_EOF {
 		for p.tok.Type == token.T_COMMENT || p.tok.Type == token.T_DOC_COMMENT {
 			p.nextToken()
 		}
-		if p.tok.Type == token.T_RBRACE {
+		if p.tok.Type == closeTok {
 			break
 		}
 		if p.tok.Type != token.T_CASE && p.tok.Type != token.T_DEFAULT {
@@ -62,7 +68,7 @@ func (p *Parser) parseSwitchStatement() (ast.Node, error) {
 		}
 		p.nextToken() // consume : or ;
 
-		for p.tok.Type != token.T_CASE && p.tok.Type != token.T_DEFAULT && p.tok.Type != token.T_RBRACE && p.tok.Type != token.T_EOF {
+		for p.tok.Type != token.T_CASE && p.tok.Type != token.T_DEFAULT && p.tok.Type != closeTok && p.tok.Type != token.T_EOF {
 			stmt, err := p.parseStatement()
 			if err != nil {
 				return nil, err
@@ -74,11 +80,17 @@ func (p *Parser) parseSwitchStatement() (ast.Node, error) {
 		cases = append(cases, switchCase)
 	}
 
-	if p.tok.Type != token.T_RBRACE {
+	if p.tok.Type != closeTok {
 		p.addError("line %d:%d: expected } to close switch, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal)
 		return nil, nil
 	}
-	p.nextToken() // consume }
+	p.nextToken() // consume } or endswitch
+
+	if altSyntax {
+		if !p.consumeAltTerminator("endswitch") {
+			return nil, nil
+		}
+	}
 
 	return &ast.SwitchNode{Expr: expr, Cases: cases, Pos: ast.Position(pos)}, nil
 }
