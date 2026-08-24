@@ -16,6 +16,7 @@ type SymbolResolver interface {
 }
 
 type ResolvedClass struct {
+	ID                    SymbolID
 	Name                  string
 	Extends               []string
 	Implements            []string
@@ -37,6 +38,7 @@ type ResolvedGenericParent struct {
 }
 
 type ResolvedMethod struct {
+	ID             SymbolID
 	Name           string
 	DeclaringClass string
 	ReturnType     string
@@ -48,14 +50,17 @@ type ResolvedMethod struct {
 }
 
 type ResolvedProperty struct {
-	Name       string
-	Type       string
-	Visibility string
-	IsStatic   bool
-	Readonly   bool
+	ID             SymbolID
+	DeclaringClass string
+	Name           string
+	Type           string
+	Visibility     string
+	IsStatic       bool
+	Readonly       bool
 }
 
 type ResolvedConstant struct {
+	ID             SymbolID
 	Name           string
 	DeclaringClass string
 	Type           string
@@ -64,6 +69,7 @@ type ResolvedConstant struct {
 }
 
 type ResolvedFunction struct {
+	ID         SymbolID
 	Name       string
 	ReturnType string
 	Params     []ResolvedParam
@@ -78,6 +84,7 @@ type ResolvedParam struct {
 
 type AnalysisContext struct {
 	Resolver           SymbolResolver
+	Facts              SemanticFactReader
 	PHPVersion         string
 	Project            *ProjectIndex
 	AnalysisLevel      *int

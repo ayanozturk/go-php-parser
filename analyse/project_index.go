@@ -114,6 +114,10 @@ func (idx *ProjectIndex) resolveMethodWithTemplates(className, methodName string
 	seen[key] = struct{}{}
 	defer delete(seen, key)
 	if method, found := idx.Methods[key][strings.ToLower(methodName)]; found {
+		// ResolvedMethod is returned by value, but Params is a slice. Clone it
+		// before applying call-specific generic bindings so resolution cannot
+		// mutate the project index or race with concurrent snapshot readers.
+		method.Params = append([]ResolvedParam(nil), method.Params...)
 		method.DeclaringClass = class.Name
 		method.ReturnType = ApplyTemplateBindings(method.ReturnType, bindings)
 		for i := range method.Params {
