@@ -19,21 +19,36 @@ func (p *Parser) parseUseDeclaration() (ast.Node, error) {
 		p.nextToken()
 	}
 
-	path := p.parseQualifiedName()
-	if path == "" {
-		p.addError("line %d:%d: expected imported symbol after use, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal)
-		return nil, nil
-	}
-
-	alias := defaultUseAlias(path)
-	if p.tok.Type == token.T_AS {
-		p.nextToken()
-		if p.tok.Type != token.T_STRING {
-			p.addError("line %d:%d: expected alias after 'as', got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal)
+	var uses []ast.Node
+	for {
+		path := p.parseQualifiedName()
+		if path == "" {
+			p.addError("line %d:%d: expected imported symbol after use, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal)
 			return nil, nil
 		}
-		alias = p.tok.Literal
-		p.nextToken()
+
+		alias := defaultUseAlias(path)
+		if p.tok.Type == token.T_AS {
+			p.nextToken()
+			if p.tok.Type != token.T_STRING {
+				p.addError("line %d:%d: expected alias after 'as', got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal)
+				return nil, nil
+			}
+			alias = p.tok.Literal
+			p.nextToken()
+		}
+
+		uses = append(uses, &ast.UseNode{
+			Path:  path,
+			Alias: alias,
+			Type:  useType,
+			Pos:   ast.Position(pos),
+		})
+
+		if p.tok.Type != token.T_COMMA {
+			break
+		}
+		p.nextToken() // consume ','
 	}
 
 	if p.tok.Type != token.T_SEMICOLON {
@@ -42,12 +57,10 @@ func (p *Parser) parseUseDeclaration() (ast.Node, error) {
 	}
 	p.nextToken()
 
-	return &ast.UseNode{
-		Path:  path,
-		Alias: alias,
-		Type:  useType,
-		Pos:   ast.Position(pos),
-	}, nil
+	if len(uses) == 1 {
+		return uses[0], nil
+	}
+	return &ast.BlockNode{Statements: uses, Pos: ast.Position(pos)}, nil
 }
 
 func (p *Parser) parseQualifiedName() string {

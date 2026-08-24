@@ -26,7 +26,7 @@ func (p *Parser) parseTypeHint() string {
 			p.nextToken()
 		}
 		for {
-			if p.tok.Type == token.T_STRING || p.tok.Type == token.T_NEW || p.tok.Type == token.T_STATIC || p.tok.Type == token.T_NEVER || (p.tok.Type == token.T_FALSE && p.tok.Literal == "false") {
+			if p.tok.Type == token.T_STRING || p.tok.Type == token.T_NEW || p.tok.Type == token.T_STATIC || p.tok.Type == token.T_SELF || p.tok.Type == token.T_PARENT || p.tok.Type == token.T_NEVER || (p.tok.Type == token.T_FALSE && p.tok.Literal == "false") || (p.tok.Type == token.T_TRUE && p.tok.Literal == "true") {
 				typeSegment += p.tok.Literal
 				p.nextToken()
 				// Accept chained namespaces: \Foo\Bar

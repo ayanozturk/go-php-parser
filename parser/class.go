@@ -112,7 +112,7 @@ func (p *Parser) parseClassDeclaration() (ast.Node, error) {
 		}
 		// Parse type hint if present (for property)
 		var typeHint string
-		if p.tok.Type == token.T_STRING || p.tok.Type == token.T_NS_SEPARATOR || p.tok.Type == token.T_CALLABLE || p.tok.Type == token.T_ARRAY || p.tok.Type == token.T_MIXED || p.tok.Type == token.T_QUESTION {
+		if p.tok.Type == token.T_STRING || p.tok.Type == token.T_NS_SEPARATOR || p.tok.Type == token.T_CALLABLE || p.tok.Type == token.T_ARRAY || p.tok.Type == token.T_MIXED || p.tok.Type == token.T_QUESTION || p.tok.Type == token.T_TRUE || p.tok.Type == token.T_FALSE || p.tok.Type == token.T_NULL || p.tok.Type == token.T_STATIC {
 			typeHint = p.parseTypeHint()
 			p.skipCommentsAndWhitespace()
 		}
@@ -133,7 +133,7 @@ func (p *Parser) parseClassDeclaration() (ast.Node, error) {
 			continue
 		}
 		if p.tok.Type == token.T_CONST {
-			if constant := p.parseConstantWithModifiers(modifiers); constant != nil {
+			for _, constant := range p.parseConstantWithModifiers(modifiers) {
 				constants = append(constants, constant)
 			}
 			continue
@@ -248,7 +248,7 @@ func (p *Parser) parseAnonymousClassExpression() (ast.Node, []ast.Node) {
 		}
 
 		var typeHint string
-		if p.tok.Type == token.T_STRING || p.tok.Type == token.T_NS_SEPARATOR || p.tok.Type == token.T_CALLABLE || p.tok.Type == token.T_ARRAY || p.tok.Type == token.T_MIXED || p.tok.Type == token.T_QUESTION {
+		if p.tok.Type == token.T_STRING || p.tok.Type == token.T_NS_SEPARATOR || p.tok.Type == token.T_CALLABLE || p.tok.Type == token.T_ARRAY || p.tok.Type == token.T_MIXED || p.tok.Type == token.T_QUESTION || p.tok.Type == token.T_TRUE || p.tok.Type == token.T_FALSE || p.tok.Type == token.T_NULL || p.tok.Type == token.T_STATIC {
 			typeHint = p.parseTypeHint()
 			p.skipCommentsAndWhitespace()
 		}
@@ -269,7 +269,7 @@ func (p *Parser) parseAnonymousClassExpression() (ast.Node, []ast.Node) {
 			continue
 		}
 		if p.tok.Type == token.T_CONST {
-			if constant := p.parseConstantWithModifiers(modifiers); constant != nil {
+			for _, constant := range p.parseConstantWithModifiers(modifiers) {
 				constants = append(constants, constant)
 			}
 			continue

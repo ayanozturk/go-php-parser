@@ -4,9 +4,26 @@ import (
 	"github.com/ayanozturk/go-php-parser/ast"
 	"github.com/ayanozturk/go-php-parser/token"
 	"strconv"
+	"strings"
 )
 
 const errExpectedRParenFunctionCall = "line %d:%d: expected ) after arguments for function call %s, got %s"
+
+// parseUnaryOperandWithAssignmentStealback parses a unary/cast/include
+// operand at precedence 100 (i.e. above every binary operator including
+// assignment), then, if the parsed operand is immediately followed by an
+// assignment operator and is itself a valid assignment target, reclaims it
+// as the left-hand side of that assignment. This mirrors real PHP grammar
+// behavior where an assignment can appear as such an operand even though
+// assignment's nominal precedence is far lower, e.g. "!$x = f()",
+// "(int) $x = f()", "$a === $b = f()", "require $script = path();".
+func (p *Parser) parseUnaryOperandWithAssignmentStealback() ast.Node {
+	expr := p.parseExpressionWithPrecedence(100, false)
+	if expr != nil && isAssignmentOperator(p.tok.Type) && isValidAssignmentTarget(expr) {
+		expr = p.parseBinaryOperator(expr, PhpOperatorPrecedence[p.tok.Type], false)
+	}
+	return expr
+}
 
 func (p *Parser) parseExpression() ast.Node {
 	return p.parseExpressionWithPrecedence(0, true)
@@ -51,7 +68,7 @@ func (p *Parser) parseUnaryExpression() ast.Node {
 	case token.T_PLUS, token.T_MINUS:
 		opTok := p.tok
 		p.nextToken()
-		right := p.parseExpressionWithPrecedence(100, false)
+		right := p.parseUnaryOperandWithAssignmentStealback()
 		if right == nil {
 			p.addError("line %d:%d: expected operand after unary operator %s", opTok.Pos.Line, opTok.Pos.Column, opTok.Literal)
 			return nil
@@ -64,7 +81,7 @@ func (p *Parser) parseUnaryExpression() ast.Node {
 	case token.T_INC, token.T_DEC:
 		opTok := p.tok
 		p.nextToken()
-		right := p.parseExpressionWithPrecedence(100, false)
+		right := p.parseUnaryOperandWithAssignmentStealback()
 		if right == nil {
 			p.addError("line %d:%d: expected operand after unary operator %s", opTok.Pos.Line, opTok.Pos.Column, opTok.Literal)
 			return nil
@@ -77,7 +94,7 @@ func (p *Parser) parseUnaryExpression() ast.Node {
 	case token.T_NOT:
 		notTok := p.tok
 		p.nextToken()
-		right := p.parseExpressionWithPrecedence(100, false)
+		right := p.parseUnaryOperandWithAssignmentStealback()
 		if right == nil {
 			p.addError("line %d:%d: expected operand after unary operator !", notTok.Pos.Line, notTok.Pos.Column)
 			return nil
@@ -99,7 +116,7 @@ func (p *Parser) parseUnaryExpression() ast.Node {
 			// isn't, for a unary operand), so handle it directly here.
 			right = p.parseListLiteral(true)
 		} else {
-			right = p.parseExpressionWithPrecedence(100, false)
+			right = p.parseUnaryOperandWithAssignmentStealback()
 		}
 		if right == nil {
 			p.addError("line %d:%d: expected operand after unary operator @", atTok.Pos.Line, atTok.Pos.Column)
@@ -113,7 +130,7 @@ func (p *Parser) parseUnaryExpression() ast.Node {
 	case token.T_AMPERSAND:
 		ampTok := p.tok
 		p.nextToken()
-		right := p.parseExpressionWithPrecedence(100, false)
+		right := p.parseUnaryOperandWithAssignmentStealback()
 		if right == nil {
 			p.addError("line %d:%d: expected operand after unary operator &", ampTok.Pos.Line, ampTok.Pos.Column)
 			return nil
@@ -126,7 +143,7 @@ func (p *Parser) parseUnaryExpression() ast.Node {
 	case token.T_TILDE:
 		tildeTok := p.tok
 		p.nextToken()
-		right := p.parseExpressionWithPrecedence(100, false)
+		right := p.parseUnaryOperandWithAssignmentStealback()
 		if right == nil {
 			p.addError("line %d:%d: expected operand after unary operator ~", tildeTok.Pos.Line, tildeTok.Pos.Column)
 			return nil
@@ -139,7 +156,7 @@ func (p *Parser) parseUnaryExpression() ast.Node {
 	case token.T_CLONE:
 		cloneTok := p.tok
 		p.nextToken()
-		right := p.parseExpressionWithPrecedence(100, false)
+		right := p.parseUnaryOperandWithAssignmentStealback()
 		if right == nil {
 			p.addError("line %d:%d: expected operand after clone", cloneTok.Pos.Line, cloneTok.Pos.Column)
 			return nil
@@ -152,7 +169,7 @@ func (p *Parser) parseUnaryExpression() ast.Node {
 	case token.T_THROW:
 		throwTok := p.tok
 		p.nextToken()
-		expr := p.parseExpressionWithPrecedence(100, false)
+		expr := p.parseUnaryOperandWithAssignmentStealback()
 		if expr == nil {
 			p.addError("line %d:%d: expected expression after throw, got %s", throwTok.Pos.Line, throwTok.Pos.Column, p.tok.Literal)
 			return nil
@@ -165,7 +182,7 @@ func (p *Parser) parseUnaryExpression() ast.Node {
 		if p.tok.Literal == "!" {
 			opTok := p.tok
 			p.nextToken()
-			right := p.parseExpressionWithPrecedence(100, false)
+			right := p.parseUnaryOperandWithAssignmentStealback()
 			if right == nil {
 				p.addError("line %d:%d: expected operand after unary operator %s", opTok.Pos.Line, opTok.Pos.Column, opTok.Literal)
 				return nil
@@ -222,6 +239,15 @@ func (p *Parser) parseTernaryExpression(left ast.Node, ternaryPrec int) ast.Node
 	}
 	p.nextToken() // consume ':'
 	ifFalse := p.parseExpressionWithPrecedence(ternaryPrec, false)
+	// PHP allows an assignment as the else-branch of a ternary, e.g.
+	// "cond ? a : $b = c;" parses as "cond ? a : ($b = c)". Because
+	// assignment's precedence (3) is lower than ternaryPrec (4), the
+	// parse above stops right before consuming '=' as part of ifFalse;
+	// reclaim the just-parsed operand as the assignment target here,
+	// mirroring the same steal-back trick used for binary operators.
+	if isAssignmentOperator(p.tok.Type) && isValidAssignmentTarget(ifFalse) {
+		ifFalse = p.parseBinaryOperator(ifFalse, PhpOperatorPrecedence[p.tok.Type], false)
+	}
 	return &ast.TernaryExpr{
 		Condition: left,
 		IfTrue:    ifTrue,
@@ -342,7 +368,7 @@ func (p *Parser) parseSimpleExpression() ast.Node {
 			return nil
 		}
 		return p.parseSimpleFQCNOrFunctionCall()
-	case token.T_STRING, token.T_SELF, token.T_PARENT, token.T_NS_SEPARATOR:
+	case token.T_STRING, token.T_SELF, token.T_PARENT, token.T_NS_SEPARATOR, token.T_NAMESPACE:
 		return p.parseSimpleFQCNOrFunctionCall()
 	case token.T_CONSTANT_ENCAPSED_STRING:
 		return p.parseSimpleStringOrConcat()
@@ -433,6 +459,7 @@ func (p *Parser) parseSimpleUnary() ast.Node {
 func (p *Parser) parseSimpleNew() ast.Node {
 	pos := p.tok.Pos
 	p.nextToken() // consume 'new'
+	p.skipCommentsAndWhitespace()
 	if p.tok.Type == token.T_CLASS {
 		classExpr, args := p.parseAnonymousClassExpression()
 		if classExpr == nil {
@@ -444,13 +471,25 @@ func (p *Parser) parseSimpleNew() ast.Node {
 			Pos:       ast.Position(pos),
 		})
 	}
-	if p.tok.Type != token.T_STRING && p.tok.Type != token.T_STATIC && p.tok.Type != token.T_SELF && p.tok.Type != token.T_PARENT && p.tok.Type != token.T_NS_SEPARATOR && p.tok.Type != token.T_VARIABLE && p.tok.Type != token.T_LPAREN {
+	if p.tok.Type != token.T_STRING && p.tok.Type != token.T_STATIC && p.tok.Type != token.T_SELF && p.tok.Type != token.T_PARENT && p.tok.Type != token.T_NS_SEPARATOR && p.tok.Type != token.T_NAMESPACE && p.tok.Type != token.T_VARIABLE && p.tok.Type != token.T_LPAREN && p.tok.Type != token.T_DOLLAR_OPEN_CURLY_BRACES {
 		p.addError("line %d:%d: expected class name after new, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal)
 		return nil
 	}
 	className := ""
 	var classExpr ast.Node
-	if p.tok.Type == token.T_VARIABLE {
+	if p.tok.Type == token.T_DOLLAR_OPEN_CURLY_BRACES {
+		// Dynamic class name via "${expr}", e.g. "new ${$name}()".
+		varVarPos := p.tok.Pos
+		p.nextToken() // consume '${'
+		nameExpr := p.parseExpression()
+		if p.tok.Type != token.T_RBRACE {
+			p.addError("line %d:%d: expected } after dynamic class name, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal)
+			return nil
+		}
+		p.nextToken() // consume '}'
+		classExpr = &ast.VariableVariableNode{Expr: nameExpr, Pos: ast.Position(varVarPos)}
+		classExpr = p.parseNewClassPostfixExpression(classExpr)
+	} else if p.tok.Type == token.T_VARIABLE {
 		classExpr = &ast.VariableNode{Name: p.tok.Literal[1:], Pos: ast.Position(p.tok.Pos)}
 		p.nextToken()
 		classExpr = p.parseNewClassPostfixExpression(classExpr)
@@ -527,6 +566,11 @@ func (p *Parser) parseSimpleFQCNOrFunctionCall() ast.Node {
 		p.nextToken()
 	} else {
 		p.nameBuf.Reset()
+		if p.tok.Type == token.T_NAMESPACE && p.peekToken().Type == token.T_NS_SEPARATOR {
+			// "namespace\Foo" refers to "Foo" relative to the current namespace.
+			p.nameBuf.WriteString("namespace")
+			p.nextToken()
+		}
 		if p.tok.Type == token.T_NS_SEPARATOR {
 			p.nameBuf.WriteString("\\")
 			p.nextToken()
@@ -627,6 +671,40 @@ func (p *Parser) parseSimpleStaticAccess(fqcn string, fqcnPos token.Position) as
 			Pos:       ast.Position(fqcnPos),
 		})
 	}
+	if p.tok.Type == token.T_LBRACE {
+		// Dynamic static method/constant access via a braced expression:
+		// `Class::{$expr}(...)` or `Class::{$expr}`. Unlike `::${expr}`
+		// (a dynamic *property* name), a bare `::{expr}` names a dynamic
+		// method or constant.
+		p.nextToken() // consume '{'
+		nameExpr := p.parseExpression()
+		if p.tok.Type != token.T_RBRACE {
+			p.addError("line %d:%d: expected } after dynamic static member name, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal)
+			return nil
+		}
+		p.nextToken() // consume '}'
+		member := &ast.ClassConstFetchNode{
+			Class:     fqcn,
+			Const:     "{",
+			ConstExpr: nameExpr,
+			Pos:       ast.Position(fqcnPos),
+		}
+		if p.tok.Type == token.T_LPAREN {
+			p.nextToken() // consume '('
+			args := p.parseFunctionCallArguments()
+			if p.tok.Type != token.T_RPAREN {
+				p.addError("line %d:%d: expected ) after arguments for dynamic static call, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal)
+				return nil
+			}
+			p.nextToken() // consume ')'
+			return p.parsePostfixExpression(&ast.FunctionCallNode{
+				Name: member,
+				Args: args,
+				Pos:  ast.Position(fqcnPos),
+			})
+		}
+		return p.parsePostfixExpression(member)
+	}
 	if p.tok.Type == token.T_STRING || isValidMethodNameToken(p.tok.Type) {
 		memberName := p.tok.Literal
 		p.nextToken()
@@ -683,6 +761,9 @@ func (p *Parser) parseArrowFunction() ast.Node {
 		return nil
 	}
 	p.nextToken() // consume 'fn'
+	if p.tok.Type == token.T_AMPERSAND {
+		p.nextToken() // consume '&' (by-reference return)
+	}
 	if p.tok.Type != token.T_LPAREN {
 		p.addError("line %d:%d: expected ( after fn, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal)
 		return nil
@@ -795,6 +876,11 @@ func (p *Parser) parseFunctionCallArguments() []ast.Node {
 		}
 		if p.tok.Type == token.T_RPAREN {
 			break
+		}
+		// Skip attributes attached directly to an argument expression, e.g.
+		// "foo(#[Closure] fn () => ...)".
+		for p.tok.Type == token.T_ATTRIBUTE {
+			p.nextToken()
 		}
 		isUnpacked := false
 		if p.tok.Type == token.T_ELLIPSIS {
@@ -945,7 +1031,10 @@ func (p *Parser) parseSimpleConstantString() ast.Node {
 }
 
 func (p *Parser) parseSimpleLNumber() ast.Node {
-	val, _ := strconv.ParseInt(p.tok.Literal, 10, 64)
+	// Use base 0 so Go auto-detects the "0x"/"0o"/"0b"/leading-zero-octal
+	// prefixes the lexer already normalizes hex/octal/binary literals to;
+	// a fixed base 10 would silently misparse anything but decimal.
+	val, _ := strconv.ParseInt(p.tok.Literal, 0, 64)
 	node := &ast.IntegerNode{
 		Value: val,
 		Pos:   ast.Position(p.tok.Pos),
@@ -1038,7 +1127,7 @@ func (p *Parser) parseSimpleIncludeExpression() ast.Node {
 	pos := p.tok.Pos
 	name := p.tok.Literal
 	p.nextToken()
-	expr := p.parseExpressionWithPrecedence(100, false)
+	expr := p.parseUnaryOperandWithAssignmentStealback()
 	if expr == nil {
 		p.addError("line %d:%d: expected expression after %s, got %s", p.tok.Pos.Line, p.tok.Pos.Column, name, p.tok.Literal)
 		return nil
@@ -1055,7 +1144,7 @@ func (p *Parser) parseSimpleYieldExpression() ast.Node {
 	p.nextToken() // consume yield
 	if p.tok.Type == token.T_STRING && p.tok.Literal == "from" {
 		p.nextToken() // consume from
-		expr := p.parseExpressionWithPrecedence(100, false)
+		expr := p.parseUnaryOperandWithAssignmentStealback()
 		if expr == nil {
 			p.addError("line %d:%d: expected expression after yield from", pos.Line, pos.Column)
 			return nil
@@ -1101,7 +1190,7 @@ func (p *Parser) parseGroupedExpression() ast.Node {
 			return nil
 		}
 		p.nextToken() // consume ')'
-		expr := p.parseExpressionWithPrecedence(100, false)
+		expr := p.parseUnaryOperandWithAssignmentStealback()
 		if expr == nil {
 			p.addError("line %d:%d: expected expression after cast %s", p.tok.Pos.Line, p.tok.Pos.Column, castType)
 			return nil
@@ -1125,9 +1214,10 @@ func (p *Parser) parseGroupedExpression() ast.Node {
 
 func (p *Parser) readCastType() (string, bool) {
 	if p.tok.Type == token.T_STRING {
-		switch p.tok.Literal {
-		case "string", "int", "integer", "float", "double", "bool", "boolean", "object", "unset":
-			castType := p.tok.Literal
+		// PHP cast keywords are case-insensitive, e.g. "(String)", "(INT)".
+		switch strings.ToLower(p.tok.Literal) {
+		case "string", "int", "integer", "float", "double", "real", "bool", "boolean", "object", "unset", "binary":
+			castType := strings.ToLower(p.tok.Literal)
 			if p.peekToken().Type == token.T_RPAREN {
 				p.nextToken()
 				return castType, true
@@ -1262,6 +1352,38 @@ func (p *Parser) parseStaticAccessOnNode(expr ast.Node) ast.Node {
 			Pos:       expr.GetPos(),
 		})
 	}
+	if p.tok.Type == token.T_LBRACE {
+		// Dynamic static method/constant access via a braced expression:
+		// `Class::{$expr}(...)` or `$obj::{$expr}(...)`.
+		p.nextToken() // consume '{'
+		nameExpr := p.parseExpression()
+		if p.tok.Type != token.T_RBRACE {
+			p.addError("line %d:%d: expected } after dynamic static member name, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal)
+			return nil
+		}
+		p.nextToken() // consume '}'
+		member := &ast.ClassConstFetchNode{
+			Class:     className,
+			Const:     "{",
+			ConstExpr: nameExpr,
+			Pos:       expr.GetPos(),
+		}
+		if p.tok.Type == token.T_LPAREN {
+			p.nextToken() // consume '('
+			args := p.parseFunctionCallArguments()
+			if p.tok.Type != token.T_RPAREN {
+				p.addError("line %d:%d: expected ) after arguments for dynamic static call, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal)
+				return nil
+			}
+			p.nextToken() // consume ')'
+			return p.parsePostfixExpression(&ast.FunctionCallNode{
+				Name: member,
+				Args: args,
+				Pos:  expr.GetPos(),
+			})
+		}
+		return p.parsePostfixExpression(member)
+	}
 	p.addError("line %d:%d: expected constant name or 'class' after '::', got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal)
 	return nil
 }
@@ -1323,6 +1445,17 @@ func (p *Parser) parseSimpleHeredoc() ast.Node {
 
 func (p *Parser) parseSimpleVariableFunctionCall(expr ast.Node) ast.Node {
 	p.nextToken() // consume '('
+	if p.tok.Type == token.T_ELLIPSIS && p.peekToken().Type == token.T_RPAREN {
+		// First-class callable syntax applied to an arbitrary expression,
+		// e.g. "$callback(...)" or "[$obj, 'method'](...)".
+		callPos := expr.GetPos()
+		p.nextToken() // consume '...'
+		p.nextToken() // consume ')'
+		return p.parsePostfixExpression(&ast.FirstClassCallableNode{
+			Target: expr,
+			Pos:    ast.Position(callPos),
+		})
+	}
 	var args []ast.Node
 	for p.tok.Type != token.T_RPAREN && p.tok.Type != token.T_EOF {
 		isUnpacked := false

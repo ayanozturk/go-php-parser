@@ -265,6 +265,15 @@ func (l *Lexer) readNumber() (string, bool) {
 		switch l.peekChar() {
 		case 'o', 'O':
 			return l.readOctalNumber()
+		case 'b', 'B':
+			// Binary literal: e.g. "0b1010".
+			l.readChar() // consume '0'
+			l.readChar() // consume 'b' or 'B'
+			start := l.pos
+			for l.char == '0' || l.char == '1' || l.char == '_' {
+				l.readChar()
+			}
+			return "0b" + stripUnderscores(l.input[start:l.pos]), false
 		case 'x', 'X':
 			// Hexadecimal literal
 			l.readChar() // consume '0'

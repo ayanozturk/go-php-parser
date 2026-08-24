@@ -403,19 +403,31 @@ func (i *IdentifierNode) TokenLiteral() string {
 	return i.Value
 }
 
-// FirstClassCallableNode represents PHP 8.1 first-class callable syntax (foo(...))
+// FirstClassCallableNode represents PHP 8.1 first-class callable syntax (foo(...)).
+// Name is used for statically-known callables (function/method names). Target
+// is used for the general case where the callable is an arbitrary expression,
+// e.g. "$callback(...)" or "[$obj, 'method'](...)"; exactly one of the two is set.
 type FirstClassCallableNode struct {
-	Name *IdentifierNode
-	Pos  Position
+	Name   *IdentifierNode
+	Target Node
+	Pos    Position
 }
 
 func (f *FirstClassCallableNode) NodeType() string    { return "FirstClassCallable" }
 func (f *FirstClassCallableNode) GetPos() Position    { return f.Pos }
 func (f *FirstClassCallableNode) SetPos(pos Position) { f.Pos = pos }
 func (f *FirstClassCallableNode) String() string {
-	return fmt.Sprintf("FirstClassCallable(%s) @ %d:%d", f.Name.Value, f.Pos.Line, f.Pos.Column)
+	if f.Name != nil {
+		return fmt.Sprintf("FirstClassCallable(%s) @ %d:%d", f.Name.Value, f.Pos.Line, f.Pos.Column)
+	}
+	return fmt.Sprintf("FirstClassCallable(%s) @ %d:%d", f.Target.String(), f.Pos.Line, f.Pos.Column)
 }
-func (f *FirstClassCallableNode) TokenLiteral() string { return f.Name.Value }
+func (f *FirstClassCallableNode) TokenLiteral() string {
+	if f.Name != nil {
+		return f.Name.Value
+	}
+	return f.Target.TokenLiteral()
+}
 
 // BooleanNode represents a boolean literal
 type BooleanNode struct {

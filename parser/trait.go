@@ -32,7 +32,7 @@ func (p *Parser) parseTraitDeclaration() (ast.Node, error) {
 	for p.tok.Type != token.T_RBRACE && p.tok.Type != token.T_EOF {
 		modifiers := p.parseModifiers()
 		var typeHint string
-		if p.tok.Type == token.T_STRING || p.tok.Type == token.T_NS_SEPARATOR || p.tok.Type == token.T_CALLABLE || p.tok.Type == token.T_ARRAY || p.tok.Type == token.T_QUESTION {
+		if p.tok.Type == token.T_STRING || p.tok.Type == token.T_NS_SEPARATOR || p.tok.Type == token.T_CALLABLE || p.tok.Type == token.T_ARRAY || p.tok.Type == token.T_MIXED || p.tok.Type == token.T_QUESTION || p.tok.Type == token.T_TRUE || p.tok.Type == token.T_FALSE || p.tok.Type == token.T_NULL || p.tok.Type == token.T_STATIC {
 			typeHint = p.parseTypeHint()
 		}
 		if p.tok.Type == token.T_FUNCTION {
@@ -48,8 +48,16 @@ func (p *Parser) parseTraitDeclaration() (ast.Node, error) {
 			continue
 		}
 		if p.tok.Type == token.T_CONST {
-			if constant := p.parseConstantWithModifiers(modifiers); constant != nil {
+			for _, constant := range p.parseConstantWithModifiers(modifiers) {
 				body = append(body, constant)
+			}
+			continue
+		}
+		if p.tok.Type == token.T_USE {
+			// A trait can itself compose other traits, e.g.
+			// "trait T { use OtherTrait; }".
+			if traitUse := p.parseTraitUseStatement(); traitUse != nil {
+				body = append(body, traitUse)
 			}
 			continue
 		}

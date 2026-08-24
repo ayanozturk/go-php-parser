@@ -60,7 +60,18 @@ retry:
 	case token.T_USE:
 		return p.parseUseDeclaration()
 	case token.T_CONST:
-		return p.parseConstant(), nil
+		constants := p.parseConstant()
+		if len(constants) == 0 {
+			return nil, nil
+		}
+		if len(constants) == 1 {
+			return constants[0], nil
+		}
+		stmts := make([]ast.Node, len(constants))
+		for i, c := range constants {
+			stmts[i] = c
+		}
+		return &ast.BlockNode{Statements: stmts, Pos: constants[0].Pos}, nil
 	case token.T_TRAIT:
 		return p.parseTraitDeclaration()
 	case token.T_COMMENT:
@@ -341,6 +352,9 @@ retry:
 			}
 			if p.tok.Type == token.T_COMMA {
 				p.nextToken()
+				if p.tok.Type == token.T_RPAREN {
+					break
+				}
 				continue
 			}
 			break

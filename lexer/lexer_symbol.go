@@ -307,6 +307,12 @@ func (l *Lexer) lexLess(pos token.Position) token.Token {
 		l.readChar()
 		return tok
 	}
+	if l.peekChar() == '>' {
+		// "<>" is a deprecated alias for "!=".
+		l.readChar()
+		l.readChar()
+		return token.Token{Type: token.T_IS_NOT_EQUAL, Literal: "<>", Pos: pos}
+	}
 	tok := token.Token{Type: token.T_IS_SMALLER, Literal: asciiString(l.char), Pos: pos}
 	l.readChar()
 	return tok

@@ -35,7 +35,11 @@ func parseConstantFromSource(src string, seekToken token.TokenType) *ast.Constan
 	if p.tok.Type == token.T_EOF {
 		return nil
 	}
-	return p.parseConstant()
+	constants := p.parseConstant()
+	if len(constants) == 0 {
+		return nil
+	}
+	return constants[0]
 }
 
 func TestParseConstant(t *testing.T) {

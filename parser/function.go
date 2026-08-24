@@ -104,8 +104,9 @@ func (p *Parser) parseFunction(modifiers []string) (ast.Node, error) {
 	var returnType string
 	if p.tok.Type == token.T_COLON {
 		p.nextToken()
-		// Accept static, self, parent as return types
-		if p.tok.Type == token.T_STATIC || p.tok.Type == token.T_SELF || p.tok.Type == token.T_PARENT {
+		// Accept static, self, parent as return types (unless part of a union/intersection type)
+		if (p.tok.Type == token.T_STATIC || p.tok.Type == token.T_SELF || p.tok.Type == token.T_PARENT) &&
+			p.peekToken().Type != token.T_PIPE && p.peekToken().Type != token.T_AMPERSAND {
 			returnType = p.tok.Literal
 			p.nextToken()
 		} else {

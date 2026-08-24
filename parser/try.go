@@ -20,6 +20,10 @@ func (p *Parser) parseTryStatement() (ast.Node, error) {
 	}
 	p.nextToken() // consume }
 
+	// A comment (e.g. explaining why exceptions are caught) commonly
+	// appears between the try body's closing brace and 'catch'/'finally'.
+	p.skipCommentsAndWhitespace()
+
 	var catches []*ast.CatchNode
 	for p.tok.Type == token.T_CATCH {
 		catchNode, err := p.parseCatchClause()
@@ -30,6 +34,7 @@ func (p *Parser) parseTryStatement() (ast.Node, error) {
 			return nil, nil
 		}
 		catches = append(catches, catchNode)
+		p.skipCommentsAndWhitespace()
 	}
 
 	var finallyBody []ast.Node

@@ -63,8 +63,8 @@ func (p *Parser) parseInterfaceDeclaration() ast.Node {
 
 	var members []ast.Node
 	for p.tok.Type != token.T_RBRACE && p.tok.Type != token.T_EOF {
-		// Skip doc comments and regular comments in interface body
-		if p.tok.Type == token.T_DOC_COMMENT || p.tok.Type == token.T_COMMENT {
+		// Skip doc comments, regular comments, and attributes in interface body
+		if p.tok.Type == token.T_DOC_COMMENT || p.tok.Type == token.T_COMMENT || p.tok.Type == token.T_ATTRIBUTE {
 			p.nextToken()
 			continue
 		}
@@ -81,7 +81,7 @@ func (p *Parser) parseInterfaceDeclaration() ast.Node {
 				}
 			}
 			if p.tok.Type == token.T_CONST {
-				if constant := p.parseConstantWithModifiers([]string{visibility}); constant != nil {
+				for _, constant := range p.parseConstantWithModifiers([]string{visibility}) {
 					members = append(members, constant)
 				}
 			} else if p.tok.Type == token.T_FUNCTION {
@@ -97,7 +97,7 @@ func (p *Parser) parseInterfaceDeclaration() ast.Node {
 				members = append(members, method)
 			}
 		} else if p.tok.Type == token.T_CONST {
-			if constant := p.parseConstant(); constant != nil {
+			for _, constant := range p.parseConstant() {
 				members = append(members, constant)
 			}
 		} else {

@@ -40,7 +40,7 @@ func parseFullTypeHint(p *Parser) string {
 		if p.tok.Type == token.T_NS_SEPARATOR || p.tok.Type == token.T_CALLABLE || p.tok.Type == token.T_ARRAY ||
 			p.tok.Type == token.T_STATIC || p.tok.Type == token.T_SELF || p.tok.Type == token.T_PARENT ||
 			p.tok.Type == token.T_NEW || p.tok.Type == token.T_MIXED || p.tok.Type == token.T_NULL ||
-			p.tok.Type == token.T_FALSE {
+			p.tok.Type == token.T_FALSE || p.tok.Type == token.T_TRUE {
 			p.nameBuf.WriteString(p.tok.Literal)
 			p.nextToken()
 			continue

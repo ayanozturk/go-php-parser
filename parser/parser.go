@@ -155,6 +155,11 @@ func (p *Parser) parseFQCN() ast.Node {
 		p.nextToken()
 	} else {
 		p.nameBuf.Reset()
+		if p.tok.Type == token.T_NAMESPACE && p.peekToken().Type == token.T_NS_SEPARATOR {
+			// "namespace\Foo" refers to "Foo" relative to the current namespace.
+			p.nameBuf.WriteString("namespace")
+			p.nextToken()
+		}
 		for {
 			if p.tok.Type == token.T_NS_SEPARATOR {
 				p.nameBuf.WriteString("\\")

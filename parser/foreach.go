@@ -49,13 +49,15 @@ func (p *Parser) parseForeachStatement() (ast.Node, error) {
 	var valueVar ast.Node
 	byRef := false
 
-	// Helper to parse a variable
+	// Helper to parse a variable, optionally extended with property/array-index
+	// access, e.g. "$this->webUser" or "$stub->position" as a foreach target.
 	parseVar := func() ast.Node {
 		if p.tok.Type == token.T_VARIABLE {
 			varName := p.tok.Literal[1:]
 			varPos := p.tok.Pos
 			p.nextToken()
-			return &ast.VariableNode{Name: varName, Pos: ast.Position(varPos)}
+			node := ast.Node(&ast.VariableNode{Name: varName, Pos: ast.Position(varPos)})
+			return p.parseNewClassPostfixExpression(node)
 		}
 		return nil
 	}
