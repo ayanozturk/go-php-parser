@@ -12,7 +12,10 @@ type ReturnTypeRule struct{}
 type observedReturn struct {
 	Type Type
 	Pos  ast.Position
+	Expr ast.Node
 }
+
+type expressionTypeInferer func(filename string, expr ast.Node, scope *functionScope, ctx *AnalysisContext) Type
 
 type functionScope struct {
 	className     string
@@ -155,30 +158,34 @@ func (r *ReturnTypeRule) CheckIssues(nodes []ast.Node, filename string, ctx *Ana
 }
 
 func collectObservedReturns(filename string, nodes []ast.Node, scope *functionScope, ctx *AnalysisContext) []observedReturn {
+	return collectObservedReturnsUsing(filename, nodes, scope, ctx, inferTypeWithFacts)
+}
+
+func collectObservedReturnsUsing(filename string, nodes []ast.Node, scope *functionScope, ctx *AnalysisContext, infer expressionTypeInferer) []observedReturn {
 	var returns []observedReturn
 	for _, n := range nodes {
 		switch n := n.(type) {
 		case *ast.ExpressionStmt:
 			applyExpressionScope(scope, n.Expr, ctx)
 		case *ast.ReturnNode:
-			returns = append(returns, observedReturn{Type: inferTypeWithFacts(filename, n.Expr, scope, ctx), Pos: n.GetPos()})
+			returns = append(returns, observedReturn{Type: infer(filename, n.Expr, scope, ctx), Pos: n.GetPos(), Expr: n.Expr})
 		case *ast.AssignmentNode:
 			applyAssignmentScope(scope, n, ctx)
 		case *ast.IfNode:
-			returns = append(returns, collectObservedReturns(filename, n.Body, scope.clone(), ctx)...)
+			returns = append(returns, collectObservedReturnsUsing(filename, n.Body, scope.clone(), ctx, infer)...)
 			for _, elseif := range n.ElseIfs {
-				returns = append(returns, collectObservedReturns(filename, elseif.Body, scope.clone(), ctx)...)
+				returns = append(returns, collectObservedReturnsUsing(filename, elseif.Body, scope.clone(), ctx, infer)...)
 			}
 			if n.Else != nil {
-				returns = append(returns, collectObservedReturns(filename, n.Else.Body, scope.clone(), ctx)...)
+				returns = append(returns, collectObservedReturnsUsing(filename, n.Else.Body, scope.clone(), ctx, infer)...)
 			}
 			applyLazyInitPropertyScope(scope, n, ctx)
 		case *ast.BlockNode:
-			returns = append(returns, collectObservedReturns(filename, n.Statements, scope.clone(), ctx)...)
+			returns = append(returns, collectObservedReturnsUsing(filename, n.Statements, scope.clone(), ctx, infer)...)
 		case *ast.WhileNode:
-			returns = append(returns, collectObservedReturns(filename, n.Body, scope.clone(), ctx)...)
+			returns = append(returns, collectObservedReturnsUsing(filename, n.Body, scope.clone(), ctx, infer)...)
 		case *ast.ForeachNode:
-			returns = append(returns, collectObservedReturns(filename, n.Body, scope.clone(), ctx)...)
+			returns = append(returns, collectObservedReturnsUsing(filename, n.Body, scope.clone(), ctx, infer)...)
 		}
 	}
 	return returns

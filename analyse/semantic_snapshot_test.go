@@ -157,3 +157,59 @@ function load_model(int $id): Model {}
 	}
 	wg.Wait()
 }
+
+func TestSemanticSnapshotGeneratesScopeAwareReturnTypeFacts(t *testing.T) {
+	const filename = "src/Answers.php"
+	parsed := map[string][]ast.Node{
+		filename: parsePHPForProjectIndex(t, `<?php
+function answer(): string {
+    $value = 'ok';
+    return $value;
+}
+
+class Provider {
+    public function count(): int {
+        return 42;
+    }
+}
+`),
+	}
+
+	snapshot, err := NewSemanticSnapshot(parsed, nil)
+	if err != nil {
+		t.Fatalf("build snapshot: %v", err)
+	}
+	facts := snapshot.FactsForFile(filename)
+	if len(facts) != 2 {
+		t.Fatalf("expected two generated return facts, got %#v", facts)
+	}
+	if facts[0].Key.Kind != FactKindInferredType || facts[0].Type != "string" || facts[0].Subject != "function:answer" {
+		t.Fatalf("unexpected function return fact: %#v", facts[0])
+	}
+	if facts[1].Key.Kind != FactKindInferredType || facts[1].Type != "int" || facts[1].Subject != "method:provider:count" {
+		t.Fatalf("unexpected method return fact: %#v", facts[1])
+	}
+
+	ctx := snapshot.NewAnalysisContext()
+	if issues := (&ReturnTypeRule{}).CheckIssues(parsed[filename], filename, ctx); hasReturnTypeIssue(issues) {
+		t.Fatalf("generated facts changed compatible return diagnostics: %#v", issues)
+	}
+}
+
+func TestSemanticSnapshotKeepsExplicitInferredTypeFact(t *testing.T) {
+	const filename = "src/Answer.php"
+	nodes, expression := parseReturnFactFixture(t, `<?php
+function answer(): string {
+    return 42;
+}
+`)
+	key := inferredTypeFactKey(filename, expression)
+	explicit := SemanticFact{Key: key, Type: "string", Value: "external"}
+	snapshot, err := NewSemanticSnapshot(map[string][]ast.Node{filename: nodes}, []SemanticFact{explicit})
+	if err != nil {
+		t.Fatalf("build snapshot: %v", err)
+	}
+	if got, ok := snapshot.Fact(key); !ok || got != explicit {
+		t.Fatalf("generated int fact overwrote explicit fact: %#v, %v", got, ok)
+	}
+}

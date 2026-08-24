@@ -558,7 +558,7 @@ func checkResolvedCallArgTypes(target string, method ResolvedMethod, args []ast.
 			continue
 		}
 
-		actual := inferType(argExpr, scope, ctx)
+		actual := inferTypeWithFacts(filename, argExpr, scope, ctx)
 		if expected.AcceptsWithContext(actual, scope, ctx) {
 			usedParams[paramIndex] = struct{}{}
 			continue

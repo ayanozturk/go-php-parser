@@ -67,8 +67,9 @@ type SemanticSnapshot struct {
 	filenames []string
 }
 
-// NewSemanticSnapshot builds a project graph and freezes the supplied facts.
-// Duplicate fact keys are rejected instead of depending on insertion order.
+// NewSemanticSnapshot builds a project graph, derives reusable semantic facts,
+// and freezes the result. Duplicate explicit fact keys are rejected; explicit
+// facts take precedence over generated facts at the same exact source span.
 func NewSemanticSnapshot(parsed map[string][]ast.Node, facts []SemanticFact) (*SemanticSnapshot, error) {
 	store := make(map[SemanticFactKey]SemanticFact, len(facts))
 	for _, fact := range facts {
@@ -87,11 +88,80 @@ func NewSemanticSnapshot(parsed map[string][]ast.Node, facts []SemanticFact) (*S
 	}
 	sort.Strings(filenames)
 
-	return &SemanticSnapshot{
+	snapshot := &SemanticSnapshot{
 		project:   BuildProjectIndex(parsed),
 		facts:     store,
 		filenames: filenames,
-	}, nil
+	}
+	snapshot.generateInferredTypeFacts(parsed)
+	return snapshot, nil
+}
+
+func (s *SemanticSnapshot) generateInferredTypeFacts(parsed map[string][]ast.Node) {
+	for _, filename := range s.filenames {
+		nodes := parsed[filename]
+		ctx := s.NewAnalysisContext()
+		fileCtx := analysisFileTypeContext(ctx, nodes)
+
+		var walk func(ast.Node, *ast.ClassNode)
+		walk = func(node ast.Node, class *ast.ClassNode) {
+			switch n := node.(type) {
+			case *ast.NamespaceNode:
+				for _, child := range n.Body {
+					walk(child, class)
+				}
+			case *ast.ClassNode:
+				for _, method := range n.Methods {
+					walk(method, n)
+				}
+			case *ast.FunctionNode:
+				scope := analysisFunctionScope(ctx, class, n, fileCtx)
+				returns := collectObservedReturnsUsing(filename, n.Body, scope, ctx, func(_ string, expr ast.Node, scope *functionScope, ctx *AnalysisContext) Type {
+					return inferType(expr, scope, ctx)
+				})
+				for _, ret := range returns {
+					s.addGeneratedInferredTypeFact(filename, ret.Expr, ret.Type, fileCtx, class, n)
+				}
+			}
+		}
+
+		for _, node := range nodes {
+			walk(node, nil)
+		}
+	}
+}
+
+func (s *SemanticSnapshot) addGeneratedInferredTypeFact(filename string, expr ast.Node, inferred Type, fileCtx fileTypeContext, class *ast.ClassNode, function *ast.FunctionNode) {
+	if expr == nil || inferred.IsEmpty() {
+		return
+	}
+	start, end := expr.GetPos(), expr.GetEndPos()
+	if end.Offset <= start.Offset {
+		return
+	}
+	key := SemanticFactKey{File: filename, StartOffset: start.Offset, EndOffset: end.Offset, Kind: FactKindInferredType}
+	if _, explicitOrGenerated := s.facts[key]; explicitOrGenerated {
+		return
+	}
+	s.facts[key] = SemanticFact{Key: key, Subject: s.functionSymbolID(fileCtx, class, function), Type: inferred.String()}
+}
+
+func (s *SemanticSnapshot) functionSymbolID(fileCtx fileTypeContext, class *ast.ClassNode, function *ast.FunctionNode) SymbolID {
+	if function == nil {
+		return ""
+	}
+	if class != nil {
+		className := fileCtx.resolveClassLike(class.Name)
+		if method, ok := s.ResolveMethod(className, function.Name); ok {
+			return method.ID
+		}
+		return stableSymbolID("method", className, function.Name)
+	}
+	functionName := fileCtx.resolveClassLike(function.Name)
+	if resolved, ok := s.ResolveFunction(functionName); ok {
+		return resolved.ID
+	}
+	return stableSymbolID("function", "", functionName)
 }
 
 func validateSemanticFactKey(key SemanticFactKey) error {

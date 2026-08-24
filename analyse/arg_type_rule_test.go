@@ -687,3 +687,69 @@ class Example {
 		t.Fatalf("expected no A.ARG.TYPE issue after negated instanceof guard, got: %#v", issues)
 	}
 }
+
+func TestArgumentTypeRuleUsesSemanticInferredTypeFact(t *testing.T) {
+	const filename = "src/Example.php"
+	nodes, argument := parseMethodArgumentFactFixture(t)
+	fact := SemanticFact{Key: inferredTypeFactKey(filename, argument), Type: "int", Value: "external"}
+	snapshot, err := NewSemanticSnapshot(map[string][]ast.Node{filename: nodes}, []SemanticFact{fact})
+	if err != nil {
+		t.Fatalf("build snapshot: %v", err)
+	}
+
+	issues := (&ArgumentTypeRule{}).CheckIssues(nodes, filename, snapshot.NewAnalysisContext())
+	if hasArgTypeIssue(issues) {
+		t.Fatalf("expected inferred-type fact to satisfy int argument, got: %#v", issues)
+	}
+}
+
+func TestArgumentTypeRuleFallsBackForNonmatchingSemanticFact(t *testing.T) {
+	const filename = "src/Example.php"
+	nodes, argument := parseMethodArgumentFactFixture(t)
+	key := inferredTypeFactKey(filename, argument)
+	key.EndOffset++
+	snapshot, err := NewSemanticSnapshot(map[string][]ast.Node{filename: nodes}, []SemanticFact{{Key: key, Type: "int"}})
+	if err != nil {
+		t.Fatalf("build snapshot: %v", err)
+	}
+
+	issues := (&ArgumentTypeRule{}).CheckIssues(nodes, filename, snapshot.NewAnalysisContext())
+	if !hasArgTypeIssue(issues) {
+		t.Fatalf("expected fallback inference to report string passed to int, got: %#v", issues)
+	}
+}
+
+func parseMethodArgumentFactFixture(t *testing.T) ([]ast.Node, ast.Node) {
+	t.Helper()
+	const source = `<?php
+class Example {
+    public function takesInt(int $value): void {}
+
+    public function run(): void {
+        $this->takesInt("bad");
+    }
+}
+`
+	p := parser.New(lexer.NewFile(source), false)
+	nodes := p.Parse()
+	if len(p.Errors()) != 0 {
+		t.Fatalf("parse errors: %v", p.Errors())
+	}
+	class, ok := nodes[0].(*ast.ClassNode)
+	if !ok || len(class.Methods) != 2 {
+		t.Fatalf("expected class with two methods, got %#v", nodes)
+	}
+	run, ok := class.Methods[1].(*ast.FunctionNode)
+	if !ok || len(run.Body) != 1 {
+		t.Fatalf("expected run method with one statement, got %#v", class.Methods[1])
+	}
+	statement, ok := run.Body[0].(*ast.ExpressionStmt)
+	if !ok {
+		t.Fatalf("expected expression statement, got %#v", run.Body[0])
+	}
+	call, ok := statement.Expr.(*ast.MethodCallNode)
+	if !ok || len(call.Args) != 1 {
+		t.Fatalf("expected one-argument method call, got %#v", statement.Expr)
+	}
+	return nodes, argumentValue(call.Args[0])
+}
