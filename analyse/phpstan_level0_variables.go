@@ -105,7 +105,7 @@ func checkExprVars(filename string, node ast.Node, defined map[string]bool, issu
 	switch n := node.(type) {
 	case *ast.VariableNode:
 		if !defined[n.Name] {
-			*issues = append(*issues, issue(filename, n.GetPos(), level0VariablesCode, fmt.Sprintf("Undefined variable: $%s", n.Name)))
+			*issues = append(*issues, issueSpan(filename, n, level0VariablesCode, fmt.Sprintf("Undefined variable: $%s", n.Name)))
 		}
 	case *ast.AssignmentNode:
 		checkExprVars(filename, n.Right, defined, issues)
@@ -118,7 +118,7 @@ func checkExprVars(filename string, node ast.Node, defined map[string]bool, issu
 		if name == "compact" {
 			for _, arg := range n.Args {
 				if variableName, ok := stringLiteralValue(argumentValue(arg)); ok && !defined[variableName] {
-					*issues = append(*issues, issue(filename, arg.GetPos(), level0VariablesCode, fmt.Sprintf("Undefined variable: $%s", variableName)))
+					*issues = append(*issues, issueSpan(filename, arg, level0VariablesCode, fmt.Sprintf("Undefined variable: $%s", variableName)))
 				}
 			}
 			return

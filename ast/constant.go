@@ -11,11 +11,14 @@ type ConstantNode struct {
 	Modifiers  []string
 	Value      Node
 	Pos        Position
+	EndPos     Position
 }
 
-func (c *ConstantNode) NodeType() string    { return "Constant" }
-func (c *ConstantNode) GetPos() Position    { return c.Pos }
-func (c *ConstantNode) SetPos(pos Position) { c.Pos = pos }
+func (c *ConstantNode) NodeType() string       { return "Constant" }
+func (c *ConstantNode) GetPos() Position       { return c.Pos }
+func (c *ConstantNode) SetPos(pos Position)    { c.Pos = pos }
+func (c *ConstantNode) GetEndPos() Position    { return c.EndPos }
+func (c *ConstantNode) SetEndPos(pos Position) { c.EndPos = pos }
 func (c *ConstantNode) String() string {
 	return fmt.Sprintf("Constant(%s %s: %s = %s) @ %d:%d", c.Visibility, c.Name, c.Type, c.Value.TokenLiteral(), c.Pos.Line, c.Pos.Column)
 }

@@ -7,7 +7,19 @@ import (
 	"strings"
 )
 
+// parseStatement wraps parseStatementImpl to stamp the returned node's
+// EndPos with the end of the last token consumed while parsing it, giving
+// every top-level and nested statement a complete [start, end) source span
+// (see M1's "complete source spans" requirement).
 func (p *Parser) parseStatement() (ast.Node, error) {
+	node, err := p.parseStatementImpl()
+	if node != nil {
+		node.SetEndPos(ast.Position(p.prevTokEnd))
+	}
+	return node, err
+}
+
+func (p *Parser) parseStatementImpl() (ast.Node, error) {
 retry:
 	// Keep attributes as lightweight nodes so analysis rules can validate them.
 	if p.tok.Type == token.T_ATTRIBUTE {

@@ -14,13 +14,16 @@ type ClassNode struct {
 	Methods    []Node
 	Constants  []Node // Class constants
 	Pos        Position
+	EndPos     Position
 	Modifier   string      // final, abstract, or ""
 	PHPDoc     *PHPDocNode // Associated PHPDoc comment
 }
 
-func (c *ClassNode) NodeType() string    { return "Class" }
-func (c *ClassNode) GetPos() Position    { return c.Pos }
-func (c *ClassNode) SetPos(pos Position) { c.Pos = pos }
+func (c *ClassNode) NodeType() string       { return "Class" }
+func (c *ClassNode) GetPos() Position       { return c.Pos }
+func (c *ClassNode) SetPos(pos Position)    { c.Pos = pos }
+func (c *ClassNode) GetEndPos() Position    { return c.EndPos }
+func (c *ClassNode) SetEndPos(pos Position) { c.EndPos = pos }
 func (c *ClassNode) String() string {
 	var parts []string
 	parts = append(parts, fmt.Sprintf("Class(%s)", c.Name))
@@ -47,6 +50,7 @@ type PropertyNode struct {
 	IsReadonly    bool
 	Hooks         []PropertyHookNode
 	Pos           Position
+	EndPos        Position
 }
 
 type PropertyHookNode struct {
@@ -56,6 +60,7 @@ type PropertyHookNode struct {
 	Expr      Node
 	Body      []Node
 	Pos       Position
+	EndPos    Position
 }
 
 func (n *PropertyNode) GetPos() Position {
@@ -64,6 +69,14 @@ func (n *PropertyNode) GetPos() Position {
 
 func (n *PropertyNode) SetPos(pos Position) {
 	n.Pos = pos
+}
+
+func (n *PropertyNode) GetEndPos() Position {
+	return n.EndPos
+}
+
+func (n *PropertyNode) SetEndPos(pos Position) {
+	n.EndPos = pos
 }
 
 func (n *PropertyNode) NodeType() string {
@@ -90,6 +103,7 @@ type TraitUseNode struct {
 	Traits      []string
 	Adaptations []TraitAdaptation
 	Pos         Position
+	EndPos      Position
 }
 
 // TraitAdaptation represents a single entry inside a trait `use { ... }`
@@ -111,9 +125,11 @@ type TraitAdaptation struct {
 	InsteadOf []string
 }
 
-func (t *TraitUseNode) NodeType() string    { return "TraitUse" }
-func (t *TraitUseNode) GetPos() Position    { return t.Pos }
-func (t *TraitUseNode) SetPos(pos Position) { t.Pos = pos }
+func (t *TraitUseNode) NodeType() string       { return "TraitUse" }
+func (t *TraitUseNode) GetPos() Position       { return t.Pos }
+func (t *TraitUseNode) SetPos(pos Position)    { t.Pos = pos }
+func (t *TraitUseNode) GetEndPos() Position    { return t.EndPos }
+func (t *TraitUseNode) SetEndPos(pos Position) { t.EndPos = pos }
 func (t *TraitUseNode) String() string {
 	return fmt.Sprintf("TraitUse(%s) @ %d:%d", strings.Join(t.Traits, ", "), t.Pos.Line, t.Pos.Column)
 }
@@ -125,11 +141,14 @@ type NewNode struct {
 	ClassExpr Node
 	Args      []Node
 	Pos       Position
+	EndPos    Position
 }
 
-func (n *NewNode) NodeType() string    { return "New" }
-func (n *NewNode) GetPos() Position    { return n.Pos }
-func (n *NewNode) SetPos(pos Position) { n.Pos = pos }
+func (n *NewNode) NodeType() string       { return "New" }
+func (n *NewNode) GetPos() Position       { return n.Pos }
+func (n *NewNode) SetPos(pos Position)    { n.Pos = pos }
+func (n *NewNode) GetEndPos() Position    { return n.EndPos }
+func (n *NewNode) SetEndPos(pos Position) { n.EndPos = pos }
 func (n *NewNode) String() string {
 	className := n.ClassName
 	if n.ClassExpr != nil {
@@ -147,11 +166,14 @@ type MethodCallNode struct {
 	Method string
 	Args   []Node
 	Pos    Position
+	EndPos Position
 }
 
-func (m *MethodCallNode) NodeType() string    { return "MethodCall" }
-func (m *MethodCallNode) GetPos() Position    { return m.Pos }
-func (m *MethodCallNode) SetPos(pos Position) { m.Pos = pos }
+func (m *MethodCallNode) NodeType() string       { return "MethodCall" }
+func (m *MethodCallNode) GetPos() Position       { return m.Pos }
+func (m *MethodCallNode) SetPos(pos Position)    { m.Pos = pos }
+func (m *MethodCallNode) GetEndPos() Position    { return m.EndPos }
+func (m *MethodCallNode) SetEndPos(pos Position) { m.EndPos = pos }
 func (m *MethodCallNode) String() string {
 	return fmt.Sprintf("MethodCall(%s) @ %d:%d", m.Method, m.Pos.Line, m.Pos.Column)
 }
@@ -161,14 +183,17 @@ func (m *MethodCallNode) TokenLiteral() string {
 
 // TraitNode represents a trait definition
 type TraitNode struct {
-	Name *Identifier // The name of the trait
-	Body []Node      // Statements within the trait block (methods, properties)
-	Pos  Position    // The position of the 'trait' keyword
+	Name   *Identifier // The name of the trait
+	Body   []Node      // Statements within the trait block (methods, properties)
+	Pos    Position    // The position of the 'trait' keyword
+	EndPos Position
 }
 
-func (t *TraitNode) NodeType() string    { return "Trait" }
-func (t *TraitNode) GetPos() Position    { return t.Pos }
-func (t *TraitNode) SetPos(pos Position) { t.Pos = pos }
+func (t *TraitNode) NodeType() string       { return "Trait" }
+func (t *TraitNode) GetPos() Position       { return t.Pos }
+func (t *TraitNode) SetPos(pos Position)    { t.Pos = pos }
+func (t *TraitNode) GetEndPos() Position    { return t.EndPos }
+func (t *TraitNode) SetEndPos(pos Position) { t.EndPos = pos }
 func (t *TraitNode) String() string {
 	return fmt.Sprintf("Trait(%s) @ %d:%d", t.Name.String(), t.Pos.Line, t.Pos.Column)
 }

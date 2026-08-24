@@ -222,3 +222,25 @@ type Token struct {
 	Literal string
 	Pos     Position
 }
+
+// EndPos returns the position immediately after this token's literal text,
+// i.e. a half-open [Pos, EndPos) span. It accounts for literals spanning
+// multiple lines (heredocs, multi-line comments/strings) by counting
+// embedded newlines rather than assuming a single-line token.
+func (t Token) EndPos() Position {
+	end := t.Pos
+	lastNewline := -1
+	for i := 0; i < len(t.Literal); i++ {
+		if t.Literal[i] == '\n' {
+			end.Line++
+			lastNewline = i
+		}
+	}
+	end.Offset += len(t.Literal)
+	if lastNewline >= 0 {
+		end.Column = len(t.Literal) - lastNewline
+	} else {
+		end.Column += len(t.Literal)
+	}
+	return end
+}

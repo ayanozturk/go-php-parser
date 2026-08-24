@@ -7,13 +7,16 @@ import (
 
 // StringNode represents a PHP string literal
 type StringNode struct {
-	Value string
-	Pos   Position
+	Value  string
+	Pos    Position
+	EndPos Position
 }
 
-func (s *StringNode) NodeType() string    { return "String" }
-func (s *StringNode) GetPos() Position    { return s.Pos }
-func (s *StringNode) SetPos(pos Position) { s.Pos = pos }
+func (s *StringNode) NodeType() string       { return "String" }
+func (s *StringNode) GetPos() Position       { return s.Pos }
+func (s *StringNode) SetPos(pos Position)    { s.Pos = pos }
+func (s *StringNode) GetEndPos() Position    { return s.EndPos }
+func (s *StringNode) SetEndPos(pos Position) { s.EndPos = pos }
 func (s *StringNode) String() string {
 	return fmt.Sprintf("\"%s\" @ %d:%d", s.Value, s.Pos.Line, s.Pos.Column)
 }
@@ -23,13 +26,16 @@ func (s *StringNode) TokenLiteral() string {
 
 // IntegerNode represents an integer literal
 type IntegerNode struct {
-	Value int64
-	Pos   Position
+	Value  int64
+	Pos    Position
+	EndPos Position
 }
 
-func (i *IntegerNode) NodeType() string    { return "Integer" }
-func (i *IntegerNode) GetPos() Position    { return i.Pos }
-func (i *IntegerNode) SetPos(pos Position) { i.Pos = pos }
+func (i *IntegerNode) NodeType() string       { return "Integer" }
+func (i *IntegerNode) GetPos() Position       { return i.Pos }
+func (i *IntegerNode) SetPos(pos Position)    { i.Pos = pos }
+func (i *IntegerNode) GetEndPos() Position    { return i.EndPos }
+func (i *IntegerNode) SetEndPos(pos Position) { i.EndPos = pos }
 func (i *IntegerNode) String() string {
 	return fmt.Sprintf("%d @ %d:%d", i.Value, i.Pos.Line, i.Pos.Column)
 }
@@ -39,13 +45,16 @@ func (i *IntegerNode) TokenLiteral() string {
 
 // FloatNode represents a float literal
 type FloatNode struct {
-	Value float64
-	Pos   Position
+	Value  float64
+	Pos    Position
+	EndPos Position
 }
 
-func (f *FloatNode) NodeType() string    { return "Float" }
-func (f *FloatNode) GetPos() Position    { return f.Pos }
-func (f *FloatNode) SetPos(pos Position) { f.Pos = pos }
+func (f *FloatNode) NodeType() string       { return "Float" }
+func (f *FloatNode) GetPos() Position       { return f.Pos }
+func (f *FloatNode) SetPos(pos Position)    { f.Pos = pos }
+func (f *FloatNode) GetEndPos() Position    { return f.EndPos }
+func (f *FloatNode) SetEndPos(pos Position) { f.EndPos = pos }
 func (f *FloatNode) String() string {
 	return fmt.Sprintf("%f @ %d:%d", f.Value, f.Pos.Line, f.Pos.Column)
 }

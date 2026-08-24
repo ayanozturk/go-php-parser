@@ -27,33 +27,33 @@ func (r *PHPStanLevel0Rule) checkClassModel(filename string, nodes []ast.Node, c
 			case *ast.ClassNode:
 				className := ft.resolveClassLike(n.Name)
 				if hasClassModifier(n, "final") && hasClassModifier(n, "abstract") {
-					issues = append(issues, issue(filename, n.GetPos(), level0ClassModelCode, fmt.Sprintf("Class %s cannot be both final and abstract.", className)))
+					issues = append(issues, issueSpan(filename, n, level0ClassModelCode, fmt.Sprintf("Class %s cannot be both final and abstract.", className)))
 				}
 				if n.Extends != "" {
 					parentName := ft.resolveClassLike(n.Extends)
 					if parent, ok := ctx.Resolver.ResolveClass(parentName); !ok {
-						issues = append(issues, issue(filename, n.GetPos(), level0ClassModelCode, fmt.Sprintf("Class %s extends unknown class %s.", className, parentName)))
+						issues = append(issues, issueSpan(filename, n, level0ClassModelCode, fmt.Sprintf("Class %s extends unknown class %s.", className, parentName)))
 					} else if parent.Kind != "class" {
-						issues = append(issues, issue(filename, n.GetPos(), level0ClassModelCode, fmt.Sprintf("Class %s extends %s %s.", className, parent.Kind, parent.Name)))
+						issues = append(issues, issueSpan(filename, n, level0ClassModelCode, fmt.Sprintf("Class %s extends %s %s.", className, parent.Kind, parent.Name)))
 					} else {
 						if parent.Final {
-							issues = append(issues, issue(filename, n.GetPos(), level0ClassModelCode, fmt.Sprintf("Class %s extends final class %s.", className, parent.Name)))
+							issues = append(issues, issueSpan(filename, n, level0ClassModelCode, fmt.Sprintf("Class %s extends final class %s.", className, parent.Name)))
 						}
 						classReadonly := hasClassModifier(n, "readonly")
 						if classReadonly && !parent.Readonly {
-							issues = append(issues, issue(filename, n.GetPos(), level0ClassModelCode, fmt.Sprintf("Readonly class %s cannot extend non-readonly class %s.", className, parent.Name)))
+							issues = append(issues, issueSpan(filename, n, level0ClassModelCode, fmt.Sprintf("Readonly class %s cannot extend non-readonly class %s.", className, parent.Name)))
 						}
 						if !classReadonly && parent.Readonly {
-							issues = append(issues, issue(filename, n.GetPos(), level0ClassModelCode, fmt.Sprintf("Non-readonly class %s cannot extend readonly class %s.", className, parent.Name)))
+							issues = append(issues, issueSpan(filename, n, level0ClassModelCode, fmt.Sprintf("Non-readonly class %s cannot extend readonly class %s.", className, parent.Name)))
 						}
 					}
 				}
 				for _, implemented := range n.Implements {
 					ifaceName := ft.resolveClassLike(implemented)
 					if iface, ok := ctx.Resolver.ResolveClass(ifaceName); !ok {
-						issues = append(issues, issue(filename, n.GetPos(), level0ClassModelCode, fmt.Sprintf("Class %s implements unknown interface %s.", className, ifaceName)))
+						issues = append(issues, issueSpan(filename, n, level0ClassModelCode, fmt.Sprintf("Class %s implements unknown interface %s.", className, ifaceName)))
 					} else if iface.Kind != "interface" {
-						issues = append(issues, issue(filename, n.GetPos(), level0ClassModelCode, fmt.Sprintf("Class %s implements %s %s.", className, iface.Kind, iface.Name)))
+						issues = append(issues, issueSpan(filename, n, level0ClassModelCode, fmt.Sprintf("Class %s implements %s %s.", className, iface.Kind, iface.Name)))
 					}
 				}
 				checkClassMethodLegality(filename, className, n, ctx, &issues)
@@ -67,9 +67,9 @@ func (r *PHPStanLevel0Rule) checkClassModel(filename string, nodes []ast.Node, c
 				for _, parent := range n.Extends {
 					parentName := ft.resolveClassLike(parent)
 					if resolved, ok := ctx.Resolver.ResolveClass(parentName); !ok {
-						issues = append(issues, issue(filename, n.GetPos(), level0ClassModelCode, fmt.Sprintf("Interface %s extends unknown interface %s.", interfaceName, parentName)))
+						issues = append(issues, issueSpan(filename, n, level0ClassModelCode, fmt.Sprintf("Interface %s extends unknown interface %s.", interfaceName, parentName)))
 					} else if resolved.Kind != "interface" {
-						issues = append(issues, issue(filename, n.GetPos(), level0ClassModelCode, fmt.Sprintf("Interface %s extends %s %s.", interfaceName, resolved.Kind, resolved.Name)))
+						issues = append(issues, issueSpan(filename, n, level0ClassModelCode, fmt.Sprintf("Interface %s extends %s %s.", interfaceName, resolved.Kind, resolved.Name)))
 					}
 				}
 				checkInterfaceMemberLegality(filename, interfaceName, n, &issues)
@@ -77,9 +77,9 @@ func (r *PHPStanLevel0Rule) checkClassModel(filename string, nodes []ast.Node, c
 				for _, trait := range n.Traits {
 					traitName := ft.resolveClassLike(trait)
 					if resolved, ok := ctx.Resolver.ResolveClass(traitName); !ok {
-						issues = append(issues, issue(filename, n.GetPos(), level0ClassModelCode, fmt.Sprintf("Trait %s not found.", traitName)))
+						issues = append(issues, issueSpan(filename, n, level0ClassModelCode, fmt.Sprintf("Trait %s not found.", traitName)))
 					} else if resolved.Kind != "trait" {
-						issues = append(issues, issue(filename, n.GetPos(), level0ClassModelCode, fmt.Sprintf("%s %s used as trait.", titleKind(resolved.Kind), resolved.Name)))
+						issues = append(issues, issueSpan(filename, n, level0ClassModelCode, fmt.Sprintf("%s %s used as trait.", titleKind(resolved.Kind), resolved.Name)))
 					}
 				}
 			case *ast.EnumNode:
@@ -101,22 +101,22 @@ func checkClassMethodLegality(filename, className string, class *ast.ClassNode, 
 			continue
 		}
 		if strings.EqualFold(method.Name, "__construct") && method.ReturnType != "" {
-			*issues = append(*issues, issue(filename, method.GetPos(), level0ClassModelCode, fmt.Sprintf("Constructor %s::__construct() cannot have a return type.", className)))
+			*issues = append(*issues, issueSpan(filename, method, level0ClassModelCode, fmt.Sprintf("Constructor %s::__construct() cannot have a return type.", className)))
 		}
 		if hasModifier(method.Modifiers, "abstract") {
 			if !isAbstractClass {
-				*issues = append(*issues, issue(filename, method.GetPos(), level0ClassModelCode, fmt.Sprintf("Class %s has abstract method %s() but is not abstract.", className, method.Name)))
+				*issues = append(*issues, issueSpan(filename, method, level0ClassModelCode, fmt.Sprintf("Class %s has abstract method %s() but is not abstract.", className, method.Name)))
 			}
 			if hasModifier(method.Modifiers, "private") {
-				*issues = append(*issues, issue(filename, method.GetPos(), level0ClassModelCode, fmt.Sprintf("Abstract method %s::%s() cannot be private.", className, method.Name)))
+				*issues = append(*issues, issueSpan(filename, method, level0ClassModelCode, fmt.Sprintf("Abstract method %s::%s() cannot be private.", className, method.Name)))
 			}
 			if hasModifier(method.Modifiers, "final") {
-				*issues = append(*issues, issue(filename, method.GetPos(), level0ClassModelCode, fmt.Sprintf("Abstract method %s::%s() cannot be final.", className, method.Name)))
+				*issues = append(*issues, issueSpan(filename, method, level0ClassModelCode, fmt.Sprintf("Abstract method %s::%s() cannot be final.", className, method.Name)))
 			}
 			continue
 		}
 		if parentMethod, ok := finalMethodInAncestors(ctx.Project, className, method.Name); ok {
-			*issues = append(*issues, issue(filename, method.GetPos(), level0ClassModelCode, fmt.Sprintf("Cannot override final method %s::%s().", parentMethod.DeclaringClass, parentMethod.Name)))
+			*issues = append(*issues, issueSpan(filename, method, level0ClassModelCode, fmt.Sprintf("Cannot override final method %s::%s().", parentMethod.DeclaringClass, parentMethod.Name)))
 		}
 	}
 	if !isAbstractClass {
@@ -131,17 +131,17 @@ func checkClassConstantLegality(filename, className string, class *ast.ClassNode
 			continue
 		}
 		if hasModifier(constant.Modifiers, "final") && constant.Visibility == "private" {
-			*issues = append(*issues, issue(filename, constant.GetPos(), level0ClassModelCode, fmt.Sprintf("Private constant %s::%s cannot be final.", className, constant.Name)))
+			*issues = append(*issues, issueSpan(filename, constant, level0ClassModelCode, fmt.Sprintf("Private constant %s::%s cannot be final.", className, constant.Name)))
 		}
 		if parentConstant, ok := finalConstantInAncestors(ctx.Project, className, constant.Name); ok {
-			*issues = append(*issues, issue(filename, constant.GetPos(), level0ClassModelCode, fmt.Sprintf("Cannot override final constant %s::%s.", parentConstant.DeclaringClass, parentConstant.Name)))
+			*issues = append(*issues, issueSpan(filename, constant, level0ClassModelCode, fmt.Sprintf("Cannot override final constant %s::%s.", parentConstant.DeclaringClass, parentConstant.Name)))
 		}
 	}
 }
 
 func checkConsistentConstructorLegality(filename, className string, class *ast.ClassNode, ctx *AnalysisContext, issues *[]AnalysisIssue) {
 	if hasPHPStanConsistentConstructorTag(class.PHPDoc) && hasPrivateConstructor(ctx.Project, className) && !hasClassModifier(class, "final") {
-		*issues = append(*issues, issue(filename, class.GetPos(), level0ClassModelCode, fmt.Sprintf("Class %s has @phpstan-consistent-constructor but its constructor is private.", className)))
+		*issues = append(*issues, issueSpan(filename, class, level0ClassModelCode, fmt.Sprintf("Class %s has @phpstan-consistent-constructor but its constructor is private.", className)))
 	}
 	required, ok := consistentConstructorInAncestors(ctx.Project, className)
 	if !ok {
@@ -161,11 +161,11 @@ func checkInterfaceMemberLegality(filename, interfaceName string, iface *ast.Int
 		switch n := member.(type) {
 		case *ast.InterfaceMethodNode:
 			if n.Visibility != "" && n.Visibility != "public" {
-				*issues = append(*issues, issue(filename, n.GetPos(), level0ClassModelCode, fmt.Sprintf("Interface method %s::%s() must be public.", interfaceName, n.Name)))
+				*issues = append(*issues, issueSpan(filename, n, level0ClassModelCode, fmt.Sprintf("Interface method %s::%s() must be public.", interfaceName, n.Name)))
 			}
 		case *ast.ConstantNode:
 			if n.Visibility != "" && n.Visibility != "public" {
-				*issues = append(*issues, issue(filename, n.GetPos(), level0ClassModelCode, fmt.Sprintf("Interface constant %s::%s must be public.", interfaceName, n.Name)))
+				*issues = append(*issues, issueSpan(filename, n, level0ClassModelCode, fmt.Sprintf("Interface constant %s::%s must be public.", interfaceName, n.Name)))
 			}
 		}
 	}
@@ -189,7 +189,7 @@ func checkReadonlyClassProperties(filename, className string, class *ast.ClassNo
 				continue
 			}
 			if parentProperty, ok := ctx.Resolver.ResolveProperty(parentName, property.Name); ok && parentProperty.Readonly && !property.IsReadonly && !classReadonly {
-				*issues = append(*issues, issue(filename, property.GetPos(), level0ClassModelCode, fmt.Sprintf("Property %s::$%s overriding readonly property must be readonly.", className, property.Name)))
+				*issues = append(*issues, issueSpan(filename, property, level0ClassModelCode, fmt.Sprintf("Property %s::$%s overriding readonly property must be readonly.", className, property.Name)))
 			}
 		}
 	}

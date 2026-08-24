@@ -12,11 +12,14 @@ type InterfaceNode struct {
 	Members []Node      // Can contain InterfaceMethodNode and ConstantNode
 	PHPDoc  *PHPDocNode // Associated PHPDoc comment
 	Pos     Position
+	EndPos  Position
 }
 
-func (i *InterfaceNode) NodeType() string    { return "Interface" }
-func (i *InterfaceNode) GetPos() Position    { return i.Pos }
-func (i *InterfaceNode) SetPos(pos Position) { i.Pos = pos }
+func (i *InterfaceNode) NodeType() string       { return "Interface" }
+func (i *InterfaceNode) GetPos() Position       { return i.Pos }
+func (i *InterfaceNode) SetPos(pos Position)    { i.Pos = pos }
+func (i *InterfaceNode) GetEndPos() Position    { return i.EndPos }
+func (i *InterfaceNode) SetEndPos(pos Position) { i.EndPos = pos }
 func (i *InterfaceNode) String() string {
 	var parts []string
 	parts = append(parts, fmt.Sprintf("Interface(%s)", i.Name))
@@ -43,11 +46,14 @@ type InterfaceMethodNode struct {
 	Params     []Node
 	PHPDoc     *PHPDocNode // Associated PHPDoc comment
 	Pos        Position
+	EndPos     Position
 }
 
-func (m *InterfaceMethodNode) NodeType() string    { return "InterfaceMethod" }
-func (m *InterfaceMethodNode) GetPos() Position    { return m.Pos }
-func (m *InterfaceMethodNode) SetPos(pos Position) { m.Pos = pos }
+func (m *InterfaceMethodNode) NodeType() string       { return "InterfaceMethod" }
+func (m *InterfaceMethodNode) GetPos() Position       { return m.Pos }
+func (m *InterfaceMethodNode) SetPos(pos Position)    { m.Pos = pos }
+func (m *InterfaceMethodNode) GetEndPos() Position    { return m.EndPos }
+func (m *InterfaceMethodNode) SetEndPos(pos Position) { m.EndPos = pos }
 func (m *InterfaceMethodNode) String() string {
 	var parts []string
 	if m.Visibility != "" {

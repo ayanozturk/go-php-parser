@@ -7,6 +7,8 @@ type dummyNode struct{}
 func (d *dummyNode) NodeType() string     { return "Dummy" }
 func (d *dummyNode) GetPos() Position     { return Position{} }
 func (d *dummyNode) SetPos(Position)      { /* no-op for dummy node */ }
+func (d *dummyNode) GetEndPos() Position  { return Position{} }
+func (d *dummyNode) SetEndPos(Position)   { /* no-op for dummy node */ }
 func (d *dummyNode) String() string       { return "dummy" }
 func (d *dummyNode) TokenLiteral() string { return "dummy" }
 

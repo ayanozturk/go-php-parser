@@ -3,13 +3,16 @@ package ast
 import "strings"
 
 type IntersectionTypeNode struct {
-	Types []string // List of type names in the intersection
-	Pos   Position
+	Types  []string // List of type names in the intersection
+	Pos    Position
+	EndPos Position
 }
 
-func (i *IntersectionTypeNode) NodeType() string    { return "IntersectionType" }
-func (i *IntersectionTypeNode) GetPos() Position    { return i.Pos }
-func (i *IntersectionTypeNode) SetPos(pos Position) { i.Pos = pos }
+func (i *IntersectionTypeNode) NodeType() string       { return "IntersectionType" }
+func (i *IntersectionTypeNode) GetPos() Position       { return i.Pos }
+func (i *IntersectionTypeNode) SetPos(pos Position)    { i.Pos = pos }
+func (i *IntersectionTypeNode) GetEndPos() Position    { return i.EndPos }
+func (i *IntersectionTypeNode) SetEndPos(pos Position) { i.EndPos = pos }
 func (i *IntersectionTypeNode) TokenLiteral() string {
 	return "&"
 }

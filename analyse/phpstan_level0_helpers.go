@@ -116,6 +116,24 @@ func issue(filename string, pos ast.Position, code, message string) AnalysisIssu
 	return AnalysisIssue{Filename: filename, Line: pos.Line, Column: pos.Column, Code: code, Message: message}
 }
 
+// issueSpan is like issue but also records the node's end position, giving
+// the diagnostic a full [start, end) source span instead of a single
+// point. Prefer this over issue() wherever a concrete offending ast.Node
+// (rather than a bare position) is available.
+func issueSpan(filename string, n ast.Node, code, message string) AnalysisIssue {
+	start := n.GetPos()
+	end := n.GetEndPos()
+	return AnalysisIssue{
+		Filename:  filename,
+		Line:      start.Line,
+		Column:    start.Column,
+		EndLine:   end.Line,
+		EndColumn: end.Column,
+		Code:      code,
+		Message:   message,
+	}
+}
+
 func resolveThrownClassName(node ast.Node, ft fileTypeContext) string {
 	switch n := node.(type) {
 	case *ast.NewNode:

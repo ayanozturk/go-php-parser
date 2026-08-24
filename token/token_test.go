@@ -42,3 +42,28 @@ func TestTokenFields(t *testing.T) {
 		t.Errorf("Token.Pos not set correctly: %+v", tok.Pos)
 	}
 }
+
+func TestTokenEndPosSingleLine(t *testing.T) {
+	tok := Token{Type: T_STRING, Literal: "foobar", Pos: Position{Line: 1, Column: 2, Offset: 3}}
+	end := tok.EndPos()
+	if end.Line != 1 || end.Column != 8 || end.Offset != 9 {
+		t.Errorf("EndPos() = %+v, want {Line:1 Column:8 Offset:9}", end)
+	}
+}
+
+func TestTokenEndPosMultiLine(t *testing.T) {
+	// A heredoc-like literal spanning two lines: "ab\ncd" starting at
+	// line 1, column 5. After consuming it the end position should be on
+	// line 2, right after "cd".
+	tok := Token{Type: T_ENCAPSED_AND_WHITESPACE, Literal: "ab\ncd", Pos: Position{Line: 1, Column: 5, Offset: 10}}
+	end := tok.EndPos()
+	if end.Line != 2 {
+		t.Errorf("EndPos().Line = %d, want 2", end.Line)
+	}
+	if end.Column != 3 {
+		t.Errorf("EndPos().Column = %d, want 3 (after 'cd', 1-based)", end.Column)
+	}
+	if end.Offset != 15 {
+		t.Errorf("EndPos().Offset = %d, want 15 (10 + len(\"ab\\ncd\"))", end.Offset)
+	}
+}

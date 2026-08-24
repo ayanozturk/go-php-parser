@@ -16,18 +16,18 @@ var allowedEnumMagicMethods = map[string]struct{}{
 func checkEnumLegality(filename, enumName string, enum *ast.EnumNode, issues *[]AnalysisIssue) {
 	backed := enum.BackedBy != ""
 	if backed && !isValidEnumBackingType(enum.BackedBy) {
-		*issues = append(*issues, issue(filename, enum.GetPos(), level0ClassModelCode, fmt.Sprintf("Backed enum %s can have only \"int\" or \"string\" type.", enumName)))
+		*issues = append(*issues, issueSpan(filename, enum, level0ClassModelCode, fmt.Sprintf("Backed enum %s can have only \"int\" or \"string\" type.", enumName)))
 	}
 	for _, implemented := range enum.Implements {
 		if strings.EqualFold(strings.TrimPrefix(implemented, `\`), "Serializable") {
-			*issues = append(*issues, issue(filename, enum.GetPos(), level0ClassModelCode, fmt.Sprintf("Enum %s cannot implement Serializable.", enumName)))
+			*issues = append(*issues, issueSpan(filename, enum, level0ClassModelCode, fmt.Sprintf("Enum %s cannot implement Serializable.", enumName)))
 		}
 	}
 
 	duplicateValues := map[string][]string{}
 	for _, enumCase := range enum.Cases {
 		if !backed && enumCase.Value != nil {
-			*issues = append(*issues, issue(filename, enumCase.GetPos(), level0ClassModelCode, fmt.Sprintf(
+			*issues = append(*issues, issueSpan(filename, enumCase, level0ClassModelCode, fmt.Sprintf(
 				"Enum %s is not backed, but case %s has value %s.",
 				enumName,
 				enumCase.Name,
@@ -39,7 +39,7 @@ func checkEnumLegality(filename, enumName string, enum *ast.EnumNode, issues *[]
 			continue
 		}
 		if enumCase.Value == nil {
-			*issues = append(*issues, issue(filename, enumCase.GetPos(), level0ClassModelCode, fmt.Sprintf(
+			*issues = append(*issues, issueSpan(filename, enumCase, level0ClassModelCode, fmt.Sprintf(
 				"Enum case %s::%s does not have a value but the enum is backed with the \"%s\" type.",
 				enumName,
 				enumCase.Name,
@@ -48,7 +48,7 @@ func checkEnumLegality(filename, enumName string, enum *ast.EnumNode, issues *[]
 			continue
 		}
 		if !enumCaseValueMatchesBacking(enum.BackedBy, enumCase.Value) {
-			*issues = append(*issues, issue(filename, enumCase.GetPos(), level0ClassModelCode, fmt.Sprintf(
+			*issues = append(*issues, issueSpan(filename, enumCase, level0ClassModelCode, fmt.Sprintf(
 				"Enum case %s::%s value %s does not match the \"%s\" type.",
 				enumName,
 				enumCase.Name,
@@ -67,7 +67,7 @@ func checkEnumLegality(filename, enumName string, enum *ast.EnumNode, issues *[]
 		if len(caseNames) <= 1 {
 			continue
 		}
-		*issues = append(*issues, issue(filename, enum.GetPos(), level0ClassModelCode, fmt.Sprintf(
+		*issues = append(*issues, issueSpan(filename, enum, level0ClassModelCode, fmt.Sprintf(
 			"Enum %s has duplicate value %s for cases %s.",
 			enumName,
 			value,
@@ -84,17 +84,17 @@ func checkEnumLegality(filename, enumName string, enum *ast.EnumNode, issues *[]
 		if isMagicMethodName(method.Name) {
 			switch lowerName {
 			case "__construct":
-				*issues = append(*issues, issue(filename, method.GetPos(), level0ClassModelCode, fmt.Sprintf("Enum %s contains constructor.", enumName)))
+				*issues = append(*issues, issueSpan(filename, method, level0ClassModelCode, fmt.Sprintf("Enum %s contains constructor.", enumName)))
 			case "__destruct":
-				*issues = append(*issues, issue(filename, method.GetPos(), level0ClassModelCode, fmt.Sprintf("Enum %s contains destructor.", enumName)))
+				*issues = append(*issues, issueSpan(filename, method, level0ClassModelCode, fmt.Sprintf("Enum %s contains destructor.", enumName)))
 			default:
 				if _, allowed := allowedEnumMagicMethods[lowerName]; !allowed {
-					*issues = append(*issues, issue(filename, method.GetPos(), level0ClassModelCode, fmt.Sprintf("Enum %s contains magic method %s().", enumName, method.Name)))
+					*issues = append(*issues, issueSpan(filename, method, level0ClassModelCode, fmt.Sprintf("Enum %s contains magic method %s().", enumName, method.Name)))
 				}
 			}
 		}
 		if lowerName == "cases" || (backed && (lowerName == "from" || lowerName == "tryfrom")) {
-			*issues = append(*issues, issue(filename, method.GetPos(), level0ClassModelCode, fmt.Sprintf("Enum %s cannot redeclare native method %s().", enumName, method.Name)))
+			*issues = append(*issues, issueSpan(filename, method, level0ClassModelCode, fmt.Sprintf("Enum %s cannot redeclare native method %s().", enumName, method.Name)))
 		}
 	}
 }

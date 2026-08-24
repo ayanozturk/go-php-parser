@@ -33,7 +33,7 @@ func (r *PHPStanLevel0Rule) checkLanguage(filename string, nodes []ast.Node, ctx
 				}
 				if first, exists := seen[key]; exists {
 					_ = first
-					issues = append(issues, issue(filename, item.GetPos(), level0LanguageCode, fmt.Sprintf("Array has %s duplicate key.", key)))
+					issues = append(issues, issueSpan(filename, item, level0LanguageCode, fmt.Sprintf("Array has %s duplicate key.", key)))
 					continue
 				}
 				seen[key] = item.GetPos()
@@ -43,17 +43,17 @@ func (r *PHPStanLevel0Rule) checkLanguage(filename string, nodes []ast.Node, ctx
 			case "include", "include_once", "require", "require_once":
 				if path, ok := stringLiteralValue(n.Operand); ok {
 					if _, err := os.Stat(resolveIncludePath(filename, path)); err != nil {
-						issues = append(issues, issue(filename, n.GetPos(), level0LanguageCode, fmt.Sprintf("Path in %s() \"%s\" is not a file or it does not exist.", n.Operator, path)))
+						issues = append(issues, issueSpan(filename, n, level0LanguageCode, fmt.Sprintf("Path in %s() \"%s\" is not a file or it does not exist.", n.Operator, path)))
 					}
 				}
 			case "++", "--":
 				if !isWritableExpr(n.Operand) {
-					issues = append(issues, issue(filename, n.GetPos(), level0LanguageCode, fmt.Sprintf("Cannot use %s on non-variable expression.", n.Operator)))
+					issues = append(issues, issueSpan(filename, n, level0LanguageCode, fmt.Sprintf("Cannot use %s on non-variable expression.", n.Operator)))
 				}
 			}
 		case *ast.TypeCastNode:
 			if strings.EqualFold(n.Type, "unset") || strings.EqualFold(n.Type, "void") {
-				issues = append(issues, issue(filename, n.GetPos(), level0LanguageCode, fmt.Sprintf("Cannot cast to %s.", n.Type)))
+				issues = append(issues, issueSpan(filename, n, level0LanguageCode, fmt.Sprintf("Cannot cast to %s.", n.Type)))
 			}
 		case *ast.ThrowNode:
 			className := resolveThrownClassName(n.Expr, ft)
@@ -65,18 +65,18 @@ func (r *PHPStanLevel0Rule) checkLanguage(filename string, nodes []ast.Node, ctx
 				return
 			}
 			if resolved.Kind == "trait" || resolved.Kind == "enum" {
-				issues = append(issues, issue(filename, n.GetPos(), level0ClassModelCode, fmt.Sprintf("Cannot throw %s %s.", resolved.Kind, resolved.Name)))
+				issues = append(issues, issueSpan(filename, n, level0ClassModelCode, fmt.Sprintf("Cannot throw %s %s.", resolved.Kind, resolved.Name)))
 				return
 			}
 			if !isThrowableClass(className, ctx.Resolver) {
-				issues = append(issues, issue(filename, n.GetPos(), level0ClassModelCode, fmt.Sprintf("Invalid type %s to throw.", resolved.Name)))
+				issues = append(issues, issueSpan(filename, n, level0ClassModelCode, fmt.Sprintf("Invalid type %s to throw.", resolved.Name)))
 			}
 		case *ast.FunctionCallNode:
 			name := strings.ToLower(functionCallName(n))
 			if name == "preg_match" && len(n.Args) > 0 {
 				if pattern, ok := stringLiteralValue(argumentValue(n.Args[0])); ok {
 					if _, err := regexp.Compile(extractRegexpBody(pattern)); err != nil {
-						issues = append(issues, issue(filename, n.GetPos(), level0LanguageCode, fmt.Sprintf("Regex pattern is invalid: %s", err.Error())))
+						issues = append(issues, issueSpan(filename, n, level0LanguageCode, fmt.Sprintf("Regex pattern is invalid: %s", err.Error())))
 					}
 				}
 			}
@@ -84,7 +84,7 @@ func (r *PHPStanLevel0Rule) checkLanguage(filename string, nodes []ast.Node, ctx
 				if format, ok := stringLiteralValue(argumentValue(n.Args[0])); ok {
 					required := countPrintfPlaceholders(format)
 					if required > len(n.Args)-1 {
-						issues = append(issues, issue(filename, n.GetPos(), level0InvocationCode, fmt.Sprintf("Call to function %s contains %d placeholders, %d values given.", name, required, len(n.Args)-1)))
+						issues = append(issues, issueSpan(filename, n, level0InvocationCode, fmt.Sprintf("Call to function %s contains %d placeholders, %d values given.", name, required, len(n.Args)-1)))
 					}
 				}
 			}
@@ -92,7 +92,7 @@ func (r *PHPStanLevel0Rule) checkLanguage(filename string, nodes []ast.Node, ctx
 	})
 	for _, goTo := range gotos {
 		if _, ok := labels[goTo.Label]; !ok {
-			issues = append(issues, issue(filename, goTo.GetPos(), level0LanguageCode, fmt.Sprintf("Goto to undefined label %s.", goTo.Label)))
+			issues = append(issues, issueSpan(filename, goTo, level0LanguageCode, fmt.Sprintf("Goto to undefined label %s.", goTo.Label)))
 		}
 	}
 	return issues

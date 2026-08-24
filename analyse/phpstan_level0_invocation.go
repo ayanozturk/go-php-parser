@@ -38,23 +38,23 @@ func checkNamedArguments(filename string, pos ast.Position, name string, args []
 		case *ast.NamedArgumentNode:
 			seenNamed = true
 			if _, ok := paramsByName[a.Name]; !ok && !variadic {
-				*issues = append(*issues, issue(filename, a.GetPos(), level0InvocationCode, fmt.Sprintf("Unknown parameter $%s in call to %s.", a.Name, name)))
+				*issues = append(*issues, issueSpan(filename, a, level0InvocationCode, fmt.Sprintf("Unknown parameter $%s in call to %s.", a.Name, name)))
 			}
 			if _, exists := used[a.Name]; exists {
-				*issues = append(*issues, issue(filename, a.GetPos(), level0InvocationCode, fmt.Sprintf("Argument for parameter $%s has already been passed.", a.Name)))
+				*issues = append(*issues, issueSpan(filename, a, level0InvocationCode, fmt.Sprintf("Argument for parameter $%s has already been passed.", a.Name)))
 			}
 			used[a.Name] = struct{}{}
 		case *ast.UnpackedArgumentNode:
 			if seenNamed {
-				*issues = append(*issues, issue(filename, a.GetPos(), level0InvocationCode, "Named argument cannot be followed by an unpacked (...) argument."))
+				*issues = append(*issues, issueSpan(filename, a, level0InvocationCode, "Named argument cannot be followed by an unpacked (...) argument."))
 			}
 			seenUnpacked = true
 		default:
 			if seenNamed {
-				*issues = append(*issues, issue(filename, arg.GetPos(), level0InvocationCode, "Named argument cannot be followed by a positional argument."))
+				*issues = append(*issues, issueSpan(filename, arg, level0InvocationCode, "Named argument cannot be followed by a positional argument."))
 			}
 			if seenUnpacked {
-				*issues = append(*issues, issue(filename, arg.GetPos(), level0InvocationCode, "Unpacked argument (...) cannot be followed by a non-unpacked argument."))
+				*issues = append(*issues, issueSpan(filename, arg, level0InvocationCode, "Unpacked argument (...) cannot be followed by a non-unpacked argument."))
 			}
 		}
 	}

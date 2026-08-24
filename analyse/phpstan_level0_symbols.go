@@ -21,15 +21,15 @@ func (r *PHPStanLevel0Rule) checkSymbolsAndCalls(filename string, nodes []ast.No
 				if guards.hasClass(className) {
 					return
 				}
-				issues = append(issues, issue(filename, n.GetPos(), level0SymbolsCode, fmt.Sprintf("Instantiated class %s not found.", className)))
+				issues = append(issues, issueSpan(filename, n, level0SymbolsCode, fmt.Sprintf("Instantiated class %s not found.", className)))
 				return
 			}
 			switch resolved.Kind {
 			case "interface", "trait", "enum":
-				issues = append(issues, issue(filename, n.GetPos(), level0ClassModelCode, fmt.Sprintf("Cannot instantiate %s %s.", resolved.Kind, resolved.Name)))
+				issues = append(issues, issueSpan(filename, n, level0ClassModelCode, fmt.Sprintf("Cannot instantiate %s %s.", resolved.Kind, resolved.Name)))
 			}
 			if resolved.Abstract {
-				issues = append(issues, issue(filename, n.GetPos(), level0ClassModelCode, fmt.Sprintf("Instantiated class %s is abstract.", resolved.Name)))
+				issues = append(issues, issueSpan(filename, n, level0ClassModelCode, fmt.Sprintf("Instantiated class %s is abstract.", resolved.Name)))
 			}
 			constructor := constructorFor(resolved.Name, ctx)
 			checkConstructorAccess(filename, n.GetPos(), resolved.Name, class, ft, ctx.Project, constructor, &issues)
@@ -51,7 +51,7 @@ func (r *PHPStanLevel0Rule) checkSymbolsAndCalls(filename string, nodes []ast.No
 					if guards.hasClass(resolvedClass) {
 						return
 					}
-					issues = append(issues, issue(filename, n.GetPos(), level0SymbolsCode, fmt.Sprintf("Call to static method %s() on an unknown class %s.", methodName, resolvedClass)))
+					issues = append(issues, issueSpan(filename, n, level0SymbolsCode, fmt.Sprintf("Call to static method %s() on an unknown class %s.", methodName, resolvedClass)))
 					return
 				}
 				method, ok := ctx.Resolver.ResolveMethod(resolvedClass, methodName)
@@ -59,7 +59,7 @@ func (r *PHPStanLevel0Rule) checkSymbolsAndCalls(filename string, nodes []ast.No
 					if guards.hasMethod(resolvedClass, methodName) {
 						return
 					}
-					issues = append(issues, issue(filename, n.GetPos(), level0SymbolsCode, fmt.Sprintf("Call to an undefined static method %s::%s().", resolvedClass, methodName)))
+					issues = append(issues, issueSpan(filename, n, level0SymbolsCode, fmt.Sprintf("Call to an undefined static method %s::%s().", resolvedClass, methodName)))
 					return
 				}
 				checkMethodVisibility(filename, n.GetPos(), method, resolvedClass, class, ft, ctx.Project, !isSpecialClassName(className), &issues)
@@ -71,7 +71,7 @@ func (r *PHPStanLevel0Rule) checkSymbolsAndCalls(filename string, nodes []ast.No
 				if guards.hasFunction(name) || guards.hasFunction(resolvedName) {
 					return
 				}
-				issues = append(issues, issue(filename, n.GetPos(), level0SymbolsCode, fmt.Sprintf("Function %s not found.", name)))
+				issues = append(issues, issueSpan(filename, n, level0SymbolsCode, fmt.Sprintf("Function %s not found.", name)))
 				return
 			}
 			if fn, ok := ctx.Resolver.ResolveFunction(resolvedName); ok {
@@ -84,7 +84,7 @@ func (r *PHPStanLevel0Rule) checkSymbolsAndCalls(filename string, nodes []ast.No
 					if currentFn != nil && currentFn.Name != "" {
 						methodName = currentFn.Name
 					}
-					issues = append(issues, issue(filename, n.GetPos(), level0SymbolsCode, fmt.Sprintf("Using $this inside static method %s::%s().", currentClassName(class, ft), methodName)))
+					issues = append(issues, issueSpan(filename, n, level0SymbolsCode, fmt.Sprintf("Using $this inside static method %s::%s().", currentClassName(class, ft), methodName)))
 					return
 				}
 				className := currentClassName(class, ft)
@@ -99,7 +99,7 @@ func (r *PHPStanLevel0Rule) checkSymbolsAndCalls(filename string, nodes []ast.No
 					if guards.hasMethod(className, n.Method) {
 						return
 					}
-					issues = append(issues, issue(filename, n.GetPos(), level0SymbolsCode, fmt.Sprintf("Call to an undefined method %s::%s().", className, n.Method)))
+					issues = append(issues, issueSpan(filename, n, level0SymbolsCode, fmt.Sprintf("Call to an undefined method %s::%s().", className, n.Method)))
 					return
 				}
 				checkMethodVisibility(filename, n.GetPos(), method, className, class, ft, ctx.Project, false, &issues)
@@ -136,18 +136,18 @@ func (r *PHPStanLevel0Rule) checkSymbolsAndCalls(filename string, nodes []ast.No
 				if n.Const != "class" && guards.hasConstant(className+"::"+n.Const) {
 					return
 				}
-				issues = append(issues, issue(filename, n.GetPos(), level0SymbolsCode, fmt.Sprintf("Access to constant %s::%s on an unknown class %s.", className, n.Const, className)))
+				issues = append(issues, issueSpan(filename, n, level0SymbolsCode, fmt.Sprintf("Access to constant %s::%s on an unknown class %s.", className, n.Const, className)))
 				return
 			}
 			if strings.HasPrefix(n.Const, "$") {
 				propertyName := strings.TrimPrefix(n.Const, "$")
 				property, ok := ctx.Resolver.ResolveProperty(className, propertyName)
 				if !ok {
-					issues = append(issues, issue(filename, n.GetPos(), level0SymbolsCode, fmt.Sprintf("Access to undefined static property %s::$%s.", className, propertyName)))
+					issues = append(issues, issueSpan(filename, n, level0SymbolsCode, fmt.Sprintf("Access to undefined static property %s::$%s.", className, propertyName)))
 					return
 				}
 				if !property.IsStatic {
-					issues = append(issues, issue(filename, n.GetPos(), level0SymbolsCode, fmt.Sprintf("Static access to instance property %s::$%s.", resolvedClass.Name, property.Name)))
+					issues = append(issues, issueSpan(filename, n, level0SymbolsCode, fmt.Sprintf("Static access to instance property %s::$%s.", resolvedClass.Name, property.Name)))
 				}
 				return
 			}
@@ -159,7 +159,7 @@ func (r *PHPStanLevel0Rule) checkSymbolsAndCalls(filename string, nodes []ast.No
 					if guards.hasConstant(constantName) {
 						return
 					}
-					issues = append(issues, issue(filename, n.GetPos(), level0SymbolsCode, fmt.Sprintf("Access to undefined constant %s::%s.", className, n.Const)))
+					issues = append(issues, issueSpan(filename, n, level0SymbolsCode, fmt.Sprintf("Access to undefined constant %s::%s.", className, n.Const)))
 				}
 			}
 		case *ast.PropertyFetchNode:
@@ -172,7 +172,7 @@ func (r *PHPStanLevel0Rule) checkSymbolsAndCalls(filename string, nodes []ast.No
 				if currentFn != nil && currentFn.Name != "" {
 					methodName = currentFn.Name
 				}
-				issues = append(issues, issue(filename, n.GetPos(), level0SymbolsCode, fmt.Sprintf("Using $this inside static method %s::%s().", currentClassName(class, ft), methodName)))
+				issues = append(issues, issueSpan(filename, n, level0SymbolsCode, fmt.Sprintf("Using $this inside static method %s::%s().", currentClassName(class, ft), methodName)))
 				return
 			}
 			className := currentClassName(class, ft)
@@ -183,7 +183,7 @@ func (r *PHPStanLevel0Rule) checkSymbolsAndCalls(filename string, nodes []ast.No
 				if resolvedClass, classOK := ctx.Resolver.ResolveClass(className); classOK && resolvedClass.Kind == "trait" {
 					return
 				}
-				issues = append(issues, issue(filename, n.GetPos(), level0SymbolsCode, fmt.Sprintf("Access to an undefined property %s::$%s.", className, n.Property)))
+				issues = append(issues, issueSpan(filename, n, level0SymbolsCode, fmt.Sprintf("Access to an undefined property %s::$%s.", className, n.Property)))
 			}
 		}
 	})

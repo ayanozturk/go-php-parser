@@ -8,6 +8,7 @@ type ClassConstFetchNode struct {
 	// common `Class::CONST` / `Class::$prop` forms.
 	ConstExpr Node
 	Pos       Position
+	EndPos    Position
 }
 
 func (n *ClassConstFetchNode) GetPos() Position {
@@ -20,6 +21,14 @@ func (n *ClassConstFetchNode) NodeType() string {
 
 func (n *ClassConstFetchNode) SetPos(pos Position) {
 	n.Pos = pos
+}
+
+func (n *ClassConstFetchNode) GetEndPos() Position {
+	return n.EndPos
+}
+
+func (n *ClassConstFetchNode) SetEndPos(pos Position) {
+	n.EndPos = pos
 }
 
 func (n *ClassConstFetchNode) String() string {

@@ -16,14 +16,19 @@ type Parser struct {
 	SkipFunctionBodies bool
 	l                  *lexer.Lexer
 	tok                token.Token
-	errors             []error
-	debug              bool
-	currentDoc         string // Current PHPDoc comment being tracked
-	modifierArr        [4]string
-	modifierBuf        []string
-	nameBuf            strings.Builder
-	stopBuf            [4]token.TokenType
-	stopLen            int
+	// prevTokEnd is the end position (see token.Token.EndPos) of the last
+	// token consumed before the current lookahead token p.tok. It is
+	// updated on every nextToken() call and used to stamp a just-parsed
+	// node's EndPos with "the end of the last token that was part of it".
+	prevTokEnd  token.Position
+	errors      []error
+	debug       bool
+	currentDoc  string // Current PHPDoc comment being tracked
+	modifierArr [4]string
+	modifierBuf []string
+	nameBuf     strings.Builder
+	stopBuf     [4]token.TokenType
+	stopLen     int
 }
 
 func New(l *lexer.Lexer, debug bool) *Parser {
@@ -46,6 +51,7 @@ func (p *Parser) isStopToken(t token.TokenType) bool {
 }
 
 func (p *Parser) nextToken() {
+	p.prevTokEnd = p.tok.EndPos()
 	p.tok = p.l.NextToken()
 }
 

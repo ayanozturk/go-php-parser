@@ -18,11 +18,14 @@ type ParamNode struct {
 	IsVariadic    bool   // true if this param is variadic (...$values)
 	IsByRef       bool   // true if this param is passed by reference (&$data)
 	Pos           Position
+	EndPos        Position
 }
 
-func (p *ParamNode) NodeType() string    { return "Param" }
-func (p *ParamNode) GetPos() Position    { return p.Pos }
-func (p *ParamNode) SetPos(pos Position) { p.Pos = pos }
+func (p *ParamNode) NodeType() string       { return "Param" }
+func (p *ParamNode) GetPos() Position       { return p.Pos }
+func (p *ParamNode) SetPos(pos Position)    { p.Pos = pos }
+func (p *ParamNode) GetEndPos() Position    { return p.EndPos }
+func (p *ParamNode) SetEndPos(pos Position) { p.EndPos = pos }
 func (p *ParamNode) String() string {
 	var parts []string
 	if p.Visibility != "" {

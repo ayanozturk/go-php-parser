@@ -13,11 +13,14 @@ type EnumNode struct {
 	Cases      []*EnumCaseNode
 	Methods    []Node
 	Pos        Position
+	EndPos     Position
 }
 
-func (e *EnumNode) NodeType() string    { return "Enum" }
-func (e *EnumNode) GetPos() Position    { return e.Pos }
-func (e *EnumNode) SetPos(pos Position) { e.Pos = pos }
+func (e *EnumNode) NodeType() string       { return "Enum" }
+func (e *EnumNode) GetPos() Position       { return e.Pos }
+func (e *EnumNode) SetPos(pos Position)    { e.Pos = pos }
+func (e *EnumNode) GetEndPos() Position    { return e.EndPos }
+func (e *EnumNode) SetEndPos(pos Position) { e.EndPos = pos }
 func (e *EnumNode) String() string {
 	var parts []string
 	parts = append(parts, fmt.Sprintf("Enum(%s)", e.Name))
@@ -35,14 +38,17 @@ func (e *EnumNode) TokenLiteral() string {
 
 // EnumCaseNode represents a case in an enum
 type EnumCaseNode struct {
-	Name  string
-	Value Node // Optional value for backed enums
-	Pos   Position
+	Name   string
+	Value  Node // Optional value for backed enums
+	Pos    Position
+	EndPos Position
 }
 
-func (e *EnumCaseNode) NodeType() string    { return "EnumCase" }
-func (e *EnumCaseNode) GetPos() Position    { return e.Pos }
-func (e *EnumCaseNode) SetPos(pos Position) { e.Pos = pos }
+func (e *EnumCaseNode) NodeType() string       { return "EnumCase" }
+func (e *EnumCaseNode) GetPos() Position       { return e.Pos }
+func (e *EnumCaseNode) SetPos(pos Position)    { e.Pos = pos }
+func (e *EnumCaseNode) GetEndPos() Position    { return e.EndPos }
+func (e *EnumCaseNode) SetEndPos(pos Position) { e.EndPos = pos }
 func (e *EnumCaseNode) String() string {
 	if e.Value != nil {
 		return fmt.Sprintf("Case(%s = %s) @ %d:%d", e.Name, e.Value.TokenLiteral(), e.Pos.Line, e.Pos.Column)

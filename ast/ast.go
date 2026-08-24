@@ -18,6 +18,13 @@ type Node interface {
 	NodeType() string
 	GetPos() Position
 	SetPos(Position)
+	// GetEndPos returns the position immediately after the node's last
+	// token, forming a [GetPos, GetEndPos) source span. Nodes constructed
+	// without an explicit end position (e.g. in older test helpers) report
+	// a zero Position; callers needing a span must treat a zero EndPos as
+	// "unknown" rather than a real offset of 0.
+	GetEndPos() Position
+	SetEndPos(Position)
 	String() string
 	TokenLiteral() string
 }
@@ -26,11 +33,14 @@ type Node interface {
 type BlockNode struct {
 	Statements []Node
 	Pos        Position
+	EndPos     Position
 }
 
-func (b *BlockNode) NodeType() string    { return "Block" }
-func (b *BlockNode) GetPos() Position    { return b.Pos }
-func (b *BlockNode) SetPos(pos Position) { b.Pos = pos }
+func (b *BlockNode) NodeType() string       { return "Block" }
+func (b *BlockNode) GetPos() Position       { return b.Pos }
+func (b *BlockNode) SetPos(pos Position)    { b.Pos = pos }
+func (b *BlockNode) GetEndPos() Position    { return b.EndPos }
+func (b *BlockNode) SetEndPos(pos Position) { b.EndPos = pos }
 func (b *BlockNode) String() string {
 	return fmt.Sprintf("Block @ %d:%d", b.Pos.Line, b.Pos.Column)
 }
@@ -38,13 +48,16 @@ func (b *BlockNode) TokenLiteral() string { return "{" }
 
 // Identifier represents a name like variable or function name
 type Identifier struct {
-	Name string
-	Pos  Position
+	Name   string
+	Pos    Position
+	EndPos Position
 }
 
-func (i *Identifier) NodeType() string    { return "Identifier" }
-func (i *Identifier) GetPos() Position    { return i.Pos }
-func (i *Identifier) SetPos(pos Position) { i.Pos = pos }
+func (i *Identifier) NodeType() string       { return "Identifier" }
+func (i *Identifier) GetPos() Position       { return i.Pos }
+func (i *Identifier) SetPos(pos Position)    { i.Pos = pos }
+func (i *Identifier) GetEndPos() Position    { return i.EndPos }
+func (i *Identifier) SetEndPos(pos Position) { i.EndPos = pos }
 func (i *Identifier) String() string {
 	return fmt.Sprintf("Identifier(%s) @ %d:%d", i.Name, i.Pos.Line, i.Pos.Column)
 }
@@ -54,13 +67,16 @@ func (i *Identifier) TokenLiteral() string {
 
 // VariableNode represents a PHP variable (e.g., $var)
 type VariableNode struct {
-	Name string // Without the leading $
-	Pos  Position
+	Name   string // Without the leading $
+	Pos    Position
+	EndPos Position
 }
 
-func (v *VariableNode) NodeType() string    { return "Variable" }
-func (v *VariableNode) GetPos() Position    { return v.Pos }
-func (v *VariableNode) SetPos(pos Position) { v.Pos = pos }
+func (v *VariableNode) NodeType() string       { return "Variable" }
+func (v *VariableNode) GetPos() Position       { return v.Pos }
+func (v *VariableNode) SetPos(pos Position)    { v.Pos = pos }
+func (v *VariableNode) GetEndPos() Position    { return v.EndPos }
+func (v *VariableNode) SetEndPos(pos Position) { v.EndPos = pos }
 func (v *VariableNode) String() string {
 	return fmt.Sprintf("Variable($%s) @ %d:%d", v.Name, v.Pos.Line, v.Pos.Column)
 }
@@ -71,13 +87,16 @@ func (v *VariableNode) TokenLiteral() string {
 // VariableVariableNode represents a "variable variable", e.g. `$$name` or
 // `${$name}`: the variable whose name is the runtime value of Expr.
 type VariableVariableNode struct {
-	Expr Node
-	Pos  Position
+	Expr   Node
+	Pos    Position
+	EndPos Position
 }
 
-func (v *VariableVariableNode) NodeType() string    { return "VariableVariable" }
-func (v *VariableVariableNode) GetPos() Position    { return v.Pos }
-func (v *VariableVariableNode) SetPos(pos Position) { v.Pos = pos }
+func (v *VariableVariableNode) NodeType() string       { return "VariableVariable" }
+func (v *VariableVariableNode) GetPos() Position       { return v.Pos }
+func (v *VariableVariableNode) SetPos(pos Position)    { v.Pos = pos }
+func (v *VariableVariableNode) GetEndPos() Position    { return v.EndPos }
+func (v *VariableVariableNode) SetEndPos(pos Position) { v.EndPos = pos }
 func (v *VariableVariableNode) String() string {
 	return fmt.Sprintf("VariableVariable($%s) @ %d:%d", v.Expr.String(), v.Pos.Line, v.Pos.Column)
 }
@@ -93,13 +112,16 @@ type LiteralNode interface {
 
 // StringLiteral represents a string literal
 type StringLiteral struct {
-	Value string
-	Pos   Position
+	Value  string
+	Pos    Position
+	EndPos Position
 }
 
-func (s *StringLiteral) NodeType() string    { return "StringLiteral" }
-func (s *StringLiteral) GetPos() Position    { return s.Pos }
-func (s *StringLiteral) SetPos(pos Position) { s.Pos = pos }
+func (s *StringLiteral) NodeType() string       { return "StringLiteral" }
+func (s *StringLiteral) GetPos() Position       { return s.Pos }
+func (s *StringLiteral) SetPos(pos Position)    { s.Pos = pos }
+func (s *StringLiteral) GetEndPos() Position    { return s.EndPos }
+func (s *StringLiteral) SetEndPos(pos Position) { s.EndPos = pos }
 func (s *StringLiteral) String() string {
 	return fmt.Sprintf("String(%q) @ %d:%d", s.Value, s.Pos.Line, s.Pos.Column)
 }
@@ -108,13 +130,16 @@ func (s *StringLiteral) GetValue() interface{} { return s.Value }
 
 // InterpolatedStringLiteral represents a string with interpolated expressions
 type InterpolatedStringLiteral struct {
-	Parts []Node
-	Pos   Position
+	Parts  []Node
+	Pos    Position
+	EndPos Position
 }
 
-func (s *InterpolatedStringLiteral) NodeType() string    { return "InterpolatedString" }
-func (s *InterpolatedStringLiteral) GetPos() Position    { return s.Pos }
-func (s *InterpolatedStringLiteral) SetPos(pos Position) { s.Pos = pos }
+func (s *InterpolatedStringLiteral) NodeType() string       { return "InterpolatedString" }
+func (s *InterpolatedStringLiteral) GetPos() Position       { return s.Pos }
+func (s *InterpolatedStringLiteral) SetPos(pos Position)    { s.Pos = pos }
+func (s *InterpolatedStringLiteral) GetEndPos() Position    { return s.EndPos }
+func (s *InterpolatedStringLiteral) SetEndPos(pos Position) { s.EndPos = pos }
 func (s *InterpolatedStringLiteral) String() string {
 	return fmt.Sprintf("InterpolatedString @ %d:%d", s.Pos.Line, s.Pos.Column)
 }
@@ -128,13 +153,16 @@ func (s *InterpolatedStringLiteral) TokenLiteral() string {
 
 // IntegerLiteral represents an integer literal
 type IntegerLiteral struct {
-	Value int64
-	Pos   Position
+	Value  int64
+	Pos    Position
+	EndPos Position
 }
 
-func (i *IntegerLiteral) NodeType() string    { return "IntegerLiteral" }
-func (i *IntegerLiteral) GetPos() Position    { return i.Pos }
-func (i *IntegerLiteral) SetPos(pos Position) { i.Pos = pos }
+func (i *IntegerLiteral) NodeType() string       { return "IntegerLiteral" }
+func (i *IntegerLiteral) GetPos() Position       { return i.Pos }
+func (i *IntegerLiteral) SetPos(pos Position)    { i.Pos = pos }
+func (i *IntegerLiteral) GetEndPos() Position    { return i.EndPos }
+func (i *IntegerLiteral) SetEndPos(pos Position) { i.EndPos = pos }
 func (i *IntegerLiteral) String() string {
 	return fmt.Sprintf("Integer(%d) @ %d:%d", i.Value, i.Pos.Line, i.Pos.Column)
 }
@@ -143,13 +171,16 @@ func (i *IntegerLiteral) GetValue() interface{} { return i.Value }
 
 // FloatLiteral represents a floating point literal
 type FloatLiteral struct {
-	Value float64
-	Pos   Position
+	Value  float64
+	Pos    Position
+	EndPos Position
 }
 
-func (f *FloatLiteral) NodeType() string    { return "FloatLiteral" }
-func (f *FloatLiteral) GetPos() Position    { return f.Pos }
-func (f *FloatLiteral) SetPos(pos Position) { f.Pos = pos }
+func (f *FloatLiteral) NodeType() string       { return "FloatLiteral" }
+func (f *FloatLiteral) GetPos() Position       { return f.Pos }
+func (f *FloatLiteral) SetPos(pos Position)    { f.Pos = pos }
+func (f *FloatLiteral) GetEndPos() Position    { return f.EndPos }
+func (f *FloatLiteral) SetEndPos(pos Position) { f.EndPos = pos }
 func (f *FloatLiteral) String() string {
 	return fmt.Sprintf("Float(%g) @ %d:%d", f.Value, f.Pos.Line, f.Pos.Column)
 }
@@ -158,13 +189,16 @@ func (f *FloatLiteral) GetValue() interface{} { return f.Value }
 
 // BooleanLiteral represents a boolean literal
 type BooleanLiteral struct {
-	Value bool
-	Pos   Position
+	Value  bool
+	Pos    Position
+	EndPos Position
 }
 
-func (b *BooleanLiteral) NodeType() string    { return "BooleanLiteral" }
-func (b *BooleanLiteral) GetPos() Position    { return b.Pos }
-func (b *BooleanLiteral) SetPos(pos Position) { b.Pos = pos }
+func (b *BooleanLiteral) NodeType() string       { return "BooleanLiteral" }
+func (b *BooleanLiteral) GetPos() Position       { return b.Pos }
+func (b *BooleanLiteral) SetPos(pos Position)    { b.Pos = pos }
+func (b *BooleanLiteral) GetEndPos() Position    { return b.EndPos }
+func (b *BooleanLiteral) SetEndPos(pos Position) { b.EndPos = pos }
 func (b *BooleanLiteral) String() string {
 	return fmt.Sprintf("Boolean(%t) @ %d:%d", b.Value, b.Pos.Line, b.Pos.Column)
 }
@@ -173,12 +207,15 @@ func (b *BooleanLiteral) GetValue() interface{} { return b.Value }
 
 // NullLiteral represents a null literal
 type NullLiteral struct {
-	Pos Position
+	Pos    Position
+	EndPos Position
 }
 
-func (n *NullLiteral) NodeType() string    { return "NullLiteral" }
-func (n *NullLiteral) GetPos() Position    { return n.Pos }
-func (n *NullLiteral) SetPos(pos Position) { n.Pos = pos }
+func (n *NullLiteral) NodeType() string       { return "NullLiteral" }
+func (n *NullLiteral) GetPos() Position       { return n.Pos }
+func (n *NullLiteral) SetPos(pos Position)    { n.Pos = pos }
+func (n *NullLiteral) GetEndPos() Position    { return n.EndPos }
+func (n *NullLiteral) SetEndPos(pos Position) { n.EndPos = pos }
 func (n *NullLiteral) String() string {
 	return fmt.Sprintf("Null @ %d:%d", n.Pos.Line, n.Pos.Column)
 }
@@ -191,11 +228,14 @@ type AssignmentNode struct {
 	Operator string // e.g., "=", "+=", ".="
 	Right    Node
 	Pos      Position
+	EndPos   Position
 }
 
-func (a *AssignmentNode) NodeType() string    { return "Assignment" }
-func (a *AssignmentNode) GetPos() Position    { return a.Pos }
-func (a *AssignmentNode) SetPos(pos Position) { a.Pos = pos }
+func (a *AssignmentNode) NodeType() string       { return "Assignment" }
+func (a *AssignmentNode) GetPos() Position       { return a.Pos }
+func (a *AssignmentNode) SetPos(pos Position)    { a.Pos = pos }
+func (a *AssignmentNode) GetEndPos() Position    { return a.EndPos }
+func (a *AssignmentNode) SetEndPos(pos Position) { a.EndPos = pos }
 func (a *AssignmentNode) String() string {
 	return fmt.Sprintf("Assignment(%s %s %s) @ %d:%d", a.Left.String(), a.Operator, a.Right.String(), a.Pos.Line, a.Pos.Column)
 }
@@ -205,13 +245,16 @@ func (a *AssignmentNode) TokenLiteral() string {
 
 // ReturnNode represents a return statement
 type ReturnNode struct {
-	Expr Node
-	Pos  Position
+	Expr   Node
+	Pos    Position
+	EndPos Position
 }
 
-func (r *ReturnNode) NodeType() string    { return "Return" }
-func (r *ReturnNode) GetPos() Position    { return r.Pos }
-func (r *ReturnNode) SetPos(pos Position) { r.Pos = pos }
+func (r *ReturnNode) NodeType() string       { return "Return" }
+func (r *ReturnNode) GetPos() Position       { return r.Pos }
+func (r *ReturnNode) SetPos(pos Position)    { r.Pos = pos }
+func (r *ReturnNode) GetEndPos() Position    { return r.EndPos }
+func (r *ReturnNode) SetEndPos(pos Position) { r.EndPos = pos }
 func (r *ReturnNode) String() string {
 	return fmt.Sprintf("Return(%s) @ %d:%d", r.Expr.String(), r.Pos.Line, r.Pos.Column)
 }
@@ -221,13 +264,16 @@ func (r *ReturnNode) TokenLiteral() string {
 
 // ExpressionStmt wraps a single expression as a statement
 type ExpressionStmt struct {
-	Expr Node
-	Pos  Position
+	Expr   Node
+	Pos    Position
+	EndPos Position
 }
 
-func (e *ExpressionStmt) NodeType() string    { return "ExpressionStmt" }
-func (e *ExpressionStmt) GetPos() Position    { return e.Pos }
-func (e *ExpressionStmt) SetPos(pos Position) { e.Pos = pos }
+func (e *ExpressionStmt) NodeType() string       { return "ExpressionStmt" }
+func (e *ExpressionStmt) GetPos() Position       { return e.Pos }
+func (e *ExpressionStmt) SetPos(pos Position)    { e.Pos = pos }
+func (e *ExpressionStmt) GetEndPos() Position    { return e.EndPos }
+func (e *ExpressionStmt) SetEndPos(pos Position) { e.EndPos = pos }
 func (e *ExpressionStmt) String() string {
 	return fmt.Sprintf("ExpressionStmt(%s) @ %d:%d", e.Expr.String(), e.Pos.Line, e.Pos.Column)
 }
@@ -241,11 +287,14 @@ type BinaryExpr struct {
 	Operator string
 	Right    Node
 	Pos      Position
+	EndPos   Position
 }
 
-func (b *BinaryExpr) NodeType() string    { return "BinaryExpr" }
-func (b *BinaryExpr) GetPos() Position    { return b.Pos }
-func (b *BinaryExpr) SetPos(pos Position) { b.Pos = pos }
+func (b *BinaryExpr) NodeType() string       { return "BinaryExpr" }
+func (b *BinaryExpr) GetPos() Position       { return b.Pos }
+func (b *BinaryExpr) SetPos(pos Position)    { b.Pos = pos }
+func (b *BinaryExpr) GetEndPos() Position    { return b.EndPos }
+func (b *BinaryExpr) SetEndPos(pos Position) { b.EndPos = pos }
 func (b *BinaryExpr) String() string {
 	return fmt.Sprintf("BinaryExpr(%s %s %s) @ %d:%d", b.Left.String(), b.Operator, b.Right.String(), b.Pos.Line, b.Pos.Column)
 }
@@ -260,11 +309,14 @@ type IfNode struct {
 	ElseIfs   []*ElseIfNode
 	Else      *ElseNode
 	Pos       Position
+	EndPos    Position
 }
 
-func (i *IfNode) NodeType() string    { return "If" }
-func (i *IfNode) GetPos() Position    { return i.Pos }
-func (i *IfNode) SetPos(pos Position) { i.Pos = pos }
+func (i *IfNode) NodeType() string       { return "If" }
+func (i *IfNode) GetPos() Position       { return i.Pos }
+func (i *IfNode) SetPos(pos Position)    { i.Pos = pos }
+func (i *IfNode) GetEndPos() Position    { return i.EndPos }
+func (i *IfNode) SetEndPos(pos Position) { i.EndPos = pos }
 func (i *IfNode) String() string {
 	return fmt.Sprintf("If(Cond: %s) @ %d:%d", i.Condition.String(), i.Pos.Line, i.Pos.Column)
 }
@@ -277,11 +329,14 @@ type ElseIfNode struct {
 	Condition Node
 	Body      []Node
 	Pos       Position
+	EndPos    Position
 }
 
-func (ei *ElseIfNode) NodeType() string    { return "ElseIf" }
-func (ei *ElseIfNode) GetPos() Position    { return ei.Pos }
-func (ei *ElseIfNode) SetPos(pos Position) { ei.Pos = pos }
+func (ei *ElseIfNode) NodeType() string       { return "ElseIf" }
+func (ei *ElseIfNode) GetPos() Position       { return ei.Pos }
+func (ei *ElseIfNode) SetPos(pos Position)    { ei.Pos = pos }
+func (ei *ElseIfNode) GetEndPos() Position    { return ei.EndPos }
+func (ei *ElseIfNode) SetEndPos(pos Position) { ei.EndPos = pos }
 func (ei *ElseIfNode) String() string {
 	return fmt.Sprintf("ElseIf(Cond: %s) @ %d:%d", ei.Condition.String(), ei.Pos.Line, ei.Pos.Column)
 }
@@ -291,13 +346,16 @@ func (ei *ElseIfNode) TokenLiteral() string {
 
 // ElseNode represents an else clause
 type ElseNode struct {
-	Body []Node
-	Pos  Position
+	Body   []Node
+	Pos    Position
+	EndPos Position
 }
 
-func (e *ElseNode) NodeType() string    { return "Else" }
-func (e *ElseNode) GetPos() Position    { return e.Pos }
-func (e *ElseNode) SetPos(pos Position) { e.Pos = pos }
+func (e *ElseNode) NodeType() string       { return "Else" }
+func (e *ElseNode) GetPos() Position       { return e.Pos }
+func (e *ElseNode) SetPos(pos Position)    { e.Pos = pos }
+func (e *ElseNode) GetEndPos() Position    { return e.EndPos }
+func (e *ElseNode) SetEndPos(pos Position) { e.EndPos = pos }
 func (e *ElseNode) String() string {
 	return fmt.Sprintf("Else @ %d:%d", e.Pos.Line, e.Pos.Column)
 }
@@ -310,11 +368,14 @@ type WhileNode struct {
 	Condition Node
 	Body      []Node
 	Pos       Position
+	EndPos    Position
 }
 
-func (w *WhileNode) NodeType() string    { return "While" }
-func (w *WhileNode) GetPos() Position    { return w.Pos }
-func (w *WhileNode) SetPos(pos Position) { w.Pos = pos }
+func (w *WhileNode) NodeType() string       { return "While" }
+func (w *WhileNode) GetPos() Position       { return w.Pos }
+func (w *WhileNode) SetPos(pos Position)    { w.Pos = pos }
+func (w *WhileNode) GetEndPos() Position    { return w.EndPos }
+func (w *WhileNode) SetEndPos(pos Position) { w.EndPos = pos }
 func (w *WhileNode) String() string {
 	return fmt.Sprintf("While(Cond: %s) @ %d:%d", w.Condition.String(), w.Pos.Line, w.Pos.Column)
 }
@@ -326,11 +387,14 @@ type DoWhileNode struct {
 	Condition Node
 	Body      []Node
 	Pos       Position
+	EndPos    Position
 }
 
-func (d *DoWhileNode) NodeType() string    { return "DoWhile" }
-func (d *DoWhileNode) GetPos() Position    { return d.Pos }
-func (d *DoWhileNode) SetPos(pos Position) { d.Pos = pos }
+func (d *DoWhileNode) NodeType() string       { return "DoWhile" }
+func (d *DoWhileNode) GetPos() Position       { return d.Pos }
+func (d *DoWhileNode) SetPos(pos Position)    { d.Pos = pos }
+func (d *DoWhileNode) GetEndPos() Position    { return d.EndPos }
+func (d *DoWhileNode) SetEndPos(pos Position) { d.EndPos = pos }
 func (d *DoWhileNode) String() string {
 	return fmt.Sprintf("DoWhile(Cond: %s) @ %d:%d", d.Condition.String(), d.Pos.Line, d.Pos.Column)
 }
@@ -343,11 +407,14 @@ type FunctionDecl struct {
 	Params []*Variable
 	Body   []Node
 	Pos    Position
+	EndPos Position
 }
 
-func (fd *FunctionDecl) NodeType() string    { return "Function" }
-func (fd *FunctionDecl) GetPos() Position    { return fd.Pos }
-func (fd *FunctionDecl) SetPos(pos Position) { fd.Pos = pos }
+func (fd *FunctionDecl) NodeType() string       { return "Function" }
+func (fd *FunctionDecl) GetPos() Position       { return fd.Pos }
+func (fd *FunctionDecl) SetPos(pos Position)    { fd.Pos = pos }
+func (fd *FunctionDecl) GetEndPos() Position    { return fd.EndPos }
+func (fd *FunctionDecl) SetEndPos(pos Position) { fd.EndPos = pos }
 func (fd *FunctionDecl) String() string {
 	return fmt.Sprintf("Function(%s) @ %d:%d", fd.Name, fd.Pos.Line, fd.Pos.Column)
 }
@@ -356,13 +423,16 @@ func (fd *FunctionDecl) TokenLiteral() string {
 }
 
 type Variable struct {
-	Name string
-	Pos  Position
+	Name   string
+	Pos    Position
+	EndPos Position
 }
 
-func (v *Variable) NodeType() string    { return "Variable" }
-func (v *Variable) GetPos() Position    { return v.Pos }
-func (v *Variable) SetPos(pos Position) { v.Pos = pos }
+func (v *Variable) NodeType() string       { return "Variable" }
+func (v *Variable) GetPos() Position       { return v.Pos }
+func (v *Variable) SetPos(pos Position)    { v.Pos = pos }
+func (v *Variable) GetEndPos() Position    { return v.EndPos }
+func (v *Variable) SetEndPos(pos Position) { v.EndPos = pos }
 func (v *Variable) String() string {
 	return fmt.Sprintf("Variable(%s) @ %d:%d", v.Name, v.Pos.Line, v.Pos.Column)
 }
@@ -375,11 +445,14 @@ type FunctionCall struct {
 	Name      string
 	Arguments []Node
 	Pos       Position
+	EndPos    Position
 }
 
-func (f *FunctionCall) NodeType() string    { return "FunctionCall" }
-func (f *FunctionCall) GetPos() Position    { return f.Pos }
-func (f *FunctionCall) SetPos(pos Position) { f.Pos = pos }
+func (f *FunctionCall) NodeType() string       { return "FunctionCall" }
+func (f *FunctionCall) GetPos() Position       { return f.Pos }
+func (f *FunctionCall) SetPos(pos Position)    { f.Pos = pos }
+func (f *FunctionCall) GetEndPos() Position    { return f.EndPos }
+func (f *FunctionCall) SetEndPos(pos Position) { f.EndPos = pos }
 func (f *FunctionCall) String() string {
 	return fmt.Sprintf("FunctionCall(%s) @ %d:%d", f.Name, f.Pos.Line, f.Pos.Column)
 }
@@ -389,13 +462,16 @@ func (f *FunctionCall) TokenLiteral() string {
 
 // IdentifierNode represents an identifier
 type IdentifierNode struct {
-	Value string
-	Pos   Position
+	Value  string
+	Pos    Position
+	EndPos Position
 }
 
-func (i *IdentifierNode) NodeType() string    { return "Identifier" }
-func (i *IdentifierNode) GetPos() Position    { return i.Pos }
-func (i *IdentifierNode) SetPos(pos Position) { i.Pos = pos }
+func (i *IdentifierNode) NodeType() string       { return "Identifier" }
+func (i *IdentifierNode) GetPos() Position       { return i.Pos }
+func (i *IdentifierNode) SetPos(pos Position)    { i.Pos = pos }
+func (i *IdentifierNode) GetEndPos() Position    { return i.EndPos }
+func (i *IdentifierNode) SetEndPos(pos Position) { i.EndPos = pos }
 func (i *IdentifierNode) String() string {
 	return fmt.Sprintf("%s @ %d:%d", i.Value, i.Pos.Line, i.Pos.Column)
 }
@@ -411,11 +487,14 @@ type FirstClassCallableNode struct {
 	Name   *IdentifierNode
 	Target Node
 	Pos    Position
+	EndPos Position
 }
 
-func (f *FirstClassCallableNode) NodeType() string    { return "FirstClassCallable" }
-func (f *FirstClassCallableNode) GetPos() Position    { return f.Pos }
-func (f *FirstClassCallableNode) SetPos(pos Position) { f.Pos = pos }
+func (f *FirstClassCallableNode) NodeType() string       { return "FirstClassCallable" }
+func (f *FirstClassCallableNode) GetPos() Position       { return f.Pos }
+func (f *FirstClassCallableNode) SetPos(pos Position)    { f.Pos = pos }
+func (f *FirstClassCallableNode) GetEndPos() Position    { return f.EndPos }
+func (f *FirstClassCallableNode) SetEndPos(pos Position) { f.EndPos = pos }
 func (f *FirstClassCallableNode) String() string {
 	if f.Name != nil {
 		return fmt.Sprintf("FirstClassCallable(%s) @ %d:%d", f.Name.Value, f.Pos.Line, f.Pos.Column)
@@ -431,13 +510,16 @@ func (f *FirstClassCallableNode) TokenLiteral() string {
 
 // BooleanNode represents a boolean literal
 type BooleanNode struct {
-	Value bool
-	Pos   Position
+	Value  bool
+	Pos    Position
+	EndPos Position
 }
 
-func (b *BooleanNode) NodeType() string    { return "Boolean" }
-func (b *BooleanNode) GetPos() Position    { return b.Pos }
-func (b *BooleanNode) SetPos(pos Position) { b.Pos = pos }
+func (b *BooleanNode) NodeType() string       { return "Boolean" }
+func (b *BooleanNode) GetPos() Position       { return b.Pos }
+func (b *BooleanNode) SetPos(pos Position)    { b.Pos = pos }
+func (b *BooleanNode) GetEndPos() Position    { return b.EndPos }
+func (b *BooleanNode) SetEndPos(pos Position) { b.EndPos = pos }
 func (b *BooleanNode) String() string {
 	return fmt.Sprintf("%t @ %d:%d", b.Value, b.Pos.Line, b.Pos.Column)
 }
@@ -450,12 +532,15 @@ func (b *BooleanNode) TokenLiteral() string {
 
 // NullNode represents a null literal
 type NullNode struct {
-	Pos Position
+	Pos    Position
+	EndPos Position
 }
 
-func (n *NullNode) NodeType() string    { return "Null" }
-func (n *NullNode) GetPos() Position    { return n.Pos }
-func (n *NullNode) SetPos(pos Position) { n.Pos = pos }
+func (n *NullNode) NodeType() string       { return "Null" }
+func (n *NullNode) GetPos() Position       { return n.Pos }
+func (n *NullNode) SetPos(pos Position)    { n.Pos = pos }
+func (n *NullNode) GetEndPos() Position    { return n.EndPos }
+func (n *NullNode) SetEndPos(pos Position) { n.EndPos = pos }
 func (n *NullNode) String() string {
 	return fmt.Sprintf("null @ %d:%d", n.Pos.Line, n.Pos.Column)
 }
@@ -465,13 +550,16 @@ func (n *NullNode) TokenLiteral() string {
 
 // ConcatNode represents string concatenation with variable interpolation
 type ConcatNode struct {
-	Parts []Node
-	Pos   Position
+	Parts  []Node
+	Pos    Position
+	EndPos Position
 }
 
-func (c *ConcatNode) NodeType() string    { return "Concat" }
-func (c *ConcatNode) GetPos() Position    { return c.Pos }
-func (c *ConcatNode) SetPos(pos Position) { c.Pos = pos }
+func (c *ConcatNode) NodeType() string       { return "Concat" }
+func (c *ConcatNode) GetPos() Position       { return c.Pos }
+func (c *ConcatNode) SetPos(pos Position)    { c.Pos = pos }
+func (c *ConcatNode) GetEndPos() Position    { return c.EndPos }
+func (c *ConcatNode) SetEndPos(pos Position) { c.EndPos = pos }
 func (c *ConcatNode) String() string {
 	var parts []string
 	for _, part := range c.Parts {
@@ -488,11 +576,14 @@ type AttributeNode struct {
 	Name      string
 	Arguments []Node
 	Pos       Position
+	EndPos    Position
 }
 
-func (a *AttributeNode) NodeType() string    { return "Attribute" }
-func (a *AttributeNode) GetPos() Position    { return a.Pos }
-func (a *AttributeNode) SetPos(pos Position) { a.Pos = pos }
+func (a *AttributeNode) NodeType() string       { return "Attribute" }
+func (a *AttributeNode) GetPos() Position       { return a.Pos }
+func (a *AttributeNode) SetPos(pos Position)    { a.Pos = pos }
+func (a *AttributeNode) GetEndPos() Position    { return a.EndPos }
+func (a *AttributeNode) SetEndPos(pos Position) { a.EndPos = pos }
 func (a *AttributeNode) String() string {
 	return fmt.Sprintf("#[%s] @ %d:%d", a.Name, a.Pos.Line, a.Pos.Column)
 }
@@ -500,14 +591,17 @@ func (a *AttributeNode) TokenLiteral() string { return a.Name }
 
 // NamespaceNode represents a PHP namespace declaration
 type NamespaceNode struct {
-	Name string
-	Body []Node
-	Pos  Position
+	Name   string
+	Body   []Node
+	Pos    Position
+	EndPos Position
 }
 
-func (n *NamespaceNode) NodeType() string    { return "Namespace" }
-func (n *NamespaceNode) GetPos() Position    { return n.Pos }
-func (n *NamespaceNode) SetPos(pos Position) { n.Pos = pos }
+func (n *NamespaceNode) NodeType() string       { return "Namespace" }
+func (n *NamespaceNode) GetPos() Position       { return n.Pos }
+func (n *NamespaceNode) SetPos(pos Position)    { n.Pos = pos }
+func (n *NamespaceNode) GetEndPos() Position    { return n.EndPos }
+func (n *NamespaceNode) SetEndPos(pos Position) { n.EndPos = pos }
 func (n *NamespaceNode) String() string {
 	return fmt.Sprintf("namespace %s @ %d:%d", n.Name, n.Pos.Line, n.Pos.Column)
 }
@@ -515,15 +609,18 @@ func (n *NamespaceNode) TokenLiteral() string { return "namespace" }
 
 // UseNode represents a PHP use statement
 type UseNode struct {
-	Path  string
-	Alias string
-	Type  string // class, function, const
-	Pos   Position
+	Path   string
+	Alias  string
+	Type   string // class, function, const
+	Pos    Position
+	EndPos Position
 }
 
-func (u *UseNode) NodeType() string    { return "Use" }
-func (u *UseNode) GetPos() Position    { return u.Pos }
-func (u *UseNode) SetPos(pos Position) { u.Pos = pos }
+func (u *UseNode) NodeType() string       { return "Use" }
+func (u *UseNode) GetPos() Position       { return u.Pos }
+func (u *UseNode) SetPos(pos Position)    { u.Pos = pos }
+func (u *UseNode) GetEndPos() Position    { return u.EndPos }
+func (u *UseNode) SetEndPos(pos Position) { u.EndPos = pos }
 func (u *UseNode) String() string {
 	if u.Alias != "" {
 		return fmt.Sprintf("use %s as %s @ %d:%d", u.Path, u.Alias, u.Pos.Line, u.Pos.Column)
@@ -537,11 +634,14 @@ type MatchNode struct {
 	Condition Node
 	Arms      []MatchArmNode
 	Pos       Position
+	EndPos    Position
 }
 
-func (m *MatchNode) NodeType() string    { return "Match" }
-func (m *MatchNode) GetPos() Position    { return m.Pos }
-func (m *MatchNode) SetPos(pos Position) { m.Pos = pos }
+func (m *MatchNode) NodeType() string       { return "Match" }
+func (m *MatchNode) GetPos() Position       { return m.Pos }
+func (m *MatchNode) SetPos(pos Position)    { m.Pos = pos }
+func (m *MatchNode) GetEndPos() Position    { return m.EndPos }
+func (m *MatchNode) SetEndPos(pos Position) { m.EndPos = pos }
 func (m *MatchNode) String() string {
 	return fmt.Sprintf("match @ %d:%d", m.Pos.Line, m.Pos.Column)
 }
@@ -552,11 +652,14 @@ type MatchArmNode struct {
 	Conditions []Node
 	Body       Node
 	Pos        Position
+	EndPos     Position
 }
 
-func (m *MatchArmNode) NodeType() string    { return "MatchArm" }
-func (m *MatchArmNode) GetPos() Position    { return m.Pos }
-func (m *MatchArmNode) SetPos(pos Position) { m.Pos = pos }
+func (m *MatchArmNode) NodeType() string       { return "MatchArm" }
+func (m *MatchArmNode) GetPos() Position       { return m.Pos }
+func (m *MatchArmNode) SetPos(pos Position)    { m.Pos = pos }
+func (m *MatchArmNode) GetEndPos() Position    { return m.EndPos }
+func (m *MatchArmNode) SetEndPos(pos Position) { m.EndPos = pos }
 func (m *MatchArmNode) String() string {
 	return fmt.Sprintf("match arm @ %d:%d", m.Pos.Line, m.Pos.Column)
 }
@@ -568,11 +671,14 @@ type ArrowFunctionNode struct {
 	ReturnType string
 	Expr       Node
 	Pos        Position
+	EndPos     Position
 }
 
-func (a *ArrowFunctionNode) NodeType() string    { return "ArrowFunction" }
-func (a *ArrowFunctionNode) GetPos() Position    { return a.Pos }
-func (a *ArrowFunctionNode) SetPos(pos Position) { a.Pos = pos }
+func (a *ArrowFunctionNode) NodeType() string       { return "ArrowFunction" }
+func (a *ArrowFunctionNode) GetPos() Position       { return a.Pos }
+func (a *ArrowFunctionNode) SetPos(pos Position)    { a.Pos = pos }
+func (a *ArrowFunctionNode) GetEndPos() Position    { return a.EndPos }
+func (a *ArrowFunctionNode) SetEndPos(pos Position) { a.EndPos = pos }
 func (a *ArrowFunctionNode) String() string {
 	return fmt.Sprintf("fn @ %d:%d", a.Pos.Line, a.Pos.Column)
 }
@@ -580,14 +686,17 @@ func (a *ArrowFunctionNode) TokenLiteral() string { return "fn" }
 
 // TypeCastNode represents a type cast operation
 type TypeCastNode struct {
-	Type string
-	Expr Node
-	Pos  Position
+	Type   string
+	Expr   Node
+	Pos    Position
+	EndPos Position
 }
 
-func (t *TypeCastNode) NodeType() string    { return "TypeCast" }
-func (t *TypeCastNode) GetPos() Position    { return t.Pos }
-func (t *TypeCastNode) SetPos(pos Position) { t.Pos = pos }
+func (t *TypeCastNode) NodeType() string       { return "TypeCast" }
+func (t *TypeCastNode) GetPos() Position       { return t.Pos }
+func (t *TypeCastNode) SetPos(pos Position)    { t.Pos = pos }
+func (t *TypeCastNode) GetEndPos() Position    { return t.EndPos }
+func (t *TypeCastNode) SetEndPos(pos Position) { t.EndPos = pos }
 func (t *TypeCastNode) String() string {
 	return fmt.Sprintf("(%s) @ %d:%d", t.Type, t.Pos.Line, t.Pos.Column)
 }
@@ -595,15 +704,18 @@ func (t *TypeCastNode) TokenLiteral() string { return t.Type }
 
 // YieldNode represents a yield expression
 type YieldNode struct {
-	Key   Node
-	Value Node
-	From  bool
-	Pos   Position
+	Key    Node
+	Value  Node
+	From   bool
+	Pos    Position
+	EndPos Position
 }
 
-func (y *YieldNode) NodeType() string    { return "Yield" }
-func (y *YieldNode) GetPos() Position    { return y.Pos }
-func (y *YieldNode) SetPos(pos Position) { y.Pos = pos }
+func (y *YieldNode) NodeType() string       { return "Yield" }
+func (y *YieldNode) GetPos() Position       { return y.Pos }
+func (y *YieldNode) SetPos(pos Position)    { y.Pos = pos }
+func (y *YieldNode) GetEndPos() Position    { return y.EndPos }
+func (y *YieldNode) SetEndPos(pos Position) { y.EndPos = pos }
 func (y *YieldNode) String() string {
 	if y.From {
 		return fmt.Sprintf("yield from @ %d:%d", y.Pos.Line, y.Pos.Column)
@@ -617,11 +729,14 @@ type HeredocNode struct {
 	Identifier string
 	Parts      []Node
 	Pos        Position
+	EndPos     Position
 }
 
-func (h *HeredocNode) NodeType() string    { return "Heredoc" }
-func (h *HeredocNode) GetPos() Position    { return h.Pos }
-func (h *HeredocNode) SetPos(pos Position) { h.Pos = pos }
+func (h *HeredocNode) NodeType() string       { return "Heredoc" }
+func (h *HeredocNode) GetPos() Position       { return h.Pos }
+func (h *HeredocNode) SetPos(pos Position)    { h.Pos = pos }
+func (h *HeredocNode) GetEndPos() Position    { return h.EndPos }
+func (h *HeredocNode) SetEndPos(pos Position) { h.EndPos = pos }
 func (h *HeredocNode) String() string {
 	return fmt.Sprintf("<<<'%s' @ %d:%d", h.Identifier, h.Pos.Line, h.Pos.Column)
 }
@@ -633,11 +748,14 @@ type TernaryExpr struct {
 	IfTrue    Node
 	IfFalse   Node
 	Pos       Position
+	EndPos    Position
 }
 
-func (t *TernaryExpr) NodeType() string    { return "TernaryExpr" }
-func (t *TernaryExpr) GetPos() Position    { return t.Pos }
-func (t *TernaryExpr) SetPos(pos Position) { t.Pos = pos }
+func (t *TernaryExpr) NodeType() string       { return "TernaryExpr" }
+func (t *TernaryExpr) GetPos() Position       { return t.Pos }
+func (t *TernaryExpr) SetPos(pos Position)    { t.Pos = pos }
+func (t *TernaryExpr) GetEndPos() Position    { return t.EndPos }
+func (t *TernaryExpr) SetEndPos(pos Position) { t.EndPos = pos }
 func (t *TernaryExpr) String() string {
 	return fmt.Sprintf("TernaryExpr @ %d:%d", t.Pos.Line, t.Pos.Column)
 }
@@ -649,11 +767,14 @@ type PropertyFetchNode struct {
 	Object   Node   // The object being accessed, e.g., VariableNode for $this
 	Property string // The property name being accessed, e.g., "name"
 	Pos      Position
+	EndPos   Position
 }
 
-func (p *PropertyFetchNode) NodeType() string    { return "PropertyFetch" }
-func (p *PropertyFetchNode) GetPos() Position    { return p.Pos }
-func (p *PropertyFetchNode) SetPos(pos Position) { p.Pos = pos }
+func (p *PropertyFetchNode) NodeType() string       { return "PropertyFetch" }
+func (p *PropertyFetchNode) GetPos() Position       { return p.Pos }
+func (p *PropertyFetchNode) SetPos(pos Position)    { p.Pos = pos }
+func (p *PropertyFetchNode) GetEndPos() Position    { return p.EndPos }
+func (p *PropertyFetchNode) SetEndPos(pos Position) { p.EndPos = pos }
 func (p *PropertyFetchNode) String() string {
 	return fmt.Sprintf("PropertyFetch(%s->%s) @ %d:%d", p.Object.String(), p.Property, p.Pos.Line, p.Pos.Column)
 }
@@ -670,11 +791,14 @@ type ForeachNode struct {
 	ByRef    bool     // Whether value is by reference
 	Body     []Node   // The statements inside the foreach
 	Pos      Position // Position of 'foreach' keyword
+	EndPos   Position
 }
 
-func (f *ForeachNode) NodeType() string    { return "Foreach" }
-func (f *ForeachNode) GetPos() Position    { return f.Pos }
-func (f *ForeachNode) SetPos(pos Position) { f.Pos = pos }
+func (f *ForeachNode) NodeType() string       { return "Foreach" }
+func (f *ForeachNode) GetPos() Position       { return f.Pos }
+func (f *ForeachNode) SetPos(pos Position)    { f.Pos = pos }
+func (f *ForeachNode) GetEndPos() Position    { return f.EndPos }
+func (f *ForeachNode) SetEndPos(pos Position) { f.EndPos = pos }
 func (f *ForeachNode) String() string {
 	if f.KeyVar != nil {
 		return fmt.Sprintf("Foreach(%s as %s => %s) @ %d:%d", f.Expr.TokenLiteral(), f.KeyVar.TokenLiteral(), f.ValueVar.TokenLiteral(), f.Pos.Line, f.Pos.Column)
@@ -686,39 +810,48 @@ func (f *ForeachNode) TokenLiteral() string { return "foreach" }
 // ThrowNode represents a throw statement or expression
 // (PHP 7.4+ allows throw as an expression)
 type ThrowNode struct {
-	Expr Node
-	Pos  Position
+	Expr   Node
+	Pos    Position
+	EndPos Position
 }
 
-func (t *ThrowNode) NodeType() string    { return "Throw" }
-func (t *ThrowNode) GetPos() Position    { return t.Pos }
-func (t *ThrowNode) SetPos(pos Position) { t.Pos = pos }
+func (t *ThrowNode) NodeType() string       { return "Throw" }
+func (t *ThrowNode) GetPos() Position       { return t.Pos }
+func (t *ThrowNode) SetPos(pos Position)    { t.Pos = pos }
+func (t *ThrowNode) GetEndPos() Position    { return t.EndPos }
+func (t *ThrowNode) SetEndPos(pos Position) { t.EndPos = pos }
 func (t *ThrowNode) String() string {
 	return "Throw(" + t.Expr.String() + ") @ " + fmt.Sprintf("%d:%d", t.Pos.Line, t.Pos.Column)
 }
 func (t *ThrowNode) TokenLiteral() string { return "throw" }
 
 type GotoNode struct {
-	Label string
-	Pos   Position
+	Label  string
+	Pos    Position
+	EndPos Position
 }
 
-func (g *GotoNode) NodeType() string    { return "Goto" }
-func (g *GotoNode) GetPos() Position    { return g.Pos }
-func (g *GotoNode) SetPos(pos Position) { g.Pos = pos }
+func (g *GotoNode) NodeType() string       { return "Goto" }
+func (g *GotoNode) GetPos() Position       { return g.Pos }
+func (g *GotoNode) SetPos(pos Position)    { g.Pos = pos }
+func (g *GotoNode) GetEndPos() Position    { return g.EndPos }
+func (g *GotoNode) SetEndPos(pos Position) { g.EndPos = pos }
 func (g *GotoNode) String() string {
 	return fmt.Sprintf("Goto(%s) @ %d:%d", g.Label, g.Pos.Line, g.Pos.Column)
 }
 func (g *GotoNode) TokenLiteral() string { return "goto" }
 
 type LabelNode struct {
-	Name string
-	Pos  Position
+	Name   string
+	Pos    Position
+	EndPos Position
 }
 
-func (l *LabelNode) NodeType() string    { return "Label" }
-func (l *LabelNode) GetPos() Position    { return l.Pos }
-func (l *LabelNode) SetPos(pos Position) { l.Pos = pos }
+func (l *LabelNode) NodeType() string       { return "Label" }
+func (l *LabelNode) GetPos() Position       { return l.Pos }
+func (l *LabelNode) SetPos(pos Position)    { l.Pos = pos }
+func (l *LabelNode) GetEndPos() Position    { return l.EndPos }
+func (l *LabelNode) SetEndPos(pos Position) { l.EndPos = pos }
 func (l *LabelNode) String() string {
 	return fmt.Sprintf("Label(%s) @ %d:%d", l.Name, l.Pos.Line, l.Pos.Column)
 }

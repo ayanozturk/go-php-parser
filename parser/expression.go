@@ -30,7 +30,19 @@ func (p *Parser) parseExpression() ast.Node {
 }
 
 // parseExpressionWithPrecedence parses expressions with correct precedence. Only validateAssignmentTarget for top-level expressions.
+// It wraps parseExpressionWithPrecedenceImpl to stamp every parsed node
+// (including recursive sub-expressions) with an EndPos spanning to the end
+// of the last token consumed while parsing it, giving M1's "complete source
+// spans" work full coverage of the expression grammar for free.
 func (p *Parser) parseExpressionWithPrecedence(minPrec int, validateAssignmentTarget bool) ast.Node {
+	node := p.parseExpressionWithPrecedenceImpl(minPrec, validateAssignmentTarget)
+	if node != nil {
+		node.SetEndPos(ast.Position(p.prevTokEnd))
+	}
+	return node
+}
+
+func (p *Parser) parseExpressionWithPrecedenceImpl(minPrec int, validateAssignmentTarget bool) ast.Node {
 	for p.tok.Type == token.T_COMMENT || p.tok.Type == token.T_DOC_COMMENT || p.tok.Type == token.T_WHITESPACE {
 		p.nextToken()
 	}

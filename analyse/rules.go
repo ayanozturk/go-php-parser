@@ -7,9 +7,17 @@ import (
 )
 
 type AnalysisIssue struct {
-	Filename    string
-	Line        int
-	Column      int
+	Filename string
+	Line     int
+	Column   int
+	// EndLine and EndColumn optionally carry the end of the offending
+	// node's source span (see ast.Node.GetEndPos), forming a
+	// [Line:Column, EndLine:EndColumn) range for editor squiggly-underline
+	// diagnostics. Rules constructed via the plain issue() helper (as
+	// opposed to issueSpan()) leave these zero, meaning "unknown span,
+	// point diagnostic only" rather than a real zero-width range.
+	EndLine     int
+	EndColumn   int
 	Code        string
 	Message     string
 	SubjectKind string

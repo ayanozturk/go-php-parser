@@ -16,6 +16,7 @@ type PHPDocNode struct {
 	Implements  []PHPDocTypeReference
 	Description string
 	Pos         Position
+	EndPos      Position
 }
 
 // PHPDocTemplate describes a class or method template declaration such as
@@ -32,9 +33,11 @@ type PHPDocTypeReference struct {
 	TypeArguments []string
 }
 
-func (p *PHPDocNode) NodeType() string    { return "PHPDoc" }
-func (p *PHPDocNode) GetPos() Position    { return p.Pos }
-func (p *PHPDocNode) SetPos(pos Position) { p.Pos = pos }
+func (p *PHPDocNode) NodeType() string       { return "PHPDoc" }
+func (p *PHPDocNode) GetPos() Position       { return p.Pos }
+func (p *PHPDocNode) SetPos(pos Position)    { p.Pos = pos }
+func (p *PHPDocNode) GetEndPos() Position    { return p.EndPos }
+func (p *PHPDocNode) SetEndPos(pos Position) { p.EndPos = pos }
 func (p *PHPDocNode) String() string {
 	return fmt.Sprintf("PHPDoc @ %d:%d", p.Pos.Line, p.Pos.Column)
 }
