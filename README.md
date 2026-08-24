@@ -214,7 +214,31 @@ Useful flags:
 - `-workers` to control parallelism
 - `-top` to control how many failing-file examples are shown per project
 
-### Performance Output
+### Full-Analyser Benchmark
+
+To measure the analysis engine itself (not the style checker) against the checked-in `test_projects` corpus — index-only, process-cold full analysis, and warm-loop full analysis, with timing, RSS, and diagnostic counts per the [full-static-analyser benchmark contract](docs/full-static-analyser-target.md#comparable-performance-contract):
+
+```bash
+go run ./cmd/benchmark --root test_projects/symfony --json --output benchmark-report.json
+```
+
+Or a human-readable summary:
+
+```bash
+go run ./cmd/benchmark --root test_projects/phpunit
+```
+
+Cold-full-analysis runs each re-exec the binary as a fresh subprocess (10 by default) so no in-process cache state leaks between measured runs; warm-full-analysis loops the pipeline in a single process after one unmeasured warmup iteration. Incremental-edit timing is reported as unsupported — the engine has no incremental invalidation API yet.
+
+Useful flags:
+
+- `--root` corpus root to scan
+- `--level` analysis rule level filter (`-1` = run every registered rule)
+- `--cold-runs` number of measured process-cold runs (contract minimum is 10)
+- `--warm-iterations` in-process warm-loop iterations, including the unmeasured warmup
+- `--skip-cold` skip the process-cold subprocess runs for a quick check
+
+
 
 After scanning, the tool will print performance statistics:
 

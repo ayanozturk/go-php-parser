@@ -354,13 +354,15 @@ A release must not advance the parser version pinned by PHP Strom until the engi
 
 ## Immediate next actions
 
-1. Add the checked-in cold/full/incremental benchmark command and result schema.
+1. ~~Add the checked-in cold/full/incremental benchmark command and result schema.~~ Done: `cmd/benchmark` (`go run ./cmd/benchmark --root <dir> --json`) measures index-only, process-cold full analysis (subprocess-per-run), and warm-loop full analysis, with mean/median/min/max/stddev/CV, file accounting, diagnostic counts, and RSS (OS rusage + in-process `runtime.MemStats.Sys`). Incremental timing is explicitly reported unsupported pending an incremental-invalidation API (M1/M2). Not yet done: pinning it to the exact Mago benchmark projects/config (action 2) or wiring it into CI as a scheduled job (see Verification and release gates).
 2. Pin and automate the Mago benchmark projects and configuration.
-3. Minimize and fix the large-corpus project-index panic before further performance tuning.
+3. ~~Minimize and fix the large-corpus project-index panic before further performance tuning.~~ Fixed the reproduced stack-overflow variant of this defect: six ancestor-walking helpers recursed over `extends`/`implements` chains with no cycle detection, so a self-referential or mutually cyclic class hierarchy caused unbounded recursion. All six now carry `seen`-set guards, with a regression test (`TestLevel0CyclicClassHierarchyDoesNotHang`). `cmd/benchmark` exercised this exact code path against the full `test_projects/symfony` corpus (10,478 files, 1.8M LOC) with no crash. The original report described a nil-pointer panic specifically; that signature has not been independently reproduced, so treat this as fixing the reproduced crash class rather than a confirmed root-cause match until re-verified on the original 4M-LOC corpus.
 4. Profile allocations, GC, parsing duplication, project-index construction, and per-rule AST walks.
 5. Design the immutable semantic snapshot and shared fact-store interfaces.
 6. Establish the first diagnostic differential suite and publish a capability matrix.
 7. Rebaseline on the same machine against the current Mago release before setting milestone dates.
+
+Note: a benchmark run on `test_projects/symfony` also showed the diagnostic count vary slightly between cold runs on an otherwise-identical corpus (e.g. 82,722 vs 82,883 in one sample). This is a latent non-determinism (likely map-iteration-order-sensitive ordering or a race in rule execution) that should be investigated before this benchmark's diagnostic counts are treated as a stable correctness signal.
 
 ## Decision log
 
