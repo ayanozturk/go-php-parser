@@ -2,7 +2,6 @@ package lexer
 
 import (
 	"github.com/ayanozturk/go-php-parser/token"
-	"strings"
 )
 
 func (l *Lexer) lexPlus(pos token.Position) token.Token {
@@ -199,19 +198,12 @@ func (l *Lexer) lexColon(pos token.Position) token.Token {
 	if l.peekChar() == ':' {
 		l.readChar()
 		l.readChar()
-		if l.peekChar() == 'c' && strings.HasPrefix(l.input[l.readPos:], "class") {
-			afterClass := l.readPos + len("class")
-			if afterClass < len(l.input) {
-				next := rune(l.input[afterClass])
-				if isLetter(next) || isDigit(next) {
-					return token.Token{Type: token.T_DOUBLE_COLON, Literal: "::", Pos: pos}
-				}
-			}
-			for i := 0; i < 5; i++ {
-				l.readChar()
-			}
-			return token.Token{Type: token.T_CLASS_CONST, Literal: "::class", Pos: pos}
-		}
+		// Note: "class" after "::" (e.g. Foo::class) is intentionally NOT
+		// merged into a single token here; it is left to be lexed as its own
+		// T_CLASS keyword token on the next call, which the parser already
+		// handles at every "::"-followed-by-constant-name call site. This
+		// also avoids misinterpreting "::$var"/"::$$var" (static property
+		// access) as the start of a "class" constant fetch.
 		return token.Token{Type: token.T_DOUBLE_COLON, Literal: "::", Pos: pos}
 	}
 	tok := token.Token{Type: token.T_COLON, Literal: asciiString(l.char), Pos: pos}

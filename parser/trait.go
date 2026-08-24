@@ -32,8 +32,12 @@ func (p *Parser) parseTraitDeclaration() (ast.Node, error) {
 	for p.tok.Type != token.T_RBRACE && p.tok.Type != token.T_EOF {
 		modifiers := p.parseModifiers()
 		var typeHint string
-		if p.tok.Type == token.T_STRING || p.tok.Type == token.T_NS_SEPARATOR || p.tok.Type == token.T_CALLABLE || p.tok.Type == token.T_ARRAY || p.tok.Type == token.T_MIXED || p.tok.Type == token.T_QUESTION || p.tok.Type == token.T_TRUE || p.tok.Type == token.T_FALSE || p.tok.Type == token.T_NULL || p.tok.Type == token.T_STATIC {
-			typeHint = p.parseTypeHint()
+		if p.tok.Type == token.T_STRING || p.tok.Type == token.T_NS_SEPARATOR || p.tok.Type == token.T_CALLABLE || p.tok.Type == token.T_ARRAY || p.tok.Type == token.T_MIXED || p.tok.Type == token.T_QUESTION || p.tok.Type == token.T_TRUE || p.tok.Type == token.T_FALSE || p.tok.Type == token.T_NULL || p.tok.Type == token.T_STATIC || p.tok.Type == token.T_LPAREN {
+			if p.tok.Type == token.T_LPAREN {
+				typeHint = parseFullTypeHint(p)
+			} else {
+				typeHint = p.parseTypeHint()
+			}
 		}
 		if p.tok.Type == token.T_FUNCTION {
 			fn, err := p.parseFunction(modifiers)

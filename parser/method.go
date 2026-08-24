@@ -88,6 +88,10 @@ func (p *Parser) parseInterfaceDeclaration() ast.Node {
 				if method := p.parseInterfaceMethodWithVisibility(visibility); method != nil {
 					members = append(members, method)
 				}
+			} else if isInterfacePropertyTypeStart(p.tok.Type) {
+				if prop := p.parseInterfaceProperty(visibility); prop != nil {
+					members = append(members, prop)
+				}
 			} else {
 				p.addError("line %d:%d: unexpected token %s after visibility modifier in interface %s body", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal, name)
 				p.nextToken()
@@ -124,6 +128,59 @@ func (p *Parser) parseInterfaceDeclaration() ast.Node {
 // parseInterfaceMethod parses a method declaration in an interface
 func (p *Parser) parseInterfaceMethod() ast.Node {
 	return p.parseInterfaceMethodWithVisibility("")
+}
+
+// isInterfacePropertyTypeStart reports whether tokenType can start a
+// property type hint for a PHP 8.4 interface property hook declaration,
+// e.g. "public string $foo { get; }".
+func isInterfacePropertyTypeStart(tokenType token.TokenType) bool {
+	switch tokenType {
+	case token.T_STRING, token.T_NS_SEPARATOR, token.T_CALLABLE, token.T_ARRAY, token.T_MIXED,
+		token.T_QUESTION, token.T_TRUE, token.T_FALSE, token.T_NULL, token.T_STATIC, token.T_LPAREN,
+		token.T_VARIABLE:
+		return true
+	default:
+		return false
+	}
+}
+
+// parseInterfaceProperty parses a PHP 8.4 property-hook-only property
+// declaration in an interface body, e.g. "public string $foo { get; }".
+// Interface properties may not have a default value or a hook body/expr,
+// only bare hook declarations like "{ get; }" or "{ get; set; }".
+func (p *Parser) parseInterfaceProperty(visibility string) ast.Node {
+	pos := p.tok.Pos
+	var typeHint string
+	if p.tok.Type != token.T_VARIABLE {
+		if p.tok.Type == token.T_LPAREN {
+			typeHint = parseFullTypeHint(p)
+		} else {
+			typeHint = p.parseTypeHint()
+		}
+		p.skipCommentsAndWhitespace()
+	}
+	if p.tok.Type != token.T_VARIABLE {
+		p.addError("line %d:%d: expected property name in interface, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal)
+		p.nextToken()
+		return nil
+	}
+	name := p.tok.Literal[1:]
+	p.nextToken()
+
+	var hooks []ast.PropertyHookNode
+	if p.tok.Type == token.T_LBRACE {
+		hooks = p.parsePropertyHooks(name)
+	}
+	if p.tok.Type == token.T_SEMICOLON {
+		p.nextToken()
+	}
+	return &ast.PropertyNode{
+		Name:       name,
+		TypeHint:   typeHint,
+		Visibility: visibility,
+		Hooks:      hooks,
+		Pos:        ast.Position(pos),
+	}
 }
 
 func (p *Parser) parseInterfaceMethodWithVisibility(initialVisibility string) ast.Node {

@@ -145,6 +145,22 @@ func (p *Parser) peekToken() token.Token {
 	return p.l.PeekToken()
 }
 
+// parserCheckpoint captures parser+lexer position for bounded backtracking,
+// used where a single peeked token isn't enough to disambiguate a construct.
+type parserCheckpoint struct {
+	lexState lexer.State
+	tok      token.Token
+}
+
+func (p *Parser) checkpoint() parserCheckpoint {
+	return parserCheckpoint{lexState: p.l.Snapshot(), tok: p.tok}
+}
+
+func (p *Parser) restore(cp parserCheckpoint) {
+	p.l.Restore(cp.lexState)
+	p.tok = cp.tok
+}
+
 // parseSimpleExpression parses a simple expression (identifier, literal, etc.)
 // parseFQCN parses a fully qualified class name, e.g. \Foo\Bar
 func (p *Parser) parseFQCN() ast.Node {

@@ -112,8 +112,12 @@ func (p *Parser) parseClassDeclaration() (ast.Node, error) {
 		}
 		// Parse type hint if present (for property)
 		var typeHint string
-		if p.tok.Type == token.T_STRING || p.tok.Type == token.T_NS_SEPARATOR || p.tok.Type == token.T_CALLABLE || p.tok.Type == token.T_ARRAY || p.tok.Type == token.T_MIXED || p.tok.Type == token.T_QUESTION || p.tok.Type == token.T_TRUE || p.tok.Type == token.T_FALSE || p.tok.Type == token.T_NULL || p.tok.Type == token.T_STATIC {
-			typeHint = p.parseTypeHint()
+		if p.tok.Type == token.T_STRING || p.tok.Type == token.T_NS_SEPARATOR || p.tok.Type == token.T_CALLABLE || p.tok.Type == token.T_ARRAY || p.tok.Type == token.T_MIXED || p.tok.Type == token.T_QUESTION || p.tok.Type == token.T_TRUE || p.tok.Type == token.T_FALSE || p.tok.Type == token.T_NULL || p.tok.Type == token.T_STATIC || p.tok.Type == token.T_LPAREN {
+			if p.tok.Type == token.T_LPAREN {
+				typeHint = parseFullTypeHint(p)
+			} else {
+				typeHint = p.parseTypeHint()
+			}
 			p.skipCommentsAndWhitespace()
 		}
 		if p.tok.Type == token.T_FUNCTION {
@@ -248,8 +252,12 @@ func (p *Parser) parseAnonymousClassExpression() (ast.Node, []ast.Node) {
 		}
 
 		var typeHint string
-		if p.tok.Type == token.T_STRING || p.tok.Type == token.T_NS_SEPARATOR || p.tok.Type == token.T_CALLABLE || p.tok.Type == token.T_ARRAY || p.tok.Type == token.T_MIXED || p.tok.Type == token.T_QUESTION || p.tok.Type == token.T_TRUE || p.tok.Type == token.T_FALSE || p.tok.Type == token.T_NULL || p.tok.Type == token.T_STATIC {
-			typeHint = p.parseTypeHint()
+		if p.tok.Type == token.T_STRING || p.tok.Type == token.T_NS_SEPARATOR || p.tok.Type == token.T_CALLABLE || p.tok.Type == token.T_ARRAY || p.tok.Type == token.T_MIXED || p.tok.Type == token.T_QUESTION || p.tok.Type == token.T_TRUE || p.tok.Type == token.T_FALSE || p.tok.Type == token.T_NULL || p.tok.Type == token.T_STATIC || p.tok.Type == token.T_LPAREN {
+			if p.tok.Type == token.T_LPAREN {
+				typeHint = parseFullTypeHint(p)
+			} else {
+				typeHint = p.parseTypeHint()
+			}
 			p.skipCommentsAndWhitespace()
 		}
 		if p.tok.Type == token.T_FUNCTION {
@@ -437,20 +445,19 @@ func (p *Parser) parsePropertyModifier() (string, bool) {
 	if p.peekToken().Type != token.T_LPAREN {
 		return "", false
 	}
+	// "public(set)"/"protected(set)"/"private(set)" (asymmetric visibility) is
+	// ambiguous with a plain visibility modifier followed by a property type
+	// that itself starts with "(" (e.g. "public (Foo&Bar)|null $x"). Checkpoint
+	// before committing so we can back out if it isn't actually "(set)".
+	cp := p.checkpoint()
 	p.nextToken() // consume visibility, land on '('
-	if p.tok.Type != token.T_LPAREN {
-		return "", false
-	}
-	p.nextToken() // consume '('
-	if p.tok.Type != token.T_STRING || p.tok.Literal != "set" {
-		p.addError("line %d:%d: expected set in asymmetric visibility modifier, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal)
+	p.nextToken() // consume '(', land on candidate 'set'
+	if p.tok.Type != token.T_STRING || p.tok.Literal != "set" || p.peekToken().Type != token.T_RPAREN {
+		p.restore(cp)
+		p.nextToken() // consume just the visibility keyword; leave '(' for the type-hint parser
 		return modifier, true
 	}
 	p.nextToken() // consume 'set'
-	if p.tok.Type != token.T_RPAREN {
-		p.addError("line %d:%d: expected ) after asymmetric visibility modifier, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal)
-		return modifier, true
-	}
 	p.nextToken() // consume ')'
 	return modifier + "(set)", true
 }
@@ -546,6 +553,11 @@ func (p *Parser) parsePropertyHooks(propertyName string) []ast.PropertyHookNode 
 		}
 
 		switch p.tok.Type {
+		case token.T_SEMICOLON:
+			// Abstract/interface hook declaration with no body, e.g.
+			// "abstract public string $bar { get; }" or
+			// interface hook "public string $property { get; }".
+			p.nextToken() // consume ;
 		case token.T_DOUBLE_ARROW:
 			p.nextToken() // consume =>
 			hook.Expr = p.parseExpression()

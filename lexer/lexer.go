@@ -47,6 +47,54 @@ func (l *Lexer) inStringMode() bool {
 	return l.inString
 }
 
+// State is an opaque snapshot of the lexer's scanning position, usable with
+// Snapshot/Restore to support small bounded lookahead where a single
+// peeked token isn't enough to disambiguate a construct (e.g. distinguishing
+// "public(set)" from a property type that happens to start with "(").
+type State struct {
+	pos, readPos   int
+	char           rune
+	size           int
+	line, column   int
+	inString       bool
+	heredocTokens  []token.Token
+	hasPeeked      bool
+	peekedToken    token.Token
+	inHTML         bool
+}
+
+// Snapshot captures the current lexer position so it can be restored later.
+func (l *Lexer) Snapshot() State {
+	return State{
+		pos:           l.pos,
+		readPos:       l.readPos,
+		char:          l.char,
+		size:          l.size,
+		line:          l.line,
+		column:        l.column,
+		inString:      l.inString,
+		heredocTokens: l.heredocTokens,
+		hasPeeked:     l.hasPeeked,
+		peekedToken:   l.peekedToken,
+		inHTML:        l.inHTML,
+	}
+}
+
+// Restore rewinds the lexer to a previously captured Snapshot.
+func (l *Lexer) Restore(s State) {
+	l.pos = s.pos
+	l.readPos = s.readPos
+	l.char = s.char
+	l.size = s.size
+	l.line = s.line
+	l.column = s.column
+	l.inString = s.inString
+	l.heredocTokens = s.heredocTokens
+	l.hasPeeked = s.hasPeeked
+	l.peekedToken = s.peekedToken
+	l.inHTML = s.inHTML
+}
+
 func New(input string) *Lexer {
 	l := &Lexer{
 		input:  input,
@@ -87,6 +135,14 @@ func (l *Lexer) readChar() {
 	l.readPos += l.size
 }
 
+// atEOF reports whether the lexer has consumed the entire input. This must
+// be used instead of comparing l.char == 0 to detect end-of-input, because a
+// literal NUL byte inside a PHP string (valid, if rare, source content) also
+// makes l.char == 0 while l.pos is still a valid in-bounds offset.
+func (l *Lexer) atEOF() bool {
+	return l.pos >= len(l.input)
+}
+
 // peekChar peeks the next rune without advancing position (Unicode-aware).
 func (l *Lexer) peekChar() rune {
 	if l.readPos >= len(l.input) {
@@ -108,7 +164,7 @@ func (l *Lexer) SkipBalancedCurlyBlock() bool {
 	if l.char != '{' {
 		depth = 1
 	}
-	for l.char != 0 {
+	for !l.atEOF() {
 		switch l.char {
 		case '\'', '"':
 			l.skipQuotedString(l.char)
@@ -142,10 +198,10 @@ func (l *Lexer) SkipBalancedCurlyBlock() bool {
 
 func (l *Lexer) skipQuotedString(quote rune) {
 	l.readChar()
-	for l.char != 0 {
+	for !l.atEOF() {
 		if l.char == '\\' {
 			l.readChar()
-			if l.char != 0 {
+			if !l.atEOF() {
 				l.readChar()
 			}
 			continue
@@ -159,7 +215,7 @@ func (l *Lexer) skipQuotedString(quote rune) {
 }
 
 func (l *Lexer) skipLineComment() {
-	for l.char != 0 && l.char != '\n' {
+	for !l.atEOF() && l.char != '\n' {
 		l.readChar()
 	}
 }
@@ -167,7 +223,7 @@ func (l *Lexer) skipLineComment() {
 func (l *Lexer) skipBlockComment() {
 	l.readChar()
 	l.readChar()
-	for l.char != 0 {
+	for !l.atEOF() {
 		if l.char == '*' && l.peekChar() == '/' {
 			l.readChar()
 			l.readChar()
@@ -210,7 +266,7 @@ func (l *Lexer) readString(quote byte) string {
 	}
 
 	var out strings.Builder
-	for l.char != rune(quote) && l.char != 0 {
+	for l.char != rune(quote) && !l.atEOF() {
 		if l.char == '\\' {
 			l.readChar()
 			switch l.char {
@@ -398,11 +454,11 @@ func (l *Lexer) atOpenTag() bool {
 // lexer is already positioned at an open tag, it delegates to lexOpenTag.
 func (l *Lexer) lexInlineHTML() token.Token {
 	pos := token.Position{Line: l.line, Column: l.column, Offset: l.pos}
-	if l.char == 0 {
+	if l.atEOF() {
 		return token.Token{Type: token.T_EOF, Literal: "", Pos: pos}
 	}
 	start := l.pos
-	for l.char != 0 {
+	for !l.atEOF() {
 		if l.char == '<' && l.atOpenTag() {
 			break
 		}
@@ -452,12 +508,12 @@ func (l *Lexer) lexAttribute(pos token.Position) token.Token {
 	l.readChar() // '#'
 	l.readChar() // '['
 	depth := 1
-	for l.char != 0 && depth > 0 {
+	for !l.atEOF() && depth > 0 {
 		// Skip string literals so '[' or ']' inside them don't affect depth.
 		if l.char == '\'' || l.char == '"' {
 			quote := l.char
 			l.readChar() // consume opening quote
-			for l.char != 0 && l.char != quote {
+			for !l.atEOF() && l.char != quote {
 				if l.char == '\\' {
 					l.readChar() // skip escaped char
 				}

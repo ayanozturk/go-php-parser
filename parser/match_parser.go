@@ -108,6 +108,11 @@ func (p *Parser) parseMatchArm() *ast.MatchArmNode {
 			// Check for comma (multiple conditions)
 			if p.tok.Type == token.T_COMMA {
 				p.nextToken()
+				// Allow a trailing comma right before '=>', e.g.
+				// "'a', 'b', 'c', => expr,".
+				if p.tok.Type == token.T_DOUBLE_ARROW {
+					break
+				}
 			} else {
 				break
 			}

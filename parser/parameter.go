@@ -21,24 +21,34 @@ func (p *Parser) parseParameter() ast.Node {
 		break
 	}
 
-	// Parse all modifiers (visibility, readonly) in any order
+	// Parse all modifiers (visibility, asymmetric visibility "(set)", readonly)
+	// in any order, e.g. "public private(set) readonly string $x".
 	var visibility string
+	var setVisibility string
 	var isPromoted bool
 	var isReadonly bool
 	for {
-		if p.tok.Type == token.T_PUBLIC || p.tok.Type == token.T_PROTECTED || p.tok.Type == token.T_PRIVATE {
-			visibility = p.tok.Literal
-			isPromoted = true
-			p.nextToken()
-			continue
+		mod, ok := p.parsePropertyModifier()
+		if !ok {
+			// parsePropertyModifier only matches "readonly" or a visibility
+			// keyword followed by "(" (asymmetric visibility); fall back to
+			// a plain visibility keyword here (not followed by "(").
+			if p.tok.Type == token.T_PUBLIC || p.tok.Type == token.T_PROTECTED || p.tok.Type == token.T_PRIVATE {
+				mod = p.tok.Literal
+				p.nextToken()
+			} else {
+				break
+			}
 		}
-		if p.tok.Literal == "readonly" {
-			isPromoted = true
+		isPromoted = true
+		switch mod {
+		case "readonly":
 			isReadonly = true
-			p.nextToken()
-			continue
+		case "public(set)", "protected(set)", "private(set)":
+			setVisibility = mod[:len(mod)-5]
+		default:
+			visibility = mod
 		}
-		break
 	}
 	pos := p.tok.Pos
 
@@ -117,14 +127,15 @@ func (p *Parser) parseParameter() ast.Node {
 	}
 
 	return &ast.ParamNode{
-		Name:         name,
-		TypeHint:     typeHint,
-		DefaultValue: defaultValue,
-		Visibility:   visibility,
-		IsPromoted:   isPromoted,
-		IsReadonly:   isReadonly,
-		IsVariadic:   isVariadic,
-		IsByRef:      isByRef,
-		Pos:          ast.Position(pos),
+		Name:          name,
+		TypeHint:      typeHint,
+		DefaultValue:  defaultValue,
+		Visibility:    visibility,
+		SetVisibility: setVisibility,
+		IsPromoted:    isPromoted,
+		IsReadonly:    isReadonly,
+		IsVariadic:    isVariadic,
+		IsByRef:       isByRef,
+		Pos:           ast.Position(pos),
 	}
 }

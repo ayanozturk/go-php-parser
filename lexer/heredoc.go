@@ -43,7 +43,7 @@ func (l *Lexer) readHeredocIdentifier() (string, bool) {
 		quote := l.char
 		l.readChar() // consume opening quote
 		start := l.pos
-		for l.char != quote && l.char != 0 {
+		for l.char != quote && !l.atEOF() {
 			l.readChar()
 		}
 		identifier := l.input[start:l.pos]
@@ -62,7 +62,7 @@ func (l *Lexer) readHeredocIdentifier() (string, bool) {
 }
 
 func (l *Lexer) skipToNextLine() {
-	for l.char != '\n' && l.char != 0 {
+	for l.char != '\n' && !l.atEOF() {
 		l.readChar()
 	}
 	if l.char == '\n' {
@@ -76,7 +76,7 @@ func (l *Lexer) readHeredocBody(identifier string) string {
 	terminatorIndent := ""
 	// PHP identifiers are ASCII-only, so byte length == rune count.
 	identByteLen := len(identifier)
-	for l.char != 0 {
+	for !l.atEOF() {
 		lineStart := l.pos
 		indent, ok := l.heredocTerminatorIndent(identifier)
 		if ok {

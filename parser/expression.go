@@ -34,6 +34,12 @@ func (p *Parser) parseExpressionWithPrecedence(minPrec int, validateAssignmentTa
 	for p.tok.Type == token.T_COMMENT || p.tok.Type == token.T_DOC_COMMENT || p.tok.Type == token.T_WHITESPACE {
 		p.nextToken()
 	}
+	// Skip attributes attached directly to an expression, e.g.
+	// "return #[When(env: 'prod')] function () {...};" or
+	// "'key' => #[\Closure(...)] function () {...}".
+	for p.tok.Type == token.T_ATTRIBUTE {
+		p.nextToken()
+	}
 	if p.tok.Type == token.T_LBRACKET || p.tok.Type == token.T_ARRAY {
 		left := p.parseArrayLiteral(validateAssignmentTarget)
 		if left == nil {
@@ -460,6 +466,12 @@ func (p *Parser) parseSimpleNew() ast.Node {
 	pos := p.tok.Pos
 	p.nextToken() // consume 'new'
 	p.skipCommentsAndWhitespace()
+	// Skip attributes directly on an anonymous class expression, e.g.
+	// "new #[\AllowDynamicProperties] class {...}".
+	for p.tok.Type == token.T_ATTRIBUTE {
+		p.nextToken()
+		p.skipCommentsAndWhitespace()
+	}
 	if p.tok.Type == token.T_CLASS {
 		classExpr, args := p.parseAnonymousClassExpression()
 		if classExpr == nil {
@@ -1458,12 +1470,29 @@ func (p *Parser) parseSimpleVariableFunctionCall(expr ast.Node) ast.Node {
 	}
 	var args []ast.Node
 	for p.tok.Type != token.T_RPAREN && p.tok.Type != token.T_EOF {
+		for p.tok.Type == token.T_COMMENT || p.tok.Type == token.T_DOC_COMMENT {
+			p.nextToken()
+		}
+		if p.tok.Type == token.T_RPAREN {
+			break
+		}
 		isUnpacked := false
 		if p.tok.Type == token.T_ELLIPSIS {
 			isUnpacked = true
 			p.nextToken() // consume ...
 		}
-		arg := p.parseExpression()
+		var arg ast.Node
+		if (p.tok.Type == token.T_STRING || isValidMethodNameToken(p.tok.Type)) && p.peekToken().Type == token.T_COLON {
+			// Named argument, e.g. "$controller($name, headers: [...])".
+			argPos := p.tok.Pos
+			argName := p.tok.Literal
+			p.nextToken() // consume name
+			p.nextToken() // consume :
+			value := p.parseExpression()
+			arg = &ast.NamedArgumentNode{Name: argName, Value: value, Pos: ast.Position(argPos)}
+		} else {
+			arg = p.parseExpression()
+		}
 		if arg != nil {
 			if isUnpacked {
 				arg = &ast.UnpackedArgumentNode{

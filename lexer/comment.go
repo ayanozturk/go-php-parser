@@ -8,7 +8,7 @@ package lexer
 // by a newline or EOF.
 func (l *Lexer) readLineComment(commentStart int) string {
 	l.readChar() // move past second '/'
-	for l.char != '\n' && l.char != 0 {
+	for l.char != '\n' && !l.atEOF() {
 		if l.char == '?' && l.peekChar() == '>' {
 			break
 		}
@@ -23,7 +23,7 @@ func (l *Lexer) readLineComment(commentStart int) string {
 func (l *Lexer) readHashComment() string {
 	commentStart := l.pos
 	l.readChar() // move past '#'
-	for l.char != '\n' && l.char != 0 {
+	for l.char != '\n' && !l.atEOF() {
 		if l.char == '?' && l.peekChar() == '>' {
 			break
 		}
@@ -38,7 +38,7 @@ func (l *Lexer) readHashComment() string {
 func (l *Lexer) readBlockComment(commentStart int) string {
 	l.readChar() // move past '*'
 	for {
-		if l.char == 0 {
+		if l.atEOF() {
 			break
 		}
 		if l.char == '*' && l.peekChar() == '/' {

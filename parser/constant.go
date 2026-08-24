@@ -24,9 +24,18 @@ func (p *Parser) parseConstantWithModifiers(modifiers []string) []*ast.ConstantN
 	}
 	p.nextToken() // consume 'const'
 	typeStr := ""
-	if isConstTypeToken(p.tok.Type) && p.peekToken().Type == token.T_STRING {
-		typeStr = p.tok.Literal
-		p.nextToken()
+	if isConstTypeToken(p.tok.Type) {
+		// Speculatively parse a (possibly union/intersection) type; only
+		// keep it if a constant name (T_STRING) follows, e.g.
+		// "const string|int BAR = 'bar';" vs. plain "const BAR = 1;"
+		// (where "BAR" itself would otherwise look like a type token).
+		cp := p.checkpoint()
+		candidate := p.parseTypeHint()
+		if p.tok.Type == token.T_STRING {
+			typeStr = candidate
+		} else {
+			p.restore(cp)
+		}
 	}
 	var constants []*ast.ConstantNode
 	for {
