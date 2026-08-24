@@ -2,6 +2,7 @@ package analyse
 
 import (
 	"github.com/ayanozturk/go-php-parser/ast"
+	"sort"
 	"strings"
 )
 
@@ -36,9 +37,24 @@ func NewProjectIndex() *ProjectIndex {
 	return idx
 }
 
+// BuildProjectIndex indexes every parsed file into a single ProjectIndex.
+// Files are processed in sorted filename order rather than native Go map
+// iteration order (which is randomized per run): symbol registration below
+// is order-dependent (addClass keeps the first definition and records
+// later same-name definitions as duplicates; addFunction/addMethod/
+// addProperty/addClassConstant let the last definition win), so an
+// unsorted, randomized iteration order made duplicate-symbol resolution -
+// and therefore some diagnostics computed relative to it - vary between
+// otherwise-identical runs over the same corpus.
 func BuildProjectIndex(parsed map[string][]ast.Node) *ProjectIndex {
 	idx := NewProjectIndex()
-	for filename, nodes := range parsed {
+	filenames := make([]string, 0, len(parsed))
+	for filename := range parsed {
+		filenames = append(filenames, filename)
+	}
+	sort.Strings(filenames)
+	for _, filename := range filenames {
+		nodes := parsed[filename]
 		ft := collectFileTypeContext(nodes)
 		idx.FileTypes[filename] = ft
 		idx.indexNodes(filename, nodes, ft, "")

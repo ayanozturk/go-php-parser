@@ -362,7 +362,7 @@ A release must not advance the parser version pinned by PHP Strom until the engi
 6. Establish the first diagnostic differential suite and publish a capability matrix.
 7. Rebaseline on the same machine against the current Mago release before setting milestone dates.
 
-Note: a benchmark run on `test_projects/symfony` also showed the diagnostic count vary slightly between cold runs on an otherwise-identical corpus (e.g. 82,722 vs 82,883 in one sample). This is a latent non-determinism (likely map-iteration-order-sensitive ordering or a race in rule execution) that should be investigated before this benchmark's diagnostic counts are treated as a stable correctness signal.
+Note: a benchmark run on `test_projects/symfony` also showed the diagnostic count vary slightly between cold runs on an otherwise-identical corpus (e.g. 82,722 vs 82,883 in one sample). **Fixed:** `BuildProjectIndex` iterated its `map[string][]ast.Node` input in Go's randomized map-iteration order, so which file's declaration won duplicate-symbol resolution (`addClass`'s "first file wins", and "last file processed wins" for methods/properties/constants registered per file) varied between runs. It now processes files in sorted filename order, making both the class-metadata winner and the member winner deterministic; `TestBuildProjectIndexDuplicateClassResolutionIsDeterministic` in `analyse/project_index_test.go` guards this, and a 5-run benchmark on `test_projects/symfony` now reports a stable 82,722 diagnostics on every cold run.
 
 ## Decision log
 
