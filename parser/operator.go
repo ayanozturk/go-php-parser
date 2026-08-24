@@ -9,7 +9,7 @@ import (
 // isAssignmentOperator returns true if the operator is an assignment
 func isAssignmentOperator(op token.TokenType) bool {
 	switch op {
-	case token.T_ASSIGN, token.T_PLUS_EQUAL, token.T_MINUS_EQUAL, token.T_MUL_EQUAL, token.T_DIV_EQUAL, token.T_MOD_EQUAL, token.T_AND_EQUAL, token.T_OR_EQUAL, token.T_CONCAT_EQUAL, token.T_XOR_EQUAL, token.T_COALESCE_EQUAL, token.T_POW_EQUAL:
+	case token.T_ASSIGN, token.T_PLUS_EQUAL, token.T_MINUS_EQUAL, token.T_MUL_EQUAL, token.T_DIV_EQUAL, token.T_MOD_EQUAL, token.T_AND_EQUAL, token.T_OR_EQUAL, token.T_CONCAT_EQUAL, token.T_XOR_EQUAL, token.T_COALESCE_EQUAL, token.T_POW_EQUAL, token.T_SL_EQUAL, token.T_SR_EQUAL:
 		return true
 	default:
 		return false
@@ -22,7 +22,7 @@ func isValidAssignmentTarget(node ast.Node) bool {
 		return false
 	}
 	switch node.(type) {
-	case *ast.VariableNode, *ast.PropertyFetchNode, *ast.ArrayAccessNode, *ast.ArrayNode:
+	case *ast.VariableNode, *ast.PropertyFetchNode, *ast.ArrayAccessNode, *ast.ArrayNode, *ast.VariableVariableNode:
 		return true
 	case *ast.ClassConstFetchNode:
 		classMember := node.(*ast.ClassConstFetchNode)
@@ -50,6 +50,8 @@ var PhpOperatorPrecedence = map[token.TokenType]int{
 	token.T_XOR_EQUAL:      3,
 	token.T_COALESCE_EQUAL: 3, // ??= assignment
 	token.T_POW_EQUAL:      3,
+	token.T_SL_EQUAL:       3,
+	token.T_SR_EQUAL:       3,
 
 	token.T_QUESTION:    4, // Ternary operator (just above assignment)
 	token.T_BOOLEAN_OR:  5, // ||
@@ -95,6 +97,8 @@ var PhpOperatorRightAssoc = map[token.TokenType]bool{
 	token.T_XOR_EQUAL:      true,
 	token.T_COALESCE_EQUAL: true,
 	token.T_POW_EQUAL:      true,
+	token.T_SL_EQUAL:       true,
+	token.T_SR_EQUAL:       true,
 	token.T_COALESCE:       true,
 	token.T_POW:            true,
 }

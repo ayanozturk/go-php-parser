@@ -75,6 +75,12 @@ retry:
 		// Store PHPDoc comment for next node, don't return it as a separate statement
 		p.currentDoc = p.tok.Literal
 		p.nextToken() // consume doc comment
+		if p.tok.Type == token.T_RBRACE || p.tok.Type == token.T_EOF || p.tok.Type == token.T_CASE || p.tok.Type == token.T_DEFAULT {
+			// Trailing doc comment with nothing to attach it to: either the
+			// end of an enclosing block, or the boundary right before the
+			// next switch "case"/"default" label.
+			return nil, nil
+		}
 		// Continue parsing with the current token
 		goto retry
 	case token.T_RETURN:

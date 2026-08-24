@@ -68,6 +68,23 @@ func (v *VariableNode) TokenLiteral() string {
 	return v.Name
 }
 
+// VariableVariableNode represents a "variable variable", e.g. `$$name` or
+// `${$name}`: the variable whose name is the runtime value of Expr.
+type VariableVariableNode struct {
+	Expr Node
+	Pos  Position
+}
+
+func (v *VariableVariableNode) NodeType() string    { return "VariableVariable" }
+func (v *VariableVariableNode) GetPos() Position    { return v.Pos }
+func (v *VariableVariableNode) SetPos(pos Position) { v.Pos = pos }
+func (v *VariableVariableNode) String() string {
+	return fmt.Sprintf("VariableVariable($%s) @ %d:%d", v.Expr.String(), v.Pos.Line, v.Pos.Column)
+}
+func (v *VariableVariableNode) TokenLiteral() string {
+	return "$"
+}
+
 // LiteralNode represents a literal value - this is now an interface
 type LiteralNode interface {
 	Node

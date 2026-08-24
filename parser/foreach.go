@@ -67,6 +67,9 @@ func (p *Parser) parseForeachStatement() (ast.Node, error) {
 		if p.tok.Type == token.T_LBRACKET {
 			return p.parseArrayLiteral(true)
 		}
+		if p.tok.Type == token.T_LIST {
+			return p.parseListLiteral(true)
+		}
 		return nil
 	}
 
@@ -109,7 +112,7 @@ func (p *Parser) parseForeachStatement() (ast.Node, error) {
 			// This variable is the value
 			valueVar = varNode
 		}
-	} else if p.tok.Type == token.T_LBRACKET {
+	} else if p.tok.Type == token.T_LBRACKET || p.tok.Type == token.T_LIST {
 		valueVar = parseValueTarget()
 	} else {
 		p.addError("line %d:%d: expected variable, destructuring target, or & after 'as' in foreach, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal)

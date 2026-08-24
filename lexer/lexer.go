@@ -292,6 +292,24 @@ func (l *Lexer) readNumber() (string, bool) {
 		l.readChar()
 	}
 
+	// Scientific notation exponent: e.g. "1e10", "1.2e+3", "1.7E-308".
+	if l.char == 'e' || l.char == 'E' {
+		lookaheadPos := l.readPos
+		if lookaheadPos < len(l.input) && (l.input[lookaheadPos] == '+' || l.input[lookaheadPos] == '-') {
+			lookaheadPos++
+		}
+		if lookaheadPos < len(l.input) && isDigit(rune(l.input[lookaheadPos])) {
+			isFloat = true
+			l.readChar() // consume 'e'/'E'
+			if l.char == '+' || l.char == '-' {
+				l.readChar()
+			}
+			for isDigit(l.char) {
+				l.readChar()
+			}
+		}
+	}
+
 	return stripUnderscores(l.input[position:l.pos]), isFloat
 }
 
@@ -530,6 +548,9 @@ func (l *Lexer) lexSymbol(pos token.Position) token.Token {
 	case '&':
 		return l.lexAmpersand(pos)
 	case '.':
+		if isDigit(l.peekChar()) {
+			return l.lexNumber(pos)
+		}
 		return l.lexDot(pos)
 	case '"':
 		return l.lexDoubleQuote(pos)

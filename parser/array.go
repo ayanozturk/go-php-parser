@@ -26,7 +26,7 @@ func (p *Parser) parseArrayElement() ast.Node {
 			return nil
 		}
 	} else if byRef {
-		if _, ok := value.(*ast.VariableNode); !ok {
+		if !isValidAssignmentTarget(value) {
 			p.addError("line %d:%d: by-reference must be followed by a variable", p.tok.Pos.Line, p.tok.Pos.Column)
 			return nil
 		}

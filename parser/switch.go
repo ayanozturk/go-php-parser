@@ -40,7 +40,7 @@ func (p *Parser) parseSwitchStatement() (ast.Node, error) {
 
 	var cases []*ast.SwitchCaseNode
 	for p.tok.Type != closeTok && p.tok.Type != token.T_EOF {
-		for p.tok.Type == token.T_COMMENT || p.tok.Type == token.T_DOC_COMMENT {
+		for p.tok.Type == token.T_COMMENT || p.tok.Type == token.T_DOC_COMMENT || p.tok.Type == token.T_OPEN_TAG || p.tok.Type == token.T_CLOSE_TAG {
 			p.nextToken()
 		}
 		if p.tok.Type == closeTok {
@@ -69,6 +69,15 @@ func (p *Parser) parseSwitchStatement() (ast.Node, error) {
 		p.nextToken() // consume : or ;
 
 		for p.tok.Type != token.T_CASE && p.tok.Type != token.T_DEFAULT && p.tok.Type != closeTok && p.tok.Type != token.T_EOF {
+			// Consume open/close PHP tag transitions ourselves so we return
+			// to this loop's own stop-condition check (case/default/close)
+			// after each one, rather than letting parseStatement's internal
+			// retry jump straight from an open tag into whatever follows
+			// (which could be the very "}"/"case" that should end this body).
+			if p.tok.Type == token.T_OPEN_TAG || p.tok.Type == token.T_CLOSE_TAG {
+				p.nextToken()
+				continue
+			}
 			stmt, err := p.parseStatement()
 			if err != nil {
 				return nil, err

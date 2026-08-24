@@ -87,8 +87,28 @@ func (n *PropertyNode) TokenLiteral() string {
 }
 
 type TraitUseNode struct {
-	Traits []string
-	Pos    Position
+	Traits      []string
+	Adaptations []TraitAdaptation
+	Pos         Position
+}
+
+// TraitAdaptation represents a single entry inside a trait `use { ... }`
+// adaptation block, e.g. `A::foo as bar;` or `A::foo insteadof B;`.
+type TraitAdaptation struct {
+	// Trait is the (optional) trait name qualifying Method, e.g. "A" in
+	// "A::foo as bar;". Empty when the method is referenced unqualified.
+	Trait string
+	// Method is the trait method being aliased or resolved.
+	Method string
+	// As is the new alias name, when this is an "as" adaptation. Empty
+	// otherwise.
+	As string
+	// Visibility is an optional visibility modifier on an "as" adaptation
+	// (e.g. "protected" in "A::foo as protected bar;"). Empty if absent.
+	Visibility string
+	// InsteadOf lists the trait names losing precedence for Method, when
+	// this is an "insteadof" adaptation. Empty otherwise.
+	InsteadOf []string
 }
 
 func (t *TraitUseNode) NodeType() string    { return "TraitUse" }

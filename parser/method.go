@@ -152,6 +152,11 @@ func (p *Parser) parseInterfaceMethodWithVisibility(initialVisibility string) as
 	}
 	p.nextToken()
 
+	// Optional by-reference return marker: "function &name(...)"
+	if p.tok.Type == token.T_AMPERSAND {
+		p.nextToken()
+	}
+
 	// Accept PHP keywords as method names (not just T_STRING)
 	if !isValidMethodNameToken(p.tok.Type) {
 		p.addError("line %d:%d: expected method name, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal)

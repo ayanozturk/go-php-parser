@@ -50,6 +50,7 @@ var keywordTokenMap = map[string]token.TokenType{
 	"for":          token.T_FOR,
 	"foreach":      token.T_FOREACH,
 	"as":           token.T_AS,
+	"insteadof":    token.T_INSTEADOF,
 	"while":        token.T_WHILE,
 	"do":           token.T_DO,
 	"switch":       token.T_SWITCH,

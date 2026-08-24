@@ -90,7 +90,17 @@ func (p *Parser) parseUnaryExpression() ast.Node {
 	case token.T_AT:
 		atTok := p.tok
 		p.nextToken()
-		right := p.parseExpressionWithPrecedence(100, false)
+		var right ast.Node
+		if p.tok.Type == token.T_LIST {
+			// "@list($a, $b) = ...;" (suppress notices while destructuring)
+			// is legal PHP; list() is only a valid primary expression as an
+			// assignment target, which the generic expression parser below
+			// only recognizes when validateAssignmentTarget is true (it
+			// isn't, for a unary operand), so handle it directly here.
+			right = p.parseListLiteral(true)
+		} else {
+			right = p.parseExpressionWithPrecedence(100, false)
+		}
 		if right == nil {
 			p.addError("line %d:%d: expected operand after unary operator @", atTok.Pos.Line, atTok.Pos.Column)
 			return nil
@@ -254,7 +264,7 @@ func (p *Parser) parseBinaryOperator(left ast.Node, prec int, validateAssignment
 		}
 	}
 	if isAssignmentOperator(op) {
-		if unary, ok := left.(*ast.UnaryExpr); ok && unary.Operator == "!" && isValidAssignmentTarget(unary.Operand) {
+		if unary, ok := left.(*ast.UnaryExpr); ok && (unary.Operator == "!" || unary.Operator == "@") && isValidAssignmentTarget(unary.Operand) {
 			assignment := &ast.AssignmentNode{
 				Left:  unary.Operand,
 				Right: right,
@@ -358,10 +368,42 @@ func (p *Parser) parseSimpleExpression() ast.Node {
 		return p.parseGroupedExpression()
 	case token.T_MATCH:
 		return p.parseMatchExpression()
+	case token.T_DOLLAR_OPEN_CURLY_BRACES:
+		return p.parseSimpleVariableVariable()
+	case token.T_ILLEGAL:
+		if p.tok.Literal == "$" {
+			return p.parseSimpleVariableVariable()
+		}
+		return p.parseSimpleUnexpected()
 	// case token.T_NS_SEPARATOR: (now handled above)
 	default:
 		return p.parseSimpleUnexpected()
 	}
+}
+
+// parseSimpleVariableVariable parses "$$name" or "${expr}" style
+// variable-variables, where the variable's name is itself computed from an
+// expression rather than a fixed identifier.
+func (p *Parser) parseSimpleVariableVariable() ast.Node {
+	pos := p.tok.Pos
+	if p.tok.Type == token.T_DOLLAR_OPEN_CURLY_BRACES {
+		p.nextToken() // consume '${'
+		expr := p.parseExpression()
+		if p.tok.Type != token.T_RBRACE {
+			p.addError("line %d:%d: expected } after variable-variable name, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal)
+			return nil
+		}
+		p.nextToken() // consume '}'
+		return p.parsePostfixExpression(&ast.VariableVariableNode{Expr: expr, Pos: ast.Position(pos)})
+	}
+	// Bare "$" (T_ILLEGAL) followed by another variable-variable operand.
+	p.nextToken() // consume '$'
+	inner := p.parseSimpleExpression()
+	if inner == nil {
+		p.addError("line %d:%d: expected variable name after $", pos.Line, pos.Column)
+		return nil
+	}
+	return p.parsePostfixExpression(&ast.VariableVariableNode{Expr: inner, Pos: ast.Position(pos)})
 }
 
 // --- Helper methods for parseSimpleExpression ---
@@ -552,6 +594,37 @@ func (p *Parser) parseSimpleStaticAccess(fqcn string, fqcnPos token.Position) as
 			Class: fqcn,
 			Const: memberName,
 			Pos:   ast.Position(fqcnPos),
+		})
+	}
+	if p.tok.Type == token.T_DOLLAR_OPEN_CURLY_BRACES {
+		// Dynamic static property name: `Class::${expr}`.
+		p.nextToken() // consume '${'
+		nameExpr := p.parseExpression()
+		if p.tok.Type != token.T_RBRACE {
+			p.addError("line %d:%d: expected } after dynamic static property name, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal)
+			return nil
+		}
+		p.nextToken() // consume '}'
+		return p.parsePostfixExpression(&ast.ClassConstFetchNode{
+			Class:     fqcn,
+			Const:     "$",
+			ConstExpr: nameExpr,
+			Pos:       ast.Position(fqcnPos),
+		})
+	}
+	if p.tok.Type == token.T_ILLEGAL && p.tok.Literal == "$" {
+		// Dynamic static property name: `Class::$$name`.
+		p.nextToken() // consume the extra '$'
+		nameExpr := p.parseSimpleExpression()
+		if nameExpr == nil {
+			p.addError("line %d:%d: expected variable name after '::$$', got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal)
+			return nil
+		}
+		return p.parsePostfixExpression(&ast.ClassConstFetchNode{
+			Class:     fqcn,
+			Const:     "$",
+			ConstExpr: nameExpr,
+			Pos:       ast.Position(fqcnPos),
 		})
 	}
 	if p.tok.Type == token.T_STRING || isValidMethodNameToken(p.tok.Type) {
@@ -1157,6 +1230,37 @@ func (p *Parser) parseStaticAccessOnNode(expr ast.Node) ast.Node {
 	if p.tok.Type == token.T_CLASS_CONST || p.tok.Type == token.T_CLASS {
 		p.nextToken()
 		return p.parsePostfixExpression(&ast.ClassConstFetchNode{Class: className, Const: "class", Pos: expr.GetPos()})
+	}
+	if p.tok.Type == token.T_DOLLAR_OPEN_CURLY_BRACES {
+		// Dynamic static property name: `self::${expr}`.
+		p.nextToken() // consume '${'
+		nameExpr := p.parseExpression()
+		if p.tok.Type != token.T_RBRACE {
+			p.addError("line %d:%d: expected } after dynamic static property name, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal)
+			return nil
+		}
+		p.nextToken() // consume '}'
+		return p.parsePostfixExpression(&ast.ClassConstFetchNode{
+			Class:     className,
+			Const:     "$",
+			ConstExpr: nameExpr,
+			Pos:       expr.GetPos(),
+		})
+	}
+	if p.tok.Type == token.T_ILLEGAL && p.tok.Literal == "$" {
+		// Dynamic static property name: `self::$$name`.
+		p.nextToken() // consume the extra '$'
+		nameExpr := p.parseSimpleExpression()
+		if nameExpr == nil {
+			p.addError("line %d:%d: expected variable name after '::$$', got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal)
+			return nil
+		}
+		return p.parsePostfixExpression(&ast.ClassConstFetchNode{
+			Class:     className,
+			Const:     "$",
+			ConstExpr: nameExpr,
+			Pos:       expr.GetPos(),
+		})
 	}
 	p.addError("line %d:%d: expected constant name or 'class' after '::', got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal)
 	return nil

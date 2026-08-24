@@ -109,6 +109,11 @@ func (l *Lexer) lexCaret(pos token.Position) token.Token {
 func (l *Lexer) lexGreater(pos token.Position) token.Token {
 	if l.peekChar() == '>' {
 		l.readChar()
+		if l.peekChar() == '=' {
+			l.readChar()
+			l.readChar()
+			return token.Token{Type: token.T_SR_EQUAL, Literal: ">>=", Pos: pos}
+		}
 		l.readChar()
 		return token.Token{Type: token.T_SR, Literal: ">>", Pos: pos}
 	}
@@ -129,6 +134,12 @@ func (l *Lexer) lexDollar(pos token.Position) token.Token {
 			l.readChar()
 		}
 		return token.Token{Type: token.T_VARIABLE, Literal: l.input[pos.Offset:l.pos], Pos: pos}
+	}
+	if l.char == '{' {
+		// "${" introduces a variable-variable / dynamic property name,
+		// e.g. `self::${$type . '_id'}`.
+		l.readChar()
+		return token.Token{Type: token.T_DOLLAR_OPEN_CURLY_BRACES, Literal: "${", Pos: pos}
 	}
 	return token.Token{Type: token.T_ILLEGAL, Literal: "$", Pos: pos}
 }
@@ -268,6 +279,12 @@ func (l *Lexer) lexLess(pos token.Position) token.Token {
 		if l.readPos+1 < len(l.input) && l.input[l.readPos+1] == '<' {
 			l.queueHeredocTokens(pos)
 			return l.nextHeredocToken()
+		}
+		if l.readPos+1 < len(l.input) && l.input[l.readPos+1] == '=' {
+			l.readChar()
+			l.readChar()
+			l.readChar()
+			return token.Token{Type: token.T_SL_EQUAL, Literal: "<<=", Pos: pos}
 		}
 		l.readChar()
 		l.readChar()

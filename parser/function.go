@@ -18,6 +18,10 @@ func (p *Parser) parseFunction(modifiers []string) (ast.Node, error) {
 	}
 
 	var name string
+	// Optional by-reference return marker: "function &name(...)"
+	if p.tok.Type == token.T_AMPERSAND {
+		p.nextToken()
+	}
 	if isValidMethodNameToken(p.tok.Type) {
 		name = p.tok.Literal
 		p.nextToken()

@@ -3,7 +3,11 @@ package ast
 type ClassConstFetchNode struct {
 	Class string
 	Const string
-	Pos   Position
+	// ConstExpr holds the dynamic name expression for `Class::${expr}`
+	// (variable-variable style static property access). Nil for the
+	// common `Class::CONST` / `Class::$prop` forms.
+	ConstExpr Node
+	Pos       Position
 }
 
 func (n *ClassConstFetchNode) GetPos() Position {

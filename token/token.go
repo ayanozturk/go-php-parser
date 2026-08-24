@@ -64,6 +64,8 @@ const (
 	T_CARET               TokenType = "T_CARET"
 	T_SL                  TokenType = "T_SL"
 	T_SR                  TokenType = "T_SR"
+	T_SL_EQUAL            TokenType = "T_SL_EQUAL"
+	T_SR_EQUAL            TokenType = "T_SR_EQUAL"
 	T_IS_EQUAL            TokenType = "T_IS_EQUAL"
 	T_IS_NOT_EQUAL        TokenType = "T_IS_NOT_EQUAL"
 	T_IS_IDENTICAL        TokenType = "T_IS_IDENTICAL"

@@ -312,6 +312,10 @@ func (p *Parser) parseAnonymousClassExpression() (ast.Node, []ast.Node) {
 	}, args
 }
 
+func isVisibilityModifierToken(t token.TokenType) bool {
+	return t == token.T_PUBLIC || t == token.T_PRIVATE || t == token.T_PROTECTED
+}
+
 func (p *Parser) parseTraitUseStatement() ast.Node {
 	pos := p.tok.Pos
 	p.nextToken() // consume use
@@ -329,12 +333,85 @@ func (p *Parser) parseTraitUseStatement() ast.Node {
 		}
 		p.nextToken() // consume comma
 	}
+	if p.tok.Type == token.T_LBRACE {
+		p.nextToken() // consume '{'
+		var adaptations []ast.TraitAdaptation
+		for p.tok.Type != token.T_RBRACE && p.tok.Type != token.T_EOF {
+			adaptation, ok := p.parseTraitAdaptation()
+			if !ok {
+				return nil
+			}
+			adaptations = append(adaptations, adaptation)
+		}
+		if p.tok.Type != token.T_RBRACE {
+			p.addError("line %d:%d: expected } after trait use adaptations, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal)
+			return nil
+		}
+		p.nextToken() // consume '}'
+		return &ast.TraitUseNode{Traits: traits, Adaptations: adaptations, Pos: ast.Position(pos)}
+	}
 	if p.tok.Type != token.T_SEMICOLON {
 		p.addError("line %d:%d: expected ; after trait use, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal)
 		return nil
 	}
 	p.nextToken() // consume ;
 	return &ast.TraitUseNode{Traits: traits, Pos: ast.Position(pos)}
+}
+
+// parseTraitAdaptation parses a single entry inside a trait use adaptation
+// block, e.g. "A::foo as bar;", "foo as protected;", or
+// "A::foo insteadof B, C;".
+func (p *Parser) parseTraitAdaptation() (ast.TraitAdaptation, bool) {
+	var adaptation ast.TraitAdaptation
+
+	name := p.tok.Literal
+	p.nextToken()
+	if p.tok.Type == token.T_DOUBLE_COLON {
+		p.nextToken() // consume '::'
+		adaptation.Trait = name
+		adaptation.Method = p.tok.Literal
+		p.nextToken()
+	} else {
+		adaptation.Method = name
+	}
+
+	switch p.tok.Type {
+	case token.T_AS:
+		p.nextToken() // consume 'as'
+		if isVisibilityModifierToken(p.tok.Type) {
+			adaptation.Visibility = p.tok.Literal
+			p.nextToken()
+		}
+		if p.tok.Type != token.T_SEMICOLON {
+			adaptation.As = p.tok.Literal
+			p.nextToken()
+		}
+	case token.T_INSTEADOF:
+		p.nextToken() // consume 'insteadof'
+		for {
+			insteadOf := p.parseFQCN()
+			identifier, ok := insteadOf.(*ast.IdentifierNode)
+			if !ok || identifier == nil {
+				p.addError("line %d:%d: expected trait name after insteadof, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal)
+				return adaptation, false
+			}
+			adaptation.InsteadOf = append(adaptation.InsteadOf, identifier.Value)
+			if p.tok.Type != token.T_COMMA {
+				break
+			}
+			p.nextToken() // consume comma
+		}
+	default:
+		p.addError("line %d:%d: expected 'as' or 'insteadof' in trait adaptation, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal)
+		return adaptation, false
+	}
+
+	if p.tok.Type != token.T_SEMICOLON {
+		p.addError("line %d:%d: expected ; after trait adaptation, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal)
+		return adaptation, false
+	}
+	p.nextToken() // consume ;
+	return adaptation, true
 }
 
 // Helper: skip to next class member or end of class on parse error
