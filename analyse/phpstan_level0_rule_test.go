@@ -6,6 +6,7 @@ import (
 	"github.com/ayanozturk/go-php-parser/parser"
 	"strings"
 	"testing"
+	"time"
 )
 
 func parsePHPForLevel0(t *testing.T, php string) []ast.Node {
@@ -1151,5 +1152,46 @@ function bad(): int {
 		if issue.Code == "A.RETURN.TYPE" || issue.Code == "A.PROP.TYPE" || issue.Code == "A.ARG.TYPE" || issue.Code == "Generic.CodeAnalysis.UnreachableCode" {
 			t.Fatalf("higher-level issue emitted at level 0: %#v", issues)
 		}
+	}
+}
+
+// TestLevel0CyclicClassHierarchyDoesNotHang guards against unbounded recursion
+// in ancestor-walking helpers (finalMethodInAncestors, finalConstantInAncestors,
+// consistentConstructorInAncestors, collectAbstractMethods,
+// collectUnimplementedParentAbstractMethods, isSubclassOf). Indexed PHP source
+// can legally parse into a self-referential or mutually cyclic "extends" chain
+// even though PHP itself would reject it at runtime; without cycle detection
+// these helpers previously recursed forever and crashed the analyser with a
+// stack overflow on large, real-world corpora.
+func TestLevel0CyclicClassHierarchyDoesNotHang(t *testing.T) {
+	done := make(chan []AnalysisIssue, 1)
+	go func() {
+		done <- runLevel0OnFiles(t, map[string]string{
+			"self.php": `<?php
+class SelfLoop extends SelfLoop {
+    final public function foo(): void {}
+    final public const BAR = 1;
+}
+`,
+			"mutual_a.php": `<?php
+class MutualA extends MutualB {
+    public function useOther(): void {}
+}
+`,
+			"mutual_b.php": `<?php
+class MutualB extends MutualA implements MutualIface {
+    abstract public function foo(): void;
+}
+interface MutualIface extends MutualIface {
+}
+`,
+		})
+	}()
+
+	select {
+	case <-done:
+		// Completed without hanging or stack-overflowing.
+	case <-time.After(5 * time.Second):
+		t.Fatal("analysis did not complete: likely unbounded recursion on cyclic class hierarchy")
 	}
 }

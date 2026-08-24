@@ -133,18 +133,27 @@ func resolveThrownClassName(node ast.Node, ft fileTypeContext) string {
 }
 
 func isSubclassOf(project *ProjectIndex, current, target string) bool {
+	return isSubclassOfSeen(project, current, target, map[string]struct{}{})
+}
+
+func isSubclassOfSeen(project *ProjectIndex, current, target string, seen map[string]struct{}) bool {
 	if project == nil || current == "" || target == "" {
 		return false
 	}
 	if indexKey(current) == indexKey(target) {
 		return true
 	}
+	key := indexKey(current)
+	if _, visited := seen[key]; visited {
+		return false
+	}
+	seen[key] = struct{}{}
 	class, ok := project.ResolveClass(current)
 	if !ok {
 		return false
 	}
 	for _, parent := range class.Extends {
-		if isSubclassOf(project, parent, target) {
+		if isSubclassOfSeen(project, parent, target, seen) {
 			return true
 		}
 	}

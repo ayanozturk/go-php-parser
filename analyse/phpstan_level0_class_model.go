@@ -195,10 +195,22 @@ func checkReadonlyClassProperties(filename, className string, class *ast.ClassNo
 	}
 }
 
+// ancestorRecursionGuard bounds recursive ancestor walks so a self-referential
+// or cyclic "extends" chain in indexed (possibly invalid) PHP source cannot
+// cause unbounded recursion and crash the analyser with a stack overflow.
 func finalMethodInAncestors(project *ProjectIndex, className, methodName string) (ResolvedMethod, bool) {
+	return finalMethodInAncestorsSeen(project, className, methodName, map[string]struct{}{})
+}
+
+func finalMethodInAncestorsSeen(project *ProjectIndex, className, methodName string, seen map[string]struct{}) (ResolvedMethod, bool) {
 	if project == nil {
 		return ResolvedMethod{}, false
 	}
+	key := indexKey(className)
+	if _, visited := seen[key]; visited {
+		return ResolvedMethod{}, false
+	}
+	seen[key] = struct{}{}
 	class, ok := project.ResolveClass(className)
 	if !ok {
 		return ResolvedMethod{}, false
@@ -207,7 +219,7 @@ func finalMethodInAncestors(project *ProjectIndex, className, methodName string)
 		if method, ok := project.Methods[indexKey(parent)][strings.ToLower(methodName)]; ok && method.Final {
 			return method, true
 		}
-		if method, ok := finalMethodInAncestors(project, parent, methodName); ok {
+		if method, ok := finalMethodInAncestorsSeen(project, parent, methodName, seen); ok {
 			return method, true
 		}
 	}
@@ -215,9 +227,18 @@ func finalMethodInAncestors(project *ProjectIndex, className, methodName string)
 }
 
 func finalConstantInAncestors(project *ProjectIndex, className, constName string) (ResolvedConstant, bool) {
+	return finalConstantInAncestorsSeen(project, className, constName, map[string]struct{}{})
+}
+
+func finalConstantInAncestorsSeen(project *ProjectIndex, className, constName string, seen map[string]struct{}) (ResolvedConstant, bool) {
 	if project == nil {
 		return ResolvedConstant{}, false
 	}
+	key := indexKey(className)
+	if _, visited := seen[key]; visited {
+		return ResolvedConstant{}, false
+	}
+	seen[key] = struct{}{}
 	class, ok := project.ResolveClass(className)
 	if !ok {
 		return ResolvedConstant{}, false
@@ -227,7 +248,7 @@ func finalConstantInAncestors(project *ProjectIndex, className, constName string
 			constant.DeclaringClass = parent
 			return constant, true
 		}
-		if constant, ok := finalConstantInAncestors(project, parent, constName); ok {
+		if constant, ok := finalConstantInAncestorsSeen(project, parent, constName, seen); ok {
 			return constant, true
 		}
 	}
@@ -235,9 +256,18 @@ func finalConstantInAncestors(project *ProjectIndex, className, constName string
 }
 
 func consistentConstructorInAncestors(project *ProjectIndex, className string) (ResolvedMethod, bool) {
+	return consistentConstructorInAncestorsSeen(project, className, map[string]struct{}{})
+}
+
+func consistentConstructorInAncestorsSeen(project *ProjectIndex, className string, seen map[string]struct{}) (ResolvedMethod, bool) {
 	if project == nil {
 		return ResolvedMethod{}, false
 	}
+	key := indexKey(className)
+	if _, visited := seen[key]; visited {
+		return ResolvedMethod{}, false
+	}
+	seen[key] = struct{}{}
 	class, ok := project.ResolveClass(className)
 	if !ok {
 		return ResolvedMethod{}, false
@@ -251,7 +281,7 @@ func consistentConstructorInAncestors(project *ProjectIndex, className string) (
 			constructor.DeclaringClass = parent
 			return constructor, true
 		}
-		if constructor, ok := consistentConstructorInAncestors(project, parent); ok {
+		if constructor, ok := consistentConstructorInAncestorsSeen(project, parent, seen); ok {
 			return constructor, true
 		}
 	}
@@ -375,15 +405,24 @@ func returnTypeCompatible(required, implemented string, ctx *AnalysisContext) bo
 }
 
 func collectAbstractMethods(project *ProjectIndex, className string, out map[string]ResolvedMethod) {
+	collectAbstractMethodsSeen(project, className, out, map[string]struct{}{})
+}
+
+func collectAbstractMethodsSeen(project *ProjectIndex, className string, out map[string]ResolvedMethod, seen map[string]struct{}) {
+	key := indexKey(className)
+	if _, visited := seen[key]; visited {
+		return
+	}
+	seen[key] = struct{}{}
 	class, ok := project.ResolveClass(className)
 	if !ok {
 		return
 	}
 	for _, parent := range class.Extends {
-		collectAbstractMethods(project, parent, out)
+		collectAbstractMethodsSeen(project, parent, out, seen)
 	}
 	for _, iface := range class.Implements {
-		collectAbstractMethods(project, iface, out)
+		collectAbstractMethodsSeen(project, iface, out, seen)
 	}
 	for _, method := range project.Methods[indexKey(className)] {
 		if method.Abstract {
@@ -393,12 +432,21 @@ func collectAbstractMethods(project *ProjectIndex, className string, out map[str
 }
 
 func collectUnimplementedParentAbstractMethods(project *ProjectIndex, className string, out map[string]ResolvedMethod) {
+	collectUnimplementedParentAbstractMethodsSeen(project, className, out, map[string]struct{}{})
+}
+
+func collectUnimplementedParentAbstractMethodsSeen(project *ProjectIndex, className string, out map[string]ResolvedMethod, seen map[string]struct{}) {
+	key := indexKey(className)
+	if _, visited := seen[key]; visited {
+		return
+	}
+	seen[key] = struct{}{}
 	class, ok := project.ResolveClass(className)
 	if !ok || class.Kind != "class" {
 		return
 	}
 	for _, parent := range class.Extends {
-		collectUnimplementedParentAbstractMethods(project, parent, out)
+		collectUnimplementedParentAbstractMethodsSeen(project, parent, out, seen)
 	}
 	for _, method := range project.Methods[indexKey(className)] {
 		key := strings.ToLower(method.Name)
