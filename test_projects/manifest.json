@@ -1,0 +1,62 @@
+{
+  "$schema": "https://github.com/ayanozturk/go-php-parser (see docs/full-static-analyser-target.md#comparable-performance-contract)",
+  "description": "Pinned corpora for compat-metrics and cmd/benchmark. Each project is fetched on demand into test_projects/<name> by `go run ./cmd/fetch-test-projects`; the checked-out sources are not committed to this repository (see .gitignore). `commit` is the exact pinned revision every reproducible run must use; `ref` is a human-readable tag/branch recorded for convenience and is re-resolved to `commit` at fetch time, never trusted on its own.",
+  "projects": [
+    {
+      "name": "composer-src",
+      "repo": "https://github.com/composer/composer.git",
+      "ref": "unpinned snapshot predating this manifest",
+      "commit": "c311f1fc455dc3f871a36186787c76c92b76dad6",
+      "notes": "Representative framework/tooling corpus, not one of the required Mago benchmark workloads."
+    },
+    {
+      "name": "drupal",
+      "repo": "https://github.com/drupal/drupal.git",
+      "ref": "unpinned snapshot predating this manifest",
+      "commit": "29704ed8d2144642eb6cb42269bb0ef8fcfde171",
+      "notes": "Representative framework corpus, not one of the required Mago benchmark workloads."
+    },
+    {
+      "name": "laravel",
+      "repo": "https://github.com/laravel/laravel.git",
+      "ref": "unpinned snapshot predating this manifest",
+      "commit": "b3d686abdfecc4bf906a4b42f822b434f431529b",
+      "notes": "Representative framework corpus, not one of the required Mago benchmark workloads."
+    },
+    {
+      "name": "phpunit",
+      "repo": "https://github.com/sebastianbergmann/phpunit.git",
+      "ref": "unpinned snapshot predating this manifest",
+      "commit": "864e93c73b6e4caf189461cdbdf63853c54271e2",
+      "notes": "Representative framework corpus, not one of the required Mago benchmark workloads."
+    },
+    {
+      "name": "symfony",
+      "repo": "https://github.com/symfony/symfony.git",
+      "ref": "unpinned snapshot predating this manifest",
+      "commit": "ae256f91a9cacc470fe77eca87aedd81c65ca55e",
+      "notes": "Representative framework corpus, not one of the required Mago benchmark workloads."
+    },
+    {
+      "name": "psl",
+      "repo": "https://github.com/php-standard-library/php-standard-library.git",
+      "ref": "6.2.1",
+      "commit": "331f3ab363508825e62c42725f96c091bcceb970",
+      "notes": "Required Mago benchmark workload (php-standard-library/php-standard-library). Pinned to the latest stable tag as of 2026-08-24; re-pin deliberately, do not silently track a moving branch. commit is the tag's peeled commit (6.2.1 is an annotated tag, whose own object SHA is 7334dda298859645bc64bce4a8129fe651ef67b1, not a commit)."
+    },
+    {
+      "name": "wordpress-develop",
+      "repo": "https://github.com/WordPress/wordpress-develop.git",
+      "ref": "7.1.0",
+      "commit": "daaca56d3d6a9a42a0c87f6eda766c33a77c1d05",
+      "notes": "Required Mago benchmark workload (WordPress/wordpress-develop). Pinned to the latest stable tag as of 2026-08-24 (a lightweight tag, so this is already the commit). Large corpus; expect a multi-hundred-MB checkout even with a shallow clone."
+    },
+    {
+      "name": "magento2",
+      "repo": "https://github.com/magento/magento2.git",
+      "ref": "2.4.9",
+      "commit": "755e34dd689021c5165db9d35ecff74f7dc51527",
+      "notes": "Required Mago benchmark workload (magento/magento2). Pinned to the latest stable tag as of 2026-08-24. Large corpus; expect a multi-hundred-MB checkout even with a shallow clone. commit is the tag's peeled commit (2.4.9 is an annotated tag, whose own object SHA is 614a428f70fcef830b02d37f633fedf273eeb667, not a commit)."
+    }
+  ]
+}

@@ -9,3 +9,12 @@ coverage.html
 mem.out
 cpu.out
 *.test
+
+# Benchmark/compat-metrics corpora are fetched on demand by
+# `go run ./cmd/fetch-test-projects` per test_projects/manifest.json; the
+# checked-out sources themselves are large (hundreds of MB each) and are
+# not committed. Do not add exceptions here for individual corpus
+# directories without also adding a .gitmodules entry or gitlinks will
+# silently resolve to empty directories on a fresh clone.
+/test_projects/*
+!/test_projects/manifest.json

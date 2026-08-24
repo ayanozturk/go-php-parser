@@ -194,6 +194,12 @@ go run main.go -p 4   # Use 4 workers in parallel
 
 ### Compatibility Metrics
 
+First, fetch the pinned corpora (not committed to this repository — see [test_projects/manifest.json](test_projects/manifest.json)):
+
+```bash
+go run ./cmd/fetch-test-projects
+```
+
 To track parser compatibility progress across the checked-in corpus under `test_projects`, run:
 
 ```bash
@@ -229,6 +235,18 @@ go run ./cmd/benchmark --root test_projects/phpunit
 ```
 
 Cold-full-analysis runs each re-exec the binary as a fresh subprocess (10 by default) so no in-process cache state leaks between measured runs; warm-full-analysis loops the pipeline in a single process after one unmeasured warmup iteration. Incremental-edit timing is reported as unsupported — the engine has no incremental invalidation API yet.
+
+### Pinned Benchmark Corpora
+
+`test_projects/*` (other than `manifest.json`) are fetched on demand, not committed — each is large (tens to hundreds of MB) and Git has no reliable way to pin an external directory's exact revision without either committing its full content or a real submodule. `go run ./cmd/fetch-test-projects` reads `test_projects/manifest.json` and checks out each project's exact pinned commit (a shallow, single-commit fetch, not a full clone) into `test_projects/<name>`, skipping projects already at the pinned commit. The manifest records the Mago benchmark's three required workloads (`php-standard-library`, `wordpress-develop`, `magento2`) alongside this project's own representative framework corpora (Composer, Drupal, Laravel, PHPUnit, Symfony), each with its exact commit per the [comparable-performance contract](docs/full-static-analyser-target.md#comparable-performance-contract).
+
+```bash
+go run ./cmd/fetch-test-projects                       # fetch everything in the manifest
+go run ./cmd/fetch-test-projects --only psl,magento2    # fetch a subset
+go run ./cmd/fetch-test-projects --force                # re-fetch even if already at the pinned commit
+```
+
+To re-pin a project to a newer revision, update its `commit` (and `ref`, for readability) in `test_projects/manifest.json` and re-run with `--force`.
 
 Useful flags:
 
