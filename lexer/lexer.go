@@ -105,6 +105,21 @@ func New(input string) *Lexer {
 	return l
 }
 
+// NewFile constructs a Lexer for a real PHP source file (as opposed to a
+// bare code snippet used in tests), starting in inline-HTML mode unless the
+// file begins with a recognized PHP open tag. PHP allows a file to start
+// with arbitrary literal content before its first "<?php"/"<?=" tag (e.g.
+// template/view files); New always starts in PHP-code mode instead, since
+// many callers construct bare snippets (operators, expressions) with no
+// leading open tag and expect immediate PHP tokenization.
+func NewFile(input string) *Lexer {
+	l := New(input)
+	if !l.atOpenTag() {
+		l.inHTML = true
+	}
+	return l
+}
+
 // readChar reads the next rune from input and advances position, supporting Unicode.
 func (l *Lexer) readChar() {
 	// line and column describe the rune being loaded. Advance from the

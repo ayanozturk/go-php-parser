@@ -169,7 +169,7 @@ func parseFile(path, root string) fileResult {
 		}
 	}
 
-	l := lexer.New(string(content))
+	l := lexer.NewFile(string(content))
 	p := parser.New(l, false)
 	_ = p.Parse()
 	errs := p.Errors()

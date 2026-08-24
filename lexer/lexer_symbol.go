@@ -294,6 +294,13 @@ func (l *Lexer) lexLess(pos token.Position) token.Token {
 					return token.Token{Type: token.T_OPEN_TAG, Literal: "<?php", Pos: pos}
 				}
 			}
+		} else if l.peekChar() == '=' {
+			// "<?=" is shorthand for "<?php echo ", same as when this
+			// open tag is encountered while scanning inline HTML.
+			l.readChar()
+			l.readChar()
+			l.heredocTokens = []token.Token{{Type: token.T_ECHO, Literal: "echo", Pos: pos}}
+			return token.Token{Type: token.T_OPEN_TAG, Literal: "<?=", Pos: pos}
 		}
 		tok := token.Token{Type: token.T_IS_SMALLER, Literal: asciiString(l.char), Pos: pos}
 		l.readChar()

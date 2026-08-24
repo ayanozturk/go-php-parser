@@ -2,6 +2,8 @@ package parser
 
 import (
 	"testing"
+
+	"github.com/ayanozturk/go-php-parser/lexer"
 )
 
 // This file covers the third large batch of corpus-driven parser fixes:
@@ -78,4 +80,20 @@ func TestParseAbstractPropertyHook(t *testing.T) {
 
 func TestParseNamedArgumentOnVariableCall(t *testing.T) {
 	parseNoErrors(t, `<?php $controller($templateName, headers: ['Content-Type' => 'x'])->headers->get('Content-Type');`)
+}
+
+func TestParseFileWithContentBeforeOpenTag(t *testing.T) {
+	// Real PHP files may start with arbitrary literal content before the
+	// first "<?php" tag (e.g. template/view files, XML declarations).
+	// This requires lexer.NewFile (used for real files), not lexer.New
+	// (used by bare-snippet tests, which always start in PHP-code mode).
+	l := lexer.NewFile("<div>Hello</div>\n<?php echo 1; ?>\nBye")
+	p := New(l, false)
+	nodes := p.Parse()
+	if len(p.Errors()) > 0 {
+		t.Fatalf("Parser errors: %v", p.Errors())
+	}
+	if len(nodes) < 3 {
+		t.Fatalf("expected at least 3 top-level nodes (leading HTML, echo, trailing HTML), got %d", len(nodes))
+	}
 }

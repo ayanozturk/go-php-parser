@@ -15,7 +15,7 @@ func BatchTokenizeFiles(fileContents map[string][]byte) {
 		wg.Add(1)
 		go func(fn string, src []byte) {
 			defer wg.Done()
-			lex := lexer.New(string(src))
+			lex := lexer.NewFile(string(src))
 			tokens := make([]token.Token, 0, 256)
 			for {
 				tok := lex.NextToken()

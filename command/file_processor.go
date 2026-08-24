@@ -56,7 +56,7 @@ func handleParsingErrors(p *parser.Parser, filePath string, w io.Writer, lineCou
 }
 
 func handleTokensCommand(input []byte, w io.Writer) {
-	l := lexer.New(string(input))
+	l := lexer.NewFile(string(input))
 	for {
 		tok := l.NextToken()
 		if tok.Type == "T_EOF" {
@@ -73,7 +73,7 @@ func ProcessFile(filePath, commandName string, debug bool, w io.Writer) int {
 		return 0
 	}
 	lineCount := CountLines(input)
-	l := lexer.New(string(input))
+	l := lexer.NewFile(string(input))
 	p := parser.New(l, debug)
 	nodes := p.Parse()
 	if len(p.Errors()) > 0 {
@@ -99,7 +99,7 @@ func ProcessFileWithErrors(filePath, commandName string, debug bool, rules []str
 		return nil, 0
 	}
 	lineCount := CountLines(input)
-	l := lexer.New(string(input))
+	l := lexer.NewFile(string(input))
 	p := parser.New(l, debug)
 	nodes := p.Parse()
 	errList := p.Errors()
@@ -194,7 +194,7 @@ func processFileForStyle(file string, rules []string, matcher *overrides.Compile
 		return
 	}
 	lines := CountLines(input)
-	lex := lexer.New(string(input))
+	lex := lexer.NewFile(string(input))
 	p := parser.New(lex, false)
 	nodes := p.Parse()
 	if len(p.Errors()) > 0 {
@@ -228,7 +228,7 @@ func processFileForStyle(file string, rules []string, matcher *overrides.Compile
 }
 
 func parseAndAnalyzeStyleFile(path string, content []byte, rules []string, matcher *overrides.Compiled, project *analyse.ProjectIndex) parseAnalysisResult {
-	lex := lexer.New(string(content))
+	lex := lexer.NewFile(string(content))
 	p := parser.New(lex, false)
 	nodes := p.Parse()
 	if len(p.Errors()) > 0 {
@@ -434,7 +434,7 @@ func buildProjectIndexForFiles(files []string) *analyse.ProjectIndex {
 			continue
 		}
 		sharedcache.StoreCachedFileContent(file, content)
-		lex := lexer.New(string(content))
+		lex := lexer.NewFile(string(content))
 		p := parser.New(lex, false)
 		nodes := p.Parse()
 		if len(p.Errors()) > 0 {
