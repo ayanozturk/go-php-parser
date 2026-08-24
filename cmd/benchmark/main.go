@@ -46,6 +46,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"runtime/pprof"
 	"sort"
 	"strconv"
 	"strings"
@@ -129,10 +130,22 @@ func main() {
 	workerPhase := flag.String("harness-worker-phase", "", "internal: run a single worker phase (index|full) and exit")
 	workerRepeat := flag.Int("harness-worker-repeat", 1, "internal: warm-loop iteration count for the full phase")
 
+	cpuProfile := flag.String("cpuprofile", "", "write a CPU profile (pprof format) of a single in-process full-analysis run to this path, then exit without running the benchmark suite")
+	memProfile := flag.String("memprofile", "", "write a heap profile (pprof format) after a single in-process full-analysis run to this path, then exit without running the benchmark suite")
+	profileIterations := flag.Int("profile-iterations", 1, "number of in-process full-analysis iterations to run while profiling (first iteration includes one-time setup costs like parsing)")
+
 	flag.Parse()
 
 	if *workerPhase != "" {
 		runWorker(*workerPhase, *root, *level, *workers, *workerRepeat)
+		return
+	}
+
+	if *cpuProfile != "" || *memProfile != "" {
+		if err := runProfile(*root, *level, *workers, *profileIterations, *cpuProfile, *memProfile); err != nil {
+			fmt.Fprintf(os.Stderr, "benchmark: %v\n", err)
+			os.Exit(1)
+		}
 		return
 	}
 
@@ -355,6 +368,72 @@ func runWorker(phase, root string, level, workers, repeat int) {
 		fmt.Fprintf(os.Stderr, "benchmark worker: unknown phase %q\n", phase)
 		os.Exit(1)
 	}
+}
+
+// runProfile runs the full parse+index+analyse pipeline in-process (no
+// subprocess re-exec, so pprof captures every allocation and CPU sample
+// from the actual process being profiled) and writes CPU and/or heap
+// profiles for offline analysis with `go tool pprof`. It intentionally
+// bypasses the cold/warm harness measurement machinery: profiling wants
+// the real work under a profiler attached to this process, not isolated
+// subprocess timing.
+func runProfile(root string, level, workers, iterations int, cpuProfilePath, memProfilePath string) error {
+	if iterations < 1 {
+		iterations = 1
+	}
+
+	files, err := discoverPHPFiles(root)
+	if err != nil {
+		return fmt.Errorf("discovering files: %w", err)
+	}
+	fmt.Fprintf(os.Stderr, "benchmark: profiling %d files under %s (%d iteration(s))\n", len(files), root, iterations)
+
+	var levelPtr *int
+	if level >= 0 {
+		levelPtr = &level
+	}
+
+	if cpuProfilePath != "" {
+		f, err := os.Create(cpuProfilePath)
+		if err != nil {
+			return fmt.Errorf("creating CPU profile %s: %w", cpuProfilePath, err)
+		}
+		defer f.Close()
+		if err := pprof.StartCPUProfile(f); err != nil {
+			return fmt.Errorf("starting CPU profile: %w", err)
+		}
+		defer pprof.StopCPUProfile()
+	}
+
+	parsed, parseMetrics := parseFiles(files, workers)
+	var diagnostics int
+	for i := 0; i < iterations; i++ {
+		start := time.Now()
+		project := analyse.BuildProjectIndex(parsed)
+		diagnostics = runAnalysis(parsed, project, levelPtr, workers)
+		fmt.Fprintf(os.Stderr, "  iteration %d/%d: %s, %d diagnostics\n", i+1, iterations, time.Since(start), diagnostics)
+	}
+	fmt.Fprintf(os.Stderr, "benchmark: parsed %d/%d files, %d diagnostics on the final iteration\n", parseMetrics.FilesParsed, parseMetrics.FilesDiscovered, diagnostics)
+
+	if memProfilePath != "" {
+		f, err := os.Create(memProfilePath)
+		if err != nil {
+			return fmt.Errorf("creating heap profile %s: %w", memProfilePath, err)
+		}
+		defer f.Close()
+		runtime.GC() // get up-to-date statistics, matching the standard pprof heap-profile recipe.
+		if err := pprof.WriteHeapProfile(f); err != nil {
+			return fmt.Errorf("writing heap profile: %w", err)
+		}
+	}
+
+	if cpuProfilePath != "" {
+		fmt.Fprintf(os.Stderr, "benchmark: wrote CPU profile to %s (inspect with `go tool pprof %s %s`)\n", cpuProfilePath, os.Args[0], cpuProfilePath)
+	}
+	if memProfilePath != "" {
+		fmt.Fprintf(os.Stderr, "benchmark: wrote heap profile to %s (inspect with `go tool pprof %s %s`)\n", memProfilePath, os.Args[0], memProfilePath)
+	}
+	return nil
 }
 
 func printResultLine(m runMetrics) {

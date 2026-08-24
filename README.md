@@ -237,6 +237,7 @@ Useful flags:
 - `--cold-runs` number of measured process-cold runs (contract minimum is 10)
 - `--warm-iterations` in-process warm-loop iterations, including the unmeasured warmup
 - `--skip-cold` skip the process-cold subprocess runs for a quick check
+- `--cpuprofile`/`--memprofile` write a `go tool pprof`-compatible CPU or heap profile from a single in-process full-analysis run (bypasses the cold/warm harness so the profiler attaches directly to the profiled work); pair with `--profile-iterations` to profile several in-process passes at once
 
 
 
