@@ -1,0 +1,74 @@
+name: Corpus benchmark and compatibility metrics
+
+# Wires up cmd/fetch-test-projects, cmd/compat-metrics, and cmd/benchmark per
+# docs/full-static-analyser-target.md's M0 exit criteria ("Add the external
+# three-project benchmark harness with pinned revisions and generated
+# machine-readable reports"). Runs on a schedule (not per-PR) because it
+# fetches and analyses several large PHP corpora (magento2 and
+# wordpress-develop alone are hundreds of MB) and cmd/benchmark's
+# process-cold phase runs 10 measured subprocess re-execs per corpus by
+# default, which is too slow for pull-request CI. Also runnable on demand
+# via workflow_dispatch.
+
+on:
+  schedule:
+    - cron: '30 4 * * 1' # weekly, Monday 04:30 UTC
+  workflow_dispatch:
+    inputs:
+      cold_runs:
+        description: 'Measured process-cold runs per required workload (contract minimum is 10)'
+        default: '10'
+      warm_iterations:
+        description: 'Warm-loop iterations per required workload (first is an unmeasured warmup)'
+        default: '11'
+
+permissions:
+  contents: read
+
+jobs:
+  benchmark:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Set up Go
+        uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Build harness binaries
+        run: |
+          mkdir -p bin
+          go build -o bin/fetch-test-projects ./cmd/fetch-test-projects
+          go build -o bin/compat-metrics ./cmd/compat-metrics
+          go build -o bin/benchmark ./cmd/benchmark
+      - name: Fetch pinned corpora
+        run: ./bin/fetch-test-projects
+      - name: Run compatibility metrics (all corpora)
+        run: |
+          mkdir -p benchmark-results
+          ./bin/compat-metrics --root test_projects --json --output benchmark-results/compat-metrics.json
+          ./bin/compat-metrics --root test_projects
+      - name: Run benchmark (required Mago workloads)
+        env:
+          COLD_RUNS: ${{ github.event.inputs.cold_runs || '10' }}
+          WARM_ITERATIONS: ${{ github.event.inputs.warm_iterations || '11' }}
+        run: |
+          set -e
+          for project in psl wordpress-develop magento2; do
+            echo "::group::benchmark $project"
+            ./bin/benchmark \
+              --root "test_projects/$project" \
+              --cold-runs "$COLD_RUNS" \
+              --warm-iterations "$WARM_ITERATIONS" \
+              --json \
+              --output "benchmark-results/benchmark-$project.json"
+            echo "::endgroup::"
+          done
+      - name: Upload benchmark results
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: benchmark-results
+          path: benchmark-results/
+          retention-days: 90
