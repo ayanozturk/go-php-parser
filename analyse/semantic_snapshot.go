@@ -51,6 +51,8 @@ type SemanticFact struct {
 }
 
 // SemanticFactReader is the read-only contract shared by analysis passes.
+// Facts must come from the same content snapshot as the AST being analysed;
+// exact byte-span keys prevent unrelated or shifted facts from being reused.
 type SemanticFactReader interface {
 	Fact(key SemanticFactKey) (SemanticFact, bool)
 	FactsForFile(filename string) []SemanticFact

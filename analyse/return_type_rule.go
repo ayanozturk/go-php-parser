@@ -44,6 +44,10 @@ func (e *ReturnTypeError) Error() string {
 }
 
 func (r *ReturnTypeRule) CheckFunctionReturnType(fn *ast.FunctionNode, class *ast.ClassNode, typeCtx fileTypeContext, ctx *AnalysisContext) []error {
+	return r.checkFunctionReturnType("", fn, class, typeCtx, ctx)
+}
+
+func (r *ReturnTypeRule) checkFunctionReturnType(filename string, fn *ast.FunctionNode, class *ast.ClassNode, typeCtx fileTypeContext, ctx *AnalysisContext) []error {
 	declaredType := declaredFunctionReturnType(fn, typeCtx)
 	if declaredType.IsEmpty() {
 		return nil // no declared return type, nothing to check
@@ -53,7 +57,7 @@ func (r *ReturnTypeRule) CheckFunctionReturnType(fn *ast.FunctionNode, class *as
 	returnTypes := map[string]int{}
 	var firstMismatch *ReturnTypeError
 	scope := analysisFunctionScope(ctx, class, fn, typeCtx)
-	for _, ret := range collectObservedReturns(fn.Body, scope, ctx) {
+	for _, ret := range collectObservedReturns(filename, fn.Body, scope, ctx) {
 		actualType := ret.Type
 		actualLabel := actualType.String()
 		if actualLabel == "" {
@@ -124,7 +128,7 @@ func (r *ReturnTypeRule) CheckIssues(nodes []ast.Node, filename string, ctx *Ana
 	checkFunc = func(n ast.Node, class *ast.ClassNode) {
 		switch fn := n.(type) {
 		case *ast.FunctionNode:
-			errs := r.CheckFunctionReturnType(fn, class, fileCtx, ctx)
+			errs := r.checkFunctionReturnType(filename, fn, class, fileCtx, ctx)
 			for _, err := range errs {
 				pos := fn.GetPos()
 				if typedErr, ok := err.(*ReturnTypeError); ok {
@@ -150,34 +154,58 @@ func (r *ReturnTypeRule) CheckIssues(nodes []ast.Node, filename string, ctx *Ana
 	return issues
 }
 
-func collectObservedReturns(nodes []ast.Node, scope *functionScope, ctx *AnalysisContext) []observedReturn {
+func collectObservedReturns(filename string, nodes []ast.Node, scope *functionScope, ctx *AnalysisContext) []observedReturn {
 	var returns []observedReturn
 	for _, n := range nodes {
 		switch n := n.(type) {
 		case *ast.ExpressionStmt:
 			applyExpressionScope(scope, n.Expr, ctx)
 		case *ast.ReturnNode:
-			returns = append(returns, observedReturn{Type: inferType(n.Expr, scope, ctx), Pos: n.GetPos()})
+			returns = append(returns, observedReturn{Type: inferTypeWithFacts(filename, n.Expr, scope, ctx), Pos: n.GetPos()})
 		case *ast.AssignmentNode:
 			applyAssignmentScope(scope, n, ctx)
 		case *ast.IfNode:
-			returns = append(returns, collectObservedReturns(n.Body, scope.clone(), ctx)...)
+			returns = append(returns, collectObservedReturns(filename, n.Body, scope.clone(), ctx)...)
 			for _, elseif := range n.ElseIfs {
-				returns = append(returns, collectObservedReturns(elseif.Body, scope.clone(), ctx)...)
+				returns = append(returns, collectObservedReturns(filename, elseif.Body, scope.clone(), ctx)...)
 			}
 			if n.Else != nil {
-				returns = append(returns, collectObservedReturns(n.Else.Body, scope.clone(), ctx)...)
+				returns = append(returns, collectObservedReturns(filename, n.Else.Body, scope.clone(), ctx)...)
 			}
 			applyLazyInitPropertyScope(scope, n, ctx)
 		case *ast.BlockNode:
-			returns = append(returns, collectObservedReturns(n.Statements, scope.clone(), ctx)...)
+			returns = append(returns, collectObservedReturns(filename, n.Statements, scope.clone(), ctx)...)
 		case *ast.WhileNode:
-			returns = append(returns, collectObservedReturns(n.Body, scope.clone(), ctx)...)
+			returns = append(returns, collectObservedReturns(filename, n.Body, scope.clone(), ctx)...)
 		case *ast.ForeachNode:
-			returns = append(returns, collectObservedReturns(n.Body, scope.clone(), ctx)...)
+			returns = append(returns, collectObservedReturns(filename, n.Body, scope.clone(), ctx)...)
 		}
 	}
 	return returns
+}
+
+func inferTypeWithFacts(filename string, expr ast.Node, scope *functionScope, ctx *AnalysisContext) Type {
+	if filename != "" && expr != nil && ctx != nil && ctx.Facts != nil {
+		start, end := expr.GetPos(), expr.GetEndPos()
+		if end.Offset > start.Offset {
+			key := SemanticFactKey{
+				File:        filename,
+				StartOffset: start.Offset,
+				EndOffset:   end.Offset,
+				Kind:        FactKindInferredType,
+			}
+			if fact, ok := ctx.Facts.Fact(key); ok && strings.TrimSpace(fact.Type) != "" {
+				factType := fact.Type
+				if scope != nil {
+					factType = normalizeTypeWithContext(factType, scope.typeCtx)
+				}
+				if inferred := ParseType(factType); !inferred.IsEmpty() {
+					return inferred
+				}
+			}
+		}
+	}
+	return inferType(expr, scope, ctx)
 }
 
 // inferType determines a simple type label for a given AST node.

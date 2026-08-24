@@ -1,6 +1,7 @@
 package analyse
 
 import (
+	"github.com/ayanozturk/go-php-parser/ast"
 	"github.com/ayanozturk/go-php-parser/lexer"
 	"github.com/ayanozturk/go-php-parser/parser"
 	"testing"
@@ -165,5 +166,98 @@ class Example {
 	issues := analysePHP(t, php)
 	if hasReturnTypeIssue(issues) {
 		t.Fatalf("expected no A.RETURN.TYPE issue for lazy-init property, got: %#v", issues)
+	}
+}
+
+func TestReturnTypeRuleUsesSnapshotInferredTypeFact(t *testing.T) {
+	const filename = "src/Answer.php"
+	nodes, expression := parseReturnFactFixture(t, `<?php
+function answer(): string {
+    return 42;
+}
+`)
+	rule := &ReturnTypeRule{}
+	if issues := rule.CheckIssues(nodes, filename, &AnalysisContext{}); !hasReturnTypeIssue(issues) {
+		t.Fatalf("expected ordinary inference to report int returned as string, got %#v", issues)
+	}
+
+	key := inferredTypeFactKey(filename, expression)
+	snapshot, err := NewSemanticSnapshot(map[string][]ast.Node{filename: nodes}, []SemanticFact{{Key: key, Type: "string"}})
+	if err != nil {
+		t.Fatalf("build semantic snapshot: %v", err)
+	}
+	if issues := rule.CheckIssues(nodes, filename, snapshot.NewAnalysisContext()); hasReturnTypeIssue(issues) {
+		t.Fatalf("expected shared inferred-type fact to satisfy declared return type, got %#v", issues)
+	}
+}
+
+func TestReturnTypeRuleIgnoresMismatchedAndEmptyInferredTypeFacts(t *testing.T) {
+	const filename = "src/Answer.php"
+	nodes, expression := parseReturnFactFixture(t, `<?php
+function answer(): string {
+    return 42;
+}
+`)
+	key := inferredTypeFactKey(filename, expression)
+	mismatched := key
+	mismatched.StartOffset++
+	reader := &countingFactReader{facts: map[SemanticFactKey]SemanticFact{
+		mismatched: {Key: mismatched, Type: "string"},
+	}}
+
+	issues := (&ReturnTypeRule{}).CheckIssues(nodes, filename, &AnalysisContext{Facts: reader})
+	if !hasReturnTypeIssue(issues) {
+		t.Fatalf("expected nonmatching fact span to fall back to ordinary inference, got %#v", issues)
+	}
+	if reader.lookups != 1 {
+		t.Fatalf("expected one exact fact lookup, got %d", reader.lookups)
+	}
+
+	reader.facts[key] = SemanticFact{Key: key}
+	issues = (&ReturnTypeRule{}).CheckIssues(nodes, filename, &AnalysisContext{Facts: reader})
+	if !hasReturnTypeIssue(issues) {
+		t.Fatalf("expected empty inferred type fact to fall back to ordinary inference, got %#v", issues)
+	}
+}
+
+type countingFactReader struct {
+	facts   map[SemanticFactKey]SemanticFact
+	lookups int
+}
+
+func (r *countingFactReader) Fact(key SemanticFactKey) (SemanticFact, bool) {
+	r.lookups++
+	fact, ok := r.facts[key]
+	return fact, ok
+}
+
+func (r *countingFactReader) FactsForFile(string) []SemanticFact {
+	return nil
+}
+
+func parseReturnFactFixture(t *testing.T, source string) ([]ast.Node, ast.Node) {
+	t.Helper()
+	p := parser.New(lexer.NewFile(source), false)
+	nodes := p.Parse()
+	if len(p.Errors()) != 0 {
+		t.Fatalf("parse errors: %v", p.Errors())
+	}
+	fn, ok := nodes[0].(*ast.FunctionNode)
+	if !ok || len(fn.Body) != 1 {
+		t.Fatalf("expected one function with one statement, got %#v", nodes)
+	}
+	ret, ok := fn.Body[0].(*ast.ReturnNode)
+	if !ok || ret.Expr == nil {
+		t.Fatalf("expected return expression, got %#v", fn.Body[0])
+	}
+	return nodes, ret.Expr
+}
+
+func inferredTypeFactKey(filename string, expression ast.Node) SemanticFactKey {
+	return SemanticFactKey{
+		File:        filename,
+		StartOffset: expression.GetPos().Offset,
+		EndOffset:   expression.GetEndPos().Offset,
+		Kind:        FactKindInferredType,
 	}
 }
