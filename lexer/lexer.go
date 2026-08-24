@@ -35,6 +35,11 @@ type Lexer struct {
 	// Lookahead cache: avoids state save/restore on PeekToken
 	hasPeeked   bool
 	peekedToken token.Token
+	// inHTML tracks whether the lexer is currently scanning literal
+	// (non-PHP) content outside of <?php ... ?> tags. PHP files may start
+	// with, contain, or end with inline HTML/text; this flag switches the
+	// scanner between raw-text mode and normal PHP tokenization.
+	inHTML bool
 }
 
 // inStringMode returns whether the lexer is currently inside a string.
@@ -312,6 +317,9 @@ func (l *Lexer) scanToken() token.Token {
 	if len(l.heredocTokens) > 0 {
 		return l.nextHeredocToken()
 	}
+	if l.inHTML {
+		return l.lexInlineHTML()
+	}
 	l.skipWhitespace()
 	pos := token.Position{Line: l.line, Column: l.column, Offset: l.pos}
 
@@ -343,6 +351,69 @@ func (l *Lexer) scanToken() token.Token {
 	tok := token.Token{Type: token.T_ILLEGAL, Literal: asciiString(l.char), Pos: pos}
 	l.readChar()
 	return tok
+}
+
+// atOpenTag reports whether the lexer is positioned at the start of a
+// recognized PHP open tag ("<?php" or "<?="). Short open tags ("<?") are
+// intentionally not treated as PHP open tags here, since they are disabled
+// by default in modern PHP and commonly appear as literal text (e.g. XML
+// declarations like "<?xml version=\"1.0\"?>") inside inline HTML.
+func (l *Lexer) atOpenTag() bool {
+	rest := l.input[l.pos:]
+	if len(rest) >= 5 && strings.EqualFold(rest[:5], "<?php") {
+		return true
+	}
+	return strings.HasPrefix(rest, "<?=")
+}
+
+// lexInlineHTML scans literal (non-PHP) content until the next recognized
+// PHP open tag or EOF, emitting it as a single T_INLINE_HTML token. If the
+// lexer is already positioned at an open tag, it delegates to lexOpenTag.
+func (l *Lexer) lexInlineHTML() token.Token {
+	pos := token.Position{Line: l.line, Column: l.column, Offset: l.pos}
+	if l.char == 0 {
+		return token.Token{Type: token.T_EOF, Literal: "", Pos: pos}
+	}
+	start := l.pos
+	for l.char != 0 {
+		if l.char == '<' && l.atOpenTag() {
+			break
+		}
+		l.readChar()
+	}
+	if l.pos > start {
+		return token.Token{Type: token.T_INLINE_HTML, Literal: l.input[start:l.pos], Pos: pos}
+	}
+	return l.lexOpenTag(pos)
+}
+
+// lexOpenTag consumes a PHP open tag ("<?php" or "<?=") and switches the
+// lexer into PHP-tokenization mode. "<?=" is shorthand for "<?php echo ",
+// so it is expanded into an implicit T_ECHO token queued right behind the
+// open tag.
+func (l *Lexer) lexOpenTag(pos token.Position) token.Token {
+	rest := l.input[l.pos:]
+	switch {
+	case len(rest) >= 5 && strings.EqualFold(rest[:5], "<?php"):
+		for i := 0; i < 5; i++ {
+			l.readChar()
+		}
+		l.inHTML = false
+		return token.Token{Type: token.T_OPEN_TAG, Literal: "<?php", Pos: pos}
+	case strings.HasPrefix(rest, "<?="):
+		for i := 0; i < 3; i++ {
+			l.readChar()
+		}
+		l.inHTML = false
+		l.heredocTokens = []token.Token{{Type: token.T_ECHO, Literal: "echo", Pos: pos}}
+		return token.Token{Type: token.T_OPEN_TAG, Literal: "<?=", Pos: pos}
+	default:
+		// Should be unreachable: callers only invoke lexOpenTag after
+		// atOpenTag() confirmed a match. Fall back to a single literal
+		// char to guarantee forward progress.
+		l.readChar()
+		return token.Token{Type: token.T_INLINE_HTML, Literal: "<", Pos: pos}
+	}
 }
 
 // --- Helper methods for NextToken ---
@@ -388,6 +459,20 @@ func (l *Lexer) lexQuestion(pos token.Position) token.Token {
 		l.readChar()
 		l.readChar()
 		return token.Token{Type: token.T_NULLSAFE_OBJECT_OPERATOR, Literal: "?->", Pos: pos}
+	}
+	if l.peekChar() == '>' {
+		l.readChar() // consume '?', l.char now '>'
+		l.readChar() // consume '>'
+		// PHP consumes a single newline immediately following the close
+		// tag so that e.g. "?>\n" doesn't emit a spurious blank HTML line.
+		if l.char == '\r' && l.peekChar() == '\n' {
+			l.readChar()
+			l.readChar()
+		} else if l.char == '\n' {
+			l.readChar()
+		}
+		l.inHTML = true
+		return token.Token{Type: token.T_CLOSE_TAG, Literal: "?>", Pos: pos}
 	}
 	if l.peekChar() == '?' {
 		l.readChar()

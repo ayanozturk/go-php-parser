@@ -19,6 +19,24 @@ retry:
 	if p.tok.Type == token.T_NAMESPACE {
 		return p.parseNamespaceDeclaration()
 	}
+	if p.tok.Type == token.T_INLINE_HTML {
+		val := p.tok.Literal
+		pos := p.tok.Pos
+		p.nextToken() // consume literal HTML content
+		return &ast.InlineHTMLNode{Value: val, Pos: ast.Position(pos)}, nil
+	}
+	if p.tok.Type == token.T_OPEN_TAG {
+		// Re-entering PHP mode after a "?>...<?php" split; the tag itself
+		// carries no semantics beyond switching the tokenizer.
+		p.nextToken()
+		goto retry
+	}
+	if p.tok.Type == token.T_CLOSE_TAG {
+		// "?>" implicitly terminates the previous statement and switches
+		// back to inline-HTML scanning; nothing to emit for the tag itself.
+		p.nextToken()
+		goto retry
+	}
 	if p.tok.Type == token.T_LBRACE {
 		pos := p.tok.Pos
 		p.nextToken() // consume {
@@ -136,6 +154,31 @@ retry:
 		}
 		p.nextToken() // consume ';'
 		return &ast.StaticVarDeclNode{Vars: entries, Pos: ast.Position(pos)}, nil
+	case token.T_GLOBAL:
+		// global $a, $b; -- imports variables from the global scope
+		pos := p.tok.Pos
+		p.nextToken() // consume 'global'
+		var entries []ast.GlobalVarEntry
+		for {
+			if p.tok.Type != token.T_VARIABLE {
+				p.addError("line %d:%d: expected variable name after global, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal)
+				return nil, nil
+			}
+			name := p.tok.Literal
+			vpos := p.tok.Pos
+			p.nextToken() // consume $var
+			entries = append(entries, ast.GlobalVarEntry{Name: name[1:], Pos: ast.Position(vpos)})
+			if p.tok.Type != token.T_COMMA {
+				break
+			}
+			p.nextToken() // consume ','
+		}
+		if p.tok.Type != token.T_SEMICOLON {
+			p.addError("line %d:%d: expected ; after global declaration, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal)
+			return nil, nil
+		}
+		p.nextToken() // consume ';'
+		return &ast.GlobalVarDeclNode{Vars: entries, Pos: ast.Position(pos)}, nil
 	case token.T_FUNCTION:
 		return p.parseFunction(nil)
 	case token.T_IF:
@@ -195,11 +238,14 @@ retry:
 		if expr == nil {
 			return nil, nil
 		}
-		if p.tok.Type != token.T_SEMICOLON {
+		if p.tok.Type == token.T_SEMICOLON {
+			p.nextToken() // consume ;
+		} else if p.tok.Type != token.T_CLOSE_TAG && p.tok.Type != token.T_EOF {
+			// A closing "?>" tag (or EOF) implicitly terminates the
+			// statement, same as PHP allows (e.g. "<?= $x ?>").
 			p.addError("line %d:%d: expected ; after %s statement, got %s", p.tok.Pos.Line, p.tok.Pos.Column, keyword, p.tok.Literal)
 			return nil, nil
 		}
-		p.nextToken() // consume ;
 		return &ast.ExpressionStmt{
 			Expr: expr,
 			Pos:  ast.Position(pos),
@@ -305,11 +351,14 @@ func (p *Parser) parseExpressionStatement() (ast.Node, error) {
 		return nil, nil
 	}
 
-	if p.tok.Type != token.T_SEMICOLON {
+	if p.tok.Type == token.T_SEMICOLON {
+		p.nextToken() // consume ;
+	} else if p.tok.Type != token.T_CLOSE_TAG && p.tok.Type != token.T_EOF {
+		// A closing "?>" tag (or EOF) implicitly terminates the statement,
+		// same as PHP allows for the last statement before a close tag.
 		p.addError("line %d:%d: expected ; after expression, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal)
 		return nil, nil
 	}
-	p.nextToken() // consume ;
 
 	return &ast.ExpressionStmt{
 		Expr: expr,

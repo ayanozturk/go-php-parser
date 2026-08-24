@@ -92,6 +92,16 @@ func (p *Parser) Parse() []ast.Node {
 		return nodes
 	}
 
+	// A file may begin with literal (non-PHP) content before the first
+	// <?php open tag, e.g. a template that outputs raw HTML at the top.
+	for p.tok.Type == token.T_INLINE_HTML {
+		nodes = append(nodes, &ast.InlineHTMLNode{Value: p.tok.Literal, Pos: ast.Position(p.tok.Pos)})
+		p.nextToken()
+	}
+	if p.tok.Type == token.T_EOF {
+		return nodes
+	}
+
 	// Expect PHP open tag first
 	if p.tok.Type != token.T_OPEN_TAG {
 		p.addError("line %d:%d: expected <?php at start of file, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal)
