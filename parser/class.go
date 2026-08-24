@@ -514,6 +514,7 @@ func (p *Parser) parsePropertyDeclaration(modifiers []string, typeHint string) (
 		IsReadonly:    isReadonly,
 		Hooks:         hooks,
 		Pos:           ast.Position(pos),
+		EndPos:        ast.Position(p.prevTokEnd),
 	}, nil
 }
 

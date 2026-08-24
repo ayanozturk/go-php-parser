@@ -3,6 +3,7 @@ package parser
 import (
 	"testing"
 
+	"github.com/ayanozturk/go-php-parser/ast"
 	"github.com/ayanozturk/go-php-parser/lexer"
 )
 
@@ -65,5 +66,63 @@ func TestParseExpressionEndPosSpansExpression(t *testing.T) {
 	// short at some inner sub-expression.
 	if src[end.Offset-1] != ';' {
 		t.Fatalf("expected span to end just after ';', got byte %q at offset %d", src[end.Offset-1], end.Offset-1)
+	}
+}
+
+func TestClassMemberDeclarationsHaveCompleteSpans(t *testing.T) {
+	src := `<?php
+class Model {
+    public string $name;
+    public const KIND = 'model';
+    public function label(int $id): string { return (string) $id; }
+}
+`
+	p := New(lexer.NewFile(src), false)
+	nodes := p.Parse()
+	if len(p.Errors()) != 0 {
+		t.Fatalf("unexpected parse errors: %v", p.Errors())
+	}
+	class, ok := nodes[0].(*ast.ClassNode)
+	if !ok {
+		t.Fatalf("expected class node, got %T", nodes[0])
+	}
+	declarations := []ast.Node{class.Properties[0], class.Constants[0], class.Methods[0]}
+	for _, declaration := range declarations {
+		assertCompleteNodeSpan(t, src, declaration)
+	}
+}
+
+func TestSkippedFunctionBodyRetainsCompleteDeclarationSpan(t *testing.T) {
+	src := `<?php
+class Model {
+    public function label(): string {
+        return "}";
+    }
+    public function next(): void {}
+}
+`
+	p := New(lexer.NewFile(src), false)
+	p.SkipFunctionBodies = true
+	nodes := p.Parse()
+	if len(p.Errors()) != 0 {
+		t.Fatalf("unexpected parse errors: %v", p.Errors())
+	}
+	class, ok := nodes[0].(*ast.ClassNode)
+	if !ok || len(class.Methods) != 2 {
+		t.Fatalf("expected class with two methods, got %#v", nodes)
+	}
+	first := class.Methods[0]
+	assertCompleteNodeSpan(t, src, first)
+	if got := src[first.GetPos().Offset:first.GetEndPos().Offset]; got != "function label(): string {\n        return \"}\";\n    }" {
+		t.Fatalf("skipped method span mismatch: %q", got)
+	}
+	assertCompleteNodeSpan(t, src, class.Methods[1])
+}
+
+func assertCompleteNodeSpan(t *testing.T, source string, node ast.Node) {
+	t.Helper()
+	start, end := node.GetPos(), node.GetEndPos()
+	if start.Offset < 0 || end.Offset <= start.Offset || end.Offset > len(source) {
+		t.Fatalf("invalid %s span: start=%+v end=%+v source length=%d", node.NodeType(), start, end, len(source))
 	}
 }

@@ -102,6 +102,7 @@ func (p *Parser) parseEnum() (*ast.EnumNode, error) {
 		Cases:      cases,
 		Methods:    methods,
 		Pos:        ast.Position(pos),
+		EndPos:     ast.Position(p.prevTokEnd),
 	}, nil
 }
 
@@ -137,5 +138,6 @@ func (p *Parser) parseEnumCase() (*ast.EnumCaseNode, error) {
 		Name:  name,
 		Value: value,
 		Pos:   ast.Position(pos),
+		EndPos: ast.Position(p.prevTokEnd),
 	}, nil
 }

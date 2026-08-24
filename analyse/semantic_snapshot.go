@@ -13,6 +13,14 @@ import (
 // declaration within its file.
 type SymbolID string
 
+// SourceLocation is a declaration's half-open source span. A blank File and
+// zero positions identify synthetic or built-in symbols with no source.
+type SourceLocation struct {
+	File  string
+	Start ast.Position
+	End   ast.Position
+}
+
 const (
 	// FactKindInferredType stores a type inferred for a source expression.
 	FactKindInferredType FactKind = "inferred-type"
@@ -169,7 +177,9 @@ func (s *SemanticSnapshot) ResolveClass(name string) (ResolvedClass, bool) {
 	if !ok {
 		return ResolvedClass{}, false
 	}
-	class.ID = stableSymbolID("class", "", class.Name)
+	if class.ID == "" {
+		class.ID = stableSymbolID("class", "", class.Name)
+	}
 	class.Extends = append([]string(nil), class.Extends...)
 	class.Implements = append([]string(nil), class.Implements...)
 	class.TemplateParams = append([]string(nil), class.TemplateParams...)
@@ -186,7 +196,9 @@ func (s *SemanticSnapshot) ResolveMethod(className, methodName string) (Resolved
 	if !ok {
 		return ResolvedMethod{}, false
 	}
-	method.ID = stableSymbolID("method", method.DeclaringClass, method.Name)
+	if method.ID == "" {
+		method.ID = stableSymbolID("method", method.DeclaringClass, method.Name)
+	}
 	method.Params = append([]ResolvedParam(nil), method.Params...)
 	return method, true
 }
@@ -199,8 +211,12 @@ func (s *SemanticSnapshot) ResolveProperty(className, propertyName string) (Reso
 	if !ok {
 		return ResolvedProperty{}, false
 	}
-	property.DeclaringClass = resolvedPropertyOwner(s.project, className, propertyName)
-	property.ID = stableSymbolID("property", property.DeclaringClass, strings.TrimPrefix(property.Name, "$"))
+	if property.DeclaringClass == "" {
+		property.DeclaringClass = resolvedPropertyOwner(s.project, className, propertyName)
+	}
+	if property.ID == "" {
+		property.ID = stableSymbolID("property", property.DeclaringClass, strings.TrimPrefix(property.Name, "$"))
+	}
 	return property, true
 }
 
@@ -212,7 +228,9 @@ func (s *SemanticSnapshot) ResolveFunction(name string) (ResolvedFunction, bool)
 	if !ok {
 		return ResolvedFunction{}, false
 	}
-	fn.ID = stableSymbolID("function", "", fn.Name)
+	if fn.ID == "" {
+		fn.ID = stableSymbolID("function", "", fn.Name)
+	}
 	fn.Params = append([]ResolvedParam(nil), fn.Params...)
 	return fn, true
 }
@@ -226,7 +244,9 @@ func (s *SemanticSnapshot) ResolveConstant(className, constantName string) (Reso
 	if !ok {
 		return ResolvedConstant{}, false
 	}
-	constant.ID = stableSymbolID("constant", constant.DeclaringClass, constant.Name)
+	if constant.ID == "" {
+		constant.ID = stableSymbolID("constant", constant.DeclaringClass, constant.Name)
+	}
 	return constant, true
 }
 

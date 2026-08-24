@@ -130,6 +130,7 @@ func (p *Parser) parseFunction(modifiers []string) (ast.Node, error) {
 				Body:       nil,
 				PHPDoc:     phpdoc,
 				Pos:        ast.Position(pos),
+				EndPos:     ast.Position(p.prevTokEnd),
 			}, nil
 		}
 	}
@@ -141,7 +142,8 @@ func (p *Parser) parseFunction(modifiers []string) (ast.Node, error) {
 		return nil, nil
 	}
 	if p.SkipFunctionBodies {
-		if !p.l.SkipBalancedCurlyBlock() {
+		endPos, ok := p.l.SkipBalancedCurlyBlockWithEnd()
+		if !ok {
 			p.syncToNextClassMember()
 			return nil, nil
 		}
@@ -154,6 +156,7 @@ func (p *Parser) parseFunction(modifiers []string) (ast.Node, error) {
 			Body:       nil,
 			PHPDoc:     phpdoc,
 			Pos:        ast.Position(pos),
+			EndPos:     ast.Position(endPos),
 		}, nil
 	}
 	p.nextToken() // consume {
@@ -212,5 +215,6 @@ func (p *Parser) parseFunction(modifiers []string) (ast.Node, error) {
 		Body:       body,
 		PHPDoc:     phpdoc,
 		Pos:        ast.Position(pos),
+		EndPos:     ast.Position(p.prevTokEnd),
 	}, nil
 }

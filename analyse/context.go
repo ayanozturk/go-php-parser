@@ -17,6 +17,7 @@ type SymbolResolver interface {
 
 type ResolvedClass struct {
 	ID                    SymbolID
+	Declaration           SourceLocation
 	Name                  string
 	Extends               []string
 	Implements            []string
@@ -39,6 +40,7 @@ type ResolvedGenericParent struct {
 
 type ResolvedMethod struct {
 	ID             SymbolID
+	Declaration    SourceLocation
 	Name           string
 	DeclaringClass string
 	ReturnType     string
@@ -51,6 +53,7 @@ type ResolvedMethod struct {
 
 type ResolvedProperty struct {
 	ID             SymbolID
+	Declaration    SourceLocation
 	DeclaringClass string
 	Name           string
 	Type           string
@@ -61,6 +64,7 @@ type ResolvedProperty struct {
 
 type ResolvedConstant struct {
 	ID             SymbolID
+	Declaration    SourceLocation
 	Name           string
 	DeclaringClass string
 	Type           string
@@ -69,10 +73,11 @@ type ResolvedConstant struct {
 }
 
 type ResolvedFunction struct {
-	ID         SymbolID
-	Name       string
-	ReturnType string
-	Params     []ResolvedParam
+	ID          SymbolID
+	Declaration SourceLocation
+	Name        string
+	ReturnType  string
+	Params      []ResolvedParam
 }
 
 type ResolvedParam struct {

@@ -180,6 +180,7 @@ func (p *Parser) parseInterfaceProperty(visibility string) ast.Node {
 		Visibility: visibility,
 		Hooks:      hooks,
 		Pos:        ast.Position(pos),
+		EndPos:     ast.Position(p.prevTokEnd),
 	}
 }
 
@@ -326,5 +327,6 @@ func (p *Parser) parseInterfaceMethodWithVisibility(initialVisibility string) as
 		Params:     params,
 		PHPDoc:     p.consumeCurrentDoc(pos),
 		Pos:        ast.Position(pos),
+		EndPos:     ast.Position(p.prevTokEnd),
 	}
 }

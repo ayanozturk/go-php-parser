@@ -172,9 +172,16 @@ func (l *Lexer) peekChar() rune {
 }
 
 // SkipBalancedCurlyBlock advances from the current "{" through its matching
-// "}". It is used by symbol-only parser passes that need declarations and
-// signatures but not statement bodies.
+// "}". It is kept as the compatibility API for callers that do not need the
+// closing position.
 func (l *Lexer) SkipBalancedCurlyBlock() bool {
+	_, ok := l.SkipBalancedCurlyBlockWithEnd()
+	return ok
+}
+
+// SkipBalancedCurlyBlockWithEnd also returns the position immediately after
+// the closing brace for declaration-span construction.
+func (l *Lexer) SkipBalancedCurlyBlockWithEnd() (token.Position, bool) {
 	depth := 0
 	if l.char != '{' {
 		depth = 1
@@ -202,13 +209,13 @@ func (l *Lexer) SkipBalancedCurlyBlock() bool {
 			depth--
 			l.readChar()
 			if depth == 0 {
-				return true
+				return token.Position{Line: l.line, Column: l.column, Offset: l.pos}, true
 			}
 			continue
 		}
 		l.readChar()
 	}
-	return false
+	return token.Position{Line: l.line, Column: l.column, Offset: l.pos}, false
 }
 
 func (l *Lexer) skipQuotedString(quote rune) {

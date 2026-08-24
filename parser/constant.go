@@ -84,6 +84,9 @@ func (p *Parser) parseConstantWithModifiers(modifiers []string) []*ast.ConstantN
 		return constants
 	}
 	p.nextToken() // consume ';'
+	for _, constant := range constants {
+		constant.SetEndPos(ast.Position(p.prevTokEnd))
+	}
 	return constants
 }
 
