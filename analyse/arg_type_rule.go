@@ -8,6 +8,8 @@ import (
 
 type ArgumentTypeRule struct{}
 
+type argumentExpressionObserver func(filename string, expr ast.Node, scope *functionScope, ctx *AnalysisContext)
+
 func (r *ArgumentTypeRule) CheckIssues(nodes []ast.Node, filename string, ctx *AnalysisContext) []AnalysisIssue {
 	var issues []AnalysisIssue
 	fileCtx := analysisFileTypeContext(ctx, nodes)
@@ -37,36 +39,40 @@ func (r *ArgumentTypeRule) CheckIssues(nodes []ast.Node, filename string, ctx *A
 }
 
 func walkStatementsForArgTypes(nodes []ast.Node, scope *functionScope, ctx *AnalysisContext, filename string, issues *[]AnalysisIssue) {
+	walkStatementsForArgTypesUsing(nodes, scope, ctx, filename, issues, nil)
+}
+
+func walkStatementsForArgTypesUsing(nodes []ast.Node, scope *functionScope, ctx *AnalysisContext, filename string, issues *[]AnalysisIssue, observe argumentExpressionObserver) {
 	for _, node := range nodes {
 		switch n := node.(type) {
 		case *ast.ExpressionStmt:
-			walkExprForArgTypes(n.Expr, scope, ctx, filename, issues)
+			walkExprForArgTypesUsing(n.Expr, scope, ctx, filename, issues, observe)
 			applyExpressionScope(scope, n.Expr, ctx)
 		case *ast.AssignmentNode:
-			walkExprForArgTypes(n.Right, scope, ctx, filename, issues)
+			walkExprForArgTypesUsing(n.Right, scope, ctx, filename, issues, observe)
 			applyAssignmentScope(scope, n, ctx)
 		case *ast.ReturnNode:
-			walkExprForArgTypes(n.Expr, scope, ctx, filename, issues)
+			walkExprForArgTypesUsing(n.Expr, scope, ctx, filename, issues, observe)
 		case *ast.IfNode:
-			walkExprForArgTypes(n.Condition, scope, ctx, filename, issues)
-			walkStatementsForArgTypes(n.Body, scopeForConditionTrue(scope, n.Condition), ctx, filename, issues)
+			walkExprForArgTypesUsing(n.Condition, scope, ctx, filename, issues, observe)
+			walkStatementsForArgTypesUsing(n.Body, scopeForConditionTrue(scope, n.Condition), ctx, filename, issues, observe)
 			for _, elseif := range n.ElseIfs {
-				walkExprForArgTypes(elseif.Condition, scope, ctx, filename, issues)
-				walkStatementsForArgTypes(elseif.Body, scopeForConditionTrue(scope, elseif.Condition), ctx, filename, issues)
+				walkExprForArgTypesUsing(elseif.Condition, scope, ctx, filename, issues, observe)
+				walkStatementsForArgTypesUsing(elseif.Body, scopeForConditionTrue(scope, elseif.Condition), ctx, filename, issues, observe)
 			}
 			if n.Else != nil {
-				walkStatementsForArgTypes(n.Else.Body, scope.clone(), ctx, filename, issues)
+				walkStatementsForArgTypesUsing(n.Else.Body, scope.clone(), ctx, filename, issues, observe)
 			}
 			applyTerminatingIfFalseScope(scope, n)
 			applyLazyInitPropertyScope(scope, n, ctx)
 		case *ast.BlockNode:
-			walkStatementsForArgTypes(n.Statements, scope.clone(), ctx, filename, issues)
+			walkStatementsForArgTypesUsing(n.Statements, scope.clone(), ctx, filename, issues, observe)
 		case *ast.WhileNode:
-			walkExprForArgTypes(n.Condition, scope, ctx, filename, issues)
-			walkStatementsForArgTypes(n.Body, scope.clone(), ctx, filename, issues)
+			walkExprForArgTypesUsing(n.Condition, scope, ctx, filename, issues, observe)
+			walkStatementsForArgTypesUsing(n.Body, scope.clone(), ctx, filename, issues, observe)
 		case *ast.ForeachNode:
-			walkExprForArgTypes(n.Expr, scope, ctx, filename, issues)
-			walkStatementsForArgTypes(n.Body, scope.clone(), ctx, filename, issues)
+			walkExprForArgTypesUsing(n.Expr, scope, ctx, filename, issues, observe)
+			walkStatementsForArgTypesUsing(n.Body, scope.clone(), ctx, filename, issues, observe)
 		}
 	}
 }
@@ -425,51 +431,69 @@ func applyLazyInitPropertyScope(scope *functionScope, node *ast.IfNode, ctx *Ana
 	}
 }
 
-func walkExprForArgTypes(node ast.Node, scope *functionScope, ctx *AnalysisContext, filename string, issues *[]AnalysisIssue) {
+func walkExprForArgTypesUsing(node ast.Node, scope *functionScope, ctx *AnalysisContext, filename string, issues *[]AnalysisIssue, observe argumentExpressionObserver) {
 	if node == nil {
 		return
 	}
 
 	switch n := node.(type) {
 	case *ast.MethodCallNode:
-		checkMethodCallArgTypes(n, scope, ctx, filename, issues)
-		walkExprForArgTypes(n.Object, scope, ctx, filename, issues)
+		if issues != nil {
+			checkMethodCallArgTypes(n, scope, ctx, filename, issues)
+		}
+		observeArgumentExpressions(n.Args, scope, ctx, filename, observe)
+		walkExprForArgTypesUsing(n.Object, scope, ctx, filename, issues, observe)
 		for _, arg := range n.Args {
-			walkExprForArgTypes(argumentValue(arg), scope, ctx, filename, issues)
+			walkExprForArgTypesUsing(argumentValue(arg), scope, ctx, filename, issues, observe)
 		}
 	case *ast.FunctionCallNode:
+		observeArgumentExpressions(n.Args, scope, ctx, filename, observe)
 		for _, arg := range n.Args {
-			walkExprForArgTypes(argumentValue(arg), scope, ctx, filename, issues)
+			walkExprForArgTypesUsing(argumentValue(arg), scope, ctx, filename, issues, observe)
 		}
 	case *ast.AssignmentNode:
-		walkExprForArgTypes(n.Right, scope, ctx, filename, issues)
+		walkExprForArgTypesUsing(n.Right, scope, ctx, filename, issues, observe)
 	case *ast.PropertyFetchNode:
-		walkExprForArgTypes(n.Object, scope, ctx, filename, issues)
+		walkExprForArgTypesUsing(n.Object, scope, ctx, filename, issues, observe)
 	case *ast.BinaryExpr:
-		walkExprForArgTypes(n.Left, scope, ctx, filename, issues)
+		walkExprForArgTypesUsing(n.Left, scope, ctx, filename, issues, observe)
 		switch n.Operator {
 		case "&&", "and":
-			walkExprForArgTypes(n.Right, scopeForConditionTrue(scope, n.Left), ctx, filename, issues)
+			walkExprForArgTypesUsing(n.Right, scopeForConditionTrue(scope, n.Left), ctx, filename, issues, observe)
 		default:
-			walkExprForArgTypes(n.Right, scope, ctx, filename, issues)
+			walkExprForArgTypesUsing(n.Right, scope, ctx, filename, issues, observe)
 		}
 	case *ast.ConcatNode:
 		for _, part := range n.Parts {
-			walkExprForArgTypes(part, scope, ctx, filename, issues)
+			walkExprForArgTypesUsing(part, scope, ctx, filename, issues, observe)
 		}
 	case *ast.TernaryExpr:
-		walkExprForArgTypes(n.Condition, scope, ctx, filename, issues)
-		walkExprForArgTypes(n.IfTrue, scope, ctx, filename, issues)
-		walkExprForArgTypes(n.IfFalse, scope, ctx, filename, issues)
+		walkExprForArgTypesUsing(n.Condition, scope, ctx, filename, issues, observe)
+		walkExprForArgTypesUsing(n.IfTrue, scope, ctx, filename, issues, observe)
+		walkExprForArgTypesUsing(n.IfFalse, scope, ctx, filename, issues, observe)
 	case *ast.NewNode:
-		checkNewArgTypes(n, scope, ctx, filename, issues)
+		if issues != nil {
+			checkNewArgTypes(n, scope, ctx, filename, issues)
+		}
+		observeArgumentExpressions(n.Args, scope, ctx, filename, observe)
 		for _, arg := range n.Args {
-			walkExprForArgTypes(argumentValue(arg), scope, ctx, filename, issues)
+			walkExprForArgTypesUsing(argumentValue(arg), scope, ctx, filename, issues, observe)
 		}
 	case *ast.NamedArgumentNode:
-		walkExprForArgTypes(n.Value, scope, ctx, filename, issues)
+		walkExprForArgTypesUsing(n.Value, scope, ctx, filename, issues, observe)
 	case *ast.UnpackedArgumentNode:
-		walkExprForArgTypes(n.Expr, scope, ctx, filename, issues)
+		walkExprForArgTypesUsing(n.Expr, scope, ctx, filename, issues, observe)
+	}
+}
+
+func observeArgumentExpressions(args []ast.Node, scope *functionScope, ctx *AnalysisContext, filename string, observe argumentExpressionObserver) {
+	if observe == nil {
+		return
+	}
+	for _, arg := range args {
+		if expr := argumentValue(arg); expr != nil {
+			observe(filename, expr, scope, ctx)
+		}
 	}
 }
 

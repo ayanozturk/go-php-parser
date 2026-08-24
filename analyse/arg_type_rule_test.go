@@ -730,6 +730,11 @@ class Example {
     }
 }
 `
+	return parseMethodArgumentFactFixtureSource(t, source)
+}
+
+func parseMethodArgumentFactFixtureSource(t *testing.T, source string) ([]ast.Node, ast.Node) {
+	t.Helper()
 	p := parser.New(lexer.NewFile(source), false)
 	nodes := p.Parse()
 	if len(p.Errors()) != 0 {
@@ -740,12 +745,12 @@ class Example {
 		t.Fatalf("expected class with two methods, got %#v", nodes)
 	}
 	run, ok := class.Methods[1].(*ast.FunctionNode)
-	if !ok || len(run.Body) != 1 {
-		t.Fatalf("expected run method with one statement, got %#v", class.Methods[1])
+	if !ok || len(run.Body) == 0 {
+		t.Fatalf("expected run method with statements, got %#v", class.Methods[1])
 	}
-	statement, ok := run.Body[0].(*ast.ExpressionStmt)
+	statement, ok := run.Body[len(run.Body)-1].(*ast.ExpressionStmt)
 	if !ok {
-		t.Fatalf("expected expression statement, got %#v", run.Body[0])
+		t.Fatalf("expected final expression statement, got %#v", run.Body[len(run.Body)-1])
 	}
 	call, ok := statement.Expr.(*ast.MethodCallNode)
 	if !ok || len(call.Args) != 1 {

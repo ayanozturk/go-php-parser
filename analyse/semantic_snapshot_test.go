@@ -213,3 +213,58 @@ function answer(): string {
 		t.Fatalf("generated int fact overwrote explicit fact: %#v, %v", got, ok)
 	}
 }
+
+func TestSemanticSnapshotGeneratesScopeAwareArgumentTypeFacts(t *testing.T) {
+	const filename = "src/Example.php"
+	nodes, argument := parseMethodArgumentFactFixtureSource(t, `<?php
+class Example {
+    public function takesString(string $value): void {}
+
+    public function run(): void {
+        $value = "ok";
+        $this->takesString($value);
+    }
+}
+`)
+
+	snapshot, err := NewSemanticSnapshot(map[string][]ast.Node{filename: nodes}, nil)
+	if err != nil {
+		t.Fatalf("build snapshot: %v", err)
+	}
+	fact, ok := snapshot.Fact(inferredTypeFactKey(filename, argument))
+	if !ok {
+		t.Fatal("expected generated inferred-type fact for method argument")
+	}
+	if fact.Type != "string" || fact.Subject != "method:example:run" {
+		t.Fatalf("unexpected generated argument fact: %#v", fact)
+	}
+}
+
+func TestSemanticSnapshotGeneratesBranchRefinedArgumentTypeFacts(t *testing.T) {
+	const filename = "src/Example.php"
+	nodes := parsePHPForProjectIndex(t, `<?php
+class Example {
+    public function takesString(string $value): void {}
+
+    public function run(mixed $value): void {
+        if (is_string($value)) {
+            $this->takesString($value);
+        }
+    }
+}
+`)
+	class := nodes[0].(*ast.ClassNode)
+	run := class.Methods[1].(*ast.FunctionNode)
+	branch := run.Body[0].(*ast.IfNode)
+	call := branch.Body[0].(*ast.ExpressionStmt).Expr.(*ast.MethodCallNode)
+	argument := argumentValue(call.Args[0])
+
+	snapshot, err := NewSemanticSnapshot(map[string][]ast.Node{filename: nodes}, nil)
+	if err != nil {
+		t.Fatalf("build snapshot: %v", err)
+	}
+	fact, ok := snapshot.Fact(inferredTypeFactKey(filename, argument))
+	if !ok || fact.Type != "string" {
+		t.Fatalf("expected branch-refined string argument fact, got %#v, %v", fact, ok)
+	}
+}

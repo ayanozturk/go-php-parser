@@ -115,13 +115,18 @@ func (s *SemanticSnapshot) generateInferredTypeFacts(parsed map[string][]ast.Nod
 					walk(method, n)
 				}
 			case *ast.FunctionNode:
-				scope := analysisFunctionScope(ctx, class, n, fileCtx)
-				returns := collectObservedReturnsUsing(filename, n.Body, scope, ctx, func(_ string, expr ast.Node, scope *functionScope, ctx *AnalysisContext) Type {
+				returnScope := analysisFunctionScope(ctx, class, n, fileCtx)
+				returns := collectObservedReturnsUsing(filename, n.Body, returnScope, ctx, func(_ string, expr ast.Node, scope *functionScope, ctx *AnalysisContext) Type {
 					return inferType(expr, scope, ctx)
 				})
 				for _, ret := range returns {
 					s.addGeneratedInferredTypeFact(filename, ret.Expr, ret.Type, fileCtx, class, n)
 				}
+
+				argumentScope := analysisFunctionScope(ctx, class, n, fileCtx)
+				walkStatementsForArgTypesUsing(n.Body, argumentScope, ctx, filename, nil, func(filename string, expr ast.Node, scope *functionScope, ctx *AnalysisContext) {
+					s.addGeneratedInferredTypeFact(filename, expr, inferType(expr, scope, ctx), fileCtx, class, n)
+				})
 			}
 		}
 
