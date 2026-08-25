@@ -126,35 +126,62 @@ func (r *ReturnTypeRule) checkFunctionReturnType(filename string, fn *ast.Functi
 
 func (r *ReturnTypeRule) CheckIssues(nodes []ast.Node, filename string, ctx *AnalysisContext) []AnalysisIssue {
 	var issues []AnalysisIssue
-	fileCtx := analysisFileTypeContext(ctx, nodes)
-	var checkFunc func(n ast.Node, class *ast.ClassNode)
-	checkFunc = func(n ast.Node, class *ast.ClassNode) {
-		switch fn := n.(type) {
-		case *ast.FunctionNode:
-			errs := r.checkFunctionReturnType(filename, fn, class, fileCtx, ctx)
-			for _, err := range errs {
-				pos := fn.GetPos()
-				if typedErr, ok := err.(*ReturnTypeError); ok {
-					pos = typedErr.Pos
-				}
-				issues = append(issues, AnalysisIssue{
-					Filename: filename,
-					Line:     pos.Line,
-					Column:   pos.Column,
-					Code:     "A.RETURN.TYPE",
-					Message:  err.Error(),
-				})
+	walkAll(nodes, func(node ast.Node, class *ast.ClassNode, _ *ast.FunctionNode, fileCtx fileTypeContext) {
+		fn, ok := node.(*ast.FunctionNode)
+		if !ok {
+			return
+		}
+		for _, err := range r.checkFunctionReturnType(filename, fn, class, fileCtx, ctx) {
+			pos := fn.GetPos()
+			if typedErr, ok := err.(*ReturnTypeError); ok {
+				pos = typedErr.Pos
 			}
-		case *ast.ClassNode:
-			for _, m := range fn.Methods {
-				checkFunc(m, fn)
+			issues = append(issues, AnalysisIssue{
+				Filename: filename,
+				Line:     pos.Line,
+				Column:   pos.Column,
+				Code:     "A.RETURN.TYPE",
+				Message:  err.Error(),
+			})
+		}
+		if missingReturnValue(fn, filename, fileCtx, ctx) {
+			name := fn.Name
+			if name == "" {
+				name = "closure"
+			}
+			declared := declaredFunctionReturnType(fn, fileCtx).String()
+			issues = append(issues, issueSpan(filename, fn, "A.RETURN.TYPE", fmt.Sprintf(
+				"Function %s: declared return type %s but not all paths return a value", name, declared,
+			)))
+		}
+	})
+	return issues
+}
+
+func missingReturnValue(fn *ast.FunctionNode, filename string, typeCtx fileTypeContext, ctx *AnalysisContext) bool {
+	declared := declaredFunctionReturnType(fn, typeCtx)
+	if fn == nil || declared.IsEmpty() || declared.String() == "void" || hasModifier(fn.Modifiers, "abstract") || functionContainsYield(fn) {
+		return false
+	}
+
+	if ctx != nil && ctx.Flow != nil {
+		if scope, ok := FlowScopeKeyForNode(filename, "function", fn, fn.Body); ok {
+			if mayFallThrough, found := ctx.Flow.ScopeMayFallThrough(scope); found {
+				return mayFallThrough
 			}
 		}
 	}
-	for _, n := range nodes {
-		checkFunc(n, nil)
-	}
-	return issues
+	return !statementsTerminate(fn.Body)
+}
+
+func functionContainsYield(fn *ast.FunctionNode) bool {
+	containsYield := false
+	walkAll([]ast.Node{fn}, func(node ast.Node, _ *ast.ClassNode, currentFn *ast.FunctionNode, _ fileTypeContext) {
+		if _, ok := node.(*ast.YieldNode); ok && currentFn == fn {
+			containsYield = true
+		}
+	})
+	return containsYield
 }
 
 func collectObservedReturns(filename string, nodes []ast.Node, scope *functionScope, ctx *AnalysisContext) []observedReturn {

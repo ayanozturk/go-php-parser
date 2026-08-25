@@ -41,7 +41,7 @@ These areas have repository unit coverage but no checked-in PHPStan differential
 | Constructor, method visibility, named arguments, and static/instance call direction | Partial | `PHPStan.Level0.Invocation` |
 | Class constants and property access | Partial | `PHPStan.Level0.Symbols`, `PHPStan.Level0.ClassModel` |
 | Selected PHP language legality checks | Partial | `PHPStan.Level0.Language` |
-| Return and property assignment types | Partial, above level 0 | `A.RETURN.TYPE`, `A.PROP.TYPE` |
+| Return completeness, return types, and property assignment types | Partial, above level 0 | `A.RETURN.TYPE`, `A.PROP.TYPE` |
 | Argument types | Partial, above levels 0–3 | `A.ARG.TYPE` |
 
 ## Unsupported milestone areas
