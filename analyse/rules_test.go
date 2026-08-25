@@ -79,6 +79,7 @@ func TestRunAnalysisRulesPreservesReadOnlySemanticContext(t *testing.T) {
 
 	resolver := NewProjectIndex()
 	facts := &countingFactReader{}
+	flow := &stubFlowGraphReader{}
 	RegisterAnalysisRuleWithContext("SEMANTIC.CONTEXT", func(filename string, nodes []ast.Node, ctx *AnalysisContext) []AnalysisIssue {
 		if ctx.Resolver != resolver {
 			t.Fatal("registered rule did not receive the supplied symbol resolver")
@@ -86,10 +87,27 @@ func TestRunAnalysisRulesPreservesReadOnlySemanticContext(t *testing.T) {
 		if ctx.Facts != facts {
 			t.Fatal("registered rule did not receive the supplied semantic fact reader")
 		}
+		if ctx.Flow != flow {
+			t.Fatal("registered rule did not receive the supplied flow graph reader")
+		}
 		return nil
 	})
 
-	RunAnalysisRulesWithContext("test.php", nil, &AnalysisContext{Resolver: resolver, Facts: facts})
+	RunAnalysisRulesWithContext("test.php", nil, &AnalysisContext{Resolver: resolver, Facts: facts, Flow: flow})
+}
+
+type stubFlowGraphReader struct{}
+
+func (*stubFlowGraphReader) StatementReachable(FlowStatementKey) (bool, bool) {
+	return false, false
+}
+
+func (*stubFlowGraphReader) ScopeMayFallThrough(FlowScopeKey) (bool, bool) {
+	return false, false
+}
+
+func (*stubFlowGraphReader) ControlFlowGraph(FlowScopeKey) (ControlFlowGraph, bool) {
+	return ControlFlowGraph{}, false
 }
 
 func TestRunAnalysisRulesFiltersDisabledIssueCodes(t *testing.T) {

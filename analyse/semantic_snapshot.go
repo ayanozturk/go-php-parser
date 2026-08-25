@@ -62,9 +62,12 @@ type SemanticFactReader interface {
 // and its reusable semantic facts. Construction owns the mutable ProjectIndex;
 // callers can only query defensive value copies through this facade.
 type SemanticSnapshot struct {
-	project   *ProjectIndex
-	facts     map[SemanticFactKey]SemanticFact
-	filenames []string
+	project                 *ProjectIndex
+	facts                   map[SemanticFactKey]SemanticFact
+	flowGraphs              map[FlowScopeKey]ControlFlowGraph
+	statementReachability   map[FlowStatementKey]bool
+	ambiguousFlowStatements map[FlowStatementKey]struct{}
+	filenames               []string
 }
 
 // NewSemanticSnapshot builds a project graph, derives reusable semantic facts,
@@ -93,6 +96,7 @@ func NewSemanticSnapshot(parsed map[string][]ast.Node, facts []SemanticFact) (*S
 		facts:     store,
 		filenames: filenames,
 	}
+	snapshot.generateControlFlowGraphs(parsed)
 	snapshot.generateInferredTypeFacts(parsed)
 	return snapshot, nil
 }
@@ -194,7 +198,7 @@ func (s *SemanticSnapshot) NewAnalysisContext() *AnalysisContext {
 	if s == nil {
 		return &AnalysisContext{}
 	}
-	return &AnalysisContext{Resolver: s, Facts: s}
+	return &AnalysisContext{Resolver: s, Facts: s, Flow: s}
 }
 
 // Fact returns the fact registered for an exact source-span key.
