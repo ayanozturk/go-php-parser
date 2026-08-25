@@ -414,11 +414,12 @@ func collectAbstractMethodsSeen(resolver SymbolResolver, className string, out m
 	for _, iface := range class.Implements {
 		collectAbstractMethodsSeen(resolver, iface, out, seen)
 	}
-	for _, method := range resolver.MethodsDeclaredBy(className) {
+	rangeMethodsDeclaredBy(resolver, className, func(method ResolvedMethod) bool {
 		if method.Abstract {
 			out[strings.ToLower(method.Name)] = method
 		}
-	}
+		return true
+	})
 }
 
 func collectUnimplementedParentAbstractMethods(resolver SymbolResolver, className string, out map[string]ResolvedMethod) {
@@ -438,14 +439,15 @@ func collectUnimplementedParentAbstractMethodsSeen(resolver SymbolResolver, clas
 	for _, parent := range class.Extends {
 		collectUnimplementedParentAbstractMethodsSeen(resolver, parent, out, seen)
 	}
-	for _, method := range resolver.MethodsDeclaredBy(className) {
+	rangeMethodsDeclaredBy(resolver, className, func(method ResolvedMethod) bool {
 		key := strings.ToLower(method.Name)
 		if method.Abstract {
 			out[key] = method
 		} else {
 			delete(out, key)
 		}
-	}
+		return true
+	})
 }
 
 func findConcreteClassMethod(resolver SymbolResolver, className, methodName string) (ResolvedMethod, bool) {

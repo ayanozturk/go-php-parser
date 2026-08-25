@@ -7,14 +7,15 @@ import (
 )
 
 type ProjectIndex struct {
-	Classes     map[string]ResolvedClass
-	Methods     map[string]map[string]ResolvedMethod
-	Properties  map[string]map[string]ResolvedProperty
-	ClassConsts map[string]map[string]ResolvedConstant
-	Functions   map[string]ResolvedFunction
-	Constants   map[string]struct{}
-	FileTypes   map[string]fileTypeContext
-	Duplicates  []DuplicateSymbol
+	Classes         map[string]ResolvedClass
+	Methods         map[string]map[string]ResolvedMethod
+	Properties      map[string]map[string]ResolvedProperty
+	ClassConsts     map[string]map[string]ResolvedConstant
+	Functions       map[string]ResolvedFunction
+	Constants       map[string]struct{}
+	FileTypes       map[string]fileTypeContext
+	Duplicates      []DuplicateSymbol
+	methodsDeclared map[string][]ResolvedMethod
 }
 
 type DuplicateSymbol struct {
@@ -59,6 +60,7 @@ func BuildProjectIndex(parsed map[string][]ast.Node) *ProjectIndex {
 		idx.FileTypes[filename] = ft
 		idx.indexNodes(filename, nodes, ft, "")
 	}
+	idx.methodsDeclared = buildMethodsDeclaredViews(idx)
 	return idx
 }
 
@@ -123,20 +125,41 @@ func (idx *ProjectIndex) MethodsDeclaredBy(className string) []ResolvedMethod {
 	if idx == nil {
 		return nil
 	}
+	methods := idx.methodsDeclaredView(className)
+	result := make([]ResolvedMethod, len(methods))
+	for i := range methods {
+		result[i] = methods[i]
+		result[i].Params = append([]ResolvedParam(nil), methods[i].Params...)
+	}
+	return result
+}
+
+func (idx *ProjectIndex) rangeMethodsDeclaredBy(className string, visit func(ResolvedMethod) bool) {
+	if idx == nil || visit == nil {
+		return
+	}
+	for _, method := range idx.methodsDeclaredView(className) {
+		if !visit(method) {
+			return
+		}
+	}
+}
+
+func (idx *ProjectIndex) methodsDeclaredView(className string) []ResolvedMethod {
+	if idx == nil {
+		return nil
+	}
 	class, ok := idx.ResolveClass(className)
 	if !ok {
 		return nil
 	}
-	methods := make([]ResolvedMethod, 0, len(idx.Methods[indexKey(class.Name)]))
-	for _, method := range idx.Methods[indexKey(class.Name)] {
-		method.DeclaringClass = class.Name
-		method.Params = append([]ResolvedParam(nil), method.Params...)
-		methods = append(methods, method)
+	key := indexKey(class.Name)
+	if idx.methodsDeclared != nil {
+		return idx.methodsDeclared[key]
 	}
-	sort.Slice(methods, func(i, j int) bool {
-		return strings.ToLower(methods[i].Name) < strings.ToLower(methods[j].Name)
-	})
-	return methods
+	// Mutable indexes constructed directly retain compatibility. Immutable
+	// indexes returned by BuildProjectIndex always use the precomputed path.
+	return buildMethodsDeclaredView(idx, key, class.Name)
 }
 
 func (idx *ProjectIndex) resolveMethodWithTemplates(className, methodName string, bindings map[string]string, seen map[string]struct{}) (ResolvedMethod, bool) {
@@ -414,6 +437,38 @@ func (idx *ProjectIndex) addMethod(className string, method ResolvedMethod) {
 		idx.Methods[key] = make(map[string]ResolvedMethod)
 	}
 	idx.Methods[key][strings.ToLower(method.Name)] = method
+	idx.methodsDeclared = nil
+}
+
+func buildMethodsDeclaredViews(project *ProjectIndex) map[string][]ResolvedMethod {
+	views := make(map[string][]ResolvedMethod, len(project.Methods))
+	for classKey := range project.Methods {
+		className := classKey
+		if class, ok := project.Classes[classKey]; ok {
+			className = class.Name
+		}
+		views[classKey] = buildMethodsDeclaredView(project, classKey, className)
+	}
+	return views
+}
+
+func buildMethodsDeclaredView(project *ProjectIndex, classKey, className string) []ResolvedMethod {
+	methodMap := project.Methods[classKey]
+	methodKeys := make([]string, 0, len(methodMap))
+	for methodKey := range methodMap {
+		methodKeys = append(methodKeys, methodKey)
+	}
+	sort.Strings(methodKeys)
+	methods := make([]ResolvedMethod, 0, len(methodKeys))
+	for _, methodKey := range methodKeys {
+		method := methodMap[methodKey]
+		method.DeclaringClass = className
+		if method.ID == "" {
+			method.ID = stableSymbolID("method", className, method.Name)
+		}
+		methods = append(methods, method)
+	}
+	return methods
 }
 
 func (idx *ProjectIndex) addProperty(className string, property ResolvedProperty) {

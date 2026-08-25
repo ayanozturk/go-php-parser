@@ -301,14 +301,24 @@ func (s *SemanticSnapshot) MethodsDeclaredBy(className string) []ResolvedMethod 
 	if s == nil {
 		return nil
 	}
-	methods := s.project.MethodsDeclaredBy(className)
+	methods := s.project.methodsDeclaredView(className)
+	result := make([]ResolvedMethod, len(methods))
 	for i := range methods {
-		if methods[i].ID == "" {
-			methods[i].ID = stableSymbolID("method", methods[i].DeclaringClass, methods[i].Name)
-		}
-		methods[i].Params = append([]ResolvedParam(nil), methods[i].Params...)
+		result[i] = methods[i]
+		result[i].Params = append([]ResolvedParam(nil), methods[i].Params...)
 	}
-	return methods
+	return result
+}
+
+func (s *SemanticSnapshot) rangeMethodsDeclaredBy(className string, visit func(ResolvedMethod) bool) {
+	if s == nil || visit == nil {
+		return
+	}
+	for _, method := range s.project.methodsDeclaredView(className) {
+		if !visit(method) {
+			return
+		}
+	}
 }
 
 func (s *SemanticSnapshot) ResolveProperty(className, propertyName string) (ResolvedProperty, bool) {

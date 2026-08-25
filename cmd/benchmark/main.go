@@ -101,17 +101,39 @@ type incrementalReport struct {
 	Reason    string `json:"reason,omitempty"`
 }
 
+type benchmarkRunTarget string
+
+const (
+	benchmarkCandidate benchmarkRunTarget = "candidate"
+	benchmarkBaseline  benchmarkRunTarget = "baseline"
+)
+
+type baselineReport struct {
+	Binary           string      `json:"binary"`
+	ValidationRun    runMetrics  `json:"validationRun"`
+	ColdFullAnalysis phaseReport `json:"coldFullAnalysis"`
+}
+
+type benchmarkValidation struct {
+	Accepted bool     `json:"accepted"`
+	MaxCV    float64  `json:"maxCoefficientOfVariation"`
+	Reasons  []string `json:"reasons,omitempty"`
+}
+
 type benchmarkReport struct {
-	GeneratedAt string   `json:"generatedAt"`
-	Root        string   `json:"root"`
-	GoVersion   string   `json:"goVersion"`
-	OS          string   `json:"os"`
-	Arch        string   `json:"arch"`
-	NumCPU      int      `json:"numCpu"`
-	Workers     int      `json:"workers"`
-	Level       *int     `json:"analysisLevel"`
-	Paths       []string `json:"paths"`
-	Excludes    []string `json:"excludes,omitempty"`
+	GeneratedAt   string              `json:"generatedAt"`
+	Root          string              `json:"root"`
+	GoVersion     string              `json:"goVersion"`
+	OS            string              `json:"os"`
+	Arch          string              `json:"arch"`
+	NumCPU        int                 `json:"numCpu"`
+	Workers       int                 `json:"workers"`
+	Level         *int                `json:"analysisLevel"`
+	Paths         []string            `json:"paths"`
+	Excludes      []string            `json:"excludes,omitempty"`
+	ValidationRun runMetrics          `json:"validationRun"`
+	Baseline      *baselineReport     `json:"baseline,omitempty"`
+	Validation    benchmarkValidation `json:"validation"`
 
 	IndexOnly        phaseReport       `json:"indexOnly"`
 	ColdFullAnalysis phaseReport       `json:"coldFullAnalysis"`
@@ -130,6 +152,8 @@ func main() {
 	jsonOutput := flag.Bool("json", false, "emit JSON instead of a text summary")
 	outputPath := flag.String("output", "", "optional file to write the report to")
 	skipCold := flag.Bool("skip-cold", false, "skip the process-cold subprocess runs (index-only and warm-loop still run)")
+	baselineBinary := flag.String("baseline-binary", "", "optional previous-engine benchmark binary to interleave with candidate cold runs")
+	maxCV := flag.Float64("max-cv", 0.05, "maximum accepted cold-run coefficient of variation (0 disables the gate)")
 
 	// Internal re-exec entrypoint: when set, this process performs exactly
 	// one measured phase and prints its runMetrics as a single JSON line to
@@ -192,6 +216,7 @@ func main() {
 		Level:       levelPtr,
 		Paths:       paths,
 		Excludes:    excludes,
+		Validation:  benchmarkValidation{Accepted: true, MaxCV: *maxCV},
 		Incremental: incrementalReport{
 			Supported: false,
 			Reason:    "the analysis engine has no incremental invalidation API yet (immutable project graph / incremental analysis are M1-M2 roadmap items); see docs/full-static-analyser-target.md",
@@ -206,19 +231,92 @@ func main() {
 	}
 	report.IndexOnly = summarize([]runMetrics{indexRun})
 
+	fmt.Fprintln(os.Stderr, "benchmark: running unmeasured full-pipeline validation")
+	validationRun, err := execWorker(*root, paths, excludes, *level, *workers, "full", 1)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "benchmark: validation run failed: %v\n", err)
+		os.Exit(1)
+	}
+	report.ValidationRun = validationRun
+	if err := validatePhaseAccounting(indexRun, []runMetrics{validationRun}, false); err != nil {
+		report.Validation.Accepted = false
+		report.Validation.Reasons = append(report.Validation.Reasons, "candidate validation: "+err.Error())
+	}
+
+	var baselineValidation runMetrics
+	if *baselineBinary != "" {
+		resolvedBaseline, resolveErr := filepath.Abs(*baselineBinary)
+		if resolveErr != nil {
+			fmt.Fprintf(os.Stderr, "benchmark: resolve baseline binary: %v\n", resolveErr)
+			os.Exit(1)
+		}
+		if info, statErr := os.Stat(resolvedBaseline); statErr != nil || info.IsDir() {
+			fmt.Fprintf(os.Stderr, "benchmark: invalid baseline binary %q\n", resolvedBaseline)
+			os.Exit(1)
+		}
+		*baselineBinary = resolvedBaseline
+		fmt.Fprintln(os.Stderr, "benchmark: running unmeasured baseline full-pipeline validation")
+		baselineValidation, err = execWorkerBinary(*baselineBinary, *root, paths, excludes, *level, *workers, "full", 1)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "benchmark: baseline validation run failed: %v\n", err)
+			os.Exit(1)
+		}
+		report.Baseline = &baselineReport{Binary: *baselineBinary, ValidationRun: baselineValidation}
+		if err := validatePhaseAccounting(validationRun, []runMetrics{baselineValidation}, false); err != nil {
+			report.Validation.Accepted = false
+			report.Validation.Reasons = append(report.Validation.Reasons, "baseline validation: "+err.Error())
+		}
+	}
+
 	if !*skipCold {
 		fmt.Fprintf(os.Stderr, "benchmark: running %d process-cold full-analysis runs\n", *coldRuns)
 		coldRunsResults := make([]runMetrics, 0, *coldRuns)
-		for i := 0; i < *coldRuns; i++ {
-			run, err := execWorker(*root, paths, excludes, *level, *workers, "full", 1)
+		baselineRunsResults := make([]runMetrics, 0, *coldRuns)
+		orders := make([]benchmarkRunTarget, *coldRuns)
+		for i := range orders {
+			orders[i] = benchmarkCandidate
+		}
+		if report.Baseline != nil {
+			orders = interleavedRunOrder(*coldRuns)
+		}
+		for _, target := range orders {
+			binary := ""
+			if target == benchmarkBaseline {
+				binary = report.Baseline.Binary
+			}
+			run, err := execWorkerBinary(binary, *root, paths, excludes, *level, *workers, "full", 1)
 			if err != nil {
-				fmt.Fprintf(os.Stderr, "benchmark: cold run %d failed: %v\n", i+1, err)
+				fmt.Fprintf(os.Stderr, "benchmark: %s cold run failed: %v\n", target, err)
 				os.Exit(1)
 			}
-			coldRunsResults = append(coldRunsResults, run)
-			fmt.Fprintf(os.Stderr, "  cold run %d/%d: %dms, %d diagnostics\n", i+1, *coldRuns, run.DurationMs, run.DiagnosticsEmitted)
+			if target == benchmarkBaseline {
+				baselineRunsResults = append(baselineRunsResults, run)
+				fmt.Fprintf(os.Stderr, "  baseline cold run %d/%d: %dms, %d diagnostics\n", len(baselineRunsResults), *coldRuns, run.DurationMs, run.DiagnosticsEmitted)
+			} else {
+				coldRunsResults = append(coldRunsResults, run)
+				fmt.Fprintf(os.Stderr, "  candidate cold run %d/%d: %dms, %d diagnostics\n", len(coldRunsResults), *coldRuns, run.DurationMs, run.DiagnosticsEmitted)
+			}
 		}
 		report.ColdFullAnalysis = summarize(coldRunsResults)
+		if err := validatePhaseAccounting(validationRun, coldRunsResults, true); err != nil {
+			report.Validation.Accepted = false
+			report.Validation.Reasons = append(report.Validation.Reasons, "candidate cold runs: "+err.Error())
+		}
+		if reason := validatePhaseCV("candidate", report.ColdFullAnalysis, *maxCV); reason != "" {
+			report.Validation.Accepted = false
+			report.Validation.Reasons = append(report.Validation.Reasons, reason)
+		}
+		if report.Baseline != nil {
+			report.Baseline.ColdFullAnalysis = summarize(baselineRunsResults)
+			if err := validatePhaseAccounting(baselineValidation, baselineRunsResults, true); err != nil {
+				report.Validation.Accepted = false
+				report.Validation.Reasons = append(report.Validation.Reasons, "baseline cold runs: "+err.Error())
+			}
+			if reason := validatePhaseCV("baseline", report.Baseline.ColdFullAnalysis, *maxCV); reason != "" {
+				report.Validation.Accepted = false
+				report.Validation.Reasons = append(report.Validation.Reasons, reason)
+			}
+		}
 	}
 
 	fmt.Fprintf(os.Stderr, "benchmark: running warm-loop full-analysis (%d iterations, 1 unmeasured warmup)\n", *warmIterations)
@@ -248,9 +346,15 @@ func main() {
 			fmt.Fprintf(os.Stderr, "benchmark: %v\n", err)
 			os.Exit(1)
 		}
+		if !report.Validation.Accepted {
+			os.Exit(2)
+		}
 		return
 	}
 	printTextReport(out, report)
+	if !report.Validation.Accepted {
+		os.Exit(2)
+	}
 }
 
 // execWorker re-execs this binary as a fresh subprocess for exactly one
@@ -259,9 +363,16 @@ func main() {
 // PeakRSSBytes overwritten by the OS-reported rusage of the child process,
 // which is a more trustworthy peak-RSS source than in-process sampling.
 func execWorker(root string, paths, excludes []string, level, workers int, phase string, repeat int) (runMetrics, error) {
+	return execWorkerBinary("", root, paths, excludes, level, workers, phase, repeat)
+}
+
+func execWorkerBinary(binary, root string, paths, excludes []string, level, workers int, phase string, repeat int) (runMetrics, error) {
 	self, err := os.Executable()
 	if err != nil {
 		return runMetrics{}, fmt.Errorf("resolving self path: %w", err)
+	}
+	if binary != "" {
+		self = binary
 	}
 	args := []string{
 		"--harness-worker-phase=" + phase,
@@ -297,6 +408,40 @@ func execWorker(root string, paths, excludes []string, level, workers int, phase
 	// internal duration is useful only for warm-loop iterations.
 	result.DurationMs = duration.Milliseconds()
 	return result, nil
+}
+
+func interleavedRunOrder(count int) []benchmarkRunTarget {
+	if count <= 0 {
+		return nil
+	}
+	order := make([]benchmarkRunTarget, 0, count*2)
+	for i := 0; i < count; i++ {
+		if i%2 == 0 {
+			order = append(order, benchmarkCandidate, benchmarkBaseline)
+		} else {
+			order = append(order, benchmarkBaseline, benchmarkCandidate)
+		}
+	}
+	return order
+}
+
+func validatePhaseAccounting(reference runMetrics, runs []runMetrics, includeDiagnostics bool) error {
+	for i, run := range runs {
+		if run.FilesDiscovered != reference.FilesDiscovered || run.FilesParsed != reference.FilesParsed || run.FilesFailed != reference.FilesFailed || run.TotalLOC != reference.TotalLOC || run.TotalBytes != reference.TotalBytes {
+			return fmt.Errorf("run %d file accounting differs from validation", i+1)
+		}
+		if includeDiagnostics && run.DiagnosticsEmitted != reference.DiagnosticsEmitted {
+			return fmt.Errorf("run %d diagnostics = %d, validation = %d", i+1, run.DiagnosticsEmitted, reference.DiagnosticsEmitted)
+		}
+	}
+	return nil
+}
+
+func validatePhaseCV(label string, phase phaseReport, maxCV float64) string {
+	if maxCV <= 0 || len(phase.Runs) < 2 || phase.CoefficientOfVar <= maxCV {
+		return ""
+	}
+	return fmt.Sprintf("%s cold CV %.4f exceeds %.4f", label, phase.CoefficientOfVar, maxCV)
 }
 
 // execWorkerRepeat re-execs a single subprocess that loops the full
@@ -817,7 +962,16 @@ func printTextReport(w io.Writer, r benchmarkReport) {
 
 	printPhase("Index-only", r.IndexOnly)
 	printPhase("Cold full analysis (process-cold, subprocess per run)", r.ColdFullAnalysis)
+	if r.Baseline != nil {
+		fmt.Fprintf(w, "Baseline binary: %s\n", r.Baseline.Binary)
+		printPhase("Baseline cold full analysis (interleaved)", r.Baseline.ColdFullAnalysis)
+	}
 	printPhase("Warm full analysis (in-process loop, 1 unmeasured warmup)", r.WarmFullAnalysis)
+	fmt.Fprintf(w, "Validation: accepted=%v maxCV=%.3f", r.Validation.Accepted, r.Validation.MaxCV)
+	if len(r.Validation.Reasons) > 0 {
+		fmt.Fprintf(w, " reasons=%s", strings.Join(r.Validation.Reasons, "; "))
+	}
+	fmt.Fprintln(w)
 
 	fmt.Fprintf(w, "Incremental edits: supported=%v", r.Incremental.Supported)
 	if r.Incremental.Reason != "" {

@@ -20,6 +20,25 @@ type SymbolResolver interface {
 	DuplicateClasses(filename string) []DuplicateSymbol
 }
 
+type methodsDeclaredRanger interface {
+	rangeMethodsDeclaredBy(className string, visit func(ResolvedMethod) bool)
+}
+
+func rangeMethodsDeclaredBy(resolver SymbolResolver, className string, visit func(ResolvedMethod) bool) {
+	if resolver == nil || visit == nil {
+		return
+	}
+	if ranger, ok := resolver.(methodsDeclaredRanger); ok {
+		ranger.rangeMethodsDeclaredBy(className, visit)
+		return
+	}
+	for _, method := range resolver.MethodsDeclaredBy(className) {
+		if !visit(method) {
+			return
+		}
+	}
+}
+
 type ResolvedClass struct {
 	ID                    SymbolID
 	Declaration           SourceLocation

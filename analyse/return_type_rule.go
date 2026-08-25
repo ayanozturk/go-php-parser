@@ -18,13 +18,15 @@ type observedReturn struct {
 type expressionTypeInferer func(filename string, expr ast.Node, scope *functionScope, ctx *AnalysisContext) Type
 
 type functionScope struct {
-	className     string
-	typeCtx       fileTypeContext
-	propertyDecls map[string]Type
-	variables     map[string]Type
-	properties    map[string]Type
-	methods       map[string]ResolvedMethod
-	methodReturns map[string]Type
+	className        string
+	typeCtx          fileTypeContext
+	propertyDecls    map[string]Type
+	variables        map[string]Type
+	properties       map[string]Type
+	variablesShared  bool
+	propertiesShared bool
+	methods          map[string]ResolvedMethod
+	methodReturns    map[string]Type
 }
 
 type classScopeData struct {
@@ -561,22 +563,48 @@ func (s *functionScope) clone() *functionScope {
 	if s == nil {
 		return nil
 	}
+	s.variablesShared = true
+	s.propertiesShared = true
 	clone := &functionScope{
-		className:     s.className,
-		typeCtx:       s.typeCtx,
-		propertyDecls: s.propertyDecls,
-		variables:     make(map[string]Type, len(s.variables)),
-		properties:    make(map[string]Type, len(s.properties)),
-		methods:       s.methods,
-		methodReturns: s.methodReturns,
-	}
-	for name, typ := range s.variables {
-		clone.variables[name] = typ
-	}
-	for name, typ := range s.properties {
-		clone.properties[name] = typ
+		className:        s.className,
+		typeCtx:          s.typeCtx,
+		propertyDecls:    s.propertyDecls,
+		variables:        s.variables,
+		properties:       s.properties,
+		variablesShared:  true,
+		propertiesShared: true,
+		methods:          s.methods,
+		methodReturns:    s.methodReturns,
 	}
 	return clone
+}
+
+func (s *functionScope) setVariable(name string, typ Type) {
+	if s == nil {
+		return
+	}
+	if s.variablesShared {
+		s.variables = copyTypeMap(s.variables)
+		s.variablesShared = false
+	}
+	if s.variables == nil {
+		s.variables = make(map[string]Type)
+	}
+	s.variables[name] = typ
+}
+
+func (s *functionScope) setProperty(name string, typ Type) {
+	if s == nil {
+		return
+	}
+	if s.propertiesShared {
+		s.properties = copyTypeMap(s.properties)
+		s.propertiesShared = false
+	}
+	if s.properties == nil {
+		s.properties = make(map[string]Type)
+	}
+	s.properties[name] = typ
 }
 
 func applyExpressionScope(scope *functionScope, expr ast.Node, ctx *AnalysisContext) {
@@ -618,10 +646,10 @@ func applyAssignmentScope(scope *functionScope, assignment *ast.AssignmentNode, 
 	assignedType := inferType(assignment.Right, scope, ctx)
 	switch left := assignment.Left.(type) {
 	case *ast.VariableNode:
-		scope.variables[left.Name] = assignedType
+		scope.setVariable(left.Name, assignedType)
 	case *ast.PropertyFetchNode:
 		if object, ok := left.Object.(*ast.VariableNode); ok && object.Name == "this" {
-			scope.properties[left.Property] = assignedType
+			scope.setProperty(left.Property, assignedType)
 		}
 	}
 }

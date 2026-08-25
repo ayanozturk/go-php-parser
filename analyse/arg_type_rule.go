@@ -120,7 +120,7 @@ func applyConditionTrueScope(scope *functionScope, condition ast.Node) {
 	}
 	for variableName, typ := range variablesTypedWhenTrue(condition, scope) {
 		if !typ.IsEmpty() {
-			scope.variables[variableName] = typ
+			scope.setVariable(variableName, typ)
 		}
 	}
 }
@@ -260,7 +260,7 @@ func applyTerminatingIfFalseScope(scope *functionScope, node *ast.IfNode) {
 		}
 		refined := current.withoutBuiltin("null")
 		if !refined.IsEmpty() {
-			scope.variables[variableName] = refined
+			scope.setVariable(variableName, refined)
 		}
 	}
 	// When the condition is `!<expr>` and the body terminates, execution
@@ -272,7 +272,7 @@ func applyTerminatingIfFalseScope(scope *functionScope, node *ast.IfNode) {
 			if typ.IsEmpty() {
 				continue
 			}
-			scope.variables[variableName] = typ
+			scope.setVariable(variableName, typ)
 		}
 	}
 }
@@ -455,7 +455,7 @@ func applyLazyInitPropertyScope(scope *functionScope, node *ast.IfNode, ctx *Ana
 	}
 	refined := current.withoutBuiltin("null")
 	if !refined.IsEmpty() {
-		scope.properties[propertyName] = refined
+		scope.setProperty(propertyName, refined)
 	}
 }
 
