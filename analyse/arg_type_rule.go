@@ -52,7 +52,9 @@ func walkStatementsForArgTypesUsing(nodes []ast.Node, scope *functionScope, ctx 
 			walkExprForArgTypesUsing(n.Right, scope, ctx, filename, issues, observe)
 			observeSemanticExpression(filename, n.Right, scope, ctx, observe)
 			if observe != nil {
-				walkExprForArgTypesUsing(n.Left, scope, ctx, filename, issues, observe)
+				assignedScope := scope.clone()
+				applyAssignmentScope(assignedScope, n, ctx)
+				walkExprForArgTypesUsing(n.Left, assignedScope, ctx, filename, issues, observe)
 			}
 			applyAssignmentScope(scope, n, ctx)
 		case *ast.ReturnNode:
@@ -442,6 +444,13 @@ func walkExprForArgTypesUsing(node ast.Node, scope *functionScope, ctx *Analysis
 	}
 
 	switch n := node.(type) {
+	case *ast.StringLiteral, *ast.InterpolatedStringLiteral, *ast.StringNode,
+		*ast.IntegerLiteral, *ast.IntegerNode,
+		*ast.FloatLiteral, *ast.FloatNode,
+		*ast.BooleanLiteral, *ast.BooleanNode,
+		*ast.NullLiteral, *ast.NullNode,
+		*ast.VariableNode:
+		observeSemanticExpression(filename, n, scope, ctx, observe)
 	case *ast.MethodCallNode:
 		if issues != nil {
 			checkMethodCallArgTypes(n, scope, ctx, filename, issues)
@@ -452,20 +461,25 @@ func walkExprForArgTypesUsing(node ast.Node, scope *functionScope, ctx *Analysis
 		for _, arg := range n.Args {
 			walkExprForArgTypesUsing(argumentValue(arg), scope, ctx, filename, issues, observe)
 		}
+		observeSemanticExpression(filename, n, scope, ctx, observe)
 	case *ast.FunctionCallNode:
 		observeArgumentExpressions(n.Args, scope, ctx, filename, observe)
 		for _, arg := range n.Args {
 			walkExprForArgTypesUsing(argumentValue(arg), scope, ctx, filename, issues, observe)
 		}
+		observeSemanticExpression(filename, n, scope, ctx, observe)
 	case *ast.AssignmentNode:
 		walkExprForArgTypesUsing(n.Right, scope, ctx, filename, issues, observe)
 		observeSemanticExpression(filename, n.Right, scope, ctx, observe)
 		if observe != nil {
-			walkExprForArgTypesUsing(n.Left, scope, ctx, filename, issues, observe)
+			assignedScope := scope.clone()
+			applyAssignmentScope(assignedScope, n, ctx)
+			walkExprForArgTypesUsing(n.Left, assignedScope, ctx, filename, issues, observe)
 		}
 	case *ast.PropertyFetchNode:
 		walkExprForArgTypesUsing(n.Object, scope, ctx, filename, issues, observe)
 		observeSemanticExpression(filename, n.Object, scope, ctx, observe)
+		observeSemanticExpression(filename, n, scope, ctx, observe)
 	case *ast.BinaryExpr:
 		walkExprForArgTypesUsing(n.Left, scope, ctx, filename, issues, observe)
 		switch n.Operator {
@@ -474,14 +488,17 @@ func walkExprForArgTypesUsing(node ast.Node, scope *functionScope, ctx *Analysis
 		default:
 			walkExprForArgTypesUsing(n.Right, scope, ctx, filename, issues, observe)
 		}
+		observeSemanticExpression(filename, n, scope, ctx, observe)
 	case *ast.ConcatNode:
 		for _, part := range n.Parts {
 			walkExprForArgTypesUsing(part, scope, ctx, filename, issues, observe)
 		}
+		observeSemanticExpression(filename, n, scope, ctx, observe)
 	case *ast.TernaryExpr:
 		walkExprForArgTypesUsing(n.Condition, scope, ctx, filename, issues, observe)
 		walkExprForArgTypesUsing(n.IfTrue, scope, ctx, filename, issues, observe)
 		walkExprForArgTypesUsing(n.IfFalse, scope, ctx, filename, issues, observe)
+		observeSemanticExpression(filename, n, scope, ctx, observe)
 	case *ast.NewNode:
 		if issues != nil {
 			checkNewArgTypes(n, scope, ctx, filename, issues)
@@ -490,6 +507,7 @@ func walkExprForArgTypesUsing(node ast.Node, scope *functionScope, ctx *Analysis
 		for _, arg := range n.Args {
 			walkExprForArgTypesUsing(argumentValue(arg), scope, ctx, filename, issues, observe)
 		}
+		observeSemanticExpression(filename, n, scope, ctx, observe)
 	case *ast.NamedArgumentNode:
 		walkExprForArgTypesUsing(n.Value, scope, ctx, filename, issues, observe)
 	case *ast.UnpackedArgumentNode:

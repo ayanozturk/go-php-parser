@@ -336,3 +336,45 @@ class Example {
 		}
 	}
 }
+
+func TestSemanticSnapshotGeneratesHoverAndConditionTypeFacts(t *testing.T) {
+	const filename = "src/Example.php"
+	nodes := parsePHPForProjectIndex(t, `<?php
+class Service {
+    public function ready(): bool {}
+}
+
+class Example {
+    public function run(Service $service): void {
+        $label = "waiting";
+        if ($service->ready()) {
+            $label = "ready";
+        }
+    }
+}
+`)
+	class := nodes[1].(*ast.ClassNode)
+	method := class.Methods[0].(*ast.FunctionNode)
+	assignment := method.Body[0].(*ast.ExpressionStmt).Expr.(*ast.AssignmentNode)
+	variable := assignment.Left.(*ast.VariableNode)
+	condition := method.Body[1].(*ast.IfNode).Condition.(*ast.MethodCallNode)
+
+	snapshot, err := NewSemanticSnapshot(map[string][]ast.Node{filename: nodes}, nil)
+	if err != nil {
+		t.Fatalf("build snapshot: %v", err)
+	}
+	checks := []struct {
+		label string
+		node  ast.Node
+		typ   string
+	}{
+		{label: "assignment target", node: variable, typ: "string"},
+		{label: "condition", node: condition, typ: "bool"},
+	}
+	for _, check := range checks {
+		fact, ok := snapshot.Fact(inferredTypeFactKey(filename, check.node))
+		if !ok || fact.Type != check.typ || fact.Subject != "method:example:run" {
+			t.Fatalf("unexpected %s fact: %#v, %v", check.label, fact, ok)
+		}
+	}
+}

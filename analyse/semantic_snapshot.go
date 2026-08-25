@@ -117,7 +117,9 @@ func (s *SemanticSnapshot) generateInferredTypeFacts(parsed map[string][]ast.Nod
 			case *ast.FunctionNode:
 				scope := analysisFunctionScope(ctx, class, n, fileCtx)
 				walkStatementsForArgTypesUsing(n.Body, scope, ctx, filename, nil, func(filename string, expr ast.Node, scope *functionScope, ctx *AnalysisContext) {
-					s.addGeneratedInferredTypeFact(filename, expr, inferType(expr, scope, ctx), fileCtx, class, n)
+					s.addGeneratedInferredTypeFact(filename, expr, fileCtx, class, n, func() Type {
+						return inferType(expr, scope, ctx)
+					})
 				})
 			}
 		}
@@ -128,8 +130,8 @@ func (s *SemanticSnapshot) generateInferredTypeFacts(parsed map[string][]ast.Nod
 	}
 }
 
-func (s *SemanticSnapshot) addGeneratedInferredTypeFact(filename string, expr ast.Node, inferred Type, fileCtx fileTypeContext, class *ast.ClassNode, function *ast.FunctionNode) {
-	if expr == nil || inferred.IsEmpty() {
+func (s *SemanticSnapshot) addGeneratedInferredTypeFact(filename string, expr ast.Node, fileCtx fileTypeContext, class *ast.ClassNode, function *ast.FunctionNode, infer func() Type) {
+	if expr == nil || infer == nil {
 		return
 	}
 	start, end := expr.GetPos(), expr.GetEndPos()
@@ -138,6 +140,10 @@ func (s *SemanticSnapshot) addGeneratedInferredTypeFact(filename string, expr as
 	}
 	key := SemanticFactKey{File: filename, StartOffset: start.Offset, EndOffset: end.Offset, Kind: FactKindInferredType}
 	if _, explicitOrGenerated := s.facts[key]; explicitOrGenerated {
+		return
+	}
+	inferred := infer()
+	if inferred.IsEmpty() {
 		return
 	}
 	s.facts[key] = SemanticFact{Key: key, Subject: s.functionSymbolID(fileCtx, class, function), Type: inferred.String()}

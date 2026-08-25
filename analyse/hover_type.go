@@ -3,7 +3,13 @@ package analyse
 import "github.com/ayanozturk/go-php-parser/ast"
 
 func InferTypeAtPosition(nodes []ast.Node, line, column int, ident string, ctx *AnalysisContext) (string, bool) {
-	target, ok := InferHoverTargetAtPosition(nodes, line, column, ident, ctx)
+	return InferTypeAtPositionWithFilename(nodes, "", line, column, ident, ctx)
+}
+
+// InferTypeAtPositionWithFilename resolves a hover type against semantic facts
+// from the same named file while preserving InferTypeAtPosition's fallback API.
+func InferTypeAtPositionWithFilename(nodes []ast.Node, filename string, line, column int, ident string, ctx *AnalysisContext) (string, bool) {
+	target, ok := InferHoverTargetAtPositionWithFilename(nodes, filename, line, column, ident, ctx)
 	if !ok || target.Type == "" {
 		return "", false
 	}
@@ -29,6 +35,12 @@ type HoverTarget struct {
 }
 
 func InferHoverTargetAtPosition(nodes []ast.Node, line, column int, ident string, ctx *AnalysisContext) (HoverTarget, bool) {
+	return InferHoverTargetAtPositionWithFilename(nodes, "", line, column, ident, ctx)
+}
+
+// InferHoverTargetAtPositionWithFilename resolves exact-span semantic facts
+// for filename and falls back to live inference when no matching fact exists.
+func InferHoverTargetAtPositionWithFilename(nodes []ast.Node, filename string, line, column int, ident string, ctx *AnalysisContext) (HoverTarget, bool) {
 	if ident == "" {
 		return HoverTarget{}, false
 	}
@@ -36,7 +48,7 @@ func InferHoverTargetAtPosition(nodes []ast.Node, line, column int, ident string
 		return HoverTarget{}, false
 	}
 
-	query := hoverTypeQuery{line: line, column: column, ident: ident}
+	query := hoverTypeQuery{filename: filename, line: line, column: column, ident: ident}
 	match := findHoverTypeMatch(nodes, query, ctx)
 	if !match.ok {
 		return HoverTarget{}, false
@@ -50,9 +62,10 @@ func InferHoverTargetAtPosition(nodes []ast.Node, line, column int, ident string
 }
 
 type hoverTypeQuery struct {
-	line   int
-	column int
-	ident  string
+	filename string
+	line     int
+	column   int
+	ident    string
 }
 
 type hoverTypeMatch struct {
@@ -139,21 +152,21 @@ func walkExprForHoverTypes(node ast.Node, scope *functionScope, ctx *AnalysisCon
 		*ast.FloatLiteral, *ast.FloatNode,
 		*ast.BooleanLiteral, *ast.BooleanNode,
 		*ast.NullLiteral, *ast.NullNode:
-		considerHoverTypeMatch(n, n.TokenLiteral(), inferType(n, scope, ctx), HoverTargetLiteral, "", query, best)
+		considerHoverTypeMatch(n, n.TokenLiteral(), inferTypeWithFacts(query.filename, n, scope, ctx), HoverTargetLiteral, "", query, best)
 	case *ast.VariableNode:
-		considerHoverTypeMatch(n, n.Name, inferType(n, scope, ctx), HoverTargetVariable, "", query, best)
+		considerHoverTypeMatch(n, n.Name, inferTypeWithFacts(query.filename, n, scope, ctx), HoverTargetVariable, "", query, best)
 	case *ast.PropertyFetchNode:
-		considerHoverTypeMatch(n, n.Property, inferType(n, scope, ctx), HoverTargetProperty, hoverReceiverClass(n.Object, scope, ctx), query, best)
+		considerHoverTypeMatch(n, n.Property, inferTypeWithFacts(query.filename, n, scope, ctx), HoverTargetProperty, hoverReceiverClass(n.Object, scope, ctx, query.filename), query, best)
 		walkExprForHoverTypes(n.Object, scope, ctx, query, best)
 	case *ast.MethodCallNode:
-		considerHoverTypeMatch(n, n.Method, inferType(n, scope, ctx), HoverTargetMethod, hoverReceiverClass(n.Object, scope, ctx), query, best)
+		considerHoverTypeMatch(n, n.Method, inferTypeWithFacts(query.filename, n, scope, ctx), HoverTargetMethod, hoverReceiverClass(n.Object, scope, ctx, query.filename), query, best)
 		walkExprForHoverTypes(n.Object, scope, ctx, query, best)
 		for _, arg := range n.Args {
 			walkExprForHoverTypes(argumentValue(arg), scope, ctx, query, best)
 		}
 	case *ast.FunctionCallNode:
 		if identNode, ok := n.Name.(*ast.IdentifierNode); ok {
-			considerHoverTypeMatch(n, identNode.Value, inferType(n, scope, ctx), HoverTargetFunction, "", query, best)
+			considerHoverTypeMatch(n, identNode.Value, inferTypeWithFacts(query.filename, n, scope, ctx), HoverTargetFunction, "", query, best)
 		}
 		for _, arg := range n.Args {
 			walkExprForHoverTypes(argumentValue(arg), scope, ctx, query, best)
@@ -166,7 +179,7 @@ func walkExprForHoverTypes(node ast.Node, scope *functionScope, ctx *AnalysisCon
 			}
 		}
 		if className != "" {
-			considerHoverTypeMatch(n, className, inferType(n, scope, ctx), HoverTargetClass, "", query, best)
+			considerHoverTypeMatch(n, className, inferTypeWithFacts(query.filename, n, scope, ctx), HoverTargetClass, "", query, best)
 		}
 		for _, arg := range n.Args {
 			walkExprForHoverTypes(argumentValue(arg), scope, ctx, query, best)
@@ -226,9 +239,9 @@ func receiverClassName(typ Type) string {
 	return className
 }
 
-func hoverReceiverClass(node ast.Node, scope *functionScope, ctx *AnalysisContext) string {
+func hoverReceiverClass(node ast.Node, scope *functionScope, ctx *AnalysisContext, filename string) string {
 	if variable, ok := node.(*ast.VariableNode); ok && variable.Name == "this" && scope != nil {
 		return scope.className
 	}
-	return receiverClassName(inferType(node, scope, ctx))
+	return receiverClassName(inferTypeWithFacts(filename, node, scope, ctx))
 }

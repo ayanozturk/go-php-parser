@@ -98,6 +98,35 @@ class TeamEndpoint extends BaseEndpoint {
 	}
 }
 
+func TestInferHoverTargetAtPositionWithFilenameUsesSemanticFact(t *testing.T) {
+	const filename = "src/Example.php"
+	nodes := parseHoverFixture(t, `<?php
+function run(): void {
+    $value = "raw";
+}
+`)
+	function := nodes[0].(*ast.FunctionNode)
+	assignment := function.Body[0].(*ast.ExpressionStmt).Expr.(*ast.AssignmentNode)
+	variable := assignment.Left.(*ast.VariableNode)
+	key := inferredTypeFactKey(filename, variable)
+	reader := &countingFactReader{facts: map[SemanticFactKey]SemanticFact{key: {Key: key, Type: "int"}}}
+	project := BuildProjectIndex(map[string][]ast.Node{filename: nodes})
+	ctx := &AnalysisContext{Resolver: project, Project: project, Facts: reader}
+	pos := variable.GetPos()
+
+	target, ok := InferHoverTargetAtPositionWithFilename(nodes, filename, pos.Line, pos.Column, variable.Name, ctx)
+	if !ok || target.Type != "int" || target.Kind != HoverTargetVariable {
+		t.Fatalf("expected filename-aware hover to use int fact, got %#v, %v", target, ok)
+	}
+	if typ, ok := InferTypeAtPositionWithFilename(nodes, filename, pos.Line, pos.Column, variable.Name, ctx); !ok || typ != "int" {
+		t.Fatalf("expected filename-aware type API to use int fact, got %q, %v", typ, ok)
+	}
+	legacy, ok := InferHoverTargetAtPosition(nodes, pos.Line, pos.Column, variable.Name, ctx)
+	if !ok || legacy.Type != "string" {
+		t.Fatalf("expected legacy hover API to retain string fallback inference, got %#v, %v", legacy, ok)
+	}
+}
+
 func parseHoverFixture(t *testing.T, php string) []ast.Node {
 	t.Helper()
 	l := lexer.New(php)
