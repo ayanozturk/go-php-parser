@@ -62,6 +62,9 @@ func LoadConfig(filename string) (*Config, error) {
 	if err := decoder.Decode(&config); err != nil {
 		return nil, err
 	}
+	if config.AnalysisLevel != nil && *config.AnalysisLevel < 0 {
+		return nil, fmt.Errorf("analysis_level must be zero or greater")
+	}
 
 	return &config, nil
 }

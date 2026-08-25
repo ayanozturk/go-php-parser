@@ -272,6 +272,8 @@ Exit criteria:
 - Account for every discovered file and classify parser failures.
 - Record rule coverage and diagnostic counts beside timing and RSS.
 
+Progress: the production `analyze` command now parses each selected file once, constructs one immutable `SemanticSnapshot`, runs the same registered analysis engine used by PHP Strom, emits deterministic diagnostics, accounts for parser/read failures, and returns stable clean/finding/infrastructure exit codes. Literal end-to-end pipeline equivalence with PHP Strom remains an extension-side M1 integration because the extension currently supplies its own workspace overlay, stubs, PHP version, and disabled-code context.
+
 ### M1 — Complete semantic foundation
 
 Exit criteria:

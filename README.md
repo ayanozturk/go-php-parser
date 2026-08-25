@@ -82,6 +82,31 @@ Run the style checks:
 make run
 ```
 
+### Static analysis
+
+Run project-aware static analysis for the files selected by `config.yaml`:
+
+```bash
+./go-phpcs analyze
+```
+
+Or analyze one file using the same project pipeline:
+
+```bash
+./go-phpcs analyze src/Example.php
+```
+
+Set `analysis_level` to zero or greater to run rules up to that level. Leaving it unset runs every registered analysis rule.
+
+```yaml
+path: ./src
+extensions:
+  - php
+analysis_level: 0
+```
+
+The analyzer parses each selected file once, builds one immutable project snapshot, and emits diagnostics in deterministic source order. Exit code `0` means clean, `1` means analysis or parser findings, and `2` means an invocation, configuration, discovery, or file-read failure.
+
 ### Listing All Style Rules
 
 You can list all available style rule codes supported by this tool using the `list-style-rules` command. This is useful for discovering which rules you can enable or disable in your `config.yaml`.

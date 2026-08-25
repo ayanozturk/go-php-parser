@@ -13,7 +13,7 @@ The goal is to make the tool easier to adopt in real PHP codebases while preserv
 - Split the CLI into clearer tools while keeping the current `style` command supported:
   - `style` remains available for backwards compatibility.
   - `lint` runs style and lint rules.
-  - `analyze` runs analysis rules.
+  - `analyze` runs analysis rules. Implemented with one immutable project snapshot, deterministic text diagnostics, complete file accounting, and stable exit codes.
   - `format` applies deterministic autofixes only.
   - `list-files` prints the exact files selected by config.
   - `config` prints the effective resolved configuration.

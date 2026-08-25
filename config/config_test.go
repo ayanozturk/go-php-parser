@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/ayanozturk/go-php-parser/overrides"
@@ -74,6 +75,16 @@ func TestLoadConfig_InvalidYAML(t *testing.T) {
 	_, err = LoadConfig(tempFile.Name())
 	if err == nil {
 		t.Error("expected YAML error, got nil")
+	}
+}
+
+func TestLoadConfigRejectsNegativeAnalysisLevel(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "go-phpcs.yaml")
+	if err := os.WriteFile(path, []byte("path: .\nanalysis_level: -1\n"), 0644); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+	if _, err := LoadConfig(path); err == nil || !strings.Contains(err.Error(), "analysis_level") {
+		t.Fatalf("expected analysis-level validation error, got %v", err)
 	}
 }
 

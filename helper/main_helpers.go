@@ -31,6 +31,10 @@ type CliArgs struct {
 	PprofAddr       string
 }
 
+func (args CliArgs) HasExplicitFile() bool {
+	return args.filePath != ""
+}
+
 func ParseCLIArgs(filesToScan []string) CliArgs {
 	configPath := flag.String("config", "", "Path to config file (default: discover go-phpcs.yaml, go-phpcs.yml, config.yaml)")
 	profile := flag.Bool("profile", false, "Enable CPU and memory profiling (cpu.prof, mem.prof)")
@@ -134,6 +138,13 @@ type MemStats struct {
 	Start, End runtime.MemStats
 }
 
+type RunOutcome struct {
+	TotalParseErrors int
+	TotalLines       int
+	Diagnostics      int
+	ExitCode         int
+}
+
 func TrackMemoryUsage(mem *MemStats, atStart bool) {
 	if atStart {
 		runtime.ReadMemStats(&mem.Start)
@@ -145,18 +156,37 @@ func TrackMemoryUsage(mem *MemStats, atStart bool) {
 	}
 }
 
-func RunScanOrCommand(args CliArgs, c *config.Config, filesToScan []string, outWriter io.Writer, mem *MemStats) (int, int) {
-	totalParseErrors := 0
-	totalLines := 0
+func RunScanOrCommand(args CliArgs, c *config.Config, filesToScan []string, outWriter io.Writer, mem *MemStats) RunOutcome {
+	outcome := RunOutcome{}
 	matcher, err := overrides.Compile(c.Overrides)
 	if err != nil {
-		log.Fatalf("Error compiling overrides: %v", err)
+		fmt.Fprintf(outWriter, "Error compiling overrides: %v\n", err)
+		outcome.ExitCode = 2
+		return outcome
 	}
 	command.ConfigureAnalysis(c.AnalysisLevel)
+	if args.CommandName == "analyze" {
+		files := filesToScan
+		if args.filePath != "" {
+			files = []string{args.filePath}
+		}
+		result := command.AnalyzeFiles(files, c.AnalysisLevel, matcher, args.parallelism)
+		command.PrintAnalyzeResult(outWriter, result)
+		outcome.TotalParseErrors = countCommandParseErrors(result.ParseErrors)
+		outcome.TotalLines = result.TotalLines
+		outcome.Diagnostics = len(result.Issues)
+		switch {
+		case len(result.ReadErrors) > 0:
+			outcome.ExitCode = 2
+		case outcome.TotalParseErrors > 0 || outcome.Diagnostics > 0:
+			outcome.ExitCode = 1
+		}
+		return outcome
+	}
 	if args.filePath != "" {
 		errList, lineCount := command.ProcessFileWithErrors(args.filePath, args.CommandName, args.debug, c.Rules, matcher, outWriter)
-		totalParseErrors = len(errList)
-		totalLines = lineCount
+		outcome.TotalParseErrors = len(errList)
+		outcome.TotalLines = lineCount
 		if len(errList) > 0 {
 			fmt.Fprintf(outWriter, "Parsing errors in %s (%d error(s)):\n", args.filePath, len(errList))
 			for _, err := range errList {
@@ -166,14 +196,15 @@ func RunScanOrCommand(args CliArgs, c *config.Config, filesToScan []string, outW
 	} else {
 		if len(filesToScan) == 0 {
 			fmt.Fprintln(outWriter, "No files to scan.")
-			os.Exit(1)
+			outcome.ExitCode = 2
+			return outcome
 		}
 		if args.CommandName == "style" {
 			var allIssues []style.StyleIssue
 			nFiles := len(filesToScan)
 			progressBar := utils.NewProgressBar(nFiles, "Scanning")
 			var processed int
-			allIssues, totalParseErrors, totalLines = command.ProcessStyleFilesParallelWithCallback(filesToScan, c.Rules, matcher, args.parallelism, func() {
+			allIssues, outcome.TotalParseErrors, outcome.TotalLines = command.ProcessStyleFilesParallelWithCallback(filesToScan, c.Rules, matcher, args.parallelism, func() {
 				processed++
 				progressBar.Print(processed)
 			})
@@ -214,16 +245,24 @@ func RunScanOrCommand(args CliArgs, c *config.Config, filesToScan []string, outW
 					}
 				}
 				fmt.Fprintf(outWriter, "\n\033[36;1mFixed %d issue(s).\033[0m\n", len(appliedFixes))
-				return totalParseErrors, totalLines
+				return outcome
 			}
 
 			fmt.Fprintln(outWriter, "\033[36;1m\n========== SCAN RESULTS =========="+"\033[0m")
 			style.PrintPHPCSStyleOutputToWriter(outWriter, allIssues)
 		} else {
-			totalParseErrors, totalLines = command.ProcessMultipleFiles(filesToScan, args.CommandName, args.debug, args.parallelism, c.Rules, matcher, outWriter)
+			outcome.TotalParseErrors, outcome.TotalLines = command.ProcessMultipleFiles(filesToScan, args.CommandName, args.debug, args.parallelism, c.Rules, matcher, outWriter)
 		}
 	}
-	return totalParseErrors, totalLines
+	return outcome
+}
+
+func countCommandParseErrors(details []command.ParseErrorDetail) int {
+	total := 0
+	for _, detail := range details {
+		total += len(detail.Errors)
+	}
+	return total
 }
 
 func PrintSummary(w io.Writer, totalParseErrors, totalLines int, elapsed float64, mem MemStats) {

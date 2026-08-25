@@ -17,6 +17,7 @@ func TestCommandsMapIntegrity(t *testing.T) {
 		"ast":        {"Print the Abstract Syntax Tree"},
 		"tokens":     {"Print the tokens from the lexer"},
 		"style":      {"Check code style (e.g., function naming)"},
+		"analyze":    {"Run project-aware static analysis"},
 		"list-files": {"List all PHP files selected by the current configuration"},
 		"config":     {"Print the effective resolved configuration"},
 	}

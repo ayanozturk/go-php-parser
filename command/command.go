@@ -12,6 +12,7 @@ import (
 	"github.com/ayanozturk/go-php-parser/style"
 	"io"
 	"os"
+	"sort"
 )
 
 type Command struct {
@@ -72,6 +73,13 @@ var Commands = map[string]Command{
 		// Execute will be assigned after map initialization to avoid cycle
 		Execute: nil,
 	},
+	"analyze": {
+		Name:        "analyze",
+		Description: "Run project-aware static analysis",
+		Execute: func(_ []ast.Node, _ string, w io.Writer) {
+			fmt.Fprintln(w, "Use analyze with a file argument or configured project path.")
+		},
+	},
 	"list-style-rules": {
 		Name:        "list-style-rules",
 		Description: "List all available style check rule codes",
@@ -101,10 +109,20 @@ var Commands = map[string]Command{
 
 // PrintUsage prints the usage information for all available commands
 func PrintUsage() {
-	fmt.Println("Usage: go run main.go <command> <php-file>")
-	fmt.Println("Commands:")
-	for _, cmd := range Commands {
-		fmt.Printf("  %-8s %s\n", cmd.Name, cmd.Description)
+	PrintUsageTo(os.Stdout)
+}
+
+func PrintUsageTo(w io.Writer) {
+	fmt.Fprintln(w, "Usage: go-phpcs <command> [php-file]")
+	fmt.Fprintln(w, "Commands:")
+	names := make([]string, 0, len(Commands))
+	for name := range Commands {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	for _, name := range names {
+		cmd := Commands[name]
+		fmt.Fprintf(w, "  %-8s %s\n", cmd.Name, cmd.Description)
 	}
 }
 

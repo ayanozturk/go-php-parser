@@ -4,9 +4,12 @@ import (
 	"bytes"
 	"flag"
 	"os"
+	"path/filepath"
 	"runtime"
 	"strings"
 	"testing"
+
+	"github.com/ayanozturk/go-php-parser/config"
 )
 
 func TestParseCLIArgsDefaults(t *testing.T) {
@@ -125,6 +128,39 @@ func TestPrintFileListEmpty(t *testing.T) {
 
 	if got, want := strings.TrimSpace(buf.String()), "No files selected by config."; got != want {
 		t.Fatalf("unexpected empty file list message: got %q, want %q", got, want)
+	}
+}
+
+func TestRunAnalyzeExitCodes(t *testing.T) {
+	dir := t.TempDir()
+	level := 0
+	cfg := &config.Config{AnalysisLevel: &level}
+
+	tests := []struct {
+		name     string
+		path     string
+		source   string
+		wantExit int
+	}{
+		{name: "clean", path: filepath.Join(dir, "Clean.php"), source: "<?php\nclass Clean {}\n", wantExit: 0},
+		{name: "diagnostic", path: filepath.Join(dir, "Diagnostic.php"), source: "<?php\nnew MissingType();\n", wantExit: 1},
+		{name: "parser error", path: filepath.Join(dir, "Invalid.php"), source: "<?php\nfunction broken(\n", wantExit: 1},
+		{name: "read error", path: filepath.Join(dir, "Missing.php"), wantExit: 2},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			if test.source != "" {
+				if err := os.WriteFile(test.path, []byte(test.source), 0644); err != nil {
+					t.Fatalf("write fixture: %v", err)
+				}
+			}
+			var output bytes.Buffer
+			outcome := RunScanOrCommand(CliArgs{CommandName: "analyze", filePath: test.path, parallelism: 2}, cfg, nil, &output, &MemStats{})
+			if outcome.ExitCode != test.wantExit {
+				t.Fatalf("unexpected exit code: got %d, want %d; output:\n%s", outcome.ExitCode, test.wantExit, output.String())
+			}
+		})
 	}
 }
 
