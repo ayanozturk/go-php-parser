@@ -719,6 +719,20 @@ func TestArgumentTypeRuleFallsBackForNonmatchingSemanticFact(t *testing.T) {
 	}
 }
 
+func TestArgumentTypeRuleUsesSemanticReceiverTypeFact(t *testing.T) {
+	const filename = "src/Example.php"
+	nodes, receiver := parseMethodReceiverFactFixture(t)
+	key := inferredTypeFactKey(filename, receiver)
+	reader := &countingFactReader{facts: map[SemanticFactKey]SemanticFact{key: {Key: key, Type: "Service"}}}
+	project := BuildProjectIndex(map[string][]ast.Node{filename: nodes})
+	ctx := &AnalysisContext{Resolver: project, Project: project, Facts: reader}
+
+	issues := (&ArgumentTypeRule{}).CheckIssues(nodes, filename, ctx)
+	if !hasArgTypeIssue(issues) {
+		t.Fatalf("expected receiver fact to resolve Service::takesInt mismatch, got: %#v", issues)
+	}
+}
+
 func parseMethodArgumentFactFixture(t *testing.T) ([]ast.Node, ast.Node) {
 	t.Helper()
 	const source = `<?php
@@ -757,4 +771,30 @@ func parseMethodArgumentFactFixtureSource(t *testing.T, source string) ([]ast.No
 		t.Fatalf("expected one-argument method call, got %#v", statement.Expr)
 	}
 	return nodes, argumentValue(call.Args[0])
+}
+
+func parseMethodReceiverFactFixture(t *testing.T) ([]ast.Node, ast.Node) {
+	t.Helper()
+	nodes := parsePHPForProjectIndex(t, `<?php
+class Service {
+    public function takesInt(int $value): void {}
+}
+
+class Example {
+    public function run(): void {
+        $service->takesInt("bad");
+    }
+}
+`)
+	class, ok := nodes[1].(*ast.ClassNode)
+	if !ok || len(class.Methods) != 1 {
+		t.Fatalf("expected Example class with one method, got %#v", nodes)
+	}
+	method := class.Methods[0].(*ast.FunctionNode)
+	statement := method.Body[0].(*ast.ExpressionStmt)
+	call, ok := statement.Expr.(*ast.MethodCallNode)
+	if !ok || call.Object == nil {
+		t.Fatalf("expected method call with receiver, got %#v", statement.Expr)
+	}
+	return nodes, call.Object
 }

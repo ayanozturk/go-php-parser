@@ -122,12 +122,12 @@ func walkAssignmentForPropertyTypes(assign *ast.AssignmentNode, scope *functionS
 		return
 	}
 
-	expected, propertyName, ok := resolvePropertyTypeForAssignment(propertyFetch, scope, ctx)
+	expected, propertyName, ok := resolvePropertyTypeForAssignment(propertyFetch, scope, ctx, filename)
 	if !ok || expected.IsEmpty() {
 		return
 	}
 
-	actual := inferType(assign.Right, scope, ctx)
+	actual := inferTypeWithFacts(filename, assign.Right, scope, ctx)
 	if expected.AcceptsWithContext(actual, scope, ctx) {
 		return
 	}
@@ -146,7 +146,7 @@ func walkAssignmentForPropertyTypes(assign *ast.AssignmentNode, scope *functionS
 	})
 }
 
-func resolvePropertyTypeForAssignment(fetch *ast.PropertyFetchNode, scope *functionScope, ctx *AnalysisContext) (Type, string, bool) {
+func resolvePropertyTypeForAssignment(fetch *ast.PropertyFetchNode, scope *functionScope, ctx *AnalysisContext, filename string) (Type, string, bool) {
 	if fetch == nil {
 		return EmptyType(), "", false
 	}
@@ -157,7 +157,7 @@ func resolvePropertyTypeForAssignment(fetch *ast.PropertyFetchNode, scope *funct
 		}
 	}
 
-	objectType := inferType(fetch.Object, scope, ctx)
+	objectType := inferTypeWithFacts(filename, fetch.Object, scope, ctx)
 	className, ok := objectType.SingleClassName()
 	if !ok {
 		return EmptyType(), "", false

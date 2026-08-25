@@ -179,15 +179,18 @@ class Provider {
 	if err != nil {
 		t.Fatalf("build snapshot: %v", err)
 	}
-	facts := snapshot.FactsForFile(filename)
-	if len(facts) != 2 {
-		t.Fatalf("expected two generated return facts, got %#v", facts)
+	function := parsed[filename][0].(*ast.FunctionNode)
+	functionReturn := function.Body[1].(*ast.ReturnNode)
+	functionFact, ok := snapshot.Fact(inferredTypeFactKey(filename, functionReturn.Expr))
+	if !ok || functionFact.Type != "string" || functionFact.Subject != "function:answer" {
+		t.Fatalf("unexpected function return fact: %#v, %v", functionFact, ok)
 	}
-	if facts[0].Key.Kind != FactKindInferredType || facts[0].Type != "string" || facts[0].Subject != "function:answer" {
-		t.Fatalf("unexpected function return fact: %#v", facts[0])
-	}
-	if facts[1].Key.Kind != FactKindInferredType || facts[1].Type != "int" || facts[1].Subject != "method:provider:count" {
-		t.Fatalf("unexpected method return fact: %#v", facts[1])
+	class := parsed[filename][1].(*ast.ClassNode)
+	method := class.Methods[0].(*ast.FunctionNode)
+	methodReturn := method.Body[0].(*ast.ReturnNode)
+	methodFact, ok := snapshot.Fact(inferredTypeFactKey(filename, methodReturn.Expr))
+	if !ok || methodFact.Type != "int" || methodFact.Subject != "method:provider:count" {
+		t.Fatalf("unexpected method return fact: %#v, %v", methodFact, ok)
 	}
 
 	ctx := snapshot.NewAnalysisContext()
@@ -266,5 +269,70 @@ class Example {
 	fact, ok := snapshot.Fact(inferredTypeFactKey(filename, argument))
 	if !ok || fact.Type != "string" {
 		t.Fatalf("expected branch-refined string argument fact, got %#v, %v", fact, ok)
+	}
+}
+
+func TestSemanticSnapshotGeneratesScopeAwareAssignmentTypeFacts(t *testing.T) {
+	const filename = "src/Example.php"
+	nodes, rhs := parsePropertyAssignmentFactFixture(t, `<?php
+class Example {
+    private int $count;
+
+    public function run(): void {
+        $value = 42;
+        $this->count = $value;
+    }
+}
+`)
+
+	snapshot, err := NewSemanticSnapshot(map[string][]ast.Node{filename: nodes}, nil)
+	if err != nil {
+		t.Fatalf("build snapshot: %v", err)
+	}
+	fact, ok := snapshot.Fact(inferredTypeFactKey(filename, rhs))
+	if !ok {
+		t.Fatal("expected generated inferred-type fact for assignment RHS")
+	}
+	if fact.Type != "int" || fact.Subject != "method:example:run" {
+		t.Fatalf("unexpected generated assignment fact: %#v", fact)
+	}
+
+	issues := (&PropertyTypeRule{}).CheckIssues(nodes, filename, snapshot.NewAnalysisContext())
+	if hasPropertyTypeIssue(issues) {
+		t.Fatalf("generated assignment fact changed compatible property diagnostics: %#v", issues)
+	}
+}
+
+func TestSemanticSnapshotGeneratesReceiverTypeFacts(t *testing.T) {
+	const filename = "src/Example.php"
+	nodes := parsePHPForProjectIndex(t, `<?php
+class Holder {
+    public int $count;
+    public function accept(int $value): void {}
+}
+
+class Example {
+    public function run(): void {
+        $holder = new Holder();
+        $holder->accept(1);
+        $holder->count = 1;
+    }
+}
+`)
+	class := nodes[1].(*ast.ClassNode)
+	method := class.Methods[0].(*ast.FunctionNode)
+	methodCall := method.Body[1].(*ast.ExpressionStmt).Expr.(*ast.MethodCallNode)
+	propertyAssignment := method.Body[2].(*ast.ExpressionStmt).Expr.(*ast.AssignmentNode)
+	propertyReceiver := propertyAssignment.Left.(*ast.PropertyFetchNode).Object
+
+	snapshot, err := NewSemanticSnapshot(map[string][]ast.Node{filename: nodes}, nil)
+	if err != nil {
+		t.Fatalf("build snapshot: %v", err)
+	}
+	for label, receiver := range map[string]ast.Node{"method": methodCall.Object, "property": propertyReceiver} {
+		fact, ok := snapshot.Fact(inferredTypeFactKey(filename, receiver))
+		if !ok || fact.Type != "Holder" || fact.Subject != "method:example:run" {
+			t.Fatalf("unexpected %s receiver fact: %#v, %v", label, fact, ok)
+		}
 	}
 }

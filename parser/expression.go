@@ -1257,6 +1257,9 @@ func (p *Parser) readCastType() (string, bool) {
 
 func (p *Parser) parsePostfixExpression(expr ast.Node) ast.Node {
 	for {
+		if expr != nil && expr.GetEndPos().Offset <= expr.GetPos().Offset {
+			expr.SetEndPos(ast.Position(p.prevTokEnd))
+		}
 		for p.tok.Type == token.T_COMMENT || p.tok.Type == token.T_DOC_COMMENT || p.tok.Type == token.T_WHITESPACE {
 			p.nextToken()
 		}

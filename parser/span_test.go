@@ -69,6 +69,40 @@ func TestParseExpressionEndPosSpansExpression(t *testing.T) {
 	}
 }
 
+func TestPostfixReceiverExpressionsHaveCompleteSpans(t *testing.T) {
+	src := "<?php\n$service->run();\n$holder->value = 1;\n$factory->make()->run();\n"
+	p := New(lexer.NewFile(src), false)
+	nodes := p.Parse()
+	if len(p.Errors()) != 0 {
+		t.Fatalf("unexpected parse errors: %v", p.Errors())
+	}
+	if len(nodes) != 3 {
+		t.Fatalf("expected three statements, got %#v", nodes)
+	}
+
+	methodCall := nodes[0].(*ast.ExpressionStmt).Expr.(*ast.MethodCallNode)
+	assignment := nodes[1].(*ast.ExpressionStmt).Expr.(*ast.AssignmentNode)
+	propertyFetch := assignment.Left.(*ast.PropertyFetchNode)
+	for want, receiver := range map[string]ast.Node{"$service": methodCall.Object, "$holder": propertyFetch.Object} {
+		assertCompleteNodeSpan(t, src, receiver)
+		start, end := receiver.GetPos(), receiver.GetEndPos()
+		if got := src[start.Offset:end.Offset]; got != want {
+			t.Fatalf("receiver span mismatch: got %q, want %q", got, want)
+		}
+	}
+
+	outerCall := nodes[2].(*ast.ExpressionStmt).Expr.(*ast.MethodCallNode)
+	chainedReceiver := outerCall.Object
+	assertCompleteNodeSpan(t, src, chainedReceiver)
+	start, end := chainedReceiver.GetPos(), chainedReceiver.GetEndPos()
+	// Method-call starts currently point at the object operator rather than
+	// the receiver; this test guards the newly complete end position without
+	// broadening the separate start-position compatibility decision.
+	if got := src[start.Offset:end.Offset]; got != "->make()" {
+		t.Fatalf("chained receiver span mismatch: %q", got)
+	}
+}
+
 func TestClassMemberDeclarationsHaveCompleteSpans(t *testing.T) {
 	src := `<?php
 class Model {

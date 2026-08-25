@@ -115,7 +115,7 @@ func walkExprForArgCounts(node ast.Node, scope *functionScope, ctx *AnalysisCont
 }
 
 func checkMethodCallArgCount(call *ast.MethodCallNode, scope *functionScope, ctx *AnalysisContext, filename string, issues *[]AnalysisIssue) {
-	method, ok := resolveMethodForCall(call, scope, ctx)
+	method, ok := resolveMethodForCall(call, scope, ctx, filename)
 	if !ok {
 		return
 	}

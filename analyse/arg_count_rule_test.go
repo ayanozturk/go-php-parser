@@ -1,6 +1,10 @@
 package analyse
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/ayanozturk/go-php-parser/ast"
+)
 
 func hasArgCountIssue(issues []AnalysisIssue) bool {
 	for _, iss := range issues {
@@ -108,5 +112,24 @@ new Response(body: 'ok');
 	issues := analysePHP(t, php)
 	if hasArgCountIssue(issues) {
 		t.Fatalf("expected no A.ARG.COUNT issue for named constructor arg with optional defaults, got: %#v", issues)
+	}
+}
+
+func TestArgumentCountRuleUsesSemanticReceiverTypeFact(t *testing.T) {
+	const filename = "src/Example.php"
+	nodes, receiver := parseMethodReceiverFactFixture(t)
+	class := nodes[1].(*ast.ClassNode)
+	method := class.Methods[0].(*ast.FunctionNode)
+	call := method.Body[0].(*ast.ExpressionStmt).Expr.(*ast.MethodCallNode)
+	call.Args = nil
+
+	key := inferredTypeFactKey(filename, receiver)
+	reader := &countingFactReader{facts: map[SemanticFactKey]SemanticFact{key: {Key: key, Type: "Service"}}}
+	project := BuildProjectIndex(map[string][]ast.Node{filename: nodes})
+	ctx := &AnalysisContext{Resolver: project, Project: project, Facts: reader}
+
+	issues := (&ArgumentCountRule{}).CheckIssues(nodes, filename, ctx)
+	if !hasArgCountIssue(issues) {
+		t.Fatalf("expected receiver fact to resolve missing Service::takesInt argument, got: %#v", issues)
 	}
 }

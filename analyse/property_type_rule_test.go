@@ -1,6 +1,10 @@
 package analyse
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/ayanozturk/go-php-parser/ast"
+)
 
 func hasPropertyTypeIssue(issues []AnalysisIssue) bool {
 	for _, iss := range issues {
@@ -61,4 +65,99 @@ func TestPropertyAssignmentAcceptsImplementedInterface(t *testing.T) {
 	if hasPropertyTypeIssue(issues) {
 		t.Fatalf("expected no A.PROP.TYPE issue for class implementing interface assignment, got: %#v", issues)
 	}
+}
+
+func TestPropertyTypeRuleUsesSemanticInferredTypeFact(t *testing.T) {
+	const filename = "src/Example.php"
+	nodes, rhs := parsePropertyAssignmentFactFixture(t, `<?php
+class Example {
+    private int $count;
+
+    public function run(): void {
+        $this->count = "bad";
+    }
+}
+`)
+	key := inferredTypeFactKey(filename, rhs)
+	reader := &countingFactReader{facts: map[SemanticFactKey]SemanticFact{key: {Key: key, Type: "int"}}}
+	project := BuildProjectIndex(map[string][]ast.Node{filename: nodes})
+	ctx := &AnalysisContext{Resolver: project, Project: project, Facts: reader}
+
+	issues := (&PropertyTypeRule{}).CheckIssues(nodes, filename, ctx)
+	if hasPropertyTypeIssue(issues) {
+		t.Fatalf("expected inferred-type fact to satisfy int property, got: %#v", issues)
+	}
+}
+
+func TestPropertyTypeRuleFallsBackForNonmatchingSemanticFact(t *testing.T) {
+	const filename = "src/Example.php"
+	nodes, rhs := parsePropertyAssignmentFactFixture(t, `<?php
+class Example {
+    private int $count;
+
+    public function run(): void {
+        $this->count = "bad";
+    }
+}
+`)
+	key := inferredTypeFactKey(filename, rhs)
+	key.EndOffset++
+	reader := &countingFactReader{facts: map[SemanticFactKey]SemanticFact{key: {Key: key, Type: "int"}}}
+	project := BuildProjectIndex(map[string][]ast.Node{filename: nodes})
+	ctx := &AnalysisContext{Resolver: project, Project: project, Facts: reader}
+
+	issues := (&PropertyTypeRule{}).CheckIssues(nodes, filename, ctx)
+	if !hasPropertyTypeIssue(issues) {
+		t.Fatalf("expected fallback inference to report string assigned to int, got: %#v", issues)
+	}
+}
+
+func TestPropertyTypeRuleUsesSemanticReceiverTypeFact(t *testing.T) {
+	const filename = "src/Example.php"
+	nodes := parsePHPForProjectIndex(t, `<?php
+class Holder {
+    public int $count;
+}
+
+class Example {
+    public function run(): void {
+        $holder->count = "bad";
+    }
+}
+`)
+	class := nodes[1].(*ast.ClassNode)
+	method := class.Methods[0].(*ast.FunctionNode)
+	assignment := method.Body[0].(*ast.ExpressionStmt).Expr.(*ast.AssignmentNode)
+	receiver := assignment.Left.(*ast.PropertyFetchNode).Object
+	key := inferredTypeFactKey(filename, receiver)
+	reader := &countingFactReader{facts: map[SemanticFactKey]SemanticFact{key: {Key: key, Type: "Holder"}}}
+	project := BuildProjectIndex(map[string][]ast.Node{filename: nodes})
+	ctx := &AnalysisContext{Resolver: project, Project: project, Facts: reader}
+
+	issues := (&PropertyTypeRule{}).CheckIssues(nodes, filename, ctx)
+	if !hasPropertyTypeIssue(issues) {
+		t.Fatalf("expected receiver fact to resolve Holder::$count mismatch, got: %#v", issues)
+	}
+}
+
+func parsePropertyAssignmentFactFixture(t *testing.T, source string) ([]ast.Node, ast.Node) {
+	t.Helper()
+	nodes := parsePHPForProjectIndex(t, source)
+	class, ok := nodes[0].(*ast.ClassNode)
+	if !ok || len(class.Methods) != 1 {
+		t.Fatalf("expected class with one method, got %#v", nodes)
+	}
+	method, ok := class.Methods[0].(*ast.FunctionNode)
+	if !ok || len(method.Body) == 0 {
+		t.Fatalf("expected method with statements, got %#v", class.Methods[0])
+	}
+	statement, ok := method.Body[len(method.Body)-1].(*ast.ExpressionStmt)
+	if !ok {
+		t.Fatalf("expected final expression statement, got %#v", method.Body[len(method.Body)-1])
+	}
+	assignment, ok := statement.Expr.(*ast.AssignmentNode)
+	if !ok || assignment.Right == nil {
+		t.Fatalf("expected property assignment, got %#v", statement.Expr)
+	}
+	return nodes, assignment.Right
 }

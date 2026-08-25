@@ -8,7 +8,7 @@ import (
 
 type ArgumentTypeRule struct{}
 
-type argumentExpressionObserver func(filename string, expr ast.Node, scope *functionScope, ctx *AnalysisContext)
+type semanticExpressionObserver func(filename string, expr ast.Node, scope *functionScope, ctx *AnalysisContext)
 
 func (r *ArgumentTypeRule) CheckIssues(nodes []ast.Node, filename string, ctx *AnalysisContext) []AnalysisIssue {
 	var issues []AnalysisIssue
@@ -42,7 +42,7 @@ func walkStatementsForArgTypes(nodes []ast.Node, scope *functionScope, ctx *Anal
 	walkStatementsForArgTypesUsing(nodes, scope, ctx, filename, issues, nil)
 }
 
-func walkStatementsForArgTypesUsing(nodes []ast.Node, scope *functionScope, ctx *AnalysisContext, filename string, issues *[]AnalysisIssue, observe argumentExpressionObserver) {
+func walkStatementsForArgTypesUsing(nodes []ast.Node, scope *functionScope, ctx *AnalysisContext, filename string, issues *[]AnalysisIssue, observe semanticExpressionObserver) {
 	for _, node := range nodes {
 		switch n := node.(type) {
 		case *ast.ExpressionStmt:
@@ -50,9 +50,14 @@ func walkStatementsForArgTypesUsing(nodes []ast.Node, scope *functionScope, ctx 
 			applyExpressionScope(scope, n.Expr, ctx)
 		case *ast.AssignmentNode:
 			walkExprForArgTypesUsing(n.Right, scope, ctx, filename, issues, observe)
+			observeSemanticExpression(filename, n.Right, scope, ctx, observe)
+			if observe != nil {
+				walkExprForArgTypesUsing(n.Left, scope, ctx, filename, issues, observe)
+			}
 			applyAssignmentScope(scope, n, ctx)
 		case *ast.ReturnNode:
 			walkExprForArgTypesUsing(n.Expr, scope, ctx, filename, issues, observe)
+			observeSemanticExpression(filename, n.Expr, scope, ctx, observe)
 		case *ast.IfNode:
 			walkExprForArgTypesUsing(n.Condition, scope, ctx, filename, issues, observe)
 			walkStatementsForArgTypesUsing(n.Body, scopeForConditionTrue(scope, n.Condition), ctx, filename, issues, observe)
@@ -431,7 +436,7 @@ func applyLazyInitPropertyScope(scope *functionScope, node *ast.IfNode, ctx *Ana
 	}
 }
 
-func walkExprForArgTypesUsing(node ast.Node, scope *functionScope, ctx *AnalysisContext, filename string, issues *[]AnalysisIssue, observe argumentExpressionObserver) {
+func walkExprForArgTypesUsing(node ast.Node, scope *functionScope, ctx *AnalysisContext, filename string, issues *[]AnalysisIssue, observe semanticExpressionObserver) {
 	if node == nil {
 		return
 	}
@@ -443,6 +448,7 @@ func walkExprForArgTypesUsing(node ast.Node, scope *functionScope, ctx *Analysis
 		}
 		observeArgumentExpressions(n.Args, scope, ctx, filename, observe)
 		walkExprForArgTypesUsing(n.Object, scope, ctx, filename, issues, observe)
+		observeSemanticExpression(filename, n.Object, scope, ctx, observe)
 		for _, arg := range n.Args {
 			walkExprForArgTypesUsing(argumentValue(arg), scope, ctx, filename, issues, observe)
 		}
@@ -453,8 +459,13 @@ func walkExprForArgTypesUsing(node ast.Node, scope *functionScope, ctx *Analysis
 		}
 	case *ast.AssignmentNode:
 		walkExprForArgTypesUsing(n.Right, scope, ctx, filename, issues, observe)
+		observeSemanticExpression(filename, n.Right, scope, ctx, observe)
+		if observe != nil {
+			walkExprForArgTypesUsing(n.Left, scope, ctx, filename, issues, observe)
+		}
 	case *ast.PropertyFetchNode:
 		walkExprForArgTypesUsing(n.Object, scope, ctx, filename, issues, observe)
+		observeSemanticExpression(filename, n.Object, scope, ctx, observe)
 	case *ast.BinaryExpr:
 		walkExprForArgTypesUsing(n.Left, scope, ctx, filename, issues, observe)
 		switch n.Operator {
@@ -486,19 +497,20 @@ func walkExprForArgTypesUsing(node ast.Node, scope *functionScope, ctx *Analysis
 	}
 }
 
-func observeArgumentExpressions(args []ast.Node, scope *functionScope, ctx *AnalysisContext, filename string, observe argumentExpressionObserver) {
-	if observe == nil {
-		return
-	}
+func observeArgumentExpressions(args []ast.Node, scope *functionScope, ctx *AnalysisContext, filename string, observe semanticExpressionObserver) {
 	for _, arg := range args {
-		if expr := argumentValue(arg); expr != nil {
-			observe(filename, expr, scope, ctx)
-		}
+		observeSemanticExpression(filename, argumentValue(arg), scope, ctx, observe)
+	}
+}
+
+func observeSemanticExpression(filename string, expr ast.Node, scope *functionScope, ctx *AnalysisContext, observe semanticExpressionObserver) {
+	if observe != nil && expr != nil {
+		observe(filename, expr, scope, ctx)
 	}
 }
 
 func checkMethodCallArgTypes(call *ast.MethodCallNode, scope *functionScope, ctx *AnalysisContext, filename string, issues *[]AnalysisIssue) {
-	method, ok := resolveMethodForCall(call, scope, ctx)
+	method, ok := resolveMethodForCall(call, scope, ctx, filename)
 	if !ok || len(method.Params) == 0 {
 		return
 	}
@@ -606,7 +618,7 @@ func checkResolvedCallArgTypes(target string, method ResolvedMethod, args []ast.
 	}
 }
 
-func resolveMethodForCall(call *ast.MethodCallNode, scope *functionScope, ctx *AnalysisContext) (ResolvedMethod, bool) {
+func resolveMethodForCall(call *ast.MethodCallNode, scope *functionScope, ctx *AnalysisContext, filename string) (ResolvedMethod, bool) {
 	if call == nil {
 		return ResolvedMethod{}, false
 	}
@@ -616,7 +628,7 @@ func resolveMethodForCall(call *ast.MethodCallNode, scope *functionScope, ctx *A
 		}
 	}
 
-	objectType := inferType(call.Object, scope, ctx)
+	objectType := inferTypeWithFacts(filename, call.Object, scope, ctx)
 	className, ok := objectType.SingleClassName()
 	if !ok {
 		return ResolvedMethod{}, false
