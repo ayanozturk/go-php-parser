@@ -102,6 +102,43 @@ func (idx *ProjectIndex) ResolveMethod(className, methodName string) (ResolvedMe
 	return idx.resolveMethodWithTemplates(className, methodName, nil, make(map[string]struct{}))
 }
 
+func (idx *ProjectIndex) ResolveOwnMethod(className, methodName string) (ResolvedMethod, bool) {
+	if idx == nil {
+		return ResolvedMethod{}, false
+	}
+	class, ok := idx.ResolveClass(className)
+	if !ok {
+		return ResolvedMethod{}, false
+	}
+	method, ok := idx.Methods[indexKey(class.Name)][strings.ToLower(methodName)]
+	if !ok {
+		return ResolvedMethod{}, false
+	}
+	method.DeclaringClass = class.Name
+	method.Params = append([]ResolvedParam(nil), method.Params...)
+	return method, true
+}
+
+func (idx *ProjectIndex) MethodsDeclaredBy(className string) []ResolvedMethod {
+	if idx == nil {
+		return nil
+	}
+	class, ok := idx.ResolveClass(className)
+	if !ok {
+		return nil
+	}
+	methods := make([]ResolvedMethod, 0, len(idx.Methods[indexKey(class.Name)]))
+	for _, method := range idx.Methods[indexKey(class.Name)] {
+		method.DeclaringClass = class.Name
+		method.Params = append([]ResolvedParam(nil), method.Params...)
+		methods = append(methods, method)
+	}
+	sort.Slice(methods, func(i, j int) bool {
+		return strings.ToLower(methods[i].Name) < strings.ToLower(methods[j].Name)
+	})
+	return methods
+}
+
 func (idx *ProjectIndex) resolveMethodWithTemplates(className, methodName string, bindings map[string]string, seen map[string]struct{}) (ResolvedMethod, bool) {
 	class, ok := idx.ResolveClass(className)
 	if !ok {
@@ -170,6 +207,35 @@ func (idx *ProjectIndex) ResolveConstant(className, constantName string) (Resolv
 		}
 	}
 	return ResolvedConstant{}, false
+}
+
+func (idx *ProjectIndex) ResolveOwnConstant(className, constantName string) (ResolvedConstant, bool) {
+	if idx == nil {
+		return ResolvedConstant{}, false
+	}
+	class, ok := idx.ResolveClass(className)
+	if !ok {
+		return ResolvedConstant{}, false
+	}
+	constant, ok := idx.ClassConsts[indexKey(class.Name)][strings.ToLower(constantName)]
+	if !ok {
+		return ResolvedConstant{}, false
+	}
+	constant.DeclaringClass = class.Name
+	return constant, true
+}
+
+func (idx *ProjectIndex) DuplicateClasses(filename string) []DuplicateSymbol {
+	if idx == nil {
+		return nil
+	}
+	duplicates := make([]DuplicateSymbol, 0)
+	for _, duplicate := range idx.Duplicates {
+		if filename == "" || duplicate.File == filename {
+			duplicates = append(duplicates, duplicate)
+		}
+	}
+	return duplicates
 }
 
 func (idx *ProjectIndex) ResolveFunction(name string) (ResolvedFunction, bool) {

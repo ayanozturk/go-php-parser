@@ -32,7 +32,7 @@ func (r *PHPStanLevel0Rule) checkSymbolsAndCalls(filename string, nodes []ast.No
 				issues = append(issues, issueSpan(filename, n, level0ClassModelCode, fmt.Sprintf("Instantiated class %s is abstract.", resolved.Name)))
 			}
 			constructor := constructorFor(resolved.Name, ctx)
-			checkConstructorAccess(filename, n.GetPos(), resolved.Name, class, ft, ctx.Project, constructor, &issues)
+			checkConstructorAccess(filename, n.GetPos(), resolved.Name, class, ft, ctx.Resolver, constructor, &issues)
 			checkCallArguments(filename, n.GetPos(), "Class "+resolved.Name+" constructor", "__construct", n.Args, constructor, &issues)
 		case *ast.FunctionCallNode:
 			name := functionCallName(n)
@@ -62,7 +62,7 @@ func (r *PHPStanLevel0Rule) checkSymbolsAndCalls(filename string, nodes []ast.No
 					issues = append(issues, issueSpan(filename, n, level0SymbolsCode, fmt.Sprintf("Call to an undefined static method %s::%s().", resolvedClass, methodName)))
 					return
 				}
-				checkMethodVisibility(filename, n.GetPos(), method, resolvedClass, class, ft, ctx.Project, !isSpecialClassName(className), &issues)
+				checkMethodVisibility(filename, n.GetPos(), method, resolvedClass, class, ft, ctx.Resolver, !isSpecialClassName(className), &issues)
 				checkCallArguments(filename, n.GetPos(), "Static method "+resolvedClass+"::"+method.Name+"()", method.Name, n.Args, method, &issues)
 				return
 			}
@@ -102,7 +102,7 @@ func (r *PHPStanLevel0Rule) checkSymbolsAndCalls(filename string, nodes []ast.No
 					issues = append(issues, issueSpan(filename, n, level0SymbolsCode, fmt.Sprintf("Call to an undefined method %s::%s().", className, n.Method)))
 					return
 				}
-				checkMethodVisibility(filename, n.GetPos(), method, className, class, ft, ctx.Project, false, &issues)
+				checkMethodVisibility(filename, n.GetPos(), method, className, class, ft, ctx.Resolver, false, &issues)
 				checkCallArguments(filename, n.GetPos(), "Method "+className+"::"+method.Name+"()", method.Name, n.Args, method, &issues)
 				return
 			}
@@ -114,7 +114,7 @@ func (r *PHPStanLevel0Rule) checkSymbolsAndCalls(filename string, nodes []ast.No
 			if !ok {
 				return
 			}
-			checkMethodVisibility(filename, n.GetPos(), method, className, class, ft, ctx.Project, false, &issues)
+			checkMethodVisibility(filename, n.GetPos(), method, className, class, ft, ctx.Resolver, false, &issues)
 			checkInstanceStaticMethodCall(filename, n.GetPos(), method, className, &issues)
 			checkCallArguments(filename, n.GetPos(), "Method "+className+"::"+method.Name+"()", method.Name, n.Args, method, &issues)
 		case *ast.ClassConstFetchNode:
@@ -153,8 +153,8 @@ func (r *PHPStanLevel0Rule) checkSymbolsAndCalls(filename string, nodes []ast.No
 			}
 			if n.Const != "class" {
 				constantName := className + "::" + n.Const
-				if constant, ok := resolveClassConstant(ctx.Project, className, n.Const); ok {
-					checkConstantVisibility(filename, n.GetPos(), constant, className, class, ft, ctx.Project, &issues)
+				if constant, ok := ctx.Resolver.ResolveConstant(className, n.Const); ok {
+					checkConstantVisibility(filename, n.GetPos(), constant, className, class, ft, ctx.Resolver, &issues)
 				} else if !ctx.Resolver.ConstantExists(constantName) {
 					if guards.hasConstant(constantName) {
 						return
@@ -190,14 +190,7 @@ func (r *PHPStanLevel0Rule) checkSymbolsAndCalls(filename string, nodes []ast.No
 	return issues
 }
 
-func resolveClassConstant(project *ProjectIndex, className, constName string) (ResolvedConstant, bool) {
-	if project == nil {
-		return ResolvedConstant{}, false
-	}
-	return project.ResolveConstant(className, constName)
-}
-
-func checkConstantVisibility(filename string, pos ast.Position, constant ResolvedConstant, className string, currentClass *ast.ClassNode, ft fileTypeContext, project *ProjectIndex, issues *[]AnalysisIssue) {
+func checkConstantVisibility(filename string, pos ast.Position, constant ResolvedConstant, className string, currentClass *ast.ClassNode, ft fileTypeContext, resolver SymbolResolver, issues *[]AnalysisIssue) {
 	declaringClass := constant.DeclaringClass
 	if declaringClass == "" {
 		declaringClass = className
@@ -209,7 +202,7 @@ func checkConstantVisibility(filename string, pos ast.Position, constant Resolve
 			*issues = append(*issues, issue(filename, pos, level0SymbolsCode, fmt.Sprintf("Access to private constant %s::%s.", declaringClass, constant.Name)))
 		}
 	case "protected":
-		if caller == "" || !isSubclassOf(project, caller, declaringClass) {
+		if caller == "" || !isSubclassOf(resolver, caller, declaringClass) {
 			*issues = append(*issues, issue(filename, pos, level0SymbolsCode, fmt.Sprintf("Access to protected constant %s::%s.", declaringClass, constant.Name)))
 		}
 	}

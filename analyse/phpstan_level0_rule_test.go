@@ -563,6 +563,34 @@ class Other {}
 	}
 }
 
+func TestClassModelAncestorChecksUseResolverWithoutProjectMaps(t *testing.T) {
+	const filename = "model.php"
+	nodes := parsePHPForProjectIndex(t, `<?php
+class BaseModel {
+    final public const KIND = "base";
+    final public function locked(): void {}
+}
+
+class ChildModel extends BaseModel {
+    public const KIND = "child";
+    public function locked(): void {}
+}
+`)
+	snapshot, err := NewSemanticSnapshot(map[string][]ast.Node{filename: nodes}, nil)
+	if err != nil {
+		t.Fatalf("build snapshot: %v", err)
+	}
+	ctx := snapshot.NewAnalysisContext()
+	ctx.Project = nil
+	issues := (&PHPStanLevel0Rule{}).checkClassModel(filename, nodes, ctx, collectFileTypeContext(nodes))
+	if !hasIssueContaining(issues, level0ClassModelCode, "Cannot override final method BaseModel::locked") {
+		t.Fatalf("expected resolver-backed final method diagnostic, got %#v", issues)
+	}
+	if !hasIssueContaining(issues, level0ClassModelCode, "Cannot override final constant BaseModel::KIND") {
+		t.Fatalf("expected resolver-backed final constant diagnostic, got %#v", issues)
+	}
+}
+
 func TestLevel0TypeUseCatchAndAttributeReferences(t *testing.T) {
 	issues := runLevel0OnFiles(t, map[string]string{
 		"test.php": `<?php
@@ -1033,6 +1061,72 @@ echo Child::NAME;
 	}
 	if hasIssueContaining(issues, level0SymbolsCode, "Access to undefined constant Child::NAME") {
 		t.Fatalf("inherited public constant should resolve, got %#v", issues)
+	}
+}
+
+func TestSymbolAndInvocationChecksUseResolverWithoutProjectIndex(t *testing.T) {
+	const filename = "test.php"
+	nodes := parsePHPForProjectIndex(t, `<?php
+trait Helpers {
+    private function privateHelper(): void {}
+}
+class Base {
+    private const SECRET = 1;
+    protected const TOKEN = 2;
+    protected function __construct() {}
+    private function hidden(): void {}
+    protected function work(): void {}
+}
+class Child extends Base {
+    use Helpers;
+    public function run(): void {
+        new Child();
+        $this->work();
+        self::TOKEN;
+        Base::hidden();
+        Base::SECRET;
+    }
+}
+new Child();
+`)
+	snapshot, err := NewSemanticSnapshot(map[string][]ast.Node{filename: nodes}, nil)
+	if err != nil {
+		t.Fatalf("build snapshot: %v", err)
+	}
+	ctx := snapshot.NewAnalysisContext()
+	ctx.Project = nil
+	fileCtx := analysisFileTypeContext(ctx, nodes)
+	issues := (&PHPStanLevel0Rule{}).checkSymbolsAndCalls(filename, nodes, ctx, fileCtx)
+
+	for _, expected := range []struct {
+		code    string
+		message string
+	}{
+		{level0InvocationCode, "Cannot instantiate class Child via protected constructor"},
+		{level0InvocationCode, "Call to private method Base::hidden()"},
+		{level0SymbolsCode, "Access to private constant Base::SECRET"},
+	} {
+		if !hasIssueContaining(issues, expected.code, expected.message) {
+			t.Fatalf("expected resolver-only issue %q, got %#v", expected.message, issues)
+		}
+	}
+	for _, unexpected := range []struct {
+		code    string
+		message string
+	}{
+		{level0InvocationCode, "Call to protected method Base::work()"},
+		{level0SymbolsCode, "Access to protected constant Base::TOKEN"},
+	} {
+		if hasIssueContaining(issues, unexpected.code, unexpected.message) {
+			t.Fatalf("unexpected resolver-only issue %q, got %#v", unexpected.message, issues)
+		}
+	}
+
+	child := nodes[2].(*ast.ClassNode)
+	var traitVisibilityIssues []AnalysisIssue
+	checkMethodVisibility(filename, child.GetPos(), ResolvedMethod{Name: "privateHelper", DeclaringClass: "Helpers", Visibility: "private"}, "Child", child, fileCtx, ctx.Resolver, false, &traitVisibilityIssues)
+	if len(traitVisibilityIssues) != 0 {
+		t.Fatalf("trait visibility should resolve without project maps, got %#v", traitVisibilityIssues)
 	}
 }
 

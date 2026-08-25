@@ -378,3 +378,67 @@ class Example {
 		}
 	}
 }
+
+func TestSemanticSnapshotExposesDefensiveOwnMemberQueries(t *testing.T) {
+	const filename = "src/Models.php"
+	nodes := parsePHPForProjectIndex(t, `<?php
+class BaseModel {
+    final public const KIND = "base";
+    final public function locked(int $id): void {}
+}
+
+class ChildModel extends BaseModel {
+    public function zeta(): void {}
+    public function alpha(string $name): void {}
+}
+`)
+	snapshot, err := NewSemanticSnapshot(map[string][]ast.Node{filename: nodes}, nil)
+	if err != nil {
+		t.Fatalf("build snapshot: %v", err)
+	}
+
+	if _, ok := snapshot.ResolveOwnMethod("ChildModel", "locked"); ok {
+		t.Fatal("inherited method must not resolve as a ChildModel declaration")
+	}
+	if inherited, ok := snapshot.ResolveMethod("ChildModel", "locked"); !ok || inherited.DeclaringClass != "BaseModel" {
+		t.Fatalf("expected inherited BaseModel::locked, got %#v, %v", inherited, ok)
+	}
+	methods := snapshot.MethodsDeclaredBy("ChildModel")
+	if len(methods) != 2 || methods[0].Name != "alpha" || methods[1].Name != "zeta" {
+		t.Fatalf("expected deterministic declared methods [alpha zeta], got %#v", methods)
+	}
+	methods[0].Params[0].Type = "mutated"
+	again := snapshot.MethodsDeclaredBy("ChildModel")
+	if again[0].Params[0].Type != "string" {
+		t.Fatalf("declared method params leaked caller mutation: %#v", again[0])
+	}
+
+	if _, ok := snapshot.ResolveOwnConstant("ChildModel", "KIND"); ok {
+		t.Fatal("inherited constant must not resolve as a ChildModel declaration")
+	}
+	if inherited, ok := snapshot.ResolveConstant("ChildModel", "KIND"); !ok || inherited.DeclaringClass != "BaseModel" {
+		t.Fatalf("expected inherited BaseModel::KIND, got %#v, %v", inherited, ok)
+	}
+}
+
+func TestSemanticSnapshotFiltersAndCopiesDuplicateClasses(t *testing.T) {
+	parsed := map[string][]ast.Node{
+		"a.php": parsePHPForProjectIndex(t, "<?php class Duplicate {}"),
+		"b.php": parsePHPForProjectIndex(t, "<?php class Duplicate {}"),
+	}
+	snapshot, err := NewSemanticSnapshot(parsed, nil)
+	if err != nil {
+		t.Fatalf("build snapshot: %v", err)
+	}
+	if duplicates := snapshot.DuplicateClasses("a.php"); len(duplicates) != 0 {
+		t.Fatalf("first declaration must not be reported as duplicate: %#v", duplicates)
+	}
+	duplicates := snapshot.DuplicateClasses("b.php")
+	if len(duplicates) != 1 || duplicates[0].Name != "Duplicate" || duplicates[0].File != "b.php" {
+		t.Fatalf("unexpected filtered duplicates: %#v", duplicates)
+	}
+	duplicates[0].Name = "mutated"
+	if again := snapshot.DuplicateClasses("b.php"); len(again) != 1 || again[0].Name != "Duplicate" {
+		t.Fatalf("duplicate metadata leaked caller mutation: %#v", again)
+	}
+}

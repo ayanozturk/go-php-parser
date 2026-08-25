@@ -11,8 +11,13 @@ type SymbolResolver interface {
 	ConstantExists(name string) bool
 	ResolveClass(name string) (ResolvedClass, bool)
 	ResolveMethod(className, methodName string) (ResolvedMethod, bool)
+	ResolveOwnMethod(className, methodName string) (ResolvedMethod, bool)
+	MethodsDeclaredBy(className string) []ResolvedMethod
 	ResolveProperty(className, propertyName string) (ResolvedProperty, bool)
+	ResolveConstant(className, constantName string) (ResolvedConstant, bool)
+	ResolveOwnConstant(className, constantName string) (ResolvedConstant, bool)
 	ResolveFunction(name string) (ResolvedFunction, bool)
+	DuplicateClasses(filename string) []DuplicateSymbol
 }
 
 type ResolvedClass struct {

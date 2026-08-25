@@ -33,9 +33,9 @@ func resolveClassLikeForCall(name string, current *ast.ClassNode, ft fileTypeCon
 		}
 	case "parent":
 		if current != nil {
-			if ctx != nil && ctx.Project != nil {
+			if ctx != nil && ctx.Resolver != nil {
 				currentName := ft.resolveClassLike(current.Name)
-				if class, ok := ctx.Project.ResolveClass(currentName); ok && len(class.Extends) > 0 {
+				if class, ok := ctx.Resolver.ResolveClass(currentName); ok && len(class.Extends) > 0 {
 					return class.Extends[0]
 				}
 			}
@@ -150,12 +150,12 @@ func resolveThrownClassName(node ast.Node, ft fileTypeContext) string {
 	return ""
 }
 
-func isSubclassOf(project *ProjectIndex, current, target string) bool {
-	return isSubclassOfSeen(project, current, target, map[string]struct{}{})
+func isSubclassOf(resolver SymbolResolver, current, target string) bool {
+	return isSubclassOfSeen(resolver, current, target, map[string]struct{}{})
 }
 
-func isSubclassOfSeen(project *ProjectIndex, current, target string, seen map[string]struct{}) bool {
-	if project == nil || current == "" || target == "" {
+func isSubclassOfSeen(resolver SymbolResolver, current, target string, seen map[string]struct{}) bool {
+	if resolver == nil || current == "" || target == "" {
 		return false
 	}
 	if indexKey(current) == indexKey(target) {
@@ -166,12 +166,12 @@ func isSubclassOfSeen(project *ProjectIndex, current, target string, seen map[st
 		return false
 	}
 	seen[key] = struct{}{}
-	class, ok := project.ResolveClass(current)
+	class, ok := resolver.ResolveClass(current)
 	if !ok {
 		return false
 	}
 	for _, parent := range class.Extends {
-		if isSubclassOfSeen(project, parent, target, seen) {
+		if isSubclassOfSeen(resolver, parent, target, seen) {
 			return true
 		}
 	}

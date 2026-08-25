@@ -278,6 +278,35 @@ func (s *SemanticSnapshot) ResolveMethod(className, methodName string) (Resolved
 	return method, true
 }
 
+func (s *SemanticSnapshot) ResolveOwnMethod(className, methodName string) (ResolvedMethod, bool) {
+	if s == nil {
+		return ResolvedMethod{}, false
+	}
+	method, ok := s.project.ResolveOwnMethod(className, methodName)
+	if !ok {
+		return ResolvedMethod{}, false
+	}
+	if method.ID == "" {
+		method.ID = stableSymbolID("method", method.DeclaringClass, method.Name)
+	}
+	method.Params = append([]ResolvedParam(nil), method.Params...)
+	return method, true
+}
+
+func (s *SemanticSnapshot) MethodsDeclaredBy(className string) []ResolvedMethod {
+	if s == nil {
+		return nil
+	}
+	methods := s.project.MethodsDeclaredBy(className)
+	for i := range methods {
+		if methods[i].ID == "" {
+			methods[i].ID = stableSymbolID("method", methods[i].DeclaringClass, methods[i].Name)
+		}
+		methods[i].Params = append([]ResolvedParam(nil), methods[i].Params...)
+	}
+	return methods
+}
+
 func (s *SemanticSnapshot) ResolveProperty(className, propertyName string) (ResolvedProperty, bool) {
 	if s == nil {
 		return ResolvedProperty{}, false
@@ -323,6 +352,27 @@ func (s *SemanticSnapshot) ResolveConstant(className, constantName string) (Reso
 		constant.ID = stableSymbolID("constant", constant.DeclaringClass, constant.Name)
 	}
 	return constant, true
+}
+
+func (s *SemanticSnapshot) ResolveOwnConstant(className, constantName string) (ResolvedConstant, bool) {
+	if s == nil {
+		return ResolvedConstant{}, false
+	}
+	constant, ok := s.project.ResolveOwnConstant(className, constantName)
+	if !ok {
+		return ResolvedConstant{}, false
+	}
+	if constant.ID == "" {
+		constant.ID = stableSymbolID("constant", constant.DeclaringClass, constant.Name)
+	}
+	return constant, true
+}
+
+func (s *SemanticSnapshot) DuplicateClasses(filename string) []DuplicateSymbol {
+	if s == nil {
+		return nil
+	}
+	return append([]DuplicateSymbol(nil), s.project.DuplicateClasses(filename)...)
 }
 
 func stableSymbolID(kind, owner, name string) SymbolID {

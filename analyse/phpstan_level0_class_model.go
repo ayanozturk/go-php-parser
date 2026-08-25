@@ -8,10 +8,8 @@ import (
 
 func (r *PHPStanLevel0Rule) checkClassModel(filename string, nodes []ast.Node, ctx *AnalysisContext, fileCtx fileTypeContext) []AnalysisIssue {
 	var issues []AnalysisIssue
-	for _, duplicate := range ctx.Project.Duplicates {
-		if duplicate.File == filename {
-			issues = append(issues, issue(filename, duplicate.Pos, level0ClassModelCode, fmt.Sprintf("Duplicate declaration of class %s.", duplicate.Name)))
-		}
+	for _, duplicate := range ctx.Resolver.DuplicateClasses(filename) {
+		issues = append(issues, issue(filename, duplicate.Pos, level0ClassModelCode, fmt.Sprintf("Duplicate declaration of class %s.", duplicate.Name)))
 	}
 
 	var walk func([]ast.Node, fileTypeContext, string)
@@ -115,7 +113,7 @@ func checkClassMethodLegality(filename, className string, class *ast.ClassNode, 
 			}
 			continue
 		}
-		if parentMethod, ok := finalMethodInAncestors(ctx.Project, className, method.Name); ok {
+		if parentMethod, ok := finalMethodInAncestors(ctx.Resolver, className, method.Name); ok {
 			*issues = append(*issues, issueSpan(filename, method, level0ClassModelCode, fmt.Sprintf("Cannot override final method %s::%s().", parentMethod.DeclaringClass, parentMethod.Name)))
 		}
 	}
@@ -133,21 +131,21 @@ func checkClassConstantLegality(filename, className string, class *ast.ClassNode
 		if hasModifier(constant.Modifiers, "final") && constant.Visibility == "private" {
 			*issues = append(*issues, issueSpan(filename, constant, level0ClassModelCode, fmt.Sprintf("Private constant %s::%s cannot be final.", className, constant.Name)))
 		}
-		if parentConstant, ok := finalConstantInAncestors(ctx.Project, className, constant.Name); ok {
+		if parentConstant, ok := finalConstantInAncestors(ctx.Resolver, className, constant.Name); ok {
 			*issues = append(*issues, issueSpan(filename, constant, level0ClassModelCode, fmt.Sprintf("Cannot override final constant %s::%s.", parentConstant.DeclaringClass, parentConstant.Name)))
 		}
 	}
 }
 
 func checkConsistentConstructorLegality(filename, className string, class *ast.ClassNode, ctx *AnalysisContext, issues *[]AnalysisIssue) {
-	if hasPHPStanConsistentConstructorTag(class.PHPDoc) && hasPrivateConstructor(ctx.Project, className) && !hasClassModifier(class, "final") {
+	if hasPHPStanConsistentConstructorTag(class.PHPDoc) && hasPrivateConstructor(ctx.Resolver, className) && !hasClassModifier(class, "final") {
 		*issues = append(*issues, issueSpan(filename, class, level0ClassModelCode, fmt.Sprintf("Class %s has @phpstan-consistent-constructor but its constructor is private.", className)))
 	}
-	required, ok := consistentConstructorInAncestors(ctx.Project, className)
+	required, ok := consistentConstructorInAncestors(ctx.Resolver, className)
 	if !ok {
 		return
 	}
-	implemented, ok := ownConstructor(ctx.Project, className)
+	implemented, ok := ownConstructor(ctx.Resolver, className)
 	if !ok {
 		return
 	}
@@ -180,10 +178,8 @@ func checkReadonlyClassProperties(filename, className string, class *ast.ClassNo
 		}
 		if class.Extends != "" {
 			parentName := ""
-			if ctx.Project != nil {
-				if resolved, ok := ctx.Project.ResolveClass(className); ok && len(resolved.Extends) > 0 {
-					parentName = resolved.Extends[0]
-				}
+			if resolved, ok := ctx.Resolver.ResolveClass(className); ok && len(resolved.Extends) > 0 {
+				parentName = resolved.Extends[0]
 			}
 			if parentName == "" {
 				continue
@@ -198,12 +194,12 @@ func checkReadonlyClassProperties(filename, className string, class *ast.ClassNo
 // ancestorRecursionGuard bounds recursive ancestor walks so a self-referential
 // or cyclic "extends" chain in indexed (possibly invalid) PHP source cannot
 // cause unbounded recursion and crash the analyser with a stack overflow.
-func finalMethodInAncestors(project *ProjectIndex, className, methodName string) (ResolvedMethod, bool) {
-	return finalMethodInAncestorsSeen(project, className, methodName, map[string]struct{}{})
+func finalMethodInAncestors(resolver SymbolResolver, className, methodName string) (ResolvedMethod, bool) {
+	return finalMethodInAncestorsSeen(resolver, className, methodName, map[string]struct{}{})
 }
 
-func finalMethodInAncestorsSeen(project *ProjectIndex, className, methodName string, seen map[string]struct{}) (ResolvedMethod, bool) {
-	if project == nil {
+func finalMethodInAncestorsSeen(resolver SymbolResolver, className, methodName string, seen map[string]struct{}) (ResolvedMethod, bool) {
+	if resolver == nil {
 		return ResolvedMethod{}, false
 	}
 	key := indexKey(className)
@@ -211,27 +207,27 @@ func finalMethodInAncestorsSeen(project *ProjectIndex, className, methodName str
 		return ResolvedMethod{}, false
 	}
 	seen[key] = struct{}{}
-	class, ok := project.ResolveClass(className)
+	class, ok := resolver.ResolveClass(className)
 	if !ok {
 		return ResolvedMethod{}, false
 	}
 	for _, parent := range class.Extends {
-		if method, ok := project.Methods[indexKey(parent)][strings.ToLower(methodName)]; ok && method.Final {
+		if method, ok := resolver.ResolveOwnMethod(parent, methodName); ok && method.Final {
 			return method, true
 		}
-		if method, ok := finalMethodInAncestorsSeen(project, parent, methodName, seen); ok {
+		if method, ok := finalMethodInAncestorsSeen(resolver, parent, methodName, seen); ok {
 			return method, true
 		}
 	}
 	return ResolvedMethod{}, false
 }
 
-func finalConstantInAncestors(project *ProjectIndex, className, constName string) (ResolvedConstant, bool) {
-	return finalConstantInAncestorsSeen(project, className, constName, map[string]struct{}{})
+func finalConstantInAncestors(resolver SymbolResolver, className, constName string) (ResolvedConstant, bool) {
+	return finalConstantInAncestorsSeen(resolver, className, constName, map[string]struct{}{})
 }
 
-func finalConstantInAncestorsSeen(project *ProjectIndex, className, constName string, seen map[string]struct{}) (ResolvedConstant, bool) {
-	if project == nil {
+func finalConstantInAncestorsSeen(resolver SymbolResolver, className, constName string, seen map[string]struct{}) (ResolvedConstant, bool) {
+	if resolver == nil {
 		return ResolvedConstant{}, false
 	}
 	key := indexKey(className)
@@ -239,28 +235,27 @@ func finalConstantInAncestorsSeen(project *ProjectIndex, className, constName st
 		return ResolvedConstant{}, false
 	}
 	seen[key] = struct{}{}
-	class, ok := project.ResolveClass(className)
+	class, ok := resolver.ResolveClass(className)
 	if !ok {
 		return ResolvedConstant{}, false
 	}
 	for _, parent := range class.Extends {
-		if constant, ok := project.ClassConsts[indexKey(parent)][strings.ToLower(constName)]; ok && constant.Final && constant.Visibility != "private" {
-			constant.DeclaringClass = parent
+		if constant, ok := resolver.ResolveOwnConstant(parent, constName); ok && constant.Final && constant.Visibility != "private" {
 			return constant, true
 		}
-		if constant, ok := finalConstantInAncestorsSeen(project, parent, constName, seen); ok {
+		if constant, ok := finalConstantInAncestorsSeen(resolver, parent, constName, seen); ok {
 			return constant, true
 		}
 	}
 	return ResolvedConstant{}, false
 }
 
-func consistentConstructorInAncestors(project *ProjectIndex, className string) (ResolvedMethod, bool) {
-	return consistentConstructorInAncestorsSeen(project, className, map[string]struct{}{})
+func consistentConstructorInAncestors(resolver SymbolResolver, className string) (ResolvedMethod, bool) {
+	return consistentConstructorInAncestorsSeen(resolver, className, map[string]struct{}{})
 }
 
-func consistentConstructorInAncestorsSeen(project *ProjectIndex, className string, seen map[string]struct{}) (ResolvedMethod, bool) {
-	if project == nil {
+func consistentConstructorInAncestorsSeen(resolver SymbolResolver, className string, seen map[string]struct{}) (ResolvedMethod, bool) {
+	if resolver == nil {
 		return ResolvedMethod{}, false
 	}
 	key := indexKey(className)
@@ -268,20 +263,20 @@ func consistentConstructorInAncestorsSeen(project *ProjectIndex, className strin
 		return ResolvedMethod{}, false
 	}
 	seen[key] = struct{}{}
-	class, ok := project.ResolveClass(className)
+	class, ok := resolver.ResolveClass(className)
 	if !ok {
 		return ResolvedMethod{}, false
 	}
 	for _, parent := range class.Extends {
-		if parentClass, ok := project.ResolveClass(parent); ok && parentClass.ConsistentConstructor {
-			constructor, ok := project.Methods[indexKey(parent)]["__construct"]
+		if parentClass, ok := resolver.ResolveClass(parent); ok && parentClass.ConsistentConstructor {
+			constructor, ok := resolver.ResolveOwnMethod(parent, "__construct")
 			if !ok {
 				constructor = ResolvedMethod{Name: "__construct", DeclaringClass: parent, Visibility: "public"}
 			}
 			constructor.DeclaringClass = parent
 			return constructor, true
 		}
-		if constructor, ok := consistentConstructorInAncestorsSeen(project, parent, seen); ok {
+		if constructor, ok := consistentConstructorInAncestorsSeen(resolver, parent, seen); ok {
 			return constructor, true
 		}
 	}
@@ -301,20 +296,15 @@ func hasPHPStanConsistentConstructorTag(doc *ast.PHPDocNode) bool {
 	return doc != nil && strings.Contains(doc.RawContent, "@phpstan-consistent-constructor")
 }
 
-func ownConstructor(project *ProjectIndex, className string) (ResolvedMethod, bool) {
-	if project == nil {
+func ownConstructor(resolver SymbolResolver, className string) (ResolvedMethod, bool) {
+	if resolver == nil {
 		return ResolvedMethod{}, false
 	}
-	methods := project.Methods[indexKey(className)]
-	if methods == nil {
-		return ResolvedMethod{}, false
-	}
-	method, ok := methods["__construct"]
-	return method, ok
+	return resolver.ResolveOwnMethod(className, "__construct")
 }
 
-func hasPrivateConstructor(project *ProjectIndex, className string) bool {
-	constructor, ok := ownConstructor(project, className)
+func hasPrivateConstructor(resolver SymbolResolver, className string) bool {
+	constructor, ok := ownConstructor(resolver, className)
 	return ok && constructor.Visibility == "private"
 }
 
@@ -346,23 +336,23 @@ func visibilityRank(visibility string) int {
 }
 
 func checkRequiredMethodImplementations(filename, className string, pos ast.Position, ctx *AnalysisContext, issues *[]AnalysisIssue) {
-	project := ctx.Project
-	if project == nil {
+	resolver := ctx.Resolver
+	if resolver == nil {
 		return
 	}
-	class, ok := project.ResolveClass(className)
+	class, ok := resolver.ResolveClass(className)
 	if !ok || class.Kind != "class" {
 		return
 	}
 	required := map[string]ResolvedMethod{}
 	for _, iface := range class.Implements {
-		collectAbstractMethods(project, iface, required)
+		collectAbstractMethods(resolver, iface, required)
 	}
 	for _, parent := range class.Extends {
-		collectUnimplementedParentAbstractMethods(project, parent, required)
+		collectUnimplementedParentAbstractMethods(resolver, parent, required)
 	}
 	for _, method := range required {
-		implemented, ok := findConcreteClassMethod(project, className, method.Name)
+		implemented, ok := findConcreteClassMethod(resolver, className, method.Name)
 		if !ok {
 			*issues = append(*issues, issue(filename, pos, level0ClassModelCode, fmt.Sprintf("Class %s must implement method %s().", className, method.Name)))
 			continue
@@ -370,7 +360,7 @@ func checkRequiredMethodImplementations(filename, className string, pos ast.Posi
 		if method.Visibility == "public" && implemented.Visibility != "public" {
 			*issues = append(*issues, issue(filename, pos, level0ClassModelCode, fmt.Sprintf("Method %s::%s() implementing interface method must be public.", className, method.Name)))
 		}
-		checkRequiredMethodSignature(filename, pos, className, method, implemented, &AnalysisContext{Resolver: project, Project: project}, issues)
+		checkRequiredMethodSignature(filename, pos, className, method, implemented, ctx, issues)
 	}
 }
 
@@ -404,51 +394,51 @@ func returnTypeCompatible(required, implemented string, ctx *AnalysisContext) bo
 	return ParseType(required).AcceptsWithContext(ParseType(implemented), nil, ctx)
 }
 
-func collectAbstractMethods(project *ProjectIndex, className string, out map[string]ResolvedMethod) {
-	collectAbstractMethodsSeen(project, className, out, map[string]struct{}{})
+func collectAbstractMethods(resolver SymbolResolver, className string, out map[string]ResolvedMethod) {
+	collectAbstractMethodsSeen(resolver, className, out, map[string]struct{}{})
 }
 
-func collectAbstractMethodsSeen(project *ProjectIndex, className string, out map[string]ResolvedMethod, seen map[string]struct{}) {
+func collectAbstractMethodsSeen(resolver SymbolResolver, className string, out map[string]ResolvedMethod, seen map[string]struct{}) {
 	key := indexKey(className)
 	if _, visited := seen[key]; visited {
 		return
 	}
 	seen[key] = struct{}{}
-	class, ok := project.ResolveClass(className)
+	class, ok := resolver.ResolveClass(className)
 	if !ok {
 		return
 	}
 	for _, parent := range class.Extends {
-		collectAbstractMethodsSeen(project, parent, out, seen)
+		collectAbstractMethodsSeen(resolver, parent, out, seen)
 	}
 	for _, iface := range class.Implements {
-		collectAbstractMethodsSeen(project, iface, out, seen)
+		collectAbstractMethodsSeen(resolver, iface, out, seen)
 	}
-	for _, method := range project.Methods[indexKey(className)] {
+	for _, method := range resolver.MethodsDeclaredBy(className) {
 		if method.Abstract {
 			out[strings.ToLower(method.Name)] = method
 		}
 	}
 }
 
-func collectUnimplementedParentAbstractMethods(project *ProjectIndex, className string, out map[string]ResolvedMethod) {
-	collectUnimplementedParentAbstractMethodsSeen(project, className, out, map[string]struct{}{})
+func collectUnimplementedParentAbstractMethods(resolver SymbolResolver, className string, out map[string]ResolvedMethod) {
+	collectUnimplementedParentAbstractMethodsSeen(resolver, className, out, map[string]struct{}{})
 }
 
-func collectUnimplementedParentAbstractMethodsSeen(project *ProjectIndex, className string, out map[string]ResolvedMethod, seen map[string]struct{}) {
+func collectUnimplementedParentAbstractMethodsSeen(resolver SymbolResolver, className string, out map[string]ResolvedMethod, seen map[string]struct{}) {
 	key := indexKey(className)
 	if _, visited := seen[key]; visited {
 		return
 	}
 	seen[key] = struct{}{}
-	class, ok := project.ResolveClass(className)
+	class, ok := resolver.ResolveClass(className)
 	if !ok || class.Kind != "class" {
 		return
 	}
 	for _, parent := range class.Extends {
-		collectUnimplementedParentAbstractMethodsSeen(project, parent, out, seen)
+		collectUnimplementedParentAbstractMethodsSeen(resolver, parent, out, seen)
 	}
-	for _, method := range project.Methods[indexKey(className)] {
+	for _, method := range resolver.MethodsDeclaredBy(className) {
 		key := strings.ToLower(method.Name)
 		if method.Abstract {
 			out[key] = method
@@ -458,7 +448,7 @@ func collectUnimplementedParentAbstractMethodsSeen(project *ProjectIndex, classN
 	}
 }
 
-func findConcreteClassMethod(project *ProjectIndex, className, methodName string) (ResolvedMethod, bool) {
+func findConcreteClassMethod(resolver SymbolResolver, className, methodName string) (ResolvedMethod, bool) {
 	seen := map[string]struct{}{}
 	for className != "" {
 		key := indexKey(className)
@@ -466,10 +456,10 @@ func findConcreteClassMethod(project *ProjectIndex, className, methodName string
 			return ResolvedMethod{}, false
 		}
 		seen[key] = struct{}{}
-		if method, ok := project.Methods[key][strings.ToLower(methodName)]; ok && !method.Abstract {
+		if method, ok := resolver.ResolveOwnMethod(className, methodName); ok && !method.Abstract {
 			return method, true
 		}
-		class, ok := project.ResolveClass(className)
+		class, ok := resolver.ResolveClass(className)
 		if !ok || len(class.Extends) == 0 {
 			return ResolvedMethod{}, false
 		}

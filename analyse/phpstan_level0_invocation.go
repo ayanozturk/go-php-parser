@@ -78,21 +78,35 @@ func parameterBounds(params []ResolvedParam) (int, int, bool) {
 }
 
 func constructorFor(className string, ctx *AnalysisContext) ResolvedMethod {
-	if ctx.Project != nil {
-		for _, candidate := range ctx.Project.classLineage(className) {
-			if method, ok := ctx.Resolver.ResolveMethod(candidate, "__construct"); ok {
-				return method
-			}
-		}
+	if ctx == nil || ctx.Resolver == nil {
+		return ResolvedMethod{Name: "__construct"}
 	}
-	method, ok := ctx.Resolver.ResolveMethod(className, "__construct")
+	return constructorForSeen(className, ctx.Resolver, make(map[string]struct{}))
+}
+
+func constructorForSeen(className string, resolver SymbolResolver, seen map[string]struct{}) ResolvedMethod {
+	class, ok := resolver.ResolveClass(className)
 	if !ok {
 		return ResolvedMethod{Name: "__construct"}
 	}
-	return method
+	key := indexKey(class.Name)
+	if _, visited := seen[key]; visited {
+		return ResolvedMethod{Name: "__construct"}
+	}
+	seen[key] = struct{}{}
+	if method, found := resolver.ResolveOwnMethod(class.Name, "__construct"); found {
+		return method
+	}
+	parents := append(append(append([]string(nil), class.Extends...), class.Implements...), class.Traits...)
+	for _, parent := range parents {
+		if method := constructorForSeen(parent, resolver, seen); method.DeclaringClass != "" {
+			return method
+		}
+	}
+	return ResolvedMethod{Name: "__construct"}
 }
 
-func checkMethodVisibility(filename string, pos ast.Position, method ResolvedMethod, className string, currentClass *ast.ClassNode, ft fileTypeContext, project *ProjectIndex, static bool, issues *[]AnalysisIssue) {
+func checkMethodVisibility(filename string, pos ast.Position, method ResolvedMethod, className string, currentClass *ast.ClassNode, ft fileTypeContext, resolver SymbolResolver, static bool, issues *[]AnalysisIssue) {
 	declaringClass := method.DeclaringClass
 	if declaringClass == "" {
 		declaringClass = className
@@ -100,11 +114,11 @@ func checkMethodVisibility(filename string, pos ast.Position, method ResolvedMet
 	caller := callerClassName(currentClass, ft)
 	switch method.Visibility {
 	case "private":
-		if caller == "" || (indexKey(caller) != indexKey(declaringClass) && !classUsesTrait(project, caller, declaringClass)) {
+		if caller == "" || (indexKey(caller) != indexKey(declaringClass) && !classUsesTrait(resolver, caller, declaringClass)) {
 			*issues = append(*issues, issue(filename, pos, level0InvocationCode, fmt.Sprintf("Call to private method %s::%s().", declaringClass, method.Name)))
 		}
 	case "protected":
-		if caller == "" || (!isSubclassOf(project, caller, declaringClass) && !classUsesTrait(project, caller, declaringClass)) {
+		if caller == "" || (!isSubclassOf(resolver, caller, declaringClass) && !classUsesTrait(resolver, caller, declaringClass)) {
 			*issues = append(*issues, issue(filename, pos, level0InvocationCode, fmt.Sprintf("Call to protected method %s::%s().", declaringClass, method.Name)))
 		}
 	}
@@ -113,16 +127,35 @@ func checkMethodVisibility(filename string, pos ast.Position, method ResolvedMet
 	}
 }
 
-func classUsesTrait(project *ProjectIndex, className, traitName string) bool {
-	if project == nil || className == "" || traitName == "" {
+func classUsesTrait(resolver SymbolResolver, className, traitName string) bool {
+	if resolver == nil || className == "" || traitName == "" {
 		return false
 	}
-	trait, ok := project.ResolveClass(traitName)
+	trait, ok := resolver.ResolveClass(traitName)
 	if !ok || trait.Kind != "trait" {
 		return false
 	}
-	for _, candidate := range project.classLineage(className) {
-		if indexKey(candidate) == indexKey(trait.Name) {
+	return classUsesTraitSeen(resolver, className, trait.Name, make(map[string]struct{}))
+}
+
+func classUsesTraitSeen(resolver SymbolResolver, className, traitName string, seen map[string]struct{}) bool {
+	class, ok := resolver.ResolveClass(className)
+	if !ok {
+		return false
+	}
+	key := indexKey(class.Name)
+	if _, visited := seen[key]; visited {
+		return false
+	}
+	seen[key] = struct{}{}
+	for _, used := range class.Traits {
+		if indexKey(used) == indexKey(traitName) || classUsesTraitSeen(resolver, used, traitName, seen) {
+			return true
+		}
+	}
+	parents := append(append([]string(nil), class.Extends...), class.Implements...)
+	for _, parent := range parents {
+		if classUsesTraitSeen(resolver, parent, traitName, seen) {
 			return true
 		}
 	}
@@ -135,7 +168,7 @@ func checkInstanceStaticMethodCall(filename string, pos ast.Position, method Res
 	}
 }
 
-func checkConstructorAccess(filename string, pos ast.Position, targetClass string, currentClass *ast.ClassNode, ft fileTypeContext, project *ProjectIndex, constructor ResolvedMethod, issues *[]AnalysisIssue) {
+func checkConstructorAccess(filename string, pos ast.Position, targetClass string, currentClass *ast.ClassNode, ft fileTypeContext, resolver SymbolResolver, constructor ResolvedMethod, issues *[]AnalysisIssue) {
 	if constructor.Name != "__construct" || constructor.Visibility == "public" || constructor.Visibility == "" {
 		return
 	}
@@ -146,7 +179,7 @@ func checkConstructorAccess(filename string, pos ast.Position, targetClass strin
 			*issues = append(*issues, issue(filename, pos, level0InvocationCode, fmt.Sprintf("Cannot instantiate class %s via private constructor.", targetClass)))
 		}
 	case "protected":
-		if caller == "" || !isSubclassOf(project, caller, targetClass) {
+		if caller == "" || !isSubclassOf(resolver, caller, targetClass) {
 			*issues = append(*issues, issue(filename, pos, level0InvocationCode, fmt.Sprintf("Cannot instantiate class %s via protected constructor.", targetClass)))
 		}
 	}
