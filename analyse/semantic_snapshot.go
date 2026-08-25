@@ -188,13 +188,13 @@ func (s *SemanticSnapshot) Files() []string {
 	return append([]string(nil), s.filenames...)
 }
 
-// NewAnalysisContext creates the compatibility bridge used while rules move
-// from direct ProjectIndex access to snapshot and fact-reader queries.
+// NewAnalysisContext creates a read-only analysis context backed by this
+// snapshot's symbol resolver and semantic facts.
 func (s *SemanticSnapshot) NewAnalysisContext() *AnalysisContext {
 	if s == nil {
 		return &AnalysisContext{}
 	}
-	return &AnalysisContext{Resolver: s, Project: s.project, Facts: s}
+	return &AnalysisContext{Resolver: s, Facts: s}
 }
 
 // Fact returns the fact registered for an exact source-span key.

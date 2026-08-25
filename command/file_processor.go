@@ -419,7 +419,7 @@ func runAnalysis(path string, nodes []ast.Node, project *analyse.ProjectIndex) [
 	if project == nil {
 		project = analyse.BuildProjectIndex(map[string][]ast.Node{path: nodes})
 	}
-	ctx := &analyse.AnalysisContext{Resolver: project, Project: project, AnalysisLevel: configuredAnalysisLevel}
+	ctx := &analyse.AnalysisContext{Resolver: project, AnalysisLevel: configuredAnalysisLevel}
 	return analyse.RunAnalysisRulesWithContext(path, nodes, ctx)
 }
 

@@ -96,7 +96,6 @@ type AnalysisContext struct {
 	Resolver           SymbolResolver
 	Facts              SemanticFactReader
 	PHPVersion         string
-	Project            *ProjectIndex
 	AnalysisLevel      *int
 	DisabledIssueCodes map[string]bool
 

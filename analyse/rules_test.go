@@ -73,6 +73,25 @@ func TestRunAnalysisRulesPreservesContextPHPVersion(t *testing.T) {
 	}
 }
 
+func TestRunAnalysisRulesPreservesReadOnlySemanticContext(t *testing.T) {
+	ClearAnalysisRules()
+	defer ClearAnalysisRules()
+
+	resolver := NewProjectIndex()
+	facts := &countingFactReader{}
+	RegisterAnalysisRuleWithContext("SEMANTIC.CONTEXT", func(filename string, nodes []ast.Node, ctx *AnalysisContext) []AnalysisIssue {
+		if ctx.Resolver != resolver {
+			t.Fatal("registered rule did not receive the supplied symbol resolver")
+		}
+		if ctx.Facts != facts {
+			t.Fatal("registered rule did not receive the supplied semantic fact reader")
+		}
+		return nil
+	})
+
+	RunAnalysisRulesWithContext("test.php", nil, &AnalysisContext{Resolver: resolver, Facts: facts})
+}
+
 func TestRunAnalysisRulesFiltersDisabledIssueCodes(t *testing.T) {
 	ClearAnalysisRules()
 	defer ClearAnalysisRules()

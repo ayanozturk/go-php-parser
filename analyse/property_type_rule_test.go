@@ -81,7 +81,7 @@ class Example {
 	key := inferredTypeFactKey(filename, rhs)
 	reader := &countingFactReader{facts: map[SemanticFactKey]SemanticFact{key: {Key: key, Type: "int"}}}
 	project := BuildProjectIndex(map[string][]ast.Node{filename: nodes})
-	ctx := &AnalysisContext{Resolver: project, Project: project, Facts: reader}
+	ctx := &AnalysisContext{Resolver: project, Facts: reader}
 
 	issues := (&PropertyTypeRule{}).CheckIssues(nodes, filename, ctx)
 	if hasPropertyTypeIssue(issues) {
@@ -104,7 +104,7 @@ class Example {
 	key.EndOffset++
 	reader := &countingFactReader{facts: map[SemanticFactKey]SemanticFact{key: {Key: key, Type: "int"}}}
 	project := BuildProjectIndex(map[string][]ast.Node{filename: nodes})
-	ctx := &AnalysisContext{Resolver: project, Project: project, Facts: reader}
+	ctx := &AnalysisContext{Resolver: project, Facts: reader}
 
 	issues := (&PropertyTypeRule{}).CheckIssues(nodes, filename, ctx)
 	if !hasPropertyTypeIssue(issues) {
@@ -132,7 +132,7 @@ class Example {
 	key := inferredTypeFactKey(filename, receiver)
 	reader := &countingFactReader{facts: map[SemanticFactKey]SemanticFact{key: {Key: key, Type: "Holder"}}}
 	project := BuildProjectIndex(map[string][]ast.Node{filename: nodes})
-	ctx := &AnalysisContext{Resolver: project, Project: project, Facts: reader}
+	ctx := &AnalysisContext{Resolver: project, Facts: reader}
 
 	issues := (&PropertyTypeRule{}).CheckIssues(nodes, filename, ctx)
 	if !hasPropertyTypeIssue(issues) {

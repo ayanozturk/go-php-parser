@@ -126,7 +126,7 @@ function load_model(int $id): Model {}
 		t.Fatalf("build snapshot: %v", err)
 	}
 	ctx := snapshot.NewAnalysisContext()
-	if ctx.Resolver != snapshot || ctx.Facts != snapshot || ctx.Project == nil {
+	if ctx.Resolver != snapshot || ctx.Facts != snapshot {
 		t.Fatalf("analysis context did not retain the snapshot contracts: %#v", ctx)
 	}
 

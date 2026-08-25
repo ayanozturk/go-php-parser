@@ -614,7 +614,7 @@ func runAnalysis(parsed map[string][]ast.Node, project *analyse.ProjectIndex, le
 		go func() {
 			defer wg.Done()
 			for j := range jobCh {
-				ctx := &analyse.AnalysisContext{Resolver: project, Project: project, AnalysisLevel: level}
+				ctx := &analyse.AnalysisContext{Resolver: project, AnalysisLevel: level}
 				issues := analyse.RunAnalysisRulesWithContext(j.path, j.nodes, ctx)
 				total.add(int64(len(issues)))
 			}

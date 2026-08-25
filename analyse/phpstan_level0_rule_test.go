@@ -29,7 +29,7 @@ func runLevel0OnFiles(t *testing.T, files map[string]string) []AnalysisIssue {
 	level := 0
 	var issues []AnalysisIssue
 	for filename, nodes := range parsed {
-		ctx := &AnalysisContext{Resolver: project, Project: project, AnalysisLevel: &level}
+		ctx := &AnalysisContext{Resolver: project, AnalysisLevel: &level}
 		issues = append(issues, RunAnalysisRulesWithContext(filename, nodes, ctx)...)
 	}
 	return issues
@@ -581,7 +581,6 @@ class ChildModel extends BaseModel {
 		t.Fatalf("build snapshot: %v", err)
 	}
 	ctx := snapshot.NewAnalysisContext()
-	ctx.Project = nil
 	issues := (&PHPStanLevel0Rule{}).checkClassModel(filename, nodes, ctx, collectFileTypeContext(nodes))
 	if !hasIssueContaining(issues, level0ClassModelCode, "Cannot override final method BaseModel::locked") {
 		t.Fatalf("expected resolver-backed final method diagnostic, got %#v", issues)
@@ -1094,7 +1093,6 @@ new Child();
 		t.Fatalf("build snapshot: %v", err)
 	}
 	ctx := snapshot.NewAnalysisContext()
-	ctx.Project = nil
 	fileCtx := analysisFileTypeContext(ctx, nodes)
 	issues := (&PHPStanLevel0Rule{}).checkSymbolsAndCalls(filename, nodes, ctx, fileCtx)
 

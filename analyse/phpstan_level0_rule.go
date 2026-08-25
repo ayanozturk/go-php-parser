@@ -28,11 +28,8 @@ func ensureLevel0Context(filename string, nodes []ast.Node, ctx *AnalysisContext
 	if ctx == nil {
 		ctx = &AnalysisContext{}
 	}
-	if ctx.Project == nil {
-		ctx.Project = BuildProjectIndex(map[string][]ast.Node{filename: nodes})
-	}
 	if ctx.Resolver == nil {
-		ctx.Resolver = ctx.Project
+		ctx.Resolver = BuildProjectIndex(map[string][]ast.Node{filename: nodes})
 	}
 	return ctx
 }

@@ -58,7 +58,7 @@ class Controller {
 }`
 	nodes := parseHoverFixture(t, php)
 	project := BuildProjectIndex(map[string][]ast.Node{"test.php": nodes})
-	ctx := &AnalysisContext{Resolver: project, Project: project}
+	ctx := &AnalysisContext{Resolver: project}
 
 	assigned, ok := InferHoverTargetAtPosition(nodes, 20, 10, "record", ctx)
 	if !ok || assigned.Type != `App\Record|null` {
@@ -90,7 +90,7 @@ class TeamEndpoint extends BaseEndpoint {
 		"base.php":  baseNodes,
 		"child.php": childNodes,
 	})
-	ctx := &AnalysisContext{Resolver: project, Project: project}
+	ctx := &AnalysisContext{Resolver: project}
 
 	target, ok := InferHoverTargetAtPosition(childNodes, 5, 10, "member", ctx)
 	if !ok || target.Type != `Domain\Member` {
@@ -111,7 +111,7 @@ function run(): void {
 	key := inferredTypeFactKey(filename, variable)
 	reader := &countingFactReader{facts: map[SemanticFactKey]SemanticFact{key: {Key: key, Type: "int"}}}
 	project := BuildProjectIndex(map[string][]ast.Node{filename: nodes})
-	ctx := &AnalysisContext{Resolver: project, Project: project, Facts: reader}
+	ctx := &AnalysisContext{Resolver: project, Facts: reader}
 	pos := variable.GetPos()
 
 	target, ok := InferHoverTargetAtPositionWithFilename(nodes, filename, pos.Line, pos.Column, variable.Name, ctx)

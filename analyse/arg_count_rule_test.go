@@ -126,7 +126,7 @@ func TestArgumentCountRuleUsesSemanticReceiverTypeFact(t *testing.T) {
 	key := inferredTypeFactKey(filename, receiver)
 	reader := &countingFactReader{facts: map[SemanticFactKey]SemanticFact{key: {Key: key, Type: "Service"}}}
 	project := BuildProjectIndex(map[string][]ast.Node{filename: nodes})
-	ctx := &AnalysisContext{Resolver: project, Project: project, Facts: reader}
+	ctx := &AnalysisContext{Resolver: project, Facts: reader}
 
 	issues := (&ArgumentCountRule{}).CheckIssues(nodes, filename, ctx)
 	if !hasArgCountIssue(issues) {

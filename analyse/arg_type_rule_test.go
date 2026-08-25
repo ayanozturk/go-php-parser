@@ -25,7 +25,7 @@ func analysePHPArgTypesWithProject(t *testing.T, code string) []AnalysisIssue {
 		t.Fatalf("parser errors: %v", p.Errors())
 	}
 	project := BuildProjectIndex(map[string][]ast.Node{"test.php": nodes})
-	ctx := &AnalysisContext{Resolver: project, Project: project}
+	ctx := &AnalysisContext{Resolver: project}
 	return (&ArgumentTypeRule{}).CheckIssues(nodes, "test.php", ctx)
 }
 
@@ -233,7 +233,7 @@ class Controller {
 	if !ok || method.ReturnType != `App\Record|null` {
 		t.Fatalf("expected bound generic return type, got %#v, %t", method, ok)
 	}
-	ctx := &AnalysisContext{Resolver: project, Project: project}
+	ctx := &AnalysisContext{Resolver: project}
 	issues := (&ArgumentTypeRule{}).CheckIssues(nodes, "test.php", ctx)
 	if hasArgTypeIssue(issues) {
 		t.Fatalf("expected bound generic return type to satisfy argument type, got: %#v", issues)
@@ -725,7 +725,7 @@ func TestArgumentTypeRuleUsesSemanticReceiverTypeFact(t *testing.T) {
 	key := inferredTypeFactKey(filename, receiver)
 	reader := &countingFactReader{facts: map[SemanticFactKey]SemanticFact{key: {Key: key, Type: "Service"}}}
 	project := BuildProjectIndex(map[string][]ast.Node{filename: nodes})
-	ctx := &AnalysisContext{Resolver: project, Project: project, Facts: reader}
+	ctx := &AnalysisContext{Resolver: project, Facts: reader}
 
 	issues := (&ArgumentTypeRule{}).CheckIssues(nodes, filename, ctx)
 	if !hasArgTypeIssue(issues) {

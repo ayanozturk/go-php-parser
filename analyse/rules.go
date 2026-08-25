@@ -120,8 +120,8 @@ func RunAnalysisRulesWithContext(filename string, nodes []ast.Node, ctx *Analysi
 	} else {
 		ctx = &AnalysisContext{
 			Resolver:           ctx.Resolver,
+			Facts:              ctx.Facts,
 			PHPVersion:         ctx.PHPVersion,
-			Project:            ctx.Project,
 			AnalysisLevel:      ctx.AnalysisLevel,
 			DisabledIssueCodes: ctx.DisabledIssueCodes,
 		}
