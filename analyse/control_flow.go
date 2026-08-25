@@ -36,9 +36,10 @@ type FlowBlock struct {
 	Successors []FlowNodeID
 }
 
-// ControlFlowGraph is a compact statement-level graph for one lexical scope.
-// Compound statements are atomic in this first slice; their child scopes have
-// separate graphs. Blocks returns defensive copies.
+// ControlFlowGraph is a compact graph for one lexical scope. Compound
+// statements are atomic in their parent graph and have separate child graphs;
+// loop child graphs also contain zero-statement header/condition/exit blocks.
+// Blocks returns defensive copies.
 type ControlFlowGraph struct {
 	scope          FlowScopeKey
 	blocks         []FlowBlock
@@ -58,7 +59,24 @@ func (g ControlFlowGraph) Blocks() []FlowBlock {
 	return blocks
 }
 
-func buildControlFlowGraph(scope FlowScopeKey, statements []ast.Node) ControlFlowGraph {
+type flowOutcome uint8
+
+const (
+	flowNormal flowOutcome = 1 << iota
+	flowTerminate
+	flowBreak
+	flowContinue
+	flowEscape
+)
+
+func buildControlFlowGraph(scope FlowScopeKey, owner ast.Node, statements []ast.Node) ControlFlowGraph {
+	if isLoopFlowScope(scope.Kind) {
+		return buildLoopControlFlowGraph(scope, owner, statements)
+	}
+	return buildLinearControlFlowGraph(scope, statements)
+}
+
+func buildLinearControlFlowGraph(scope FlowScopeKey, statements []ast.Node) ControlFlowGraph {
 	blocks := make([]FlowBlock, len(statements)+2)
 	exitID := FlowNodeID(len(statements) + 1)
 	blocks[0] = FlowBlock{ID: 0}
@@ -76,7 +94,7 @@ func buildControlFlowGraph(scope FlowScopeKey, statements []ast.Node) ControlFlo
 		if !mayReachNext {
 			continue
 		}
-		if isTerminatingStatement(statement) {
+		if statementFlowOutcomes(statement)&flowNormal == 0 {
 			mayReachNext = false
 			continue
 		}
@@ -88,6 +106,201 @@ func buildControlFlowGraph(scope FlowScopeKey, statements []ast.Node) ControlFlo
 	}
 	blocks[len(blocks)-1] = FlowBlock{ID: exitID}
 	return ControlFlowGraph{scope: scope, blocks: blocks, mayFallThrough: mayReachNext}
+}
+
+func buildLoopControlFlowGraph(scope FlowScopeKey, owner ast.Node, statements []ast.Node) ControlFlowGraph {
+	isDo := scope.Kind == "do"
+	extraBlocks := 2
+	if isDo {
+		extraBlocks = 3
+	}
+	blocks := make([]FlowBlock, len(statements)+extraBlocks)
+	conditionID := FlowNodeID(0)
+	exitID := FlowNodeID(len(statements) + 1)
+	if isDo {
+		conditionID = FlowNodeID(len(statements) + 1)
+		exitID++
+	}
+
+	firstBodyID := conditionID
+	if len(statements) > 0 {
+		firstBodyID = 1
+	}
+	mayIterate, mayExit := loopConditionPaths(owner)
+	if isDo {
+		blocks[0] = FlowBlock{ID: 0, Successors: []FlowNodeID{firstBodyID}}
+		conditionSuccessors := make([]FlowNodeID, 0, 2)
+		if mayIterate {
+			conditionSuccessors = appendUniqueFlowNode(conditionSuccessors, firstBodyID)
+		}
+		if mayExit {
+			conditionSuccessors = appendUniqueFlowNode(conditionSuccessors, exitID)
+		}
+		blocks[conditionID] = FlowBlock{ID: conditionID, Successors: conditionSuccessors}
+	} else {
+		headerSuccessors := make([]FlowNodeID, 0, 2)
+		if mayIterate {
+			headerSuccessors = appendUniqueFlowNode(headerSuccessors, firstBodyID)
+		}
+		if mayExit {
+			headerSuccessors = appendUniqueFlowNode(headerSuccessors, exitID)
+		}
+		blocks[0] = FlowBlock{ID: 0, Successors: headerSuccessors}
+	}
+
+	continueTarget := FlowNodeID(0)
+	if isDo {
+		continueTarget = conditionID
+	}
+	for i, statement := range statements {
+		id := FlowNodeID(i + 1)
+		outcomes := statementFlowOutcomes(statement)
+		successors := make([]FlowNodeID, 0, 3)
+		if outcomes&flowNormal != 0 {
+			next := continueTarget
+			if i+1 < len(statements) {
+				next = FlowNodeID(i + 2)
+			}
+			successors = appendUniqueFlowNode(successors, next)
+		}
+		if outcomes&flowContinue != 0 {
+			successors = appendUniqueFlowNode(successors, continueTarget)
+		}
+		if outcomes&flowBreak != 0 {
+			successors = appendUniqueFlowNode(successors, exitID)
+		}
+		blocks[i+1] = FlowBlock{ID: id, Statement: flowStatementKey(scope.File, statement), Successors: successors}
+	}
+	blocks[exitID] = FlowBlock{ID: exitID}
+	return newControlFlowGraph(scope, blocks, exitID)
+}
+
+func newControlFlowGraph(scope FlowScopeKey, blocks []FlowBlock, exitID FlowNodeID) ControlFlowGraph {
+	reachable := reachableFlowNodes(blocks)
+	return ControlFlowGraph{scope: scope, blocks: blocks, mayFallThrough: reachable[exitID]}
+}
+
+func reachableFlowNodes(blocks []FlowBlock) map[FlowNodeID]bool {
+	reachable := make(map[FlowNodeID]bool, len(blocks))
+	if len(blocks) == 0 {
+		return reachable
+	}
+	queue := []FlowNodeID{0}
+	for len(queue) > 0 {
+		id := queue[0]
+		queue = queue[1:]
+		if reachable[id] || int(id) >= len(blocks) {
+			continue
+		}
+		reachable[id] = true
+		queue = append(queue, blocks[id].Successors...)
+	}
+	return reachable
+}
+
+func appendUniqueFlowNode(nodes []FlowNodeID, node FlowNodeID) []FlowNodeID {
+	for _, existing := range nodes {
+		if existing == node {
+			return nodes
+		}
+	}
+	return append(nodes, node)
+}
+
+func isLoopFlowScope(kind string) bool {
+	switch kind {
+	case "for", "while", "foreach", "do":
+		return true
+	default:
+		return false
+	}
+}
+
+func loopConditionPaths(owner ast.Node) (mayIterate, mayExit bool) {
+	var condition ast.Node
+	switch loop := owner.(type) {
+	case *ast.ForNode:
+		if len(loop.Conditions) == 0 {
+			return true, false
+		}
+		condition = loop.Conditions[len(loop.Conditions)-1]
+	case *ast.WhileNode:
+		condition = loop.Condition
+	case *ast.DoWhileNode:
+		condition = loop.Condition
+	case *ast.ForeachNode:
+		return true, true
+	default:
+		return true, true
+	}
+	switch literal := condition.(type) {
+	case *ast.BooleanLiteral:
+		return literal.Value, !literal.Value
+	case *ast.BooleanNode:
+		return literal.Value, !literal.Value
+	}
+	return true, true
+}
+
+func statementFlowOutcomes(node ast.Node) flowOutcome {
+	switch n := node.(type) {
+	case *ast.ReturnNode, *ast.ThrowNode:
+		return flowTerminate
+	case *ast.BreakNode:
+		if loopControlLevelOne(n.Level) {
+			return flowBreak
+		}
+		return flowEscape
+	case *ast.ContinueNode:
+		if loopControlLevelOne(n.Level) {
+			return flowContinue
+		}
+		return flowEscape
+	case *ast.ExpressionStmt:
+		if call, ok := n.Expr.(*ast.FunctionCallNode); ok && isBuiltinTerminatorCall(call) {
+			return flowTerminate
+		}
+		return flowNormal
+	case *ast.IfNode:
+		outcomes := statementsFlowOutcomes(n.Body)
+		for _, elseif := range n.ElseIfs {
+			outcomes |= statementsFlowOutcomes(elseif.Body)
+		}
+		if n.Else == nil {
+			outcomes |= flowNormal
+		} else {
+			outcomes |= statementsFlowOutcomes(n.Else.Body)
+		}
+		return outcomes
+	default:
+		return flowNormal
+	}
+}
+
+func statementsFlowOutcomes(statements []ast.Node) flowOutcome {
+	outcomes := flowNormal
+	for _, statement := range statements {
+		next := outcomes &^ flowNormal
+		if outcomes&flowNormal != 0 {
+			next |= statementFlowOutcomes(statement)
+		}
+		outcomes = next
+	}
+	return outcomes
+}
+
+func loopControlLevelOne(level ast.Node) bool {
+	if level == nil {
+		return true
+	}
+	switch literal := level.(type) {
+	case *ast.IntegerLiteral:
+		return literal.Value == 1
+	case *ast.IntegerNode:
+		return literal.Value == 1
+	default:
+		return false
+	}
 }
 
 // FlowStatementKeyForNode returns an exact statement key when the node has a
@@ -160,14 +373,15 @@ func (s *SemanticSnapshot) addFlowScope(filename, kind string, owner ast.Node, s
 	if scope.File == "" {
 		return
 	}
-	graph := buildControlFlowGraph(scope, statements)
+	graph := buildControlFlowGraph(scope, owner, statements)
 	if _, duplicate := s.flowGraphs[scope]; duplicate {
 		return
 	}
 	s.flowGraphs[scope] = graph
 
-	reachable := true
-	for _, statement := range statements {
+	reachableBlocks := reachableFlowNodes(graph.blocks)
+	for i, statement := range statements {
+		reachable := reachableBlocks[FlowNodeID(i+1)]
 		key := flowStatementKey(filename, statement)
 		if key.File != "" {
 			s.recordStatementReachability(key, reachable)
@@ -176,9 +390,6 @@ func (s *SemanticSnapshot) addFlowScope(filename, kind string, owner ast.Node, s
 			continue
 		}
 		s.addChildFlowScopes(filename, statement)
-		if isTerminatingStatement(statement) {
-			reachable = false
-		}
 	}
 }
 
@@ -218,6 +429,8 @@ func (s *SemanticSnapshot) addChildFlowScopes(filename string, node ast.Node) {
 		s.addFlowScope(filename, "for", n, n.Body)
 	case *ast.ForeachNode:
 		s.addFlowScope(filename, "foreach", n, n.Body)
+	case *ast.DoWhileNode:
+		s.addFlowScope(filename, "do", n, n.Body)
 	case *ast.NamespaceNode:
 		s.addFlowScope(filename, "namespace", n, n.Body)
 	}

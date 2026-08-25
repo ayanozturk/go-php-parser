@@ -50,6 +50,10 @@ func (r *PHPStanLevel0Rule) checkUndefinedVariables(filename string, nodes []ast
 				}
 			case *ast.ReturnNode:
 				checkExprVars(filename, n.Expr, defined, &issues)
+			case *ast.BreakNode:
+				checkExprVars(filename, n.Level, defined, &issues)
+			case *ast.ContinueNode:
+				checkExprVars(filename, n.Level, defined, &issues)
 			case *ast.ThrowNode:
 				checkExprVars(filename, n.Expr, defined, &issues)
 			case *ast.IfNode:
@@ -91,6 +95,9 @@ func (r *PHPStanLevel0Rule) checkUndefinedVariables(filename string, nodes []ast
 				for _, update := range n.Updates {
 					checkExprVars(filename, update, loopDefined, &issues)
 				}
+			case *ast.DoWhileNode:
+				defined = walkStatements(n.Body, defined, class, inFunction)
+				checkExprVars(filename, n.Condition, defined, &issues)
 			case *ast.TryNode:
 				defined = walkStatements(n.Body, defined, class, inFunction)
 				for _, catchNode := range n.Catches {

@@ -57,6 +57,10 @@ func walkAll(nodes []ast.Node, fn func(ast.Node, *ast.ClassNode, *ast.FunctionNo
 			walk(n.Right, class, currentFn, ft)
 		case *ast.ReturnNode:
 			walk(n.Expr, class, currentFn, ft)
+		case *ast.BreakNode:
+			walk(n.Level, class, currentFn, ft)
+		case *ast.ContinueNode:
+			walk(n.Level, class, currentFn, ft)
 		case *ast.ThrowNode:
 			walk(n.Expr, class, currentFn, ft)
 		case *ast.IfNode:
@@ -80,6 +84,11 @@ func walkAll(nodes []ast.Node, fn func(ast.Node, *ast.ClassNode, *ast.FunctionNo
 			for _, child := range n.Body {
 				walk(child, class, currentFn, ft)
 			}
+		case *ast.DoWhileNode:
+			for _, child := range n.Body {
+				walk(child, class, currentFn, ft)
+			}
+			walk(n.Condition, class, currentFn, ft)
 		case *ast.ForNode:
 			for _, expression := range n.Init {
 				walk(expression, class, currentFn, ft)

@@ -133,6 +133,7 @@ retry:
 		}, nil
 	case token.T_CONTINUE, token.T_BREAK:
 		pos := p.tok.Pos
+		kind := p.tok.Type
 		keyword := p.tok.Literal
 		p.nextToken() // consume continue/break
 		var expr ast.Node
@@ -147,10 +148,10 @@ retry:
 			return nil, nil
 		}
 		p.nextToken() // consume ;
-		return &ast.ExpressionStmt{
-			Expr: exprOrIdentifier(keyword, expr, ast.Position(pos)),
-			Pos:  ast.Position(pos),
-		}, nil
+		if kind == token.T_BREAK {
+			return &ast.BreakNode{Level: expr, Pos: ast.Position(pos)}, nil
+		}
+		return &ast.ContinueNode{Level: expr, Pos: ast.Position(pos)}, nil
 	case token.T_STATIC:
 		if p.peekToken().Type == token.T_DOUBLE_COLON {
 			return p.parseExpressionStatement()

@@ -72,6 +72,8 @@ func (r *UnreachableCodeRule) walkChildren(node ast.Node, filename string, ctx *
 		}
 	case *ast.WhileNode:
 		r.walkStatements(n.Body, filename, ctx, issues)
+	case *ast.DoWhileNode:
+		r.walkStatements(n.Body, filename, ctx, issues)
 	case *ast.ForNode:
 		r.walkStatements(n.Body, filename, ctx, issues)
 	case *ast.ForeachNode:
@@ -83,7 +85,7 @@ func (r *UnreachableCodeRule) walkChildren(node ast.Node, filename string, ctx *
 
 func isTerminatingStatement(node ast.Node) bool {
 	switch n := node.(type) {
-	case *ast.ReturnNode, *ast.ThrowNode:
+	case *ast.ReturnNode, *ast.ThrowNode, *ast.BreakNode, *ast.ContinueNode:
 		return true
 	case *ast.ExpressionStmt:
 		return isTerminatingStatement(n.Expr)

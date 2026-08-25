@@ -117,6 +117,10 @@ func walkStatementsForHoverTypes(nodes []ast.Node, scope *functionScope, ctx *An
 			walkExprForHoverTypes(n.Left, scope, ctx, query, best)
 		case *ast.ReturnNode:
 			walkExprForHoverTypes(n.Expr, scope, ctx, query, best)
+		case *ast.BreakNode:
+			walkExprForHoverTypes(n.Level, scope, ctx, query, best)
+		case *ast.ContinueNode:
+			walkExprForHoverTypes(n.Level, scope, ctx, query, best)
 		case *ast.IfNode:
 			walkExprForHoverTypes(n.Condition, scope, ctx, query, best)
 			walkStatementsForHoverTypes(n.Body, scopeForConditionTrue(scope, n.Condition), ctx, query, best)
@@ -134,6 +138,10 @@ func walkStatementsForHoverTypes(nodes []ast.Node, scope *functionScope, ctx *An
 		case *ast.WhileNode:
 			walkExprForHoverTypes(n.Condition, scope, ctx, query, best)
 			walkStatementsForHoverTypes(n.Body, scope.clone(), ctx, query, best)
+		case *ast.DoWhileNode:
+			loopScope := scope.clone()
+			walkStatementsForHoverTypes(n.Body, loopScope, ctx, query, best)
+			walkExprForHoverTypes(n.Condition, loopScope, ctx, query, best)
 		case *ast.ForNode:
 			for _, expression := range n.Init {
 				walkExprForHoverTypes(expression, scope, ctx, query, best)

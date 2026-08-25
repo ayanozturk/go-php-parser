@@ -54,6 +54,12 @@ func (r *AssignmentInConditionRule) CheckIssues(nodes []ast.Node, filename strin
 				checkFunc(bodyNode)
 			}
 
+		case *ast.DoWhileNode:
+			for _, bodyNode := range node.Body {
+				checkFunc(bodyNode)
+			}
+			addAssignmentIssues(node.Condition)
+
 		case *ast.ForNode:
 			for _, condition := range node.Conditions {
 				addAssignmentIssues(condition)

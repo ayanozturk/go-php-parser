@@ -49,6 +49,10 @@ func walkStatementsForArgCounts(nodes []ast.Node, scope *functionScope, ctx *Ana
 			applyAssignmentScope(scope, n, ctx)
 		case *ast.ReturnNode:
 			walkExprForArgCounts(n.Expr, scope, ctx, filename, issues)
+		case *ast.BreakNode:
+			walkExprForArgCounts(n.Level, scope, ctx, filename, issues)
+		case *ast.ContinueNode:
+			walkExprForArgCounts(n.Level, scope, ctx, filename, issues)
 		case *ast.IfNode:
 			walkExprForArgCounts(n.Condition, scope, ctx, filename, issues)
 			walkStatementsForArgCounts(n.Body, scope.clone(), ctx, filename, issues)
@@ -64,6 +68,10 @@ func walkStatementsForArgCounts(nodes []ast.Node, scope *functionScope, ctx *Ana
 		case *ast.WhileNode:
 			walkExprForArgCounts(n.Condition, scope, ctx, filename, issues)
 			walkStatementsForArgCounts(n.Body, scope.clone(), ctx, filename, issues)
+		case *ast.DoWhileNode:
+			loopScope := scope.clone()
+			walkStatementsForArgCounts(n.Body, loopScope, ctx, filename, issues)
+			walkExprForArgCounts(n.Condition, loopScope, ctx, filename, issues)
 		case *ast.ForNode:
 			for _, expression := range n.Init {
 				walkExprForArgCounts(expression, scope, ctx, filename, issues)

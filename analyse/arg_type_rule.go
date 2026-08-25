@@ -60,6 +60,10 @@ func walkStatementsForArgTypesUsing(nodes []ast.Node, scope *functionScope, ctx 
 		case *ast.ReturnNode:
 			walkExprForArgTypesUsing(n.Expr, scope, ctx, filename, issues, observe)
 			observeSemanticExpression(filename, n.Expr, scope, ctx, observe)
+		case *ast.BreakNode:
+			walkExprForArgTypesUsing(n.Level, scope, ctx, filename, issues, observe)
+		case *ast.ContinueNode:
+			walkExprForArgTypesUsing(n.Level, scope, ctx, filename, issues, observe)
 		case *ast.IfNode:
 			walkExprForArgTypesUsing(n.Condition, scope, ctx, filename, issues, observe)
 			walkStatementsForArgTypesUsing(n.Body, scopeForConditionTrue(scope, n.Condition), ctx, filename, issues, observe)
@@ -77,6 +81,10 @@ func walkStatementsForArgTypesUsing(nodes []ast.Node, scope *functionScope, ctx 
 		case *ast.WhileNode:
 			walkExprForArgTypesUsing(n.Condition, scope, ctx, filename, issues, observe)
 			walkStatementsForArgTypesUsing(n.Body, scope.clone(), ctx, filename, issues, observe)
+		case *ast.DoWhileNode:
+			loopScope := scope.clone()
+			walkStatementsForArgTypesUsing(n.Body, loopScope, ctx, filename, issues, observe)
+			walkExprForArgTypesUsing(n.Condition, loopScope, ctx, filename, issues, observe)
 		case *ast.ForNode:
 			for _, expression := range n.Init {
 				walkExprForArgTypesUsing(expression, scope, ctx, filename, issues, observe)
