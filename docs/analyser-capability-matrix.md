@@ -27,7 +27,7 @@ The full report records the PHPStan version returned by the supplied executable.
 | Unknown instantiated classes | Partial, differential-gated | `unknown-class` | `PHPStan.Level0.Symbols` | `class.notFound` | The analyser covers several class-reference surfaces, but the first pack proves only direct `new` expressions. |
 | Unknown function calls | Partial, differential-gated | `unknown-function` | `PHPStan.Level0.Symbols` | `function.notFound` | Built-in and extension-sensitive symbol coverage remains incomplete. |
 | Function argument counts | Partial, differential-gated | `argument-count` | `PHPStan.Level0.Invocation` | `arguments.count` | The first pack covers a direct known function call; dynamic calls and constant-array unpacking remain outside the gate. |
-| Always undefined variables | Partial, differential-gated | `undefined-variable` | `PHPStan.Level0.Variables` | `variable.undefined` | Branch-sensitive possibly-defined variables require the planned control-flow graph. |
+| Always undefined variables | Partial, differential-gated | `undefined-variable` | `PHPStan.Level0.Variables` | `variable.undefined` | Branch-sensitive possibly-defined variables require joined-state dataflow over the control-flow graph. |
 | Known symbols without false positives | Partial, differential-gated | `clean-known-symbols` | none | none | The clean fixture covers a declared function and compatible call, not the full false-positive surface. |
 
 ## Implemented but not yet differential-gated

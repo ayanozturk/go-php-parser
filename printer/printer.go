@@ -85,6 +85,8 @@ func (p *Printer) printNode(node ast.Node) {
 		p.printIf(n)
 	case *ast.WhileNode:
 		p.printWhile(n)
+	case *ast.ForNode:
+		p.printFor(n)
 	case *ast.InterpolatedStringLiteral:
 		p.printInterpolatedString(n)
 	case *ast.ClassNode:
@@ -255,6 +257,29 @@ func (p *Printer) printWhile(n *ast.WhileNode) {
 	p.printIndent()
 	p.printf("Condition:\n")
 	p.printNode(n.Condition)
+	if len(n.Body) > 0 {
+		p.printIndent()
+		p.printf("Body:\n")
+		p.printNodes(n.Body)
+	}
+}
+
+func (p *Printer) printFor(n *ast.ForNode) {
+	if len(n.Init) > 0 {
+		p.printIndent()
+		p.printf("Init:\n")
+		p.printNodes(n.Init)
+	}
+	if len(n.Conditions) > 0 {
+		p.printIndent()
+		p.printf("Conditions:\n")
+		p.printNodes(n.Conditions)
+	}
+	if len(n.Updates) > 0 {
+		p.printIndent()
+		p.printf("Updates:\n")
+		p.printNodes(n.Updates)
+	}
 	if len(n.Body) > 0 {
 		p.printIndent()
 		p.printf("Body:\n")

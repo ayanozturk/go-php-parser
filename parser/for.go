@@ -5,9 +5,8 @@ import (
 	"github.com/ayanozturk/go-php-parser/token"
 )
 
-// parseForStatement parses a minimal PHP for-loop:
+// parseForStatement parses a PHP for-loop:
 // for (init; cond; post) { ... }
-// init/cond/post are parsed as generic expressions with permissive stopping rules.
 func (p *Parser) parseForStatement() (ast.Node, error) {
 	pos := p.tok.Pos
 	p.nextToken() // consume 'for'
@@ -16,20 +15,22 @@ func (p *Parser) parseForStatement() (ast.Node, error) {
 		p.addError("line %d:%d: expected ( after for, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal)
 		return nil, nil
 	}
-	// Tolerant skip until the matching ')', to avoid strict expression parsing for for-control
-	depth := 1
-	for depth > 0 {
-		p.nextToken()
-		if p.tok.Type == token.T_LPAREN {
-			depth++
-		} else if p.tok.Type == token.T_RPAREN {
-			depth--
-		} else if p.tok.Type == token.T_EOF {
-			p.addError("line %d:%d: unexpected EOF in for control", p.tok.Pos.Line, p.tok.Pos.Column)
-			return nil, nil
-		}
+	p.nextToken() // consume '('
+	init, ok := p.parseForExpressionList(token.T_SEMICOLON)
+	if !ok {
+		return nil, nil
 	}
-	p.nextToken() // consume token after ')'
+	p.nextToken() // consume first ';'
+	conditions, ok := p.parseForExpressionList(token.T_SEMICOLON)
+	if !ok {
+		return nil, nil
+	}
+	p.nextToken() // consume second ';'
+	updates, ok := p.parseForExpressionList(token.T_RPAREN)
+	if !ok {
+		return nil, nil
+	}
+	p.nextToken() // consume ')'
 
 	if p.tok.Type == token.T_COLON {
 		p.nextToken() // consume ':'
@@ -42,7 +43,7 @@ func (p *Parser) parseForStatement() (ast.Node, error) {
 		if !p.consumeAltTerminator("endfor") {
 			return nil, nil
 		}
-		return &ast.BlockNode{Statements: body, Pos: ast.Position(pos)}, nil
+		return &ast.ForNode{Init: init, Conditions: conditions, Updates: updates, Body: body, Pos: ast.Position(pos)}, nil
 	}
 
 	// Body
@@ -65,6 +66,40 @@ func (p *Parser) parseForStatement() (ast.Node, error) {
 		}
 	}
 
-	// Represent for-loop as a BlockNode wrapper to keep AST stable without new node type
-	return &ast.BlockNode{Statements: body, Pos: ast.Position(pos)}, nil
+	return &ast.ForNode{Init: init, Conditions: conditions, Updates: updates, Body: body, Pos: ast.Position(pos)}, nil
+}
+
+// parseForExpressionList parses one control clause and leaves its terminator
+// as the current token. PHP permits every clause to be empty and permits
+// multiple expressions separated by commas.
+func (p *Parser) parseForExpressionList(terminator token.TokenType) ([]ast.Node, bool) {
+	if p.tok.Type == terminator {
+		return nil, true
+	}
+
+	var expressions []ast.Node
+	for {
+		expr := p.parseExpressionWithStop(token.T_COMMA, terminator)
+		if expr == nil {
+			p.addError("line %d:%d: expected expression in for control clause", p.tok.Pos.Line, p.tok.Pos.Column)
+			return nil, false
+		}
+		expressions = append(expressions, expr)
+		switch p.tok.Type {
+		case token.T_COMMA:
+			p.nextToken()
+			if p.tok.Type == terminator {
+				p.addError("line %d:%d: expected expression after comma in for control clause", p.tok.Pos.Line, p.tok.Pos.Column)
+				return nil, false
+			}
+		case terminator:
+			return expressions, true
+		case token.T_EOF:
+			p.addError("line %d:%d: unexpected EOF in for control clause", p.tok.Pos.Line, p.tok.Pos.Column)
+			return nil, false
+		default:
+			p.addError("line %d:%d: expected comma or clause terminator in for control, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal)
+			return nil, false
+		}
+	}
 }

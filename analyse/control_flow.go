@@ -214,6 +214,8 @@ func (s *SemanticSnapshot) addChildFlowScopes(filename string, node ast.Node) {
 		}
 	case *ast.WhileNode:
 		s.addFlowScope(filename, "while", n, n.Body)
+	case *ast.ForNode:
+		s.addFlowScope(filename, "for", n, n.Body)
 	case *ast.ForeachNode:
 		s.addFlowScope(filename, "foreach", n, n.Body)
 	case *ast.NamespaceNode:

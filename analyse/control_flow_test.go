@@ -131,6 +131,48 @@ function loops($items): void {
 	}
 }
 
+func TestControlFlowForCreatesChildScopeAndTracksBodyReachability(t *testing.T) {
+	const filename = "for-control-flow.php"
+	nodes := parseControlFlowPHP(t, `<?php
+function repeat(): void {
+    for ($index = 0; $index < 2; $index++) {
+        return;
+        $never = 1;
+    }
+    $after = 2;
+}`)
+	function := controlFlowFunction(t, nodes, "repeat")
+	loop, ok := function.Body[0].(*ast.ForNode)
+	if !ok {
+		t.Fatalf("expected ForNode in function body, got %T", function.Body[0])
+	}
+	if len(loop.Body) != 2 {
+		t.Fatalf("expected two statements in for body, got %d", len(loop.Body))
+	}
+
+	snapshot, err := NewSemanticSnapshot(map[string][]ast.Node{filename: nodes}, nil)
+	if err != nil {
+		t.Fatalf("build semantic snapshot: %v", err)
+	}
+	childScope, ok := FlowScopeKeyForNode(filename, "for", loop, loop.Body)
+	if !ok {
+		t.Fatal("expected an exact child scope key for the for loop")
+	}
+	graph, ok := snapshot.ControlFlowGraph(childScope)
+	if !ok {
+		t.Fatalf("expected control-flow graph for for child scope: %#v", childScope)
+	}
+	if graph.Scope() != childScope {
+		t.Fatalf("graph scope = %#v, want %#v", graph.Scope(), childScope)
+	}
+	if got, found := snapshot.StatementReachable(flowStatementKey(filename, loop.Body[1])); !found || got {
+		t.Fatalf("statement after return in for body reachability = %v, %v; want false, true", got, found)
+	}
+	if got, found := snapshot.StatementReachable(flowStatementKey(filename, function.Body[1])); !found || !got {
+		t.Fatalf("statement after conservative for loop reachability = %v, %v; want true, true", got, found)
+	}
+}
+
 func TestControlFlowSnapshotReadsAreConcurrentAndDeterministic(t *testing.T) {
 	const filename = "concurrent-control-flow.php"
 	nodes := parseControlFlowPHP(t, `<?php

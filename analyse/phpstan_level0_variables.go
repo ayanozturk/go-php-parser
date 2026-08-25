@@ -79,6 +79,18 @@ func (r *PHPStanLevel0Rule) checkUndefinedVariables(filename string, nodes []ast
 				defineAssignmentTarget(n.KeyVar, defined)
 				defineAssignmentTarget(n.ValueVar, defined)
 				defined = walkStatements(n.Body, defined, class, inFunction)
+			case *ast.ForNode:
+				for _, expression := range n.Init {
+					checkExprVars(filename, expression, defined, &issues)
+				}
+				loopDefined := cloneBoolMap(defined)
+				for _, condition := range n.Conditions {
+					checkExprVars(filename, condition, loopDefined, &issues)
+				}
+				loopDefined = walkStatements(n.Body, loopDefined, class, inFunction)
+				for _, update := range n.Updates {
+					checkExprVars(filename, update, loopDefined, &issues)
+				}
 			case *ast.TryNode:
 				defined = walkStatements(n.Body, defined, class, inFunction)
 				for _, catchNode := range n.Catches {

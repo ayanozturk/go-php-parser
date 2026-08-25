@@ -77,6 +77,19 @@ func walkStatementsForArgTypesUsing(nodes []ast.Node, scope *functionScope, ctx 
 		case *ast.WhileNode:
 			walkExprForArgTypesUsing(n.Condition, scope, ctx, filename, issues, observe)
 			walkStatementsForArgTypesUsing(n.Body, scope.clone(), ctx, filename, issues, observe)
+		case *ast.ForNode:
+			for _, expression := range n.Init {
+				walkExprForArgTypesUsing(expression, scope, ctx, filename, issues, observe)
+				applyExpressionScope(scope, expression, ctx)
+			}
+			loopScope := scope.clone()
+			for _, condition := range n.Conditions {
+				walkExprForArgTypesUsing(condition, loopScope, ctx, filename, issues, observe)
+			}
+			walkStatementsForArgTypesUsing(n.Body, loopScope, ctx, filename, issues, observe)
+			for _, update := range n.Updates {
+				walkExprForArgTypesUsing(update, loopScope, ctx, filename, issues, observe)
+			}
 		case *ast.ForeachNode:
 			walkExprForArgTypesUsing(n.Expr, scope, ctx, filename, issues, observe)
 			walkStatementsForArgTypesUsing(n.Body, scope.clone(), ctx, filename, issues, observe)

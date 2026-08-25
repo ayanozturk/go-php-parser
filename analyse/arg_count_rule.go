@@ -64,6 +64,19 @@ func walkStatementsForArgCounts(nodes []ast.Node, scope *functionScope, ctx *Ana
 		case *ast.WhileNode:
 			walkExprForArgCounts(n.Condition, scope, ctx, filename, issues)
 			walkStatementsForArgCounts(n.Body, scope.clone(), ctx, filename, issues)
+		case *ast.ForNode:
+			for _, expression := range n.Init {
+				walkExprForArgCounts(expression, scope, ctx, filename, issues)
+				applyExpressionScope(scope, expression, ctx)
+			}
+			loopScope := scope.clone()
+			for _, condition := range n.Conditions {
+				walkExprForArgCounts(condition, loopScope, ctx, filename, issues)
+			}
+			walkStatementsForArgCounts(n.Body, loopScope, ctx, filename, issues)
+			for _, update := range n.Updates {
+				walkExprForArgCounts(update, loopScope, ctx, filename, issues)
+			}
 		case *ast.ForeachNode:
 			walkExprForArgCounts(n.Expr, scope, ctx, filename, issues)
 			walkStatementsForArgCounts(n.Body, scope.clone(), ctx, filename, issues)

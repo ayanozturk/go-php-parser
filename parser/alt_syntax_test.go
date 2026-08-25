@@ -59,8 +59,8 @@ func TestParseAlternativeForeachSyntax(t *testing.T) {
 }
 
 func TestParseAlternativeForSyntax(t *testing.T) {
-	input := `<?php for ($i = 0; $i < 10; $i++): ?>
-  <span><?= $i ?></span>
+	input := `<?php for ($cursor = 0; $cursor < 2; $cursor++): ?>
+<?php echo $cursor; ?>
 <?php endfor; ?>`
 	l := lexer.New(input)
 	p := New(l, false)
@@ -68,8 +68,15 @@ func TestParseAlternativeForSyntax(t *testing.T) {
 	if len(p.Errors()) > 0 {
 		t.Fatalf("Parser errors: %v", p.Errors())
 	}
-	if _, ok := nodes[0].(*ast.BlockNode); !ok {
-		t.Fatalf("Expected BlockNode, got %T", nodes[0])
+	loop, ok := nodes[0].(*ast.ForNode)
+	if !ok {
+		t.Fatalf("Expected ForNode, got %T", nodes[0])
+	}
+	if len(loop.Init) != 1 || len(loop.Conditions) != 1 || len(loop.Updates) != 1 {
+		t.Fatalf("unexpected alternative for clause sizes: init=%d conditions=%d updates=%d", len(loop.Init), len(loop.Conditions), len(loop.Updates))
+	}
+	if len(loop.Body) != 1 {
+		t.Fatalf("Expected one statement in alternative for body, got %d", len(loop.Body))
 	}
 }
 

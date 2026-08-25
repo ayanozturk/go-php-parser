@@ -62,6 +62,19 @@ func walkStatementsForPropertyTypes(nodes []ast.Node, scope *functionScope, ctx 
 		case *ast.WhileNode:
 			walkExprForPropertyTypes(n.Condition, scope, ctx, filename, issues)
 			walkStatementsForPropertyTypes(n.Body, scope.clone(), ctx, filename, issues)
+		case *ast.ForNode:
+			for _, expression := range n.Init {
+				walkExprForPropertyTypes(expression, scope, ctx, filename, issues)
+				applyExpressionScope(scope, expression, ctx)
+			}
+			loopScope := scope.clone()
+			for _, condition := range n.Conditions {
+				walkExprForPropertyTypes(condition, loopScope, ctx, filename, issues)
+			}
+			walkStatementsForPropertyTypes(n.Body, loopScope, ctx, filename, issues)
+			for _, update := range n.Updates {
+				walkExprForPropertyTypes(update, loopScope, ctx, filename, issues)
+			}
 		case *ast.ForeachNode:
 			walkExprForPropertyTypes(n.Expr, scope, ctx, filename, issues)
 			walkStatementsForPropertyTypes(n.Body, scope.clone(), ctx, filename, issues)

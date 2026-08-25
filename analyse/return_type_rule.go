@@ -211,6 +211,11 @@ func collectObservedReturnsUsing(filename string, nodes []ast.Node, scope *funct
 			returns = append(returns, collectObservedReturnsUsing(filename, n.Statements, scope.clone(), ctx, infer)...)
 		case *ast.WhileNode:
 			returns = append(returns, collectObservedReturnsUsing(filename, n.Body, scope.clone(), ctx, infer)...)
+		case *ast.ForNode:
+			for _, expression := range n.Init {
+				applyExpressionScope(scope, expression, ctx)
+			}
+			returns = append(returns, collectObservedReturnsUsing(filename, n.Body, scope.clone(), ctx, infer)...)
 		case *ast.ForeachNode:
 			returns = append(returns, collectObservedReturnsUsing(filename, n.Body, scope.clone(), ctx, infer)...)
 		}

@@ -72,6 +72,8 @@ func (r *UnreachableCodeRule) walkChildren(node ast.Node, filename string, ctx *
 		}
 	case *ast.WhileNode:
 		r.walkStatements(n.Body, filename, ctx, issues)
+	case *ast.ForNode:
+		r.walkStatements(n.Body, filename, ctx, issues)
 	case *ast.ForeachNode:
 		r.walkStatements(n.Body, filename, ctx, issues)
 	case *ast.NamespaceNode:

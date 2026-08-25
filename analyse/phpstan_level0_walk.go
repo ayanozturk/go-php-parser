@@ -80,6 +80,19 @@ func walkAll(nodes []ast.Node, fn func(ast.Node, *ast.ClassNode, *ast.FunctionNo
 			for _, child := range n.Body {
 				walk(child, class, currentFn, ft)
 			}
+		case *ast.ForNode:
+			for _, expression := range n.Init {
+				walk(expression, class, currentFn, ft)
+			}
+			for _, condition := range n.Conditions {
+				walk(condition, class, currentFn, ft)
+			}
+			for _, update := range n.Updates {
+				walk(update, class, currentFn, ft)
+			}
+			for _, child := range n.Body {
+				walk(child, class, currentFn, ft)
+			}
 		case *ast.ForeachNode:
 			walk(n.Expr, class, currentFn, ft)
 			walk(n.KeyVar, class, currentFn, ft)
