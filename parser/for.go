@@ -74,7 +74,7 @@ func (p *Parser) parseForStatement() (ast.Node, error) {
 // multiple expressions separated by commas.
 func (p *Parser) parseForExpressionList(terminator token.TokenType) ([]ast.Node, bool) {
 	if p.tok.Type == terminator {
-		return nil, true
+		return []ast.Node{}, true
 	}
 
 	var expressions []ast.Node

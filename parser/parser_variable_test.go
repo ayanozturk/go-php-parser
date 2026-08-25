@@ -1,10 +1,37 @@
 package parser
 
 import (
+	"fmt"
 	"github.com/ayanozturk/go-php-parser/ast"
 	"github.com/ayanozturk/go-php-parser/lexer"
 	"testing"
 )
+
+func TestAssignmentNodesPreserveOperator(t *testing.T) {
+	for _, operator := range []string{"=", "+=", "??="} {
+		t.Run(operator, func(t *testing.T) {
+			p := New(lexer.New(fmt.Sprintf("<?php $value %s 1;", operator)), false)
+			nodes := p.Parse()
+			if errs := p.Errors(); len(errs) != 0 {
+				t.Fatalf("parser errors: %v", errs)
+			}
+			if len(nodes) != 1 {
+				t.Fatalf("node count = %d, want 1", len(nodes))
+			}
+			stmt, ok := nodes[0].(*ast.ExpressionStmt)
+			if !ok {
+				t.Fatalf("node = %T, want ExpressionStmt", nodes[0])
+			}
+			assignment, ok := stmt.Expr.(*ast.AssignmentNode)
+			if !ok {
+				t.Fatalf("expression = %T, want AssignmentNode", stmt.Expr)
+			}
+			if assignment.Operator != operator {
+				t.Fatalf("operator = %q, want %q", assignment.Operator, operator)
+			}
+		})
+	}
+}
 
 func TestArrayVariables(t *testing.T) {
 	input := `<?php

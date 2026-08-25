@@ -326,9 +326,10 @@ func (p *Parser) parseBinaryOperator(left ast.Node, prec int, validateAssignment
 	if isAssignmentOperator(op) {
 		if unary, ok := left.(*ast.UnaryExpr); ok && (unary.Operator == "!" || unary.Operator == "@") && isValidAssignmentTarget(unary.Operand) {
 			assignment := &ast.AssignmentNode{
-				Left:  unary.Operand,
-				Right: right,
-				Pos:   ast.Position(pos),
+				Left:     unary.Operand,
+				Operator: operator,
+				Right:    right,
+				Pos:      ast.Position(pos),
 			}
 			return &ast.UnaryExpr{
 				Operator: unary.Operator,
@@ -345,9 +346,10 @@ func (p *Parser) parseBinaryOperator(left ast.Node, prec int, validateAssignment
 	}
 	if isAssignmentOperator(op) {
 		return &ast.AssignmentNode{
-			Left:  left,
-			Right: right,
-			Pos:   ast.Position(pos),
+			Left:     left,
+			Operator: operator,
+			Right:    right,
+			Pos:      ast.Position(pos),
 		}
 	}
 	return &ast.BinaryExpr{
