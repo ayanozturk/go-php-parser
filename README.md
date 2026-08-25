@@ -234,7 +234,17 @@ Or a human-readable summary:
 go run ./cmd/benchmark --root test_projects/phpunit
 ```
 
-Cold-full-analysis runs each re-exec the binary as a fresh subprocess (10 by default) so no in-process cache state leaks between measured runs; warm-full-analysis loops the pipeline in a single process after one unmeasured warmup iteration. Incremental-edit timing is reported as unsupported — the engine has no incremental invalidation API yet.
+For a selected-path workload, pass the same source/include boundary used by the reference analyser. Paths are relative to `--root`; missing paths fail instead of silently shrinking the corpus:
+
+```bash
+go run ./cmd/benchmark \
+  --root test_projects/wordpress-develop \
+  --paths src,tests,vendor \
+  --excludes src/js \
+  --json
+```
+
+Cold-full-analysis runs each re-exec the binary as a fresh subprocess (10 by default) so no in-process cache state leaks between measured runs. The parent times the entire child lifetime, including startup, discovery, reads, parsing, indexing, analysis, reduction, and result serialization. Warm-full-analysis loops the indexed analysis pipeline in a single process after one unmeasured warmup iteration. Incremental-edit timing is reported as unsupported — the engine has no incremental invalidation API yet.
 
 ### Pinned Benchmark Corpora
 
@@ -251,6 +261,8 @@ To re-pin a project to a newer revision, update its `commit` (and `ref`, for rea
 Useful flags:
 
 - `--root` corpus root to scan
+- `--paths` comma-separated paths within the root to scan
+- `--excludes` comma-separated paths within the root to exclude
 - `--level` analysis rule level filter (`-1` = run every registered rule)
 - `--cold-runs` number of measured process-cold runs (contract minimum is 10)
 - `--warm-iterations` in-process warm-loop iterations, including the unmeasured warmup

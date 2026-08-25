@@ -17,9 +17,11 @@
 // Index-only and cold-full-analysis measurements each re-exec this binary
 // as a fresh subprocess per measured run, so every measured run starts with
 // empty in-process caches (parsedTypeCache, project index, OS process
-// state) — a "process-cold" run in the terms of the comparable-performance
-// contract. It does NOT drop the OS page/file cache; callers that need a
-// filesystem-cold measurement too must do that themselves (e.g. `purge` on
+// state). The parent measures the entire child lifetime, including startup,
+// discovery, reads, parsing, indexing, analysis, reduction, and result
+// serialization — a "process-cold" run in the terms of the comparable-
+// performance contract. It does NOT drop the OS page/file cache; callers
+// that need a filesystem-cold measurement too must do that themselves (e.g. `purge` on
 // macOS, `echo 3 > /proc/sys/vm/drop_caches` on Linux) before invoking this
 // harness, and should record which variant a given report reflects.
 //
@@ -37,6 +39,7 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -99,14 +102,16 @@ type incrementalReport struct {
 }
 
 type benchmarkReport struct {
-	GeneratedAt string `json:"generatedAt"`
-	Root        string `json:"root"`
-	GoVersion   string `json:"goVersion"`
-	OS          string `json:"os"`
-	Arch        string `json:"arch"`
-	NumCPU      int    `json:"numCpu"`
-	Workers     int    `json:"workers"`
-	Level       *int   `json:"analysisLevel"`
+	GeneratedAt string   `json:"generatedAt"`
+	Root        string   `json:"root"`
+	GoVersion   string   `json:"goVersion"`
+	OS          string   `json:"os"`
+	Arch        string   `json:"arch"`
+	NumCPU      int      `json:"numCpu"`
+	Workers     int      `json:"workers"`
+	Level       *int     `json:"analysisLevel"`
+	Paths       []string `json:"paths"`
+	Excludes    []string `json:"excludes,omitempty"`
 
 	IndexOnly        phaseReport       `json:"indexOnly"`
 	ColdFullAnalysis phaseReport       `json:"coldFullAnalysis"`
@@ -116,6 +121,8 @@ type benchmarkReport struct {
 
 func main() {
 	root := flag.String("root", "test_projects", "root directory of the PHP corpus to analyse")
+	pathsFlag := flag.String("paths", ".", "comma-separated paths within root to scan (for example src,tests,vendor)")
+	excludesFlag := flag.String("excludes", "", "comma-separated paths within root to exclude")
 	level := flag.Int("level", -1, "analysis level filter to apply (-1 = run every registered rule, matching the default config)")
 	workers := flag.Int("workers", runtime.NumCPU(), "worker goroutines for parsing/analysis within a single run")
 	coldRuns := flag.Int("cold-runs", 10, "number of measured process-cold full-analysis runs (contract minimum is 10)")
@@ -135,14 +142,24 @@ func main() {
 	profileIterations := flag.Int("profile-iterations", 1, "number of in-process full-analysis iterations to run while profiling (first iteration includes one-time setup costs like parsing)")
 
 	flag.Parse()
+	paths, err := parseBenchmarkPaths(*pathsFlag, false)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "benchmark: invalid --paths: %v\n", err)
+		os.Exit(1)
+	}
+	excludes, err := parseBenchmarkPaths(*excludesFlag, true)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "benchmark: invalid --excludes: %v\n", err)
+		os.Exit(1)
+	}
 
 	if *workerPhase != "" {
-		runWorker(*workerPhase, *root, *level, *workers, *workerRepeat)
+		runWorker(*workerPhase, *root, paths, excludes, *level, *workers, *workerRepeat)
 		return
 	}
 
 	if *cpuProfile != "" || *memProfile != "" {
-		if err := runProfile(*root, *level, *workers, *profileIterations, *cpuProfile, *memProfile); err != nil {
+		if err := runProfile(*root, paths, excludes, *level, *workers, *profileIterations, *cpuProfile, *memProfile); err != nil {
 			fmt.Fprintf(os.Stderr, "benchmark: %v\n", err)
 			os.Exit(1)
 		}
@@ -173,14 +190,16 @@ func main() {
 		NumCPU:      runtime.NumCPU(),
 		Workers:     *workers,
 		Level:       levelPtr,
+		Paths:       paths,
+		Excludes:    excludes,
 		Incremental: incrementalReport{
 			Supported: false,
 			Reason:    "the analysis engine has no incremental invalidation API yet (immutable project graph / incremental analysis are M1-M2 roadmap items); see docs/full-static-analyser-target.md",
 		},
 	}
 
-	fmt.Fprintf(os.Stderr, "benchmark: discovering PHP files under %s\n", *root)
-	indexRun, err := execWorker(*root, *level, *workers, "index", 1)
+	fmt.Fprintf(os.Stderr, "benchmark: discovering PHP files under %s (paths: %s)\n", *root, strings.Join(paths, ", "))
+	indexRun, err := execWorker(*root, paths, excludes, *level, *workers, "index", 1)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "benchmark: index-only run failed: %v\n", err)
 		os.Exit(1)
@@ -191,7 +210,7 @@ func main() {
 		fmt.Fprintf(os.Stderr, "benchmark: running %d process-cold full-analysis runs\n", *coldRuns)
 		coldRunsResults := make([]runMetrics, 0, *coldRuns)
 		for i := 0; i < *coldRuns; i++ {
-			run, err := execWorker(*root, *level, *workers, "full", 1)
+			run, err := execWorker(*root, paths, excludes, *level, *workers, "full", 1)
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "benchmark: cold run %d failed: %v\n", i+1, err)
 				os.Exit(1)
@@ -203,7 +222,7 @@ func main() {
 	}
 
 	fmt.Fprintf(os.Stderr, "benchmark: running warm-loop full-analysis (%d iterations, 1 unmeasured warmup)\n", *warmIterations)
-	warmRuns, err := execWorkerRepeat(*root, *level, *workers, *warmIterations)
+	warmRuns, err := execWorkerRepeat(*root, paths, excludes, *level, *workers, *warmIterations)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "benchmark: warm-loop run failed: %v\n", err)
 		os.Exit(1)
@@ -239,7 +258,7 @@ func main() {
 // between measured runs. It returns the worker's reported runMetrics with
 // PeakRSSBytes overwritten by the OS-reported rusage of the child process,
 // which is a more trustworthy peak-RSS source than in-process sampling.
-func execWorker(root string, level, workers int, phase string, repeat int) (runMetrics, error) {
+func execWorker(root string, paths, excludes []string, level, workers int, phase string, repeat int) (runMetrics, error) {
 	self, err := os.Executable()
 	if err != nil {
 		return runMetrics{}, fmt.Errorf("resolving self path: %w", err)
@@ -247,6 +266,8 @@ func execWorker(root string, level, workers int, phase string, repeat int) (runM
 	args := []string{
 		"--harness-worker-phase=" + phase,
 		"--root=" + root,
+		"--paths=" + strings.Join(paths, ","),
+		"--excludes=" + strings.Join(excludes, ","),
 		"--level=" + strconv.Itoa(level),
 		"--workers=" + strconv.Itoa(workers),
 		"--harness-worker-repeat=" + strconv.Itoa(repeat),
@@ -255,7 +276,9 @@ func execWorker(root string, level, workers int, phase string, repeat int) (runM
 	var stdout, stderr strings.Builder
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
+	start := time.Now()
 	runErr := cmd.Run()
+	duration := time.Since(start)
 	if runErr != nil {
 		return runMetrics{}, fmt.Errorf("worker exited with error: %w\nstderr: %s", runErr, stderr.String())
 	}
@@ -268,6 +291,11 @@ func execWorker(root string, level, workers int, phase string, repeat int) (runM
 	if rss := peakRSSBytes(cmd.ProcessState); rss > 0 {
 		result.PeakRSSBytes = rss
 	}
+	// Measure process-cold phases at the parent boundary so startup, file
+	// discovery, reads, parsing, indexing, analysis, reduction, and worker
+	// result serialization are all inside the timed region. The worker's
+	// internal duration is useful only for warm-loop iterations.
+	result.DurationMs = duration.Milliseconds()
 	return result, nil
 }
 
@@ -276,7 +304,7 @@ func execWorker(root string, level, workers int, phase string, repeat int) (runM
 // iteration plus the process's OS-reported peak RSS attached to every
 // iteration (a single process can only report one peak covering its whole
 // lifetime, not a per-iteration breakdown).
-func execWorkerRepeat(root string, level, workers, repeat int) ([]runMetrics, error) {
+func execWorkerRepeat(root string, paths, excludes []string, level, workers, repeat int) ([]runMetrics, error) {
 	self, err := os.Executable()
 	if err != nil {
 		return nil, fmt.Errorf("resolving self path: %w", err)
@@ -284,6 +312,8 @@ func execWorkerRepeat(root string, level, workers, repeat int) ([]runMetrics, er
 	args := []string{
 		"--harness-worker-phase=full",
 		"--root=" + root,
+		"--paths=" + strings.Join(paths, ","),
+		"--excludes=" + strings.Join(excludes, ","),
 		"--level=" + strconv.Itoa(level),
 		"--workers=" + strconv.Itoa(workers),
 		"--harness-worker-repeat=" + strconv.Itoa(repeat),
@@ -324,8 +354,8 @@ func execWorkerRepeat(root string, level, workers, repeat int) ([]runMetrics, er
 // prints one JSON runMetrics line per iteration to stdout, then exits. All
 // diagnostic/progress output must go to stderr so stdout stays a clean
 // machine-readable stream for the harness to parse.
-func runWorker(phase, root string, level, workers, repeat int) {
-	files, err := discoverPHPFiles(root)
+func runWorker(phase, root string, paths, excludes []string, level, workers, repeat int) {
+	files, err := discoverPHPFiles(root, paths, excludes)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "benchmark worker: %v\n", err)
 		os.Exit(1)
@@ -377,12 +407,12 @@ func runWorker(phase, root string, level, workers, repeat int) {
 // bypasses the cold/warm harness measurement machinery: profiling wants
 // the real work under a profiler attached to this process, not isolated
 // subprocess timing.
-func runProfile(root string, level, workers, iterations int, cpuProfilePath, memProfilePath string) error {
+func runProfile(root string, paths, excludes []string, level, workers, iterations int, cpuProfilePath, memProfilePath string) error {
 	if iterations < 1 {
 		iterations = 1
 	}
 
-	files, err := discoverPHPFiles(root)
+	files, err := discoverPHPFiles(root, paths, excludes)
 	if err != nil {
 		return fmt.Errorf("discovering files: %w", err)
 	}
@@ -488,25 +518,76 @@ func startMemSampler() func() int64 {
 	}
 }
 
-func discoverPHPFiles(root string) ([]string, error) {
-	var files []string
-	err := filepath.WalkDir(root, func(path string, d fs.DirEntry, walkErr error) error {
-		if walkErr != nil {
-			return walkErr
+func discoverPHPFiles(root string, paths, excludes []string) ([]string, error) {
+	filesByPath := make(map[string]struct{})
+	for _, relativeRoot := range paths {
+		scanRoot := filepath.Join(root, filepath.FromSlash(relativeRoot))
+		if _, err := os.Stat(scanRoot); err != nil {
+			return nil, fmt.Errorf("scan path %q: %w", relativeRoot, err)
 		}
-		if d.IsDir() {
+		err := filepath.WalkDir(scanRoot, func(path string, d fs.DirEntry, walkErr error) error {
+			if walkErr != nil {
+				return walkErr
+			}
+			relative, err := filepath.Rel(root, path)
+			if err != nil {
+				return err
+			}
+			relative = filepath.ToSlash(relative)
+			if benchmarkPathExcluded(relative, excludes) {
+				if d.IsDir() {
+					return filepath.SkipDir
+				}
+				return nil
+			}
+			if !d.IsDir() && strings.EqualFold(filepath.Ext(path), ".php") {
+				filesByPath[path] = struct{}{}
+			}
 			return nil
+		})
+		if err != nil {
+			return nil, err
 		}
-		if strings.EqualFold(filepath.Ext(path), ".php") {
-			files = append(files, path)
-		}
-		return nil
-	})
-	if err != nil {
-		return nil, err
+	}
+	files := make([]string, 0, len(filesByPath))
+	for path := range filesByPath {
+		files = append(files, path)
 	}
 	sort.Strings(files)
 	return files, nil
+}
+
+func parseBenchmarkPaths(value string, allowEmpty bool) ([]string, error) {
+	var paths []string
+	seen := make(map[string]struct{})
+	for _, raw := range strings.Split(value, ",") {
+		path := filepath.ToSlash(filepath.Clean(strings.TrimSpace(raw)))
+		if path == "." && strings.TrimSpace(raw) == "" {
+			continue
+		}
+		if filepath.IsAbs(path) || path == ".." || strings.HasPrefix(path, "../") {
+			return nil, fmt.Errorf("path %q must stay within the benchmark root", raw)
+		}
+		if _, duplicate := seen[path]; duplicate {
+			continue
+		}
+		seen[path] = struct{}{}
+		paths = append(paths, path)
+	}
+	if len(paths) == 0 && !allowEmpty {
+		return nil, errors.New("at least one path is required")
+	}
+	sort.Strings(paths)
+	return paths, nil
+}
+
+func benchmarkPathExcluded(path string, excludes []string) bool {
+	for _, excluded := range excludes {
+		if path == excluded || strings.HasPrefix(path, excluded+"/") {
+			return true
+		}
+	}
+	return false
 }
 
 // parseFiles reads and parses every discovered file concurrently, returning
@@ -706,6 +787,11 @@ func printTextReport(w io.Writer, r benchmarkReport) {
 	fmt.Fprintf(w, "Root: %s\n", r.Root)
 	fmt.Fprintf(w, "Generated: %s\n", r.GeneratedAt)
 	fmt.Fprintf(w, "Go: %s  OS/Arch: %s/%s  CPUs: %d  Workers: %d\n", r.GoVersion, r.OS, r.Arch, r.NumCPU, r.Workers)
+	fmt.Fprintf(w, "Paths: %s", strings.Join(r.Paths, ", "))
+	if len(r.Excludes) > 0 {
+		fmt.Fprintf(w, "  Excludes: %s", strings.Join(r.Excludes, ", "))
+	}
+	fmt.Fprintln(w)
 	if r.Level != nil {
 		fmt.Fprintf(w, "Analysis level: %d\n\n", *r.Level)
 	} else {

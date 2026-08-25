@@ -1,0 +1,131 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-08-25",
+  "status": "rejected",
+  "comparisonAccepted": false,
+  "rejectionReasons": [
+    "PSL validation found 65 parser failures in 3361 selected PHP files",
+    "Magento validation found 15 parser failures in 41848 selected PHP files",
+    "WordPress go-php-parser coefficient of variation was 0.069046, above the 0.05 target",
+    "WordPress Mago coefficient of variation was 0.051055, above the 0.05 target",
+    "Mago count output did not expose analysed-file accounting",
+    "The tools do not yet perform comparable semantic work"
+  ],
+  "environment": {
+    "machine": "Apple M1",
+    "logicalCpu": 8,
+    "physicalCpu": 8,
+    "memoryBytes": 8589934592,
+    "os": "macOS 26.5.2 (25F84)",
+    "arch": "arm64",
+    "goVersion": "go1.26.2",
+    "goEnvironment": {
+      "RUST_LOG": "warn"
+    },
+    "cacheState": "process-cold, operating-system file cache warm",
+    "interleaving": "go-php-parser then Mago for each of ten measured pairs"
+  },
+  "tools": {
+    "goPhpParser": {
+      "commit": "a67ebf60136369dfd2b4c98b31abbed45c086821",
+      "buildCommand": "go build -trimpath -ldflags='-s -w' -o benchmark ./cmd/benchmark",
+      "binarySha256": "8aac01a6aa7761ca87522f85067b790a9f403be82d55afc38b2fc4503bdd56e2",
+      "workers": 8,
+      "analysisLevel": "all registered rules"
+    },
+    "mago": {
+      "version": "1.47.4",
+      "releasePublishedAt": "2026-08-24T22:14:28Z",
+      "releaseAsset": "mago-1.47.4-aarch64-apple-darwin.tar.gz",
+      "releaseAssetSha256": "ecfd09ff7700fe332b5ab95dde08e6dc78d2884de42a58cc36474c50e4a4a2b0",
+      "binarySha256": "bd1a46b8c172b4595620b5337e278178f37d79d8f749fa0f7589067c66f3f087"
+    }
+  },
+  "validation": {
+    "psl": {
+      "commit": "331f3ab363508825e62c42725f96c091bcceb970",
+      "paths": ["docs", "examples", "packages", "splitter", "vendor/revolt"],
+      "excludes": ["splitter/vendor"],
+      "filesDiscovered": 3361,
+      "filesParsed": 3296,
+      "filesFailed": 65,
+      "measured": false
+    },
+    "magento2": {
+      "commit": "755e34dd689021c5165db9d35ecff74f7dc51527",
+      "paths": ["app", "dev", "phpserver", "pub", "setup", "vendor"],
+      "filesDiscovered": 41848,
+      "filesParsed": 41833,
+      "filesFailed": 15,
+      "measured": false
+    }
+  },
+  "wordpress": {
+    "commit": "daaca56d3d6a9a42a0c87f6eda766c33a77c1d05",
+    "paths": ["src", "tests", "vendor"],
+    "excludes": ["src/js"],
+    "dependencyInstalledJsonSha256": "be6b7bd587d566ca1308c99b883a937efe3d11b204977499886800af9cc159c4",
+    "magoConfigSha256": "90375e5fb9b82fe9d9b783ccd107e69842bb621ad4cf3223e20d77052593a17b",
+    "goPhpParser": {
+      "filesDiscovered": 5357,
+      "filesParsed": 5357,
+      "filesFailed": 0,
+      "totalLoc": 1451208,
+      "totalBytes": 47344277,
+      "diagnosticsEmitted": 29000,
+      "meanSeconds": 1.048,
+      "medianSeconds": 1.015,
+      "minSeconds": 1.0,
+      "maxSeconds": 1.21,
+      "standardDeviationSeconds": 0.072360,
+      "coefficientOfVariation": 0.069046,
+      "maxPeakRssBytes": 1083883520,
+      "runs": [
+        {"run": 1, "seconds": 1.17, "peakRssBytes": 1046282240},
+        {"run": 2, "seconds": 1.01, "peakRssBytes": 1028390912},
+        {"run": 3, "seconds": 1.03, "peakRssBytes": 1053032448},
+        {"run": 4, "seconds": 1.0, "peakRssBytes": 1037189120},
+        {"run": 5, "seconds": 1.02, "peakRssBytes": 1029898240},
+        {"run": 6, "seconds": 1.01, "peakRssBytes": 1083883520},
+        {"run": 7, "seconds": 1.21, "peakRssBytes": 1016561664},
+        {"run": 8, "seconds": 1.03, "peakRssBytes": 1042612224},
+        {"run": 9, "seconds": 1.0, "peakRssBytes": 1058242560},
+        {"run": 10, "seconds": 1.0, "peakRssBytes": 1008713728}
+      ]
+    },
+    "mago": {
+      "fileAccounting": "not reported by count formatter",
+      "diagnostics": {
+        "error": 143188,
+        "warning": 72386,
+        "help": 3129,
+        "note": 38,
+        "total": 218741
+      },
+      "meanSeconds": 3.086,
+      "medianSeconds": 3.05,
+      "minSeconds": 2.83,
+      "maxSeconds": 3.33,
+      "standardDeviationSeconds": 0.157556,
+      "coefficientOfVariation": 0.051055,
+      "maxPeakRssBytes": 1225932800,
+      "runs": [
+        {"run": 1, "seconds": 2.92, "peakRssBytes": 1225932800},
+        {"run": 2, "seconds": 3.2, "peakRssBytes": 1160036352},
+        {"run": 3, "seconds": 3.23, "peakRssBytes": 1187512320},
+        {"run": 4, "seconds": 2.83, "peakRssBytes": 1167687680},
+        {"run": 5, "seconds": 2.97, "peakRssBytes": 1077805056},
+        {"run": 6, "seconds": 3.03, "peakRssBytes": 1067122688},
+        {"run": 7, "seconds": 3.28, "peakRssBytes": 1099431936},
+        {"run": 8, "seconds": 3.0, "peakRssBytes": 1074921472},
+        {"run": 9, "seconds": 3.07, "peakRssBytes": 1175568384},
+        {"run": 10, "seconds": 3.33, "peakRssBytes": 1062993920}
+      ]
+    },
+    "contextOnlyRatios": {
+      "goTimeDividedByMagoTime": 0.339598,
+      "goPeakRssDividedByMagoPeakRss": 0.884130,
+      "acceptedAsComparable": false
+    }
+  }
+}

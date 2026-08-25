@@ -1,0 +1,22 @@
+php-version = "8.4"
+
+[source]
+paths = ["packages", "splitter", "examples", "docs"]
+includes = ["vendor/revolt"]
+excludes = ["splitter/vendor", "*/packages/**/vendor/*"]
+
+[analyzer]
+excludes = ["*/packages/**/tests/*"]
+plugins = ["php-standard-library"]
+strict-list-index-checks = true
+find-unused-expressions = true
+find-unused-definitions = true
+analyze-dead-code = true
+check-throws = true
+check-missing-override = true
+find-unused-parameters = true
+check-missing-type-hints = true
+check-closure-missing-type-hints = true
+check-arrow-function-missing-type-hints = true
+enforce-class-finality = true
+require-api-or-internal = true
