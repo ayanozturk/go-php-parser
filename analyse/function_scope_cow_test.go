@@ -1,6 +1,9 @@
 package analyse
 
 import (
+	"github.com/ayanozturk/go-php-parser/ast"
+	"github.com/ayanozturk/go-php-parser/lexer"
+	"github.com/ayanozturk/go-php-parser/parser"
 	"reflect"
 	"testing"
 )
@@ -164,6 +167,49 @@ func TestFunctionScopeCloneNilIsSafe(t *testing.T) {
 	}
 }
 
+func TestNewFunctionScopeWithContextSharesAndDetachesCachedClassProperties(t *testing.T) {
+	class, method, typeCtx := functionScopeClassFixture(t)
+	ctx := &AnalysisContext{}
+
+	first := newFunctionScopeWithContext(ctx, class, method, typeCtx)
+	second := newFunctionScopeWithContext(ctx, class, method, typeCtx)
+	if !first.propertiesShared || !second.propertiesShared {
+		t.Fatalf("new scopes should share cached class properties: first=%v second=%v", first.propertiesShared, second.propertiesShared)
+	}
+	if functionScopeMapPointer(first.properties) != functionScopeMapPointer(second.properties) {
+		t.Fatal("new scopes did not share cached class property map")
+	}
+	assertScopeType(t, first.properties, "state", "string")
+	assertScopeType(t, second.properties, "count", "int")
+
+	first.setProperty("state", ParseType("bool"))
+	if first.propertiesShared {
+		t.Fatal("first scope remained shared after its first property write")
+	}
+	if !second.propertiesShared {
+		t.Fatal("second scope detached before it was written")
+	}
+	assertScopeType(t, first.properties, "state", "bool")
+	assertScopeType(t, second.properties, "state", "string")
+	if functionScopeMapPointer(first.properties) == functionScopeMapPointer(second.properties) {
+		t.Fatal("first property write did not detach the scope")
+	}
+
+	second.setProperty("count", ParseType("string"))
+	if second.propertiesShared {
+		t.Fatal("second scope remained shared after its first property write")
+	}
+	assertScopeType(t, second.properties, "count", "string")
+	assertScopeType(t, first.properties, "count", "int")
+
+	third := newFunctionScopeWithContext(ctx, class, method, typeCtx)
+	if !third.propertiesShared {
+		t.Fatal("new scope did not share the cached class properties after sibling writes")
+	}
+	assertScopeType(t, third.properties, "state", "string")
+	assertScopeType(t, third.properties, "count", "int")
+}
+
 func BenchmarkFunctionScopeCloneReadOnly(b *testing.B) {
 	scope := seededFunctionScope()
 	var sink *functionScope
@@ -184,6 +230,17 @@ func BenchmarkFunctionScopeCloneAndWrite(b *testing.B) {
 		sink = scope.clone()
 		sink.setVariable("branch", variableType)
 		sink.setProperty("branch", propertyType)
+	}
+	benchmarkFunctionScopeSink = sink
+}
+
+func BenchmarkNewFunctionScopeWithContextCachedClassProperties(b *testing.B) {
+	class, method, typeCtx := functionScopeClassFixture(b)
+	ctx := &AnalysisContext{}
+	var sink *functionScope
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		sink = newFunctionScopeWithContext(ctx, class, method, typeCtx)
 	}
 	benchmarkFunctionScopeSink = sink
 }
@@ -223,4 +280,35 @@ func functionScopeMapPointer(values map[string]Type) uintptr {
 		return 0
 	}
 	return reflect.ValueOf(values).Pointer()
+}
+
+func functionScopeClassFixture(tb testing.TB) (*ast.ClassNode, *ast.FunctionNode, fileTypeContext) {
+	tb.Helper()
+	const source = `<?php
+class CachedProperties {
+    public string $state;
+    protected int $count;
+
+    public function run(string $input): void {}
+}
+`
+	p := parser.New(lexer.New(source), false)
+	nodes := p.Parse()
+	if len(p.Errors()) > 0 {
+		tb.Fatalf("parse errors: %v", p.Errors())
+	}
+	for _, node := range nodes {
+		class, ok := node.(*ast.ClassNode)
+		if !ok {
+			continue
+		}
+		for _, member := range class.Methods {
+			method, ok := member.(*ast.FunctionNode)
+			if ok {
+				return class, method, collectFileTypeContext(nodes)
+			}
+		}
+	}
+	tb.Fatal("fixture did not contain a class method")
+	return nil, nil, fileTypeContext{}
 }

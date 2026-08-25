@@ -377,7 +377,8 @@ func newFunctionScopeWithContext(ctx *AnalysisContext, class *ast.ClassNode, fn 
 		classData := analysisClassScopeData(ctx, class, typeCtx)
 		scope.className = classData.className
 		scope.propertyDecls = classData.propertyDecls
-		scope.properties = copyTypeMap(classData.properties)
+		scope.properties = classData.properties
+		scope.propertiesShared = true
 		scope.methods = classData.methods
 		scope.methodReturns = classData.methodReturns
 	}

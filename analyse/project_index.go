@@ -16,6 +16,7 @@ type ProjectIndex struct {
 	FileTypes       map[string]fileTypeContext
 	Duplicates      []DuplicateSymbol
 	methodsDeclared map[string][]ResolvedMethod
+	classLineages   map[string][]string
 }
 
 type DuplicateSymbol struct {
@@ -61,6 +62,7 @@ func BuildProjectIndex(parsed map[string][]ast.Node) *ProjectIndex {
 		idx.indexNodes(filename, nodes, ft, "")
 	}
 	idx.methodsDeclared = buildMethodsDeclaredViews(idx)
+	idx.classLineages = buildClassLineageViews(idx)
 	return idx
 }
 
@@ -267,6 +269,30 @@ func (idx *ProjectIndex) ResolveFunction(name string) (ResolvedFunction, bool) {
 }
 
 func (idx *ProjectIndex) classLineage(className string) []string {
+	if idx == nil {
+		return nil
+	}
+	key := indexKey(className)
+	if class, ok := idx.ResolveClass(className); ok {
+		key = indexKey(class.Name)
+	}
+	if lineage, ok := idx.classLineages[key]; ok {
+		return lineage
+	}
+	// Mutable indexes constructed directly retain compatibility. Immutable
+	// indexes returned by BuildProjectIndex always use the precomputed path.
+	return buildClassLineage(idx, className)
+}
+
+func buildClassLineageViews(idx *ProjectIndex) map[string][]string {
+	views := make(map[string][]string, len(idx.Classes))
+	for key, class := range idx.Classes {
+		views[key] = buildClassLineage(idx, class.Name)
+	}
+	return views
+}
+
+func buildClassLineage(idx *ProjectIndex, className string) []string {
 	var out []string
 	seen := map[string]struct{}{}
 	var walk func(string)
@@ -422,6 +448,7 @@ func (idx *ProjectIndex) addClass(filename string, class ResolvedClass, node ast
 	class.ID = stableSymbolID("class", "", class.Name)
 	class.Declaration = sourceLocation(filename, node)
 	idx.Classes[key] = class
+	idx.classLineages = nil
 }
 
 func (idx *ProjectIndex) addFunction(fn ResolvedFunction) {

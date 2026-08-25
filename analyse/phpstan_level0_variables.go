@@ -59,11 +59,7 @@ func (r *PHPStanLevel0Rule) checkUndefinedVariables(filename string, nodes []ast
 			case *ast.IfNode:
 				checkExprVars(filename, n.Condition, defined, &issues)
 				before := cloneBoolMap(defined)
-				thenDefined := walkStatements(n.Body, cloneBoolMap(defined), class, inFunction)
-				branchUnion := cloneBoolMap(before)
-				for k := range thenDefined {
-					branchUnion[k] = true
-				}
+				branchUnion := walkStatements(n.Body, cloneBoolMap(before), class, inFunction)
 				for _, elseif := range n.ElseIfs {
 					checkExprVars(filename, elseif.Condition, before, &issues)
 					ed := walkStatements(elseif.Body, cloneBoolMap(before), class, inFunction)

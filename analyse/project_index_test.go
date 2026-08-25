@@ -4,6 +4,7 @@ import (
 	"github.com/ayanozturk/go-php-parser/ast"
 	"github.com/ayanozturk/go-php-parser/lexer"
 	"github.com/ayanozturk/go-php-parser/parser"
+	"reflect"
 	"strings"
 	"testing"
 )
@@ -181,6 +182,95 @@ func TestProjectIndexAssignsStableIDsToBuiltinsWithoutFakeLocations(t *testing.T
 	}
 	if function.Declaration != (SourceLocation{}) {
 		t.Fatalf("built-in function should not have a fake declaration: %#v", function.Declaration)
+	}
+}
+
+func TestProjectIndexClassLineagePreservesOrderAndDeduplicates(t *testing.T) {
+	const source = `<?php
+interface Root {}
+interface Left extends Root {}
+interface Right extends Root {}
+trait Shared {}
+class Base implements Left, Right { use Shared; }
+class Child extends BASE implements RIGHT { use Shared; }
+class CycleA extends CycleB {}
+class CycleB extends CycleA {}
+`
+	parsed := map[string][]ast.Node{"lineage.php": parsePHPForProjectIndex(t, source)}
+	want := map[string][]string{
+		"child":  {"Child", "Base", "Left", "Root", "Right", "Shared"},
+		"cyclea": {"CycleA", "CycleB"},
+	}
+
+	for i := 0; i < 25; i++ {
+		idx := BuildProjectIndex(parsed)
+		for query, expected := range want {
+			if got := idx.classLineage(query); !reflect.DeepEqual(got, expected) {
+				t.Fatalf("iteration %d: classLineage(%q) = %#v, want %#v", i, query, got, expected)
+			}
+		}
+		if got := idx.classLineage("cHiLd"); !reflect.DeepEqual(got, want["child"]) {
+			t.Fatalf("iteration %d: mixed-case classLineage = %#v, want %#v", i, got, want["child"])
+		}
+	}
+}
+
+func TestNewProjectIndexClassLineageFallsBackForMutableIndexes(t *testing.T) {
+	idx := NewProjectIndex()
+	idx.Classes[indexKey("Base")] = ResolvedClass{Name: "Base"}
+	idx.Classes[indexKey("Child")] = ResolvedClass{Name: "Child", Extends: []string{"BASE"}}
+	idx.Properties[indexKey("Base")] = map[string]ResolvedProperty{
+		"state": {Name: "state", Type: "string", DeclaringClass: "Base"},
+	}
+	idx.ClassConsts[indexKey("Base")] = map[string]ResolvedConstant{
+		"kind": {Name: "KIND", DeclaringClass: "Base", Type: "string"},
+	}
+
+	if idx.classLineages != nil {
+		t.Fatal("NewProjectIndex should not require a precomputed lineage view")
+	}
+	if got, want := idx.classLineage("cHiLd"), []string{"Child", "Base"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("mutable index classLineage = %#v, want %#v", got, want)
+	}
+	property, ok := idx.ResolveProperty("CHILD", "$state")
+	if !ok || property.DeclaringClass != "Base" || property.Type != "string" {
+		t.Fatalf("mutable index inherited property = %#v, %v", property, ok)
+	}
+	constant, ok := idx.ResolveConstant("child", "kind")
+	if !ok || constant.DeclaringClass != "Base" || constant.Name != "KIND" {
+		t.Fatalf("mutable index inherited constant = %#v, %v", constant, ok)
+	}
+}
+
+func TestProjectIndexCachedLineageReducesInheritedResolutionAllocations(t *testing.T) {
+	const source = `<?php
+class Base {
+    public string $state;
+    public const KIND = 'base';
+}
+class Parent extends Base {}
+class Child extends Parent {}
+`
+	parsed := map[string][]ast.Node{"lineage.php": parsePHPForProjectIndex(t, source)}
+	cached := BuildProjectIndex(parsed)
+	uncached := BuildProjectIndex(parsed)
+	uncached.classLineages = nil
+
+	resolve := func(idx *ProjectIndex) {
+		property, propertyOK := idx.ResolveProperty("CHILD", "$state")
+		constant, constantOK := idx.ResolveConstant("child", "kind")
+		if !propertyOK || !constantOK || property.Type != "string" || constant.Name != "KIND" {
+			t.Fatalf("inherited resolution failed: property=%#v/%v constant=%#v/%v", property, propertyOK, constant, constantOK)
+		}
+	}
+	resolve(cached)
+	resolve(uncached)
+
+	cachedAllocs := testing.AllocsPerRun(1000, func() { resolve(cached) })
+	uncachedAllocs := testing.AllocsPerRun(1000, func() { resolve(uncached) })
+	t.Logf("cached inherited property/constant resolution allocations: %.2f; uncached: %.2f", cachedAllocs, uncachedAllocs)
+	if cachedAllocs >= uncachedAllocs {
+		t.Fatalf("cached lineage allocations = %.2f, want less than uncached %.2f", cachedAllocs, uncachedAllocs)
 	}
 }
 
