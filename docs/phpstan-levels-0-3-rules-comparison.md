@@ -8,6 +8,8 @@ Source for PHPStan level descriptions: [PHPStan Rule Levels](https://phpstan.org
 
 This comparison is limited to analysis behavior. The project also implements PSR/formatting style rules, but those do not directly correspond to PHPStan's rule levels.
 
+Executable parity evidence is tracked separately in [the analyser capability matrix](analyser-capability-matrix.md). Descriptive rows in this document are not parity claims unless backed by a checked-in differential fixture there.
+
 ## Coverage Summary
 
 | PHPStan level | PHPStan checks introduced at this level | Current project coverage |

@@ -1,0 +1,44 @@
+{
+  "schemaVersion": 1,
+  "reference": {
+    "tool": "PHPStan",
+    "level": 0
+  },
+  "cases": [
+    {
+      "id": "unknown-class",
+      "capability": "unknown classes",
+      "file": "unknown-class.php",
+      "engineCodes": ["PHPStan.Level0.Symbols"],
+      "phpstanIdentifiers": ["class.notFound"]
+    },
+    {
+      "id": "unknown-function",
+      "capability": "unknown functions",
+      "file": "unknown-function.php",
+      "engineCodes": ["PHPStan.Level0.Symbols"],
+      "phpstanIdentifiers": ["function.notFound"]
+    },
+    {
+      "id": "argument-count",
+      "capability": "function argument counts",
+      "file": "argument-count.php",
+      "engineCodes": ["PHPStan.Level0.Invocation"],
+      "phpstanIdentifiers": ["arguments.count"]
+    },
+    {
+      "id": "undefined-variable",
+      "capability": "always undefined variables",
+      "file": "undefined-variable.php",
+      "engineCodes": ["PHPStan.Level0.Variables"],
+      "phpstanIdentifiers": ["variable.undefined"]
+    },
+    {
+      "id": "clean-known-symbols",
+      "capability": "known symbols without false positives",
+      "file": "clean-known-symbols.php",
+      "engineCodes": [],
+      "phpstanIdentifiers": []
+    }
+  ]
+}
