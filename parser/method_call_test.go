@@ -43,6 +43,35 @@ class Foo {
 	}
 }
 
+func TestParseMethodChainWithCommentsAfterObjectOperator(t *testing.T) {
+	php := `<?php
+$result = $source-> // select the next stage
+    transform()-> /* finish the pipeline */
+    complete();
+`
+	p := New(lexer.New(php), true)
+	nodes := p.Parse()
+	if errs := p.Errors(); len(errs) > 0 {
+		t.Fatalf("unexpected errors: %v", errs)
+	}
+	if len(nodes) != 1 {
+		t.Fatalf("expected one statement, got %d", len(nodes))
+	}
+}
+
+func TestParseNullsafePropertyWithCommentAfterOperator(t *testing.T) {
+	php := `<?php $name = $account?-> // account may be absent
+    displayName;`
+	p := New(lexer.New(php), true)
+	nodes := p.Parse()
+	if errs := p.Errors(); len(errs) > 0 {
+		t.Fatalf("unexpected errors: %v", errs)
+	}
+	if len(nodes) != 1 {
+		t.Fatalf("expected one statement, got %d", len(nodes))
+	}
+}
+
 func TestParseMethodCallWithArrayAccess(t *testing.T) {
 	php := `<?php
 class Foo {

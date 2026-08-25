@@ -28,7 +28,9 @@ retry:
 		p.nextToken()
 		return &ast.AttributeNode{Name: name, Pos: ast.Position(pos)}, nil
 	}
-	if p.tok.Type == token.T_NAMESPACE {
+	// A namespace-relative name can begin an expression statement, for example
+	// namespace\helper(). Only a bare namespace keyword starts a declaration.
+	if p.tok.Type == token.T_NAMESPACE && p.peekToken().Type != token.T_NS_SEPARATOR {
 		return p.parseNamespaceDeclaration()
 	}
 	if p.tok.Type == token.T_INLINE_HTML {
@@ -298,25 +300,7 @@ retry:
 		// every AST walker already knows how to recurse into.
 		return &ast.BlockNode{Statements: exprs, Pos: ast.Position(pos)}, nil
 	case token.T_PRINT:
-		pos := p.tok.Pos
-		keyword := p.tok.Literal
-		p.nextToken() // consume print
-		expr := p.parseExpression()
-		if expr == nil {
-			return nil, nil
-		}
-		if p.tok.Type == token.T_SEMICOLON {
-			p.nextToken() // consume ;
-		} else if p.tok.Type != token.T_CLOSE_TAG && p.tok.Type != token.T_EOF {
-			// A closing "?>" tag (or EOF) implicitly terminates the
-			// statement, same as PHP allows (e.g. "<?= $x ?>").
-			p.addError("line %d:%d: expected ; after %s statement, got %s", p.tok.Pos.Line, p.tok.Pos.Column, keyword, p.tok.Literal)
-			return nil, nil
-		}
-		return &ast.ExpressionStmt{
-			Expr: expr,
-			Pos:  ast.Position(pos),
-		}, nil
+		return p.parseExpressionStatement()
 	case token.T_THROW:
 		pos := p.tok.Pos
 		p.nextToken() // consume throw

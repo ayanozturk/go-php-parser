@@ -49,6 +49,18 @@ func TestParseConstant(t *testing.T) {
 		checkConstantNode(t, node, "FOO", "123", "", "")
 	})
 
+	t.Run("uppercase keyword", func(t *testing.T) {
+		src := "<?php\nCONST BUILD_NUMBER = 7;"
+		node := parseConstantFromSource(src, token.T_CONST)
+		checkConstantNode(t, node, "BUILD_NUMBER", "7", "", "")
+	})
+
+	t.Run("contextual keyword name", func(t *testing.T) {
+		src := "<?php\nconst as = 9;"
+		node := parseConstantFromSource(src, token.T_CONST)
+		checkConstantNode(t, node, "as", "9", "", "")
+	})
+
 	t.Run("with visibility and type", func(t *testing.T) {
 		src := "<?php\npublic const BAR: int = 42;"
 		node := parseConstantFromSource(src, token.T_PUBLIC)
@@ -65,6 +77,12 @@ func TestParseConstant(t *testing.T) {
 		src := "<?php\nprivate const array NAMES = ['a'];"
 		node := parseConstantFromSource(src, token.T_PRIVATE)
 		checkConstantNode(t, node, "NAMES", "array", "private", "array")
+	})
+
+	t.Run("with standalone null type", func(t *testing.T) {
+		src := "<?php\npublic const null EMPTY_VALUE = null;"
+		node := parseConstantFromSource(src, token.T_PUBLIC)
+		checkConstantNode(t, node, "EMPTY_VALUE", "null", "public", "null")
 	})
 }
 

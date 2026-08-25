@@ -66,8 +66,8 @@ func (p *Parser) parseTraitDeclaration() (ast.Node, error) {
 			continue
 		}
 		if p.tok.Type == token.T_VARIABLE {
-			if prop, err := p.parsePropertyDeclaration(modifiers, typeHint); prop != nil {
-				body = append(body, prop)
+			if props, err := p.parsePropertyDeclaration(modifiers, typeHint); len(props) > 0 {
+				body = append(body, props...)
 			} else if err != nil {
 				p.addError(err.Error())
 				p.nextToken()

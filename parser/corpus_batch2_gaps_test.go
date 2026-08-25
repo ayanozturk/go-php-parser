@@ -138,6 +138,76 @@ func TestParseNamespaceRelativeConstantReference(t *testing.T) {
 	parseNoErrors(t, `<?php $x = [namespace\M_PI, 1];`)
 }
 
+func TestParseNamespaceRelativeFunctionCallStatement(t *testing.T) {
+	parseNoErrors(t, `<?php namespace\prepare_result($input);`)
+}
+
+func TestParseMultilineNamespaceRelativeFunctionCallStatement(t *testing.T) {
+	parseNoErrors(t, "<?php namespace\\prepare_result(\n    $input,\n    namespace\\fallback(),\n);")
+}
+
+func TestParseBareYieldStatement(t *testing.T) {
+	parseNoErrors(t, `<?php function empty_item(): iterable { yield; }`)
+}
+
+func TestParseUnreachableBareYieldStatement(t *testing.T) {
+	parseNoErrors(t, `<?php function force_generator(): iterable { return; yield; }`)
+}
+
+func TestParseQualifiedMixedFunctionCall(t *testing.T) {
+	parseNoErrors(t, `<?php function schema() { return Types\mixed(); }`)
+}
+
+func TestParseNestedQualifiedMixedFunctionCall(t *testing.T) {
+	parseNoErrors(t, `<?php inspect(Types\collection(Types\string(), Types\mixed()));`)
+}
+
+func TestParseReadonlyAnonymousClass(t *testing.T) {
+	nodes := parseNoErrors(t, `<?php new readonly class {};`)
+	stmt, ok := nodes[0].(*ast.ExpressionStmt)
+	if !ok {
+		t.Fatalf("expected expression statement, got %T", nodes[0])
+	}
+	newExpr, ok := stmt.Expr.(*ast.NewNode)
+	if !ok {
+		t.Fatalf("expected new expression, got %T", stmt.Expr)
+	}
+	classExpr, ok := newExpr.ClassExpr.(*ast.ClassNode)
+	if !ok {
+		t.Fatalf("expected anonymous class, got %T", newExpr.ClassExpr)
+	}
+	if classExpr.Modifier != "readonly" {
+		t.Fatalf("expected readonly modifier, got %q", classExpr.Modifier)
+	}
+}
+
+func TestParseReadonlyAnonymousClassWithArgumentsAndInterface(t *testing.T) {
+	parseNoErrors(t, `<?php $runner = new readonly class($value) implements Runner { public function __construct(private string $value) {} public function run(): string { return $this->value; } };`)
+}
+
+func TestParsePrintExpressionInArrowFunction(t *testing.T) {
+	parseNoErrors(t, `<?php consume($items, fn(string $item) => print "item: {$item}\n");`)
+}
+
+func TestParsePrintExpressionPrecedence(t *testing.T) {
+	nodes := parseNoErrors(t, `<?php print $message = 'ready' and $enabled;`)
+	stmt, ok := nodes[0].(*ast.ExpressionStmt)
+	if !ok {
+		t.Fatalf("expected expression statement, got %T", nodes[0])
+	}
+	logical, ok := stmt.Expr.(*ast.BinaryExpr)
+	if !ok || logical.Operator != "and" {
+		t.Fatalf("expected outer logical and expression, got %#v", stmt.Expr)
+	}
+	printed, ok := logical.Left.(*ast.UnaryExpr)
+	if !ok || printed.Operator != "print" {
+		t.Fatalf("expected print on left of logical and, got %#v", logical.Left)
+	}
+	if _, ok := printed.Operand.(*ast.AssignmentNode); !ok {
+		t.Fatalf("expected assignment inside print, got %T", printed.Operand)
+	}
+}
+
 func TestParseAttributeInInterfaceBody(t *testing.T) {
 	parseNoErrors(t, "<?php interface I { #[Groups(['a'])]\n public function get(); }")
 }

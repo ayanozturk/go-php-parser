@@ -19,6 +19,7 @@ func TestParseForeachStatement(t *testing.T) {
 		{"foreach with key => value", `<?php foreach ($arr as $k => $v) { echo $k; echo $v; }`, true, false},
 		{"foreach by reference", `<?php foreach ($arr as &$v) { $v = 1; }`, false, true},
 		{"foreach key => &value", `<?php foreach ($arr as $k => &$v) { $v = 2; }`, true, true},
+		{"mixed-case foreach", `<?php forEach ($arr as $k => $v) { echo $v; }`, true, false},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

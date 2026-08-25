@@ -21,7 +21,7 @@ func (p *Parser) parseUseDeclaration() (ast.Node, error) {
 
 	var uses []ast.Node
 	for {
-		path := p.parseQualifiedName()
+		path := p.parseQualifiedName(useType == "const")
 		if path == "" {
 			p.addError("line %d:%d: expected imported symbol after use, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal)
 			return nil, nil
@@ -63,8 +63,8 @@ func (p *Parser) parseUseDeclaration() (ast.Node, error) {
 	return &ast.BlockNode{Statements: uses, Pos: ast.Position(pos)}, nil
 }
 
-func (p *Parser) parseQualifiedName() string {
-	if (p.tok.Type == token.T_STRING || p.tok.Type == token.T_STATIC || p.tok.Type == token.T_SELF || p.tok.Type == token.T_PARENT) &&
+func (p *Parser) parseQualifiedName(allowConstantLiteral bool) string {
+	if isUseNameToken(p.tok.Type, allowConstantLiteral) &&
 		p.peekToken().Type != token.T_NS_SEPARATOR && p.peekToken().Literal != "\\" {
 		name := p.tok.Literal
 		p.nextToken()
@@ -78,7 +78,11 @@ func (p *Parser) parseQualifiedName() string {
 	}
 
 	for {
-		if p.tok.Type != token.T_STRING && p.tok.Type != token.T_STATIC && p.tok.Type != token.T_SELF && p.tok.Type != token.T_PARENT {
+		if !isUseNameToken(p.tok.Type, allowConstantLiteral) {
+			break
+		}
+		if isConstantLiteralToken(p.tok.Type) &&
+			(p.peekToken().Type == token.T_NS_SEPARATOR || p.peekToken().Literal == "\\") {
 			break
 		}
 		p.nameBuf.WriteString(p.tok.Literal)
@@ -93,6 +97,17 @@ func (p *Parser) parseQualifiedName() string {
 
 	name := p.nameBuf.String()
 	return strings.TrimSuffix(name, "\\")
+}
+
+func isUseNameToken(tokenType token.TokenType, allowConstantLiteral bool) bool {
+	if tokenType == token.T_STRING || tokenType == token.T_STATIC || tokenType == token.T_SELF || tokenType == token.T_PARENT {
+		return true
+	}
+	return allowConstantLiteral && isConstantLiteralToken(tokenType)
+}
+
+func isConstantLiteralToken(tokenType token.TokenType) bool {
+	return tokenType == token.T_TRUE || tokenType == token.T_FALSE || tokenType == token.T_NULL
 }
 
 func defaultUseAlias(path string) string {

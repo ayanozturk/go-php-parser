@@ -2,6 +2,7 @@ package lexer
 
 import (
 	"github.com/ayanozturk/go-php-parser/token"
+	"strings"
 )
 
 // keywordTokenMap maps PHP keywords to their token types.
@@ -85,6 +86,22 @@ var keywordTokenMap = map[string]token.TokenType{
 func LookupKeyword(ident string, pos token.Position) token.Token {
 	if tokType, ok := keywordTokenMap[ident]; ok {
 		return token.Token{Type: tokType, Literal: ident, Pos: pos}
+	}
+	// PHP keywords are case-insensitive. Handle corpus-observed mixed-case
+	// forms without lowercasing every identifier on the lexer's hot path.
+	switch len(ident) {
+	case len("as"):
+		if strings.EqualFold(ident, "as") {
+			return token.Token{Type: token.T_AS, Literal: ident, Pos: pos}
+		}
+	case len("const"):
+		if strings.EqualFold(ident, "const") {
+			return token.Token{Type: token.T_CONST, Literal: ident, Pos: pos}
+		}
+	case len("foreach"):
+		if strings.EqualFold(ident, "foreach") {
+			return token.Token{Type: token.T_FOREACH, Literal: ident, Pos: pos}
+		}
 	}
 
 	return token.Token{Type: token.T_STRING, Literal: ident, Pos: pos}

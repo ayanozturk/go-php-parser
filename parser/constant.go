@@ -41,7 +41,7 @@ func (p *Parser) parseConstantWithModifiers(modifiers []string) []*ast.ConstantN
 	for {
 		p.skipCommentsAndWhitespace()
 		pos := p.tok.Pos
-		if p.tok.Type != token.T_STRING {
+		if !isConstantNameToken(p.tok.Type) {
 			p.addError("expected constant name after const, got %s", p.tok.Literal)
 			return constants
 		}
@@ -90,9 +90,13 @@ func (p *Parser) parseConstantWithModifiers(modifiers []string) []*ast.ConstantN
 	return constants
 }
 
+func isConstantNameToken(tokenType token.TokenType) bool {
+	return tokenType == token.T_STRING || tokenType == token.T_AS
+}
+
 func isConstTypeToken(tokenType token.TokenType) bool {
 	switch tokenType {
-	case token.T_ARRAY, token.T_CALLABLE, token.T_STRING:
+	case token.T_ARRAY, token.T_CALLABLE, token.T_STRING, token.T_NULL:
 		return true
 	default:
 		return false

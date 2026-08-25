@@ -129,8 +129,8 @@ func (p *Parser) parseClassDeclaration() (ast.Node, error) {
 			continue
 		}
 		if p.tok.Type == token.T_VARIABLE {
-			if prop, err := p.parsePropertyDeclaration(modifiers, typeHint); prop != nil {
-				properties = append(properties, prop)
+			if props, err := p.parsePropertyDeclaration(modifiers, typeHint); len(props) > 0 {
+				properties = append(properties, props...)
 			} else if err != nil {
 				return nil, err
 			}
@@ -182,7 +182,7 @@ func (p *Parser) parseClassDeclaration() (ast.Node, error) {
 	}, nil
 }
 
-func (p *Parser) parseAnonymousClassExpression() (ast.Node, []ast.Node) {
+func (p *Parser) parseAnonymousClassExpression(modifier string) (ast.Node, []ast.Node) {
 	pos := p.tok.Pos
 	p.nextToken() // consume 'class'
 
@@ -269,8 +269,8 @@ func (p *Parser) parseAnonymousClassExpression() (ast.Node, []ast.Node) {
 			continue
 		}
 		if p.tok.Type == token.T_VARIABLE {
-			if prop, err := p.parsePropertyDeclaration(modifiers, typeHint); prop != nil {
-				properties = append(properties, prop)
+			if props, err := p.parsePropertyDeclaration(modifiers, typeHint); len(props) > 0 {
+				properties = append(properties, props...)
 			} else if err != nil {
 				return nil, nil
 			}
@@ -317,6 +317,7 @@ func (p *Parser) parseAnonymousClassExpression() (ast.Node, []ast.Node) {
 		Methods:    methods,
 		Constants:  constants,
 		Pos:        ast.Position(pos),
+		Modifier:   modifier,
 	}, args
 }
 
@@ -462,8 +463,7 @@ func (p *Parser) parsePropertyModifier() (string, bool) {
 	return modifier + "(set)", true
 }
 
-func (p *Parser) parsePropertyDeclaration(modifiers []string, typeHint string) (ast.Node, error) {
-	pos := p.tok.Pos
+func (p *Parser) parsePropertyDeclaration(modifiers []string, typeHint string) ([]ast.Node, error) {
 	// Interpret modifiers
 	var visibility, setVisibility string
 	var isStatic, isReadonly bool
@@ -479,43 +479,55 @@ func (p *Parser) parsePropertyDeclaration(modifiers []string, typeHint string) (
 			isReadonly = true
 		}
 	}
-	if p.tok.Type != token.T_VARIABLE {
-		p.addError("line %d:%d: expected property name, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal)
-		return nil, nil
-	}
-	name := p.tok.Literal[1:]
-	p.nextToken()
-	// Default value
-	var defaultValue ast.Node
-	if p.tok.Type == token.T_ASSIGN {
-		p.nextToken() // consume =
-		defaultValue = p.parseExpression()
-	}
-	var hooks []ast.PropertyHookNode
-	requiresSemicolon := true
-	if p.tok.Type == token.T_LBRACE {
-		hooks = p.parsePropertyHooks(name)
-		requiresSemicolon = false
-	}
-	if requiresSemicolon && p.tok.Type != token.T_SEMICOLON {
-		p.addError("line %d:%d: expected ; after property declaration $%s, got %s", p.tok.Pos.Line, p.tok.Pos.Column, name, p.tok.Literal)
-		return nil, nil
-	}
-	if requiresSemicolon {
+	var properties []ast.Node
+	for {
+		if p.tok.Type != token.T_VARIABLE {
+			p.addError("line %d:%d: expected property name, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal)
+			return properties, nil
+		}
+		pos := p.tok.Pos
+		name := p.tok.Literal[1:]
 		p.nextToken()
+
+		var defaultValue ast.Node
+		if p.tok.Type == token.T_ASSIGN {
+			p.nextToken() // consume =
+			defaultValue = p.parseExpression()
+		}
+
+		var hooks []ast.PropertyHookNode
+		if p.tok.Type == token.T_LBRACE {
+			hooks = p.parsePropertyHooks(name)
+			properties = append(properties, &ast.PropertyNode{
+				Name: name, TypeHint: typeHint, DefaultValue: defaultValue,
+				Visibility: visibility, SetVisibility: setVisibility,
+				IsStatic: isStatic, IsReadonly: isReadonly, Hooks: hooks,
+				Pos: ast.Position(pos), EndPos: ast.Position(p.prevTokEnd),
+			})
+			return properties, nil
+		}
+
+		property := &ast.PropertyNode{
+			Name: name, TypeHint: typeHint, DefaultValue: defaultValue,
+			Visibility: visibility, SetVisibility: setVisibility,
+			IsStatic: isStatic, IsReadonly: isReadonly,
+			Pos: ast.Position(pos), EndPos: ast.Position(p.prevTokEnd),
+		}
+		properties = append(properties, property)
+
+		if p.tok.Type == token.T_COMMA {
+			p.nextToken()
+			p.skipCommentsAndWhitespace()
+			continue
+		}
+		if p.tok.Type != token.T_SEMICOLON {
+			p.addError("line %d:%d: expected ; after property declaration $%s, got %s", p.tok.Pos.Line, p.tok.Pos.Column, name, p.tok.Literal)
+			return properties, nil
+		}
+		p.nextToken()
+		property.EndPos = ast.Position(p.prevTokEnd)
+		return properties, nil
 	}
-	return &ast.PropertyNode{
-		Name:          name,
-		TypeHint:      typeHint,
-		DefaultValue:  defaultValue,
-		Visibility:    visibility,
-		SetVisibility: setVisibility,
-		IsStatic:      isStatic,
-		IsReadonly:    isReadonly,
-		Hooks:         hooks,
-		Pos:           ast.Position(pos),
-		EndPos:        ast.Position(p.prevTokEnd),
-	}, nil
 }
 
 func (p *Parser) parsePropertyHooks(propertyName string) []ast.PropertyHookNode {

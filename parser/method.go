@@ -63,46 +63,21 @@ func (p *Parser) parseInterfaceDeclaration() ast.Node {
 
 	var members []ast.Node
 	for p.tok.Type != token.T_RBRACE && p.tok.Type != token.T_EOF {
-		// Skip doc comments, regular comments, and attributes in interface body
-		if p.tok.Type == token.T_DOC_COMMENT || p.tok.Type == token.T_COMMENT || p.tok.Type == token.T_ATTRIBUTE {
-			p.nextToken()
-			continue
+		modifiers := append([]string(nil), p.parseModifiers()...)
+		if p.tok.Type == token.T_RBRACE || p.tok.Type == token.T_EOF {
+			break
 		}
-		// Interface members: methods and constants
-		if p.tok.Type == token.T_PUBLIC || p.tok.Type == token.T_PRIVATE || p.tok.Type == token.T_PROTECTED {
-			visibility := p.tok.Literal
-			p.nextToken()
-			// Skip any number of 'static', comments, and whitespace
-			for {
-				if p.tok.Type == token.T_STATIC || p.tok.Type == token.T_DOC_COMMENT || p.tok.Type == token.T_COMMENT || p.tok.Type == token.T_WHITESPACE {
-					p.nextToken()
-				} else {
-					break
-				}
-			}
-			if p.tok.Type == token.T_CONST {
-				for _, constant := range p.parseConstantWithModifiers([]string{visibility}) {
-					members = append(members, constant)
-				}
-			} else if p.tok.Type == token.T_FUNCTION {
-				if method := p.parseInterfaceMethodWithVisibility(visibility); method != nil {
-					members = append(members, method)
-				}
-			} else if isInterfacePropertyTypeStart(p.tok.Type) {
-				if prop := p.parseInterfaceProperty(visibility); prop != nil {
-					members = append(members, prop)
-				}
-			} else {
-				p.addError("line %d:%d: unexpected token %s after visibility modifier in interface %s body", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal, name)
-				p.nextToken()
-			}
-		} else if p.tok.Type == token.T_FUNCTION {
-			if method := p.parseInterfaceMethod(); method != nil {
+		if p.tok.Type == token.T_FUNCTION {
+			if method := p.parseInterfaceMethodWithModifiers(modifiers); method != nil {
 				members = append(members, method)
 			}
 		} else if p.tok.Type == token.T_CONST {
-			for _, constant := range p.parseConstant() {
+			for _, constant := range p.parseConstantWithModifiers(modifiers) {
 				members = append(members, constant)
+			}
+		} else if isInterfacePropertyTypeStart(p.tok.Type) {
+			if prop := p.parseInterfaceProperty(visibilityFromModifiers(modifiers)); prop != nil {
+				members = append(members, prop)
 			}
 		} else {
 			p.addError("line %d:%d: unexpected token %s in interface %s body", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal, name)
@@ -127,7 +102,7 @@ func (p *Parser) parseInterfaceDeclaration() ast.Node {
 
 // parseInterfaceMethod parses a method declaration in an interface
 func (p *Parser) parseInterfaceMethod() ast.Node {
-	return p.parseInterfaceMethodWithVisibility("")
+	return p.parseInterfaceMethodWithModifiers(nil)
 }
 
 // isInterfacePropertyTypeStart reports whether tokenType can start a
@@ -184,7 +159,7 @@ func (p *Parser) parseInterfaceProperty(visibility string) ast.Node {
 	}
 }
 
-func (p *Parser) parseInterfaceMethodWithVisibility(initialVisibility string) ast.Node {
+func (p *Parser) parseInterfaceMethodWithModifiers(modifiers []string) ast.Node {
 	pos := p.tok.Pos
 
 	// Skip doc comments and regular comments before method signature
@@ -195,12 +170,7 @@ func (p *Parser) parseInterfaceMethodWithVisibility(initialVisibility string) as
 		p.nextToken()
 	}
 
-	// Parse visibility modifier if present
-	visibility := initialVisibility
-	if p.tok.Type == token.T_PUBLIC || p.tok.Type == token.T_PRIVATE || p.tok.Type == token.T_PROTECTED {
-		visibility = p.tok.Literal
-		p.nextToken()
-	}
+	visibility := visibilityFromModifiers(modifiers)
 
 	// Parse function keyword
 	if p.tok.Type != token.T_FUNCTION {
@@ -323,6 +293,7 @@ func (p *Parser) parseInterfaceMethodWithVisibility(initialVisibility string) as
 	return &ast.InterfaceMethodNode{
 		Name:       name,
 		Visibility: visibility,
+		Modifiers:  append([]string(nil), modifiers...),
 		ReturnType: returnType,
 		Params:     params,
 		PHPDoc:     p.consumeCurrentDoc(pos),

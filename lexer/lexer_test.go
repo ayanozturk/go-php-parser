@@ -314,6 +314,23 @@ func TestLexerKeywords(t *testing.T) {
 	}
 }
 
+func TestLexerMixedCaseKeywords(t *testing.T) {
+	tests := map[string]token.TokenType{
+		"forEach": token.T_FOREACH,
+		"FOREACH": token.T_FOREACH,
+		"FoReAcH": token.T_FOREACH,
+		"As":      token.T_AS,
+		"CONST":   token.T_CONST,
+	}
+	for literal, expectedType := range tests {
+		lex := New(literal)
+		tok := lex.NextToken()
+		if tok.Type != expectedType || tok.Literal != literal {
+			t.Errorf("expected %v for mixed-case keyword %q, got %v %q", expectedType, literal, tok.Type, tok.Literal)
+		}
+	}
+}
+
 func TestLexerPunctuation(t *testing.T) {
 	lex := New("]\\")
 	tok := lex.NextToken()

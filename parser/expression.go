@@ -196,6 +196,22 @@ func (p *Parser) parseUnaryExpression() ast.Node {
 			Expr: expr,
 			Pos:  ast.Position(throwTok.Pos),
 		}
+	case token.T_PRINT:
+		printTok := p.tok
+		p.nextToken()
+		// print binds less tightly than assignment but more tightly than the
+		// logical and/xor/or operators. Precedence 3 includes assignments and
+		// stops before the logical operators in PhpOperatorPrecedence.
+		expr := p.parseExpressionWithPrecedence(3, false)
+		if expr == nil {
+			p.addError("line %d:%d: expected expression after print", printTok.Pos.Line, printTok.Pos.Column)
+			return nil
+		}
+		return &ast.UnaryExpr{
+			Operator: "print",
+			Operand:  expr,
+			Pos:      ast.Position(printTok.Pos),
+		}
 	case token.T_STRING:
 		if p.tok.Literal == "!" {
 			opTok := p.tok
@@ -484,8 +500,18 @@ func (p *Parser) parseSimpleNew() ast.Node {
 		p.nextToken()
 		p.skipCommentsAndWhitespace()
 	}
+	anonymousClassModifier := ""
+	if p.tok.Type == token.T_READONLY {
+		anonymousClassModifier = p.tok.Literal
+		p.nextToken()
+		p.skipCommentsAndWhitespace()
+		if p.tok.Type != token.T_CLASS {
+			p.addError("line %d:%d: expected class after readonly in new expression, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal)
+			return nil
+		}
+	}
 	if p.tok.Type == token.T_CLASS {
-		classExpr, args := p.parseAnonymousClassExpression()
+		classExpr, args := p.parseAnonymousClassExpression(anonymousClassModifier)
 		if classExpr == nil {
 			return nil
 		}
@@ -603,7 +629,7 @@ func (p *Parser) parseSimpleFQCNOrFunctionCall() ast.Node {
 			if p.tok.Type == token.T_NS_SEPARATOR {
 				p.nameBuf.WriteString("\\")
 				p.nextToken()
-			} else if p.tok.Type == token.T_STRING || p.tok.Type == token.T_STATIC || p.tok.Type == token.T_SELF || p.tok.Type == token.T_PARENT || p.tok.Type == token.T_TRUE || p.tok.Type == token.T_FALSE || p.tok.Type == token.T_NULL {
+			} else if p.tok.Type == token.T_STRING || p.tok.Type == token.T_STATIC || p.tok.Type == token.T_SELF || p.tok.Type == token.T_PARENT || p.tok.Type == token.T_TRUE || p.tok.Type == token.T_FALSE || p.tok.Type == token.T_NULL || p.tok.Type == token.T_MIXED {
 				p.nameBuf.WriteString(p.tok.Literal)
 				p.nextToken()
 			} else {
@@ -955,6 +981,7 @@ func (p *Parser) parseSimpleObjectOrMethod(expr ast.Node) ast.Node {
 	objOpPos := p.tok.Pos
 	operator := p.tok.Literal
 	p.nextToken() // consume object operator
+	p.skipCommentsAndWhitespace()
 	if p.tok.Type == token.T_LBRACE {
 		p.nextToken() // consume {
 		memberExpr := p.parseExpressionWithStop(token.T_RBRACE)
@@ -1166,6 +1193,13 @@ func (p *Parser) parseSimpleIncludeExpression() ast.Node {
 func (p *Parser) parseSimpleYieldExpression() ast.Node {
 	pos := p.tok.Pos
 	p.nextToken() // consume yield
+	if p.tok.Type == token.T_SEMICOLON {
+		// A yield expression may omit its value; PHP treats `yield;` as
+		// yielding null. Leave the terminator for the statement parser.
+		return &ast.YieldNode{
+			Pos: ast.Position(pos),
+		}
+	}
 	if p.tok.Type == token.T_STRING && p.tok.Literal == "from" {
 		p.nextToken() // consume from
 		expr := p.parseUnaryOperandWithAssignmentStealback()

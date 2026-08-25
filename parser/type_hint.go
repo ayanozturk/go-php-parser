@@ -20,23 +20,27 @@ func (p *Parser) parseTypeHint() string {
 		}
 		// Parse FQCN or namespaced type: (\|NS_SEPARATOR)*STRING (repeated)
 		typeSegment := ""
-		// Accept leading backslash
-		if p.tok.Type == token.T_NS_SEPARATOR || p.tok.Literal == "\\" {
-			typeSegment += "\\"
-			p.nextToken()
-		}
-		for {
-			if p.tok.Type == token.T_STRING || p.tok.Type == token.T_NEW || p.tok.Type == token.T_STATIC || p.tok.Type == token.T_SELF || p.tok.Type == token.T_PARENT || p.tok.Type == token.T_NEVER || (p.tok.Type == token.T_FALSE && p.tok.Literal == "false") || (p.tok.Type == token.T_TRUE && p.tok.Literal == "true") {
-				typeSegment += p.tok.Literal
+		if p.tok.Type == token.T_LPAREN {
+			typeSegment = p.parseParenthesizedTypeHint()
+		} else {
+			// Accept leading backslash
+			if p.tok.Type == token.T_NS_SEPARATOR || p.tok.Literal == "\\" {
+				typeSegment += "\\"
 				p.nextToken()
-				// Accept chained namespaces: \Foo\Bar
-				if p.tok.Type == token.T_NS_SEPARATOR || p.tok.Literal == "\\" {
-					typeSegment += "\\"
-					p.nextToken()
-					continue
-				}
 			}
-			break
+			for {
+				if p.tok.Type == token.T_STRING || p.tok.Type == token.T_NEW || p.tok.Type == token.T_STATIC || p.tok.Type == token.T_SELF || p.tok.Type == token.T_PARENT || p.tok.Type == token.T_NEVER || (p.tok.Type == token.T_FALSE && p.tok.Literal == "false") || (p.tok.Type == token.T_TRUE && p.tok.Literal == "true") {
+					typeSegment += p.tok.Literal
+					p.nextToken()
+					// Accept chained namespaces: \Foo\Bar
+					if p.tok.Type == token.T_NS_SEPARATOR || p.tok.Literal == "\\" {
+						typeSegment += "\\"
+						p.nextToken()
+						continue
+					}
+				}
+				break
+			}
 		}
 		if typeSegment == "" {
 			// If we saw a type hint starter but couldn't form a valid segment, advance to avoid infinite loop
@@ -106,6 +110,19 @@ func (p *Parser) parseTypeHint() string {
 		}
 	}
 
+	return typeHint
+}
+
+func (p *Parser) parseParenthesizedTypeHint() string {
+	typeHint := "("
+	p.nextToken()
+	typeHint += p.parseTypeHint()
+	if p.tok.Type != token.T_RPAREN {
+		p.addError("expected ')' after parenthesized type hint, got %s", p.tok.Literal)
+		return typeHint
+	}
+	typeHint += ")"
+	p.nextToken()
 	return typeHint
 }
 

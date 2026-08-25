@@ -42,7 +42,8 @@ func (i *InterfaceNode) TokenLiteral() string {
 type InterfaceMethodNode struct {
 	Name       string
 	Visibility string // public, private, protected
-	ReturnType Node   // Changed from string to Node to support union types
+	Modifiers  []string
+	ReturnType Node // Changed from string to Node to support union types
 	Params     []Node
 	PHPDoc     *PHPDocNode // Associated PHPDoc comment
 	Pos        Position
