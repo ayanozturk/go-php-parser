@@ -106,6 +106,46 @@ func (idx *ProjectIndex) ResolveMethod(className, methodName string) (ResolvedMe
 	return idx.resolveMethodWithTemplates(className, methodName, nil, make(map[string]struct{}))
 }
 
+func (idx *ProjectIndex) methodReferenceParams(className, methodName string) ([]ResolvedParam, bool) {
+	var seen [32]string
+	return idx.methodReferenceParamsSeen(className, methodName, seen[:0])
+}
+
+func (idx *ProjectIndex) methodReferenceParamsSeen(className, methodName string, seen []string) ([]ResolvedParam, bool) {
+	if idx == nil {
+		return nil, false
+	}
+	if len(seen) == cap(seen) {
+		method, ok := idx.ResolveMethod(className, methodName)
+		return method.Params, ok
+	}
+	class, ok := idx.ResolveClass(className)
+	if !ok {
+		return nil, false
+	}
+	key := indexKey(class.Name)
+	for _, visited := range seen {
+		if visited == key {
+			return nil, false
+		}
+	}
+	seen = append(seen, key)
+	if method, found := idx.Methods[key][strings.ToLower(methodName)]; found {
+		return method.Params, true
+	}
+	for _, parentName := range class.Extends {
+		if params, found := idx.methodReferenceParamsSeen(parentName, methodName, seen); found {
+			return params, true
+		}
+	}
+	for _, parentName := range class.Implements {
+		if params, found := idx.methodReferenceParamsSeen(parentName, methodName, seen); found {
+			return params, true
+		}
+	}
+	return nil, false
+}
+
 func (idx *ProjectIndex) ResolveOwnMethod(className, methodName string) (ResolvedMethod, bool) {
 	if idx == nil {
 		return ResolvedMethod{}, false

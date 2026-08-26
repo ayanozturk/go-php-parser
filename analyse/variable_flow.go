@@ -98,6 +98,7 @@ type variableFlowAnalyzer struct {
 	includeDefinitelyDefined bool
 	resolver                 SymbolResolver
 	typeContext              fileTypeContext
+	currentClassName         string
 	readIndex                map[any]int
 	reads                    []variableReadFact
 	variableIDs              map[string]int
@@ -321,26 +322,39 @@ func (a *variableFlowAnalyzer) statement(node ast.Node, state *variableFlowState
 		return variableFlowResult{normal: state}
 	case *ast.ClassNode:
 		a.propertyHooks(n.Properties)
+		previousClassName := a.currentClassName
+		a.currentClassName = a.typeContext.resolveClassLike(n.Name)
 		for _, method := range n.Methods {
 			if function, ok := method.(*ast.FunctionNode); ok {
 				a.statements(function.Body, functionVariableFlowState(a, function, true))
 			}
 		}
+		a.currentClassName = previousClassName
 		return variableFlowResult{normal: state}
 	case *ast.TraitNode:
 		a.propertyHooks(n.Body)
+		previousClassName := a.currentClassName
+		if n.Name != nil {
+			a.currentClassName = a.typeContext.resolveClassLike(n.Name.Name)
+		} else {
+			a.currentClassName = ""
+		}
 		for _, member := range n.Body {
 			if function, ok := member.(*ast.FunctionNode); ok {
 				a.statements(function.Body, functionVariableFlowState(a, function, true))
 			}
 		}
+		a.currentClassName = previousClassName
 		return variableFlowResult{normal: state}
 	case *ast.EnumNode:
+		previousClassName := a.currentClassName
+		a.currentClassName = a.typeContext.resolveClassLike(n.Name)
 		for _, member := range n.Methods {
 			if function, ok := member.(*ast.FunctionNode); ok {
 				a.statements(function.Body, functionVariableFlowState(a, function, true))
 			}
 		}
+		a.currentClassName = previousClassName
 		return variableFlowResult{normal: state}
 	case *ast.StaticVarDeclNode:
 		for _, entry := range n.Vars {
@@ -703,12 +717,92 @@ func (a *variableFlowAnalyzer) functionCallParams(call *ast.FunctionCallNode) []
 	if name == "" {
 		return nil
 	}
+	if className, methodName, ok := strings.Cut(name, "::"); ok {
+		className = a.resolveCallClassName(className)
+		if className == "" {
+			return nil
+		}
+		params, found := resolveMethodReferenceParams(a.resolver, className, methodName)
+		if !found {
+			return nil
+		}
+		return params
+	}
 	resolvedName := resolveFunctionNameForCall(name, a.typeContext, &AnalysisContext{Resolver: a.resolver})
 	function, ok := a.resolver.ResolveFunction(resolvedName)
 	if !ok {
 		return nil
 	}
 	return function.Params
+}
+
+func (a *variableFlowAnalyzer) resolveCallClassName(name string) string {
+	switch strings.ToLower(strings.TrimPrefix(name, `\`)) {
+	case "self", "static":
+		return a.currentClassName
+	case "parent":
+		if a.currentClassName == "" || a.resolver == nil {
+			return ""
+		}
+		if class, ok := a.resolver.ResolveClass(a.currentClassName); ok && len(class.Extends) > 0 {
+			return class.Extends[0]
+		}
+		return ""
+	default:
+		return a.typeContext.resolveClassLike(name)
+	}
+}
+
+func (a *variableFlowAnalyzer) methodCallParams(call *ast.MethodCallNode) []ResolvedParam {
+	if a == nil || a.resolver == nil || call == nil || call.Method == "" {
+		return nil
+	}
+	className := ""
+	if variable, ok := call.Object.(*ast.VariableNode); ok && variable.Name == "this" {
+		className = a.currentClassName
+	} else {
+		className = methodCallClassName(call.Object, a.typeContext)
+	}
+	if className == "" {
+		return nil
+	}
+	params, ok := resolveMethodReferenceParams(a.resolver, className, call.Method)
+	if !ok {
+		return nil
+	}
+	return params
+}
+
+func (a *variableFlowAnalyzer) constructorParams(call *ast.NewNode) []ResolvedParam {
+	if a == nil || a.resolver == nil || call == nil {
+		return nil
+	}
+	className := ""
+	if call.ClassName != "" {
+		className = a.resolveCallClassName(call.ClassName)
+	} else if identifier, ok := call.ClassExpr.(*ast.IdentifierNode); ok {
+		className = a.resolveCallClassName(identifier.Value)
+	}
+	if className == "" {
+		return nil
+	}
+	params, _ := resolveMethodReferenceParams(a.resolver, className, "__construct")
+	return params
+}
+
+func (a *variableFlowAnalyzer) callArguments(arguments []ast.Node, params []ResolvedParam, state *variableFlowState, suppressed bool) {
+	for index, argument := range arguments {
+		value := argumentValue(argument)
+		if param, ok := resolvedArgumentParam(params, argument, index); ok && param.IsByRef && isVariableFlowTarget(value) {
+			if !param.IsOut {
+				a.expression(value, state, suppressed)
+			}
+			a.assignmentTargetExpressions(value, state)
+			defineVariableFlowTarget(value, state)
+			continue
+		}
+		a.expression(value, state, suppressed)
+	}
 }
 
 func resolvedArgumentParam(params []ResolvedParam, argument ast.Node, position int) (ResolvedParam, bool) {
@@ -759,29 +853,13 @@ func (a *variableFlowAnalyzer) expression(node ast.Node, state *variableFlowStat
 			return
 		}
 		a.expression(n.Name, state, suppressed)
-		params := a.functionCallParams(n)
-		for index, argument := range n.Args {
-			value := argumentValue(argument)
-			if param, ok := resolvedArgumentParam(params, argument, index); ok && param.IsByRef && isVariableFlowTarget(value) {
-				if !param.IsOut {
-					a.expression(value, state, suppressed)
-				}
-				a.assignmentTargetExpressions(value, state)
-				defineVariableFlowTarget(value, state)
-				continue
-			}
-			a.expression(value, state, suppressed)
-		}
+		a.callArguments(n.Args, a.functionCallParams(n), state, suppressed)
 	case *ast.MethodCallNode:
 		a.expression(n.Object, state, suppressed)
-		for _, argument := range n.Args {
-			a.expression(argumentValue(argument), state, suppressed)
-		}
+		a.callArguments(n.Args, a.methodCallParams(n), state, suppressed)
 	case *ast.NewNode:
 		a.expression(n.ClassExpr, state, suppressed)
-		for _, argument := range n.Args {
-			a.expression(argumentValue(argument), state, suppressed)
-		}
+		a.callArguments(n.Args, a.constructorParams(n), state, suppressed)
 	case *ast.PropertyFetchNode:
 		a.expression(n.Object, state, suppressed)
 	case *ast.ClassConstFetchNode:

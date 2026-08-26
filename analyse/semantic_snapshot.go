@@ -337,6 +337,13 @@ func (s *SemanticSnapshot) ResolveMethod(className, methodName string) (Resolved
 	return method, true
 }
 
+func (s *SemanticSnapshot) methodReferenceParams(className, methodName string) ([]ResolvedParam, bool) {
+	if s == nil || s.project == nil {
+		return nil, false
+	}
+	return s.project.methodReferenceParams(className, methodName)
+}
+
 func (s *SemanticSnapshot) ResolveOwnMethod(className, methodName string) (ResolvedMethod, bool) {
 	if s == nil {
 		return ResolvedMethod{}, false

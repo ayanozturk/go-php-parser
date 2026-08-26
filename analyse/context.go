@@ -24,6 +24,27 @@ type methodsDeclaredRanger interface {
 	rangeMethodsDeclaredBy(className string, visit func(ResolvedMethod) bool)
 }
 
+// methodReferenceParamResolver is an internal allocation-light query for
+// analyses that only inspect parameter reference metadata. Implementations
+// return immutable index-owned params; callers must not retain or mutate them.
+type methodReferenceParamResolver interface {
+	methodReferenceParams(className, methodName string) ([]ResolvedParam, bool)
+}
+
+func resolveMethodReferenceParams(resolver SymbolResolver, className, methodName string) ([]ResolvedParam, bool) {
+	if resolver == nil {
+		return nil, false
+	}
+	if referenceResolver, ok := resolver.(methodReferenceParamResolver); ok {
+		return referenceResolver.methodReferenceParams(className, methodName)
+	}
+	method, ok := resolver.ResolveMethod(className, methodName)
+	if !ok {
+		return nil, false
+	}
+	return method.Params, true
+}
+
 func rangeMethodsDeclaredBy(resolver SymbolResolver, className string, visit func(ResolvedMethod) bool) {
 	if resolver == nil || visit == nil {
 		return

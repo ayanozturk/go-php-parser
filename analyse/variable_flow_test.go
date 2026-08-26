@@ -262,6 +262,54 @@ function inspect(): void {
 	}
 }
 
+func TestVariableFlowModelsResolvedMethodAndConstructorReferenceWrites(t *testing.T) {
+	const filename = "method-reference-flow.php"
+	nodes := parseControlFlowPHP(t, `<?php
+class ParentWriter {
+    public static function fillParent(&$out): void { $out = 1; }
+}
+class Writer extends ParentWriter {
+    public function __construct(&$out) { $out = 1; }
+    public function fill(&$out): void { $out = 1; }
+    public static function fillStatic(&$out): void { $out = 1; }
+    public function run(object $dynamic): void {
+        $this->fill($instance);
+        echo $instance;
+        self::fillStatic($selfStatic);
+        echo $selfStatic;
+        parent::fillParent($parentStatic);
+        echo $parentStatic;
+		new self($selfConstructed);
+		echo $selfConstructed;
+        $dynamic->fill($unresolved);
+    }
+}
+Writer::fillStatic($static);
+echo $static;
+new Writer($constructed);
+echo $constructed;
+(new Writer($temporary))->fill($newReceiver);
+echo $temporary;
+echo $newReceiver;
+`)
+	snapshot := variableFlowSnapshot(t, filename, nodes)
+
+	for _, name := range []string{"instance", "selfStatic", "parentStatic", "selfConstructed", "static", "constructed", "temporary", "newReceiver"} {
+		assertVariableReadState(t, snapshot, filename, name, VariableDefinitelyDefined)
+	}
+	assertVariableReadState(t, snapshot, filename, "unresolved", VariableUndefined)
+
+	levelOne := checkUndefinedVariables(filename, nodes, snapshot.NewAnalysisContext())
+	for _, name := range []string{"instance", "selfStatic", "parentStatic", "selfConstructed", "static", "constructed", "temporary", "newReceiver"} {
+		if hasIssueContaining(levelOne, level1VariablesCode, "$"+name) {
+			t.Fatalf("resolved reference-defined $%s was reported: %#v", name, levelOne)
+		}
+	}
+	if !hasIssueContaining(levelOne, level1VariablesCode, "Variable $unresolved might not be defined.") {
+		t.Fatalf("dynamic method reference input was not reported: %#v", levelOne)
+	}
+}
+
 func TestVariableFlowFactsAreDeterministicDefensiveAndConcurrent(t *testing.T) {
 	const filename = "stable-variable-flow.php"
 	nodes := parseControlFlowPHP(t, `<?php

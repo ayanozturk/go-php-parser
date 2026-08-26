@@ -69,6 +69,34 @@
         "PHPStan.Level1.Variables"
       ],
       "phpstanIdentifiers": ["variable.undefined"]
+    },
+    {
+      "id": "instance-method-by-reference",
+      "capability": "variables defined by a resolved instance method call",
+      "file": "instance-method-by-reference.php",
+      "engineCodes": [],
+      "phpstanIdentifiers": []
+    },
+    {
+      "id": "static-method-by-reference",
+      "capability": "variables defined by resolved self and explicit static method calls",
+      "file": "static-method-by-reference.php",
+      "engineCodes": [],
+      "phpstanIdentifiers": []
+    },
+    {
+      "id": "constructor-by-reference",
+      "capability": "variables defined by a resolved constructor call",
+      "file": "constructor-by-reference.php",
+      "engineCodes": [],
+      "phpstanIdentifiers": []
+    },
+    {
+      "id": "dynamic-receiver-by-reference",
+      "capability": "undefined variables passed through a dynamic receiver",
+      "file": "dynamic-receiver-by-reference.php",
+      "engineCodes": ["PHPStan.Level1.Variables"],
+      "phpstanIdentifiers": ["variable.undefined"]
     }
   ]
 }
