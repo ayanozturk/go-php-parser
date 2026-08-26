@@ -218,6 +218,50 @@ function closures(): void {
 	assertVariableReadState(t, snapshot, filename, "inside", VariableUndefined)
 }
 
+func TestVariableFlowModelsExplicitClosureCapturesAndReferenceWrites(t *testing.T) {
+	const filename = "reference-flow.php"
+	nodes := parseControlFlowPHP(t, `<?php
+function fill(&$out): void { $out = 1; }
+function inspect(): void {
+    $closure = function () use ($missing): void { echo $missing; };
+    $writer = function () use (&$captured): void { $captured = 1; };
+    echo $captured;
+    fill($output);
+    echo $output;
+    parse_str('key=value', $parsed);
+    echo $parsed;
+    sort($items);
+    echo $items;
+    $alias =& $source;
+    echo $alias;
+    echo $source;
+}`)
+	snapshot := variableFlowSnapshot(t, filename, nodes)
+
+	assertVariableReadStates(t, snapshot, filename, "missing", []VariableDefinedness{VariableUndefined, VariableDefinitelyDefined})
+	for _, name := range []string{"captured", "output", "parsed", "alias"} {
+		assertVariableReadState(t, snapshot, filename, name, VariableDefinitelyDefined)
+	}
+	assertVariableReadState(t, snapshot, filename, "source", VariableUndefined)
+	assertVariableReadStates(t, snapshot, filename, "items", []VariableDefinedness{VariableUndefined, VariableDefinitelyDefined})
+
+	levelOne := checkUndefinedVariables(filename, nodes, snapshot.NewAnalysisContext())
+	if !hasIssueContaining(levelOne, level1VariablesCode, "Variable $missing might not be defined.") {
+		t.Fatalf("by-value undefined capture was not reported: %#v", levelOne)
+	}
+	for _, name := range []string{"captured", "output", "parsed", "alias"} {
+		if hasIssueContaining(levelOne, level1VariablesCode, "$"+name) {
+			t.Fatalf("reference-defined $%s was reported: %#v", name, levelOne)
+		}
+	}
+	if !hasIssueContaining(levelOne, level1VariablesCode, "Variable $source might not be defined.") {
+		t.Fatalf("reference source direct read was not reported: %#v", levelOne)
+	}
+	if !hasIssueContaining(levelOne, level1VariablesCode, "Variable $items might not be defined.") {
+		t.Fatalf("input-output reference did not preserve its input read: %#v", levelOne)
+	}
+}
+
 func TestVariableFlowFactsAreDeterministicDefensiveAndConcurrent(t *testing.T) {
 	const filename = "stable-variable-flow.php"
 	nodes := parseControlFlowPHP(t, `<?php
@@ -252,6 +296,42 @@ function stable(bool $condition): void {
 	wait.Wait()
 }
 
+func TestVariableFlowSnapshotLazilyMaterializesDefinitelyDefinedReads(t *testing.T) {
+	const filename = "lazy-variable-flow.php"
+	nodes := parseControlFlowPHP(t, `<?php
+function inspect(): void {
+    $defined = 1;
+    echo $defined;
+    echo $missing;
+}`)
+	snapshot := variableFlowSnapshot(t, filename, nodes)
+
+	diagnosticReads := snapshot.variableReads[filename]
+	if len(diagnosticReads) != 1 || diagnosticReads[0].name != "missing" {
+		t.Fatalf("eager diagnostic reads = %#v, want only $missing", diagnosticReads)
+	}
+	lazy := snapshot.completeVariableReads[filename]
+	if lazy == nil || lazy.reads != nil {
+		t.Fatalf("complete reads were materialized eagerly: %#v", lazy)
+	}
+
+	complete := snapshot.VariableReadsForFile(filename)
+	if len(complete) != 2 {
+		t.Fatalf("complete reads = %#v, want defined and undefined reads", complete)
+	}
+	if lazy.reads == nil || lazy.nodes != nil {
+		t.Fatal("lazy materialization did not cache facts and release AST roots")
+	}
+
+	var ranged []VariableReadFact
+	snapshot.rangeVariableReadsForFile(filename, func(read VariableReadFact) {
+		ranged = append(ranged, read)
+	})
+	if len(ranged) != 1 || ranged[0].Key.Name != "missing" {
+		t.Fatalf("internal diagnostic range = %#v, want only $missing", ranged)
+	}
+}
+
 func TestVariableFlowRuleStartsUndefinedDiagnosticsAtLevelOne(t *testing.T) {
 	const filename = "variable-levels.php"
 	nodes := parseControlFlowPHP(t, `<?php
@@ -279,7 +359,8 @@ function choose(bool $condition): void {
 }
 
 func TestVariableFlowStateCloneSharesUntilFirstWrite(t *testing.T) {
-	original := initialVariableFlowState()
+	analyzer := &variableFlowAnalyzer{variableIDs: make(map[string]int)}
+	original := initialVariableFlowState(analyzer)
 	original.set("seed", VariableDefinitelyDefined)
 	clone := cloneVariableFlowState(original)
 
@@ -299,7 +380,8 @@ func TestVariableFlowStateCloneSharesUntilFirstWrite(t *testing.T) {
 }
 
 func TestVariableFlowStateKeepsPredefinedVariablesImplicit(t *testing.T) {
-	state := initialVariableFlowState()
+	analyzer := &variableFlowAnalyzer{variableIDs: make(map[string]int)}
+	state := initialVariableFlowState(analyzer)
 	if len(state.values) != 0 {
 		t.Fatalf("initial state materialized predefined variables: %#v", state.values)
 	}
@@ -307,6 +389,26 @@ func TestVariableFlowStateKeepsPredefinedVariablesImplicit(t *testing.T) {
 		if state.definedness(name) != VariableDefinitelyDefined {
 			t.Fatalf("predefined variable $%s is not definitely defined", name)
 		}
+	}
+}
+
+func TestVariableFlowStateJoinsCompactVariableSlots(t *testing.T) {
+	analyzer := &variableFlowAnalyzer{variableIDs: make(map[string]int)}
+	entry := initialVariableFlowState(analyzer)
+	left := cloneVariableFlowState(entry)
+	right := cloneVariableFlowState(entry)
+	left.set("branch", VariableDefinitelyDefined)
+
+	joined := joinedVariableFlowState(left, right)
+	if joined.definedness("branch") != VariablePossiblyDefined {
+		t.Fatalf("joined branch state = %v, want possibly defined", joined.definedness("branch"))
+	}
+	if got := len(joined.values); got != 1 {
+		t.Fatalf("joined slot count = %d, want 1", got)
+	}
+	right.set("branch", VariableDefinitelyDefined)
+	if joinedVariableFlowState(left, right).definedness("branch") != VariableDefinitelyDefined {
+		t.Fatal("exhaustive slot join did not preserve definite state")
 	}
 }
 

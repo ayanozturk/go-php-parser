@@ -109,6 +109,8 @@ type ResolvedParam struct {
 	Type       string
 	HasDefault bool
 	IsVariadic bool
+	IsByRef    bool
+	IsOut      bool // reference argument is defined without requiring an input read
 }
 
 type AnalysisContext struct {

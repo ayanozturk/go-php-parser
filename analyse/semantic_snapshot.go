@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"sync"
 
 	"github.com/ayanozturk/go-php-parser/ast"
 )
@@ -68,7 +69,27 @@ type SemanticSnapshot struct {
 	statementReachability   map[FlowStatementKey]bool
 	ambiguousFlowStatements map[FlowStatementKey]struct{}
 	variableReads           map[string][]variableReadFact
+	completeVariableReads   map[string]*lazyVariableReadFacts
 	filenames               []string
+}
+
+type lazyVariableReadFacts struct {
+	once     sync.Once
+	filename string
+	nodes    []ast.Node
+	resolver SymbolResolver
+	reads    []variableReadFact
+}
+
+func (f *lazyVariableReadFacts) complete() []variableReadFact {
+	if f == nil {
+		return nil
+	}
+	f.once.Do(func() {
+		f.reads = buildVariableFlowFacts(f.filename, f.nodes, true, f.resolver)
+		f.nodes = nil
+	})
+	return f.reads
 }
 
 // NewSemanticSnapshot builds a project graph, derives reusable semantic facts,
@@ -205,8 +226,11 @@ func (s *SemanticSnapshot) NewAnalysisContext() *AnalysisContext {
 
 func (s *SemanticSnapshot) generateVariableFlowFacts(parsed map[string][]ast.Node) {
 	s.variableReads = make(map[string][]variableReadFact, len(s.filenames))
+	s.completeVariableReads = make(map[string]*lazyVariableReadFacts, len(s.filenames))
 	for _, filename := range s.filenames {
-		s.variableReads[filename] = buildVariableFlowFacts(filename, parsed[filename])
+		nodes := append([]ast.Node(nil), parsed[filename]...)
+		s.variableReads[filename] = buildVariableFlowFacts(filename, nodes, false, s)
+		s.completeVariableReads[filename] = &lazyVariableReadFacts{filename: filename, nodes: nodes, resolver: s}
 	}
 }
 
@@ -215,7 +239,7 @@ func (s *SemanticSnapshot) VariableReadsForFile(filename string) []VariableReadF
 	if s == nil {
 		return nil
 	}
-	reads := s.variableReads[filename]
+	reads := s.completeVariableReads[filename].complete()
 	result := make([]VariableReadFact, len(reads))
 	for i, read := range reads {
 		result[i] = read.public(filename)

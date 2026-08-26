@@ -3,6 +3,7 @@ package parser
 import (
 	"github.com/ayanozturk/go-php-parser/ast"
 	"github.com/ayanozturk/go-php-parser/token"
+	"strings"
 )
 
 // parseFunction parses a PHP function declaration
@@ -72,6 +73,7 @@ func (p *Parser) parseFunction(modifiers []string) (ast.Node, error) {
 	}
 	p.nextToken() // consume )
 
+	var closureUses []ast.ClosureUse
 	if name == "" && p.tok.Type == token.T_USE {
 		p.nextToken() // consume use
 		if p.tok.Type != token.T_LPAREN {
@@ -80,13 +82,21 @@ func (p *Parser) parseFunction(modifiers []string) (ast.Node, error) {
 		}
 		p.nextToken() // consume (
 		for p.tok.Type != token.T_RPAREN && p.tok.Type != token.T_EOF {
+			byRef := false
 			if p.tok.Type == token.T_AMPERSAND {
+				byRef = true
 				p.nextToken()
 			}
 			if p.tok.Type != token.T_VARIABLE {
 				p.addError("line %d:%d: expected closure use variable, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal)
 				return nil, nil
 			}
+			closureUses = append(closureUses, ast.ClosureUse{
+				Name:   strings.TrimPrefix(p.tok.Literal, "$"),
+				ByRef:  byRef,
+				Pos:    ast.Position(p.tok.Pos),
+				EndPos: ast.Position(p.tok.EndPos()),
+			})
 			p.nextToken()
 			if p.tok.Type == token.T_COMMA {
 				p.nextToken()
@@ -125,6 +135,7 @@ func (p *Parser) parseFunction(modifiers []string) (ast.Node, error) {
 			return &ast.FunctionNode{
 				Name:       name,
 				Params:     params,
+				Uses:       closureUses,
 				ReturnType: returnType,
 				Modifiers:  savedModifiers,
 				Body:       nil,
@@ -151,6 +162,7 @@ func (p *Parser) parseFunction(modifiers []string) (ast.Node, error) {
 		return &ast.FunctionNode{
 			Name:       name,
 			Params:     params,
+			Uses:       closureUses,
 			ReturnType: returnType,
 			Modifiers:  savedModifiers,
 			Body:       nil,
@@ -210,6 +222,7 @@ func (p *Parser) parseFunction(modifiers []string) (ast.Node, error) {
 	return &ast.FunctionNode{
 		Name:       name,
 		Params:     params,
+		Uses:       closureUses,
 		ReturnType: returnType,
 		Modifiers:  savedModifiers,
 		Body:       body,

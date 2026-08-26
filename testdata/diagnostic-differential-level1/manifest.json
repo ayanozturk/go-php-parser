@@ -39,6 +39,36 @@
       "file": "undefined-variable.php",
       "engineCodes": ["PHPStan.Level1.Variables"],
       "phpstanIdentifiers": ["variable.undefined"]
+    },
+    {
+      "id": "closure-by-value-undefined-variable",
+      "capability": "undefined variables captured by value and read in a closure",
+      "file": "closure-by-value-undefined-variable.php",
+      "engineCodes": ["PHPStan.Level1.Variables"],
+      "phpstanIdentifiers": ["variable.undefined"]
+    },
+    {
+      "id": "closure-by-reference-definition",
+      "capability": "variables defined through a by-reference closure capture",
+      "file": "closure-by-reference-definition.php",
+      "engineCodes": [],
+      "phpstanIdentifiers": []
+    },
+    {
+      "id": "by-reference-output-parameter",
+      "capability": "variables defined through a by-reference function parameter",
+      "file": "by-reference-output-parameter.php",
+      "engineCodes": [],
+      "phpstanIdentifiers": []
+    },
+    {
+      "id": "reference-assignment",
+      "capability": "variables defined through reference assignment",
+      "file": "reference-assignment.php",
+      "engineCodes": [
+        "PHPStan.Level1.Variables"
+      ],
+      "phpstanIdentifiers": ["variable.undefined"]
     }
   ]
 }

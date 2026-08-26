@@ -487,6 +487,8 @@ func buildClassScopeDataWithSeen(class *ast.ClassNode, typeCtx fileTypeContext, 
 				Type:       paramType.String(),
 				HasDefault: param.DefaultValue != nil,
 				IsVariadic: param.IsVariadic,
+				IsByRef:    param.IsByRef,
+				IsOut:      param.IsByRef,
 			})
 		}
 		data.methods[strings.ToLower(method.Name)] = resolved

@@ -12,10 +12,21 @@ type FunctionNode struct {
 	Modifiers  []string // All modifiers, e.g. public, static, final, abstract
 	ReturnType string
 	Params     []Node
+	Uses       []ClosureUse
 	Body       []Node
 	PHPDoc     *PHPDocNode // Associated PHPDoc comment
 	Pos        Position
 	EndPos     Position
+}
+
+// ClosureUse preserves one explicit anonymous-function capture. By-reference
+// captures define the outer variable at closure creation; by-value captures
+// read the outer variable.
+type ClosureUse struct {
+	Name   string
+	ByRef  bool
+	Pos    Position
+	EndPos Position
 }
 
 func (f *FunctionNode) NodeType() string       { return "Function" }

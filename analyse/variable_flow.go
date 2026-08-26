@@ -58,7 +58,9 @@ func (f variableReadFact) public(filename string) VariableReadFact {
 	}
 }
 
-// VariableFlowReader exposes deterministic, immutable variable-read facts.
+// VariableFlowReader exposes the complete deterministic, immutable variable-read
+// fact set. SemanticSnapshot materializes definitely-defined reads lazily because
+// ordinary diagnostics only need undefined and possibly-defined reads.
 type VariableFlowReader interface {
 	VariableReadsForFile(filename string) []VariableReadFact
 }
@@ -79,7 +81,8 @@ var predefinedVariableSet = func() map[string]struct{} {
 }()
 
 type variableFlowState struct {
-	values map[string]VariableDefinedness
+	owner  *variableFlowAnalyzer
+	values []VariableDefinedness
 	shared bool
 }
 
@@ -91,14 +94,26 @@ type variableFlowResult struct {
 }
 
 type variableFlowAnalyzer struct {
-	filename  string
-	readIndex map[ast.Node]int
-	reads     []variableReadFact
+	filename                 string
+	includeDefinitelyDefined bool
+	resolver                 SymbolResolver
+	typeContext              fileTypeContext
+	readIndex                map[any]int
+	reads                    []variableReadFact
+	variableIDs              map[string]int
+	variableNames            []string
 }
 
-func buildVariableFlowFacts(filename string, nodes []ast.Node) []variableReadFact {
-	analyzer := &variableFlowAnalyzer{filename: filename, readIndex: make(map[ast.Node]int)}
-	analyzer.statements(nodes, initialVariableFlowState())
+func buildVariableFlowFacts(filename string, nodes []ast.Node, includeDefinitelyDefined bool, resolver SymbolResolver) []variableReadFact {
+	analyzer := &variableFlowAnalyzer{
+		filename:                 filename,
+		includeDefinitelyDefined: includeDefinitelyDefined,
+		resolver:                 resolver,
+		typeContext:              collectFileTypeContext(nodes),
+		readIndex:                make(map[any]int),
+		variableIDs:              make(map[string]int),
+	}
+	analyzer.statements(nodes, initialVariableFlowState(analyzer))
 	facts := analyzer.reads
 	sort.Slice(facts, func(i, j int) bool {
 		left, right := facts[i], facts[j]
@@ -113,12 +128,12 @@ func buildVariableFlowFacts(filename string, nodes []ast.Node) []variableReadFac
 	return facts
 }
 
-func initialVariableFlowState() *variableFlowState {
-	return &variableFlowState{}
+func initialVariableFlowState(analyzer *variableFlowAnalyzer) *variableFlowState {
+	return &variableFlowState{owner: analyzer}
 }
 
-func functionVariableFlowState(function *ast.FunctionNode, includeThis bool) *variableFlowState {
-	state := initialVariableFlowState()
+func functionVariableFlowState(analyzer *variableFlowAnalyzer, function *ast.FunctionNode, includeThis bool) *variableFlowState {
+	state := initialVariableFlowState(analyzer)
 	for _, parameter := range function.Params {
 		if param, ok := parameter.(*ast.ParamNode); ok {
 			state.set(param.Name, VariableDefinitelyDefined)
@@ -135,7 +150,7 @@ func cloneVariableFlowState(state *variableFlowState) *variableFlowState {
 		return nil
 	}
 	state.shared = true
-	return &variableFlowState{values: state.values, shared: true}
+	return &variableFlowState{owner: state.owner, values: state.values, shared: true}
 }
 
 func joinedVariableFlowState(states ...*variableFlowState) *variableFlowState {
@@ -161,22 +176,26 @@ func joinedVariableFlowState(states ...*variableFlowState) *variableFlowState {
 	if allEqual {
 		return cloneVariableFlowState(present[0])
 	}
-	joined := &variableFlowState{values: make(map[string]VariableDefinedness)}
-	names := make(map[string]struct{})
+	owner := present[0].owner
+	valueCount := 0
 	for _, state := range present {
-		for name := range state.values {
-			names[name] = struct{}{}
+		if len(state.values) > valueCount {
+			valueCount = len(state.values)
 		}
 	}
-	for name := range names {
-		value := present[0].definedness(name)
+	joined := &variableFlowState{owner: owner, values: make([]VariableDefinedness, valueCount)}
+	lastDefined := -1
+	for id := 0; id < valueCount; id++ {
+		value := present[0].definednessByID(id)
 		for _, state := range present[1:] {
-			value = joinVariableDefinedness(value, state.definedness(name))
+			value = joinVariableDefinedness(value, state.definednessByID(id))
 		}
 		if value != VariableUndefined {
-			joined.values[name] = value
+			joined.values[id] = value
+			lastDefined = id
 		}
 	}
+	joined.values = joined.values[:lastDefined+1]
 	return joined
 }
 
@@ -184,8 +203,8 @@ func (s *variableFlowState) definedness(name string) VariableDefinedness {
 	if s == nil {
 		return VariableUndefined
 	}
-	if value, ok := s.values[name]; ok {
-		return value
+	if id, ok := s.owner.variableIDs[name]; ok {
+		return s.definednessByID(id)
 	}
 	if _, predefined := predefinedVariableSet[name]; predefined {
 		return VariableDefinitelyDefined
@@ -193,17 +212,37 @@ func (s *variableFlowState) definedness(name string) VariableDefinedness {
 	return VariableUndefined
 }
 
+func (s *variableFlowState) definednessByID(id int) VariableDefinedness {
+	if s == nil {
+		return VariableUndefined
+	}
+	if id < len(s.values) && s.values[id] != VariableUndefined {
+		return s.values[id]
+	}
+	if id < len(s.owner.variableNames) {
+		if _, predefined := predefinedVariableSet[s.owner.variableNames[id]]; predefined {
+			return VariableDefinitelyDefined
+		}
+	}
+	return VariableUndefined
+}
+
 func (s *variableFlowState) set(name string, value VariableDefinedness) {
-	s.detach(len(s.values) + 1)
-	s.values[name] = value
+	id := s.owner.variableID(name)
+	s.detach(id + 1)
+	s.values[id] = value
 }
 
 func (s *variableFlowState) unset(name string) {
 	if s == nil || s.definedness(name) == VariableUndefined {
 		return
 	}
+	id, ok := s.owner.variableIDs[name]
+	if !ok || id >= len(s.values) {
+		return
+	}
 	s.detach(len(s.values))
-	delete(s.values, name)
+	s.values[id] = VariableUndefined
 }
 
 func (s *variableFlowState) detach(capacity int) {
@@ -211,16 +250,24 @@ func (s *variableFlowState) detach(capacity int) {
 		return
 	}
 	if s.shared {
-		values := make(map[string]VariableDefinedness, capacity)
-		for existingName, existingValue := range s.values {
-			values[existingName] = existingValue
-		}
+		values := make([]VariableDefinedness, len(s.values), max(capacity, len(s.values)))
+		copy(values, s.values)
 		s.values = values
 		s.shared = false
 	}
-	if s.values == nil {
-		s.values = make(map[string]VariableDefinedness, capacity)
+	if len(s.values) < capacity {
+		s.values = append(s.values, make([]VariableDefinedness, capacity-len(s.values))...)
 	}
+}
+
+func (a *variableFlowAnalyzer) variableID(name string) int {
+	if id, ok := a.variableIDs[name]; ok {
+		return id
+	}
+	id := len(a.variableNames)
+	a.variableIDs[name] = id
+	a.variableNames = append(a.variableNames, name)
+	return id
 }
 
 func joinVariableDefinedness(left, right VariableDefinedness) VariableDefinedness {
@@ -234,11 +281,9 @@ func equalVariableFlowState(left, right *variableFlowState) bool {
 	if left == nil || right == nil {
 		return left == right
 	}
-	if len(left.values) != len(right.values) {
-		return false
-	}
-	for name, value := range left.values {
-		if right.values[name] != value {
+	valueCount := max(len(left.values), len(right.values))
+	for id := 0; id < valueCount; id++ {
+		if left.definednessByID(id) != right.definednessByID(id) {
 			return false
 		}
 	}
@@ -272,13 +317,13 @@ func (a *variableFlowAnalyzer) statement(node ast.Node, state *variableFlowState
 	case *ast.BlockNode:
 		return a.statements(n.Statements, state)
 	case *ast.FunctionNode:
-		a.statements(n.Body, functionVariableFlowState(n, false))
+		a.statements(n.Body, functionVariableFlowState(a, n, false))
 		return variableFlowResult{normal: state}
 	case *ast.ClassNode:
 		a.propertyHooks(n.Properties)
 		for _, method := range n.Methods {
 			if function, ok := method.(*ast.FunctionNode); ok {
-				a.statements(function.Body, functionVariableFlowState(function, true))
+				a.statements(function.Body, functionVariableFlowState(a, function, true))
 			}
 		}
 		return variableFlowResult{normal: state}
@@ -286,14 +331,14 @@ func (a *variableFlowAnalyzer) statement(node ast.Node, state *variableFlowState
 		a.propertyHooks(n.Body)
 		for _, member := range n.Body {
 			if function, ok := member.(*ast.FunctionNode); ok {
-				a.statements(function.Body, functionVariableFlowState(function, true))
+				a.statements(function.Body, functionVariableFlowState(a, function, true))
 			}
 		}
 		return variableFlowResult{normal: state}
 	case *ast.EnumNode:
 		for _, member := range n.Methods {
 			if function, ok := member.(*ast.FunctionNode); ok {
-				a.statements(function.Body, functionVariableFlowState(function, true))
+				a.statements(function.Body, functionVariableFlowState(a, function, true))
 			}
 		}
 		return variableFlowResult{normal: state}
@@ -361,7 +406,7 @@ func (a *variableFlowAnalyzer) propertyHooks(members []ast.Node) {
 			continue
 		}
 		for _, hook := range property.Hooks {
-			state := initialVariableFlowState()
+			state := initialVariableFlowState(a)
 			if !property.IsStatic {
 				state.set("this", VariableDefinitelyDefined)
 			}
@@ -593,6 +638,13 @@ func joinVariableFlowResults(results ...variableFlowResult) variableFlowResult {
 }
 
 func (a *variableFlowAnalyzer) assignment(node *ast.AssignmentNode, state *variableFlowState) {
+	if node.Operator == "=" {
+		if reference, ok := node.Right.(*ast.UnaryExpr); ok && reference.Operator == "&" {
+			a.assignmentTargetExpressions(reference.Operand, state)
+			defineVariableFlowTarget(node.Left, state)
+			return
+		}
+	}
 	if node.Operator != "" && node.Operator != "=" {
 		a.expression(node.Left, state, false)
 	} else {
@@ -634,6 +686,49 @@ func defineVariableFlowTarget(node ast.Node, state *variableFlowState) {
 	}
 }
 
+func isVariableFlowTarget(node ast.Node) bool {
+	switch node.(type) {
+	case *ast.VariableNode, *ast.VariableVariableNode, *ast.ArrayAccessNode, *ast.PropertyFetchNode, *ast.ArrayNode, *ast.ArrayItemNode, *ast.KeyValueNode, *ast.UnaryExpr:
+		return true
+	default:
+		return false
+	}
+}
+
+func (a *variableFlowAnalyzer) functionCallParams(call *ast.FunctionCallNode) []ResolvedParam {
+	if a == nil || a.resolver == nil || call == nil {
+		return nil
+	}
+	name := functionCallName(call)
+	if name == "" {
+		return nil
+	}
+	resolvedName := resolveFunctionNameForCall(name, a.typeContext, &AnalysisContext{Resolver: a.resolver})
+	function, ok := a.resolver.ResolveFunction(resolvedName)
+	if !ok {
+		return nil
+	}
+	return function.Params
+}
+
+func resolvedArgumentParam(params []ResolvedParam, argument ast.Node, position int) (ResolvedParam, bool) {
+	if named, ok := argument.(*ast.NamedArgumentNode); ok {
+		for _, param := range params {
+			if param.Name == named.Name {
+				return param, true
+			}
+		}
+		return ResolvedParam{}, false
+	}
+	if position < len(params) {
+		return params[position], true
+	}
+	if len(params) > 0 && params[len(params)-1].IsVariadic {
+		return params[len(params)-1], true
+	}
+	return ResolvedParam{}, false
+}
+
 func (a *variableFlowAnalyzer) expression(node ast.Node, state *variableFlowState, suppressed bool) {
 	if node == nil || state == nil {
 		return
@@ -664,8 +759,18 @@ func (a *variableFlowAnalyzer) expression(node ast.Node, state *variableFlowStat
 			return
 		}
 		a.expression(n.Name, state, suppressed)
-		for _, argument := range n.Args {
-			a.expression(argumentValue(argument), state, suppressed)
+		params := a.functionCallParams(n)
+		for index, argument := range n.Args {
+			value := argumentValue(argument)
+			if param, ok := resolvedArgumentParam(params, argument, index); ok && param.IsByRef && isVariableFlowTarget(value) {
+				if !param.IsOut {
+					a.expression(value, state, suppressed)
+				}
+				a.assignmentTargetExpressions(value, state)
+				defineVariableFlowTarget(value, state)
+				continue
+			}
+			a.expression(value, state, suppressed)
 		}
 	case *ast.MethodCallNode:
 		a.expression(n.Object, state, suppressed)
@@ -756,13 +861,19 @@ func (a *variableFlowAnalyzer) expression(node ast.Node, state *variableFlowStat
 		}
 		a.expression(n.Expr, closureState, suppressed)
 	case *ast.FunctionNode:
-		// The current AST does not retain an anonymous closure's explicit use
-		// list. Preserve outer definedness conservatively, then isolate all
-		// writes inside the closure from the enclosing state.
 		if n.Name == "" {
-			closureState := cloneVariableFlowState(state)
-			if isStaticMethod(n) {
-				closureState.unset("this")
+			closureState := initialVariableFlowState(a)
+			if !isStaticMethod(n) && state.definedness("this") != VariableUndefined {
+				closureState.set("this", VariableDefinitelyDefined)
+			}
+			for index := range n.Uses {
+				capture := &n.Uses[index]
+				if capture.ByRef {
+					state.set(capture.Name, VariableDefinitelyDefined)
+				} else {
+					a.recordReadAt(capture, capture.Name, capture.Pos, capture.EndPos, state.definedness(capture.Name), false)
+				}
+				closureState.set(capture.Name, VariableDefinitelyDefined)
 			}
 			for _, parameter := range n.Params {
 				if param, ok := parameter.(*ast.ParamNode); ok {
@@ -793,15 +904,21 @@ func (a *variableFlowAnalyzer) recordRead(name string, node ast.Node, state Vari
 	if node == nil || name == "" {
 		return
 	}
-	start, end := node.GetPos(), node.GetEndPos()
+	a.recordReadAt(node, name, node.GetPos(), node.GetEndPos(), state, compact)
+}
+
+func (a *variableFlowAnalyzer) recordReadAt(identity any, name string, start, end ast.Position, state VariableDefinedness, compact bool) {
 	if a.filename == "" || start.Offset < 0 || end.Offset <= start.Offset {
 		return
 	}
 	fact := variableReadFact{start: start, end: end, name: name, state: state, compact: compact}
-	if index, ok := a.readIndex[node]; ok {
+	if index, ok := a.readIndex[identity]; ok {
 		a.reads[index].state = joinVariableDefinedness(a.reads[index].state, state)
 		return
 	}
-	a.readIndex[node] = len(a.reads)
+	if state == VariableDefinitelyDefined && !a.includeDefinitelyDefined {
+		return
+	}
+	a.readIndex[identity] = len(a.reads)
 	a.reads = append(a.reads, fact)
 }

@@ -32,9 +32,17 @@ func forEachVariableRead(filename string, nodes []ast.Node, ctx *AnalysisContext
 		}
 		return
 	}
-	reads := buildVariableFlowFacts(filename, nodes)
+	var resolver SymbolResolver
 	if ctx != nil {
-		ctx.VariableFlow = singleFileVariableFlow{filename: filename, reads: reads}
+		resolver = ctx.Resolver
+	}
+	reads := buildVariableFlowFacts(filename, nodes, false, resolver)
+	if ctx != nil {
+		ctx.VariableFlow = singleFileVariableFlow{
+			filename: filename,
+			reads:    reads,
+			complete: &lazyVariableReadFacts{filename: filename, nodes: append([]ast.Node(nil), nodes...), resolver: resolver},
+		}
 	}
 	for _, read := range reads {
 		visit(read.public(filename))
@@ -44,14 +52,19 @@ func forEachVariableRead(filename string, nodes []ast.Node, ctx *AnalysisContext
 type singleFileVariableFlow struct {
 	filename string
 	reads    []variableReadFact
+	complete *lazyVariableReadFacts
 }
 
 func (f singleFileVariableFlow) VariableReadsForFile(filename string) []VariableReadFact {
 	if filename != f.filename {
 		return nil
 	}
-	result := make([]VariableReadFact, len(f.reads))
-	for i, read := range f.reads {
+	reads := f.reads
+	if f.complete != nil {
+		reads = f.complete.complete()
+	}
+	result := make([]VariableReadFact, len(reads))
+	for i, read := range reads {
 		result[i] = read.public(filename)
 	}
 	return result
