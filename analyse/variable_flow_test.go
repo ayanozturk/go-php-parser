@@ -374,6 +374,54 @@ function breakThroughFinally(): void {
 	assertVariableReadState(t, snapshot, filename, "afterFinally", VariableUndefined)
 }
 
+func TestVariableFlowModelsKnownDynamicReadsAndExtractEffects(t *testing.T) {
+	const filename = "dynamic-variable-flow.php"
+	nodes := parseControlFlowPHP(t, `<?php
+function dynamicVariables(): void {
+    $knownName = 'missingDynamicTarget';
+    echo $$knownName;
+    echo $$missingNameVariable;
+
+    $writeName = 'dynamicWriteTarget';
+    $$writeName = 1;
+    echo $dynamicWriteTarget;
+    ${'literalDynamicWrite'} = 1;
+    echo $literalDynamicWrite;
+
+    extract(['directExtracted' => 1]);
+    echo $directExtracted;
+    $assignedValues = ['assignedExtracted' => 1];
+    extract($assignedValues);
+    echo $assignedExtracted;
+
+    extract(['prefixedOriginal' => 1], EXTR_PREFIX_ALL, 'prefix');
+    echo $prefixedOriginal;
+    echo $prefix_prefixedOriginal;
+}
+function unknownExtract(array $unknownValues): void {
+    extract($unknownValues);
+    echo $possibleUnknownExtract;
+}
+function conditionalExtract(bool $condition): void {
+    if ($condition) {
+        extract(['conditionalExtracted' => 1]);
+    }
+    echo $conditionalExtracted;
+}
+`)
+	snapshot := variableFlowSnapshot(t, filename, nodes)
+
+	for _, name := range []string{"missingDynamicTarget", "missingNameVariable", "dynamicWriteTarget", "literalDynamicWrite", "prefix_prefixedOriginal"} {
+		assertVariableReadState(t, snapshot, filename, name, VariableUndefined)
+	}
+	for _, name := range []string{"directExtracted", "assignedExtracted", "prefixedOriginal"} {
+		assertVariableReadState(t, snapshot, filename, name, VariableDefinitelyDefined)
+	}
+	for _, name := range []string{"possibleUnknownExtract", "conditionalExtracted"} {
+		assertVariableReadState(t, snapshot, filename, name, VariablePossiblyDefined)
+	}
+}
+
 func TestVariableFlowFactsAreDeterministicDefensiveAndConcurrent(t *testing.T) {
 	const filename = "stable-variable-flow.php"
 	nodes := parseControlFlowPHP(t, `<?php
@@ -488,6 +536,42 @@ func TestVariableFlowStateCloneSharesUntilFirstWrite(t *testing.T) {
 	}
 	if clone.definedness("seed") != VariableDefinitelyDefined {
 		t.Fatal("clone detach lost existing state")
+	}
+}
+
+func TestVariableFlowStateConstantMetadataDetachesAndJoins(t *testing.T) {
+	analyzer := &variableFlowAnalyzer{variableIDs: make(map[string]int)}
+	original := initialVariableFlowState(analyzer)
+	original.set("name", VariableDefinitelyDefined)
+	original.setKnownString("name", "target")
+	original.set("values", VariableDefinitelyDefined)
+	original.setKnownExtractShape("values", variableFlowExtractShape{keys: []string{"first"}, complete: true})
+
+	clone := cloneVariableFlowState(original)
+	clone.set("name", VariableDefinitelyDefined)
+	clone.set("values", VariableDefinitelyDefined)
+	if value, ok := original.knownString(&ast.VariableNode{Name: "name"}); !ok || value != "target" {
+		t.Fatalf("clone write cleared original known string: %q, %v", value, ok)
+	}
+	valuesID := analyzer.variableIDs["values"]
+	if shape, ok := original.knownExtractShapeValues()[valuesID]; !ok || !shape.complete || !reflect.DeepEqual(shape.keys, []string{"first"}) {
+		t.Fatalf("clone write cleared original extract shape: %#v, %v", shape, ok)
+	}
+	if _, ok := clone.knownStringValues()[analyzer.variableIDs["name"]]; ok {
+		t.Fatal("ordinary clone assignment retained stale known string")
+	}
+	if _, ok := clone.knownExtractShapeValues()[valuesID]; ok {
+		t.Fatal("ordinary clone assignment retained stale extract shape")
+	}
+
+	matching := cloneVariableFlowState(original)
+	joined := joinedVariableFlowState(original, matching)
+	if value, ok := joined.knownString(&ast.VariableNode{Name: "name"}); !ok || value != "target" {
+		t.Fatalf("matching join lost known string: %q, %v", value, ok)
+	}
+	joinedDifferent := joinedVariableFlowState(original, clone)
+	if _, ok := joinedDifferent.knownString(&ast.VariableNode{Name: "name"}); ok {
+		t.Fatal("divergent join retained a path-specific known string")
 	}
 }
 

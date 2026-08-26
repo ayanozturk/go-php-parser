@@ -125,6 +125,47 @@
       "file": "break-two-finally-undefined-variable.php",
       "engineCodes": ["PHPStan.Level1.Variables"],
       "phpstanIdentifiers": ["variable.undefined"]
+    },
+    {
+      "id": "known-dynamic-read",
+      "capability": "undefined variables resolved by a known dynamic name",
+      "file": "known-dynamic-read.php",
+      "engineCodes": ["PHPStan.Level1.Variables"],
+      "phpstanIdentifiers": ["variable.undefined"]
+    },
+    {
+      "id": "dynamic-writes-do-not-define",
+      "capability": "known-string and literal dynamic writes do not define targets",
+      "file": "dynamic-writes-do-not-define.php",
+      "engineCodes": [
+        "PHPStan.Level1.Variables",
+        "PHPStan.Level1.Variables"
+      ],
+      "phpstanIdentifiers": [
+        "variable.undefined",
+        "variable.undefined"
+      ]
+    },
+    {
+      "id": "direct-constant-extract",
+      "capability": "variables defined by a direct constant-array extract",
+      "file": "direct-constant-extract.php",
+      "engineCodes": [],
+      "phpstanIdentifiers": []
+    },
+    {
+      "id": "assigned-constant-extract",
+      "capability": "variables defined by an assigned constant-array extract",
+      "file": "assigned-constant-extract.php",
+      "engineCodes": [],
+      "phpstanIdentifiers": []
+    },
+    {
+      "id": "unknown-array-extract",
+      "capability": "possibly undefined variables after an unknown-array extract",
+      "file": "unknown-array-extract.php",
+      "engineCodes": ["PHPStan.Level1.Variables"],
+      "phpstanIdentifiers": ["variable.undefined"]
     }
   ]
 }

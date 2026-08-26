@@ -882,6 +882,7 @@ func (idx *ProjectIndex) seedBuiltins() {
 		{Name: "eval", Params: []ResolvedParam{{Name: "code"}}},
 		{Name: "exit", Params: []ResolvedParam{{Name: "status", HasDefault: true}}},
 		{Name: "explode", Params: []ResolvedParam{{Name: "separator"}, {Name: "string"}, {Name: "limit", HasDefault: true}}},
+		{Name: "extract", Params: []ResolvedParam{{Name: "array"}, {Name: "flags", HasDefault: true}, {Name: "prefix", HasDefault: true}}},
 		{Name: "extension_loaded", Params: []ResolvedParam{{Name: "extension"}}},
 		{Name: "file_exists", Params: []ResolvedParam{{Name: "filename"}}},
 		{Name: "filter_var", Params: []ResolvedParam{{Name: "value"}, {Name: "filter", HasDefault: true}, {Name: "options", HasDefault: true}}},

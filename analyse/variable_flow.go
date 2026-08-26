@@ -81,9 +81,21 @@ var predefinedVariableSet = func() map[string]struct{} {
 }()
 
 type variableFlowState struct {
-	owner  *variableFlowAnalyzer
-	values []VariableDefinedness
-	shared bool
+	owner   *variableFlowAnalyzer
+	values  []VariableDefinedness
+	dynamic *variableFlowDynamicState
+	shared  bool
+}
+
+type variableFlowDynamicState struct {
+	knownStrings       map[int]string
+	knownExtractShapes map[int]variableFlowExtractShape
+	definition         VariableDefinedness
+}
+
+type variableFlowExtractShape struct {
+	keys     []string
+	complete bool
 }
 
 type variableFlowResult struct {
@@ -117,6 +129,8 @@ type variableFlowAnalyzer struct {
 	reads                    []variableReadFact
 	variableIDs              map[string]int
 	variableNames            []string
+	dynamicNameVariables     map[string]struct{}
+	extractSourceVariables   map[string]struct{}
 }
 
 func buildVariableFlowFacts(filename string, nodes []ast.Node, includeDefinitelyDefined bool, resolver SymbolResolver) []variableReadFact {
@@ -128,6 +142,7 @@ func buildVariableFlowFacts(filename string, nodes []ast.Node, includeDefinitely
 		readIndex:                make(map[any]int),
 		variableIDs:              make(map[string]int),
 	}
+	analyzer.collectDynamicVariableSources(nodes)
 	analyzer.statements(nodes, initialVariableFlowState(analyzer))
 	facts := analyzer.reads
 	sort.Slice(facts, func(i, j int) bool {
@@ -141,6 +156,30 @@ func buildVariableFlowFacts(filename string, nodes []ast.Node, includeDefinitely
 		return left.name < right.name
 	})
 	return facts
+}
+
+func (a *variableFlowAnalyzer) collectDynamicVariableSources(nodes []ast.Node) {
+	walkAllWithoutTypeContext(nodes, func(node ast.Node) {
+		switch n := node.(type) {
+		case *ast.VariableVariableNode:
+			if variable, ok := n.Expr.(*ast.VariableNode); ok {
+				if a.dynamicNameVariables == nil {
+					a.dynamicNameVariables = make(map[string]struct{})
+				}
+				a.dynamicNameVariables[variable.Name] = struct{}{}
+			}
+		case *ast.FunctionCallNode:
+			if !strings.EqualFold(functionCallName(n), "extract") || len(n.Args) == 0 {
+				return
+			}
+			if variable, ok := argumentValue(n.Args[0]).(*ast.VariableNode); ok {
+				if a.extractSourceVariables == nil {
+					a.extractSourceVariables = make(map[string]struct{})
+				}
+				a.extractSourceVariables[variable.Name] = struct{}{}
+			}
+		}
+	})
 }
 
 func initialVariableFlowState(analyzer *variableFlowAnalyzer) *variableFlowState {
@@ -165,7 +204,12 @@ func cloneVariableFlowState(state *variableFlowState) *variableFlowState {
 		return nil
 	}
 	state.shared = true
-	return &variableFlowState{owner: state.owner, values: state.values, shared: true}
+	return &variableFlowState{
+		owner:   state.owner,
+		values:  state.values,
+		dynamic: state.dynamic,
+		shared:  true,
+	}
 }
 
 func joinedVariableFlowState(states ...*variableFlowState) *variableFlowState {
@@ -199,11 +243,15 @@ func joinedVariableFlowState(states ...*variableFlowState) *variableFlowState {
 		}
 	}
 	joined := &variableFlowState{owner: owner, values: make([]VariableDefinedness, valueCount)}
+	dynamicDefinition := present[0].dynamicDefinedness()
+	for _, state := range present[1:] {
+		dynamicDefinition = joinVariableDefinedness(dynamicDefinition, state.dynamicDefinedness())
+	}
 	lastDefined := -1
 	for id := 0; id < valueCount; id++ {
-		value := present[0].definednessByID(id)
+		value := present[0].explicitDefinednessByID(id)
 		for _, state := range present[1:] {
-			value = joinVariableDefinedness(value, state.definednessByID(id))
+			value = joinVariableDefinedness(value, state.explicitDefinednessByID(id))
 		}
 		if value != VariableUndefined {
 			joined.values[id] = value
@@ -211,7 +259,75 @@ func joinedVariableFlowState(states ...*variableFlowState) *variableFlowState {
 		}
 	}
 	joined.values = joined.values[:lastDefined+1]
+	knownStrings := joinedVariableFlowKnownStrings(present)
+	knownExtractShapes := joinedVariableFlowExtractShapes(present)
+	if dynamicDefinition != VariableUndefined || len(knownStrings) > 0 || len(knownExtractShapes) > 0 {
+		joined.dynamic = &variableFlowDynamicState{knownStrings: knownStrings, knownExtractShapes: knownExtractShapes, definition: dynamicDefinition}
+	}
 	return joined
+}
+
+func joinedVariableFlowKnownStrings(states []*variableFlowState) map[int]string {
+	if len(states) == 0 || states[0].dynamic == nil || len(states[0].dynamic.knownStrings) == 0 {
+		return nil
+	}
+	var joined map[int]string
+	for id, value := range states[0].dynamic.knownStrings {
+		matches := true
+		for _, state := range states[1:] {
+			if state.dynamic == nil || state.dynamic.knownStrings[id] != value {
+				matches = false
+				break
+			}
+		}
+		if matches {
+			if joined == nil {
+				joined = make(map[int]string)
+			}
+			joined[id] = value
+		}
+	}
+	return joined
+}
+
+func joinedVariableFlowExtractShapes(states []*variableFlowState) map[int]variableFlowExtractShape {
+	if len(states) == 0 || states[0].dynamic == nil || len(states[0].dynamic.knownExtractShapes) == 0 {
+		return nil
+	}
+	var joined map[int]variableFlowExtractShape
+	for id, shape := range states[0].dynamic.knownExtractShapes {
+		matches := true
+		for _, state := range states[1:] {
+			if state.dynamic == nil {
+				matches = false
+				break
+			}
+			other, ok := state.dynamic.knownExtractShapes[id]
+			if !ok || shape.complete != other.complete || !equalStrings(shape.keys, other.keys) {
+				matches = false
+				break
+			}
+		}
+		if matches {
+			if joined == nil {
+				joined = make(map[int]variableFlowExtractShape)
+			}
+			joined[id] = shape
+		}
+	}
+	return joined
+}
+
+func equalStrings(left, right []string) bool {
+	if len(left) != len(right) {
+		return false
+	}
+	for index := range left {
+		if left[index] != right[index] {
+			return false
+		}
+	}
+	return true
 }
 
 func (s *variableFlowState) definedness(name string) VariableDefinedness {
@@ -224,10 +340,25 @@ func (s *variableFlowState) definedness(name string) VariableDefinedness {
 	if _, predefined := predefinedVariableSet[name]; predefined {
 		return VariableDefinitelyDefined
 	}
-	return VariableUndefined
+	return s.dynamicDefinedness()
 }
 
 func (s *variableFlowState) definednessByID(id int) VariableDefinedness {
+	value := s.explicitDefinednessByID(id)
+	if value != VariableUndefined {
+		return value
+	}
+	return s.dynamicDefinedness()
+}
+
+func (s *variableFlowState) dynamicDefinedness() VariableDefinedness {
+	if s == nil || s.dynamic == nil {
+		return VariableUndefined
+	}
+	return s.dynamic.definition
+}
+
+func (s *variableFlowState) explicitDefinednessByID(id int) VariableDefinedness {
 	if s == nil {
 		return VariableUndefined
 	}
@@ -246,6 +377,55 @@ func (s *variableFlowState) set(name string, value VariableDefinedness) {
 	id := s.owner.variableID(name)
 	s.detach(id + 1)
 	s.values[id] = value
+	if s.dynamic != nil {
+		delete(s.dynamic.knownStrings, id)
+		delete(s.dynamic.knownExtractShapes, id)
+	}
+}
+
+func (s *variableFlowState) setKnownString(name, value string) {
+	if s == nil || value == "" {
+		return
+	}
+	id := s.owner.variableID(name)
+	s.detach(len(s.values))
+	s.ensureDynamic()
+	if s.dynamic.knownStrings == nil {
+		s.dynamic.knownStrings = make(map[int]string)
+	}
+	s.dynamic.knownStrings[id] = value
+}
+
+func (s *variableFlowState) knownString(node ast.Node) (string, bool) {
+	if value, ok := stringLiteralValue(node); ok && value != "" {
+		return value, true
+	}
+	variable, ok := node.(*ast.VariableNode)
+	if !ok {
+		return "", false
+	}
+	id, ok := s.owner.variableIDs[variable.Name]
+	if !ok {
+		return "", false
+	}
+	if s.dynamic == nil {
+		return "", false
+	}
+	value, ok := s.dynamic.knownStrings[id]
+	return value, ok && value != ""
+}
+
+func (s *variableFlowState) setKnownExtractShape(name string, shape variableFlowExtractShape) {
+	if s == nil {
+		return
+	}
+	id := s.owner.variableID(name)
+	s.detach(len(s.values))
+	s.ensureDynamic()
+	if s.dynamic.knownExtractShapes == nil {
+		s.dynamic.knownExtractShapes = make(map[int]variableFlowExtractShape)
+	}
+	s.dynamic.knownExtractShapes[id] = shape
 }
 
 func (s *variableFlowState) unset(name string) {
@@ -258,6 +438,10 @@ func (s *variableFlowState) unset(name string) {
 	}
 	s.detach(len(s.values))
 	s.values[id] = VariableUndefined
+	if s.dynamic != nil {
+		delete(s.dynamic.knownStrings, id)
+		delete(s.dynamic.knownExtractShapes, id)
+	}
 }
 
 func (s *variableFlowState) detach(capacity int) {
@@ -268,11 +452,46 @@ func (s *variableFlowState) detach(capacity int) {
 		values := make([]VariableDefinedness, len(s.values), max(capacity, len(s.values)))
 		copy(values, s.values)
 		s.values = values
+		if s.dynamic != nil {
+			s.dynamic = &variableFlowDynamicState{
+				knownStrings:       cloneIntStringMap(s.dynamic.knownStrings),
+				knownExtractShapes: cloneExtractShapeMap(s.dynamic.knownExtractShapes),
+				definition:         s.dynamic.definition,
+			}
+		}
 		s.shared = false
 	}
 	if len(s.values) < capacity {
 		s.values = append(s.values, make([]VariableDefinedness, capacity-len(s.values))...)
 	}
+}
+
+func (s *variableFlowState) ensureDynamic() {
+	if s.dynamic == nil {
+		s.dynamic = &variableFlowDynamicState{}
+	}
+}
+
+func cloneIntStringMap(source map[int]string) map[int]string {
+	if len(source) == 0 {
+		return nil
+	}
+	cloned := make(map[int]string, len(source))
+	for key, value := range source {
+		cloned[key] = value
+	}
+	return cloned
+}
+
+func cloneExtractShapeMap(source map[int]variableFlowExtractShape) map[int]variableFlowExtractShape {
+	if len(source) == 0 {
+		return nil
+	}
+	cloned := make(map[int]variableFlowExtractShape, len(source))
+	for key, value := range source {
+		cloned[key] = value
+	}
+	return cloned
 }
 
 func (a *variableFlowAnalyzer) variableID(name string) int {
@@ -302,7 +521,35 @@ func equalVariableFlowState(left, right *variableFlowState) bool {
 			return false
 		}
 	}
+	if left.dynamicDefinedness() != right.dynamicDefinedness() || len(left.knownStringValues()) != len(right.knownStringValues()) || len(left.knownExtractShapeValues()) != len(right.knownExtractShapeValues()) {
+		return false
+	}
+	for id, value := range left.knownStringValues() {
+		if right.knownStringValues()[id] != value {
+			return false
+		}
+	}
+	for id, shape := range left.knownExtractShapeValues() {
+		other, ok := right.knownExtractShapeValues()[id]
+		if !ok || shape.complete != other.complete || !equalStrings(shape.keys, other.keys) {
+			return false
+		}
+	}
 	return true
+}
+
+func (s *variableFlowState) knownStringValues() map[int]string {
+	if s == nil || s.dynamic == nil {
+		return nil
+	}
+	return s.dynamic.knownStrings
+}
+
+func (s *variableFlowState) knownExtractShapeValues() map[int]variableFlowExtractShape {
+	if s == nil || s.dynamic == nil {
+		return nil
+	}
+	return s.dynamic.knownExtractShapes
 }
 
 func (a *variableFlowAnalyzer) statements(statements []ast.Node, input *variableFlowState) variableFlowResult {
@@ -760,6 +1007,25 @@ func (a *variableFlowAnalyzer) assignment(node *ast.AssignmentNode, state *varia
 	// PHP evaluates the right-hand side before the assignment becomes visible.
 	a.expression(node.Right, state, false)
 	defineVariableFlowTarget(node.Left, state)
+	if node.Operator != "" && node.Operator != "=" {
+		return
+	}
+	variable, ok := node.Left.(*ast.VariableNode)
+	if !ok {
+		return
+	}
+	if _, tracked := a.dynamicNameVariables[variable.Name]; tracked {
+		if value, ok := stringLiteralValue(node.Right); ok {
+			state.setKnownString(variable.Name, value)
+			return
+		}
+	}
+	if _, tracked := a.extractSourceVariables[variable.Name]; !tracked {
+		return
+	}
+	if shape, ok := variableFlowExtractShapeForNode(node.Right, state); ok {
+		state.setKnownExtractShape(variable.Name, shape)
+	}
 }
 
 func (a *variableFlowAnalyzer) assignmentTargetExpressions(node ast.Node, state *variableFlowState) {
@@ -927,6 +1193,9 @@ func (a *variableFlowAnalyzer) expression(node ast.Node, state *variableFlowStat
 		}
 	case *ast.VariableVariableNode:
 		a.expression(n.Expr, state, suppressed)
+		if name, ok := state.knownString(n.Expr); ok {
+			a.recordRead(name, n, state.definedness(name), false)
+		}
 	case *ast.AssignmentNode:
 		a.assignment(n, state)
 	case *ast.FunctionCallNode:
@@ -947,6 +1216,9 @@ func (a *variableFlowAnalyzer) expression(node ast.Node, state *variableFlowStat
 		}
 		a.expression(n.Name, state, suppressed)
 		a.callArguments(n.Args, a.functionCallParams(n), state, suppressed)
+		if name == "extract" {
+			a.extractVariables(n.Args, state)
+		}
 	case *ast.MethodCallNode:
 		a.expression(n.Object, state, suppressed)
 		a.callArguments(n.Args, a.methodCallParams(n), state, suppressed)
@@ -1062,12 +1334,91 @@ func (a *variableFlowAnalyzer) expression(node ast.Node, state *variableFlowStat
 	}
 }
 
+func (a *variableFlowAnalyzer) extractVariables(arguments []ast.Node, state *variableFlowState) {
+	if len(arguments) == 0 || state == nil {
+		return
+	}
+	shape, known := variableFlowExtractShapeForNode(argumentValue(arguments[0]), state)
+	if !known {
+		state.markPossibleDynamicDefinition()
+		return
+	}
+	for _, name := range shape.keys {
+		state.set(name, VariableDefinitelyDefined)
+	}
+	if !shape.complete {
+		state.markPossibleDynamicDefinition()
+	}
+}
+
+func (s *variableFlowState) markPossibleDynamicDefinition() {
+	if s == nil {
+		return
+	}
+	s.detach(len(s.values))
+	s.ensureDynamic()
+	s.dynamic.definition = joinVariableDefinedness(s.dynamic.definition, VariablePossiblyDefined)
+}
+
+func variableFlowExtractShapeForNode(node ast.Node, state *variableFlowState) (variableFlowExtractShape, bool) {
+	if array, ok := node.(*ast.ArrayNode); ok {
+		shape := variableFlowExtractShape{complete: true}
+		for _, element := range array.Elements {
+			item, ok := element.(*ast.ArrayItemNode)
+			if !ok {
+				shape.complete = false
+				continue
+			}
+			if item.Unpack {
+				shape.complete = false
+				continue
+			}
+			if item.Key == nil {
+				continue
+			}
+			name, ok := stringLiteralValue(item.Key)
+			if !ok {
+				shape.complete = false
+				continue
+			}
+			if validExtractVariableName(name) {
+				shape.keys = append(shape.keys, name)
+			}
+		}
+		return shape, true
+	}
+	variable, ok := node.(*ast.VariableNode)
+	if !ok || state == nil {
+		return variableFlowExtractShape{}, false
+	}
+	id, ok := state.owner.variableIDs[variable.Name]
+	if !ok {
+		return variableFlowExtractShape{}, false
+	}
+	shape, ok := state.knownExtractShapeValues()[id]
+	return shape, ok
+}
+
+func validExtractVariableName(name string) bool {
+	if name == "" {
+		return false
+	}
+	for index, r := range name {
+		if r == '_' || r >= 'a' && r <= 'z' || r >= 'A' && r <= 'Z' || index > 0 && r >= '0' && r <= '9' || r >= 0x80 {
+			continue
+		}
+		return false
+	}
+	return true
+}
+
 func replaceVariableFlowState(destination, source *variableFlowState) {
 	if destination == nil || source == nil {
 		return
 	}
 	source.shared = true
 	destination.values = source.values
+	destination.dynamic = source.dynamic
 	destination.shared = true
 }
 

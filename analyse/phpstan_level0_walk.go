@@ -3,6 +3,16 @@ package analyse
 import "github.com/ayanozturk/go-php-parser/ast"
 
 func walkAll(nodes []ast.Node, fn func(ast.Node, *ast.ClassNode, *ast.FunctionNode, fileTypeContext)) {
+	walkAllUsing(nodes, fn, true)
+}
+
+func walkAllWithoutTypeContext(nodes []ast.Node, fn func(ast.Node)) {
+	walkAllUsing(nodes, func(node ast.Node, _ *ast.ClassNode, _ *ast.FunctionNode, _ fileTypeContext) {
+		fn(node)
+	}, false)
+}
+
+func walkAllUsing(nodes []ast.Node, fn func(ast.Node, *ast.ClassNode, *ast.FunctionNode, fileTypeContext), collectContext bool) {
 	var walk func(ast.Node, *ast.ClassNode, *ast.FunctionNode, fileTypeContext)
 	walk = func(node ast.Node, class *ast.ClassNode, currentFn *ast.FunctionNode, ft fileTypeContext) {
 		if node == nil {
@@ -11,9 +21,12 @@ func walkAll(nodes []ast.Node, fn func(ast.Node, *ast.ClassNode, *ast.FunctionNo
 		fn(node, class, currentFn, ft)
 		switch n := node.(type) {
 		case *ast.NamespaceNode:
-			nft := collectFileTypeContext(n.Body)
-			if nft.namespace == "" {
-				nft.namespace = n.Name
+			nft := ft
+			if collectContext {
+				nft = collectFileTypeContext(n.Body)
+				if nft.namespace == "" {
+					nft.namespace = n.Name
+				}
 			}
 			for _, child := range n.Body {
 				walk(child, class, currentFn, nft)
@@ -190,7 +203,10 @@ func walkAll(nodes []ast.Node, fn func(ast.Node, *ast.ClassNode, *ast.FunctionNo
 			walk(n.Expr, class, currentFn, ft)
 		}
 	}
-	ft := collectFileTypeContext(nodes)
+	ft := fileTypeContext{}
+	if collectContext {
+		ft = collectFileTypeContext(nodes)
+	}
 	for _, node := range nodes {
 		walk(node, nil, nil, ft)
 	}
