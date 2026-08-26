@@ -88,10 +88,24 @@ type variableFlowState struct {
 
 type variableFlowResult struct {
 	normal     *variableFlowState
-	breaks     []*variableFlowState
-	continues  []*variableFlowState
+	breaks     []variableFlowTransfer
+	continues  []variableFlowTransfer
 	terminates []*variableFlowState
 }
+
+type variableFlowTransfer struct {
+	state *variableFlowState
+	level int
+}
+
+type variableFlowResumeKind uint8
+
+const (
+	variableFlowResumeNormal variableFlowResumeKind = iota
+	variableFlowResumeBreak
+	variableFlowResumeContinue
+	variableFlowResumeTerminate
+)
 
 type variableFlowAnalyzer struct {
 	filename                 string
@@ -381,10 +395,10 @@ func (a *variableFlowAnalyzer) statement(node ast.Node, state *variableFlowState
 		return variableFlowResult{terminates: []*variableFlowState{cloneVariableFlowState(state)}}
 	case *ast.BreakNode:
 		a.expression(n.Level, state, false)
-		return variableFlowResult{breaks: []*variableFlowState{cloneVariableFlowState(state)}}
+		return variableFlowResult{breaks: []variableFlowTransfer{{state: cloneVariableFlowState(state), level: variableFlowTransferLevel(n.Level)}}}
 	case *ast.ContinueNode:
 		a.expression(n.Level, state, false)
-		return variableFlowResult{continues: []*variableFlowState{cloneVariableFlowState(state)}}
+		return variableFlowResult{continues: []variableFlowTransfer{{state: cloneVariableFlowState(state), level: variableFlowTransferLevel(n.Level)}}}
 	case *ast.IfNode:
 		return a.ifStatement(n, state)
 	case *ast.WhileNode:
@@ -476,7 +490,8 @@ func (a *variableFlowAnalyzer) whileStatement(node *ast.WhileNode, input *variab
 			break
 		}
 		body = a.statements(node.Body, conditionState)
-		back := joinedVariableFlowState(append([]*variableFlowState{body.normal}, body.continues...)...)
+		localContinues, _ := consumeVariableFlowTransfers(body.continues)
+		back := joinedVariableFlowState(append([]*variableFlowState{body.normal}, localContinues...)...)
 		next := joinedVariableFlowState(input, back)
 		if equalVariableFlowState(next, header) {
 			header = next
@@ -484,11 +499,13 @@ func (a *variableFlowAnalyzer) whileStatement(node *ast.WhileNode, input *variab
 		}
 		header = next
 	}
-	exits := append([]*variableFlowState(nil), body.breaks...)
+	localBreaks, outerBreaks := consumeVariableFlowTransfers(body.breaks)
+	_, outerContinues := consumeVariableFlowTransfers(body.continues)
+	exits := append([]*variableFlowState(nil), localBreaks...)
 	if mayExit {
 		exits = append(exits, conditionState)
 	}
-	return variableFlowResult{normal: joinedVariableFlowState(exits...), terminates: body.terminates}
+	return variableFlowResult{normal: joinedVariableFlowState(exits...), breaks: outerBreaks, continues: outerContinues, terminates: body.terminates}
 }
 
 func (a *variableFlowAnalyzer) forStatement(node *ast.ForNode, input *variableFlowState) variableFlowResult {
@@ -509,7 +526,8 @@ func (a *variableFlowAnalyzer) forStatement(node *ast.ForNode, input *variableFl
 			break
 		}
 		body = a.statements(node.Body, conditionState)
-		back := joinedVariableFlowState(append([]*variableFlowState{body.normal}, body.continues...)...)
+		localContinues, _ := consumeVariableFlowTransfers(body.continues)
+		back := joinedVariableFlowState(append([]*variableFlowState{body.normal}, localContinues...)...)
 		if back != nil {
 			for _, update := range node.Updates {
 				a.expression(update, back, false)
@@ -522,11 +540,13 @@ func (a *variableFlowAnalyzer) forStatement(node *ast.ForNode, input *variableFl
 		}
 		header = next
 	}
-	exits := append([]*variableFlowState(nil), body.breaks...)
+	localBreaks, outerBreaks := consumeVariableFlowTransfers(body.breaks)
+	_, outerContinues := consumeVariableFlowTransfers(body.continues)
+	exits := append([]*variableFlowState(nil), localBreaks...)
 	if mayExit {
 		exits = append(exits, conditionState)
 	}
-	return variableFlowResult{normal: joinedVariableFlowState(exits...), terminates: body.terminates}
+	return variableFlowResult{normal: joinedVariableFlowState(exits...), breaks: outerBreaks, continues: outerContinues, terminates: body.terminates}
 }
 
 func (a *variableFlowAnalyzer) foreachStatement(node *ast.ForeachNode, input *variableFlowState) variableFlowResult {
@@ -539,7 +559,8 @@ func (a *variableFlowAnalyzer) foreachStatement(node *ast.ForeachNode, input *va
 		defineVariableFlowTarget(node.KeyVar, bodyInput)
 		defineVariableFlowTarget(node.ValueVar, bodyInput)
 		body = a.statements(node.Body, bodyInput)
-		back := joinedVariableFlowState(append([]*variableFlowState{body.normal}, body.continues...)...)
+		localContinues, _ := consumeVariableFlowTransfers(body.continues)
+		back := joinedVariableFlowState(append([]*variableFlowState{body.normal}, localContinues...)...)
 		next := joinedVariableFlowState(entry, back)
 		if equalVariableFlowState(next, header) {
 			header = next
@@ -547,8 +568,10 @@ func (a *variableFlowAnalyzer) foreachStatement(node *ast.ForeachNode, input *va
 		}
 		header = next
 	}
-	exits := append([]*variableFlowState{entry, header}, body.breaks...)
-	return variableFlowResult{normal: joinedVariableFlowState(exits...), terminates: body.terminates}
+	localBreaks, outerBreaks := consumeVariableFlowTransfers(body.breaks)
+	_, outerContinues := consumeVariableFlowTransfers(body.continues)
+	exits := append([]*variableFlowState{entry, header}, localBreaks...)
+	return variableFlowResult{normal: joinedVariableFlowState(exits...), breaks: outerBreaks, continues: outerContinues, terminates: body.terminates}
 }
 
 func (a *variableFlowAnalyzer) doWhileStatement(node *ast.DoWhileNode, input *variableFlowState) variableFlowResult {
@@ -558,7 +581,8 @@ func (a *variableFlowAnalyzer) doWhileStatement(node *ast.DoWhileNode, input *va
 	mayIterate, mayExit := loopConditionPaths(node)
 	for iteration := 0; iteration < maxVariableFlowIterations; iteration++ {
 		body = a.statements(node.Body, bodyInput)
-		conditionState = joinedVariableFlowState(append([]*variableFlowState{body.normal}, body.continues...)...)
+		localContinues, _ := consumeVariableFlowTransfers(body.continues)
+		conditionState = joinedVariableFlowState(append([]*variableFlowState{body.normal}, localContinues...)...)
 		if conditionState != nil {
 			a.expression(node.Condition, conditionState, false)
 		}
@@ -571,11 +595,13 @@ func (a *variableFlowAnalyzer) doWhileStatement(node *ast.DoWhileNode, input *va
 		}
 		bodyInput = next
 	}
-	exits := append([]*variableFlowState(nil), body.breaks...)
+	localBreaks, outerBreaks := consumeVariableFlowTransfers(body.breaks)
+	_, outerContinues := consumeVariableFlowTransfers(body.continues)
+	exits := append([]*variableFlowState(nil), localBreaks...)
 	if mayExit {
 		exits = append(exits, conditionState)
 	}
-	return variableFlowResult{normal: joinedVariableFlowState(exits...), terminates: body.terminates}
+	return variableFlowResult{normal: joinedVariableFlowState(exits...), breaks: outerBreaks, continues: outerContinues, terminates: body.terminates}
 }
 
 func (a *variableFlowAnalyzer) tryStatement(node *ast.TryNode, input *variableFlowState) variableFlowResult {
@@ -592,21 +618,45 @@ func (a *variableFlowAnalyzer) tryStatement(node *ast.TryNode, input *variableFl
 	if len(node.Finally) == 0 {
 		return joined
 	}
-	allIncoming := []*variableFlowState{joined.normal}
-	allIncoming = append(allIncoming, joined.breaks...)
-	allIncoming = append(allIncoming, joined.continues...)
-	allIncoming = append(allIncoming, joined.terminates...)
-	// Analyse the finally body against every incoming path so its reads receive
-	// the conservative joined state even when the try body cannot continue.
-	a.statements(node.Finally, joinedVariableFlowState(allIncoming...))
-	if joined.normal == nil {
-		return variableFlowResult{breaks: joined.breaks, continues: joined.continues, terminates: joined.terminates}
+	return a.applyFinally(node.Finally, joined)
+}
+
+func (a *variableFlowAnalyzer) applyFinally(statements []ast.Node, input variableFlowResult) variableFlowResult {
+	output := variableFlowResult{}
+	resume := func(state *variableFlowState, kind variableFlowResumeKind, level int) {
+		if state == nil {
+			return
+		}
+		result := a.statements(statements, state)
+		output.breaks = append(output.breaks, result.breaks...)
+		output.continues = append(output.continues, result.continues...)
+		output.terminates = append(output.terminates, result.terminates...)
+		if result.normal == nil {
+			return
+		}
+		switch kind {
+		case variableFlowResumeNormal:
+			output.normal = joinedVariableFlowState(output.normal, result.normal)
+		case variableFlowResumeBreak:
+			output.breaks = append(output.breaks, variableFlowTransfer{state: result.normal, level: level})
+		case variableFlowResumeContinue:
+			output.continues = append(output.continues, variableFlowTransfer{state: result.normal, level: level})
+		case variableFlowResumeTerminate:
+			output.terminates = append(output.terminates, result.normal)
+		}
 	}
-	normalFinally := a.statements(node.Finally, joined.normal)
-	normalFinally.breaks = append(normalFinally.breaks, joined.breaks...)
-	normalFinally.continues = append(normalFinally.continues, joined.continues...)
-	normalFinally.terminates = append(normalFinally.terminates, joined.terminates...)
-	return normalFinally
+
+	resume(input.normal, variableFlowResumeNormal, 0)
+	for _, transfer := range input.breaks {
+		resume(transfer.state, variableFlowResumeBreak, transfer.level)
+	}
+	for _, transfer := range input.continues {
+		resume(transfer.state, variableFlowResumeContinue, transfer.level)
+	}
+	for _, state := range input.terminates {
+		resume(state, variableFlowResumeTerminate, 0)
+	}
+	return output
 }
 
 func (a *variableFlowAnalyzer) switchStatement(node *ast.SwitchNode, input *variableFlowState) variableFlowResult {
@@ -630,12 +680,55 @@ func (a *variableFlowAnalyzer) switchStatement(node *ast.SwitchNode, input *vari
 		branches = append(branches, result)
 	}
 	joined := joinVariableFlowResults(branches...)
-	joined.normal = joinedVariableFlowState(joined.normal, joinedVariableFlowState(joined.breaks...))
-	joined.breaks = nil
+	localBreaks, outerBreaks := consumeVariableFlowTransfers(joined.breaks)
+	localContinues, outerContinues := consumeVariableFlowTransfers(joined.continues)
+	joined.normal = joinedVariableFlowState(joined.normal, joinedVariableFlowState(localBreaks...), joinedVariableFlowState(localContinues...))
+	joined.breaks = outerBreaks
+	joined.continues = outerContinues
 	if !hasDefault {
 		joined.normal = joinedVariableFlowState(joined.normal, entry)
 	}
 	return joined
+}
+
+func variableFlowTransferLevel(level ast.Node) int {
+	if level == nil {
+		return 1
+	}
+	var value int64
+	switch literal := level.(type) {
+	case *ast.IntegerLiteral:
+		value = literal.Value
+	case *ast.IntegerNode:
+		value = literal.Value
+	default:
+		return 1
+	}
+	if value <= 1 {
+		return 1
+	}
+	maxInt := int(^uint(0) >> 1)
+	if uint64(value) > uint64(maxInt) {
+		return maxInt
+	}
+	return int(value)
+}
+
+func consumeVariableFlowTransfers(transfers []variableFlowTransfer) ([]*variableFlowState, []variableFlowTransfer) {
+	var local []*variableFlowState
+	var outer []variableFlowTransfer
+	for _, transfer := range transfers {
+		if transfer.state == nil {
+			continue
+		}
+		if transfer.level <= 1 {
+			local = append(local, transfer.state)
+			continue
+		}
+		transfer.level--
+		outer = append(outer, transfer)
+	}
+	return local, outer
 }
 
 func joinVariableFlowResults(results ...variableFlowResult) variableFlowResult {

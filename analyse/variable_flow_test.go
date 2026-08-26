@@ -310,6 +310,70 @@ echo $newReceiver;
 	}
 }
 
+func TestVariableFlowPropagatesMultiLevelLoopTransfersAcrossScopes(t *testing.T) {
+	const filename = "multi-level-loop-flow.php"
+	nodes := parseControlFlowPHP(t, `<?php
+function nestedBreak(bool $condition): void {
+    do {
+        do {
+            $beforeBreak = 1;
+            if ($condition) { $conditionalBreak = 1; }
+            break 2;
+        } while (true);
+        $afterInnerBreak = 1;
+    } while (true);
+    echo $beforeBreak;
+    echo $conditionalBreak;
+    echo $afterInnerBreak;
+}
+function nestedContinue(): void {
+    do {
+        do {
+            $beforeContinue = 1;
+            continue 2;
+        } while (false);
+        $afterInnerContinue = 1;
+    } while (false);
+    echo $beforeContinue;
+    echo $afterInnerContinue;
+}
+function switchContinue(int $value): void {
+    do {
+        switch ($value) {
+            default:
+                continue 2;
+        }
+        $afterSwitch = 1;
+    } while (false);
+    echo $afterSwitch;
+}
+function breakThroughFinally(): void {
+    do {
+        do {
+            try {
+                break 2;
+            } finally {
+                $inFinally = 1;
+            }
+        } while (true);
+        $afterFinally = 1;
+    } while (true);
+    echo $inFinally;
+    echo $afterFinally;
+}
+`)
+	snapshot := variableFlowSnapshot(t, filename, nodes)
+
+	assertVariableReadState(t, snapshot, filename, "beforeBreak", VariableDefinitelyDefined)
+	assertVariableReadState(t, snapshot, filename, "conditionalBreak", VariablePossiblyDefined)
+	assertVariableReadState(t, snapshot, filename, "afterInnerBreak", VariableUndefined)
+	assertVariableReadState(t, snapshot, filename, "beforeContinue", VariableDefinitelyDefined)
+	assertVariableReadState(t, snapshot, filename, "afterInnerContinue", VariableUndefined)
+	assertVariableReadState(t, snapshot, filename, "afterSwitch", VariableUndefined)
+	assertVariableReadState(t, snapshot, filename, "inFinally", VariableDefinitelyDefined)
+	assertVariableReadState(t, snapshot, filename, "afterFinally", VariableUndefined)
+}
+
 func TestVariableFlowFactsAreDeterministicDefensiveAndConcurrent(t *testing.T) {
 	const filename = "stable-variable-flow.php"
 	nodes := parseControlFlowPHP(t, `<?php

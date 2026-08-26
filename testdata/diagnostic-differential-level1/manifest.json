@@ -97,6 +97,34 @@
       "file": "dynamic-receiver-by-reference.php",
       "engineCodes": ["PHPStan.Level1.Variables"],
       "phpstanIdentifiers": ["variable.undefined"]
+    },
+    {
+      "id": "nested-break-two-defined-variable",
+      "capability": "defined variables after a nested break two transfer",
+      "file": "nested-break-two-defined-variable.php",
+      "engineCodes": [],
+      "phpstanIdentifiers": []
+    },
+    {
+      "id": "nested-continue-two-undefined-variable",
+      "capability": "undefined variables after a nested continue two transfer",
+      "file": "nested-continue-two-undefined-variable.php",
+      "engineCodes": ["PHPStan.Level1.Variables"],
+      "phpstanIdentifiers": ["variable.undefined"]
+    },
+    {
+      "id": "switch-continue-two-undefined-variable",
+      "capability": "undefined variables after continue two through a switch",
+      "file": "switch-continue-two-undefined-variable.php",
+      "engineCodes": ["PHPStan.Level1.Variables"],
+      "phpstanIdentifiers": ["variable.undefined"]
+    },
+    {
+      "id": "break-two-finally-undefined-variable",
+      "capability": "undefined variables after break two through finally",
+      "file": "break-two-finally-undefined-variable.php",
+      "engineCodes": ["PHPStan.Level1.Variables"],
+      "phpstanIdentifiers": ["variable.undefined"]
     }
   ]
 }
