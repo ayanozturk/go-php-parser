@@ -122,6 +122,7 @@ func RunAnalysisRulesWithContext(filename string, nodes []ast.Node, ctx *Analysi
 			Resolver:           ctx.Resolver,
 			Facts:              ctx.Facts,
 			Flow:               ctx.Flow,
+			VariableFlow:       ctx.VariableFlow,
 			PHPVersion:         ctx.PHPVersion,
 			AnalysisLevel:      ctx.AnalysisLevel,
 			DisabledIssueCodes: ctx.DisabledIssueCodes,

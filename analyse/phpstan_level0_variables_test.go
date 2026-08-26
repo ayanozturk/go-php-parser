@@ -2,7 +2,7 @@ package analyse
 
 import "testing"
 
-func TestLevel0UndefinedVariableIfBranchesPreserveScopeRules(t *testing.T) {
+func TestLevel1UndefinedVariableIfBranchesPreserveScopeRules(t *testing.T) {
 	tests := []struct {
 		name          string
 		source        string
@@ -33,6 +33,7 @@ if ($condition) {
 echo $fromThen;
 echo $fromElse;
 `,
+			wantUndefined: []string{"$fromThen", "$fromElse"},
 		},
 		{
 			name: "nested branches",
@@ -46,9 +47,10 @@ if ($outer) {
         $fromNestedElse = 2;
     }
     echo $fromInner;
-    echo $fromNestedElse;
+echo $fromNestedElse;
 }
 `,
+			wantUndefined: []string{"$fromInner", "$fromNestedElse"},
 		},
 		{
 			name: "condition assignment",
@@ -63,19 +65,19 @@ echo $assigned;
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			issues := runLevel0OnFiles(t, map[string]string{"test.php": test.source})
+			issues := runLevel1OnFiles(t, map[string]string{"test.php": test.source})
 			for _, name := range test.wantUndefined {
-				if !hasIssueContaining(issues, level0VariablesCode, "Undefined variable: "+name) {
+				if !hasIssueContaining(issues, level1VariablesCode, "Variable "+name+" might not be defined.") {
 					t.Fatalf("expected undefined variable issue for %s, got %#v", name, issues)
 				}
 			}
 			for _, issue := range issues {
-				if issue.Code != level0VariablesCode || len(test.wantUndefined) == 0 {
+				if issue.Code != level1VariablesCode || len(test.wantUndefined) == 0 {
 					continue
 				}
 				matched := false
 				for _, name := range test.wantUndefined {
-					if issue.Message == "Undefined variable: "+name {
+					if issue.Message == "Variable "+name+" might not be defined." {
 						matched = true
 						break
 					}
@@ -86,7 +88,7 @@ echo $assigned;
 			}
 			if len(test.wantUndefined) == 0 {
 				for _, issue := range issues {
-					if issue.Code == level0VariablesCode {
+					if issue.Code == level1VariablesCode {
 						t.Fatalf("unexpected undefined variable issue: %#v", issue)
 					}
 				}

@@ -27,13 +27,6 @@
       "phpstanIdentifiers": ["arguments.count"]
     },
     {
-      "id": "undefined-variable",
-      "capability": "always undefined variables",
-      "file": "undefined-variable.php",
-      "engineCodes": ["PHPStan.Level0.Variables"],
-      "phpstanIdentifiers": ["variable.undefined"]
-    },
-    {
       "id": "clean-known-symbols",
       "capability": "known symbols without false positives",
       "file": "clean-known-symbols.php",

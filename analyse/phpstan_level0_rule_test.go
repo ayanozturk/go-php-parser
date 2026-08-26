@@ -20,13 +20,20 @@ func parsePHPForLevel0(t *testing.T, php string) []ast.Node {
 }
 
 func runLevel0OnFiles(t *testing.T, files map[string]string) []AnalysisIssue {
+	return runPHPStanLevelOnFiles(t, files, 0)
+}
+
+func runLevel1OnFiles(t *testing.T, files map[string]string) []AnalysisIssue {
+	return runPHPStanLevelOnFiles(t, files, 1)
+}
+
+func runPHPStanLevelOnFiles(t *testing.T, files map[string]string, level int) []AnalysisIssue {
 	t.Helper()
 	parsed := make(map[string][]ast.Node, len(files))
 	for filename, php := range files {
 		parsed[filename] = parsePHPForLevel0(t, php)
 	}
 	project := BuildProjectIndex(parsed)
-	level := 0
 	var issues []AnalysisIssue
 	for filename, nodes := range parsed {
 		ctx := &AnalysisContext{Resolver: project, AnalysisLevel: &level}
@@ -653,8 +660,8 @@ class Props {
 	}
 }
 
-func TestLevel0IssetAndEmptyAllowUndefinedVariables(t *testing.T) {
-	issues := runLevel0OnFiles(t, map[string]string{
+func TestLevel1IssetAndEmptyAllowUndefinedVariables(t *testing.T) {
+	issues := runLevel1OnFiles(t, map[string]string{
 		"test.php": `<?php
 isset($missing);
 empty($alsoMissing);
@@ -662,11 +669,11 @@ echo $reported;
 `,
 	})
 
-	if hasIssueContaining(issues, level0VariablesCode, "Undefined variable: $missing") ||
-		hasIssueContaining(issues, level0VariablesCode, "Undefined variable: $alsoMissing") {
+	if hasIssueContaining(issues, level1VariablesCode, "Variable $missing might not be defined.") ||
+		hasIssueContaining(issues, level1VariablesCode, "Variable $alsoMissing might not be defined.") {
 		t.Fatalf("isset/empty variables should not be reported, got %#v", issues)
 	}
-	if !hasIssueContaining(issues, level0VariablesCode, "Undefined variable: $reported") {
+	if !hasIssueContaining(issues, level1VariablesCode, "Variable $reported might not be defined.") {
 		t.Fatalf("expected normal undefined variable issue, got %#v", issues)
 	}
 }
@@ -1171,18 +1178,18 @@ class Child extends Base {
 	}
 }
 
-func TestLevel0CompactReportsUndefinedVariables(t *testing.T) {
-	issues := runLevel0OnFiles(t, map[string]string{
+func TestLevel1CompactReportsUndefinedVariables(t *testing.T) {
+	issues := runLevel1OnFiles(t, map[string]string{
 		"test.php": `<?php
 $defined = 1;
 compact('defined', 'missing');
 `,
 	})
 
-	if hasIssueContaining(issues, level0VariablesCode, "Undefined variable: $defined") {
+	if hasIssueContaining(issues, level1VariablesCode, "Variable $defined might not be defined.") {
 		t.Fatalf("defined compact variable should not be reported, got %#v", issues)
 	}
-	if !hasIssueContaining(issues, level0VariablesCode, "Undefined variable: $missing") {
+	if !hasIssueContaining(issues, level1VariablesCode, "Variable $missing might not be defined.") {
 		t.Fatalf("expected compact undefined variable issue, got %#v", issues)
 	}
 }
@@ -1211,7 +1218,7 @@ helper(1);
 	}
 }
 
-func TestLevel0UndefinedVariablesAndLanguageChecks(t *testing.T) {
+func TestLevel0LanguageChecksExcludeLevel1Variables(t *testing.T) {
 	issues := runLevel0OnFiles(t, map[string]string{
 		"test.php": `<?php
 echo $missing;
@@ -1220,8 +1227,8 @@ $a = ['x' => 1, 'x' => 2];
 `,
 	})
 
-	if !hasIssueContaining(issues, level0VariablesCode, "Undefined variable: $missing") {
-		t.Fatalf("expected undefined variable issue, got %#v", issues)
+	if hasIssueContaining(issues, level1VariablesCode, "Variable $missing might not be defined.") {
+		t.Fatalf("level zero should exclude undefined-variable diagnostics, got %#v", issues)
 	}
 	if !hasIssueContaining(issues, level0LanguageCode, "Goto to undefined label nowhere") {
 		t.Fatalf("expected undefined label issue, got %#v", issues)

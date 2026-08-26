@@ -115,6 +115,7 @@ type AnalysisContext struct {
 	Resolver           SymbolResolver
 	Facts              SemanticFactReader
 	Flow               FlowGraphReader
+	VariableFlow       VariableFlowReader
 	PHPVersion         string
 	AnalysisLevel      *int
 	DisabledIssueCodes map[string]bool

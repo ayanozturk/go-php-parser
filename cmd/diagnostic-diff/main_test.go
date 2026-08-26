@@ -7,18 +7,32 @@ import (
 )
 
 func TestCheckedInEngineDifferentialBaseline(t *testing.T) {
-	report, err := runDifferential(filepath.Join("..", "..", "testdata", "diagnostic-differential"), "", true)
+	level0Report, err := runDifferential(filepath.Join("..", "..", "testdata", "diagnostic-differential"), "", true)
 	if err != nil {
 		t.Fatalf("run engine differential baseline: %v", err)
 	}
-	if report.Totals.Cases != 5 {
-		t.Fatalf("expected 5 differential cases, got %d", report.Totals.Cases)
+	if level0Report.Totals.Cases != 4 {
+		t.Fatalf("expected 4 level-0 differential cases, got %d", level0Report.Totals.Cases)
 	}
-	if report.Totals.EngineMismatches != 0 {
-		t.Fatalf("engine differential baseline has %d mismatches: %#v", report.Totals.EngineMismatches, report.Cases)
+	if level0Report.Totals.EngineMismatches != 0 {
+		t.Fatalf("engine differential baseline has %d mismatches: %#v", level0Report.Totals.EngineMismatches, level0Report.Cases)
 	}
-	if report.Reference != nil {
-		t.Fatalf("engine-only report should not contain a reference run: %#v", report.Reference)
+	if level0Report.Reference != nil {
+		t.Fatalf("engine-only report should not contain a reference run: %#v", level0Report.Reference)
+	}
+
+	level1Report, err := runDifferential(filepath.Join("..", "..", "testdata", "diagnostic-differential-level1"), "", true)
+	if err != nil {
+		t.Fatalf("run engine level-1 differential baseline: %v", err)
+	}
+	if level1Report.Totals.Cases != 5 {
+		t.Fatalf("expected 5 level-1 differential cases, got %d", level1Report.Totals.Cases)
+	}
+	if level1Report.Totals.EngineMismatches != 0 {
+		t.Fatalf("engine level-1 differential baseline has %d mismatches: %#v", level1Report.Totals.EngineMismatches, level1Report.Cases)
+	}
+	if level1Report.Reference != nil {
+		t.Fatalf("engine-only level-1 report should not contain a reference run: %#v", level1Report.Reference)
 	}
 }
 

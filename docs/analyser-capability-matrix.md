@@ -4,18 +4,20 @@
 
 This matrix separates executable evidence from descriptive coverage claims. A capability is not described as PHPStan-compatible merely because a similarly named rule exists.
 
-The first checked-in differential pack lives in `testdata/diagnostic-differential`. Its manifest maps each neutral PHP fixture to the exact diagnostic code expected from this engine and the exact PHPStan error identifier expected from the reference analyser. `cmd/diagnostic-diff` reports unexpected, missing, and duplicate diagnostics because it compares sorted identifier lists rather than only checking whether any error occurred.
+The checked-in differential packs live in `testdata/diagnostic-differential` (level 0) and `testdata/diagnostic-differential-level1` (level 1). Their manifests map each neutral PHP fixture to the exact diagnostic code expected from this engine and the exact PHPStan error identifier expected from the reference analyser. `cmd/diagnostic-diff` reports unexpected, missing, and duplicate diagnostics because it compares sorted identifier lists rather than only checking whether any error occurred.
 
 Run the local engine gate:
 
 ```sh
 go run ./cmd/diagnostic-diff --engine-only
+go run ./cmd/diagnostic-diff --fixtures testdata/diagnostic-differential-level1 --engine-only
 ```
 
 Run the full differential against an installed PHPStan binary:
 
 ```sh
 go run ./cmd/diagnostic-diff --phpstan-bin /absolute/path/to/phpstan --json
+go run ./cmd/diagnostic-diff --fixtures testdata/diagnostic-differential-level1 --phpstan-bin /absolute/path/to/phpstan --json
 ```
 
 The full report records the PHPStan version returned by the supplied executable. Results from different reference versions must not be merged without review. The ordinary Go suite uses engine-only mode so it does not silently download or depend on an unpinned external analyser.
@@ -27,7 +29,9 @@ The full report records the PHPStan version returned by the supplied executable.
 | Unknown instantiated classes | Partial, differential-gated | `unknown-class` | `PHPStan.Level0.Symbols` | `class.notFound` | The analyser covers several class-reference surfaces, but the first pack proves only direct `new` expressions. |
 | Unknown function calls | Partial, differential-gated | `unknown-function` | `PHPStan.Level0.Symbols` | `function.notFound` | Built-in and extension-sensitive symbol coverage remains incomplete. |
 | Function argument counts | Partial, differential-gated | `argument-count` | `PHPStan.Level0.Invocation` | `arguments.count` | The first pack covers a direct known function call; dynamic calls and constant-array unpacking remain outside the gate. |
-| Always undefined variables | Partial, differential-gated | `undefined-variable` | `PHPStan.Level0.Variables` | `variable.undefined` | Branch-sensitive possibly-defined variables require joined-state dataflow over the control-flow graph. |
+| Always undefined variables | Partial, differential-gated | `undefined-variable` (level 1 pack) | `PHPStan.Level1.Variables` | `variable.undefined` | PHPStan 2.2.5 introduces this diagnostic at level 1, including for an always-undefined top-level read. |
+| Possibly undefined variables | Partial, differential-gated | `branch-defined-variable`, `while-defined-variable` | `PHPStan.Level1.Variables` | `variable.undefined` | Joined facts cover conditionals, bounded loop convergence, `switch`, and `try`/`catch`/`finally`; by-reference writes, closure `use` precision, and multi-level loop transfers remain incomplete. |
+| Exhaustive variable-flow controls | Partial, differential-gated | `exhaustive-branch-defined-variable`, `do-while-defined-variable` | none | none | Proves two clean controls, not full false-positive parity across all control flow. |
 | Known symbols without false positives | Partial, differential-gated | `clean-known-symbols` | none | none | The clean fixture covers a declared function and compatible call, not the full false-positive surface. |
 
 ## Implemented but not yet differential-gated
@@ -48,7 +52,6 @@ These areas have repository unit coverage but no checked-in PHPStan differential
 
 | Capability | Status | Dependency |
 | --- | --- | --- |
-| Possibly undefined variables | Not implemented | Control-flow graph and joined scope states |
 | Arbitrary-expression unknown method checks | Not implemented | Reusable expression types and broader member resolution |
 | PHPDoc validation parity | Not implemented | Complete PHPDoc type validation and source mapping |
 | Full level 0 parity | Not implemented | Expand the differential pack across the agreed corpus and close reviewed mismatches |

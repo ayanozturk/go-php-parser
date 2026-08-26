@@ -2,6 +2,7 @@ package analyse
 
 import (
 	"github.com/ayanozturk/go-php-parser/ast"
+	"reflect"
 	"sort"
 	"testing"
 )
@@ -80,6 +81,7 @@ func TestRunAnalysisRulesPreservesReadOnlySemanticContext(t *testing.T) {
 	resolver := NewProjectIndex()
 	facts := &countingFactReader{}
 	flow := &stubFlowGraphReader{}
+	variableFlow := singleFileVariableFlow{filename: "test.php"}
 	RegisterAnalysisRuleWithContext("SEMANTIC.CONTEXT", func(filename string, nodes []ast.Node, ctx *AnalysisContext) []AnalysisIssue {
 		if ctx.Resolver != resolver {
 			t.Fatal("registered rule did not receive the supplied symbol resolver")
@@ -90,10 +92,13 @@ func TestRunAnalysisRulesPreservesReadOnlySemanticContext(t *testing.T) {
 		if ctx.Flow != flow {
 			t.Fatal("registered rule did not receive the supplied flow graph reader")
 		}
+		if !reflect.DeepEqual(ctx.VariableFlow, variableFlow) {
+			t.Fatal("registered rule did not receive the supplied variable-flow reader")
+		}
 		return nil
 	})
 
-	RunAnalysisRulesWithContext("test.php", nil, &AnalysisContext{Resolver: resolver, Facts: facts, Flow: flow})
+	RunAnalysisRulesWithContext("test.php", nil, &AnalysisContext{Resolver: resolver, Facts: facts, Flow: flow, VariableFlow: variableFlow})
 }
 
 type stubFlowGraphReader struct{}

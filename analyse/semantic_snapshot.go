@@ -67,6 +67,7 @@ type SemanticSnapshot struct {
 	flowGraphs              map[FlowScopeKey]ControlFlowGraph
 	statementReachability   map[FlowStatementKey]bool
 	ambiguousFlowStatements map[FlowStatementKey]struct{}
+	variableReads           map[string][]variableReadFact
 	filenames               []string
 }
 
@@ -97,6 +98,7 @@ func NewSemanticSnapshot(parsed map[string][]ast.Node, facts []SemanticFact) (*S
 		filenames: filenames,
 	}
 	snapshot.generateControlFlowGraphs(parsed)
+	snapshot.generateVariableFlowFacts(parsed)
 	snapshot.generateInferredTypeFacts(parsed)
 	return snapshot, nil
 }
@@ -198,7 +200,36 @@ func (s *SemanticSnapshot) NewAnalysisContext() *AnalysisContext {
 	if s == nil {
 		return &AnalysisContext{}
 	}
-	return &AnalysisContext{Resolver: s, Facts: s, Flow: s}
+	return &AnalysisContext{Resolver: s, Facts: s, Flow: s, VariableFlow: s}
+}
+
+func (s *SemanticSnapshot) generateVariableFlowFacts(parsed map[string][]ast.Node) {
+	s.variableReads = make(map[string][]variableReadFact, len(s.filenames))
+	for _, filename := range s.filenames {
+		s.variableReads[filename] = buildVariableFlowFacts(filename, parsed[filename])
+	}
+}
+
+// VariableReadsForFile returns variable reads in deterministic source order.
+func (s *SemanticSnapshot) VariableReadsForFile(filename string) []VariableReadFact {
+	if s == nil {
+		return nil
+	}
+	reads := s.variableReads[filename]
+	result := make([]VariableReadFact, len(reads))
+	for i, read := range reads {
+		result[i] = read.public(filename)
+	}
+	return result
+}
+
+func (s *SemanticSnapshot) rangeVariableReadsForFile(filename string, visit func(VariableReadFact)) {
+	if s == nil {
+		return
+	}
+	for _, read := range s.variableReads[filename] {
+		visit(read.public(filename))
+	}
 }
 
 // Fact returns the fact registered for an exact source-span key.
@@ -424,3 +455,4 @@ func resolvedPropertyOwner(project *ProjectIndex, className, propertyName string
 
 var _ SymbolResolver = (*SemanticSnapshot)(nil)
 var _ SemanticFactReader = (*SemanticSnapshot)(nil)
+var _ VariableFlowReader = (*SemanticSnapshot)(nil)

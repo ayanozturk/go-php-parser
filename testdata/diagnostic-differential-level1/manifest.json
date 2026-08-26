@@ -1,0 +1,44 @@
+{
+  "schemaVersion": 1,
+  "reference": {
+    "tool": "PHPStan",
+    "level": 1
+  },
+  "cases": [
+    {
+      "id": "branch-defined-variable",
+      "capability": "possibly undefined variables after a non-exhaustive branch",
+      "file": "branch-defined-variable.php",
+      "engineCodes": ["PHPStan.Level1.Variables"],
+      "phpstanIdentifiers": ["variable.undefined"]
+    },
+    {
+      "id": "exhaustive-branch-defined-variable",
+      "capability": "defined variables after exhaustive branches",
+      "file": "exhaustive-branch-defined-variable.php",
+      "engineCodes": [],
+      "phpstanIdentifiers": []
+    },
+    {
+      "id": "while-defined-variable",
+      "capability": "possibly undefined variables after a while loop",
+      "file": "while-defined-variable.php",
+      "engineCodes": ["PHPStan.Level1.Variables"],
+      "phpstanIdentifiers": ["variable.undefined"]
+    },
+    {
+      "id": "do-while-defined-variable",
+      "capability": "defined variables after a do-while loop",
+      "file": "do-while-defined-variable.php",
+      "engineCodes": [],
+      "phpstanIdentifiers": []
+    },
+    {
+      "id": "undefined-variable",
+      "capability": "always undefined variables",
+      "file": "undefined-variable.php",
+      "engineCodes": ["PHPStan.Level1.Variables"],
+      "phpstanIdentifiers": ["variable.undefined"]
+    }
+  ]
+}
