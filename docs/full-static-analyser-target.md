@@ -116,13 +116,13 @@ A three-iteration profile allocated 3.63GB in total. The `ProjectIndex.MethodsDe
 - internal semantic queries must use immutable, pre-normalized, deterministically ordered views or iterators without cloning and sorting on every call; defensive copying remains required only at mutation-capable public boundaries;
 - branch-sensitive flow state must move from eager whole-map cloning to a measured copy-on-write, persistent-map, or equivalent delta representation before broader narrowing and fixed-point analysis multiply the cost.
 
-The result does not justify changing implementation language or redesigning AST storage yet. Shared semantic facts, normalized symbol identities, allocation-light resolver traversal, and persistent flow state remain the priority. Full evidence and reproduction details are recorded in `docs/benchmarks/2026-08-25-wordpress-early-design-indicator.{md,json}`.
+The result does not justify changing implementation language or redesigning AST storage yet. Shared semantic facts, normalized symbol identities, allocation-light resolver traversal, and persistent flow state remain the priority. The durable result summary and reproduction details are recorded in `docs/benchmarks/2026-08-25-wordpress-early-design-indicator.md`; generated JSON remains a local or CI artifact and is not committed.
 
 ### Post-allocation interleaved rebaseline, 2026-08-25
 
 Commit `6ac1a40` implemented immutable precomputed method views, allocation-light internal traversal, copy-on-write function-scope maps, and a hardened benchmark protocol. Two WordPress attempts interleaved it with the previous engine at `b802a76`. Every validation and measured run retained identical accounting: 5,357/5,357 files, 1,451,208 LOC, 47,344,277 bytes, zero parse failures, and 30,007 diagnostics.
 
-Across 10-run and 20-run attempts the candidate's cold mean and median were approximately 23% lower and maximum peak RSS was approximately 5% lower. Both attempts remain rejected: candidate CV was 6.08% and 6.94%, while baseline CV was 5.21% and 5.18%. This is repeated directional evidence that the allocation design is beneficial, but it is not an accepted performance baseline. The benchmark protocol correctly rejected favorable results that failed its stability contract. Full results are recorded in `docs/benchmarks/2026-08-25-wordpress-post-allocation-rebaseline.md` and the adjacent JSON reports.
+Across 10-run and 20-run attempts the candidate's cold mean and median were approximately 23% lower and maximum peak RSS was approximately 5% lower. Both attempts remain rejected: candidate CV was 6.08% and 6.94%, while baseline CV was 5.21% and 5.18%. This is repeated directional evidence that the allocation design is beneficial, but it is not an accepted performance baseline. The benchmark protocol correctly rejected favorable results that failed its stability contract. The durable result summary is recorded in `docs/benchmarks/2026-08-25-wordpress-post-allocation-rebaseline.md`; generated JSON remains a local or CI artifact and is not committed.
 
 ## Comparable-performance contract
 

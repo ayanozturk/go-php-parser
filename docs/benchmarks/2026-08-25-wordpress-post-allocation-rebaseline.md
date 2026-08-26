@@ -39,7 +39,6 @@ The candidate warm-loop means were 0.469s for attempt 1 and 0.482s for attempt 2
 
 ## Evidence and decision
 
-- Checked-in attempt 1 JSON SHA-256: `1b304856136ffcee290288a9d30388e8f84b04f2281ffb36eb3b03fa78038e82`.
-- Checked-in attempt 2 JSON SHA-256: `49fdbb7996b5017e258605afd1c774152a040e626084d827def3e8ff8cecc684`.
+Generated benchmark JSON is intentionally not checked in. Raw reports remain local or CI run artifacts; this Markdown document is the durable result summary.
 
 The immutable method views and copy-on-write branch state are retained: they preserve semantic output and show a repeated material reduction in cold elapsed time without increasing peak RSS. The benchmark-protocol work is also complete and behaved as intended by rejecting both otherwise favorable attempts. The next performance task is to identify and control host/runtime variance or define a more robust predeclared statistical acceptance method before rerunning the gate. No Mago comparison or performance-parity claim follows from these results.

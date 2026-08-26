@@ -16,7 +16,7 @@ This run is accepted as an early architecture and profiling indicator, but rejec
 - Build: `go build -trimpath -ldflags='-s -w' -o benchmark ./cmd/benchmark`.
 - Run: `benchmark --root test_projects/wordpress-develop --paths src,tests,vendor --excludes src/js --cold-runs 10 --warm-iterations 11 --workers 8 --json`.
 
-The report JSON SHA-256 is `3e240ed2c57ccb5b997f9fe236870ae77b1f5d76ffe6119e945f276c4df6ce63`. The raw CPU and heap profiles were intentionally not checked in; their SHA-256 values were `d437d7d8ae671f00705d025b8cf38b326a702a6bcf008fe068cf1bdd73e974ac` and `e48735a661cdc89552fc1c880376688c50b22ee3c14bc8189e26f9b5d042d11a` respectively.
+Generated benchmark JSON is intentionally not checked in. The raw CPU and heap profiles were also retained only as local run artifacts; their SHA-256 values were `d437d7d8ae671f00705d025b8cf38b326a702a6bcf008fe068cf1bdd73e974ac` and `e48735a661cdc89552fc1c880376688c50b22ee3c14bc8189e26f9b5d042d11a` respectively.
 
 ## Results
 
