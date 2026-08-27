@@ -425,6 +425,23 @@ func newFunctionScopeWithContext(ctx *AnalysisContext, class *ast.ClassNode, fn 
 			// Check if param type is a generic class with declared type arguments
 			if genInst, ok := parseGenericTypeFromString(paramType.String()); ok {
 				scope.genericContext[param.Name] = genInst
+			} else {
+				// Also check if the param type itself is a class that has generic parents
+				if className, ok := paramType.SingleClassName(); ok && ctx != nil && ctx.Resolver != nil {
+					if resolvedClass, ok := ctx.Resolver.ResolveClass(className); ok && len(resolvedClass.GenericParents) > 0 {
+						// For now, just store the first generic parent as the primary generics
+						// This handles cases like UserRepository(extends Repository<User>)
+						if len(resolvedClass.GenericParents) > 0 {
+							gparen := resolvedClass.GenericParents[0]
+							if len(gparen.TypeArguments) > 0 {
+								scope.genericContext[param.Name] = GenericInstance{
+									ClassName:     gparen.Name,
+									TypeArguments: gparen.TypeArguments,
+								}
+							}
+						}
+					}
+				}
 			}
 		}
 	}
@@ -688,6 +705,13 @@ func applyAssignmentScope(scope *functionScope, assignment *ast.AssignmentNode, 
 	switch left := assignment.Left.(type) {
 	case *ast.VariableNode:
 		scope.setVariable(left.Name, assignedType)
+		// If the assigned type contains generic arguments, track it
+		if genInst, ok := parseGenericTypeFromString(assignedType.String()); ok {
+			if scope.genericContext == nil {
+				scope.genericContext = make(map[string]GenericInstance)
+			}
+			scope.genericContext[left.Name] = genInst
+		}
 	case *ast.PropertyFetchNode:
 		if object, ok := left.Object.(*ast.VariableNode); ok && object.Name == "this" {
 			scope.setProperty(left.Property, assignedType)
