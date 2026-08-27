@@ -225,3 +225,50 @@ function process(DocumentList $docs) {
 		t.Logf("Issues found: %#v", argTypeIssues)
 	}
 }
+
+func TestMultipleGenericInheritance(t *testing.T) {
+	// Verify that generics work with deep inheritance chains
+	issues := parseGenericsPHP(t, `<?php
+/**
+ * @template T
+ */
+class BaseRepository {
+    /**
+     * @return T
+     */
+    public function find() {
+        return null;
+    }
+}
+
+/**
+ * @template T extends Entity
+ * @extends BaseRepository<T>
+ */
+class EntityRepository extends BaseRepository {}
+
+interface Entity {
+    public function getId(): int;
+}
+
+class User implements Entity {
+    public function getId(): int { return 1; }
+}
+
+/**
+ * @extends EntityRepository<User>
+ */
+class UserRepository extends EntityRepository {}
+
+function processUsers(UserRepository $users) {
+    // find() inherited from BaseRepository, but bound through EntityRepository<User>
+    // should return User, not T
+    $user = $users->find();
+    $id = $user->getId();
+}`)
+
+	argTypeIssues := filterArgTypeIssuesInGenerics(issues)
+	if len(argTypeIssues) > 0 {
+		t.Logf("Issues found: %#v", argTypeIssues)
+	}
+}
