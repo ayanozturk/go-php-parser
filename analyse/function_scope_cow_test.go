@@ -282,7 +282,7 @@ func functionScopeMapPointer(values map[string]Type) uintptr {
 	return reflect.ValueOf(values).Pointer()
 }
 
-func functionScopeClassFixture(tb testing.TB) (*ast.ClassNode, *ast.FunctionNode, fileTypeContext) {
+func functionScopeClassFixture(tb testing.TB) (*ast.ClassNode, *ast.FunctionNode, FileTypeContext) {
 	tb.Helper()
 	const source = `<?php
 class CachedProperties {
@@ -305,10 +305,10 @@ class CachedProperties {
 		for _, member := range class.Methods {
 			method, ok := member.(*ast.FunctionNode)
 			if ok {
-				return class, method, collectFileTypeContext(nodes)
+				return class, method, CollectFileTypeContext(nodes)
 			}
 		}
 	}
 	tb.Fatal("fixture did not contain a class method")
-	return nil, nil, fileTypeContext{}
+	return nil, nil, FileTypeContext{}
 }

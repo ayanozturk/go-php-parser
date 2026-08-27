@@ -588,7 +588,7 @@ class ChildModel extends BaseModel {
 		t.Fatalf("build snapshot: %v", err)
 	}
 	ctx := snapshot.NewAnalysisContext()
-	issues := (&PHPStanLevel0Rule{}).checkClassModel(filename, nodes, ctx, collectFileTypeContext(nodes))
+	issues := (&PHPStanLevel0Rule{}).checkClassModel(filename, nodes, ctx, CollectFileTypeContext(nodes))
 	if !hasIssueContaining(issues, level0ClassModelCode, "Cannot override final method BaseModel::locked") {
 		t.Fatalf("expected resolver-backed final method diagnostic, got %#v", issues)
 	}

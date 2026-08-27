@@ -150,24 +150,24 @@ type AnalysisContext struct {
 	AnalysisLevel      *int
 	DisabledIssueCodes map[string]bool
 
-	fileTypeContext     fileTypeContext
+	FileTypeContext     FileTypeContext
 	hasFileTypeContext  bool
 	functionScopeByNode map[*ast.FunctionNode]*functionScope
 	classScopeByNode    map[*ast.ClassNode]classScopeData
 }
 
-func analysisFileTypeContext(ctx *AnalysisContext, nodes []ast.Node) fileTypeContext {
+func analysisFileTypeContext(ctx *AnalysisContext, nodes []ast.Node) FileTypeContext {
 	if ctx == nil {
-		return collectFileTypeContext(nodes)
+		return CollectFileTypeContext(nodes)
 	}
 	if !ctx.hasFileTypeContext {
-		ctx.fileTypeContext = collectFileTypeContext(nodes)
+		ctx.FileTypeContext = CollectFileTypeContext(nodes)
 		ctx.hasFileTypeContext = true
 	}
-	return ctx.fileTypeContext
+	return ctx.FileTypeContext
 }
 
-func analysisFunctionScope(ctx *AnalysisContext, class *ast.ClassNode, fn *ast.FunctionNode, typeCtx fileTypeContext) *functionScope {
+func analysisFunctionScope(ctx *AnalysisContext, class *ast.ClassNode, fn *ast.FunctionNode, typeCtx FileTypeContext) *functionScope {
 	if ctx == nil || fn == nil {
 		return newFunctionScope(class, fn, typeCtx)
 	}
@@ -182,7 +182,7 @@ func analysisFunctionScope(ctx *AnalysisContext, class *ast.ClassNode, fn *ast.F
 	return scope.clone()
 }
 
-func analysisClassScopeData(ctx *AnalysisContext, class *ast.ClassNode, typeCtx fileTypeContext) classScopeData {
+func analysisClassScopeData(ctx *AnalysisContext, class *ast.ClassNode, typeCtx FileTypeContext) classScopeData {
 	if class == nil {
 		return classScopeData{}
 	}
@@ -200,15 +200,15 @@ func analysisClassScopeData(ctx *AnalysisContext, class *ast.ClassNode, typeCtx 
 	return data
 }
 
-func analysisClassScopeDataByName(ctx *AnalysisContext, className string, typeCtx fileTypeContext) (classScopeData, bool) {
+func analysisClassScopeDataByName(ctx *AnalysisContext, className string, typeCtx FileTypeContext) (classScopeData, bool) {
 	className = strings.TrimPrefix(strings.TrimSpace(className), `\`)
 	if className == "" {
 		return classScopeData{}, false
 	}
-	class, ok := typeCtx.classNodes[strings.ToLower(className)]
+	class, ok := typeCtx.ClassNodes[strings.ToLower(className)]
 	if !ok {
 		resolved := typeCtx.resolveClassLike(className)
-		class, ok = typeCtx.classNodes[strings.ToLower(strings.TrimPrefix(resolved, `\`))]
+		class, ok = typeCtx.ClassNodes[strings.ToLower(strings.TrimPrefix(resolved, `\`))]
 		if !ok {
 			return classScopeData{}, false
 		}

@@ -52,7 +52,7 @@ func templateNames(docTemplates []string) map[string]struct{} {
 	return names
 }
 
-func normalizeTemplateAwareType(raw string, ctx fileTypeContext, templates map[string]struct{}) string {
+func normalizeTemplateAwareType(raw string, ctx FileTypeContext, templates map[string]struct{}) string {
 	raw = strings.TrimSpace(raw)
 	if raw == "" {
 		return ""

@@ -106,7 +106,7 @@ func constructorForSeen(className string, resolver SymbolResolver, seen map[stri
 	return ResolvedMethod{Name: "__construct"}
 }
 
-func checkMethodVisibility(filename string, pos ast.Position, method ResolvedMethod, className string, currentClass *ast.ClassNode, ft fileTypeContext, resolver SymbolResolver, static bool, issues *[]AnalysisIssue) {
+func checkMethodVisibility(filename string, pos ast.Position, method ResolvedMethod, className string, currentClass *ast.ClassNode, ft FileTypeContext, resolver SymbolResolver, static bool, issues *[]AnalysisIssue) {
 	declaringClass := method.DeclaringClass
 	if declaringClass == "" {
 		declaringClass = className
@@ -168,7 +168,7 @@ func checkInstanceStaticMethodCall(filename string, pos ast.Position, method Res
 	}
 }
 
-func checkConstructorAccess(filename string, pos ast.Position, targetClass string, currentClass *ast.ClassNode, ft fileTypeContext, resolver SymbolResolver, constructor ResolvedMethod, issues *[]AnalysisIssue) {
+func checkConstructorAccess(filename string, pos ast.Position, targetClass string, currentClass *ast.ClassNode, ft FileTypeContext, resolver SymbolResolver, constructor ResolvedMethod, issues *[]AnalysisIssue) {
 	if constructor.Name != "__construct" || constructor.Visibility == "public" || constructor.Visibility == "" {
 		return
 	}

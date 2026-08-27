@@ -12,14 +12,14 @@ type reflectionGuards struct {
 	methods   map[string]struct{}
 }
 
-func collectReflectionGuards(nodes []ast.Node, fileCtx fileTypeContext) reflectionGuards {
+func collectReflectionGuards(nodes []ast.Node, fileCtx FileTypeContext) reflectionGuards {
 	guards := reflectionGuards{
 		classes:   map[string]struct{}{},
 		functions: map[string]struct{}{},
 		constants: map[string]struct{}{},
 		methods:   map[string]struct{}{},
 	}
-	walkAll(nodes, func(node ast.Node, class *ast.ClassNode, _ *ast.FunctionNode, ft fileTypeContext) {
+	walkAll(nodes, func(node ast.Node, class *ast.ClassNode, _ *ast.FunctionNode, ft FileTypeContext) {
 		call, ok := node.(*ast.FunctionCallNode)
 		if !ok {
 			return
@@ -84,7 +84,7 @@ func (guards reflectionGuards) hasConstant(name string) bool {
 	return ok
 }
 
-func classNameGuardValue(node ast.Node, ft fileTypeContext) (string, bool) {
+func classNameGuardValue(node ast.Node, ft FileTypeContext) (string, bool) {
 	if value, ok := stringLiteralValue(node); ok {
 		return ft.resolveClassLike(value), true
 	}
@@ -94,7 +94,7 @@ func classNameGuardValue(node ast.Node, ft fileTypeContext) (string, bool) {
 	return "", false
 }
 
-func methodGuardClass(node ast.Node, current *ast.ClassNode, ft fileTypeContext) (string, bool) {
+func methodGuardClass(node ast.Node, current *ast.ClassNode, ft FileTypeContext) (string, bool) {
 	if receiver, ok := node.(*ast.VariableNode); ok && receiver.Name == "this" {
 		className := currentClassName(current, ft)
 		return className, className != ""

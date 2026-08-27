@@ -2,19 +2,19 @@ package analyse
 
 import "github.com/ayanozturk/go-php-parser/ast"
 
-func walkAll(nodes []ast.Node, fn func(ast.Node, *ast.ClassNode, *ast.FunctionNode, fileTypeContext)) {
+func walkAll(nodes []ast.Node, fn func(ast.Node, *ast.ClassNode, *ast.FunctionNode, FileTypeContext)) {
 	walkAllUsing(nodes, fn, true)
 }
 
 func walkAllWithoutTypeContext(nodes []ast.Node, fn func(ast.Node)) {
-	walkAllUsing(nodes, func(node ast.Node, _ *ast.ClassNode, _ *ast.FunctionNode, _ fileTypeContext) {
+	walkAllUsing(nodes, func(node ast.Node, _ *ast.ClassNode, _ *ast.FunctionNode, _ FileTypeContext) {
 		fn(node)
 	}, false)
 }
 
-func walkAllUsing(nodes []ast.Node, fn func(ast.Node, *ast.ClassNode, *ast.FunctionNode, fileTypeContext), collectContext bool) {
-	var walk func(ast.Node, *ast.ClassNode, *ast.FunctionNode, fileTypeContext)
-	walk = func(node ast.Node, class *ast.ClassNode, currentFn *ast.FunctionNode, ft fileTypeContext) {
+func walkAllUsing(nodes []ast.Node, fn func(ast.Node, *ast.ClassNode, *ast.FunctionNode, FileTypeContext), collectContext bool) {
+	var walk func(ast.Node, *ast.ClassNode, *ast.FunctionNode, FileTypeContext)
+	walk = func(node ast.Node, class *ast.ClassNode, currentFn *ast.FunctionNode, ft FileTypeContext) {
 		if node == nil {
 			return
 		}
@@ -23,9 +23,9 @@ func walkAllUsing(nodes []ast.Node, fn func(ast.Node, *ast.ClassNode, *ast.Funct
 		case *ast.NamespaceNode:
 			nft := ft
 			if collectContext {
-				nft = collectFileTypeContext(n.Body)
-				if nft.namespace == "" {
-					nft.namespace = n.Name
+				nft = CollectFileTypeContext(n.Body)
+				if nft.Namespace == "" {
+					nft.Namespace = n.Name
 				}
 			}
 			for _, child := range n.Body {
@@ -203,9 +203,9 @@ func walkAllUsing(nodes []ast.Node, fn func(ast.Node, *ast.ClassNode, *ast.Funct
 			walk(n.Expr, class, currentFn, ft)
 		}
 	}
-	ft := fileTypeContext{}
+	ft := FileTypeContext{}
 	if collectContext {
-		ft = collectFileTypeContext(nodes)
+		ft = CollectFileTypeContext(nodes)
 	}
 	for _, node := range nodes {
 		walk(node, nil, nil, ft)

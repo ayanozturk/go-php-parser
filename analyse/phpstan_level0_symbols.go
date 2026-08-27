@@ -6,10 +6,10 @@ import (
 	"strings"
 )
 
-func (r *PHPStanLevel0Rule) checkSymbolsAndCalls(filename string, nodes []ast.Node, ctx *AnalysisContext, fileCtx fileTypeContext) []AnalysisIssue {
+func (r *PHPStanLevel0Rule) checkSymbolsAndCalls(filename string, nodes []ast.Node, ctx *AnalysisContext, fileCtx FileTypeContext) []AnalysisIssue {
 	var issues []AnalysisIssue
 	guards := collectReflectionGuards(nodes, fileCtx)
-	walkAll(nodes, func(node ast.Node, class *ast.ClassNode, currentFn *ast.FunctionNode, ft fileTypeContext) {
+	walkAll(nodes, func(node ast.Node, class *ast.ClassNode, currentFn *ast.FunctionNode, ft FileTypeContext) {
 		switch n := node.(type) {
 		case *ast.NewNode:
 			className := resolveNewClassName(n, ft)
@@ -190,7 +190,7 @@ func (r *PHPStanLevel0Rule) checkSymbolsAndCalls(filename string, nodes []ast.No
 	return issues
 }
 
-func checkConstantVisibility(filename string, pos ast.Position, constant ResolvedConstant, className string, currentClass *ast.ClassNode, ft fileTypeContext, resolver SymbolResolver, issues *[]AnalysisIssue) {
+func checkConstantVisibility(filename string, pos ast.Position, constant ResolvedConstant, className string, currentClass *ast.ClassNode, ft FileTypeContext, resolver SymbolResolver, issues *[]AnalysisIssue) {
 	declaringClass := constant.DeclaringClass
 	if declaringClass == "" {
 		declaringClass = className
@@ -208,7 +208,7 @@ func checkConstantVisibility(filename string, pos ast.Position, constant Resolve
 	}
 }
 
-func methodCallClassName(object ast.Node, ft fileTypeContext) string {
+func methodCallClassName(object ast.Node, ft FileTypeContext) string {
 	switch receiver := object.(type) {
 	case *ast.IdentifierNode:
 		return ft.resolveClassLike(receiver.Value)

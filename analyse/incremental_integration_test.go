@@ -80,8 +80,8 @@ class NewClass {}
 	newParsed := map[string][]ast.Node{
 		file1: nodes,
 	}
-	fileContexts := map[string]fileTypeContext{
-		file1: collectFileTypeContext(nodes),
+	fileContexts := map[string]FileTypeContext{
+		file1: CollectFileTypeContext(nodes),
 	}
 
 	idx.MergeIncremental(newParsed, fileContexts)

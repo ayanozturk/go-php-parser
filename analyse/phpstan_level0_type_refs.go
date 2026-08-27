@@ -6,10 +6,10 @@ import (
 	"strings"
 )
 
-func (r *PHPStanLevel0Rule) checkTypeReferences(filename string, nodes []ast.Node, ctx *AnalysisContext, fileCtx fileTypeContext) []AnalysisIssue {
+func (r *PHPStanLevel0Rule) checkTypeReferences(filename string, nodes []ast.Node, ctx *AnalysisContext, fileCtx FileTypeContext) []AnalysisIssue {
 	var issues []AnalysisIssue
 	guards := collectReflectionGuards(nodes, fileCtx)
-	walkAll(nodes, func(node ast.Node, class *ast.ClassNode, _ *ast.FunctionNode, ft fileTypeContext) {
+	walkAll(nodes, func(node ast.Node, class *ast.ClassNode, _ *ast.FunctionNode, ft FileTypeContext) {
 		switch n := node.(type) {
 		case *ast.UseNode:
 			switch n.Type {
@@ -84,7 +84,7 @@ func (r *PHPStanLevel0Rule) checkTypeReferences(filename string, nodes []ast.Nod
 	return issues
 }
 
-func checkTypeReference(filename string, pos ast.Position, subject, raw string, ft fileTypeContext, ctx *AnalysisContext, guards reflectionGuards, issues *[]AnalysisIssue) {
+func checkTypeReference(filename string, pos ast.Position, subject, raw string, ft FileTypeContext, ctx *AnalysisContext, guards reflectionGuards, issues *[]AnalysisIssue) {
 	for _, name := range referencedClassTypes(raw, ft) {
 		if isSpecialClassName(name) {
 			continue
@@ -98,7 +98,7 @@ func checkTypeReference(filename string, pos ast.Position, subject, raw string, 
 	}
 }
 
-func referencedClassTypes(raw string, ft fileTypeContext) []string {
+func referencedClassTypes(raw string, ft FileTypeContext) []string {
 	raw = strings.TrimSpace(raw)
 	if raw == "" {
 		return nil

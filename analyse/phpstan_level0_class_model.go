@@ -6,20 +6,20 @@ import (
 	"strings"
 )
 
-func (r *PHPStanLevel0Rule) checkClassModel(filename string, nodes []ast.Node, ctx *AnalysisContext, fileCtx fileTypeContext) []AnalysisIssue {
+func (r *PHPStanLevel0Rule) checkClassModel(filename string, nodes []ast.Node, ctx *AnalysisContext, fileCtx FileTypeContext) []AnalysisIssue {
 	var issues []AnalysisIssue
 	for _, duplicate := range ctx.Resolver.DuplicateClasses(filename) {
 		issues = append(issues, issue(filename, duplicate.Pos, level0ClassModelCode, fmt.Sprintf("Duplicate declaration of class %s.", duplicate.Name)))
 	}
 
-	var walk func([]ast.Node, fileTypeContext, string)
-	walk = func(nodes []ast.Node, ft fileTypeContext, currentClass string) {
+	var walk func([]ast.Node, FileTypeContext, string)
+	walk = func(nodes []ast.Node, ft FileTypeContext, currentClass string) {
 		for _, node := range nodes {
 			switch n := node.(type) {
 			case *ast.NamespaceNode:
-				nft := collectFileTypeContext(n.Body)
-				if nft.namespace == "" {
-					nft.namespace = n.Name
+				nft := CollectFileTypeContext(n.Body)
+				if nft.Namespace == "" {
+					nft.Namespace = n.Name
 				}
 				walk(n.Body, nft, currentClass)
 			case *ast.ClassNode:

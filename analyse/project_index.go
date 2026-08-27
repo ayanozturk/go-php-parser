@@ -13,7 +13,7 @@ type ProjectIndex struct {
 	ClassConsts     map[string]map[string]ResolvedConstant
 	Functions       map[string]ResolvedFunction
 	Constants       map[string]struct{}
-	FileTypes       map[string]fileTypeContext
+	FileTypes       map[string]FileTypeContext
 	Duplicates      []DuplicateSymbol
 	methodsDeclared map[string][]ResolvedMethod
 	classLineages   map[string][]string
@@ -36,7 +36,7 @@ func NewProjectIndex() *ProjectIndex {
 		ClassConsts: make(map[string]map[string]ResolvedConstant),
 		Functions:   make(map[string]ResolvedFunction),
 		Constants:   make(map[string]struct{}),
-		FileTypes:   make(map[string]fileTypeContext),
+		FileTypes:   make(map[string]FileTypeContext),
 	}
 	idx.seedBuiltins()
 	return idx
@@ -60,7 +60,7 @@ func BuildProjectIndex(parsed map[string][]ast.Node) *ProjectIndex {
 	sort.Strings(filenames)
 	for _, filename := range filenames {
 		nodes := parsed[filename]
-		ft := collectFileTypeContext(nodes)
+		ft := CollectFileTypeContext(nodes)
 		idx.FileTypes[filename] = ft
 		idx.indexNodes(filename, nodes, ft, "")
 	}
@@ -109,7 +109,7 @@ func (idx *ProjectIndex) FilesAffectedByChangedFile(changedFile string) []string
 // MergeIncremental merges newly parsed files into this index.
 // For each file in newParsed, re-indexes it, updating all maps.
 // Returns updated index (this is modified in-place).
-func (idx *ProjectIndex) MergeIncremental(filesToReparse map[string][]ast.Node, fileTypeContexts map[string]fileTypeContext) {
+func (idx *ProjectIndex) MergeIncremental(filesToReparse map[string][]ast.Node, FileTypeContexts map[string]FileTypeContext) {
 	// Clear old entries for files being re-parsed
 	for filePath := range filesToReparse {
 		// Remove classes from this file
@@ -132,9 +132,9 @@ func (idx *ProjectIndex) MergeIncremental(filesToReparse map[string][]ast.Node, 
 
 	// Re-index new files
 	for filePath, nodes := range filesToReparse {
-		ft := fileTypeContexts[filePath]
-		if ft.classNodes == nil {
-			ft.classNodes = make(map[string]*ast.ClassNode)
+		ft := FileTypeContexts[filePath]
+		if ft.ClassNodes == nil {
+			ft.ClassNodes = make(map[string]*ast.ClassNode)
 		}
 		idx.indexNodes(filePath, nodes, ft, "")
 	}
@@ -466,13 +466,13 @@ func buildClassLineage(idx *ProjectIndex, className string) []string {
 	return out
 }
 
-func (idx *ProjectIndex) indexNodes(filename string, nodes []ast.Node, ft fileTypeContext, currentClass string) {
+func (idx *ProjectIndex) indexNodes(filename string, nodes []ast.Node, ft FileTypeContext, currentClass string) {
 	for _, node := range nodes {
 		switch n := node.(type) {
 		case *ast.NamespaceNode:
-			nft := collectFileTypeContext(n.Body)
-			if nft.namespace == "" {
-				nft.namespace = n.Name
+			nft := CollectFileTypeContext(n.Body)
+			if nft.Namespace == "" {
+				nft.Namespace = n.Name
 			}
 			idx.indexNodes(filename, n.Body, nft, currentClass)
 		case *ast.ClassNode:
@@ -528,7 +528,7 @@ func (idx *ProjectIndex) indexNodes(filename string, nodes []ast.Node, ft fileTy
 	}
 }
 
-func (idx *ProjectIndex) indexClassMembers(filename, className string, properties, methods, constants []ast.Node, ft fileTypeContext, templateParams []string) {
+func (idx *ProjectIndex) indexClassMembers(filename, className string, properties, methods, constants []ast.Node, ft FileTypeContext, templateParams []string) {
 	for _, propNode := range properties {
 		switch p := propNode.(type) {
 		case *ast.PropertyNode:
@@ -558,7 +558,7 @@ func (idx *ProjectIndex) indexClassMembers(filename, className string, propertie
 	}
 }
 
-func (idx *ProjectIndex) indexInterfaceMembers(filename, className string, members []ast.Node, ft fileTypeContext, templateParams []string) {
+func (idx *ProjectIndex) indexInterfaceMembers(filename, className string, members []ast.Node, ft FileTypeContext, templateParams []string) {
 	templates := templateNames(templateParams)
 	for _, member := range members {
 		switch m := member.(type) {
@@ -663,7 +663,7 @@ func (idx *ProjectIndex) addClassConstant(className string, constant ResolvedCon
 	idx.Constants[indexKey(className+"::"+constant.Name)] = struct{}{}
 }
 
-func methodFromFunction(filename, className string, fn *ast.FunctionNode, ft fileTypeContext, templateParams []string) ResolvedMethod {
+func methodFromFunction(filename, className string, fn *ast.FunctionNode, ft FileTypeContext, templateParams []string) ResolvedMethod {
 	returnType := fn.ReturnType
 	if fn.PHPDoc != nil && fn.PHPDoc.ReturnType != "" {
 		returnType = fn.PHPDoc.ReturnType
@@ -682,7 +682,7 @@ func methodFromFunction(filename, className string, fn *ast.FunctionNode, ft fil
 	}
 }
 
-func resolvedGenericMetadata(doc *ast.PHPDocNode, ft fileTypeContext) ([]string, []ResolvedGenericParent) {
+func resolvedGenericMetadata(doc *ast.PHPDocNode, ft FileTypeContext) ([]string, []ResolvedGenericParent) {
 	if doc == nil {
 		return nil, nil
 	}
@@ -703,7 +703,7 @@ func resolvedGenericMetadata(doc *ast.PHPDocNode, ft fileTypeContext) ([]string,
 	return templates, parents
 }
 
-func constantFromNode(filename, className string, c *ast.ConstantNode, ft fileTypeContext) ResolvedConstant {
+func constantFromNode(filename, className string, c *ast.ConstantNode, ft FileTypeContext) ResolvedConstant {
 	return ResolvedConstant{
 		Name:           c.Name,
 		DeclaringClass: className,
@@ -734,11 +734,11 @@ func functionVisibility(fn *ast.FunctionNode) string {
 	return "public"
 }
 
-func paramsFromNodes(nodes []ast.Node, ft fileTypeContext) []ResolvedParam {
+func paramsFromNodes(nodes []ast.Node, ft FileTypeContext) []ResolvedParam {
 	return paramsFromNodesWithPHPDoc(nodes, nil, ft, nil)
 }
 
-func paramsFromNodesWithPHPDoc(nodes []ast.Node, doc *ast.PHPDocNode, ft fileTypeContext, templates map[string]struct{}) []ResolvedParam {
+func paramsFromNodesWithPHPDoc(nodes []ast.Node, doc *ast.PHPDocNode, ft FileTypeContext, templates map[string]struct{}) []ResolvedParam {
 	params := make([]ResolvedParam, 0, len(nodes))
 	for _, node := range nodes {
 		param, ok := node.(*ast.ParamNode)
@@ -766,7 +766,7 @@ func paramsFromNodesWithPHPDoc(nodes []ast.Node, doc *ast.PHPDocNode, ft fileTyp
 	return params
 }
 
-func resolvedList(ft fileTypeContext, names []string) []string {
+func resolvedList(ft FileTypeContext, names []string) []string {
 	out := make([]string, 0, len(names))
 	for _, name := range names {
 		if strings.TrimSpace(name) == "" {
@@ -777,7 +777,7 @@ func resolvedList(ft fileTypeContext, names []string) []string {
 	return out
 }
 
-func traitUsesFromMembers(members []ast.Node, ft fileTypeContext) []string {
+func traitUsesFromMembers(members []ast.Node, ft FileTypeContext) []string {
 	var traits []string
 	for _, member := range members {
 		use, ok := member.(*ast.TraitUseNode)

@@ -19,7 +19,7 @@ type expressionTypeInferer func(filename string, expr ast.Node, scope *functionS
 
 type functionScope struct {
 	className        string
-	typeCtx          fileTypeContext
+	typeCtx          FileTypeContext
 	propertyDecls    map[string]Type
 	variables        map[string]Type
 	properties       map[string]Type
@@ -51,11 +51,11 @@ func (e *ReturnTypeError) Error() string {
 	return fmt.Sprintf("Function %s: return type mismatch, declared: %s, actual: %s at %d:%d", e.FuncName, e.DeclaredType, e.ActualType, e.Pos.Line, e.Pos.Column)
 }
 
-func (r *ReturnTypeRule) CheckFunctionReturnType(fn *ast.FunctionNode, class *ast.ClassNode, typeCtx fileTypeContext, ctx *AnalysisContext) []error {
+func (r *ReturnTypeRule) CheckFunctionReturnType(fn *ast.FunctionNode, class *ast.ClassNode, typeCtx FileTypeContext, ctx *AnalysisContext) []error {
 	return r.checkFunctionReturnType("", fn, class, typeCtx, ctx)
 }
 
-func (r *ReturnTypeRule) checkFunctionReturnType(filename string, fn *ast.FunctionNode, class *ast.ClassNode, typeCtx fileTypeContext, ctx *AnalysisContext) []error {
+func (r *ReturnTypeRule) checkFunctionReturnType(filename string, fn *ast.FunctionNode, class *ast.ClassNode, typeCtx FileTypeContext, ctx *AnalysisContext) []error {
 	declaredType := declaredFunctionReturnType(fn, typeCtx)
 	if declaredType.IsEmpty() {
 		return nil // no declared return type, nothing to check
@@ -131,7 +131,7 @@ func (r *ReturnTypeRule) checkFunctionReturnType(filename string, fn *ast.Functi
 
 func (r *ReturnTypeRule) CheckIssues(nodes []ast.Node, filename string, ctx *AnalysisContext) []AnalysisIssue {
 	var issues []AnalysisIssue
-	walkAll(nodes, func(node ast.Node, class *ast.ClassNode, _ *ast.FunctionNode, fileCtx fileTypeContext) {
+	walkAll(nodes, func(node ast.Node, class *ast.ClassNode, _ *ast.FunctionNode, fileCtx FileTypeContext) {
 		fn, ok := node.(*ast.FunctionNode)
 		if !ok {
 			return
@@ -163,7 +163,7 @@ func (r *ReturnTypeRule) CheckIssues(nodes []ast.Node, filename string, ctx *Ana
 	return issues
 }
 
-func missingReturnValue(fn *ast.FunctionNode, filename string, typeCtx fileTypeContext, ctx *AnalysisContext) bool {
+func missingReturnValue(fn *ast.FunctionNode, filename string, typeCtx FileTypeContext, ctx *AnalysisContext) bool {
 	declared := declaredFunctionReturnType(fn, typeCtx)
 	if fn == nil || declared.IsEmpty() || declared.String() == "void" || hasModifier(fn.Modifiers, "abstract") || functionContainsYield(fn) {
 		return false
@@ -181,7 +181,7 @@ func missingReturnValue(fn *ast.FunctionNode, filename string, typeCtx fileTypeC
 
 func functionContainsYield(fn *ast.FunctionNode) bool {
 	containsYield := false
-	walkAll([]ast.Node{fn}, func(node ast.Node, _ *ast.ClassNode, currentFn *ast.FunctionNode, _ fileTypeContext) {
+	walkAll([]ast.Node{fn}, func(node ast.Node, _ *ast.ClassNode, currentFn *ast.FunctionNode, _ FileTypeContext) {
 		if _, ok := node.(*ast.YieldNode); ok && currentFn == fn {
 			containsYield = true
 		}
@@ -366,7 +366,7 @@ func inferFallbackType(n ast.Node) string {
 	return "mixed"
 }
 
-func declaredFunctionReturnType(fn *ast.FunctionNode, typeCtx fileTypeContext) Type {
+func declaredFunctionReturnType(fn *ast.FunctionNode, typeCtx FileTypeContext) Type {
 	if fn == nil {
 		return EmptyType()
 	}
@@ -379,11 +379,11 @@ func declaredFunctionReturnType(fn *ast.FunctionNode, typeCtx fileTypeContext) T
 	return EmptyType()
 }
 
-func newFunctionScope(class *ast.ClassNode, fn *ast.FunctionNode, typeCtx fileTypeContext) *functionScope {
+func newFunctionScope(class *ast.ClassNode, fn *ast.FunctionNode, typeCtx FileTypeContext) *functionScope {
 	return newFunctionScopeWithContext(nil, class, fn, typeCtx)
 }
 
-func newFunctionScopeWithContext(ctx *AnalysisContext, class *ast.ClassNode, fn *ast.FunctionNode, typeCtx fileTypeContext) *functionScope {
+func newFunctionScopeWithContext(ctx *AnalysisContext, class *ast.ClassNode, fn *ast.FunctionNode, typeCtx FileTypeContext) *functionScope {
 	scope := &functionScope{
 		typeCtx:        typeCtx,
 		propertyDecls:  make(map[string]Type),
@@ -449,11 +449,11 @@ func newFunctionScopeWithContext(ctx *AnalysisContext, class *ast.ClassNode, fn 
 	return scope
 }
 
-func buildClassScopeData(class *ast.ClassNode, typeCtx fileTypeContext) classScopeData {
+func buildClassScopeData(class *ast.ClassNode, typeCtx FileTypeContext) classScopeData {
 	return buildClassScopeDataWithSeen(class, typeCtx, map[string]struct{}{})
 }
 
-func buildClassScopeDataWithSeen(class *ast.ClassNode, typeCtx fileTypeContext, seen map[string]struct{}) classScopeData {
+func buildClassScopeDataWithSeen(class *ast.ClassNode, typeCtx FileTypeContext, seen map[string]struct{}) classScopeData {
 	data := classScopeData{
 		className:     typeCtx.resolveClassLike(class.Name),
 		propertyDecls: make(map[string]Type),
@@ -469,7 +469,7 @@ func buildClassScopeDataWithSeen(class *ast.ClassNode, typeCtx fileTypeContext, 
 
 	if class.Extends != "" {
 		parentName := typeCtx.resolveClassLike(class.Extends)
-		if parent, ok := typeCtx.classNodes[strings.ToLower(strings.TrimPrefix(parentName, `\`))]; ok {
+		if parent, ok := typeCtx.ClassNodes[strings.ToLower(strings.TrimPrefix(parentName, `\`))]; ok {
 			parentData := buildClassScopeDataWithSeen(parent, typeCtx, seen)
 			mergeClassScopeData(&data, parentData)
 		}
@@ -581,7 +581,7 @@ type promotedProperty struct {
 	typ  Type
 }
 
-func promotedClassProperties(class *ast.ClassNode, typeCtx fileTypeContext, scope *functionScope) []promotedProperty {
+func promotedClassProperties(class *ast.ClassNode, typeCtx FileTypeContext, scope *functionScope) []promotedProperty {
 	if class == nil {
 		return nil
 	}

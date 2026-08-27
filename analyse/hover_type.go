@@ -79,7 +79,7 @@ type hoverTypeMatch struct {
 
 func findHoverTypeMatch(nodes []ast.Node, query hoverTypeQuery, ctx *AnalysisContext) hoverTypeMatch {
 	var best hoverTypeMatch
-	fileCtx := collectFileTypeContext(nodes)
+	fileCtx := CollectFileTypeContext(nodes)
 	var walk func(node ast.Node, class *ast.ClassNode)
 
 	walk = func(node ast.Node, class *ast.ClassNode) {

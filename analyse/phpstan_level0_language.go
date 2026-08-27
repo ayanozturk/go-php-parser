@@ -10,11 +10,11 @@ import (
 	"strings"
 )
 
-func (r *PHPStanLevel0Rule) checkLanguage(filename string, nodes []ast.Node, ctx *AnalysisContext, fileCtx fileTypeContext) []AnalysisIssue {
+func (r *PHPStanLevel0Rule) checkLanguage(filename string, nodes []ast.Node, ctx *AnalysisContext, fileCtx FileTypeContext) []AnalysisIssue {
 	var issues []AnalysisIssue
 	labels := map[string]struct{}{}
 	var gotos []*ast.GotoNode
-	walkAll(nodes, func(node ast.Node, class *ast.ClassNode, _ *ast.FunctionNode, ft fileTypeContext) {
+	walkAll(nodes, func(node ast.Node, class *ast.ClassNode, _ *ast.FunctionNode, ft FileTypeContext) {
 		switch n := node.(type) {
 		case *ast.LabelNode:
 			labels[n.Name] = struct{}{}

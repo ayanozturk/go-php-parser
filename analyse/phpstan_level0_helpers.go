@@ -15,7 +15,7 @@ func functionCallName(call *ast.FunctionCallNode) string {
 	return ""
 }
 
-func resolveNewClassName(node *ast.NewNode, ft fileTypeContext) string {
+func resolveNewClassName(node *ast.NewNode, ft FileTypeContext) string {
 	if node.ClassName != "" {
 		return ft.resolveClassLike(node.ClassName)
 	}
@@ -25,7 +25,7 @@ func resolveNewClassName(node *ast.NewNode, ft fileTypeContext) string {
 	return ""
 }
 
-func resolveClassLikeForCall(name string, current *ast.ClassNode, ft fileTypeContext, ctx *AnalysisContext) string {
+func resolveClassLikeForCall(name string, current *ast.ClassNode, ft FileTypeContext, ctx *AnalysisContext) string {
 	switch strings.ToLower(strings.TrimPrefix(name, `\`)) {
 	case "self", "static":
 		if current != nil {
@@ -47,7 +47,7 @@ func resolveClassLikeForCall(name string, current *ast.ClassNode, ft fileTypeCon
 	return ft.resolveClassLike(name)
 }
 
-func resolveFunctionNameForCall(name string, ft fileTypeContext, ctx *AnalysisContext) string {
+func resolveFunctionNameForCall(name string, ft FileTypeContext, ctx *AnalysisContext) string {
 	name = strings.TrimPrefix(strings.TrimSpace(name), `\`)
 	if name == "" || strings.Contains(name, "::") {
 		return name
@@ -62,7 +62,7 @@ func resolveFunctionNameForCall(name string, ft fileTypeContext, ctx *AnalysisCo
 	return name
 }
 
-func currentClassName(class *ast.ClassNode, ft fileTypeContext) string {
+func currentClassName(class *ast.ClassNode, ft FileTypeContext) string {
 	if class == nil {
 		return ""
 	}
@@ -134,7 +134,7 @@ func issueSpan(filename string, n ast.Node, code, message string) AnalysisIssue 
 	}
 }
 
-func resolveThrownClassName(node ast.Node, ft fileTypeContext) string {
+func resolveThrownClassName(node ast.Node, ft FileTypeContext) string {
 	switch n := node.(type) {
 	case *ast.NewNode:
 		return resolveNewClassName(n, ft)
@@ -178,7 +178,7 @@ func isSubclassOfSeen(resolver SymbolResolver, current, target string, seen map[
 	return false
 }
 
-func callerClassName(class *ast.ClassNode, ft fileTypeContext) string {
+func callerClassName(class *ast.ClassNode, ft FileTypeContext) string {
 	if class == nil {
 		return ""
 	}

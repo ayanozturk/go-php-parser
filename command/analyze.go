@@ -145,12 +145,24 @@ func analyzeFilesWithCache(files []string, level *int, matcher *overrides.Compil
 		}
 	}()
 
-	// Build project index (will use cache validation below)
-	// TODO: implement full incremental (skip parsing unchanged files)
-	idx := analyse.BuildProjectIndex(parsed)
+	// Use cache if available: merge new parsed into cachedIdx instead of building from scratch
+	var idx *analyse.ProjectIndex
+	if cachedIdx != nil && len(parsed) > 0 {
+		// Build file type contexts for parsed files
+		fileContexts := make(map[string]analyse.FileTypeContext)
+		for path, nodes := range parsed {
+			fileContexts[path] = analyse.CollectFileTypeContext(nodes)
+		}
+		// Merge changed files into cached index
+		cachedIdx.MergeIncremental(parsed, fileContexts)
+		idx = cachedIdx
+	} else {
+		// No cache or cold run: build fresh index
+		idx = analyse.BuildProjectIndex(parsed)
+	}
 
 	// Cache the index for next run
-	if cacheDir != "" && len(parsed) > 0 && cachedIdx == nil {
+	if cacheDir != "" && len(parsed) > 0 {
 		cm := analyse.NewCacheManager(cacheDir)
 		_ = cm.Store(idx, checksums) // Best-effort; ignore errors
 	}

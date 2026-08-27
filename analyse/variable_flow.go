@@ -123,7 +123,7 @@ type variableFlowAnalyzer struct {
 	filename                 string
 	includeDefinitelyDefined bool
 	resolver                 SymbolResolver
-	typeContext              fileTypeContext
+	typeContext              FileTypeContext
 	currentClassName         string
 	readIndex                map[any]int
 	reads                    []variableReadFact
@@ -138,7 +138,7 @@ func buildVariableFlowFacts(filename string, nodes []ast.Node, includeDefinitely
 		filename:                 filename,
 		includeDefinitelyDefined: includeDefinitelyDefined,
 		resolver:                 resolver,
-		typeContext:              collectFileTypeContext(nodes),
+		typeContext:              CollectFileTypeContext(nodes),
 		readIndex:                make(map[any]int),
 		variableIDs:              make(map[string]int),
 	}

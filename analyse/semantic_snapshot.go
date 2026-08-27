@@ -168,7 +168,7 @@ func (s *SemanticSnapshot) generateInferredTypeFacts(parsed map[string][]ast.Nod
 	}
 }
 
-func (s *SemanticSnapshot) addGeneratedInferredTypeFact(filename string, expr ast.Node, fileCtx fileTypeContext, class *ast.ClassNode, function *ast.FunctionNode, infer func() Type) {
+func (s *SemanticSnapshot) addGeneratedInferredTypeFact(filename string, expr ast.Node, fileCtx FileTypeContext, class *ast.ClassNode, function *ast.FunctionNode, infer func() Type) {
 	if expr == nil || infer == nil {
 		return
 	}
@@ -187,7 +187,7 @@ func (s *SemanticSnapshot) addGeneratedInferredTypeFact(filename string, expr as
 	s.facts[key] = SemanticFact{Key: key, Subject: s.functionSymbolID(fileCtx, class, function), Type: inferred.String()}
 }
 
-func (s *SemanticSnapshot) functionSymbolID(fileCtx fileTypeContext, class *ast.ClassNode, function *ast.FunctionNode) SymbolID {
+func (s *SemanticSnapshot) functionSymbolID(fileCtx FileTypeContext, class *ast.ClassNode, function *ast.FunctionNode) SymbolID {
 	if function == nil {
 		return ""
 	}
