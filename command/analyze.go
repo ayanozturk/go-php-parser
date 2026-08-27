@@ -206,7 +206,8 @@ func analyzeFilesWithCache(files []string, level *int, matcher *overrides.Compil
 		parallelism = 1
 	}
 
-	// Parse all files (full parsing; file-level optimization deferred)
+	// Parse all files with AST caching
+	astCacheMgr := analyse.NewASTCacheManager(cacheDir)
 	jobs := make(chan string)
 	parsedFiles := make(chan parsedAnalysisFile, parallelism)
 	var parseWorkers sync.WaitGroup
@@ -215,7 +216,27 @@ func analyzeFilesWithCache(files []string, level *int, matcher *overrides.Compil
 		go func() {
 			defer parseWorkers.Done()
 			for path := range jobs {
-				parsedFiles <- parseAnalysisFile(path)
+				// Try AST cache first
+				checksum := checksums[path]
+				if astNodes, ok := astCacheMgr.LoadAST(path, checksum); ok {
+					// Cache hit: reuse AST
+					content, _ := os.ReadFile(path)
+					parsedFiles <- parsedAnalysisFile{
+						path:        path,
+						content:     content,
+						nodes:       astNodes,
+						lines:       CountLines(content),
+						parseErrors: []string{},
+					}
+					continue
+				}
+				// Cache miss: parse normally
+				paf := parseAnalysisFile(path)
+				// Store AST for next run
+				if paf.readError == "" && len(paf.parseErrors) == 0 {
+					_ = astCacheMgr.StoreAST(paf.path, paf.nodes, checksum)
+				}
+				parsedFiles <- paf
 			}
 		}()
 	}
