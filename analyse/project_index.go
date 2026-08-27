@@ -106,6 +106,26 @@ func (idx *ProjectIndex) ResolveMethod(className, methodName string) (ResolvedMe
 	return idx.resolveMethodWithTemplates(className, methodName, nil, make(map[string]struct{}))
 }
 
+// ResolveMethodWithGenerics resolves a method on a generic class instance.
+// className is the fully qualified class name (e.g., "Repository").
+// typeArguments are the generic type arguments (e.g., ["User"] for Repository<User>).
+func (idx *ProjectIndex) ResolveMethodWithGenerics(className, methodName string, typeArguments []string) (ResolvedMethod, bool) {
+	class, ok := idx.ResolveClass(className)
+	if !ok || len(class.TemplateParams) == 0 || len(typeArguments) == 0 {
+		return idx.ResolveMethod(className, methodName)
+	}
+
+	// Build bindings: T -> User, K -> string, etc.
+	bindings := make(map[string]string, len(class.TemplateParams))
+	for i, param := range class.TemplateParams {
+		if i < len(typeArguments) {
+			bindings[param] = typeArguments[i]
+		}
+	}
+
+	return idx.resolveMethodWithTemplates(className, methodName, bindings, make(map[string]struct{}))
+}
+
 func (idx *ProjectIndex) methodReferenceParams(className, methodName string) ([]ResolvedParam, bool) {
 	var seen [32]string
 	return idx.methodReferenceParamsSeen(className, methodName, seen[:0])

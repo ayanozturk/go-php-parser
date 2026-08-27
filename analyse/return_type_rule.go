@@ -27,6 +27,9 @@ type functionScope struct {
 	propertiesShared bool
 	methods          map[string]ResolvedMethod
 	methodReturns    map[string]Type
+	// genericContext maps variable names to their generic class instantiations
+	// e.g., "$coll" → (className: "Collection", typeArguments: ["User"])
+	genericContext   map[string]GenericInstance
 }
 
 type classScopeData struct {
@@ -382,12 +385,13 @@ func newFunctionScope(class *ast.ClassNode, fn *ast.FunctionNode, typeCtx fileTy
 
 func newFunctionScopeWithContext(ctx *AnalysisContext, class *ast.ClassNode, fn *ast.FunctionNode, typeCtx fileTypeContext) *functionScope {
 	scope := &functionScope{
-		typeCtx:       typeCtx,
-		propertyDecls: make(map[string]Type),
-		variables:     make(map[string]Type),
-		properties:    make(map[string]Type),
-		methods:       make(map[string]ResolvedMethod),
-		methodReturns: make(map[string]Type),
+		typeCtx:        typeCtx,
+		propertyDecls:  make(map[string]Type),
+		variables:      make(map[string]Type),
+		properties:     make(map[string]Type),
+		methods:        make(map[string]ResolvedMethod),
+		methodReturns:  make(map[string]Type),
+		genericContext: make(map[string]GenericInstance),
 	}
 
 	if class != nil {
@@ -417,6 +421,11 @@ func newFunctionScopeWithContext(ctx *AnalysisContext, class *ast.ClassNode, fn 
 		}
 		if !paramType.IsEmpty() {
 			scope.variables[param.Name] = paramType
+
+			// Check if param type is a generic class with declared type arguments
+			if genInst, ok := parseGenericTypeFromString(paramType.String()); ok {
+				scope.genericContext[param.Name] = genInst
+			}
 		}
 	}
 
@@ -539,6 +548,17 @@ func copyTypeMap(src map[string]Type) map[string]Type {
 	return dst
 }
 
+func copyGenericContext(src map[string]GenericInstance) map[string]GenericInstance {
+	if src == nil || len(src) == 0 {
+		return make(map[string]GenericInstance)
+	}
+	dst := make(map[string]GenericInstance, len(src))
+	for name, inst := range src {
+		dst[name] = inst
+	}
+	return dst
+}
+
 type promotedProperty struct {
 	name string
 	typ  Type
@@ -595,6 +615,7 @@ func (s *functionScope) clone() *functionScope {
 		propertiesShared: true,
 		methods:          s.methods,
 		methodReturns:    s.methodReturns,
+		genericContext:   copyGenericContext(s.genericContext),
 	}
 	return clone
 }

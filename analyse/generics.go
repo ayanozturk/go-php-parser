@@ -100,3 +100,39 @@ func genericRelationTo(class ResolvedClass, parentName string) (ResolvedGenericP
 	}
 	return ResolvedGenericParent{}, false
 }
+
+// parseGenericTypeFromString extracts class name and type arguments from strings like "Collection<User>"
+// Returns (GenericInstance, true) if the string contains type arguments, (empty, false) otherwise.
+func parseGenericTypeFromString(typeStr string) (GenericInstance, bool) {
+	typeStr = strings.TrimSpace(typeStr)
+	if !strings.Contains(typeStr, "<") || !strings.Contains(typeStr, ">") {
+		return GenericInstance{}, false
+	}
+
+	openIdx := strings.Index(typeStr, "<")
+	closeIdx := strings.LastIndex(typeStr, ">")
+	if openIdx < 0 || closeIdx <= openIdx {
+		return GenericInstance{}, false
+	}
+
+	className := strings.TrimSpace(typeStr[:openIdx])
+	if className == "" {
+		return GenericInstance{}, false
+	}
+
+	argsStr := typeStr[openIdx+1 : closeIdx]
+	args := splitTopLevelTypes(argsStr, ',')
+	var typeArgs []string
+	for _, arg := range args {
+		arg = strings.TrimSpace(arg)
+		if arg != "" {
+			typeArgs = append(typeArgs, arg)
+		}
+	}
+
+	if len(typeArgs) == 0 {
+		return GenericInstance{}, false
+	}
+
+	return GenericInstance{ClassName: className, TypeArguments: typeArgs}, true
+}

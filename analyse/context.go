@@ -5,6 +5,13 @@ import (
 	"strings"
 )
 
+// GenericInstance represents a concrete instantiation of a generic class.
+// E.g., Collection<User> has ClassName="Collection", TypeArguments=["User"]
+type GenericInstance struct {
+	ClassName     string
+	TypeArguments []string
+}
+
 type SymbolResolver interface {
 	ClassExists(name string) bool
 	FunctionExists(name string) bool

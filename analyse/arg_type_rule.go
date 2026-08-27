@@ -677,6 +677,23 @@ func resolveMethodForCall(call *ast.MethodCallNode, scope *functionScope, ctx *A
 			return method, true
 		}
 	}
+
+	// Check if the object variable has generic context (e.g., Collection<User>)
+	if scope != nil && scope.genericContext != nil {
+		if varNode, ok := call.Object.(*ast.VariableNode); ok {
+			if genInst, hasGeneric := scope.genericContext[varNode.Name]; hasGeneric {
+				if ctx != nil && ctx.Resolver != nil {
+					// Use generic-aware method resolution
+					if resolver, ok := ctx.Resolver.(*ProjectIndex); ok {
+						if method, ok := resolver.ResolveMethodWithGenerics(genInst.ClassName, call.Method, genInst.TypeArguments); ok {
+							return method, true
+						}
+					}
+				}
+			}
+		}
+	}
+
 	if ctx != nil && ctx.Resolver != nil {
 		if method, ok := ctx.Resolver.ResolveMethod(className, call.Method); ok {
 			return method, true
