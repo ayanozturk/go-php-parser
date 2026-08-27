@@ -22,10 +22,11 @@ if [[ "$MODE" == "cold" || "$MODE" == "both" ]]; then
 	echo "Cold run (no cache)..."
 	rm -rf ~/.cache/go-phpcs
 	START=$(date +%s.%N)
-	./php-parser > /dev/null 2>&1 || true
+	echo "  Analyzing..." >&2
+	./php-parser 2>&1 | tail -5
 	END=$(date +%s.%N)
 	COLD_TIME=$(echo "$END - $START" | bc)
-	echo "Cold time: ${COLD_TIME}s"
+	echo "✓ Cold time: ${COLD_TIME}s"
 else
 	COLD_TIME=0
 fi
@@ -33,10 +34,11 @@ fi
 if [[ "$MODE" == "warm" || "$MODE" == "both" ]]; then
 	echo "Warm run (with cache)..."
 	START=$(date +%s.%N)
-	./php-parser > /dev/null 2>&1 || true
+	echo "  Analyzing (cache enabled)..." >&2
+	./php-parser 2>&1 | tail -5
 	END=$(date +%s.%N)
 	WARM_TIME=$(echo "$END - $START" | bc)
-	echo "Warm time: ${WARM_TIME}s"
+	echo "✓ Warm time: ${WARM_TIME}s"
 else
 	WARM_TIME=0
 fi
