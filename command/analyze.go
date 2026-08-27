@@ -91,10 +91,6 @@ func AnalyzeFiles(files []string, level *int, matcher *overrides.Compiled, paral
 }
 
 func analyzeFilesWithCache(files []string, level *int, matcher *overrides.Compiled, parallelism int, cacheDir string, cachedIdx *analyse.ProjectIndex, checksums map[string]string) AnalyzeResult {
-	_ = cacheDir      // TODO: use for incremental caching
-	_ = cachedIdx     // TODO: merge into index
-	_ = checksums    // TODO: detect changed files
-
 	files = sortedUniquePaths(files)
 	result := AnalyzeResult{FilesDiscovered: len(files)}
 	if len(files) == 0 {
@@ -104,6 +100,7 @@ func analyzeFilesWithCache(files []string, level *int, matcher *overrides.Compil
 		parallelism = 1
 	}
 
+	// Parse all files (full parsing; file-level optimization deferred)
 	jobs := make(chan string)
 	parsedFiles := make(chan parsedAnalysisFile, parallelism)
 	var parseWorkers sync.WaitGroup
@@ -147,6 +144,16 @@ func analyzeFilesWithCache(files []string, level *int, matcher *overrides.Compil
 			sharedcache.DeleteCachedLines(content)
 		}
 	}()
+
+	// Build project index (will use cache validation below)
+	// TODO: implement full incremental (skip parsing unchanged files)
+	idx := analyse.BuildProjectIndex(parsed)
+
+	// Cache the index for next run
+	if cacheDir != "" && len(parsed) > 0 && cachedIdx == nil {
+		cm := analyse.NewCacheManager(cacheDir)
+		_ = cm.Store(idx, checksums) // Best-effort; ignore errors
+	}
 
 	snapshot, err := analyse.NewSemanticSnapshot(parsed, nil)
 	if err != nil {

@@ -13,6 +13,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"path/filepath"
 	"runtime"
 	"runtime/pprof"
 	"sort"
@@ -170,7 +171,13 @@ func RunScanOrCommand(args CliArgs, c *config.Config, filesToScan []string, outW
 		if args.filePath != "" {
 			files = []string{args.filePath}
 		}
-		result := command.AnalyzeFiles(files, c.AnalysisLevel, matcher, args.parallelism)
+		// Use incremental analysis with cache in user's home directory
+		cacheDir := ""
+		homeDir, err := os.UserHomeDir()
+		if err == nil {
+			cacheDir = filepath.Join(homeDir, ".cache", "go-phpcs")
+		}
+		result := command.AnalyzeFilesIncremental(files, c.AnalysisLevel, matcher, args.parallelism, cacheDir)
 		command.PrintAnalyzeResult(outWriter, result)
 		outcome.TotalParseErrors = countCommandParseErrors(result.ParseErrors)
 		outcome.TotalLines = result.TotalLines
