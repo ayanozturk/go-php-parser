@@ -547,3 +547,49 @@ function tryFinallyFallthrough(): void {
 		t.Fatalf("expected finally without termination to allow fallthrough, got %#v", issues)
 	}
 }
+
+func TestControlFlowSwitchInsideLoopTerminatesOneCase(t *testing.T) {
+	issues := controlFlowUnreachableIssues(t, `<?php
+function switchInLoop(): void {
+    while ($condition) {
+        switch ($value) {
+        case 1:
+            return;
+        case 2:
+            return;
+        default:
+            return;
+        }
+
+        $unreachableAfterSwitch = true;
+    }
+
+    $reachableAfterLoop = true;
+}`)
+
+	wantUnreachable := 13
+	if len(issues) != 1 || issues[0].Line != wantUnreachable {
+		t.Fatalf("expected only line %d unreachable (all cases return), got %#v", wantUnreachable, issues)
+	}
+}
+
+func TestControlFlowTryInsideLoopWithBreakInCatch(t *testing.T) {
+	issues := controlFlowUnreachableIssues(t, `<?php
+function tryInLoop(): void {
+    foreach ($items as $item) {
+        try {
+            doSomething($item);
+        } catch (SkipException $e) {
+            continue;
+        }
+
+        $reachableAfterTry = true;
+    }
+
+    $reachableAfterForeach = true;
+}`)
+
+	if len(issues) != 0 {
+		t.Fatalf("expected all code reachable (catch handles exception with continue), got %#v", issues)
+	}
+}
