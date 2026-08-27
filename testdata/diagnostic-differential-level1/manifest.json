@@ -166,6 +166,28 @@
       "file": "unknown-array-extract.php",
       "engineCodes": ["PHPStan.Level1.Variables"],
       "phpstanIdentifiers": ["variable.undefined"]
+    },
+    {
+      "id": "builtin-reference-output-parameters",
+      "capability": "variables defined through output-only built-in reference parameters",
+      "file": "builtin-reference-output-parameters.php",
+      "engineCodes": [],
+      "phpstanIdentifiers": []
+    },
+    {
+      "id": "builtin-reference-input-output-parameters",
+      "capability": "undefined inputs passed through input/output built-in reference parameters",
+      "file": "builtin-reference-input-output-parameters.php",
+      "engineCodes": [
+        "PHPStan.Level1.Variables",
+        "PHPStan.Level1.Variables",
+        "PHPStan.Level1.Variables"
+      ],
+      "phpstanIdentifiers": [
+        "variable.undefined",
+        "variable.undefined",
+        "variable.undefined"
+      ]
     }
   ]
 }

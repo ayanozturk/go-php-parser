@@ -185,6 +185,84 @@ func TestProjectIndexAssignsStableIDsToBuiltinsWithoutFakeLocations(t *testing.T
 	}
 }
 
+func TestProjectIndexClassifiesBuiltinReferenceParameters(t *testing.T) {
+	idx := NewProjectIndex()
+	outputOnly := map[string][]string{
+		"exec":                        {"output", "result_code"},
+		"fscanf":                      {"vars"},
+		"getopt":                      {"rest_index"},
+		"headers_sent":                {"filename", "line"},
+		"passthru":                    {"result_code"},
+		"preg_filter":                 {"count"},
+		"preg_match_all":              {"matches"},
+		"preg_replace":                {"count"},
+		"preg_replace_callback":       {"count"},
+		"preg_replace_callback_array": {"count"},
+		"proc_open":                   {"pipes"},
+		"similar_text":                {"percent"},
+		"sscanf":                      {"vars"},
+		"system":                      {"result_code"},
+	}
+	for functionName, paramNames := range outputOnly {
+		function, ok := idx.ResolveFunction(functionName)
+		if !ok {
+			t.Fatalf("expected built-in function %s", functionName)
+		}
+		for _, paramName := range paramNames {
+			param, ok := resolvedParamNamed(function.Params, paramName)
+			if !ok || !param.IsByRef || !param.IsOut {
+				t.Errorf("expected %s($%s) to be output-only, got %#v, %v", functionName, paramName, param, ok)
+			}
+		}
+	}
+
+	inputOutput := map[string]string{
+		"array_splice":         "array",
+		"array_walk":           "array",
+		"array_walk_recursive": "array",
+		"arsort":               "array",
+		"asort":                "array",
+		"krsort":               "array",
+		"natcasesort":          "array",
+		"natsort":              "array",
+		"next":                 "array",
+		"prev":                 "array",
+		"rsort":                "array",
+		"settype":              "var",
+		"shuffle":              "array",
+		"uasort":               "array",
+		"uksort":               "array",
+		"usort":                "array",
+	}
+	for functionName, paramName := range inputOutput {
+		function, ok := idx.ResolveFunction(functionName)
+		if !ok {
+			t.Fatalf("expected built-in function %s", functionName)
+		}
+		param, ok := resolvedParamNamed(function.Params, paramName)
+		if !ok || !param.IsByRef || param.IsOut {
+			t.Errorf("expected %s($%s) to be input/output, got %#v, %v", functionName, paramName, param, ok)
+		}
+	}
+
+	for functionName, paramName := range map[string]string{"fscanf": "vars", "sscanf": "vars"} {
+		function, _ := idx.ResolveFunction(functionName)
+		param, _ := resolvedParamNamed(function.Params, paramName)
+		if !param.IsVariadic || !param.HasDefault {
+			t.Errorf("expected %s($%s) to be optional variadic, got %#v", functionName, paramName, param)
+		}
+	}
+}
+
+func resolvedParamNamed(params []ResolvedParam, name string) (ResolvedParam, bool) {
+	for _, param := range params {
+		if param.Name == name {
+			return param, true
+		}
+	}
+	return ResolvedParam{}, false
+}
+
 func TestProjectIndexClassLineagePreservesOrderAndDeduplicates(t *testing.T) {
 	const source = `<?php
 interface Root {}
