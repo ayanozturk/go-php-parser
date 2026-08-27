@@ -17,6 +17,8 @@ type ProjectIndex struct {
 	Duplicates      []DuplicateSymbol
 	methodsDeclared map[string][]ResolvedMethod
 	classLineages   map[string][]string
+	// fileClasses maps file path → class names defined in that file
+	fileClasses map[string]map[string]struct{}
 }
 
 type DuplicateSymbol struct {
@@ -28,6 +30,7 @@ type DuplicateSymbol struct {
 func NewProjectIndex() *ProjectIndex {
 	idx := &ProjectIndex{
 		Classes:     make(map[string]ResolvedClass),
+		fileClasses: make(map[string]map[string]struct{}),
 		Methods:     make(map[string]map[string]ResolvedMethod),
 		Properties:  make(map[string]map[string]ResolvedProperty),
 		ClassConsts: make(map[string]map[string]ResolvedConstant),
@@ -64,6 +67,43 @@ func BuildProjectIndex(parsed map[string][]ast.Node) *ProjectIndex {
 	idx.methodsDeclared = buildMethodsDeclaredViews(idx)
 	idx.classLineages = buildClassLineageViews(idx)
 	return idx
+}
+
+// FilesAffectedByChangedFile returns all files that may need re-analysis
+// if the given file changes. This includes the file itself and any files
+// that inherit from classes defined in the changed file.
+func (idx *ProjectIndex) FilesAffectedByChangedFile(changedFile string) []string {
+	affected := make(map[string]struct{})
+	affected[changedFile] = struct{}{}
+
+	// Find all classes defined in changed file
+	classesInFile := idx.fileClasses[changedFile]
+	if len(classesInFile) == 0 {
+		return []string{changedFile}
+	}
+
+	// Find all files that define classes extending/implementing those classes
+	for className := range classesInFile {
+		for _, otherClass := range idx.Classes {
+			// Check if any other class extends or implements the changed class
+			for _, ext := range otherClass.Extends {
+				if strings.EqualFold(ext, className) {
+					affected[otherClass.Declaration.File] = struct{}{}
+				}
+			}
+			for _, impl := range otherClass.Implements {
+				if strings.EqualFold(impl, className) {
+					affected[otherClass.Declaration.File] = struct{}{}
+				}
+			}
+		}
+	}
+
+	result := make([]string, 0, len(affected))
+	for f := range affected {
+		result = append(result, f)
+	}
+	return result
 }
 
 func (idx *ProjectIndex) ClassExists(name string) bool {
@@ -509,6 +549,12 @@ func (idx *ProjectIndex) addClass(filename string, class ResolvedClass, node ast
 	class.Declaration = sourceLocation(filename, node)
 	idx.Classes[key] = class
 	idx.classLineages = nil
+
+	// Track class → file mapping for incremental analysis
+	if idx.fileClasses[filename] == nil {
+		idx.fileClasses[filename] = make(map[string]struct{})
+	}
+	idx.fileClasses[filename][class.Name] = struct{}{}
 }
 
 func (idx *ProjectIndex) addFunction(fn ResolvedFunction) {
