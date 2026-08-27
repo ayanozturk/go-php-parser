@@ -127,3 +127,23 @@ func FileChecksum(content []byte) [16]byte {
 func ContentChangedSince(newContent []byte, oldHash [16]byte) bool {
 	return FileChecksum(newContent) != oldHash
 }
+
+// FilesChanged detects which files have changed based on checksums.
+// Returns changed file paths.
+func FilesChanged(newChecksums, oldChecksums map[string]string) []string {
+	var changed []string
+	// Find files with different checksums
+	for path, newHash := range newChecksums {
+		oldHash, existed := oldChecksums[path]
+		if !existed || newHash != oldHash {
+			changed = append(changed, path)
+		}
+	}
+	// Also include files that were removed (in old but not new)
+	for path := range oldChecksums {
+		if _, exists := newChecksums[path]; !exists {
+			changed = append(changed, path)
+		}
+	}
+	return changed
+}

@@ -66,15 +66,17 @@ func AnalyzeFilesIncremental(files []string, level *int, matcher *overrides.Comp
 
 	// Try to load cached index
 	var cachedIdx *analyse.ProjectIndex
-	var filesToReanalyze map[string]struct{}
+	var filesToReparse map[string]struct{}
+
 	if cacheDir != "" {
 		cm := analyse.NewCacheManager(cacheDir)
 		if idx, valid := cm.Load(checksums); valid {
 			cachedIdx = idx
-			filesToReanalyze = make(map[string]struct{})
-			// All files are "unchanged" initially; we'll detect which ones actually changed
+			filesToReparse = make(map[string]struct{})
+			// Cache hit: only parse changed + dependent files
+			// For now, reparse all (full optimization deferred)
 			for _, f := range files {
-				filesToReanalyze[f] = struct{}{}
+				filesToReparse[f] = struct{}{}
 			}
 		}
 	}
@@ -89,6 +91,10 @@ func AnalyzeFiles(files []string, level *int, matcher *overrides.Compiled, paral
 }
 
 func analyzeFilesWithCache(files []string, level *int, matcher *overrides.Compiled, parallelism int, cacheDir string, cachedIdx *analyse.ProjectIndex, checksums map[string]string) AnalyzeResult {
+	_ = cacheDir      // TODO: use for incremental caching
+	_ = cachedIdx     // TODO: merge into index
+	_ = checksums    // TODO: detect changed files
+
 	files = sortedUniquePaths(files)
 	result := AnalyzeResult{FilesDiscovered: len(files)}
 	if len(files) == 0 {

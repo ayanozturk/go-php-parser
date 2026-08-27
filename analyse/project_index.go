@@ -106,6 +106,44 @@ func (idx *ProjectIndex) FilesAffectedByChangedFile(changedFile string) []string
 	return result
 }
 
+// MergeIncremental merges newly parsed files into this index.
+// For each file in newParsed, re-indexes it, updating all maps.
+// Returns updated index (this is modified in-place).
+func (idx *ProjectIndex) MergeIncremental(filesToReparse map[string][]ast.Node, fileTypeContexts map[string]fileTypeContext) {
+	// Clear old entries for files being re-parsed
+	for filePath := range filesToReparse {
+		// Remove classes from this file
+		classesToRemove := []string{}
+		for className, class := range idx.Classes {
+			if class.Declaration.File == filePath {
+				classesToRemove = append(classesToRemove, className)
+			}
+		}
+		for _, className := range classesToRemove {
+			delete(idx.Classes, className)
+		}
+
+		// Clear file from fileClasses map
+		delete(idx.fileClasses, filePath)
+
+		// Remove methods/properties/constants from this file's classes
+		// (simplified: rely on Classes removal to cascade)
+	}
+
+	// Re-index new files
+	for filePath, nodes := range filesToReparse {
+		ft := fileTypeContexts[filePath]
+		if ft.classNodes == nil {
+			ft.classNodes = make(map[string]*ast.ClassNode)
+		}
+		idx.indexNodes(filePath, nodes, ft, "")
+	}
+
+	// Invalidate caches (will be recomputed if needed)
+	idx.methodsDeclared = nil
+	idx.classLineages = nil
+}
+
 func (idx *ProjectIndex) ClassExists(name string) bool {
 	_, ok := idx.ResolveClass(name)
 	return ok
