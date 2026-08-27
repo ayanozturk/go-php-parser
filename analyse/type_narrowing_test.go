@@ -16,13 +16,16 @@ func parseTypeNarrowingPHP(t *testing.T, source string) map[string][]SemanticFac
 	if errs := p.Errors(); len(errs) != 0 {
 		t.Fatalf("parse narrowing fixture: %v", errs)
 	}
+	t.Logf("Parsed %d nodes", len(nodes))
 	snapshot, err := NewSemanticSnapshot(map[string][]ast.Node{filename: nodes}, nil)
 	if err != nil {
 		t.Fatalf("build semantic snapshot: %v", err)
 	}
 	facts := snapshot.FactsForFile(filename)
+	t.Logf("Total facts for file: %d", len(facts))
 	result := make(map[string][]SemanticFact)
 	for _, fact := range facts {
+		t.Logf("Fact: kind=%s type=%s", fact.Key.Kind, fact.Type)
 		if fact.Key.Kind == FactKindNarrowed {
 			result[fact.Type] = append(result[fact.Type], fact)
 		}
@@ -38,7 +41,9 @@ function process($obj) {
     }
 }`)
 
+	t.Logf("Narrowing facts by type: %v", facts)
 	if len(facts["User"]) == 0 {
+		t.Logf("No narrowing facts found at all: %d total types", len(facts))
 		t.Fatalf("expected narrowing fact for User class, got none")
 	}
 }

@@ -58,6 +58,9 @@ func extractClassNameFromNode(node ast.Node) string {
 func collectNarrowingFacts(filename string, statements []ast.Node) []SemanticFact {
 	var facts []SemanticFact
 	walkStatementsForNarrowing(filename, statements, &facts)
+	if len(facts) > 0 {
+		// Debug: facts were generated
+	}
 	return facts
 }
 
@@ -71,6 +74,9 @@ func walkNodeForNarrowing(filename string, node ast.Node, facts *[]SemanticFact)
 	if node == nil {
 		return
 	}
+
+	// Debug: print node types encountered
+	_ = node.NodeType()
 
 	switch n := node.(type) {
 	case *ast.IfNode:
@@ -173,6 +179,9 @@ func walkNodeAndAddNarrowing(filename, varName, className string, node ast.Node,
 		if n.Index != nil {
 			walkNodeAndAddNarrowing(filename, varName, className, n.Index, facts)
 		}
+	case *ast.AssignmentNode:
+		walkNodeAndAddNarrowing(filename, varName, className, n.Left, facts)
+		walkNodeAndAddNarrowing(filename, varName, className, n.Right, facts)
 	case *ast.IfNode:
 		walkStatementsForNarrowing(filename, n.Body, facts)
 	}
