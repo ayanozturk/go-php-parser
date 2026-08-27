@@ -593,3 +593,69 @@ function tryInLoop(): void {
 		t.Fatalf("expected all code reachable (catch handles exception with continue), got %#v", issues)
 	}
 }
+
+func TestControlFlowMultiLevelBreakFromNestedLoop(t *testing.T) {
+	issues := controlFlowUnreachableIssues(t, `<?php
+function nestedBreak(): void {
+    for ($i = 0; $i < 10; $i++) {
+        for ($j = 0; $j < 10; $j++) {
+            if ($done) {
+                break 2;
+            }
+            $inner = true;
+        }
+        $outer = true;
+    }
+
+    $afterOuter = true;
+}`)
+
+	if len(issues) != 0 {
+		t.Fatalf("expected all code reachable (break 2 exits both loops), got %#v", issues)
+	}
+}
+
+func TestControlFlowMultiLevelContinueFromNestedLoop(t *testing.T) {
+	issues := controlFlowUnreachableIssues(t, `<?php
+function nestedContinue(): void {
+    for ($i = 0; $i < 10; $i++) {
+        for ($j = 0; $j < 10; $j++) {
+            if ($skip) {
+                continue 2;
+            }
+            $inner = true;
+        }
+        $outer = true;
+    }
+
+    $afterOuter = true;
+}`)
+
+	if len(issues) != 0 {
+		t.Fatalf("expected all code reachable (continue 2 skips to outer loop), got %#v", issues)
+	}
+}
+
+func TestControlFlowBreakFromSwitchInsideLoopSkipsOnlySwitch(t *testing.T) {
+	issues := controlFlowUnreachableIssues(t, `<?php
+function switchInLoop(): void {
+    while ($condition) {
+        switch ($value) {
+        case 1:
+            break;
+        case 2:
+            break;
+        default:
+            break;
+        }
+
+        $afterSwitch = true;
+    }
+
+    $afterLoop = true;
+}`)
+
+	if len(issues) != 0 {
+		t.Fatalf("expected code after switch to be reachable (break only exits switch, not loop), got %#v", issues)
+	}
+}

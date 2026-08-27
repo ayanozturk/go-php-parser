@@ -319,8 +319,12 @@ func switchFlowOutcomes(n *ast.SwitchNode) flowOutcome {
 			hasDefault = true
 		}
 		caseOutcomes := statementsFlowOutcomes(caseNode.Body)
-		outcomes |= caseOutcomes
-		if caseOutcomes&flowNormal == 0 && len(caseNode.Body) > 0 {
+		stripBreak := caseOutcomes &^ flowBreak
+		if stripBreak|flowNormal == flowNormal {
+			stripBreak = flowNormal
+		}
+		outcomes |= stripBreak
+		if caseOutcomes&flowNormal == 0 && caseOutcomes&flowBreak == 0 && len(caseNode.Body) > 0 {
 			canFallThrough = false
 		}
 	}
@@ -413,16 +417,20 @@ func (s *SemanticSnapshot) generateControlFlowGraphs(parsed map[string][]ast.Nod
 	s.flowGraphs = make(map[FlowScopeKey]ControlFlowGraph)
 	s.statementReachability = make(map[FlowStatementKey]bool)
 	s.ambiguousFlowStatements = make(map[FlowStatementKey]struct{})
+	s.scopeNesting = make(map[FlowScopeKey]FlowScopeKey)
 
 	for _, filename := range s.filenames {
-		s.addFlowScope(filename, "file", nil, parsed[filename])
+		s.addFlowScope(filename, "file", nil, parsed[filename], FlowScopeKey{})
 	}
 }
 
-func (s *SemanticSnapshot) addFlowScope(filename, kind string, owner ast.Node, statements []ast.Node) {
+func (s *SemanticSnapshot) addFlowScope(filename, kind string, owner ast.Node, statements []ast.Node, parent FlowScopeKey) {
 	scope := flowScopeKey(filename, kind, owner, statements)
 	if scope.File == "" {
 		return
+	}
+	if parent.File != "" {
+		s.scopeNesting[scope] = parent
 	}
 	graph := buildControlFlowGraph(scope, owner, statements)
 	if _, duplicate := s.flowGraphs[scope]; duplicate {
@@ -440,7 +448,7 @@ func (s *SemanticSnapshot) addFlowScope(filename, kind string, owner ast.Node, s
 		if !reachable {
 			continue
 		}
-		s.addChildFlowScopes(filename, statement)
+		s.addChildFlowScopes(filename, statement, scope)
 	}
 }
 
@@ -456,47 +464,58 @@ func (s *SemanticSnapshot) recordStatementReachability(key FlowStatementKey, rea
 	s.statementReachability[key] = reachable
 }
 
-func (s *SemanticSnapshot) addChildFlowScopes(filename string, node ast.Node) {
+func (s *SemanticSnapshot) addChildFlowScopes(filename string, node ast.Node, parent FlowScopeKey) {
 	switch n := node.(type) {
 	case *ast.FunctionNode:
-		s.addFlowScope(filename, "function", n, n.Body)
+		s.addFlowScope(filename, "function", n, n.Body, parent)
 	case *ast.ClassNode:
 		for _, method := range n.Methods {
-			s.addChildFlowScopes(filename, method)
+			s.addChildFlowScopes(filename, method, parent)
 		}
 	case *ast.BlockNode:
-		s.addFlowScope(filename, "block", n, n.Statements)
+		s.addFlowScope(filename, "block", n, n.Statements, parent)
 	case *ast.IfNode:
-		s.addFlowScope(filename, "if", n, n.Body)
+		s.addFlowScope(filename, "if", n, n.Body, parent)
 		for _, elseif := range n.ElseIfs {
-			s.addFlowScope(filename, "elseif", elseif, elseif.Body)
+			s.addFlowScope(filename, "elseif", elseif, elseif.Body, parent)
 		}
 		if n.Else != nil {
-			s.addFlowScope(filename, "else", n.Else, n.Else.Body)
+			s.addFlowScope(filename, "else", n.Else, n.Else.Body, parent)
 		}
 	case *ast.WhileNode:
-		s.addFlowScope(filename, "while", n, n.Body)
+		s.addFlowScope(filename, "while", n, n.Body, parent)
 	case *ast.ForNode:
-		s.addFlowScope(filename, "for", n, n.Body)
+		s.addFlowScope(filename, "for", n, n.Body, parent)
 	case *ast.ForeachNode:
-		s.addFlowScope(filename, "foreach", n, n.Body)
+		s.addFlowScope(filename, "foreach", n, n.Body, parent)
 	case *ast.DoWhileNode:
-		s.addFlowScope(filename, "do", n, n.Body)
+		s.addFlowScope(filename, "do", n, n.Body, parent)
 	case *ast.SwitchNode:
 		for _, caseNode := range n.Cases {
-			s.addFlowScope(filename, "case", caseNode, caseNode.Body)
+			s.addFlowScope(filename, "case", caseNode, caseNode.Body, parent)
 		}
 	case *ast.TryNode:
-		s.addFlowScope(filename, "try", n, n.Body)
+		s.addFlowScope(filename, "try", n, n.Body, parent)
 		for _, catchNode := range n.Catches {
-			s.addFlowScope(filename, "catch", catchNode, catchNode.Body)
+			s.addFlowScope(filename, "catch", catchNode, catchNode.Body, parent)
 		}
 		if len(n.Finally) > 0 {
-			s.addFlowScope(filename, "finally", n, n.Finally)
+			s.addFlowScope(filename, "finally", n, n.Finally, parent)
 		}
 	case *ast.NamespaceNode:
-		s.addFlowScope(filename, "namespace", n, n.Body)
+		s.addFlowScope(filename, "namespace", n, n.Body, parent)
 	}
+}
+
+func (s *SemanticSnapshot) resolveScopeAtLevel(scope FlowScopeKey, level int) FlowScopeKey {
+	for i := 0; i < level; i++ {
+		parent, ok := s.scopeNesting[scope]
+		if !ok {
+			return FlowScopeKey{}
+		}
+		scope = parent
+	}
+	return scope
 }
 
 func (s *SemanticSnapshot) StatementReachable(key FlowStatementKey) (bool, bool) {

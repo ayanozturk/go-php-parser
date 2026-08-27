@@ -68,6 +68,7 @@ type SemanticSnapshot struct {
 	flowGraphs              map[FlowScopeKey]ControlFlowGraph
 	statementReachability   map[FlowStatementKey]bool
 	ambiguousFlowStatements map[FlowStatementKey]struct{}
+	scopeNesting            map[FlowScopeKey]FlowScopeKey
 	variableReads           map[string][]variableReadFact
 	completeVariableReads   map[string]*lazyVariableReadFacts
 	filenames               []string
