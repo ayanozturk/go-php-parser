@@ -209,8 +209,8 @@ function answer(): string {
 	if !hasReturnTypeIssue(issues) {
 		t.Fatalf("expected nonmatching fact span to fall back to ordinary inference, got %#v", issues)
 	}
-	if reader.lookups != 1 {
-		t.Fatalf("expected one exact fact lookup, got %d", reader.lookups)
+	if reader.lookups != 2 {
+		t.Fatalf("expected two fact lookups (inferred-type, narrowed-type), got %d", reader.lookups)
 	}
 
 	reader.facts[key] = SemanticFact{Key: key}

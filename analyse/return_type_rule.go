@@ -246,6 +246,23 @@ func inferTypeWithFacts(filename string, expr ast.Node, scope *functionScope, ct
 					return inferred
 				}
 			}
+
+			// Check for narrowed-type facts (e.g., from instanceof checks)
+			narrowedKey := SemanticFactKey{
+				File:        filename,
+				StartOffset: start.Offset,
+				EndOffset:   end.Offset,
+				Kind:        FactKindNarrowed,
+			}
+			if narrowedFact, ok := ctx.Facts.Fact(narrowedKey); ok && strings.TrimSpace(narrowedFact.Type) != "" {
+				narrowedType := narrowedFact.Type
+				if scope != nil {
+					narrowedType = normalizeTypeWithContext(narrowedType, scope.typeCtx)
+				}
+				if narrowed := ParseType(narrowedType); !narrowed.IsEmpty() {
+					return narrowed
+				}
+			}
 		}
 	}
 	return inferType(expr, scope, ctx)
