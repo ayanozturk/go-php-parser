@@ -401,3 +401,149 @@ func controlFlowFunction(t *testing.T, nodes []ast.Node, name string) *ast.Funct
 	t.Fatalf("function %q not found", name)
 	return nil
 }
+
+func TestControlFlowSwitchExhaustiveDefaultTerminates(t *testing.T) {
+	issues := controlFlowUnreachableIssues(t, `<?php
+function choice($value): void {
+    switch ($value) {
+    case 1:
+        return;
+    case 2:
+        throw new RuntimeException();
+    default:
+        exit();
+    }
+
+    $unreachable = true;
+}`)
+
+	if len(issues) != 1 || issues[0].Line != 12 {
+		t.Fatalf("expected only line 12 to be unreachable, got %#v", issues)
+	}
+}
+
+func TestControlFlowSwitchWithoutDefaultMayFallThrough(t *testing.T) {
+	issues := controlFlowUnreachableIssues(t, `<?php
+function choice($value): void {
+    switch ($value) {
+    case 1:
+        return;
+    case 2:
+        throw new RuntimeException();
+    }
+
+    $reachable = true;
+}`)
+
+	if len(issues) != 0 {
+		t.Fatalf("expected missing default to allow fallthrough, got %#v", issues)
+	}
+}
+
+func TestControlFlowSwitchFallthroughBetweenCases(t *testing.T) {
+	issues := controlFlowUnreachableIssues(t, `<?php
+function choice($value): void {
+    switch ($value) {
+    case 1:
+    case 2:
+        return;
+    default:
+        exit();
+    }
+
+    $unreachable = true;
+}`)
+
+	if len(issues) != 1 || issues[0].Line != 11 {
+		t.Fatalf("expected only line 11 to be unreachable, got %#v", issues)
+	}
+}
+
+func TestControlFlowTryThrowsWithFinallyMayFallThrough(t *testing.T) {
+	issues := controlFlowUnreachableIssues(t, `<?php
+function mayThrow(): void {
+    try {
+        throw new RuntimeException();
+    } finally {
+        $log = 1;
+    }
+
+    $reachable = true;
+}`)
+
+	if len(issues) != 0 {
+		t.Fatalf("expected try with finally (not terminating) to allow fallthrough, got %#v", issues)
+	}
+}
+
+func TestControlFlowTryExhaustiveCatchesTerminate(t *testing.T) {
+	issues := controlFlowUnreachableIssues(t, `<?php
+function tryAndCatch(): void {
+    try {
+        throw new RuntimeException();
+    } catch (RuntimeException $e) {
+        return;
+    } catch (LogicException $e) {
+        exit();
+    }
+
+    $unreachable = true;
+}`)
+
+	if len(issues) != 1 || issues[0].Line != 11 {
+		t.Fatalf("expected only line 11 to be unreachable, got %#v", issues)
+	}
+}
+
+func TestControlFlowTryWithSingleCatchMayFallThrough(t *testing.T) {
+	issues := controlFlowUnreachableIssues(t, `<?php
+function tryCatchFallthrough(): void {
+    try {
+        doSomething();
+    } catch (RuntimeException $e) {
+        return;
+    }
+
+    $reachable = true;
+}`)
+
+	if len(issues) != 0 {
+		t.Fatalf("expected try/catch to allow fallthrough when try may not throw, got %#v", issues)
+	}
+}
+
+func TestControlFlowFinallyAlwaysExecutesAndTerminates(t *testing.T) {
+	issues := controlFlowUnreachableIssues(t, `<?php
+function tryFinallyTerminate(): void {
+    try {
+        doSomething();
+    } finally {
+        exit();
+    }
+
+    $unreachable = true;
+}`)
+
+	if len(issues) != 1 || issues[0].Line != 9 {
+		t.Fatalf("expected only line 9 to be unreachable (finally terminated), got %#v", issues)
+	}
+}
+
+func TestControlFlowFinallyDoesNotTerminateAllowsFallthrough(t *testing.T) {
+	issues := controlFlowUnreachableIssues(t, `<?php
+function tryFinallyFallthrough(): void {
+    try {
+        throw new RuntimeException();
+    } catch (RuntimeException $e) {
+        return;
+    } finally {
+        $log = 1;
+    }
+
+    $reachable = true;
+}`)
+
+	if len(issues) != 0 {
+		t.Fatalf("expected finally without termination to allow fallthrough, got %#v", issues)
+	}
+}

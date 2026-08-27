@@ -272,6 +272,10 @@ func statementFlowOutcomes(node ast.Node) flowOutcome {
 			outcomes |= statementsFlowOutcomes(n.Else.Body)
 		}
 		return outcomes
+	case *ast.SwitchNode:
+		return switchFlowOutcomes(n)
+	case *ast.TryNode:
+		return tryFlowOutcomes(n)
 	default:
 		return flowNormal
 	}
@@ -301,6 +305,53 @@ func loopControlLevelOne(level ast.Node) bool {
 	default:
 		return false
 	}
+}
+
+func switchFlowOutcomes(n *ast.SwitchNode) flowOutcome {
+	if len(n.Cases) == 0 {
+		return flowNormal
+	}
+	outcomes := flowNormal
+	hasDefault := false
+	canFallThrough := true
+	for _, caseNode := range n.Cases {
+		if caseNode.IsDefault {
+			hasDefault = true
+		}
+		caseOutcomes := statementsFlowOutcomes(caseNode.Body)
+		outcomes |= caseOutcomes
+		if caseOutcomes&flowNormal == 0 && len(caseNode.Body) > 0 {
+			canFallThrough = false
+		}
+	}
+	if !hasDefault || canFallThrough {
+		outcomes |= flowNormal
+	} else {
+		outcomes &^= flowNormal
+	}
+	return outcomes
+}
+
+func tryFlowOutcomes(n *ast.TryNode) flowOutcome {
+	tryOutcomes := statementsFlowOutcomes(n.Body)
+	outcomes := flowNormal
+	if len(n.Catches) == 0 {
+		outcomes = tryOutcomes
+	} else {
+		catchOutcomes := tryOutcomes
+		for _, catchNode := range n.Catches {
+			catchOutcomes |= statementsFlowOutcomes(catchNode.Body)
+		}
+		outcomes = catchOutcomes
+	}
+	if len(n.Finally) > 0 {
+		finallyOutcomes := statementsFlowOutcomes(n.Finally)
+		if finallyOutcomes&(flowTerminate|flowEscape|flowBreak|flowContinue) != 0 {
+			return finallyOutcomes
+		}
+		outcomes |= finallyOutcomes
+	}
+	return outcomes
 }
 
 // FlowStatementKeyForNode returns an exact statement key when the node has a
@@ -431,6 +482,18 @@ func (s *SemanticSnapshot) addChildFlowScopes(filename string, node ast.Node) {
 		s.addFlowScope(filename, "foreach", n, n.Body)
 	case *ast.DoWhileNode:
 		s.addFlowScope(filename, "do", n, n.Body)
+	case *ast.SwitchNode:
+		for _, caseNode := range n.Cases {
+			s.addFlowScope(filename, "case", caseNode, caseNode.Body)
+		}
+	case *ast.TryNode:
+		s.addFlowScope(filename, "try", n, n.Body)
+		for _, catchNode := range n.Catches {
+			s.addFlowScope(filename, "catch", catchNode, catchNode.Body)
+		}
+		if len(n.Finally) > 0 {
+			s.addFlowScope(filename, "finally", n, n.Finally)
+		}
 	case *ast.NamespaceNode:
 		s.addFlowScope(filename, "namespace", n, n.Body)
 	}
