@@ -27,6 +27,8 @@ const (
 	FactKindInferredType FactKind = "inferred-type"
 	// FactKindReference associates a source span with a resolved symbol.
 	FactKindReference FactKind = "reference"
+	// FactKindNarrowed stores type narrowing from instanceof/null checks.
+	FactKindNarrowed FactKind = "narrowed-type"
 )
 
 // FactKind identifies the interpretation of a semantic fact. Callers may
@@ -98,6 +100,14 @@ func (f *lazyVariableReadFacts) complete() []variableReadFact {
 // facts take precedence over generated facts at the same exact source span.
 func NewSemanticSnapshot(parsed map[string][]ast.Node, facts []SemanticFact) (*SemanticSnapshot, error) {
 	store := make(map[SemanticFactKey]SemanticFact, len(facts))
+
+	// Generate narrowing facts from control flow.
+	narrowingFacts := make([]SemanticFact, 0)
+	for filename, nodes := range parsed {
+		narrowingFacts = append(narrowingFacts, collectNarrowingFacts(filename, nodes)...)
+	}
+	facts = append(facts, narrowingFacts...)
+
 	for _, fact := range facts {
 		if err := validateSemanticFactKey(fact.Key); err != nil {
 			return nil, err
