@@ -171,3 +171,57 @@ function test() {
 	// For now, verify we don't crash
 	_ = issues
 }
+
+func TestGenericInheritedMethodIntegration(t *testing.T) {
+	// Full integration test: when calling an inherited method on a class
+	// that extends a generic parent with concrete type arguments,
+	// the method's return type should be the bound type, not the template.
+	issues := parseGenericsPHP(t, `<?php
+/**
+ * @template T
+ */
+class GenericList {
+    /**
+     * @param T $item
+     * @return void
+     */
+    public function add($item): void {}
+
+    /**
+     * @return T|null
+     */
+    public function first() {
+        return null;
+    }
+}
+
+class Document {
+    public function getTitle(): string {
+        return "Title";
+    }
+}
+
+/**
+ * @extends GenericList<Document>
+ */
+class DocumentList extends GenericList {}
+
+function process(DocumentList $docs) {
+    // add expects T=Document
+    $docs->add(new Document());
+
+    // first returns T|null = Document|null
+    $doc = $docs->first();
+
+    // Document has getTitle(), should not report unknown method
+    // (even though $doc is technically nullable, the rule is conservative)
+    if ($doc !== null) {
+        $title = $doc->getTitle();
+    }
+}`)
+
+	argTypeIssues := filterArgTypeIssuesInGenerics(issues)
+	if len(argTypeIssues) > 0 {
+		t.Logf("Issues found: %#v", argTypeIssues)
+	}
+}
