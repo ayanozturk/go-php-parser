@@ -24,6 +24,7 @@ type CacheEntry struct {
 	Timestamp     int64          `json:"timestamp"`
 	ProjectHash   string         `json:"projectHash"`   // Hash of all source files
 	FileChecksums map[string]string `json:"fileChecksums"` // path -> content MD5
+	OldChecksums  map[string]string `json:"old_checksums"` // prev run checksums for diff
 	Index         SerializedProjectIndex `json:"index"`
 }
 
@@ -86,6 +87,29 @@ func (cm *CacheManager) Load(fileChecksums map[string]string) (*ProjectIndex, bo
 	return idx, true
 }
 
+// GetChangedFiles returns list of files that changed since last cache.
+// Entry should be loaded from cache. Returns empty if all files unchanged.
+func (cm *CacheManager) GetChangedFiles(entry *CacheEntry, newChecksums map[string]string) []string {
+	changed := make([]string, 0)
+
+	// Check for modified or added files
+	for path, newHash := range newChecksums {
+		oldHash, exists := entry.OldChecksums[path]
+		if !exists || oldHash != newHash {
+			changed = append(changed, path)
+		}
+	}
+
+	// Check for deleted files
+	for path := range entry.OldChecksums {
+		if _, exists := newChecksums[path]; !exists {
+			changed = append(changed, path)
+		}
+	}
+
+	return changed
+}
+
 // Store persists the ProjectIndex to disk for future warm runs.
 func (cm *CacheManager) Store(index *ProjectIndex, fileChecksums map[string]string) error {
 	cm.mu.Lock()
@@ -95,6 +119,7 @@ func (cm *CacheManager) Store(index *ProjectIndex, fileChecksums map[string]stri
 		Version:        cacheVersion,
 		Timestamp:      time.Now().Unix(),
 		FileChecksums:  fileChecksums,
+		OldChecksums:   fileChecksums, // Store for next diff
 		Index: SerializedProjectIndex{
 			Classes:    index.Classes,
 			Methods:    index.Methods,

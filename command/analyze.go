@@ -1,6 +1,7 @@
 package command
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 	"os"
@@ -66,21 +67,34 @@ func AnalyzeFilesIncremental(files []string, level *int, matcher *overrides.Comp
 
 	// Try to load cached index
 	var cachedIdx *analyse.ProjectIndex
-	var filesToReparse map[string]struct{}
 
 	if cacheDir != "" {
 		cm := analyse.NewCacheManager(cacheDir)
-		if idx, valid := cm.Load(checksums); valid {
-			cachedIdx = idx
-			filesToReparse = make(map[string]struct{})
-			// Cache hit: only parse changed + dependent files
-			// For now, reparse all (full optimization deferred)
-			for _, f := range files {
-				filesToReparse[f] = struct{}{}
+		cachePath := cacheDir + "/go-phpcs-index.json"
+		data, err := os.ReadFile(cachePath)
+		if err == nil {
+			var entry analyse.CacheEntry
+			if json.Unmarshal(data, &entry) == nil {
+				// Have cached entry: detect which files changed
+				changed := cm.GetChangedFiles(&entry, checksums)
+				if len(changed) == 0 {
+					// No changes: skip parsing entirely, reuse cached index + analysis
+					cachedIdx = analyse.NewProjectIndex()
+					cachedIdx.Classes = entry.Index.Classes
+					cachedIdx.Methods = entry.Index.Methods
+					cachedIdx.Properties = entry.Index.Properties
+					cachedIdx.Functions = entry.Index.Functions
+					return analyzeWithCachedIndex(files, level, matcher, parallelism, cachedIdx, fileContents, checksums)
+				}
+				// Some files changed: load index for merge
+				if idx, valid := cm.Load(checksums); valid {
+					cachedIdx = idx
+				}
 			}
 		}
 	}
 
+	// Parse all files (cold run or some files changed)
 	return analyzeFilesWithCache(files, level, matcher, parallelism, cacheDir, cachedIdx, checksums)
 }
 
@@ -88,6 +102,98 @@ func AnalyzeFilesIncremental(files []string, level *int, matcher *overrides.Comp
 // and runs the registered analysis rules against that shared snapshot.
 func AnalyzeFiles(files []string, level *int, matcher *overrides.Compiled, parallelism int) AnalyzeResult {
 	return AnalyzeFilesIncremental(files, level, matcher, parallelism, "")
+}
+
+// analyzeWithCachedIndex runs analysis using cached index when no files changed.
+// No reparsing needed; reuses cached symbols for all analysis rules.
+func analyzeWithCachedIndex(files []string, level *int, matcher *overrides.Compiled, parallelism int, cachedIdx *analyse.ProjectIndex, fileContents map[string][]byte, checksums map[string]string) AnalyzeResult {
+	result := AnalyzeResult{FilesDiscovered: len(files), FilesAnalyzed: len(files)}
+
+	// Compute total lines
+	for _, content := range fileContents {
+		result.TotalLines += CountLines(content)
+	}
+
+	// Parse all files again (AST needed for analysis rules)
+	// Note: cached index provides symbol table; we still need AST for analysis
+	jobs := make(chan string)
+	parsedFiles := make(chan parsedAnalysisFile, parallelism)
+	var parseWorkers sync.WaitGroup
+	for i := 0; i < parallelism; i++ {
+		parseWorkers.Add(1)
+		go func() {
+			defer parseWorkers.Done()
+			for path := range jobs {
+				parsedFiles <- parseAnalysisFile(path)
+			}
+		}()
+	}
+	go func() {
+		for _, path := range files {
+			jobs <- path
+		}
+		close(jobs)
+		parseWorkers.Wait()
+		close(parsedFiles)
+	}()
+
+	parsed := make(map[string][]ast.Node, len(files))
+	contents := make(map[string][]byte, len(files))
+	for file := range parsedFiles {
+		if file.readError != "" {
+			result.ReadErrors = append(result.ReadErrors, FileReadError{File: file.path, Message: file.readError})
+			continue
+		}
+		contents[file.path] = file.content
+		sharedcache.StoreCachedFileContent(file.path, file.content)
+		if len(file.parseErrors) > 0 {
+			result.ParseErrors = append(result.ParseErrors, ParseErrorDetail{File: file.path, Errors: file.parseErrors})
+			continue
+		}
+		parsed[file.path] = file.nodes
+	}
+	defer func() {
+		for path, content := range contents {
+			sharedcache.DeleteCachedFileContent(path)
+			sharedcache.DeleteCachedLines(content)
+		}
+	}()
+
+	// Create snapshot with cached index (passing nil since we need fresh analysis context)
+	snapshot, err := analyse.NewSemanticSnapshot(parsed, nil)
+	if err != nil {
+		result.ReadErrors = append(result.ReadErrors, FileReadError{File: "<project>", Message: err.Error()})
+		return sortedAnalyzeResult(result)
+	}
+
+	// Run analysis using cached symbols
+	analysisJobs := make(chan string)
+	issueResults := make(chan []analyse.AnalysisIssue, parallelism)
+	var analysisWorkers sync.WaitGroup
+	for i := 0; i < parallelism; i++ {
+		analysisWorkers.Add(1)
+		go func() {
+			defer analysisWorkers.Done()
+			for path := range analysisJobs {
+				ctx := snapshot.NewAnalysisContext()
+				ctx.AnalysisLevel = level
+				issueResults <- analyse.FilterIssues(analyse.RunAnalysisRulesWithContext(path, parsed[path], ctx), matcher)
+			}
+		}()
+	}
+	go func() {
+		for _, path := range snapshot.Files() {
+			analysisJobs <- path
+		}
+		close(analysisJobs)
+		analysisWorkers.Wait()
+		close(issueResults)
+	}()
+	for issues := range issueResults {
+		result.Issues = append(result.Issues, issues...)
+	}
+
+	return sortedAnalyzeResult(result)
 }
 
 func analyzeFilesWithCache(files []string, level *int, matcher *overrides.Compiled, parallelism int, cacheDir string, cachedIdx *analyse.ProjectIndex, checksums map[string]string) AnalyzeResult {
