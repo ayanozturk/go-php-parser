@@ -117,29 +117,29 @@ func RunAnalysisRules(filename string, nodes []ast.Node) []AnalysisIssue {
 func RunAnalysisRulesWithContext(filename string, nodes []ast.Node, ctx *AnalysisContext) []AnalysisIssue {
 	if ctx == nil {
 		ctx = &AnalysisContext{}
-	} else {
-		ctx = &AnalysisContext{
-			Resolver:           ctx.Resolver,
-			Facts:              ctx.Facts,
-			Flow:               ctx.Flow,
-			VariableFlow:       ctx.VariableFlow,
-			PHPVersion:         ctx.PHPVersion,
-			AnalysisLevel:      ctx.AnalysisLevel,
-			DisabledIssueCodes: ctx.DisabledIssueCodes,
-		}
 	}
+	// Populate file type context once; reuse across all rules for this file
+	_ = analysisFileTypeContext(ctx, nodes)
+
 	codes := ListRegisteredAnalysisRuleCodes()
 
 	issues := make([]AnalysisIssue, 0, 8)
 	analysisRuleRegistryLock.RLock()
 	defer analysisRuleRegistryLock.RUnlock()
+
 	for _, code := range codes {
 		entry := analysisRuleRegistry[code]
+
+		// Skip disabled rules by level or DisabledIssueCodes
 		if ctx.AnalysisLevel != nil {
 			if entry.meta.Level < 0 || entry.meta.Level > *ctx.AnalysisLevel || !entry.meta.DefaultEnabled {
 				continue
 			}
 		}
+		if ctx.DisabledIssueCodes != nil && ctx.DisabledIssueCodes[code] {
+			continue
+		}
+
 		if entry.contextual != nil {
 			issues = appendEnabledIssues(issues, entry.contextual(filename, nodes, ctx), ctx.DisabledIssueCodes)
 			continue
