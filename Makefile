@@ -30,7 +30,7 @@ style:
 	go run main.go style
 
 build:
-	go build -o go-phpcs
+	go build -o tusk
 
 compat-metrics: test-projects
 	go run ./cmd/compat-metrics

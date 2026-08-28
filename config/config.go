@@ -14,13 +14,42 @@ import (
 )
 
 var DefaultConfigFilenames = []string{
+	"tusk.yaml",
 	"go-phpcs.yaml",
 	"go-phpcs.yml",
 	"config.yaml",
 }
 
+const DefaultConfigContent = `path: .
+# Extra directories indexed for cross-file symbol resolution (e.g. vendor)
+# but never scanned for diagnostics themselves.
+includes: []
+extensions:
+  - php
+ignore:
+  - vendor
+  - node_modules
+  - cache
+  - .git
+rules:
+  - all
+analysis_level: 0
+`
+
+// WriteDefaultConfig creates filename with default config content.
+// Returns an error if the file already exists.
+func WriteDefaultConfig(filename string) error {
+	if _, err := os.Stat(filename); err == nil {
+		return fmt.Errorf("%s already exists", filename)
+	} else if !os.IsNotExist(err) {
+		return err
+	}
+	return os.WriteFile(filename, []byte(DefaultConfigContent), 0644)
+}
+
 type Config struct {
 	Path          string                  `yaml:"path"`
+	Includes      []string                `yaml:"includes"`
 	Extensions    []string                `yaml:"extensions"`
 	Ignore        []string                `yaml:"ignore"`
 	Rules         []string                `yaml:"rules"`
@@ -72,6 +101,7 @@ func LoadConfig(filename string) (*Config, error) {
 func PrintEffectiveConfig(w io.Writer, cfg *Config, source string) {
 	fmt.Fprintf(w, "config_file: %s\n", quoteYAMLString(source))
 	fmt.Fprintf(w, "path: %s\n", quoteYAMLString(cfg.Path))
+	writeStringList(w, "includes", cfg.Includes)
 	writeStringList(w, "extensions", cfg.Extensions)
 	writeStringList(w, "ignore", cfg.Ignore)
 	writeStringList(w, "rules", cfg.Rules)
@@ -128,18 +158,25 @@ func quoteYAMLString(value string) string {
 	return strconv.Quote(value)
 }
 
-func GetFilesToScan(config *Config) ([]string, error) {
-	var filesToScan []string
-	ignoreDirs := make(map[string]struct{}, len(config.Ignore))
-	for _, ignore := range config.Ignore {
-		ignoreDirs[ignore] = struct{}{}
+func ignoreDirSet(ignore []string) map[string]struct{} {
+	set := make(map[string]struct{}, len(ignore))
+	for _, dir := range ignore {
+		set[dir] = struct{}{}
 	}
-	allowedExts := make(map[string]struct{}, len(config.Extensions))
-	for _, ext := range config.Extensions {
-		allowedExts["."+ext] = struct{}{}
-	}
+	return set
+}
 
-	err := filepath.WalkDir(config.Path, func(path string, d os.DirEntry, err error) error {
+func extSet(extensions []string) map[string]struct{} {
+	set := make(map[string]struct{}, len(extensions))
+	for _, ext := range extensions {
+		set["."+ext] = struct{}{}
+	}
+	return set
+}
+
+func walkForFiles(root string, ignoreDirs, allowedExts map[string]struct{}) ([]string, error) {
+	var files []string
+	err := filepath.WalkDir(root, func(path string, d os.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
@@ -154,13 +191,36 @@ func GetFilesToScan(config *Config) ([]string, error) {
 
 		// Check file extensions
 		if _, allowed := allowedExts[filepath.Ext(path)]; allowed {
-			filesToScan = append(filesToScan, path)
+			files = append(files, path)
 		}
 
 		return nil
 	})
 
-	return filesToScan, err
+	return files, err
+}
+
+func GetFilesToScan(config *Config) ([]string, error) {
+	return walkForFiles(config.Path, ignoreDirSet(config.Ignore), extSet(config.Extensions))
+}
+
+// GetIncludeFiles walks the directories listed in config.Includes and
+// returns their PHP files. These files are parsed and indexed for
+// cross-file symbol resolution (e.g. vendor code) but are never scanned
+// for diagnostics themselves.
+func GetIncludeFiles(config *Config) ([]string, error) {
+	ignoreDirs := ignoreDirSet(config.Ignore)
+	allowedExts := extSet(config.Extensions)
+
+	var files []string
+	for _, dir := range config.Includes {
+		found, err := walkForFiles(dir, ignoreDirs, allowedExts)
+		if err != nil {
+			return nil, err
+		}
+		files = append(files, found...)
+	}
+	return files, nil
 }
 
 // StreamFilesToScan walks the configured path in a background goroutine and
@@ -168,14 +228,8 @@ func GetFilesToScan(config *Config) ([]string, error) {
 // when the walk completes. This allows callers to overlap I/O and parsing
 // with the directory walk rather than waiting for the full file list first.
 func StreamFilesToScan(config *Config) <-chan string {
-	ignoreDirs := make(map[string]struct{}, len(config.Ignore))
-	for _, ignore := range config.Ignore {
-		ignoreDirs[ignore] = struct{}{}
-	}
-	allowedExts := make(map[string]struct{}, len(config.Extensions))
-	for _, ext := range config.Extensions {
-		allowedExts["."+ext] = struct{}{}
-	}
+	ignoreDirs := ignoreDirSet(config.Ignore)
+	allowedExts := extSet(config.Extensions)
 
 	ch := make(chan string, 256)
 	go func() {

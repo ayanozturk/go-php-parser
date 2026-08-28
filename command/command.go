@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"github.com/ayanozturk/go-php-parser/ast"
+	"github.com/ayanozturk/go-php-parser/config"
 	"github.com/ayanozturk/go-php-parser/lexer"
 	"github.com/ayanozturk/go-php-parser/overrides"
 	"github.com/ayanozturk/go-php-parser/parser"
@@ -103,6 +104,17 @@ var Commands = map[string]Command{
 		Description: "Print the effective resolved configuration",
 		Execute: func(_ []ast.Node, _ string, w io.Writer) {
 			fmt.Fprintln(w, "Use config without a file argument to print the effective resolved configuration.")
+		},
+	},
+	"init": {
+		Name:        "init",
+		Description: "Create tusk.yaml with default configuration",
+		Execute: func(_ []ast.Node, _ string, w io.Writer) {
+			if err := config.WriteDefaultConfig("tusk.yaml"); err != nil {
+				fmt.Fprintf(w, "Error creating tusk.yaml: %v\n", err)
+				return
+			}
+			fmt.Fprintln(w, "Created tusk.yaml")
 		},
 	},
 }

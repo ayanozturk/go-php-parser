@@ -418,6 +418,65 @@ func PrintAnalyzeResult(w io.Writer, result AnalyzeResult) {
 	)
 }
 
+// FilterAnalyzeResultToFile narrows a project-wide AnalyzeResult down to a
+// single target file, e.g. for `analyze <file>`. The full project is still
+// indexed for cross-file symbol resolution; only the reported diagnostics
+// are scoped to the target.
+func FilterAnalyzeResultToFile(result AnalyzeResult, target string) AnalyzeResult {
+	return FilterAnalyzeResultToFiles(result, map[string]struct{}{target: {}})
+}
+
+// FilterAnalyzeResultToFiles narrows a project-wide AnalyzeResult down to the
+// given set of reportable files. Used when config.Includes adds extra files
+// to the index purely for cross-file symbol resolution: those files must not
+// show up in the reported diagnostics or summary counts.
+func FilterAnalyzeResultToFiles(result AnalyzeResult, keep map[string]struct{}) AnalyzeResult {
+	filtered := AnalyzeResult{FilesDiscovered: len(keep)}
+
+	issues := result.Issues[:0:0]
+	for _, issue := range result.Issues {
+		if _, ok := keep[issue.Filename]; ok {
+			issues = append(issues, issue)
+		}
+	}
+	filtered.Issues = issues
+
+	parseErrors := result.ParseErrors[:0:0]
+	failed := make(map[string]struct{}, len(result.ParseErrors)+len(result.ReadErrors))
+	for _, pe := range result.ParseErrors {
+		if _, ok := keep[pe.File]; ok {
+			parseErrors = append(parseErrors, pe)
+			failed[pe.File] = struct{}{}
+		}
+	}
+	filtered.ParseErrors = parseErrors
+
+	readErrors := result.ReadErrors[:0:0]
+	for _, re := range result.ReadErrors {
+		if _, ok := keep[re.File]; ok {
+			readErrors = append(readErrors, re)
+			failed[re.File] = struct{}{}
+		}
+	}
+	filtered.ReadErrors = readErrors
+
+	analyzed := 0
+	totalLines := 0
+	for f := range keep {
+		if _, bad := failed[f]; bad {
+			continue
+		}
+		analyzed++
+		if content, err := os.ReadFile(f); err == nil {
+			totalLines += CountLines(content)
+		}
+	}
+	filtered.FilesAnalyzed = analyzed
+	filtered.TotalLines = totalLines
+
+	return filtered
+}
+
 func countParseErrors(details []ParseErrorDetail) int {
 	total := 0
 	for _, detail := range details {

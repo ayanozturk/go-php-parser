@@ -32,6 +32,10 @@ func run() int {
 		command.Commands["list-style-rules"].Execute(nil, "", outWriter)
 		return 0
 	}
+	if args.CommandName == "init" {
+		command.Commands["init"].Execute(nil, "", outWriter)
+		return 0
+	}
 	if _, exists := command.Commands[args.CommandName]; !exists {
 		fmt.Fprintf(outWriter, "Unknown command: %s\n", args.CommandName)
 		command.PrintUsageTo(outWriter)
@@ -60,7 +64,9 @@ func run() int {
 	}
 
 	var filesToScan []string
-	if !args.HasExplicitFile() {
+	// analyze always needs the whole project indexed for cross-file symbol
+	// resolution, even when a single target file is given.
+	if !args.HasExplicitFile() || args.CommandName == "analyze" {
 		filesToScan, err = config.GetFilesToScan(c)
 		if err != nil {
 			fmt.Fprintf(outWriter, "Error scanning files: %v\n", err)

@@ -150,6 +150,7 @@ func TestPrintEffectiveConfig(t *testing.T) {
 
 	want := `config_file: "go-phpcs.yaml"
 path: "./src"
+includes: []
 extensions:
   - "php"
   - "inc"
@@ -179,6 +180,7 @@ func TestPrintEffectiveConfigEmptyValues(t *testing.T) {
 
 	want := `config_file: ""
 path: ""
+includes: []
 extensions: []
 ignore: []
 rules: []

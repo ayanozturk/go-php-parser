@@ -86,7 +86,7 @@ function identifier(): string {
     return $value;
 }
 `)
-	level := 3
+	level := 10
 	result := AnalyzeFiles([]string{path}, &level, nil, 1)
 	if !hasAnalysisCode(result, "A.RETURN.TYPE") {
 		t.Fatalf("expected snapshot-backed return-type diagnostic, got %#v", result.Issues)

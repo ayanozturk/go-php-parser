@@ -16,6 +16,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"runtime/pprof"
+	"slices"
 	"sort"
 )
 
@@ -167,10 +168,32 @@ func RunScanOrCommand(args CliArgs, c *config.Config, filesToScan []string, outW
 	}
 	command.ConfigureAnalysis(c.AnalysisLevel)
 	if args.CommandName == "analyze" {
-		files := filesToScan
-		if args.filePath != "" {
-			files = []string{args.filePath}
+		// Index the whole project so cross-file symbol resolution works even
+		// when a single target file is requested.
+		reportable := filesToScan
+		if args.filePath != "" && !slices.Contains(reportable, args.filePath) {
+			reportable = append(reportable, args.filePath)
 		}
+
+		// config.Includes adds extra directories (e.g. vendor) that are
+		// indexed for symbol resolution but never reported on.
+		includeFiles, err := config.GetIncludeFiles(c)
+		if err != nil {
+			fmt.Fprintf(outWriter, "Error scanning includes: %v\n", err)
+			outcome.ExitCode = 2
+			return outcome
+		}
+		reportableSet := make(map[string]struct{}, len(reportable))
+		for _, f := range reportable {
+			reportableSet[f] = struct{}{}
+		}
+		files := reportable
+		for _, f := range includeFiles {
+			if _, ok := reportableSet[f]; !ok {
+				files = append(files, f)
+			}
+		}
+
 		// Use incremental analysis with cache in user's home directory
 		cacheDir := ""
 		homeDir, err := os.UserHomeDir()
@@ -178,6 +201,11 @@ func RunScanOrCommand(args CliArgs, c *config.Config, filesToScan []string, outW
 			cacheDir = filepath.Join(homeDir, ".cache", "go-phpcs")
 		}
 		result := command.AnalyzeFilesIncremental(files, c.AnalysisLevel, matcher, args.parallelism, cacheDir)
+		if args.filePath != "" {
+			result = command.FilterAnalyzeResultToFile(result, args.filePath)
+		} else if len(includeFiles) > 0 {
+			result = command.FilterAnalyzeResultToFiles(result, reportableSet)
+		}
 		command.PrintAnalyzeResult(outWriter, result)
 		outcome.TotalParseErrors = countCommandParseErrors(result.ParseErrors)
 		outcome.TotalLines = result.TotalLines
