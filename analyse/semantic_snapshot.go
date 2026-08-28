@@ -101,13 +101,8 @@ func (f *lazyVariableReadFacts) complete() []variableReadFact {
 func NewSemanticSnapshot(parsed map[string][]ast.Node, facts []SemanticFact) (*SemanticSnapshot, error) {
 	store := make(map[SemanticFactKey]SemanticFact, len(facts))
 
-	// Generate narrowing facts from control flow.
-	narrowingFacts := make([]SemanticFact, 0)
-	for filename, nodes := range parsed {
-		narrowingFacts = append(narrowingFacts, collectNarrowingFacts(filename, nodes)...)
-	}
-	facts = append(facts, narrowingFacts...)
-
+	// Explicit facts (currently unused by any caller, but kept strict for
+	// future callers) must not collide with one another.
 	for _, fact := range facts {
 		if err := validateSemanticFactKey(fact.Key); err != nil {
 			return nil, err
@@ -116,6 +111,22 @@ func NewSemanticSnapshot(parsed map[string][]ast.Node, facts []SemanticFact) (*S
 			return nil, fmt.Errorf("duplicate semantic fact key: %s:%d-%d:%s", fact.Key.File, fact.Key.StartOffset, fact.Key.EndOffset, fact.Key.Kind)
 		}
 		store[fact.Key] = fact
+	}
+
+	// Generate narrowing facts from control flow. Overlapping conditions
+	// (e.g. an elseif re-testing the same expression) can legitimately
+	// produce two narrowing facts for the exact same source span; keep the
+	// first rather than aborting analysis of the entire project over it.
+	for filename, nodes := range parsed {
+		for _, fact := range collectNarrowingFacts(filename, nodes) {
+			if err := validateSemanticFactKey(fact.Key); err != nil {
+				return nil, err
+			}
+			if _, exists := store[fact.Key]; exists {
+				continue
+			}
+			store[fact.Key] = fact
+		}
 	}
 
 	filenames := make([]string, 0, len(parsed))

@@ -7,16 +7,18 @@ import (
 
 // PHPDocNode represents a parsed PHPDoc block
 type PHPDocNode struct {
-	RawContent  string
-	Params      []PHPDocParam
-	ReturnType  string
-	VarType     string
-	Templates   []PHPDocTemplate
-	Extends     []PHPDocTypeReference
-	Implements  []PHPDocTypeReference
-	Description string
-	Pos         Position
-	EndPos      Position
+	RawContent         string
+	Params             []PHPDocParam
+	ReturnType         string
+	VarType            string
+	Templates          []PHPDocTemplate
+	Extends            []PHPDocTypeReference
+	Implements         []PHPDocTypeReference
+	Deprecated         bool
+	DeprecationMessage string
+	Description        string
+	Pos                Position
+	EndPos             Position
 }
 
 // PHPDocTemplate describes a class or method template declaration such as
@@ -111,6 +113,10 @@ func ParsePHPDoc(rawContent string) *PHPDocNode {
 			if ref, ok := parsePHPDocTypeReference(value); ok {
 				phpdoc.Implements = append(phpdoc.Implements, ref)
 			}
+		} else if strings.HasPrefix(line, "@deprecated") {
+			inDescription = false
+			phpdoc.Deprecated = true
+			phpdoc.DeprecationMessage = strings.TrimSpace(strings.TrimPrefix(line, "@deprecated"))
 		} else if strings.HasPrefix(line, "@") {
 			// Any other @tag should stop description parsing
 			inDescription = false

@@ -521,7 +521,12 @@ func (idx *ProjectIndex) indexNodes(filename string, nodes []ast.Node, ft FileTy
 				continue
 			}
 			name := ft.resolveClassLike(n.Name)
-			idx.addFunction(ResolvedFunction{Name: name, Declaration: sourceLocation(filename, n), ReturnType: normalizeTypeWithContext(n.ReturnType, ft), Params: paramsFromNodes(n.Params, ft)})
+			fn := ResolvedFunction{Name: name, Declaration: sourceLocation(filename, n), ReturnType: normalizeTypeWithContext(n.ReturnType, ft), Params: paramsFromNodes(n.Params, ft)}
+			if n.PHPDoc != nil {
+				fn.Deprecated = n.PHPDoc.Deprecated
+				fn.DeprecationMessage = n.PHPDoc.DeprecationMessage
+			}
+			idx.addFunction(fn)
 		case *ast.ConstantNode:
 			idx.Constants[indexKey(ft.resolveClassLike(n.Name))] = struct{}{}
 		}
@@ -669,7 +674,7 @@ func methodFromFunction(filename, className string, fn *ast.FunctionNode, ft Fil
 		returnType = fn.PHPDoc.ReturnType
 	}
 	templates := templateNames(templateParams)
-	return ResolvedMethod{
+	method := ResolvedMethod{
 		Name:           fn.Name,
 		DeclaringClass: className,
 		Declaration:    sourceLocation(filename, fn),
@@ -680,6 +685,11 @@ func methodFromFunction(filename, className string, fn *ast.FunctionNode, ft Fil
 		Abstract:       hasModifier(fn.Modifiers, "abstract"),
 		Final:          hasModifier(fn.Modifiers, "final"),
 	}
+	if fn.PHPDoc != nil {
+		method.Deprecated = fn.PHPDoc.Deprecated
+		method.DeprecationMessage = fn.PHPDoc.DeprecationMessage
+	}
+	return method
 }
 
 func resolvedGenericMetadata(doc *ast.PHPDocNode, ft FileTypeContext) ([]string, []ResolvedGenericParent) {

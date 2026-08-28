@@ -145,6 +145,15 @@ func issueSpan(filename string, n ast.Node, code, message string) AnalysisIssue 
 	}
 }
 
+// issueSpanWarning is like issueSpan but marks the diagnostic as a warning
+// rather than an error, e.g. for deprecated API usage that doesn't indicate
+// incorrect code.
+func issueSpanWarning(filename string, n ast.Node, code, message string) AnalysisIssue {
+	iss := issueSpan(filename, n, code, message)
+	iss.Severity = "warning"
+	return iss
+}
+
 func resolveThrownClassName(node ast.Node, ft FileTypeContext) string {
 	switch n := node.(type) {
 	case *ast.NewNode:

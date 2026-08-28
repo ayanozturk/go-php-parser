@@ -23,3 +23,4 @@ cpu.out
 # and publish raw reports as CI/run artifacts rather than committing them.
 /docs/benchmarks/*wordpress*.json
 php-parser
+tusk

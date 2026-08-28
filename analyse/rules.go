@@ -16,10 +16,14 @@ type AnalysisIssue struct {
 	// diagnostics. Rules constructed via the plain issue() helper (as
 	// opposed to issueSpan()) leave these zero, meaning "unknown span,
 	// point diagnostic only" rather than a real zero-width range.
-	EndLine     int
-	EndColumn   int
-	Code        string
-	Message     string
+	EndLine   int
+	EndColumn int
+	Code      string
+	Message   string
+	// Severity is "error" (default, when empty) or "warning". Warnings
+	// surface issues (e.g. deprecated API usage) that don't indicate
+	// incorrect code, just something worth flagging.
+	Severity    string
 	SubjectKind string
 	SubjectName string
 }

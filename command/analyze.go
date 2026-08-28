@@ -387,35 +387,125 @@ func sortedAnalyzeResult(result AnalyzeResult) AnalyzeResult {
 	return result
 }
 
+const (
+	ansiReset  = "\033[0m"
+	ansiRed    = "\033[31;1m"
+	ansiGreen  = "\033[32;1m"
+	ansiYellow = "\033[33;1m"
+	ansiDim    = "\033[2m"
+	ansiBold   = "\033[1m"
+)
+
 func PrintAnalyzeResult(w io.Writer, result AnalyzeResult) {
-	fmt.Fprintln(w, "ANALYSIS RESULTS")
+	fmt.Fprintf(w, "%sANALYSIS RESULTS%s\n", ansiBold, ansiReset)
+
+	hasProblems := len(result.Issues) > 0 || len(result.ParseErrors) > 0 || len(result.ReadErrors) > 0
+
 	for _, readError := range result.ReadErrors {
-		fmt.Fprintf(w, "%s: read error: %s\n", readError.File, readError.Message)
+		fmt.Fprintf(w, "%s[READ ERROR]%s %s: read error: %s\n", ansiRed, ansiReset, readError.File, readError.Message)
 	}
 	for _, parseError := range result.ParseErrors {
-		fmt.Fprintf(w, "%s: parser errors (%d)\n", parseError.File, len(parseError.Errors))
+		fmt.Fprintf(w, "%s[PARSE ERROR]%s %s: parser errors (%d)\n", ansiRed, ansiReset, parseError.File, len(parseError.Errors))
 		for _, message := range parseError.Errors {
-			fmt.Fprintf(w, "  %s\n", message)
+			fmt.Fprintf(w, "  %s%s%s\n", ansiDim, message, ansiReset)
 		}
 	}
+
+	warnings := 0
+	errors := 0
+	sourceCache := make(map[string][]string)
 	for _, issue := range result.Issues {
-		location := fmt.Sprintf("%s:%d:%d", issue.Filename, issue.Line, issue.Column)
-		code := strings.TrimSpace(issue.Code)
-		if code == "" {
-			fmt.Fprintf(w, "%s: error: %s\n", location, issue.Message)
-			continue
+		if issue.Severity == "warning" {
+			warnings++
+		} else {
+			errors++
 		}
-		fmt.Fprintf(w, "%s: error [%s]: %s\n", location, code, issue.Message)
+		printIssueSnippet(w, issue, sourceCache)
+	}
+
+	if hasProblems {
+		fmt.Fprintf(w, "%s[ERROR]%s Analysis found issues\n", ansiRed, ansiReset)
+	} else {
+		fmt.Fprintf(w, "%s[OK]%s No errors\n", ansiGreen, ansiReset)
+	}
+
+	summaryColor := ansiGreen
+	if hasProblems {
+		summaryColor = ansiRed
 	}
 	fmt.Fprintf(
 		w,
-		"Analysis summary: files=%d analyzed=%d diagnostics=%d parser_errors=%d read_errors=%d\n",
+		"%sAnalysis summary: files=%d analyzed=%d diagnostics=%d parser_errors=%d read_errors=%d%s\n",
+		summaryColor,
 		result.FilesDiscovered,
 		result.FilesAnalyzed,
 		len(result.Issues),
 		countParseErrors(result.ParseErrors),
 		len(result.ReadErrors),
+		ansiReset,
 	)
+	if len(result.Issues) > 0 {
+		fmt.Fprintf(w, "found %d issue(s): %d error(s), %d warning(s)\n", len(result.Issues), errors, warnings)
+	}
+}
+
+// printIssueSnippet renders a single diagnostic mago-style: a colored
+// severity/code header, a source line with a caret underline spanning the
+// offending node, and the message repeated as a trailing note.
+func printIssueSnippet(w io.Writer, issue analyse.AnalysisIssue, sourceCache map[string][]string) {
+	severity := "error"
+	color := ansiRed
+	if issue.Severity == "warning" {
+		severity = "warning"
+		color = ansiYellow
+	}
+
+	code := strings.ToLower(strings.ReplaceAll(strings.TrimSpace(issue.Code), ".", "-"))
+	if code != "" {
+		fmt.Fprintf(w, "%s%s[%s]%s: %s\n", color, severity, code, ansiReset, issue.Message)
+	} else {
+		fmt.Fprintf(w, "%s%s%s: %s\n", color, severity, ansiReset, issue.Message)
+	}
+	fmt.Fprintf(w, "   %s┌%s %s:%d:%d\n", ansiDim, ansiReset, issue.Filename, issue.Line, issue.Column)
+	fmt.Fprintf(w, "   %s│%s\n", ansiDim, ansiReset)
+
+	if line, ok := sourceLineFor(issue.Filename, issue.Line, sourceCache); ok {
+		gutter := fmt.Sprintf("%d", issue.Line)
+		fmt.Fprintf(w, "%s %s│%s %s\n", gutter, ansiDim, ansiReset, line)
+
+		underlineWidth := 1
+		if issue.EndLine == issue.Line && issue.EndColumn > issue.Column {
+			underlineWidth = issue.EndColumn - issue.Column
+		}
+		col := issue.Column - 1
+		if col < 0 {
+			col = 0
+		}
+		padding := strings.Repeat(" ", len(gutter)) + " " + ansiDim + "│" + ansiReset + " " + strings.Repeat(" ", col)
+		fmt.Fprintf(w, "%s%s%s%s\n", padding, color, strings.Repeat("^", underlineWidth), ansiReset)
+		fmt.Fprintf(w, "   %s│%s\n", ansiDim, ansiReset)
+	}
+	fmt.Fprintln(w)
+}
+
+// sourceLineFor returns the 1-indexed line's text from file, caching the
+// file's lines across calls so repeated diagnostics in the same file only
+// read it once.
+func sourceLineFor(file string, line int, cache map[string][]string) (string, bool) {
+	lines, ok := cache[file]
+	if !ok {
+		content, err := os.ReadFile(file)
+		if err != nil {
+			cache[file] = nil
+			return "", false
+		}
+		lines = strings.Split(string(content), "\n")
+		cache[file] = lines
+	}
+	if line < 1 || line > len(lines) {
+		return "", false
+	}
+	return lines[line-1], true
 }
 
 // FilterAnalyzeResultToFile narrows a project-wide AnalyzeResult down to a
@@ -453,6 +543,13 @@ func FilterAnalyzeResultToFiles(result AnalyzeResult, keep map[string]struct{}) 
 
 	readErrors := result.ReadErrors[:0:0]
 	for _, re := range result.ReadErrors {
+		// "<project>" marks a whole-analysis failure (e.g. snapshot
+		// construction error) rather than a single file's problem; it must
+		// survive filtering or the real cause of an empty result vanishes.
+		if re.File == "<project>" {
+			readErrors = append(readErrors, re)
+			continue
+		}
 		if _, ok := keep[re.File]; ok {
 			readErrors = append(readErrors, re)
 			failed[re.File] = struct{}{}

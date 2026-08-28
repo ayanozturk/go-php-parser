@@ -91,16 +91,18 @@ type ResolvedGenericParent struct {
 }
 
 type ResolvedMethod struct {
-	ID             SymbolID
-	Declaration    SourceLocation
-	Name           string
-	DeclaringClass string
-	ReturnType     string
-	Params         []ResolvedParam
-	Visibility     string
-	IsStatic       bool
-	Abstract       bool
-	Final          bool
+	ID                 SymbolID
+	Declaration        SourceLocation
+	Name               string
+	DeclaringClass     string
+	ReturnType         string
+	Params             []ResolvedParam
+	Visibility         string
+	IsStatic           bool
+	Abstract           bool
+	Final              bool
+	Deprecated         bool
+	DeprecationMessage string
 }
 
 type ResolvedProperty struct {
@@ -125,11 +127,13 @@ type ResolvedConstant struct {
 }
 
 type ResolvedFunction struct {
-	ID          SymbolID
-	Declaration SourceLocation
-	Name        string
-	ReturnType  string
-	Params      []ResolvedParam
+	ID                 SymbolID
+	Declaration        SourceLocation
+	Name               string
+	ReturnType         string
+	Params             []ResolvedParam
+	Deprecated         bool
+	DeprecationMessage string
 }
 
 type ResolvedParam struct {
