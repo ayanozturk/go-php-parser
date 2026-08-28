@@ -99,6 +99,36 @@ func (f *lazyVariableReadFacts) complete() []variableReadFact {
 // and freezes the result. Duplicate explicit fact keys are rejected; explicit
 // facts take precedence over generated facts at the same exact source span.
 func NewSemanticSnapshot(parsed map[string][]ast.Node, facts []SemanticFact) (*SemanticSnapshot, error) {
+	return NewSemanticSnapshotScoped(parsed, facts, nil)
+}
+
+// NewSemanticSnapshotScoped is like NewSemanticSnapshot, but when targets is
+// non-empty it restricts the expensive per-file semantic work (control-flow
+// graphs, variable-flow facts, inferred-type facts, narrowing facts, and the
+// resulting Files() list callers iterate to run analysis rules) to just
+// those files. parsed still builds the full ProjectIndex regardless, so
+// cross-file symbol resolution against files outside targets (e.g. a large
+// project indexed only so a single file's class references resolve) keeps
+// working — only the O(project size) fact/CFG generation and rule execution
+// gets scoped down to what the caller actually wants diagnostics for. A nil
+// or empty targets behaves exactly like NewSemanticSnapshot (all parsed
+// files are in scope).
+func NewSemanticSnapshotScoped(parsed map[string][]ast.Node, facts []SemanticFact, targets []string) (*SemanticSnapshot, error) {
+	return newSemanticSnapshot(BuildProjectIndex(parsed), parsed, facts, targets)
+}
+
+// NewSemanticSnapshotWithIndex is like NewSemanticSnapshotScoped, but reuses
+// an already-built ProjectIndex instead of deriving one from parsed. This
+// lets a caller with a warm on-disk symbol-table cache and a small targets
+// set (e.g. `analyze <file>` re-run with no project changes) skip parsing
+// and indexing every other file in the project: parsed only needs to
+// contain the target files themselves, since idx already carries the full
+// project's classes/methods/properties/functions for cross-file resolution.
+func NewSemanticSnapshotWithIndex(idx *ProjectIndex, parsed map[string][]ast.Node, facts []SemanticFact, targets []string) (*SemanticSnapshot, error) {
+	return newSemanticSnapshot(idx, parsed, facts, targets)
+}
+
+func newSemanticSnapshot(idx *ProjectIndex, parsed map[string][]ast.Node, facts []SemanticFact, targets []string) (*SemanticSnapshot, error) {
 	store := make(map[SemanticFactKey]SemanticFact, len(facts))
 
 	// Explicit facts (currently unused by any caller, but kept strict for
@@ -113,11 +143,28 @@ func NewSemanticSnapshot(parsed map[string][]ast.Node, facts []SemanticFact) (*S
 		store[fact.Key] = fact
 	}
 
+	scoped := parsed
+	filenames := make([]string, 0, len(parsed))
+	if len(targets) > 0 {
+		scoped = make(map[string][]ast.Node, len(targets))
+		for _, target := range targets {
+			if nodes, ok := parsed[target]; ok {
+				scoped[target] = nodes
+				filenames = append(filenames, target)
+			}
+		}
+	} else {
+		for filename := range parsed {
+			filenames = append(filenames, filename)
+		}
+	}
+	sort.Strings(filenames)
+
 	// Generate narrowing facts from control flow. Overlapping conditions
 	// (e.g. an elseif re-testing the same expression) can legitimately
 	// produce two narrowing facts for the exact same source span; keep the
 	// first rather than aborting analysis of the entire project over it.
-	for filename, nodes := range parsed {
+	for filename, nodes := range scoped {
 		for _, fact := range collectNarrowingFacts(filename, nodes) {
 			if err := validateSemanticFactKey(fact.Key); err != nil {
 				return nil, err
@@ -129,20 +176,14 @@ func NewSemanticSnapshot(parsed map[string][]ast.Node, facts []SemanticFact) (*S
 		}
 	}
 
-	filenames := make([]string, 0, len(parsed))
-	for filename := range parsed {
-		filenames = append(filenames, filename)
-	}
-	sort.Strings(filenames)
-
 	snapshot := &SemanticSnapshot{
-		project:   BuildProjectIndex(parsed),
+		project:   idx,
 		facts:     store,
 		filenames: filenames,
 	}
-	snapshot.generateControlFlowGraphs(parsed)
-	snapshot.generateVariableFlowFacts(parsed)
-	snapshot.generateInferredTypeFacts(parsed)
+	snapshot.generateControlFlowGraphs(scoped)
+	snapshot.generateVariableFlowFacts(scoped)
+	snapshot.generateInferredTypeFacts(scoped)
 	return snapshot, nil
 }
 

@@ -194,13 +194,22 @@ func RunScanOrCommand(args CliArgs, c *config.Config, filesToScan []string, outW
 			}
 		}
 
+		// Only run the expensive per-file analysis (CFGs, type inference,
+		// narrowing, rule execution) against what we'll actually report:
+		// the single requested file, or every path-scanned file when
+		// running whole-project (config.Includes files stay index-only).
+		targets := reportable
+		if args.filePath != "" {
+			targets = []string{args.filePath}
+		}
+
 		// Use incremental analysis with cache in user's home directory
 		cacheDir := ""
 		homeDir, err := os.UserHomeDir()
 		if err == nil {
 			cacheDir = filepath.Join(homeDir, ".cache", "go-phpcs")
 		}
-		result := command.AnalyzeFilesIncremental(files, c.AnalysisLevel, matcher, args.parallelism, cacheDir)
+		result := command.AnalyzeFilesIncrementalScoped(files, targets, c.AnalysisLevel, matcher, args.parallelism, cacheDir)
 		if args.filePath != "" {
 			result = command.FilterAnalyzeResultToFile(result, args.filePath)
 		} else if len(includeFiles) > 0 {

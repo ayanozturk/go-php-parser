@@ -46,6 +46,19 @@ type parsedAnalysisFile struct {
 // cacheDir: directory for project index cache (empty to disable incremental)
 // If cache is valid and checksums match, re-analyzes only changed files + dependents.
 func AnalyzeFilesIncremental(files []string, level *int, matcher *overrides.Compiled, parallelism int, cacheDir string) AnalyzeResult {
+	return AnalyzeFilesIncrementalScoped(files, nil, level, matcher, parallelism, cacheDir)
+}
+
+// AnalyzeFilesIncrementalScoped is like AnalyzeFilesIncremental, but when
+// targets is non-empty only those files get the expensive per-file semantic
+// treatment (control-flow graphs, type inference, narrowing) and analysis
+// rule execution; files is still fully parsed and indexed so targets can
+// resolve cross-file symbols against the rest of the project. This matters
+// for `analyze <file>`, which indexes the whole configured project (and any
+// config.Includes) purely for symbol resolution but only wants diagnostics
+// for the one file requested — previously it ran every analysis rule and
+// generated CFGs/facts for every indexed file just to discard the results.
+func AnalyzeFilesIncrementalScoped(files []string, targets []string, level *int, matcher *overrides.Compiled, parallelism int, cacheDir string) AnalyzeResult {
 	files = sortedUniquePaths(files)
 	result := AnalyzeResult{FilesDiscovered: len(files)}
 	if len(files) == 0 {
@@ -84,7 +97,7 @@ func AnalyzeFilesIncremental(files []string, level *int, matcher *overrides.Comp
 					cachedIdx.Methods = entry.Index.Methods
 					cachedIdx.Properties = entry.Index.Properties
 					cachedIdx.Functions = entry.Index.Functions
-					return analyzeWithCachedIndex(files, level, matcher, parallelism, cachedIdx, fileContents, checksums)
+					return analyzeWithCachedIndex(files, targets, level, matcher, parallelism, cachedIdx)
 				}
 				// Some files changed: load index for merge
 				if idx, valid := cm.Load(checksums); valid {
@@ -95,7 +108,7 @@ func AnalyzeFilesIncremental(files []string, level *int, matcher *overrides.Comp
 	}
 
 	// Parse all files (cold run or some files changed)
-	return analyzeFilesWithCache(files, level, matcher, parallelism, cacheDir, cachedIdx, checksums)
+	return analyzeFilesWithCache(files, targets, level, matcher, parallelism, cacheDir, cachedIdx, checksums)
 }
 
 // AnalyzeFiles parses each file once, builds one immutable project snapshot,
@@ -105,17 +118,17 @@ func AnalyzeFiles(files []string, level *int, matcher *overrides.Compiled, paral
 }
 
 // analyzeWithCachedIndex runs analysis using cached index when no files changed.
-// No reparsing needed; reuses cached symbols for all analysis rules.
-func analyzeWithCachedIndex(files []string, level *int, matcher *overrides.Compiled, parallelism int, cachedIdx *analyse.ProjectIndex, fileContents map[string][]byte, checksums map[string]string) AnalyzeResult {
-	result := AnalyzeResult{FilesDiscovered: len(files), FilesAnalyzed: len(files)}
-
-	// Compute total lines
-	for _, content := range fileContents {
-		result.TotalLines += CountLines(content)
+// Only targets (or all of files, when targets is empty) get parsed and get
+// CFG/fact generation and rule execution; the rest of the project's symbols
+// come straight from cachedIdx, so a single-file `analyze` against a huge
+// project doesn't have to reparse and reindex everything on every run.
+func analyzeWithCachedIndex(files []string, targets []string, level *int, matcher *overrides.Compiled, parallelism int, cachedIdx *analyse.ProjectIndex) AnalyzeResult {
+	parseSet := targets
+	if len(parseSet) == 0 {
+		parseSet = files
 	}
+	result := AnalyzeResult{FilesDiscovered: len(files), FilesAnalyzed: len(parseSet)}
 
-	// Parse all files again (AST needed for analysis rules)
-	// Note: cached index provides symbol table; we still need AST for analysis
 	jobs := make(chan string)
 	parsedFiles := make(chan parsedAnalysisFile, parallelism)
 	var parseWorkers sync.WaitGroup
@@ -129,7 +142,7 @@ func analyzeWithCachedIndex(files []string, level *int, matcher *overrides.Compi
 		}()
 	}
 	go func() {
-		for _, path := range files {
+		for _, path := range parseSet {
 			jobs <- path
 		}
 		close(jobs)
@@ -137,9 +150,10 @@ func analyzeWithCachedIndex(files []string, level *int, matcher *overrides.Compi
 		close(parsedFiles)
 	}()
 
-	parsed := make(map[string][]ast.Node, len(files))
-	contents := make(map[string][]byte, len(files))
+	parsed := make(map[string][]ast.Node, len(parseSet))
+	contents := make(map[string][]byte, len(parseSet))
 	for file := range parsedFiles {
+		result.TotalLines += CountLines(file.content)
 		if file.readError != "" {
 			result.ReadErrors = append(result.ReadErrors, FileReadError{File: file.path, Message: file.readError})
 			continue
@@ -159,8 +173,9 @@ func analyzeWithCachedIndex(files []string, level *int, matcher *overrides.Compi
 		}
 	}()
 
-	// Create snapshot with cached index (passing nil since we need fresh analysis context)
-	snapshot, err := analyse.NewSemanticSnapshot(parsed, nil)
+	// Reuse the cached project index directly instead of rebuilding it from
+	// a full reparse; only the target files' ASTs are needed here.
+	snapshot, err := analyse.NewSemanticSnapshotWithIndex(cachedIdx, parsed, nil, targets)
 	if err != nil {
 		result.ReadErrors = append(result.ReadErrors, FileReadError{File: "<project>", Message: err.Error()})
 		return sortedAnalyzeResult(result)
@@ -196,7 +211,7 @@ func analyzeWithCachedIndex(files []string, level *int, matcher *overrides.Compi
 	return sortedAnalyzeResult(result)
 }
 
-func analyzeFilesWithCache(files []string, level *int, matcher *overrides.Compiled, parallelism int, cacheDir string, cachedIdx *analyse.ProjectIndex, checksums map[string]string) AnalyzeResult {
+func analyzeFilesWithCache(files []string, targets []string, level *int, matcher *overrides.Compiled, parallelism int, cacheDir string, cachedIdx *analyse.ProjectIndex, checksums map[string]string) AnalyzeResult {
 	files = sortedUniquePaths(files)
 	result := AnalyzeResult{FilesDiscovered: len(files)}
 	if len(files) == 0 {
@@ -294,7 +309,7 @@ func analyzeFilesWithCache(files []string, level *int, matcher *overrides.Compil
 		_ = cm.Store(idx, checksums) // Best-effort; ignore errors
 	}
 
-	snapshot, err := analyse.NewSemanticSnapshot(parsed, nil)
+	snapshot, err := analyse.NewSemanticSnapshotScoped(parsed, nil, targets)
 	if err != nil {
 		result.ReadErrors = append(result.ReadErrors, FileReadError{File: "<project>", Message: err.Error()})
 		return sortedAnalyzeResult(result)
