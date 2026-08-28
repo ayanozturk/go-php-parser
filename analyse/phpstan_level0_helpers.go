@@ -8,11 +8,22 @@ import (
 func functionCallName(call *ast.FunctionCallNode) string {
 	switch name := call.Name.(type) {
 	case *ast.IdentifierNode:
-		return strings.TrimPrefix(name.Value, `\`)
+		return trimFunctionCallNamePrefix(name.Value)
 	case *ast.Identifier:
-		return strings.TrimPrefix(name.Name, `\`)
+		return trimFunctionCallNamePrefix(name.Name)
 	}
 	return ""
+}
+
+// trimFunctionCallNamePrefix strips a leading namespace separator for plain
+// function calls (e.g. "\strlen" -> "strlen"). For static calls the name is
+// "Class::method"; a leading "\" there marks the class as fully-qualified
+// and must be preserved so resolveClassLikeForCall doesn't re-namespace it.
+func trimFunctionCallNamePrefix(raw string) string {
+	if strings.Contains(raw, "::") {
+		return raw
+	}
+	return strings.TrimPrefix(raw, `\`)
 }
 
 func resolveNewClassName(node *ast.NewNode, ft FileTypeContext) string {

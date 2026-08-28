@@ -1218,6 +1218,30 @@ helper(1);
 	}
 }
 
+func TestLevel0FullyQualifiedStaticCallIsNotRenamespaced(t *testing.T) {
+	issues := runLevel0OnFiles(t, map[string]string{
+		"global.php": `<?php
+class RG_DB_DBFieldType {
+    const _STR = 1;
+    public static function MysqlEscape($type, $value) {}
+}
+`,
+		"namespaced.php": `<?php
+namespace RG\Utility\GeoHash;
+
+function run($value) {
+    \RG_DB_DBFieldType::MysqlEscape(\RG_DB_DBFieldType::_STR, $value);
+}
+`,
+	})
+
+	for _, issue := range issues {
+		if strings.Contains(issue.Message, "RG_DB_DBFieldType") {
+			t.Fatalf("expected fully-qualified static call to resolve to global class, got %#v", issues)
+		}
+	}
+}
+
 func TestLevel0LanguageChecksExcludeLevel1Variables(t *testing.T) {
 	issues := runLevel0OnFiles(t, map[string]string{
 		"test.php": `<?php

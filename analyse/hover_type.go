@@ -229,7 +229,15 @@ func walkExprForHoverTypes(node ast.Node, scope *functionScope, ctx *AnalysisCon
 }
 
 func considerHoverTypeMatch(node ast.Node, ident string, typ Type, kind HoverTargetKind, receiverClass string, query hoverTypeQuery, best *hoverTypeMatch) {
-	if node == nil || typ.IsEmpty() || ident != query.ident {
+	// An empty typ (untyped/void method, uninferable property, etc.) must
+	// not disqualify the match: identity (kind + receiverClass) is already
+	// known from the AST regardless of whether a return/value type could be
+	// inferred. Discarding these left every untyped or void member access
+	// undetected, so definition/hover fell back to global short-name
+	// matching and could resolve to an unrelated same-named class anywhere
+	// in the workspace (e.g. `$this->cache->set(...)` resolving to some
+	// unrelated `class Set` instead of `CacheInterface::set()`).
+	if node == nil || ident != query.ident {
 		return
 	}
 	pos := node.GetPos()
