@@ -533,6 +533,26 @@ func (idx *ProjectIndex) indexNodes(filename string, nodes []ast.Node, ft FileTy
 	}
 }
 
+// indexPromotedProperties registers PHP 8 constructor-promoted parameters
+// (e.g. `private readonly Foo $x` in a __construct signature) as properties,
+// mirroring promotedClassProperties' handling for return-type inference so
+// property-existence checks don't false-positive on them.
+func (idx *ProjectIndex) indexPromotedProperties(filename, className string, constructor *ast.FunctionNode, ft FileTypeContext) {
+	for _, paramNode := range constructor.Params {
+		param, ok := paramNode.(*ast.ParamNode)
+		if !ok || !param.IsPromoted {
+			continue
+		}
+		idx.addProperty(className, ResolvedProperty{
+			Declaration: sourceLocation(filename, param),
+			Name:        param.Name,
+			Type:        normalizeTypeWithContext(param.TypeHint, ft),
+			Visibility:  defaultVisibility(param.Visibility),
+			Readonly:    param.IsReadonly,
+		})
+	}
+}
+
 func (idx *ProjectIndex) indexClassMembers(filename, className string, properties, methods, constants []ast.Node, ft FileTypeContext, templateParams []string) {
 	for _, propNode := range properties {
 		switch p := propNode.(type) {
@@ -552,8 +572,13 @@ func (idx *ProjectIndex) indexClassMembers(filename, className string, propertie
 		}
 	}
 	for _, methodNode := range methods {
-		if fn, ok := methodNode.(*ast.FunctionNode); ok {
-			idx.addMethod(className, methodFromFunction(filename, className, fn, ft, templateParams))
+		fn, ok := methodNode.(*ast.FunctionNode)
+		if !ok {
+			continue
+		}
+		idx.addMethod(className, methodFromFunction(filename, className, fn, ft, templateParams))
+		if strings.EqualFold(fn.Name, "__construct") {
+			idx.indexPromotedProperties(filename, className, fn, ft)
 		}
 	}
 	for _, constNode := range constants {

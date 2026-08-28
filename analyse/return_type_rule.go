@@ -240,12 +240,13 @@ func inferTypeWithFacts(filename string, expr ast.Node, scope *functionScope, ct
 				EndOffset:   end.Offset,
 				Kind:        FactKindInferredType,
 			}
+			// fact.Type was already fully resolved when the fact was
+			// generated (see addGeneratedInferredTypeFact); re-running it
+			// through normalizeTypeWithContext here would treat an
+			// already-qualified name (e.g. "RGTenantConnection\ExtendedPdo")
+			// as relative and incorrectly prepend the current namespace.
 			if fact, ok := ctx.Facts.Fact(key); ok && strings.TrimSpace(fact.Type) != "" {
-				factType := fact.Type
-				if scope != nil {
-					factType = normalizeTypeWithContext(factType, scope.typeCtx)
-				}
-				if inferred := ParseType(factType); !inferred.IsEmpty() {
+				if inferred := ParseType(fact.Type); !inferred.IsEmpty() {
 					return inferred
 				}
 			}

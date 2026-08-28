@@ -131,23 +131,41 @@ func extractRegexpBody(pattern string) string {
 	return pattern[1 : end+1]
 }
 
+// countPrintfPlaceholders returns the number of arguments a printf/sprintf
+// format string requires. Plain specifiers (%s, %d, ...) are counted
+// one-for-one. Positional specifiers (%1$s, %2$d, ...) reference an
+// argument by index and may repeat; when any are present the required
+// count is the highest index referenced, not the number of occurrences.
 func countPrintfPlaceholders(format string) int {
 	count := 0
-	escaped := false
+	maxPositional := 0
+	usesPositional := false
 	for i := 0; i < len(format); i++ {
 		if format[i] != '%' {
-			escaped = false
-			continue
-		}
-		if escaped {
-			escaped = false
 			continue
 		}
 		if i+1 < len(format) && format[i+1] == '%' {
-			escaped = true
+			i++ // literal "%%"
 			continue
 		}
+
+		j := i + 1
+		digitsStart := j
+		for j < len(format) && format[j] >= '0' && format[j] <= '9' {
+			j++
+		}
+		if j > digitsStart && j < len(format) && format[j] == '$' {
+			if n, err := strconv.Atoi(format[digitsStart:j]); err == nil && n > maxPositional {
+				maxPositional = n
+			}
+			usesPositional = true
+			i = j // resume after "N$"
+		}
+
 		count++
+	}
+	if usesPositional {
+		return maxPositional
 	}
 	return count
 }
