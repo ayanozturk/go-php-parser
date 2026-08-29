@@ -1,17 +1,17 @@
 # Default VS Code PHP Platform Progress
 
-Last updated: 2026-08-22 (Europe/London)
+Last updated: 2026-08-29 (Europe/London)
 
 This file records reproducible evidence for the cooperating `go-php-parser` engine and `vscode-php-strom` extension. PHPStan, PHPCS, and Mago are benchmark references only; no parity claim is made.
 
 ## Current baseline
 
-- Engine checkout: `/Users/ayan/Projects/go-php-parser`, `main` at pushed engine commit `4350d06` before this fuzzing update.
-- Extension checkout: `/Users/ayan/Projects/vscode-php-strom`, `main` at pushed security commit `f2793dc` before this update; the validated release target is `0.1.24`.
-- Before this delivery, production extension builds pin `github.com/ayanozturk/go-php-parser` at pseudo-version `v0.0.0-20260820125828-8799ed160392`. The `0.1.24` release advances the pin to the engine security commit, while `make test-server-dev` continues to validate the sibling checkout through a generated, ignored Go workspace.
+- Engine checkout: `/Users/ayan/Projects/go-php-parser`, `main` at pushed commit `5c7bfc5`.
+- Extension checkout: `/Users/ayan/Projects/vscode-php-strom`, `main` at pushed commit `c238c18`; the current package version is `0.1.28`.
+- Production extension builds pin `github.com/ayanozturk/go-php-parser` at pseudo-version `v0.0.0-20260828154022-5c7bfc589e84`. `make test-server-dev` validates the same engine through the generated, ignored sibling-workspace path.
 - Go toolchain observed: Go 1.26.2. Node toolchain observed: Node 22.20.0 and npm 11.7.0.
-- Checked-in representative corpus: 32,990 PHP files across Composer, Drupal, Laravel, PHPUnit, and Symfony under `test_projects` (428 MB on disk, including installed dependencies).
-- `go run ./cmd/compat-metrics -root test_projects -workers 4 -top 2`: 96.05% file compatibility (31,686 passing, 1,304 failing), 146,218 parse errors, 2.716s. Per project: Composer 98.15%, Drupal 96.81%, Laravel 94.47%, PHPUnit 93.08%, Symfony 96.52%.
+- Representative corpora are fetched at exact revisions from `test_projects/manifest.json`; generated working copies remain uncommitted.
+- The latest recorded full-corpus pass has zero failures for Composer, Drupal, Magento, PHPUnit, and WordPress. Symfony's two remaining fixtures are intentionally invalid/corrupted inputs, and Laravel has two narrow interpolation/callable edge cases. These recorded results are compatibility evidence, not a current performance result.
 
 ## Security and fuzzing
 
@@ -48,14 +48,14 @@ Representative workload: 23,556 indexed PHP files, 3,678,678 LOC, 135.68 MB, 151
 
 - `FEATURES.md` still describes a TypeScript/tree-sitter server architecture, while production editor features now use the Go language server and `go-php-parser`. This makes feature/architecture claims hard to audit.
 - The obsolete `src/server` TypeScript implementation is excluded from both the production TypeScript build and ESLint; retaining dead server code remains an architecture/deletion decision requiring separate evidence.
-- The parser API still exposes start positions rather than complete byte spans, limiting reliable Unicode-aware diagnostics, rename, references, and selection ranges.
+- Parser AST nodes and structured analysis issues now expose complete spans. PHP Strom still converts analysis findings to point-only LSP ranges, so byte-offset-to-UTF-16 range delivery remains an extension integration task.
 
 ## Coverage gaps
 
-- PHPStan benchmark: level 0 remains partial; levels 1 and 2 are largely uncovered; level 3 return/property checks are partial. Missing areas include control-flow precision, arbitrary-expression method checks, PHPDoc validation, broader built-in signatures, and complete modern-syntax coverage.
+- PHPStan benchmark: level 0 remains partial; level 1 variable-flow behavior is differential-gated by 24 reviewed fixtures; narrowing, generic inheritance, and higher-level return/property/argument checks remain partial. Missing areas include full level-0 parity, arbitrary-expression method checks, PHPDoc validation, dynamic-call precision, and broader extension-dependent built-in signatures.
 - PHPCS benchmark: the repository comparison records 16 style rules, far below the breadth of PHPCS standards. Security-oriented source rules such as eval/backtick/forbidden-function checks are not implemented.
-- PHP version/framework coverage is represented by the five-project corpus, but the 1,304 failing files demonstrate substantial parser-recovery gaps. Blade/mixed-template files are included in the failures and should be classified separately from pure-PHP parser failures.
-- Extension integration gaps include stale architecture documentation and no reproducible cold-start/incremental-edit/cancellation benchmark suite. Workspace-discovery symlink/special-file coverage is now present for the supported macOS/Linux security boundary.
+- The remaining recorded pure-parser corpus gaps are two narrow Laravel vendor-code cases; intentionally invalid or corrupted fixtures stay classified separately from parser failures.
+- Extension integration gaps include stale architecture documentation, point-only analysis ranges, whole-project index rebuilding for changed documents, no shared `SemanticSnapshot` fact/flow consumption, and no reproducible cold-start/incremental-edit/cancellation benchmark suite.
 
 ## Completed changes and validation
 
@@ -204,7 +204,8 @@ Representative workload: 23,556 indexed PHP files, 3,678,678 LOC, 135.68 MB, 151
 
 ## Next ranked candidates
 
-1. **Security:** extend deterministic fuzzing into PHPDoc/type parsing and rule execution, then add a scheduled longer budget with reviewed minimized corpus seeds.
-2. **Performance:** create repeatable cold/warm index and incremental-edit benchmarks with stable corpus/configuration metadata and peak-RSS/allocation capture.
-3. **Maintenance:** correct `FEATURES.md` to the production architecture and decide whether the excluded legacy TypeScript server should be removed.
-4. **Features:** after the higher-priority gates, classify and minimize the largest pure-PHP corpus failures before expanding PHPStan/PHPCS diagnostic breadth.
+1. **Extension integration:** construct and reuse parser `SemanticSnapshot` facts/flow for editor diagnostics and semantic providers instead of supplying only an independently rebuilt resolver.
+2. **Incremental performance:** replace whole-project index rebuilding on changed documents, then add trace-based cold-start, incremental-edit, cancellation, and stale-publication latency gates.
+3. **Source mapping:** deliver structured analysis spans as UTF-16 LSP ranges with ASCII, BMP, and surrogate-pair contract tests.
+4. **Correctness:** expand the executable PHPStan level-0 differential pack and close reviewed mismatches before claiming later milestone completion.
+5. **Maintenance and security:** correct `FEATURES.md`, decide the legacy TypeScript server's fate, and extend deterministic fuzzing into PHPDoc/type parsing and rule execution.

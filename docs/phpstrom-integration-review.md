@@ -50,13 +50,15 @@ PHP Strom currently requires a zero pseudo-version and replaces it with a relati
 
 Change this module to a canonical import path such as `github.com/ayanozturk/go-php-parser`, publish semantic version tags, and pin PHP Strom to a released version. A local `go.work` override can continue to support coordinated development without becoming part of the published dependency contract.
 
-Status: the module now uses `github.com/ayanozturk/go-php-parser`, and PHP Strom pins an exact pseudo-version in `server/go.mod`. Normal build and test targets use that pinned module; explicit `*-dev` targets opt into a sibling checkout through a generated Go workspace. Publishing a semantic version tag remains a release follow-up.
+Status: the module now uses `github.com/ayanozturk/go-php-parser`. PHP Strom commit `56e2da2` pins engine commit `5c7bfc5` through exact pseudo-version `v0.0.0-20260828154022-5c7bfc589e84`; normal build and test targets use that module, while explicit `*-dev` targets opt into the sibling checkout through a generated Go workspace. Both paths pass tests, vet, and race checks, and the pinned parser builds all six supported server targets. Publishing a semantic version tag remains a release follow-up.
 
 ### 6. Add complete source spans
 
 AST nodes currently expose only a start position. Exact editor operations such as diagnostics, selection ranges, rename, references, and highlighting need both start and end positions. Without spans, PHP Strom falls back to scanning source text around a cursor, which is fragile for Unicode and complex syntax.
 
 Add a `Span` containing start and end byte offsets to every AST node and structured diagnostic. Keep LSP-specific coordinate conversion in PHP Strom.
+
+Status: parser AST nodes and structured analysis issues now carry complete spans. PHP Strom still maps analysis issues through its point-only `lineColToRange` helper, so consuming the end span and converting byte offsets/Unicode positions to UTF-16 LSP ranges remains the next integration step.
 
 ## Suggested implementation order
 
