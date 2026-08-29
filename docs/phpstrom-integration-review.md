@@ -4,9 +4,9 @@ This document records the August 2026 review of `go-php-parser` as the parser an
 
 ## Current relationship
 
-PHP Strom's production indexer, semantic cache, diagnostics, and several language providers import this module under its current `go-phpcs` module name. PHP Strom also contains a separate parser under `server/parser`, but that implementation is used only by its `cmd/parse-test` utility and is not the parser used by editor features.
+PHP Strom's production indexer, semantic cache, diagnostics, and several language providers import this module through its canonical `github.com/ayanozturk/go-php-parser` path. Its former duplicate `server/parser` implementation has been removed, and `cmd/parse-test` now exercises the production parser adapter.
 
-Both repositories' ordinary Go test suites passed during the review. The parser repository also passed `go vet ./...` and `go test -race ./...`. PHP Strom's race suite exposed a test-harness race in `TestDidChangeDebouncesOnTypeAnalysis`, where a `bytes.Buffer` is read while an asynchronous diagnostic notification writes to it. Its TypeScript compilation passed, while linting failed because ESLint 9 could not find an `eslint.config.*` file.
+The review findings below are retained as historical context. The missing ESLint configuration and asynchronous diagnostic test-harness race found during that review have since been fixed. As of extension commit `15abf7a`, pinned and sibling-development Go tests, vet, and race suites pass, as do TypeScript lint/compile/package, all six server builds, and the VS Code extension-host suite.
 
 ## Recommended changes
 
@@ -59,6 +59,12 @@ AST nodes currently expose only a start position. Exact editor operations such a
 Add a `Span` containing start and end byte offsets to every AST node and structured diagnostic. Keep LSP-specific coordinate conversion in PHP Strom.
 
 Status: parser AST nodes and structured analysis issues now carry complete spans. PHP Strom still maps analysis issues through its point-only `lineColToRange` helper, so consuming the end span and converting byte offsets/Unicode positions to UTF-16 LSP ranges remains the next integration step.
+
+### 7. Reuse immutable semantic snapshots
+
+PHP Strom previously rebuilt an analysis context around its workspace resolver without consuming the parser's shared semantic facts, control-flow graphs, or variable-flow state. That duplicated semantic work across diagnostics and language providers and left the immutable snapshot boundary unused in the editor.
+
+Status: implemented in PHP Strom commit `15abf7a`. Diagnostics, hover, definition, and declaration now consume revision-aware per-document `SemanticSnapshot` instances over the workspace project index. Exact document text and project revision govern reuse and invalidation; background scans use transient snapshots and `didClose` releases retained state. The next integration batch is incremental project-index maintenance and dependant invalidation, followed by trace-based latency evidence.
 
 ## Suggested implementation order
 

@@ -7,7 +7,7 @@ This file records reproducible evidence for the cooperating `go-php-parser` engi
 ## Current baseline
 
 - Engine revision validated and consumed by PHP Strom: pushed commit `5c7bfc5`; later documentation-only commits do not change that dependency revision.
-- Extension checkout: `/Users/ayan/Projects/vscode-php-strom`, `main` at pushed commit `c238c18`; the current package version is `0.1.28`.
+- Extension checkout: `/Users/ayan/Projects/vscode-php-strom`, `main` at pushed commit `15abf7a`; the current package version is `0.1.28`.
 - Production extension builds pin `github.com/ayanozturk/go-php-parser` at pseudo-version `v0.0.0-20260828154022-5c7bfc589e84`. `make test-server-dev` validates the same engine through the generated, ignored sibling-workspace path.
 - Go toolchain observed: Go 1.26.2. Node toolchain observed: Node 22.20.0 and npm 11.7.0.
 - Representative corpora are fetched at exact revisions from `test_projects/manifest.json`; generated working copies remain uncommitted.
@@ -55,7 +55,7 @@ Representative workload: 23,556 indexed PHP files, 3,678,678 LOC, 135.68 MB, 151
 - PHPStan benchmark: level 0 remains partial; level 1 variable-flow behavior is differential-gated by 24 reviewed fixtures; narrowing, generic inheritance, and higher-level return/property/argument checks remain partial. Missing areas include full level-0 parity, arbitrary-expression method checks, PHPDoc validation, dynamic-call precision, and broader extension-dependent built-in signatures.
 - PHPCS benchmark: the repository comparison records 16 style rules, far below the breadth of PHPCS standards. Security-oriented source rules such as eval/backtick/forbidden-function checks are not implemented.
 - The remaining recorded pure-parser corpus gaps are two narrow Laravel vendor-code cases; intentionally invalid or corrupted fixtures stay classified separately from parser failures.
-- Extension integration gaps include stale architecture documentation, point-only analysis ranges, whole-project index rebuilding for changed documents, no shared `SemanticSnapshot` fact/flow consumption, and no reproducible cold-start/incremental-edit/cancellation benchmark suite.
+- PHP Strom now consumes shared `SemanticSnapshot` facts, flow graphs, and variable-flow state through a revision-aware interactive document cache. Remaining extension integration gaps include stale architecture documentation, point-only analysis ranges, whole-project index rebuilding for changed documents, and no reproducible cold-start/incremental-edit/cancellation benchmark suite.
 
 ## Completed changes and validation
 
@@ -202,10 +202,17 @@ Representative workload: 23,556 indexed PHP files, 3,678,678 LOC, 135.68 MB, 151
 - Extension `make test-server-dev`, sibling-parser Go vet/race, `npm run lint`, `npm run compile`, `npm run package`, VS Code 1.89.1 extension-host `npm test`, clean `npm ci`, `npm audit --audit-level=low`, and `git diff --check`: pass. Audit reports 0 vulnerabilities; packaging retains the known `vscode-languageserver-types` dynamic-require warning.
 - This security fix adds nil checks only after fallible postfix parsing. The sequential microbenchmark median was +0.9% with overlapping ranges; no performance change is claimed.
 
+### 2026-08-29 — Integration: reuse parser semantic snapshots in PHP Strom
+
+- Extension commit `15abf7a` constructs parser-native `SemanticSnapshot` instances over the current document and immutable workspace project index, then supplies their shared semantic facts, control-flow graph, and variable-flow reader to diagnostics, hover, definition, and declaration analysis.
+- Cached semantic snapshots are keyed by exact document text and an explicit workspace project revision. Unchanged requests reuse the same immutable readers; any document edit or cross-file project rebuild invalidates them.
+- Closed/background workspace diagnostics use transient snapshots, and `didClose` releases retained parsed and semantic state. An initial unbounded workspace-retention design made the full race suite materially slower and memory-heavy; it was rejected before delivery. The retained design restored the focused workspace-limit test to 5.9s and the full `phpstrom` race package to about 37s on the validation host. These are test-run observations, not editor-latency claims.
+- Pinned and sibling-development Go tests, vet, and race suites pass. TypeScript lint/compile/package, the VS Code 1.89.1 extension-host suite, all six server target builds, `npm audit --audit-level=low`, and diff checks pass; the audit reports 0 vulnerabilities and packaging retains the known `vscode-languageserver-types` dynamic-require warning.
+
 ## Next ranked candidates
 
-1. **Extension integration:** construct and reuse parser `SemanticSnapshot` facts/flow for editor diagnostics and semantic providers instead of supplying only an independently rebuilt resolver.
-2. **Incremental performance:** replace whole-project index rebuilding on changed documents, then add trace-based cold-start, incremental-edit, cancellation, and stale-publication latency gates.
+1. **Incremental performance:** replace whole-project index rebuilding on changed documents and invalidate dependants from exported semantic changes rather than every content edit.
+2. **Latency evidence:** add trace-based cold-start, incremental-edit, cancellation, and stale-publication latency gates with cache hit/invalidation accounting.
 3. **Source mapping:** deliver structured analysis spans as UTF-16 LSP ranges with ASCII, BMP, and surrogate-pair contract tests.
 4. **Correctness:** expand the executable PHPStan level-0 differential pack and close reviewed mismatches before claiming later milestone completion.
 5. **Maintenance and security:** correct `FEATURES.md`, decide the legacy TypeScript server's fate, and extend deterministic fuzzing into PHPDoc/type parsing and rule execution.
