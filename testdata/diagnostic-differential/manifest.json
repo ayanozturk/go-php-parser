@@ -69,6 +69,76 @@
       "phpstanIdentifiers": ["attribute.notFound"]
     },
     {
+      "id": "unknown-const-import",
+      "capability": "unknown imported constants",
+      "file": "unknown-const-import.php",
+      "engineCodes": ["PHPStan.Level0.Symbols"],
+      "phpstanIdentifiers": ["constant.notFound"]
+    },
+    {
+      "id": "unknown-property-type",
+      "capability": "unknown property type references",
+      "file": "unknown-property-type.php",
+      "engineCodes": ["PHPStan.Level0.Symbols"],
+      "phpstanIdentifiers": ["class.notFound"]
+    },
+    {
+      "id": "unknown-return-type",
+      "capability": "unknown return type references",
+      "file": "unknown-return-type.php",
+      "engineCodes": ["PHPStan.Level0.Symbols"],
+      "phpstanIdentifiers": ["class.notFound"]
+    },
+    {
+      "id": "unknown-static-property",
+      "capability": "unknown static properties",
+      "file": "unknown-static-property.php",
+      "engineCodes": ["PHPStan.Level0.Symbols"],
+      "phpstanIdentifiers": ["staticProperty.notFound"]
+    },
+    {
+      "id": "static-access-instance-property",
+      "capability": "static access to an instance property",
+      "file": "static-access-instance-property.php",
+      "engineCodes": ["PHPStan.Level0.Symbols"],
+      "phpstanIdentifiers": ["property.staticAccess"]
+    },
+    {
+      "id": "private-class-constant",
+      "capability": "private class constant visibility",
+      "file": "private-class-constant.php",
+      "engineCodes": ["PHPStan.Level0.Symbols"],
+      "phpstanIdentifiers": ["classConstant.private"]
+    },
+    {
+      "id": "protected-class-constant",
+      "capability": "protected class constant visibility",
+      "file": "protected-class-constant.php",
+      "engineCodes": ["PHPStan.Level0.Symbols"],
+      "phpstanIdentifiers": ["classConstant.protected"]
+    },
+    {
+      "id": "constructor-argument-count",
+      "capability": "constructor argument counts",
+      "file": "constructor-argument-count.php",
+      "engineCodes": ["PHPStan.Level0.Invocation"],
+      "phpstanIdentifiers": ["arguments.count"]
+    },
+    {
+      "id": "instantiate-protected-constructor",
+      "capability": "instantiating a protected constructor",
+      "file": "instantiate-protected-constructor.php",
+      "engineCodes": ["PHPStan.Level0.Invocation"],
+      "phpstanIdentifiers": ["new.protectedConstructor"]
+    },
+    {
+      "id": "named-before-positional",
+      "capability": "positional arguments after named arguments",
+      "file": "named-before-positional.php",
+      "engineCodes": ["PHPStan.Level0.Invocation"],
+      "phpstanIdentifiers": ["argument.missing", "argument.positionalAfterNamed"]
+    },
+    {
       "id": "argument-count",
       "capability": "function argument counts",
       "file": "argument-count.php",
@@ -188,6 +258,48 @@
       "phpstanIdentifiers": ["class.readOnly"]
     },
     {
+      "id": "mutable-extends-readonly",
+      "capability": "non-readonly class extending a readonly class",
+      "file": "mutable-extends-readonly.php",
+      "engineCodes": ["PHPStan.Level0.ClassModel"],
+      "phpstanIdentifiers": ["class.nonReadOnly"]
+    },
+    {
+      "id": "instantiate-trait",
+      "capability": "instantiating a trait",
+      "file": "instantiate-trait.php",
+      "engineCodes": ["PHPStan.Level0.ClassModel"],
+      "phpstanIdentifiers": ["new.trait"]
+    },
+    {
+      "id": "abstract-private-method",
+      "capability": "private abstract methods",
+      "file": "abstract-private-method.php",
+      "engineCodes": ["PHPStan.Level0.ClassModel"],
+      "phpstanIdentifiers": ["method.abstractPrivate"]
+    },
+    {
+      "id": "missing-abstract-parent-method",
+      "capability": "missing abstract parent method implementations",
+      "file": "missing-abstract-parent-method.php",
+      "engineCodes": ["PHPStan.Level0.ClassModel"],
+      "phpstanIdentifiers": ["method.abstract"]
+    },
+    {
+      "id": "interface-private-method",
+      "capability": "non-public interface methods",
+      "file": "interface-private-method.php",
+      "engineCodes": ["PHPStan.Level0.ClassModel"],
+      "phpstanIdentifiers": ["method.visibility"]
+    },
+    {
+      "id": "enum-duplicate-value",
+      "capability": "duplicate enum case values",
+      "file": "enum-duplicate-value.php",
+      "engineCodes": ["PHPStan.Level0.ClassModel"],
+      "phpstanIdentifiers": ["enum.duplicateValue"]
+    },
+    {
       "id": "duplicate-array-key",
       "capability": "duplicate literal array keys",
       "file": "duplicate-array-key.php",
@@ -200,6 +312,13 @@
       "file": "unknown-goto.php",
       "engineCodes": ["PHPStan.Level0.Language"],
       "phpstanIdentifiers": ["goto.labelUndefined"]
+    },
+    {
+      "id": "invalid-regex",
+      "capability": "invalid regex patterns",
+      "file": "invalid-regex.php",
+      "engineCodes": ["PHPStan.Level0.Language"],
+      "phpstanIdentifiers": ["regexp.pattern"]
     },
     {
       "id": "clean-known-symbols",
