@@ -55,6 +55,13 @@
       "phpstanIdentifiers": ["property.notFound"]
     },
     {
+      "id": "this-in-static",
+      "capability": "using $this in a static method",
+      "file": "this-in-static.php",
+      "engineCodes": ["PHPStan.Level0.Symbols", "PHPStan.Level0.Symbols"],
+      "phpstanIdentifiers": ["variable.undefined", "variable.undefined"]
+    },
+    {
       "id": "unknown-class-constant",
       "capability": "unknown class constants",
       "file": "unknown-class-constant.php",
@@ -181,6 +188,41 @@
       "phpstanIdentifiers": ["argument.missing", "argument.unknown"]
     },
     {
+      "id": "instance-call-static-method",
+      "capability": "calling a static method on an instance",
+      "file": "instance-call-static-method.php",
+      "engineCodes": [],
+      "phpstanIdentifiers": []
+    },
+    {
+      "id": "protected-method-known-receiver",
+      "capability": "protected method calls on known receivers",
+      "file": "protected-method-known-receiver.php",
+      "engineCodes": [],
+      "phpstanIdentifiers": []
+    },
+    {
+      "id": "printf-arguments",
+      "capability": "printf argument counts",
+      "file": "printf-arguments.php",
+      "engineCodes": ["PHPStan.Level0.Invocation"],
+      "phpstanIdentifiers": ["argument.printf"]
+    },
+    {
+      "id": "consistent-child-constructor",
+      "capability": "consistent constructor child compatibility",
+      "file": "consistent-child-constructor.php",
+      "engineCodes": ["PHPStan.Level0.ClassModel", "PHPStan.Level0.ClassModel"],
+      "phpstanIdentifiers": ["method.visibility", "parameter.notOptional"]
+    },
+    {
+      "id": "consistent-private-constructor",
+      "capability": "private constructors with consistent-constructor tags",
+      "file": "consistent-private-constructor.php",
+      "engineCodes": ["PHPStan.Level0.ClassModel"],
+      "phpstanIdentifiers": ["consistentConstructor.private"]
+    },
+    {
       "id": "extends-final-class",
       "capability": "extending a final class",
       "file": "extends-final-class.php",
@@ -228,6 +270,34 @@
       "file": "final-method-override.php",
       "engineCodes": ["PHPStan.Level0.ClassModel"],
       "phpstanIdentifiers": ["method.parentMethodFinal"]
+    },
+    {
+      "id": "final-abstract-class",
+      "capability": "final abstract classes",
+      "file": "final-abstract-class.php",
+      "engineCodes": ["PHPStan.Level0.ClassModel"],
+      "phpstanIdentifiers": ["phpstan.parse"]
+    },
+    {
+      "id": "final-abstract-method",
+      "capability": "final abstract methods",
+      "file": "final-abstract-method.php",
+      "engineCodes": ["PHPStan.Level0.ClassModel"],
+      "phpstanIdentifiers": ["phpstan.parse"]
+    },
+    {
+      "id": "final-constant-override",
+      "capability": "overriding a final class constant",
+      "file": "final-constant-override.php",
+      "engineCodes": ["PHPStan.Level0.ClassModel"],
+      "phpstanIdentifiers": ["classConstant.final"]
+    },
+    {
+      "id": "private-final-constant",
+      "capability": "private final class constants",
+      "file": "private-final-constant.php",
+      "engineCodes": ["PHPStan.Level0.ClassModel"],
+      "phpstanIdentifiers": ["classConstant.finalPrivate"]
     },
     {
       "id": "abstract-method-in-concrete-class",
@@ -293,6 +363,20 @@
       "phpstanIdentifiers": ["method.visibility"]
     },
     {
+      "id": "interface-private-constant",
+      "capability": "private interface constants",
+      "file": "interface-private-constant.php",
+      "engineCodes": ["PHPStan.Level0.ClassModel"],
+      "phpstanIdentifiers": []
+    },
+    {
+      "id": "interface-protected-constant",
+      "capability": "protected interface constants",
+      "file": "interface-protected-constant.php",
+      "engineCodes": ["PHPStan.Level0.ClassModel"],
+      "phpstanIdentifiers": []
+    },
+    {
       "id": "enum-duplicate-value",
       "capability": "duplicate enum case values",
       "file": "enum-duplicate-value.php",
@@ -314,11 +398,32 @@
       "phpstanIdentifiers": ["goto.labelUndefined"]
     },
     {
+      "id": "increment-literal",
+      "capability": "incrementing a literal",
+      "file": "increment-literal.php",
+      "engineCodes": ["PHPStan.Level0.Language"],
+      "phpstanIdentifiers": ["phpstan.parse"]
+    },
+    {
+      "id": "missing-include",
+      "capability": "missing included files",
+      "file": "missing-include.php",
+      "engineCodes": ["PHPStan.Level0.Language"],
+      "phpstanIdentifiers": ["include.fileNotFound"]
+    },
+    {
       "id": "invalid-regex",
       "capability": "invalid regex patterns",
       "file": "invalid-regex.php",
       "engineCodes": ["PHPStan.Level0.Language"],
       "phpstanIdentifiers": ["regexp.pattern"]
+    },
+    {
+      "id": "invalid-throw",
+      "capability": "invalid throw expressions at level 0",
+      "file": "invalid-throw.php",
+      "engineCodes": [],
+      "phpstanIdentifiers": []
     },
     {
       "id": "clean-known-symbols",

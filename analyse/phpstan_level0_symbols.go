@@ -115,7 +115,6 @@ func (r *PHPStanLevel0Rule) checkSymbolsAndCalls(filename string, nodes []ast.No
 				return
 			}
 			checkMethodVisibility(filename, n.GetPos(), method, className, class, ft, ctx.Resolver, false, &issues)
-			checkInstanceStaticMethodCall(filename, n.GetPos(), method, className, &issues)
 			checkCallArguments(filename, n.GetPos(), "Method "+className+"::"+method.Name+"()", method.Name, n.Args, method, &issues)
 		case *ast.ClassConstFetchNode:
 			if strings.HasPrefix(n.Class, "$") {

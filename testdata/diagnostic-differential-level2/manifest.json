@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 1,
+  "reference": {
+    "tool": "PHPStan",
+    "level": 2
+  },
+  "cases": [
+    {
+      "id": "protected-method-known-receiver",
+      "capability": "protected method calls on known receivers",
+      "file": "protected-method-known-receiver.php",
+      "engineCodes": ["PHPStan.Level2.MethodVisibility"],
+      "phpstanIdentifiers": ["method.protected"]
+    }
+  ]
+}

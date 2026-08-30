@@ -11,8 +11,8 @@ func TestCheckedInEngineDifferentialBaseline(t *testing.T) {
 	if err != nil {
 		t.Fatalf("run engine differential baseline: %v", err)
 	}
-	if level0Report.Totals.Cases != 47 {
-		t.Fatalf("expected 47 level-0 differential cases, got %d", level0Report.Totals.Cases)
+	if level0Report.Totals.Cases != 62 {
+		t.Fatalf("expected 62 level-0 differential cases, got %d", level0Report.Totals.Cases)
 	}
 	if level0Report.Totals.EngineMismatches != 0 {
 		t.Fatalf("engine differential baseline has %d mismatches: %#v", level0Report.Totals.EngineMismatches, level0Report.Cases)
@@ -33,6 +33,28 @@ func TestCheckedInEngineDifferentialBaseline(t *testing.T) {
 	}
 	if level1Report.Reference != nil {
 		t.Fatalf("engine-only level-1 report should not contain a reference run: %#v", level1Report.Reference)
+	}
+
+	level2Report, err := runDifferential(filepath.Join("..", "..", "testdata", "diagnostic-differential-level2"), "", true)
+	if err != nil {
+		t.Fatalf("run engine level-2 differential baseline: %v", err)
+	}
+	if level2Report.Totals.Cases != 1 || level2Report.Totals.EngineMismatches != 0 {
+		t.Fatalf("unexpected level-2 differential baseline: %#v", level2Report.Totals)
+	}
+	if level2Report.Reference != nil {
+		t.Fatalf("engine-only level-2 report should not contain a reference run: %#v", level2Report.Reference)
+	}
+
+	level3Report, err := runDifferential(filepath.Join("..", "..", "testdata", "diagnostic-differential-level3"), "", true)
+	if err != nil {
+		t.Fatalf("run engine level-3 differential baseline: %v", err)
+	}
+	if level3Report.Totals.Cases != 1 || level3Report.Totals.EngineMismatches != 0 {
+		t.Fatalf("unexpected level-3 differential baseline: %#v", level3Report.Totals)
+	}
+	if level3Report.Reference != nil {
+		t.Fatalf("engine-only level-3 report should not contain a reference run: %#v", level3Report.Reference)
 	}
 }
 

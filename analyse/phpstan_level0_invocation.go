@@ -117,10 +117,6 @@ func checkMethodVisibility(filename string, pos ast.Position, method ResolvedMet
 		if caller == "" || (indexKey(caller) != indexKey(declaringClass) && !classUsesTrait(resolver, caller, declaringClass)) {
 			*issues = append(*issues, issue(filename, pos, level0InvocationCode, fmt.Sprintf("Call to private method %s::%s().", declaringClass, method.Name)))
 		}
-	case "protected":
-		if caller == "" || (!isSubclassOf(resolver, caller, declaringClass) && !classUsesTrait(resolver, caller, declaringClass)) {
-			*issues = append(*issues, issue(filename, pos, level0InvocationCode, fmt.Sprintf("Call to protected method %s::%s().", declaringClass, method.Name)))
-		}
 	}
 	if static && !method.IsStatic {
 		*issues = append(*issues, issue(filename, pos, level0InvocationCode, fmt.Sprintf("Static call to instance method %s::%s().", className, method.Name)))
@@ -160,12 +156,6 @@ func classUsesTraitSeen(resolver SymbolResolver, className, traitName string, se
 		}
 	}
 	return false
-}
-
-func checkInstanceStaticMethodCall(filename string, pos ast.Position, method ResolvedMethod, className string, issues *[]AnalysisIssue) {
-	if method.IsStatic {
-		*issues = append(*issues, issue(filename, pos, level0InvocationCode, fmt.Sprintf("Call to static method %s::%s() on instance.", className, method.Name)))
-	}
 }
 
 func checkConstructorAccess(filename string, pos ast.Position, targetClass string, currentClass *ast.ClassNode, ft FileTypeContext, resolver SymbolResolver, constructor ResolvedMethod, issues *[]AnalysisIssue) {

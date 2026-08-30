@@ -722,7 +722,7 @@ echo Missing\StillMissing::VALUE;
 	}
 }
 
-func TestLevel0ThrowExpressionValidity(t *testing.T) {
+func TestLevel0ExcludesLevel3ThrowTypeChecks(t *testing.T) {
 	issues := runLevel0OnFiles(t, map[string]string{
 		"test.php": `<?php
 throw new Exception();
@@ -731,11 +731,8 @@ throw new MissingThrowable();
 `,
 	})
 
-	if hasIssueContaining(issues, level0ClassModelCode, "Invalid type Exception to throw") {
-		t.Fatalf("Exception should be throwable, got %#v", issues)
-	}
-	if !hasIssueContaining(issues, level0ClassModelCode, "Invalid type DateTime to throw") {
-		t.Fatalf("expected non-throwable throw issue, got %#v", issues)
+	if hasIssueContaining(issues, level3ThrowTypeCode, "to throw") {
+		t.Fatalf("level zero should exclude level-three throw diagnostics, got %#v", issues)
 	}
 }
 
@@ -829,8 +826,8 @@ class Demo {
 `,
 	})
 
-	if !hasIssueContaining(issues, level0InvocationCode, "Call to static method Demo::run() on instance") {
-		t.Fatalf("expected instance static method call issue, got %#v", issues)
+	if hasIssueContaining(issues, level0InvocationCode, "Call to static method Demo::run() on instance") {
+		t.Fatalf("PHPStan does not report instance syntax for a static method, got %#v", issues)
 	}
 }
 
@@ -997,8 +994,8 @@ class Base {
 `,
 	})
 
-	if !hasIssueContaining(issues, level0InvocationCode, "Call to protected method Base::work()") {
-		t.Fatalf("expected protected method call on known receiver, got %#v", issues)
+	if hasIssueContaining(issues, level2MethodVisibilityCode, "Call to protected method Base::work()") {
+		t.Fatalf("level zero should exclude level-two protected visibility checks, got %#v", issues)
 	}
 }
 

@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 1,
+  "reference": {
+    "tool": "PHPStan",
+    "level": 3
+  },
+  "cases": [
+    {
+      "id": "invalid-throw",
+      "capability": "invalid throw expressions",
+      "file": "invalid-throw.php",
+      "engineCodes": ["PHPStan.Level3.ThrowType"],
+      "phpstanIdentifiers": ["throw.notThrowable"]
+    }
+  ]
+}
