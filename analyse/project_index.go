@@ -38,6 +38,30 @@ type DuplicateSymbol struct {
 	Pos  ast.Position
 }
 
+// ExportedSymbolChange identifies a project-level symbol whose semantic
+// signature was added, removed, or changed by an incremental update.
+type ExportedSymbolChange struct {
+	ID    SymbolID
+	Kind  string
+	Owner string
+	Name  string
+}
+
+// ProjectIndexChanges describes the dependency surface of an incremental
+// update. Complete is false when missing source metadata forces callers to
+// invalidate every cached semantic consumer. DependencyNames includes changed
+// symbols, their owners, and transitive class descendants.
+type ProjectIndexChanges struct {
+	Complete        bool
+	Symbols         []ExportedSymbolChange
+	DependencyNames []string
+}
+
+// SemanticChanged reports whether cached cross-file semantic facts may be stale.
+func (changes ProjectIndexChanges) SemanticChanged() bool {
+	return !changes.Complete || len(changes.Symbols) > 0
+}
+
 func NewProjectIndex() *ProjectIndex {
 	idx := newProjectIndex()
 	idx.seedBuiltins()
@@ -96,8 +120,15 @@ func BuildProjectIndex(parsed map[string][]ast.Node) *ProjectIndex {
 // positions. If the previous index lacks contribution metadata, the function
 // safely falls back to a complete deterministic build.
 func BuildProjectIndexIncremental(previous *ProjectIndex, parsed map[string][]ast.Node, changedFiles []string) (*ProjectIndex, bool) {
+	idx, changes := BuildProjectIndexIncrementalWithChanges(previous, parsed, changedFiles)
+	return idx, changes.SemanticChanged()
+}
+
+// BuildProjectIndexIncrementalWithChanges is BuildProjectIndexIncremental with
+// deterministic exported-symbol change details for dependency-scoped caches.
+func BuildProjectIndexIncrementalWithChanges(previous *ProjectIndex, parsed map[string][]ast.Node, changedFiles []string) (*ProjectIndex, ProjectIndexChanges) {
 	if previous == nil || previous.sourceFiles == nil {
-		return BuildProjectIndex(parsed), true
+		return BuildProjectIndex(parsed), ProjectIndexChanges{Complete: false}
 	}
 
 	changed := make(map[string]struct{}, len(changedFiles))
@@ -105,24 +136,24 @@ func BuildProjectIndexIncremental(previous *ProjectIndex, parsed map[string][]as
 		changed[filename] = struct{}{}
 	}
 	if len(changed) == 0 {
-		return previous, false
+		return previous, ProjectIndexChanges{Complete: true}
 	}
 	for filename := range parsed {
 		if _, exists := previous.sourceFiles[filename]; !exists {
 			if _, listed := changed[filename]; !listed {
-				return BuildProjectIndex(parsed), true
+				return BuildProjectIndex(parsed), ProjectIndexChanges{Complete: false}
 			}
 		}
 	}
 	for filename := range previous.sourceFiles {
 		if _, exists := parsed[filename]; !exists {
 			if _, listed := changed[filename]; !listed {
-				return BuildProjectIndex(parsed), true
+				return BuildProjectIndex(parsed), ProjectIndexChanges{Complete: false}
 			}
 		}
 	}
 
-	semanticChanged := false
+	changes := ProjectIndexChanges{Complete: true}
 	requiresFullBuild := false
 	filenames := make([]string, 0, len(changed))
 	for filename := range changed {
@@ -134,15 +165,14 @@ func BuildProjectIndexIncremental(previous *ProjectIndex, parsed map[string][]as
 		oldContribution := buildProjectFileIndex(filename, previous.sourceFiles[filename])
 		newContribution := buildProjectFileIndex(filename, parsed[filename])
 		newContributions[filename] = newContribution
-		if !projectFileSemanticsEqual(oldContribution, newContribution) {
-			semanticChanged = true
-		}
+		changes.Symbols = append(changes.Symbols, projectFileExportChanges(oldContribution, newContribution)...)
 		if projectFileTouchesCollisions(previous, oldContribution) || len(newContribution.collidingDefinitions) > 0 {
 			requiresFullBuild = true
 		}
 	}
 	if requiresFullBuild {
-		return BuildProjectIndex(parsed), semanticChanged
+		idx := BuildProjectIndex(parsed)
+		return idx, finalizeProjectIndexChanges(previous, idx, changes)
 	}
 
 	idx := cloneProjectIndex(previous)
@@ -152,7 +182,8 @@ func BuildProjectIndexIncremental(previous *ProjectIndex, parsed map[string][]as
 	for _, filename := range filenames {
 		contribution := newContributions[filename]
 		if projectFileCollidesWithIndex(idx, contribution) {
-			return BuildProjectIndex(parsed), semanticChanged
+			fresh := BuildProjectIndex(parsed)
+			return fresh, finalizeProjectIndexChanges(previous, fresh, changes)
 		}
 		nodes, remains := parsed[filename]
 		if !remains {
@@ -166,7 +197,7 @@ func BuildProjectIndexIncremental(previous *ProjectIndex, parsed map[string][]as
 	}
 	idx.methodsDeclared = buildMethodsDeclaredViews(idx)
 	idx.classLineages = buildClassLineageViews(idx)
-	return idx, semanticChanged
+	return idx, finalizeProjectIndexChanges(previous, idx, changes)
 }
 
 func buildProjectFileIndex(filename string, nodes []ast.Node) *ProjectIndex {
@@ -340,6 +371,201 @@ func memberDefinitionKey(kind, className, memberName string) string {
 }
 func globalConstantDefinitionKey(name string) string { return "global-constant\x00" + indexKey(name) }
 
+func projectFileExportChanges(left, right *ProjectIndex) []ExportedSymbolChange {
+	var changes []ExportedSymbolChange
+	classKeys := unionMapKeys(left.Classes, right.Classes)
+	for _, key := range classKeys {
+		oldValue, oldOK := left.Classes[key]
+		newValue, newOK := right.Classes[key]
+		if oldOK && newOK && resolvedClassSemanticallyEqual(oldValue, newValue) {
+			continue
+		}
+		if oldOK {
+			changes = append(changes, exportedClassChange(oldValue))
+		}
+		if newOK && (!oldOK || oldValue.ID != newValue.ID) {
+			changes = append(changes, exportedClassChange(newValue))
+		}
+	}
+
+	functionKeys := unionMapKeys(left.Functions, right.Functions)
+	for _, key := range functionKeys {
+		oldValue, oldOK := left.Functions[key]
+		newValue, newOK := right.Functions[key]
+		if oldOK && newOK && resolvedFunctionSemanticallyEqual(oldValue, newValue) {
+			continue
+		}
+		if oldOK {
+			changes = append(changes, ExportedSymbolChange{ID: oldValue.ID, Kind: "function", Name: oldValue.Name})
+		}
+		if newOK && (!oldOK || oldValue.ID != newValue.ID) {
+			changes = append(changes, ExportedSymbolChange{ID: newValue.ID, Kind: "function", Name: newValue.Name})
+		}
+	}
+
+	changes = append(changes, changedMethods(left.Methods, right.Methods)...)
+	changes = append(changes, changedProperties(left.Properties, right.Properties)...)
+	changes = append(changes, changedClassConstants(left.ClassConsts, right.ClassConsts)...)
+	for _, key := range unionMapKeys(left.globalConstantFiles, right.globalConstantFiles) {
+		_, oldOK := left.globalConstantFiles[key]
+		_, newOK := right.globalConstantFiles[key]
+		if oldOK == newOK {
+			continue
+		}
+		changes = append(changes, ExportedSymbolChange{ID: stableSymbolID("constant", "", key), Kind: "constant", Name: key})
+	}
+	return changes
+}
+
+func exportedClassChange(class ResolvedClass) ExportedSymbolChange {
+	return ExportedSymbolChange{ID: class.ID, Kind: "class", Name: class.Name}
+}
+
+func changedMethods(left, right map[string]map[string]ResolvedMethod) []ExportedSymbolChange {
+	var changes []ExportedSymbolChange
+	for _, classKey := range unionMapKeys(left, right) {
+		for _, memberKey := range unionMapKeys(left[classKey], right[classKey]) {
+			oldValue, oldOK := left[classKey][memberKey]
+			newValue, newOK := right[classKey][memberKey]
+			if oldOK && newOK && resolvedMethodSemanticallyEqual(oldValue, newValue) {
+				continue
+			}
+			if oldOK {
+				changes = append(changes, ExportedSymbolChange{ID: oldValue.ID, Kind: "method", Owner: oldValue.DeclaringClass, Name: oldValue.Name})
+			}
+			if newOK && (!oldOK || oldValue.ID != newValue.ID) {
+				changes = append(changes, ExportedSymbolChange{ID: newValue.ID, Kind: "method", Owner: newValue.DeclaringClass, Name: newValue.Name})
+			}
+		}
+	}
+	return changes
+}
+
+func changedProperties(left, right map[string]map[string]ResolvedProperty) []ExportedSymbolChange {
+	var changes []ExportedSymbolChange
+	for _, classKey := range unionMapKeys(left, right) {
+		for _, memberKey := range unionMapKeys(left[classKey], right[classKey]) {
+			oldValue, oldOK := left[classKey][memberKey]
+			newValue, newOK := right[classKey][memberKey]
+			if oldOK && newOK && resolvedPropertySemanticallyEqual(oldValue, newValue) {
+				continue
+			}
+			if oldOK {
+				changes = append(changes, ExportedSymbolChange{ID: oldValue.ID, Kind: "property", Owner: oldValue.DeclaringClass, Name: strings.TrimPrefix(oldValue.Name, "$")})
+			}
+			if newOK && (!oldOK || oldValue.ID != newValue.ID) {
+				changes = append(changes, ExportedSymbolChange{ID: newValue.ID, Kind: "property", Owner: newValue.DeclaringClass, Name: strings.TrimPrefix(newValue.Name, "$")})
+			}
+		}
+	}
+	return changes
+}
+
+func changedClassConstants(left, right map[string]map[string]ResolvedConstant) []ExportedSymbolChange {
+	var changes []ExportedSymbolChange
+	for _, classKey := range unionMapKeys(left, right) {
+		for _, memberKey := range unionMapKeys(left[classKey], right[classKey]) {
+			oldValue, oldOK := left[classKey][memberKey]
+			newValue, newOK := right[classKey][memberKey]
+			if oldOK && newOK && resolvedConstantSemanticallyEqual(oldValue, newValue) {
+				continue
+			}
+			if oldOK {
+				changes = append(changes, ExportedSymbolChange{ID: oldValue.ID, Kind: "class-constant", Owner: oldValue.DeclaringClass, Name: oldValue.Name})
+			}
+			if newOK && (!oldOK || oldValue.ID != newValue.ID) {
+				changes = append(changes, ExportedSymbolChange{ID: newValue.ID, Kind: "class-constant", Owner: newValue.DeclaringClass, Name: newValue.Name})
+			}
+		}
+	}
+	return changes
+}
+
+func unionMapKeys[V any](left, right map[string]V) []string {
+	keys := make(map[string]struct{}, len(left)+len(right))
+	for key := range left {
+		keys[key] = struct{}{}
+	}
+	for key := range right {
+		keys[key] = struct{}{}
+	}
+	result := make([]string, 0, len(keys))
+	for key := range keys {
+		result = append(result, key)
+	}
+	sort.Strings(result)
+	return result
+}
+
+func finalizeProjectIndexChanges(previous, current *ProjectIndex, changes ProjectIndexChanges) ProjectIndexChanges {
+	deduplicated := make(map[string]ExportedSymbolChange, len(changes.Symbols))
+	dependencyNames := make(map[string]string)
+	classRoots := make(map[string]struct{})
+	for _, change := range changes.Symbols {
+		key := change.Kind + "\x00" + strings.ToLower(change.Owner) + "\x00" + strings.ToLower(change.Name)
+		deduplicated[key] = change
+		addDependencyName(dependencyNames, change.Name)
+		addDependencyName(dependencyNames, change.Owner)
+		if change.Kind == "class" {
+			classRoots[indexKey(change.Name)] = struct{}{}
+		} else if change.Owner != "" {
+			classRoots[indexKey(change.Owner)] = struct{}{}
+		}
+	}
+	changes.Symbols = changes.Symbols[:0]
+	for _, change := range deduplicated {
+		changes.Symbols = append(changes.Symbols, change)
+	}
+	sort.Slice(changes.Symbols, func(i, j int) bool {
+		left := changes.Symbols[i]
+		right := changes.Symbols[j]
+		if left.Kind != right.Kind {
+			return left.Kind < right.Kind
+		}
+		if !strings.EqualFold(left.Owner, right.Owner) {
+			return strings.ToLower(left.Owner) < strings.ToLower(right.Owner)
+		}
+		return strings.ToLower(left.Name) < strings.ToLower(right.Name)
+	})
+	addDescendantDependencyNames(previous, classRoots, dependencyNames)
+	addDescendantDependencyNames(current, classRoots, dependencyNames)
+	changes.DependencyNames = make([]string, 0, len(dependencyNames))
+	for _, name := range dependencyNames {
+		changes.DependencyNames = append(changes.DependencyNames, name)
+	}
+	sort.Slice(changes.DependencyNames, func(i, j int) bool {
+		return strings.ToLower(changes.DependencyNames[i]) < strings.ToLower(changes.DependencyNames[j])
+	})
+	return changes
+}
+
+func addDescendantDependencyNames(project *ProjectIndex, roots map[string]struct{}, names map[string]string) {
+	if project == nil || len(roots) == 0 {
+		return
+	}
+	for _, class := range project.Classes {
+		for _, ancestor := range project.classLineage(class.Name) {
+			if _, affected := roots[indexKey(ancestor)]; affected {
+				addDependencyName(names, class.Name)
+				break
+			}
+		}
+	}
+}
+
+func addDependencyName(names map[string]string, name string) {
+	name = strings.TrimPrefix(strings.TrimSpace(name), "\\")
+	if name == "" {
+		return
+	}
+	key := strings.ToLower(name)
+	names[key] = name
+	if index := strings.LastIndex(name, "\\"); index >= 0 && index+1 < len(name) {
+		short := name[index+1:]
+		names[strings.ToLower(short)] = short
+	}
+}
+
 func projectFileSemanticsEqual(left, right *ProjectIndex) bool {
 	if left == nil || right == nil {
 		return left == right
@@ -438,16 +664,17 @@ func resolvedClassesSemanticallyEqual(left, right map[string]ResolvedClass) bool
 	}
 	for key, leftValue := range left {
 		rightValue, ok := right[key]
-		if !ok {
-			return false
-		}
-		leftValue.Declaration = SourceLocation{}
-		rightValue.Declaration = SourceLocation{}
-		if !reflect.DeepEqual(leftValue, rightValue) {
+		if !ok || !resolvedClassSemanticallyEqual(leftValue, rightValue) {
 			return false
 		}
 	}
 	return true
+}
+
+func resolvedClassSemanticallyEqual(left, right ResolvedClass) bool {
+	left.Declaration = SourceLocation{}
+	right.Declaration = SourceLocation{}
+	return reflect.DeepEqual(left, right)
 }
 
 func duplicatesSemanticallyEqual(left, right []DuplicateSymbol) bool {
@@ -468,16 +695,17 @@ func resolvedFunctionsSemanticallyEqual(left, right map[string]ResolvedFunction)
 	}
 	for key, leftValue := range left {
 		rightValue, ok := right[key]
-		if !ok {
-			return false
-		}
-		leftValue.Declaration = SourceLocation{}
-		rightValue.Declaration = SourceLocation{}
-		if !reflect.DeepEqual(leftValue, rightValue) {
+		if !ok || !resolvedFunctionSemanticallyEqual(leftValue, rightValue) {
 			return false
 		}
 	}
 	return true
+}
+
+func resolvedFunctionSemanticallyEqual(left, right ResolvedFunction) bool {
+	left.Declaration = SourceLocation{}
+	right.Declaration = SourceLocation{}
+	return reflect.DeepEqual(left, right)
 }
 
 func resolvedMethodsSemanticallyEqual(left, right map[string]map[string]ResolvedMethod) bool {
@@ -494,14 +722,18 @@ func resolvedMethodsSemanticallyEqual(left, right map[string]map[string]Resolved
 			if !ok {
 				return false
 			}
-			leftValue.Declaration = SourceLocation{}
-			rightValue.Declaration = SourceLocation{}
-			if !reflect.DeepEqual(leftValue, rightValue) {
+			if !resolvedMethodSemanticallyEqual(leftValue, rightValue) {
 				return false
 			}
 		}
 	}
 	return true
+}
+
+func resolvedMethodSemanticallyEqual(left, right ResolvedMethod) bool {
+	left.Declaration = SourceLocation{}
+	right.Declaration = SourceLocation{}
+	return reflect.DeepEqual(left, right)
 }
 
 func resolvedPropertiesSemanticallyEqual(left, right map[string]map[string]ResolvedProperty) bool {
@@ -518,14 +750,18 @@ func resolvedPropertiesSemanticallyEqual(left, right map[string]map[string]Resol
 			if !ok {
 				return false
 			}
-			leftValue.Declaration = SourceLocation{}
-			rightValue.Declaration = SourceLocation{}
-			if !reflect.DeepEqual(leftValue, rightValue) {
+			if !resolvedPropertySemanticallyEqual(leftValue, rightValue) {
 				return false
 			}
 		}
 	}
 	return true
+}
+
+func resolvedPropertySemanticallyEqual(left, right ResolvedProperty) bool {
+	left.Declaration = SourceLocation{}
+	right.Declaration = SourceLocation{}
+	return reflect.DeepEqual(left, right)
 }
 
 func resolvedConstantsSemanticallyEqual(left, right map[string]map[string]ResolvedConstant) bool {
@@ -542,14 +778,18 @@ func resolvedConstantsSemanticallyEqual(left, right map[string]map[string]Resolv
 			if !ok {
 				return false
 			}
-			leftValue.Declaration = SourceLocation{}
-			rightValue.Declaration = SourceLocation{}
-			if !reflect.DeepEqual(leftValue, rightValue) {
+			if !resolvedConstantSemanticallyEqual(leftValue, rightValue) {
 				return false
 			}
 		}
 	}
 	return true
+}
+
+func resolvedConstantSemanticallyEqual(left, right ResolvedConstant) bool {
+	left.Declaration = SourceLocation{}
+	right.Declaration = SourceLocation{}
+	return reflect.DeepEqual(left, right)
 }
 
 func (idx *ProjectIndex) ClassExists(name string) bool {

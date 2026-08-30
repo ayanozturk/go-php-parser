@@ -38,6 +38,11 @@ func BenchmarkBuildProjectIndexIncremental(b *testing.B) {
 	}
 	const changedFile = "src/Class0500.php"
 	updated[changedFile] = parser.New(lexer.New("<?php\nclass Class0500 { public function value(int $input): string {} }\n"), false).Parse()
+	bodyOnly := make(map[string][]ast.Node, len(parsed))
+	for filename, nodes := range parsed {
+		bodyOnly[filename] = nodes
+	}
+	bodyOnly[changedFile] = parser.New(lexer.New("<?php\nclass Class0500 { public function value(): string { return \"updated\"; } }\n"), false).Parse()
 
 	b.Run("full", func(b *testing.B) {
 		b.ReportAllocs()
@@ -49,6 +54,12 @@ func BenchmarkBuildProjectIndexIncremental(b *testing.B) {
 		b.ReportAllocs()
 		for i := 0; i < b.N; i++ {
 			_, _ = BuildProjectIndexIncremental(previous, updated, []string{changedFile})
+		}
+	})
+	b.Run("one-file-body-only", func(b *testing.B) {
+		b.ReportAllocs()
+		for i := 0; i < b.N; i++ {
+			_, _ = BuildProjectIndexIncremental(previous, bodyOnly, []string{changedFile})
 		}
 	})
 }
@@ -336,4 +347,285 @@ class Stable
 	default:
 	}
 	assertProjectIndexEquivalent(t, previous, baseline)
+}
+
+func TestBuildProjectIndexIncrementalWithChangesIgnoresBodyAndPositionEdits(t *testing.T) {
+	const filename = "src/Widget.php"
+	baseSource := `<?php
+class Widget
+{
+    public function label(): string
+    {
+        return "base";
+    }
+}
+`
+	cases := []struct {
+		name   string
+		source string
+	}{
+		{
+			name: "body-only",
+			source: `<?php
+class Widget
+{
+    public function label(): string
+    {
+        return "updated body";
+    }
+}
+`,
+		},
+		{
+			name: "position-only",
+			source: `<?php
+
+// Keep declaration semantics unchanged while moving its source span.
+class Widget
+{
+    public function label(): string
+    {
+        return "base";
+    }
+}
+`,
+		},
+	}
+
+	previous := BuildProjectIndex(parseProjectSources(t, map[string]string{filename: baseSource}))
+	previousClass, previousClassOK := previous.ResolveClass("Widget")
+	previousMethod, previousMethodOK := previous.ResolveMethod("Widget", "label")
+	if !previousClassOK || !previousMethodOK {
+		t.Fatalf("expected baseline declarations, got class=%v method=%v", previousClassOK, previousMethodOK)
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			updatedParsed := parseProjectSources(t, map[string]string{filename: tc.source})
+			got, changes := BuildProjectIndexIncrementalWithChanges(previous, updatedParsed, []string{filename})
+			if !changes.Complete {
+				t.Fatal("expected complete change metadata when source metadata is available")
+			}
+			if changes.SemanticChanged() {
+				t.Fatalf("expected body/position-only edit to preserve exported semantics, got %#v", changes)
+			}
+			if len(changes.Symbols) != 0 || len(changes.DependencyNames) != 0 {
+				t.Fatalf("expected no exported symbols or dependency names, got %#v", changes)
+			}
+
+			fresh := BuildProjectIndex(updatedParsed)
+			assertProjectIndexEquivalent(t, got, fresh)
+			gotClass, gotClassOK := got.ResolveClass("Widget")
+			freshClass, freshClassOK := fresh.ResolveClass("Widget")
+			gotMethod, gotMethodOK := got.ResolveMethod("Widget", "label")
+			freshMethod, freshMethodOK := fresh.ResolveMethod("Widget", "label")
+			if !gotClassOK || !freshClassOK || !gotMethodOK || !freshMethodOK {
+				t.Fatalf("expected updated declarations, got class=%v/%v method=%v/%v", gotClassOK, freshClassOK, gotMethodOK, freshMethodOK)
+			}
+			if gotClass.Declaration != freshClass.Declaration || gotMethod.Declaration != freshMethod.Declaration {
+				t.Fatalf("expected declaration locations to match fresh build, got class=%#v method=%#v", gotClass.Declaration, gotMethod.Declaration)
+			}
+			if gotClass.Declaration == previousClass.Declaration && gotMethod.Declaration == previousMethod.Declaration {
+				t.Fatal("expected changed source to return updated declaration locations")
+			}
+		})
+	}
+}
+
+func TestBuildProjectIndexIncrementalWithChangesReportsStableMethodIdentity(t *testing.T) {
+	const filename = "src/Formatter.php"
+	initialSource := `<?php
+class Formatter
+{
+    public function format(int $value): string {}
+}
+`
+	updatedSource := `<?php
+class Formatter
+{
+    public function format(string $value): string {}
+}
+`
+
+	previous := BuildProjectIndex(parseProjectSources(t, map[string]string{filename: initialSource}))
+	previousMethod, ok := previous.ResolveMethod("Formatter", "format")
+	if !ok {
+		t.Fatal("expected baseline method")
+	}
+	updatedParsed := parseProjectSources(t, map[string]string{filename: updatedSource})
+	got, changes := BuildProjectIndexIncrementalWithChanges(previous, updatedParsed, []string{filename})
+	if !changes.Complete || !changes.SemanticChanged() {
+		t.Fatalf("expected complete semantic method change, got %#v", changes)
+	}
+	if len(changes.Symbols) != 1 {
+		t.Fatalf("expected one method change, got %#v", changes.Symbols)
+	}
+	change := changes.Symbols[0]
+	if change.ID != previousMethod.ID || change.Kind != "method" || change.Owner != "Formatter" || change.Name != "format" {
+		t.Fatalf("expected stable method identity, got %#v; previous method=%#v", change, previousMethod)
+	}
+	assertProjectIndexEquivalent(t, got, BuildProjectIndex(updatedParsed))
+}
+
+func TestBuildProjectIndexIncrementalWithChangesReportsFunctionAndConstantAddRemove(t *testing.T) {
+	const filename = "src/Definitions.php"
+	initialSource := `<?php
+function oldHelper(): int { return 1; }
+const OLD_FLAG = 1;
+class Settings
+{
+    public const OLD_MODE = "old";
+}
+`
+	updatedSource := `<?php
+function newHelper(): int { return 2; }
+const NEW_FLAG = 2;
+class Settings
+{
+    public const NEW_MODE = "new";
+}
+`
+
+	previous := BuildProjectIndex(parseProjectSources(t, map[string]string{filename: initialSource}))
+	updatedParsed := parseProjectSources(t, map[string]string{filename: updatedSource})
+	got, changes := BuildProjectIndexIncrementalWithChanges(previous, updatedParsed, []string{filename})
+	if !changes.Complete || !changes.SemanticChanged() {
+		t.Fatalf("expected complete semantic add/remove changes, got %#v", changes)
+	}
+	for _, expected := range []ExportedSymbolChange{
+		{ID: stableSymbolID("function", "", "oldHelper"), Kind: "function", Name: "oldHelper"},
+		{ID: stableSymbolID("function", "", "newHelper"), Kind: "function", Name: "newHelper"},
+		{ID: stableSymbolID("constant", "", "old_flag"), Kind: "constant", Name: "old_flag"},
+		{ID: stableSymbolID("constant", "", "new_flag"), Kind: "constant", Name: "new_flag"},
+		{ID: stableSymbolID("constant", "Settings", "OLD_MODE"), Kind: "class-constant", Owner: "Settings", Name: "OLD_MODE"},
+		{ID: stableSymbolID("constant", "Settings", "NEW_MODE"), Kind: "class-constant", Owner: "Settings", Name: "NEW_MODE"},
+	} {
+		if !hasExportedSymbolChange(changes.Symbols, expected) {
+			t.Fatalf("expected change %#v in %#v", expected, changes.Symbols)
+		}
+	}
+	assertProjectIndexEquivalent(t, got, BuildProjectIndex(updatedParsed))
+	if got.FunctionExists("oldHelper") || !got.FunctionExists("newHelper") {
+		t.Fatal("expected function removal and addition in updated index")
+	}
+	if got.ConstantExists("OLD_FLAG") || !got.ConstantExists("NEW_FLAG") {
+		t.Fatal("expected global constant removal and addition in updated index")
+	}
+	if _, ok := got.ResolveConstant("Settings", "OLD_MODE"); ok {
+		t.Fatal("expected removed class constant to be absent")
+	}
+	if _, ok := got.ResolveConstant("Settings", "NEW_MODE"); !ok {
+		t.Fatal("expected added class constant to be indexed")
+	}
+}
+
+func TestBuildProjectIndexIncrementalWithChangesReportsClassRename(t *testing.T) {
+	const filename = "src/Renamed.php"
+	initialSource := `<?php
+class OldName {}
+`
+	updatedSource := `<?php
+class NewName {}
+`
+
+	previous := BuildProjectIndex(parseProjectSources(t, map[string]string{filename: initialSource}))
+	updatedParsed := parseProjectSources(t, map[string]string{filename: updatedSource})
+	got, changes := BuildProjectIndexIncrementalWithChanges(previous, updatedParsed, []string{filename})
+	if !changes.Complete || !changes.SemanticChanged() {
+		t.Fatalf("expected complete semantic rename change, got %#v", changes)
+	}
+	for _, expected := range []ExportedSymbolChange{
+		{ID: stableSymbolID("class", "", "OldName"), Kind: "class", Name: "OldName"},
+		{ID: stableSymbolID("class", "", "NewName"), Kind: "class", Name: "NewName"},
+	} {
+		if !hasExportedSymbolChange(changes.Symbols, expected) {
+			t.Fatalf("expected class rename change %#v in %#v", expected, changes.Symbols)
+		}
+	}
+	if got.ClassExists("OldName") || !got.ClassExists("NewName") {
+		t.Fatal("expected old class to be removed and new class to be indexed")
+	}
+	assertProjectIndexEquivalent(t, got, BuildProjectIndex(updatedParsed))
+}
+
+func TestBuildProjectIndexIncrementalWithChangesIncludesTransitiveDescendants(t *testing.T) {
+	initialSources := map[string]string{
+		"src/Base.php": `<?php
+class Base
+{
+    public function render(): string {}
+}
+`,
+		"src/Child.php":      "<?php\nclass Child extends Base {}\n",
+		"src/Grandchild.php": "<?php\nclass Grandchild extends Child {}\n",
+	}
+	updatedSources := map[string]string{
+		"src/Base.php": `<?php
+class Base
+{
+    public function render(): int {}
+}
+`,
+		"src/Child.php":      initialSources["src/Child.php"],
+		"src/Grandchild.php": initialSources["src/Grandchild.php"],
+	}
+
+	previous := BuildProjectIndex(parseProjectSources(t, initialSources))
+	updatedParsed := parseProjectSources(t, updatedSources)
+	got, changes := BuildProjectIndexIncrementalWithChanges(previous, updatedParsed, []string{"src/Base.php"})
+	if !changes.Complete || !changes.SemanticChanged() {
+		t.Fatalf("expected complete semantic base-member change, got %#v", changes)
+	}
+	if want := []string{"Base", "Child", "Grandchild", "render"}; !reflect.DeepEqual(changes.DependencyNames, want) {
+		t.Fatalf("expected sorted transitive dependency names %#v, got %#v", want, changes.DependencyNames)
+	}
+	assertProjectIndexEquivalent(t, got, BuildProjectIndex(updatedParsed))
+}
+
+func TestBuildProjectIndexIncrementalWithChangesOrderingIsDeterministic(t *testing.T) {
+	initialSources := map[string]string{
+		"b.php": "<?php\nclass Beta { public function render(int $value): string {} }\n",
+		"a.php": "<?php\nfunction helper(): int { return 1; }\n",
+	}
+	updatedSources := map[string]string{
+		"b.php": "<?php\nclass Beta { public function render(string $value): string {} }\n",
+		"a.php": "<?php\nfunction helper(): string { return \"ready\"; }\n",
+	}
+
+	previous := BuildProjectIndex(parseProjectSources(t, initialSources))
+	updatedParsed := parseProjectSources(t, updatedSources)
+	var want ProjectIndexChanges
+	for i, changedFiles := range [][]string{{"b.php", "a.php"}, {"a.php", "b.php"}, {"b.php", "a.php", "b.php"}} {
+		_, changes := BuildProjectIndexIncrementalWithChanges(previous, updatedParsed, changedFiles)
+		if i == 0 {
+			want = changes
+			continue
+		}
+		if !reflect.DeepEqual(changes, want) {
+			t.Fatalf("expected deterministic change ordering for iteration %d, got %#v versus %#v", i, changes, want)
+		}
+	}
+}
+
+func TestBuildProjectIndexIncrementalWithChangesMissingSourceMetadataIsIncomplete(t *testing.T) {
+	const filename = "src/Recovered.php"
+	parsed := parseProjectSources(t, map[string]string{filename: "<?php\nclass Recovered {}\n"})
+
+	got, changes := BuildProjectIndexIncrementalWithChanges(NewProjectIndex(), parsed, []string{filename})
+	if changes.Complete {
+		t.Fatal("expected missing prior source metadata to force incomplete change metadata")
+	}
+	if !changes.SemanticChanged() {
+		t.Fatal("expected incomplete change metadata to require semantic invalidation")
+	}
+	assertProjectIndexEquivalent(t, got, BuildProjectIndex(parsed))
+}
+
+func hasExportedSymbolChange(changes []ExportedSymbolChange, want ExportedSymbolChange) bool {
+	for _, change := range changes {
+		if change.ID == want.ID && change.Kind == want.Kind && change.Owner == want.Owner && change.Name == want.Name {
+			return true
+		}
+	}
+	return false
 }
