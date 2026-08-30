@@ -24,7 +24,7 @@ go run ./cmd/diagnostic-diff --fixtures testdata/diagnostic-differential-level2 
 go run ./cmd/diagnostic-diff --fixtures testdata/diagnostic-differential-level3 --phpstan-bin /absolute/path/to/phpstan --json
 ```
 
-The full report records the PHPStan version returned by the supplied executable. Results from different reference versions must not be merged without review. The 62-case level-0 pack and the new level-2/level-3 packs were last fully verified against the pinned local reference `PHPStan 2.2.x-dev@e4ab62a`. The ordinary Go suite uses engine-only mode so it does not silently download or depend on an external analyser.
+The full report records the PHPStan version returned by the supplied executable. Results from different reference versions must not be merged without review. The 63-case level-0 pack, nine-case level-2 pack, and one-case level-3 pack were last fully verified against the pinned local reference `PHPStan 2.2.x-dev@e4ab62a`. The ordinary Go suite uses engine-only mode so it does not silently download or depend on an external analyser.
 
 ## Executable differential coverage
 
@@ -35,7 +35,7 @@ The full report records the PHPStan version returned by the supplied executable.
 | Unknown catch types | Partial, differential-gated | `unknown-catch-class` | `PHPStan.Level0.Symbols` | `class.notFound` | Proves a single `catch (MissingException $e)` clause. |
 | Unknown parameter type references | Partial, differential-gated | `unknown-parameter-type` | `PHPStan.Level0.Symbols` | `class.notFound` | Proves a function parameter type; PHPDoc type references and other type contexts remain outside the gate. |
 | Unknown function calls | Partial, differential-gated | `unknown-function` | `PHPStan.Level0.Symbols` | `function.notFound` | Built-in and extension-sensitive symbol coverage remains incomplete. |
-| Unknown methods called on `$this` | Partial, differential-gated | `unknown-this-method` | `PHPStan.Level0.Symbols` | `method.notFound` | PHPStan level 0 covers `$this` only. Arbitrary-expression method existence remains a level-2 gap. |
+| Unknown methods called on `$this` | Partial, differential-gated | `unknown-this-method` | `PHPStan.Level0.Symbols` | `method.notFound` | PHPStan level 0 covers `$this` only. Typed parameters and selected typed receiver expressions are gated at level 2; broader arbitrary-expression and union narrowing remain conservative. |
 | Function argument counts | Partial, differential-gated | `argument-count` | `PHPStan.Level0.Invocation` | `arguments.count` | Covers a direct known function call; dynamic calls and constant-array unpacking remain outside the gate. |
 | Method argument counts on `$this` | Partial, differential-gated | `this-method-argument-count` | `PHPStan.Level0.Invocation` | `arguments.count` | Covers a missing required argument on `$this`; named and unpacked calls remain outside the gate. |
 | Private method visibility | Partial, differential-gated | `private-method-from-subclass` | `PHPStan.Level0.Invocation` | `method.private` | Proves a subclass `$this` call to a parent private method. Protected visibility begins at level 2 and is gated separately below. |
@@ -73,6 +73,8 @@ The full report records the PHPStan version returned by the supplied executable.
 | `printf` argument counts | Partial, differential-gated | `printf-arguments` | `PHPStan.Level0.Invocation` | `argument.printf` | Proves a literal format string with too few values. Dynamic formats and broader format-string compatibility remain outside the gate. |
 | Instance calls to static methods | Level-0 clean boundary | `instance-call-static-method` (level 0 pack) | none | none | The pinned reference is silent at level 0; the engine no longer reports the valid instance-call syntax as an invocation error. |
 | Protected methods on known receivers | Differential-gated at levels 0 and 2 | `protected-method-known-receiver` (level 0 and level 2 packs) | none at level 0; `PHPStan.Level2.MethodVisibility` at level 2 | none at level 0; `method.protected` at level 2 | Level 0 remains clean; level 2 gates a protected call on a known receiver. Other receiver and inheritance contexts remain outside the gate. |
+| Unknown methods on typed receivers | Differential-gated at level 2 | `unknown-method-typed-parameter`, `unknown-method-assigned-new`, `unknown-method-direct-new`, `unknown-method-return-chain`, `unknown-method-typed-property` | `PHPStan.Level2.MethodExistence` | `method.notFound` | Covers typed parameters, variables assigned from `new`, direct `new` expressions, method-return chains, and typed property chains. Broader arbitrary expressions remain outside the gate. |
+| Known or conservative method receivers | Differential-gated at level 2 | `known-method-receiver`, `mixed-method-receiver`, `union-method-receiver` | none | none | Known methods, `mixed`, and unions where one member provides the method remain clean. Union narrowing and other multi-type receiver precision remain conservative. |
 | Unknown used traits | Partial, differential-gated | `unknown-trait` | `PHPStan.Level0.ClassModel` | `trait.notFound` | Proves `use MissingTrait`. |
 | Instantiating an enum | Partial, differential-gated | `instantiate-enum` | `PHPStan.Level0.ClassModel` | `new.enum` | Proves enum instantiation; other enum and trait legality checks remain outside the gate. |
 | Abstract methods in a concrete class | Partial, differential-gated | `abstract-method-in-concrete-class` | `PHPStan.Level0.ClassModel` | `method.abstract` (twice) | PHPStan 2.2.5 emits two `method.abstract` identifiers for the same method. |
@@ -115,7 +117,7 @@ These areas have repository unit coverage but no checked-in PHPStan differential
 
 | Capability | Status | Dependency |
 | --- | --- | --- |
-| Arbitrary-expression unknown method checks | Not implemented | Reusable expression types and broader member resolution |
+| Complete arbitrary-expression unknown method checks | Partial | Extend reusable receiver facts to function-return chains, dynamic expressions, and precise multi-type member availability |
 | PHPDoc validation parity | Not implemented | Complete PHPDoc type validation and source mapping |
 | Full level 0 parity | Not implemented | Expand the differential pack across the agreed corpus and close reviewed mismatches |
 | Quantified false-positive/false-negative thresholds | Not established | Larger reviewed differential corpus with pinned reference reports |

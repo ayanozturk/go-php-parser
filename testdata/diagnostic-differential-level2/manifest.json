@@ -11,6 +11,62 @@
       "file": "protected-method-known-receiver.php",
       "engineCodes": ["PHPStan.Level2.MethodVisibility"],
       "phpstanIdentifiers": ["method.protected"]
+    },
+    {
+      "id": "unknown-method-typed-parameter",
+      "capability": "unknown methods on typed parameters",
+      "file": "unknown-method-typed-parameter.php",
+      "engineCodes": ["PHPStan.Level2.MethodExistence"],
+      "phpstanIdentifiers": ["method.notFound"]
+    },
+    {
+      "id": "unknown-method-assigned-new",
+      "capability": "unknown methods on variables assigned from new",
+      "file": "unknown-method-assigned-new.php",
+      "engineCodes": ["PHPStan.Level2.MethodExistence"],
+      "phpstanIdentifiers": ["method.notFound"]
+    },
+    {
+      "id": "unknown-method-direct-new",
+      "capability": "unknown methods on direct new receivers",
+      "file": "unknown-method-direct-new.php",
+      "engineCodes": ["PHPStan.Level2.MethodExistence"],
+      "phpstanIdentifiers": ["method.notFound"]
+    },
+    {
+      "id": "unknown-method-return-chain",
+      "capability": "unknown methods at the end of a method-return chain",
+      "file": "unknown-method-return-chain.php",
+      "engineCodes": ["PHPStan.Level2.MethodExistence"],
+      "phpstanIdentifiers": ["method.notFound"]
+    },
+    {
+      "id": "known-method-receiver",
+      "capability": "known methods on typed receivers",
+      "file": "known-method-receiver.php",
+      "engineCodes": [],
+      "phpstanIdentifiers": []
+    },
+    {
+      "id": "mixed-method-receiver",
+      "capability": "method calls on mixed receivers",
+      "file": "mixed-method-receiver.php",
+      "engineCodes": [],
+      "phpstanIdentifiers": []
+    },
+    {
+      "id": "union-method-receiver",
+      "capability": "method calls on conservative union receivers",
+      "file": "union-method-receiver.php",
+      "engineCodes": [],
+      "phpstanIdentifiers": []
+    },
+    {
+      "id": "unknown-method-typed-property",
+      "capability": "unknown methods on typed property receivers",
+      "file": "unknown-method-typed-property.php",
+      "engineCodes": ["PHPStan.Level2.MethodExistence"],
+      "phpstanIdentifiers": ["method.notFound"]
     }
   ]
 }

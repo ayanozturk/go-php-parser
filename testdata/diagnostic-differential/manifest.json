@@ -48,6 +48,13 @@
       "phpstanIdentifiers": ["method.notFound"]
     },
     {
+      "id": "unknown-method-typed-parameter",
+      "capability": "typed-parameter method calls remain clean at level 0",
+      "file": "unknown-method-typed-parameter.php",
+      "engineCodes": [],
+      "phpstanIdentifiers": []
+    },
+    {
       "id": "unknown-this-property",
       "capability": "unknown properties accessed on $this",
       "file": "unknown-this-property.php",
