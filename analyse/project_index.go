@@ -1,9 +1,12 @@
 package analyse
 
 import (
-	"github.com/ayanozturk/go-php-parser/ast"
+	"reflect"
+	"slices"
 	"sort"
 	"strings"
+
+	"github.com/ayanozturk/go-php-parser/ast"
 )
 
 type ProjectIndex struct {
@@ -19,6 +22,14 @@ type ProjectIndex struct {
 	classLineages   map[string][]string
 	// fileClasses maps file path → class names defined in that file
 	fileClasses map[string]map[string]struct{}
+	// sourceFiles retains the immutable parsed inputs used to build this view.
+	// The slices and nodes are shared, never mutated by incremental updates.
+	sourceFiles map[string][]ast.Node
+	// collidingDefinitions records symbols whose deterministic winner depends
+	// on file order. Incremental updates touching one fall back to a full build.
+	collidingDefinitions map[string]struct{}
+	// globalConstantFiles supplies ownership missing from Constants' set values.
+	globalConstantFiles map[string]string
 }
 
 type DuplicateSymbol struct {
@@ -28,17 +39,24 @@ type DuplicateSymbol struct {
 }
 
 func NewProjectIndex() *ProjectIndex {
-	idx := &ProjectIndex{
-		Classes:     make(map[string]ResolvedClass),
-		fileClasses: make(map[string]map[string]struct{}),
-		Methods:     make(map[string]map[string]ResolvedMethod),
-		Properties:  make(map[string]map[string]ResolvedProperty),
-		ClassConsts: make(map[string]map[string]ResolvedConstant),
-		Functions:   make(map[string]ResolvedFunction),
-		Constants:   make(map[string]struct{}),
-		FileTypes:   make(map[string]FileTypeContext),
-	}
+	idx := newProjectIndex()
 	idx.seedBuiltins()
+	return idx
+}
+
+func newProjectIndex() *ProjectIndex {
+	idx := &ProjectIndex{
+		Classes:              make(map[string]ResolvedClass),
+		fileClasses:          make(map[string]map[string]struct{}),
+		Methods:              make(map[string]map[string]ResolvedMethod),
+		Properties:           make(map[string]map[string]ResolvedProperty),
+		ClassConsts:          make(map[string]map[string]ResolvedConstant),
+		Functions:            make(map[string]ResolvedFunction),
+		Constants:            make(map[string]struct{}),
+		FileTypes:            make(map[string]FileTypeContext),
+		collidingDefinitions: make(map[string]struct{}),
+		globalConstantFiles:  make(map[string]string),
+	}
 	return idx
 }
 
@@ -53,9 +71,11 @@ func NewProjectIndex() *ProjectIndex {
 // otherwise-identical runs over the same corpus.
 func BuildProjectIndex(parsed map[string][]ast.Node) *ProjectIndex {
 	idx := NewProjectIndex()
+	idx.sourceFiles = make(map[string][]ast.Node, len(parsed))
 	filenames := make([]string, 0, len(parsed))
-	for filename := range parsed {
+	for filename, nodes := range parsed {
 		filenames = append(filenames, filename)
+		idx.sourceFiles[filename] = nodes
 	}
 	sort.Strings(filenames)
 	for _, filename := range filenames {
@@ -67,6 +87,273 @@ func BuildProjectIndex(parsed map[string][]ast.Node) *ProjectIndex {
 	idx.methodsDeclared = buildMethodsDeclaredViews(idx)
 	idx.classLineages = buildClassLineageViews(idx)
 	return idx
+}
+
+// BuildProjectIndexIncremental returns a new immutable project index after
+// replacing only the listed files' symbol contributions. parsed is the full
+// current file set; entries absent from it are treated as removals. The bool
+// reports whether exported symbol semantics changed, excluding declaration
+// positions. If the previous index lacks contribution metadata, the function
+// safely falls back to a complete deterministic build.
+func BuildProjectIndexIncremental(previous *ProjectIndex, parsed map[string][]ast.Node, changedFiles []string) (*ProjectIndex, bool) {
+	if previous == nil || previous.sourceFiles == nil {
+		return BuildProjectIndex(parsed), true
+	}
+
+	changed := make(map[string]struct{}, len(changedFiles))
+	for _, filename := range changedFiles {
+		changed[filename] = struct{}{}
+	}
+	if len(changed) == 0 {
+		return previous, false
+	}
+	for filename := range parsed {
+		if _, exists := previous.sourceFiles[filename]; !exists {
+			if _, listed := changed[filename]; !listed {
+				return BuildProjectIndex(parsed), true
+			}
+		}
+	}
+	for filename := range previous.sourceFiles {
+		if _, exists := parsed[filename]; !exists {
+			if _, listed := changed[filename]; !listed {
+				return BuildProjectIndex(parsed), true
+			}
+		}
+	}
+
+	semanticChanged := false
+	requiresFullBuild := false
+	filenames := make([]string, 0, len(changed))
+	for filename := range changed {
+		filenames = append(filenames, filename)
+	}
+	sort.Strings(filenames)
+	newContributions := make(map[string]*ProjectIndex, len(filenames))
+	for _, filename := range filenames {
+		oldContribution := buildProjectFileIndex(filename, previous.sourceFiles[filename])
+		newContribution := buildProjectFileIndex(filename, parsed[filename])
+		newContributions[filename] = newContribution
+		if !projectFileSemanticsEqual(oldContribution, newContribution) {
+			semanticChanged = true
+		}
+		if projectFileTouchesCollisions(previous, oldContribution) || len(newContribution.collidingDefinitions) > 0 {
+			requiresFullBuild = true
+		}
+	}
+	if requiresFullBuild {
+		return BuildProjectIndex(parsed), semanticChanged
+	}
+
+	idx := cloneProjectIndex(previous)
+	for _, filename := range filenames {
+		idx.removeProjectFile(filename)
+	}
+	for _, filename := range filenames {
+		contribution := newContributions[filename]
+		if projectFileCollidesWithIndex(idx, contribution) {
+			return BuildProjectIndex(parsed), semanticChanged
+		}
+		nodes, remains := parsed[filename]
+		if !remains {
+			delete(idx.sourceFiles, filename)
+			continue
+		}
+		ft := CollectFileTypeContext(nodes)
+		idx.FileTypes[filename] = ft
+		idx.sourceFiles[filename] = nodes
+		idx.indexNodes(filename, nodes, ft, "")
+	}
+	idx.methodsDeclared = buildMethodsDeclaredViews(idx)
+	idx.classLineages = buildClassLineageViews(idx)
+	return idx, semanticChanged
+}
+
+func buildProjectFileIndex(filename string, nodes []ast.Node) *ProjectIndex {
+	idx := newProjectIndex()
+	ft := CollectFileTypeContext(nodes)
+	idx.FileTypes[filename] = ft
+	idx.indexNodes(filename, nodes, ft, "")
+	return idx
+}
+
+func cloneProjectIndex(previous *ProjectIndex) *ProjectIndex {
+	idx := newProjectIndex()
+	idx.Classes = mapsClone(previous.Classes)
+	idx.Methods = cloneNestedMap(previous.Methods)
+	idx.Properties = cloneNestedMap(previous.Properties)
+	idx.ClassConsts = cloneNestedMap(previous.ClassConsts)
+	idx.Functions = mapsClone(previous.Functions)
+	idx.Constants = mapsClone(previous.Constants)
+	idx.FileTypes = mapsClone(previous.FileTypes)
+	idx.Duplicates = append([]DuplicateSymbol(nil), previous.Duplicates...)
+	idx.fileClasses = cloneNestedSet(previous.fileClasses)
+	idx.sourceFiles = mapsClone(previous.sourceFiles)
+	idx.collidingDefinitions = mapsClone(previous.collidingDefinitions)
+	idx.globalConstantFiles = mapsClone(previous.globalConstantFiles)
+	return idx
+}
+
+func mapsClone[K comparable, V any](source map[K]V) map[K]V {
+	cloned := make(map[K]V, len(source))
+	for key, value := range source {
+		cloned[key] = value
+	}
+	return cloned
+}
+
+func cloneNestedMap[V any](source map[string]map[string]V) map[string]map[string]V {
+	cloned := make(map[string]map[string]V, len(source))
+	for outerKey, values := range source {
+		cloned[outerKey] = mapsClone(values)
+	}
+	return cloned
+}
+
+func cloneNestedSet(source map[string]map[string]struct{}) map[string]map[string]struct{} {
+	return cloneNestedMap(source)
+}
+
+func (idx *ProjectIndex) removeProjectFile(filename string) {
+	for key, class := range idx.Classes {
+		if class.Declaration.File == filename {
+			delete(idx.Classes, key)
+		}
+	}
+	removeNestedDeclarations(idx.Methods, filename, func(value ResolvedMethod) SourceLocation { return value.Declaration })
+	removeNestedDeclarations(idx.Properties, filename, func(value ResolvedProperty) SourceLocation { return value.Declaration })
+	for _, constants := range idx.ClassConsts {
+		for _, constant := range constants {
+			if constant.Declaration.File == filename {
+				delete(idx.Constants, indexKey(constant.DeclaringClass+"::"+constant.Name))
+			}
+		}
+	}
+	removeNestedDeclarations(idx.ClassConsts, filename, func(value ResolvedConstant) SourceLocation { return value.Declaration })
+	for key, fn := range idx.Functions {
+		if fn.Declaration.File == filename {
+			delete(idx.Functions, key)
+		}
+	}
+	for key, owner := range idx.globalConstantFiles {
+		if owner == filename {
+			delete(idx.globalConstantFiles, key)
+			delete(idx.Constants, key)
+		}
+	}
+	delete(idx.FileTypes, filename)
+	delete(idx.fileClasses, filename)
+	delete(idx.sourceFiles, filename)
+	idx.Duplicates = slices.DeleteFunc(idx.Duplicates, func(duplicate DuplicateSymbol) bool { return duplicate.File == filename })
+}
+
+func removeNestedDeclarations[V any](values map[string]map[string]V, filename string, location func(V) SourceLocation) {
+	for outerKey, entries := range values {
+		for key, value := range entries {
+			if location(value).File == filename {
+				delete(entries, key)
+			}
+		}
+		if len(entries) == 0 {
+			delete(values, outerKey)
+		}
+	}
+}
+
+func projectFileTouchesCollisions(project, contribution *ProjectIndex) bool {
+	for key := range projectFileDefinitionKeys(contribution) {
+		if _, collision := project.collidingDefinitions[key]; collision {
+			return true
+		}
+	}
+	return false
+}
+
+func projectFileCollidesWithIndex(project, contribution *ProjectIndex) bool {
+	for key := range projectFileDefinitionKeys(contribution) {
+		if project.definitionExists(key) {
+			return true
+		}
+	}
+	return false
+}
+
+func projectFileDefinitionKeys(contribution *ProjectIndex) map[string]struct{} {
+	keys := make(map[string]struct{})
+	for _, class := range contribution.Classes {
+		keys[classDefinitionKey(class.Name)] = struct{}{}
+	}
+	for _, fn := range contribution.Functions {
+		keys[functionDefinitionKey(fn.Name)] = struct{}{}
+	}
+	for classKey, methods := range contribution.Methods {
+		for methodKey := range methods {
+			keys[memberDefinitionKey("method", classKey, methodKey)] = struct{}{}
+		}
+	}
+	for classKey, properties := range contribution.Properties {
+		for propertyKey := range properties {
+			keys[memberDefinitionKey("property", classKey, propertyKey)] = struct{}{}
+		}
+	}
+	for classKey, constants := range contribution.ClassConsts {
+		for constantKey := range constants {
+			keys[memberDefinitionKey("class-constant", classKey, constantKey)] = struct{}{}
+		}
+	}
+	for key := range contribution.globalConstantFiles {
+		keys[globalConstantDefinitionKey(key)] = struct{}{}
+	}
+	return keys
+}
+
+func (idx *ProjectIndex) definitionExists(key string) bool {
+	parts := strings.Split(key, "\x00")
+	switch parts[0] {
+	case "class":
+		_, ok := idx.Classes[parts[1]]
+		return ok
+	case "function":
+		_, ok := idx.Functions[parts[1]]
+		return ok
+	case "method":
+		_, ok := idx.Methods[parts[1]][parts[2]]
+		return ok
+	case "property":
+		_, ok := idx.Properties[parts[1]][parts[2]]
+		return ok
+	case "class-constant":
+		_, ok := idx.ClassConsts[parts[1]][parts[2]]
+		return ok
+	case "global-constant":
+		_, ok := idx.globalConstantFiles[parts[1]]
+		return ok
+	default:
+		return false
+	}
+}
+
+func classDefinitionKey(name string) string    { return "class\x00" + indexKey(name) }
+func functionDefinitionKey(name string) string { return "function\x00" + indexKey(name) }
+func memberDefinitionKey(kind, className, memberName string) string {
+	return kind + "\x00" + indexKey(className) + "\x00" + strings.ToLower(memberName)
+}
+func globalConstantDefinitionKey(name string) string { return "global-constant\x00" + indexKey(name) }
+
+func projectFileSemanticsEqual(left, right *ProjectIndex) bool {
+	if left == nil || right == nil {
+		return left == right
+	}
+	if !resolvedClassesSemanticallyEqual(left.Classes, right.Classes) ||
+		!duplicatesSemanticallyEqual(left.Duplicates, right.Duplicates) ||
+		!resolvedFunctionsSemanticallyEqual(left.Functions, right.Functions) ||
+		!resolvedMethodsSemanticallyEqual(left.Methods, right.Methods) ||
+		!resolvedPropertiesSemanticallyEqual(left.Properties, right.Properties) ||
+		!resolvedConstantsSemanticallyEqual(left.ClassConsts, right.ClassConsts) ||
+		!reflect.DeepEqual(left.Constants, right.Constants) {
+		return false
+	}
+	return true
 }
 
 // FilesAffectedByChangedFile returns all files that may need re-analysis
@@ -142,6 +429,127 @@ func (idx *ProjectIndex) MergeIncremental(filesToReparse map[string][]ast.Node, 
 	// Invalidate caches (will be recomputed if needed)
 	idx.methodsDeclared = nil
 	idx.classLineages = nil
+	idx.sourceFiles = nil
+}
+
+func resolvedClassesSemanticallyEqual(left, right map[string]ResolvedClass) bool {
+	if len(left) != len(right) {
+		return false
+	}
+	for key, leftValue := range left {
+		rightValue, ok := right[key]
+		if !ok {
+			return false
+		}
+		leftValue.Declaration = SourceLocation{}
+		rightValue.Declaration = SourceLocation{}
+		if !reflect.DeepEqual(leftValue, rightValue) {
+			return false
+		}
+	}
+	return true
+}
+
+func duplicatesSemanticallyEqual(left, right []DuplicateSymbol) bool {
+	if len(left) != len(right) {
+		return false
+	}
+	for i := range left {
+		if left[i].Name != right[i].Name {
+			return false
+		}
+	}
+	return true
+}
+
+func resolvedFunctionsSemanticallyEqual(left, right map[string]ResolvedFunction) bool {
+	if len(left) != len(right) {
+		return false
+	}
+	for key, leftValue := range left {
+		rightValue, ok := right[key]
+		if !ok {
+			return false
+		}
+		leftValue.Declaration = SourceLocation{}
+		rightValue.Declaration = SourceLocation{}
+		if !reflect.DeepEqual(leftValue, rightValue) {
+			return false
+		}
+	}
+	return true
+}
+
+func resolvedMethodsSemanticallyEqual(left, right map[string]map[string]ResolvedMethod) bool {
+	if len(left) != len(right) {
+		return false
+	}
+	for classKey, leftMethods := range left {
+		rightMethods, ok := right[classKey]
+		if !ok || len(leftMethods) != len(rightMethods) {
+			return false
+		}
+		for methodKey, leftValue := range leftMethods {
+			rightValue, ok := rightMethods[methodKey]
+			if !ok {
+				return false
+			}
+			leftValue.Declaration = SourceLocation{}
+			rightValue.Declaration = SourceLocation{}
+			if !reflect.DeepEqual(leftValue, rightValue) {
+				return false
+			}
+		}
+	}
+	return true
+}
+
+func resolvedPropertiesSemanticallyEqual(left, right map[string]map[string]ResolvedProperty) bool {
+	if len(left) != len(right) {
+		return false
+	}
+	for classKey, leftProperties := range left {
+		rightProperties, ok := right[classKey]
+		if !ok || len(leftProperties) != len(rightProperties) {
+			return false
+		}
+		for propertyKey, leftValue := range leftProperties {
+			rightValue, ok := rightProperties[propertyKey]
+			if !ok {
+				return false
+			}
+			leftValue.Declaration = SourceLocation{}
+			rightValue.Declaration = SourceLocation{}
+			if !reflect.DeepEqual(leftValue, rightValue) {
+				return false
+			}
+		}
+	}
+	return true
+}
+
+func resolvedConstantsSemanticallyEqual(left, right map[string]map[string]ResolvedConstant) bool {
+	if len(left) != len(right) {
+		return false
+	}
+	for classKey, leftConstants := range left {
+		rightConstants, ok := right[classKey]
+		if !ok || len(leftConstants) != len(rightConstants) {
+			return false
+		}
+		for constantKey, leftValue := range leftConstants {
+			rightValue, ok := rightConstants[constantKey]
+			if !ok {
+				return false
+			}
+			leftValue.Declaration = SourceLocation{}
+			rightValue.Declaration = SourceLocation{}
+			if !reflect.DeepEqual(leftValue, rightValue) {
+				return false
+			}
+		}
+	}
+	return true
 }
 
 func (idx *ProjectIndex) ClassExists(name string) bool {
@@ -528,7 +936,7 @@ func (idx *ProjectIndex) indexNodes(filename string, nodes []ast.Node, ft FileTy
 			}
 			idx.addFunction(fn)
 		case *ast.ConstantNode:
-			idx.Constants[indexKey(ft.resolveClassLike(n.Name))] = struct{}{}
+			idx.addGlobalConstant(filename, ft.resolveClassLike(n.Name))
 		}
 	}
 }
@@ -609,12 +1017,14 @@ func (idx *ProjectIndex) indexInterfaceMembers(filename, className string, membe
 
 func (idx *ProjectIndex) addClass(filename string, class ResolvedClass, node ast.Node) {
 	key := indexKey(class.Name)
-	if _, exists := idx.Classes[key]; exists {
+	class.ID = stableSymbolID("class", "", class.Name)
+	class.Declaration = sourceLocation(filename, node)
+	_, exists := idx.Classes[key]
+	if exists {
+		idx.collidingDefinitions[classDefinitionKey(class.Name)] = struct{}{}
 		idx.Duplicates = append(idx.Duplicates, DuplicateSymbol{File: filename, Name: class.Name, Pos: node.GetPos()})
 		return
 	}
-	class.ID = stableSymbolID("class", "", class.Name)
-	class.Declaration = sourceLocation(filename, node)
 	idx.Classes[key] = class
 	idx.classLineages = nil
 
@@ -627,7 +1037,12 @@ func (idx *ProjectIndex) addClass(filename string, class ResolvedClass, node ast
 
 func (idx *ProjectIndex) addFunction(fn ResolvedFunction) {
 	fn.ID = stableSymbolID("function", "", fn.Name)
-	idx.Functions[indexKey(fn.Name)] = fn
+	key := indexKey(fn.Name)
+	_, exists := idx.Functions[key]
+	if exists {
+		idx.collidingDefinitions[functionDefinitionKey(fn.Name)] = struct{}{}
+	}
+	idx.Functions[key] = fn
 }
 
 func (idx *ProjectIndex) addMethod(className string, method ResolvedMethod) {
@@ -637,7 +1052,12 @@ func (idx *ProjectIndex) addMethod(className string, method ResolvedMethod) {
 	if idx.Methods[key] == nil {
 		idx.Methods[key] = make(map[string]ResolvedMethod)
 	}
-	idx.Methods[key][strings.ToLower(method.Name)] = method
+	methodKey := strings.ToLower(method.Name)
+	_, exists := idx.Methods[key][methodKey]
+	if exists {
+		idx.collidingDefinitions[memberDefinitionKey("method", key, methodKey)] = struct{}{}
+	}
+	idx.Methods[key][methodKey] = method
 	idx.methodsDeclared = nil
 }
 
@@ -679,7 +1099,12 @@ func (idx *ProjectIndex) addProperty(className string, property ResolvedProperty
 	if idx.Properties[key] == nil {
 		idx.Properties[key] = make(map[string]ResolvedProperty)
 	}
-	idx.Properties[key][strings.ToLower(property.Name)] = property
+	propertyKey := strings.ToLower(property.Name)
+	_, exists := idx.Properties[key][propertyKey]
+	if exists {
+		idx.collidingDefinitions[memberDefinitionKey("property", key, propertyKey)] = struct{}{}
+	}
+	idx.Properties[key][propertyKey] = property
 }
 
 func (idx *ProjectIndex) addClassConstant(className string, constant ResolvedConstant) {
@@ -689,8 +1114,23 @@ func (idx *ProjectIndex) addClassConstant(className string, constant ResolvedCon
 	if idx.ClassConsts[key] == nil {
 		idx.ClassConsts[key] = make(map[string]ResolvedConstant)
 	}
-	idx.ClassConsts[key][strings.ToLower(constant.Name)] = constant
+	constantKey := strings.ToLower(constant.Name)
+	_, exists := idx.ClassConsts[key][constantKey]
+	if exists {
+		idx.collidingDefinitions[memberDefinitionKey("class-constant", key, constantKey)] = struct{}{}
+	}
+	idx.ClassConsts[key][constantKey] = constant
 	idx.Constants[indexKey(className+"::"+constant.Name)] = struct{}{}
+}
+
+func (idx *ProjectIndex) addGlobalConstant(filename, name string) {
+	key := indexKey(name)
+	_, exists := idx.globalConstantFiles[key]
+	if exists {
+		idx.collidingDefinitions[globalConstantDefinitionKey(key)] = struct{}{}
+	}
+	idx.Constants[key] = struct{}{}
+	idx.globalConstantFiles[key] = filename
 }
 
 func methodFromFunction(filename, className string, fn *ast.FunctionNode, ft FileTypeContext, templateParams []string) ResolvedMethod {
@@ -1151,6 +1591,6 @@ func (idx *ProjectIndex) seedBuiltins() {
 		idx.addFunction(fn)
 	}
 	for _, constant := range []string{"PHP_VERSION", "PHP_VERSION_ID", "PHP_MAJOR_VERSION", "PHP_MINOR_VERSION", "PHP_OS", "PHP_EOL", "true", "false", "null"} {
-		idx.Constants[indexKey(constant)] = struct{}{}
+		idx.addGlobalConstant("", constant)
 	}
 }
