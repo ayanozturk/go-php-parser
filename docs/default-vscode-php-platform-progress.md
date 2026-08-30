@@ -6,9 +6,9 @@ This file records reproducible evidence for the cooperating `go-php-parser` engi
 
 ## Current baseline
 
-- Engine revision validated and consumed by PHP Strom: pushed commit `db625ca`.
-- Extension checkout: `/Users/ayan/Projects/vscode-php-strom`, `main` at pushed commit `70fcf25`; the current package version is `0.1.28`.
-- Production extension builds pin `github.com/ayanozturk/go-php-parser` at pseudo-version `v0.0.0-20260830072328-db625ca5587b`. `make test-server-dev` validates the same engine through the generated, ignored sibling-workspace path.
+- Engine revision validated and consumed by PHP Strom: pushed commit `e97afef`.
+- Extension checkout: `/Users/ayan/Projects/vscode-php-strom`, `main` at pushed commit `d973d68`; the current package version is `0.1.28`.
+- Production extension builds pin `github.com/ayanozturk/go-php-parser` at pseudo-version `v0.0.0-20260830073402-e97afef9bffc`. `make test-server-dev` validates the same engine through the generated, ignored sibling-workspace path.
 - Go toolchain observed: Go 1.26.2. Node toolchain observed: Node 22.20.0 and npm 11.7.0.
 - Representative corpora are fetched at exact revisions from `test_projects/manifest.json`; generated working copies remain uncommitted.
 - The latest recorded full-corpus pass has zero failures for Composer, Drupal, Magento, PHPUnit, and WordPress. Symfony's two remaining fixtures are intentionally invalid/corrupted inputs, and Laravel has two narrow interpolation/callable edge cases. These recorded results are compatibility evidence, not a current performance result.
@@ -55,7 +55,7 @@ Representative workload: 23,556 indexed PHP files, 3,678,678 LOC, 135.68 MB, 151
 - PHPStan benchmark: level 0 remains partial; level 1 variable-flow behavior is differential-gated by 24 reviewed fixtures; narrowing, generic inheritance, and higher-level return/property/argument checks remain partial. Missing areas include full level-0 parity, arbitrary-expression method checks, PHPDoc validation, dynamic-call precision, and broader extension-dependent built-in signatures.
 - PHPCS benchmark: the repository comparison records 16 style rules, far below the breadth of PHPCS standards. Security-oriented source rules such as eval/backtick/forbidden-function checks are not implemented.
 - The remaining recorded pure-parser corpus gaps are two narrow Laravel vendor-code cases; intentionally invalid or corrupted fixtures stay classified separately from parser failures.
-- PHP Strom now consumes shared `SemanticSnapshot` facts, flow graphs, and variable-flow state through dependency-scoped exported-semantic revisions, and changed documents use immutable incremental project-index replacement. Remaining extension integration gaps include stale architecture documentation, point-only analysis ranges, conservative name-based dependency false positives/global overflow fallback, and no reproducible cold-start/incremental-edit/cancellation trace suite.
+- PHP Strom now consumes shared `SemanticSnapshot` facts, flow graphs, and variable-flow state through dependency-scoped exported-semantic revisions, changed documents use immutable incremental project-index replacement, and a synthetic editor-path trace suite accounts for cache, dependency, cancellation, publication, and fallback behavior. Remaining extension integration gaps include stale architecture documentation, point-only analysis ranges, conservative name-based dependency false positives/global overflow fallback, and no full VS Code extension-activation or representative-project latency trace.
 
 ## Completed changes and validation
 
@@ -225,10 +225,19 @@ Representative workload: 23,556 indexed PHP files, 3,678,678 LOC, 135.68 MB, 151
 - The updated checked-in 1,000-file synthetic benchmark ran five 500ms samples on the Apple M1 validation host. Fresh-build median was 2.483ms; a one-file exported-signature update including dependency reporting was 1.622ms (34.7% lower), and a one-file body-only update was 1.172ms (52.8% lower). The exported update used 20,042 allocations versus 37,802 fresh (47.0% fewer); body-only used 11,727 (69.0% fewer). These are in-process synthetic index measurements, not editor-latency claims.
 - Adversarial coverage includes stable change identities, add/remove/rename behavior, deterministic ordering, transitive descendants, missing-metadata fallback, unrelated cache reuse, referenced function/constant/member invalidation, event/name overflow, identifier boundaries, and race-safe immutable readers. Full parser and extension validation passes; packaging retains the known warning and npm audit reports 0 vulnerabilities.
 
+### 2026-08-30 — Trace-based editor-path latency gate
+
+- Parser commit `e97afef` adds an explicit `FullRebuild` result to incremental project-index change reports, distinguishing ordinary changed-file replacement from missing-metadata and definition-collision full fallbacks without inference in the extension.
+- Extension commit `d973d68` pins that parser revision and adds bounded 1,024-event handler traces plus atomic index/cache counters. The trace records workspace indexing, scheduled and saved analysis, debounce cancellation, published or stale-dropped diagnostics, full versus incremental builds, body/export changes, global compaction, document revision checks, dependency matches, and parse/semantic cache hits and misses.
+- `server/cmd/benchmark-editor` creates a neutral 1,005-file synthetic workspace, runs five workspace starts in fresh Go processes, and drives five fresh incremental scenarios through the real handler/index/provider path. It emits JSON distributions and fails on configurable absolute budgets or missing cache reuse, dependency matching, incremental/body/export updates, cancellation, stale rejection, full fallback, or global compaction. `make test-editor-latency` and the read-only `editor-latency.yml` PR/main gate run it; CI uploads the JSON report even when a budget fails.
+- On the Apple M1 validation host, process-cold median was 18.642ms (CV 6.47%). End-to-end on-type medians, including the configured 150ms debounce, were 157.791ms for a body-only edit (CV 1.07%), 159.835ms for a referenced dependency signature edit (CV 0.82%), and 166.799ms for a collision-triggered full fallback (CV 0.14%). Cached save analysis was 0.211ms median; pre-start cancellation was 0.018ms; deterministic stale-result analysis and rejection was 0.197ms. The tiny sub-millisecond samples have higher relative variance and are correctness/absolute-budget evidence, not comparative speed claims.
+- The harness begins at fresh Go process startup for cold runs and at handler scheduling for edits. It does not include VS Code/Node extension activation, JSON-RPC transport/serialization, or a representative user workspace, so it is a server editor-path regression gate rather than a complete perceived-editor-latency claim.
+- Parser and pinned/sibling extension tests, vet, and race suites pass; all six server targets build; TypeScript lint/compile/package, VS Code 1.89.1 extension-host tests, the trace gate, and `npm audit --audit-level=low` pass. Packaging retains the known `vscode-languageserver-types` warning and the audit reports 0 vulnerabilities.
+
 ## Next ranked candidates
 
-1. **Latency evidence:** add trace-based cold-start, incremental-edit, cancellation, and stale-publication latency gates with incremental/full-fallback, semantic-cache hit, dependency-match, and global-compaction accounting.
-2. **Source mapping:** deliver structured analysis spans as UTF-16 LSP ranges with ASCII, BMP, and surrogate-pair contract tests.
-3. **Correctness:** expand the executable PHPStan level-0 differential pack and close reviewed mismatches before claiming later milestone completion.
-4. **Maintenance and security:** correct `FEATURES.md`, decide the legacy TypeScript server's fate, and extend deterministic fuzzing into PHPDoc/type parsing and rule execution.
-5. **Dependency refinement:** replace conservative lexical matching only after generated reference facts cover the supported resolver paths completely; do not trade false positives for stale snapshots.
+1. **Source mapping:** deliver structured analysis spans as UTF-16 LSP ranges with ASCII, BMP, and surrogate-pair contract tests.
+2. **Correctness:** expand the executable PHPStan level-0 differential pack and close reviewed mismatches before claiming later milestone completion.
+3. **Maintenance and security:** correct `FEATURES.md`, decide the legacy TypeScript server's fate, and extend deterministic fuzzing into PHPDoc/type parsing and rule execution.
+4. **Dependency refinement:** replace conservative lexical matching only after generated reference facts cover the supported resolver paths completely; do not trade false positives for stale snapshots.
+5. **Latency expansion:** add opt-in extension-host/JSON-RPC traces on pinned representative projects before making perceived-editor-latency claims; retain synthetic PR gates for deterministic accounting and absolute budgets.
