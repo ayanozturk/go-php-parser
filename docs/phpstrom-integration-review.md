@@ -6,7 +6,7 @@ This document records the August 2026 review of `go-php-parser` as the parser an
 
 PHP Strom's production indexer, semantic cache, diagnostics, and several language providers import this module through its canonical `github.com/ayanozturk/go-php-parser` path. Its former duplicate `server/parser` implementation has been removed, and `cmd/parse-test` now exercises the production parser adapter.
 
-The review findings below are retained as historical context. The missing ESLint configuration and asynchronous diagnostic test-harness race found during that review have since been fixed. As of extension commit `d973d68`, pinned and sibling-development Go tests, vet, and race suites pass, as do TypeScript lint/compile/package, all six server builds, the VS Code extension-host suite, and the synthetic editor latency trace gate.
+The review findings below are retained as historical context. The missing ESLint configuration and asynchronous diagnostic test-harness race found during that review have since been fixed. As of extension commit `e4c4c7b`, pinned and sibling-development Go tests, vet, and race suites pass, as do TypeScript lint/compile/package, all six server builds, the VS Code extension-host suite, the synthetic editor latency trace gate, and structured analysis range contract tests.
 
 ## Recommended changes
 
@@ -26,7 +26,7 @@ Correct the lexer accounting and add tests for the first token, indentation, lin
 
 The parser should use byte offsets as its canonical internal coordinate and expose conversion at integration boundaries. PHP Strom must convert offsets to the UTF-16 code-unit positions required by LSP.
 
-Status: the lexer now reports one-based rune columns correctly and retains byte offsets, with regression coverage for file starts, new lines, indentation, and multibyte string content. Complete AST spans and PHP Strom's byte-offset-to-UTF-16 conversion remain follow-up work.
+Status: the lexer reports one-based rune columns correctly and retains byte offsets, with regression coverage for file starts, new lines, indentation, and multibyte string content. AST and structured analysis spans are complete. PHP Strom commit `e4c4c7b` maps those rune coordinates against the exact source into half-open UTF-16 LSP ranges, including BMP and surrogate-pair coverage. Parser errors still expose strings rather than structured spans, and mixed style-rule coordinate producers retain their legacy point ranges.
 
 ### 3. Connect PHP Strom diagnostic settings to analysis rules
 
@@ -50,7 +50,7 @@ PHP Strom currently requires a zero pseudo-version and replaces it with a relati
 
 Change this module to a canonical import path such as `github.com/ayanozturk/go-php-parser`, publish semantic version tags, and pin PHP Strom to a released version. A local `go.work` override can continue to support coordinated development without becoming part of the published dependency contract.
 
-Status: the module now uses `github.com/ayanozturk/go-php-parser`. PHP Strom commit `d973d68` pins engine commit `e97afef` through exact pseudo-version `v0.0.0-20260830073402-e97afef9bffc`; normal build and test targets use that module, while explicit `*-dev` targets opt into the sibling checkout through a generated Go workspace. Both paths pass tests, vet, and race checks, and the pinned parser builds all six supported server targets. Publishing a semantic version tag remains a release follow-up.
+Status: the module now uses `github.com/ayanozturk/go-php-parser`. PHP Strom commit `e4c4c7b` pins engine commit `e97afef` through exact pseudo-version `v0.0.0-20260830073402-e97afef9bffc`; normal build and test targets use that module, while explicit `*-dev` targets opt into the sibling checkout through a generated Go workspace. Both paths pass tests, vet, and race checks, and the pinned parser builds all six supported server targets. Publishing a semantic version tag remains a release follow-up.
 
 ### 6. Add complete source spans
 
@@ -58,13 +58,13 @@ AST nodes currently expose only a start position. Exact editor operations such a
 
 Add a `Span` containing start and end byte offsets to every AST node and structured diagnostic. Keep LSP-specific coordinate conversion in PHP Strom.
 
-Status: parser AST nodes and structured analysis issues now carry complete spans. PHP Strom still maps analysis issues through its point-only `lineColToRange` helper, so consuming the end span and converting byte offsets/Unicode positions to UTF-16 LSP ranges remains the next integration step.
+Status: parser AST nodes and structured analysis issues carry complete spans. PHP Strom commit `e4c4c7b` consumes their end positions and converts the one-based rune coordinates against source text into half-open UTF-16 LSP ranges. Missing or invalid ends fall back safely to mapped points. Structured parser errors and style-rule range migration remain follow-ups.
 
 ### 7. Reuse immutable semantic snapshots
 
 PHP Strom previously rebuilt an analysis context around its workspace resolver without consuming the parser's shared semantic facts, control-flow graphs, or variable-flow state. That duplicated semantic work across diagnostics and language providers and left the immutable snapshot boundary unused in the editor.
 
-Status: snapshot consumption was implemented in PHP Strom commit `15abf7a`; incremental project-index replacement followed in parser commit `f1e06b9` and extension commit `d6680f2`; parser commit `db625ca` and extension commit `70fcf25` scope exported-change invalidation by dependency name and transitive class lineage. Parser commit `e97afef` and extension commit `d973d68` add explicit full-fallback accounting plus a bounded synthetic editor-path latency gate. Diagnostics, hover, definition, and declaration consume per-document `SemanticSnapshot` instances over the latest immutable workspace project view. Exact document text and document-specific semantic revision govern reuse. Matching remains conservatively lexical until generated reference facts cover every supported resolver path, with bounded histories falling back globally. Background scans use transient snapshots and `didClose` releases retained state. Full extension-host and representative-project latency traces remain a later expansion; structured UTF-16 source mapping is the next integration batch.
+Status: snapshot consumption was implemented in PHP Strom commit `15abf7a`; incremental project-index replacement followed in parser commit `f1e06b9` and extension commit `d6680f2`; parser commit `db625ca` and extension commit `70fcf25` scope exported-change invalidation by dependency name and transitive class lineage. Parser commit `e97afef` and extension commit `d973d68` add explicit full-fallback accounting plus a bounded synthetic editor-path latency gate. Extension commit `e4c4c7b` adds structured UTF-16 analysis ranges. Diagnostics, hover, definition, and declaration consume per-document `SemanticSnapshot` instances over the latest immutable workspace project view. Exact document text and document-specific semantic revision govern reuse. Matching remains conservatively lexical until generated reference facts cover every supported resolver path, with bounded histories falling back globally. Background scans use transient snapshots and `didClose` releases retained state. Full extension-host and representative-project latency traces remain a later expansion; PHPStan correctness remains the next ranked batch.
 
 ## Suggested implementation order
 

@@ -7,7 +7,7 @@ This file records reproducible evidence for the cooperating `go-php-parser` engi
 ## Current baseline
 
 - Engine revision validated and consumed by PHP Strom: pushed commit `e97afef`.
-- Extension checkout: `/Users/ayan/Projects/vscode-php-strom`, `main` at pushed commit `d973d68`; the current package version is `0.1.28`.
+- Extension checkout: `/Users/ayan/Projects/vscode-php-strom`, `main` at pushed commit `e4c4c7b`; the current package version is `0.1.29`.
 - Production extension builds pin `github.com/ayanozturk/go-php-parser` at pseudo-version `v0.0.0-20260830073402-e97afef9bffc`. `make test-server-dev` validates the same engine through the generated, ignored sibling-workspace path.
 - Go toolchain observed: Go 1.26.2. Node toolchain observed: Node 22.20.0 and npm 11.7.0.
 - Representative corpora are fetched at exact revisions from `test_projects/manifest.json`; generated working copies remain uncommitted.
@@ -48,14 +48,14 @@ Representative workload: 23,556 indexed PHP files, 3,678,678 LOC, 135.68 MB, 151
 
 - `FEATURES.md` still describes a TypeScript/tree-sitter server architecture, while production editor features now use the Go language server and `go-php-parser`. This makes feature/architecture claims hard to audit.
 - The obsolete `src/server` TypeScript implementation is excluded from both the production TypeScript build and ESLint; retaining dead server code remains an architecture/deletion decision requiring separate evidence.
-- Parser AST nodes and structured analysis issues now expose complete spans. PHP Strom still converts analysis findings to point-only LSP ranges, so byte-offset-to-UTF-16 range delivery remains an extension integration task.
+- Parser AST nodes and structured analysis issues expose complete spans, and PHP Strom now converts their one-based rune coordinates against the exact source text into half-open UTF-16 LSP ranges. Parser errors still expose an unstructured string API, and style-rule coordinates come from mixed legacy producers, so those diagnostics retain point ranges pending a separate coordinate-contract migration.
 
 ## Coverage gaps
 
 - PHPStan benchmark: level 0 remains partial but is now differential-gated by 47 reviewed fixtures (symbols, `$this` methods and properties, argument counts, constructors, named arguments, class-model legality, and selected language checks). Level 1 variable-flow behavior is differential-gated by 24 reviewed fixtures; narrowing, generic inheritance, and higher-level return/property/argument checks remain partial. Missing areas include full level-0 parity, arbitrary-expression method checks, PHPDoc validation, dynamic-call precision, and broader extension-dependent built-in signatures.
 - PHPCS benchmark: the repository comparison records 16 style rules, far below the breadth of PHPCS standards. Security-oriented source rules such as eval/backtick/forbidden-function checks are not implemented.
 - The remaining recorded pure-parser corpus gaps are two narrow Laravel vendor-code cases; intentionally invalid or corrupted fixtures stay classified separately from parser failures.
-- PHP Strom now consumes shared `SemanticSnapshot` facts, flow graphs, and variable-flow state through dependency-scoped exported-semantic revisions, changed documents use immutable incremental project-index replacement, and a synthetic editor-path trace suite accounts for cache, dependency, cancellation, publication, and fallback behavior. Remaining extension integration gaps include stale architecture documentation, point-only analysis ranges, conservative name-based dependency false positives/global overflow fallback, and no full VS Code extension-activation or representative-project latency trace.
+- PHP Strom now consumes shared `SemanticSnapshot` facts, flow graphs, and variable-flow state through dependency-scoped exported-semantic revisions, changed documents use immutable incremental project-index replacement, structured analysis diagnostics use UTF-16 spans, and a synthetic editor-path trace suite accounts for cache, dependency, cancellation, publication, and fallback behavior. Remaining extension integration gaps include stale architecture documentation, unstructured parser errors and mixed style-rule point ranges, conservative name-based dependency false positives/global overflow fallback, and no full VS Code extension-activation or representative-project latency trace.
 
 ## Completed changes and validation
 
@@ -234,10 +234,18 @@ Representative workload: 23,556 indexed PHP files, 3,678,678 LOC, 135.68 MB, 151
 - The harness begins at fresh Go process startup for cold runs and at handler scheduling for edits. It does not include VS Code/Node extension activation, JSON-RPC transport/serialization, or a representative user workspace, so it is a server editor-path regression gate rather than a complete perceived-editor-latency claim.
 - Parser and pinned/sibling extension tests, vet, and race suites pass; all six server targets build; TypeScript lint/compile/package, VS Code 1.89.1 extension-host tests, the trace gate, and `npm audit --audit-level=low` pass. Packaging retains the known `vscode-languageserver-types` warning and the audit reports 0 vulnerabilities.
 
+### 2026-08-30 — Structured UTF-16 analysis ranges
+
+- Extension commit `e4c4c7b` adds a source-position mapper that converts the parser's one-based rune line/column spans into zero-based UTF-16 LSP ranges using the exact analysed source. Valid end positions remain half-open; missing, reversed, or out-of-bounds ends safely collapse to a point at the mapped start.
+- Structured analysis findings now consume `AnalysisIssue.EndLine` and `EndColumn` instead of discarding them. Parser-error line/column prefixes also map their start point through the same UTF-16 conversion, while unstructured parser errors retain the `(0,0)` fallback.
+- Style diagnostics deliberately remain on their legacy point contract because their coordinate producers are not uniformly parser rune positions. Moving them requires a separate producer-by-producer contract audit rather than applying the analysis conversion blindly.
+- Unit tests cover ASCII, BMP characters, astral characters represented by UTF-16 surrogate pairs, multiline spans, CRLF input, missing ends, reversed spans, and invalid/out-of-bounds coordinates. A real PHPStan level-0 integration case proves that a diagnostic following an emoji on the same line has the expected non-point UTF-16 range.
+- Parser and pinned/sibling extension tests, vet, and race suites pass; all six server targets build; TypeScript lint/compile/package, VS Code 1.89.1 extension-host tests, the editor-latency gate, and `npm audit --audit-level=low` pass. Packaging retains the known `vscode-languageserver-types` warning and the audit reports 0 vulnerabilities.
+
 ## Next ranked candidates
 
-1. **Source mapping:** deliver structured analysis spans as UTF-16 LSP ranges with ASCII, BMP, and surrogate-pair contract tests.
-2. **Correctness:** expand the executable PHPStan level-0 differential pack and close reviewed mismatches before claiming later milestone completion.
-3. **Maintenance and security:** correct `FEATURES.md`, decide the legacy TypeScript server's fate, and extend deterministic fuzzing into PHPDoc/type parsing and rule execution.
-4. **Dependency refinement:** replace conservative lexical matching only after generated reference facts cover the supported resolver paths completely; do not trade false positives for stale snapshots.
-5. **Latency expansion:** add opt-in extension-host/JSON-RPC traces on pinned representative projects before making perceived-editor-latency claims; retain synthetic PR gates for deterministic accounting and absolute budgets.
+1. **Correctness:** continue expanding the executable PHPStan level-0 differential pack and close reviewed mismatches before claiming later milestone completion.
+2. **Maintenance and security:** correct `FEATURES.md`, decide the legacy TypeScript server's fate, and extend deterministic fuzzing into PHPDoc/type parsing and rule execution.
+3. **Dependency refinement:** replace conservative lexical matching only after generated reference facts cover the supported resolver paths completely; do not trade false positives for stale snapshots.
+4. **Latency expansion:** add opt-in extension-host/JSON-RPC traces on pinned representative projects before making perceived-editor-latency claims; retain synthetic PR gates for deterministic accounting and absolute budgets.
+5. **Source-mapping expansion:** introduce structured parser errors and audit the mixed style-rule coordinate producers before upgrading those remaining point diagnostics to ranges.
