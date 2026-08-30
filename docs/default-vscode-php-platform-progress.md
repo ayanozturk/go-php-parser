@@ -1,14 +1,14 @@
 # Default VS Code PHP Platform Progress
 
-Last updated: 2026-08-29 (Europe/London)
+Last updated: 2026-08-30 (Europe/London)
 
 This file records reproducible evidence for the cooperating `go-php-parser` engine and `vscode-php-strom` extension. PHPStan, PHPCS, and Mago are benchmark references only; no parity claim is made.
 
 ## Current baseline
 
-- Engine revision validated and consumed by PHP Strom: pushed commit `5c7bfc5`; later documentation-only commits do not change that dependency revision.
-- Extension checkout: `/Users/ayan/Projects/vscode-php-strom`, `main` at pushed commit `15abf7a`; the current package version is `0.1.28`.
-- Production extension builds pin `github.com/ayanozturk/go-php-parser` at pseudo-version `v0.0.0-20260828154022-5c7bfc589e84`. `make test-server-dev` validates the same engine through the generated, ignored sibling-workspace path.
+- Engine revision validated and consumed by PHP Strom: pushed commit `f1e06b9`.
+- Extension checkout: `/Users/ayan/Projects/vscode-php-strom`, `main` at pushed commit `d6680f2`; the current package version is `0.1.28`.
+- Production extension builds pin `github.com/ayanozturk/go-php-parser` at pseudo-version `v0.0.0-20260830065702-f1e06b9b82d9`. `make test-server-dev` validates the same engine through the generated, ignored sibling-workspace path.
 - Go toolchain observed: Go 1.26.2. Node toolchain observed: Node 22.20.0 and npm 11.7.0.
 - Representative corpora are fetched at exact revisions from `test_projects/manifest.json`; generated working copies remain uncommitted.
 - The latest recorded full-corpus pass has zero failures for Composer, Drupal, Magento, PHPUnit, and WordPress. Symfony's two remaining fixtures are intentionally invalid/corrupted inputs, and Laravel has two narrow interpolation/callable edge cases. These recorded results are compatibility evidence, not a current performance result.
@@ -55,7 +55,7 @@ Representative workload: 23,556 indexed PHP files, 3,678,678 LOC, 135.68 MB, 151
 - PHPStan benchmark: level 0 remains partial; level 1 variable-flow behavior is differential-gated by 24 reviewed fixtures; narrowing, generic inheritance, and higher-level return/property/argument checks remain partial. Missing areas include full level-0 parity, arbitrary-expression method checks, PHPDoc validation, dynamic-call precision, and broader extension-dependent built-in signatures.
 - PHPCS benchmark: the repository comparison records 16 style rules, far below the breadth of PHPCS standards. Security-oriented source rules such as eval/backtick/forbidden-function checks are not implemented.
 - The remaining recorded pure-parser corpus gaps are two narrow Laravel vendor-code cases; intentionally invalid or corrupted fixtures stay classified separately from parser failures.
-- PHP Strom now consumes shared `SemanticSnapshot` facts, flow graphs, and variable-flow state through a revision-aware interactive document cache. Remaining extension integration gaps include stale architecture documentation, point-only analysis ranges, whole-project index rebuilding for changed documents, and no reproducible cold-start/incremental-edit/cancellation benchmark suite.
+- PHP Strom now consumes shared `SemanticSnapshot` facts, flow graphs, and variable-flow state through an exported-semantic revision cache, and changed documents use immutable incremental project-index replacement. Remaining extension integration gaps include stale architecture documentation, point-only analysis ranges, conservative global invalidation after exported changes, and no reproducible cold-start/incremental-edit/cancellation trace suite.
 
 ## Completed changes and validation
 
@@ -205,14 +205,22 @@ Representative workload: 23,556 indexed PHP files, 3,678,678 LOC, 135.68 MB, 151
 ### 2026-08-29 — Integration: reuse parser semantic snapshots in PHP Strom
 
 - Extension commit `15abf7a` constructs parser-native `SemanticSnapshot` instances over the current document and immutable workspace project index, then supplies their shared semantic facts, control-flow graph, and variable-flow reader to diagnostics, hover, definition, and declaration analysis.
-- Cached semantic snapshots are keyed by exact document text and an explicit workspace project revision. Unchanged requests reuse the same immutable readers; any document edit or cross-file project rebuild invalidates them.
+- At that checkpoint cached semantic snapshots were keyed by exact document text and an explicit workspace project revision. Unchanged requests reused the same immutable readers; any document edit or cross-file project rebuild invalidated them. The 2026-08-30 batch below narrows cross-file invalidation to exported changes.
 - Closed/background workspace diagnostics use transient snapshots, and `didClose` releases retained parsed and semantic state. An initial unbounded workspace-retention design made the full race suite materially slower and memory-heavy; it was rejected before delivery. The retained design restored the focused workspace-limit test to 5.9s and the full `phpstrom` race package to about 37s on the validation host. These are test-run observations, not editor-latency claims.
 - Pinned and sibling-development Go tests, vet, and race suites pass. TypeScript lint/compile/package, the VS Code 1.89.1 extension-host suite, all six server target builds, `npm audit --audit-level=low`, and diff checks pass; the audit reports 0 vulnerabilities and packaging retains the known `vscode-languageserver-types` dynamic-require warning.
 
+### 2026-08-30 — Incremental immutable project-index replacement
+
+- Parser commit `f1e06b9` adds `BuildProjectIndexIncremental`: a changed-file copy-on-write path that preserves prior immutable indexes for concurrent readers, refreshes declaration locations, and traverses only changed ASTs. Duplicate/colliding definition cases fall back to the existing sorted full build so winner and diagnostic ordering remain deterministic.
+- Extension commit `d6680f2` uses that path for indexed documents, stubs, removals, and unsaved overlays, and pins the exact parser pseudo-version. The semantic-cache revision now advances only when exported classes, functions, methods, properties, or constants change; edits confined to another file's body publish a fresh project view without discarding reusable facts/flow for unchanged documents.
+- The checked-in 1,000-file synthetic microbenchmark ran five 500ms samples on the Apple M1 validation host. Fresh-build median was 2.358ms, 3,410,575 B/op, and 37,802 allocs/op; one-file incremental median was 1.115ms, 1,869,680 B/op, and 11,735 allocs/op (52.7% lower time, 45.2% fewer bytes, and 69.0% fewer allocations within the same candidate binary). A separately run pre-change cold-build sample had a 2.405ms median and 3,311,041 B/op; because it was not interleaved, no cold timing improvement is claimed, while the retained source metadata costs about 3.0% in this synthetic allocation measure.
+- An earlier contribution-assembly design was rejected before delivery because it raised fresh-build median time to about 4.4ms and allocation to about 7.4 MB/op on the same synthetic shape. Adversarial tests cover full-build equivalence, additions/removals, body/position edits, exported signature changes, duplicate ordering, immutable prior readers, and races.
+- Parser tests/vet/race, pinned and sibling extension tests/vet/race, all six server builds, TypeScript lint/compile/package, VS Code 1.89.1 extension-host tests, and `npm audit --audit-level=low` pass. Packaging retains the known `vscode-languageserver-types` dynamic-require warning; the audit reports 0 vulnerabilities.
+
 ## Next ranked candidates
 
-1. **Incremental performance:** replace whole-project index rebuilding on changed documents and invalidate dependants from exported semantic changes rather than every content edit.
-2. **Latency evidence:** add trace-based cold-start, incremental-edit, cancellation, and stale-publication latency gates with cache hit/invalidation accounting.
+1. **Dependency precision:** replace the conservative global semantic revision after exported changes with dependency-scoped invalidation, including transitive inheritance/member and function/constant use.
+2. **Latency evidence:** add trace-based cold-start, incremental-edit, cancellation, and stale-publication latency gates with incremental/full-fallback and semantic-cache hit accounting.
 3. **Source mapping:** deliver structured analysis spans as UTF-16 LSP ranges with ASCII, BMP, and surrogate-pair contract tests.
 4. **Correctness:** expand the executable PHPStan level-0 differential pack and close reviewed mismatches before claiming later milestone completion.
 5. **Maintenance and security:** correct `FEATURES.md`, decide the legacy TypeScript server's fate, and extend deterministic fuzzing into PHPDoc/type parsing and rule execution.

@@ -6,7 +6,7 @@ This document records the August 2026 review of `go-php-parser` as the parser an
 
 PHP Strom's production indexer, semantic cache, diagnostics, and several language providers import this module through its canonical `github.com/ayanozturk/go-php-parser` path. Its former duplicate `server/parser` implementation has been removed, and `cmd/parse-test` now exercises the production parser adapter.
 
-The review findings below are retained as historical context. The missing ESLint configuration and asynchronous diagnostic test-harness race found during that review have since been fixed. As of extension commit `15abf7a`, pinned and sibling-development Go tests, vet, and race suites pass, as do TypeScript lint/compile/package, all six server builds, and the VS Code extension-host suite.
+The review findings below are retained as historical context. The missing ESLint configuration and asynchronous diagnostic test-harness race found during that review have since been fixed. As of extension commit `d6680f2`, pinned and sibling-development Go tests, vet, and race suites pass, as do TypeScript lint/compile/package, all six server builds, and the VS Code extension-host suite.
 
 ## Recommended changes
 
@@ -50,7 +50,7 @@ PHP Strom currently requires a zero pseudo-version and replaces it with a relati
 
 Change this module to a canonical import path such as `github.com/ayanozturk/go-php-parser`, publish semantic version tags, and pin PHP Strom to a released version. A local `go.work` override can continue to support coordinated development without becoming part of the published dependency contract.
 
-Status: the module now uses `github.com/ayanozturk/go-php-parser`. PHP Strom commit `56e2da2` pins engine commit `5c7bfc5` through exact pseudo-version `v0.0.0-20260828154022-5c7bfc589e84`; normal build and test targets use that module, while explicit `*-dev` targets opt into the sibling checkout through a generated Go workspace. Both paths pass tests, vet, and race checks, and the pinned parser builds all six supported server targets. Publishing a semantic version tag remains a release follow-up.
+Status: the module now uses `github.com/ayanozturk/go-php-parser`. PHP Strom commit `d6680f2` pins engine commit `f1e06b9` through exact pseudo-version `v0.0.0-20260830065702-f1e06b9b82d9`; normal build and test targets use that module, while explicit `*-dev` targets opt into the sibling checkout through a generated Go workspace. Both paths pass tests, vet, and race checks, and the pinned parser builds all six supported server targets. Publishing a semantic version tag remains a release follow-up.
 
 ### 6. Add complete source spans
 
@@ -64,7 +64,7 @@ Status: parser AST nodes and structured analysis issues now carry complete spans
 
 PHP Strom previously rebuilt an analysis context around its workspace resolver without consuming the parser's shared semantic facts, control-flow graphs, or variable-flow state. That duplicated semantic work across diagnostics and language providers and left the immutable snapshot boundary unused in the editor.
 
-Status: implemented in PHP Strom commit `15abf7a`. Diagnostics, hover, definition, and declaration now consume revision-aware per-document `SemanticSnapshot` instances over the workspace project index. Exact document text and project revision govern reuse and invalidation; background scans use transient snapshots and `didClose` releases retained state. The next integration batch is incremental project-index maintenance and dependant invalidation, followed by trace-based latency evidence.
+Status: snapshot consumption was implemented in PHP Strom commit `15abf7a`; incremental project-index replacement followed in parser commit `f1e06b9` and extension commit `d6680f2`. Diagnostics, hover, definition, and declaration consume per-document `SemanticSnapshot` instances over the latest immutable workspace project view. Exact document text and exported-semantic revision govern reuse; body-only edits elsewhere retain cached facts/flow, while exported changes still invalidate conservatively across documents. Background scans use transient snapshots and `didClose` releases retained state. Dependency-scoped invalidation and trace-based latency evidence remain next.
 
 ## Suggested implementation order
 
