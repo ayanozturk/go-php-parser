@@ -13,11 +13,39 @@
       "phpstanIdentifiers": ["class.notFound"]
     },
     {
+      "id": "static-call-unknown-class",
+      "capability": "unknown classes in static calls",
+      "file": "static-call-unknown-class.php",
+      "engineCodes": ["PHPStan.Level0.Symbols"],
+      "phpstanIdentifiers": ["class.notFound"]
+    },
+    {
+      "id": "unknown-catch-class",
+      "capability": "unknown catch types",
+      "file": "unknown-catch-class.php",
+      "engineCodes": ["PHPStan.Level0.Symbols"],
+      "phpstanIdentifiers": ["class.notFound"]
+    },
+    {
+      "id": "unknown-parameter-type",
+      "capability": "unknown parameter type references",
+      "file": "unknown-parameter-type.php",
+      "engineCodes": ["PHPStan.Level0.Symbols"],
+      "phpstanIdentifiers": ["class.notFound"]
+    },
+    {
       "id": "unknown-function",
       "capability": "unknown functions",
       "file": "unknown-function.php",
       "engineCodes": ["PHPStan.Level0.Symbols"],
       "phpstanIdentifiers": ["function.notFound"]
+    },
+    {
+      "id": "unknown-this-method",
+      "capability": "unknown methods called on $this",
+      "file": "unknown-this-method.php",
+      "engineCodes": ["PHPStan.Level0.Symbols"],
+      "phpstanIdentifiers": ["method.notFound"]
     },
     {
       "id": "argument-count",
@@ -27,9 +55,65 @@
       "phpstanIdentifiers": ["arguments.count"]
     },
     {
+      "id": "this-method-argument-count",
+      "capability": "method argument counts on $this",
+      "file": "this-method-argument-count.php",
+      "engineCodes": ["PHPStan.Level0.Invocation"],
+      "phpstanIdentifiers": ["arguments.count"]
+    },
+    {
+      "id": "private-method-from-subclass",
+      "capability": "private method visibility from a subclass",
+      "file": "private-method-from-subclass.php",
+      "engineCodes": ["PHPStan.Level0.Invocation"],
+      "phpstanIdentifiers": ["method.private"]
+    },
+    {
+      "id": "extends-final-class",
+      "capability": "extending a final class",
+      "file": "extends-final-class.php",
+      "engineCodes": ["PHPStan.Level0.ClassModel"],
+      "phpstanIdentifiers": ["class.extendsFinal"]
+    },
+    {
+      "id": "unknown-interface",
+      "capability": "unknown implemented interfaces",
+      "file": "unknown-interface.php",
+      "engineCodes": ["PHPStan.Level0.ClassModel"],
+      "phpstanIdentifiers": ["interface.notFound"]
+    },
+    {
+      "id": "instantiate-abstract-class",
+      "capability": "instantiating an abstract class",
+      "file": "instantiate-abstract-class.php",
+      "engineCodes": ["PHPStan.Level0.ClassModel"],
+      "phpstanIdentifiers": ["new.abstract"]
+    },
+    {
+      "id": "instantiate-interface",
+      "capability": "instantiating an interface",
+      "file": "instantiate-interface.php",
+      "engineCodes": ["PHPStan.Level0.ClassModel"],
+      "phpstanIdentifiers": ["new.interface"]
+    },
+    {
+      "id": "final-method-override",
+      "capability": "overriding a final parent method",
+      "file": "final-method-override.php",
+      "engineCodes": ["PHPStan.Level0.ClassModel"],
+      "phpstanIdentifiers": ["method.parentMethodFinal"]
+    },
+    {
       "id": "clean-known-symbols",
       "capability": "known symbols without false positives",
       "file": "clean-known-symbols.php",
+      "engineCodes": [],
+      "phpstanIdentifiers": []
+    },
+    {
+      "id": "clean-class-hierarchy",
+      "capability": "known class hierarchy without false positives",
+      "file": "clean-class-hierarchy.php",
       "engineCodes": [],
       "phpstanIdentifiers": []
     }

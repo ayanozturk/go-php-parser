@@ -26,9 +26,21 @@ The full report records the PHPStan version returned by the supplied executable.
 
 | Capability | Status | Fixture evidence | Engine diagnostic | PHPStan identifier | Current boundary |
 | --- | --- | --- | --- | --- | --- |
-| Unknown instantiated classes | Partial, differential-gated | `unknown-class` | `PHPStan.Level0.Symbols` | `class.notFound` | The analyser covers several class-reference surfaces, but the first pack proves only direct `new` expressions. |
+| Unknown instantiated classes | Partial, differential-gated | `unknown-class` | `PHPStan.Level0.Symbols` | `class.notFound` | Proves a direct `new` of a missing class. Other class-not-found surfaces are gated separately below. |
+| Unknown classes in static calls | Partial, differential-gated | `static-call-unknown-class` | `PHPStan.Level0.Symbols` | `class.notFound` | Proves `Missing::method()`; dynamic class names remain outside the gate. |
+| Unknown catch types | Partial, differential-gated | `unknown-catch-class` | `PHPStan.Level0.Symbols` | `class.notFound` | Proves a single `catch (MissingException $e)` clause. |
+| Unknown parameter type references | Partial, differential-gated | `unknown-parameter-type` | `PHPStan.Level0.Symbols` | `class.notFound` | Proves a function parameter type; return, property, and PHPDoc type references remain outside the gate. |
 | Unknown function calls | Partial, differential-gated | `unknown-function` | `PHPStan.Level0.Symbols` | `function.notFound` | Built-in and extension-sensitive symbol coverage remains incomplete. |
-| Function argument counts | Partial, differential-gated | `argument-count` | `PHPStan.Level0.Invocation` | `arguments.count` | The first pack covers a direct known function call; dynamic calls and constant-array unpacking remain outside the gate. |
+| Unknown methods called on `$this` | Partial, differential-gated | `unknown-this-method` | `PHPStan.Level0.Symbols` | `method.notFound` | PHPStan level 0 covers `$this` only. Arbitrary-expression method existence remains a level-2 gap. |
+| Function argument counts | Partial, differential-gated | `argument-count` | `PHPStan.Level0.Invocation` | `arguments.count` | Covers a direct known function call; dynamic calls and constant-array unpacking remain outside the gate. |
+| Method argument counts on `$this` | Partial, differential-gated | `this-method-argument-count` | `PHPStan.Level0.Invocation` | `arguments.count` | Covers a missing required argument on `$this`; named, unpacked, and constructor arity remain outside the gate. |
+| Private method visibility | Partial, differential-gated | `private-method-from-subclass` | `PHPStan.Level0.Invocation` | `method.private` | Proves a subclass `$this` call to a parent private method. Protected calls on known receivers are reported by this engine at level 0 but PHPStan 2.2.5 is silent on that fixture at level 0, so they are not in this pack. |
+| Extending a final class | Partial, differential-gated | `extends-final-class` | `PHPStan.Level0.ClassModel` | `class.extendsFinal` | Proves a direct `extends` of a same-file final class. |
+| Unknown implemented interfaces | Partial, differential-gated | `unknown-interface` | `PHPStan.Level0.ClassModel` | `interface.notFound` | Proves `implements MissingInterface`. Trait-use and interface-extends surfaces remain outside the gate. |
+| Instantiating an abstract class | Partial, differential-gated | `instantiate-abstract-class` | `PHPStan.Level0.ClassModel` | `new.abstract` | Proves `new` of a same-file abstract class with no constructor arguments. |
+| Instantiating an interface | Partial, differential-gated | `instantiate-interface` | `PHPStan.Level0.ClassModel` | `new.interface` | Trait and enum instantiation remain outside the gate. |
+| Overriding a final parent method | Partial, differential-gated | `final-method-override` | `PHPStan.Level0.ClassModel` | `method.parentMethodFinal` | Proves a same-file `final` method override. `@final` PHPDoc overrides remain outside the gate. |
+| Known class hierarchy without false positives | Partial, differential-gated | `clean-class-hierarchy` | none | none | Proves a public inherited `$this` call; not full false-positive parity across modifiers or visibility. |
 | Always undefined variables | Partial, differential-gated | `undefined-variable` (level 1 pack) | `PHPStan.Level1.Variables` | `variable.undefined` | PHPStan 2.2.5 introduces this diagnostic at level 1, including for an always-undefined top-level read. |
 | Possibly undefined variables | Partial, differential-gated | `branch-defined-variable`, `while-defined-variable`, `closure-by-value-undefined-variable`, `reference-assignment`, `dynamic-receiver-by-reference`, `nested-continue-two-undefined-variable`, `switch-continue-two-undefined-variable`, `break-two-finally-undefined-variable`, `unknown-array-extract`, `builtin-reference-input-output-parameters` | `PHPStan.Level1.Variables` | `variable.undefined` | Joined facts cover conditionals, bounded loop convergence, `switch`, `try`/`catch`/`finally`, explicit closure captures, direct reference assignment, conservative dynamic-receiver arguments, numeric multi-level loop/switch transfers, unknown-array `extract()` effects, and selected input/output built-in references. Dynamic calls and dynamic transfer levels remain incomplete. |
 | Exhaustive variable-flow controls | Partial, differential-gated | `exhaustive-branch-defined-variable`, `do-while-defined-variable`, `nested-break-two-defined-variable` | none | none | Proves selected clean branch, loop, and multi-level transfer controls, not full false-positive parity across all control flow. |
@@ -42,10 +54,10 @@ These areas have repository unit coverage but no checked-in PHPStan differential
 
 | Area | Current status | Principal diagnostic codes |
 | --- | --- | --- |
-| Class hierarchy and modifier legality | Partial | `PHPStan.Level0.ClassModel` |
-| Type, import, catch, and attribute references | Partial | `PHPStan.Level0.Symbols` |
-| Constructor, method visibility, named arguments, and static/instance call direction | Partial | `PHPStan.Level0.Invocation` |
-| Class constants and property access | Partial | `PHPStan.Level0.Symbols`, `PHPStan.Level0.ClassModel` |
+| Remaining class-model legality (modifiers, required methods, readonly, enums, traits) | Partial | `PHPStan.Level0.ClassModel` |
+| Imports, attributes, return/property type references, and class constants | Partial | `PHPStan.Level0.Symbols` |
+| Constructor visibility, named arguments, and static/instance call direction | Partial | `PHPStan.Level0.Invocation` |
+| Property existence and staticness | Partial | `PHPStan.Level0.Symbols`, `PHPStan.Level0.ClassModel` |
 | Selected PHP language legality checks | Partial | `PHPStan.Level0.Language` |
 | Return completeness, return types, and property assignment types | Partial, above level 0 | `A.RETURN.TYPE`, `A.PROP.TYPE` |
 | Argument types | Partial, above levels 0–3 | `A.ARG.TYPE` |
