@@ -49,10 +49,13 @@ type ExportedSymbolChange struct {
 
 // ProjectIndexChanges describes the dependency surface of an incremental
 // update. Complete is false when missing source metadata forces callers to
-// invalidate every cached semantic consumer. DependencyNames includes changed
-// symbols, their owners, and transitive class descendants.
+// invalidate every cached semantic consumer. FullRebuild reports that the
+// requested update used the deterministic full-build path instead of replacing
+// only the listed file contributions. DependencyNames includes changed symbols,
+// their owners, and transitive class descendants.
 type ProjectIndexChanges struct {
 	Complete        bool
+	FullRebuild     bool
 	Symbols         []ExportedSymbolChange
 	DependencyNames []string
 }
@@ -128,7 +131,7 @@ func BuildProjectIndexIncremental(previous *ProjectIndex, parsed map[string][]as
 // deterministic exported-symbol change details for dependency-scoped caches.
 func BuildProjectIndexIncrementalWithChanges(previous *ProjectIndex, parsed map[string][]ast.Node, changedFiles []string) (*ProjectIndex, ProjectIndexChanges) {
 	if previous == nil || previous.sourceFiles == nil {
-		return BuildProjectIndex(parsed), ProjectIndexChanges{Complete: false}
+		return BuildProjectIndex(parsed), ProjectIndexChanges{Complete: false, FullRebuild: true}
 	}
 
 	changed := make(map[string]struct{}, len(changedFiles))
@@ -141,14 +144,14 @@ func BuildProjectIndexIncrementalWithChanges(previous *ProjectIndex, parsed map[
 	for filename := range parsed {
 		if _, exists := previous.sourceFiles[filename]; !exists {
 			if _, listed := changed[filename]; !listed {
-				return BuildProjectIndex(parsed), ProjectIndexChanges{Complete: false}
+				return BuildProjectIndex(parsed), ProjectIndexChanges{Complete: false, FullRebuild: true}
 			}
 		}
 	}
 	for filename := range previous.sourceFiles {
 		if _, exists := parsed[filename]; !exists {
 			if _, listed := changed[filename]; !listed {
-				return BuildProjectIndex(parsed), ProjectIndexChanges{Complete: false}
+				return BuildProjectIndex(parsed), ProjectIndexChanges{Complete: false, FullRebuild: true}
 			}
 		}
 	}
@@ -172,6 +175,7 @@ func BuildProjectIndexIncrementalWithChanges(previous *ProjectIndex, parsed map[
 	}
 	if requiresFullBuild {
 		idx := BuildProjectIndex(parsed)
+		changes.FullRebuild = true
 		return idx, finalizeProjectIndexChanges(previous, idx, changes)
 	}
 
@@ -183,6 +187,7 @@ func BuildProjectIndexIncrementalWithChanges(previous *ProjectIndex, parsed map[
 		contribution := newContributions[filename]
 		if projectFileCollidesWithIndex(idx, contribution) {
 			fresh := BuildProjectIndex(parsed)
+			changes.FullRebuild = true
 			return fresh, finalizeProjectIndexChanges(previous, fresh, changes)
 		}
 		nodes, remains := parsed[filename]

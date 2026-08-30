@@ -621,6 +621,120 @@ func TestBuildProjectIndexIncrementalWithChangesMissingSourceMetadataIsIncomplet
 	assertProjectIndexEquivalent(t, got, BuildProjectIndex(parsed))
 }
 
+func TestBuildProjectIndexIncrementalWithChangesReportsFullRebuildForMissingMetadata(t *testing.T) {
+	const filename = "src/Recovered.php"
+	parsed := parseProjectSources(t, map[string]string{filename: "<?php\nclass Recovered {}\n"})
+
+	for _, tc := range []struct {
+		name     string
+		previous *ProjectIndex
+	}{
+		{name: "nil previous", previous: nil},
+		{name: "untracked previous metadata", previous: NewProjectIndex()},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			got, changes := BuildProjectIndexIncrementalWithChanges(tc.previous, parsed, []string{filename})
+			if changes.Complete {
+				t.Fatalf("expected missing prior source metadata to be incomplete, got %#v", changes)
+			}
+			if !changes.FullRebuild {
+				t.Fatalf("expected missing prior source metadata to force a full rebuild, got %#v", changes)
+			}
+			assertProjectIndexEquivalent(t, got, BuildProjectIndex(parsed))
+		})
+	}
+}
+
+func TestBuildProjectIndexIncrementalWithChangesDoesNotReportFullRebuildWithoutChanges(t *testing.T) {
+	const filename = "src/Stable.php"
+	parsed := parseProjectSources(t, map[string]string{filename: "<?php\nclass Stable {}\n"})
+	previous := BuildProjectIndex(parsed)
+
+	for _, tc := range []struct {
+		name         string
+		changedFiles []string
+	}{
+		{name: "no changed files"},
+		{name: "unchanged file", changedFiles: []string{filename}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			got, changes := BuildProjectIndexIncrementalWithChanges(previous, parsed, tc.changedFiles)
+			if !changes.Complete {
+				t.Fatalf("expected complete change metadata, got %#v", changes)
+			}
+			if changes.FullRebuild {
+				t.Fatalf("expected no full rebuild for %s, got %#v", tc.name, changes)
+			}
+			if changes.SemanticChanged() {
+				t.Fatalf("expected unchanged sources to preserve exported semantics, got %#v", changes)
+			}
+			assertProjectIndexEquivalent(t, got, previous)
+		})
+	}
+}
+
+func TestBuildProjectIndexIncrementalWithChangesDoesNotReportFullRebuildForOrdinaryUpdate(t *testing.T) {
+	const filename = "src/Widget.php"
+	initialSources := map[string]string{
+		filename:        "<?php\nclass Widget { public function label(): string {} }\n",
+		"src/Other.php": "<?php\nclass Other {}\n",
+	}
+	updatedSources := map[string]string{
+		filename:        "<?php\nclass Widget { public function label(int $value): string {} }\n",
+		"src/Other.php": initialSources["src/Other.php"],
+	}
+
+	previous := BuildProjectIndex(parseProjectSources(t, initialSources))
+	updatedParsed := parseProjectSources(t, updatedSources)
+	got, changes := BuildProjectIndexIncrementalWithChanges(previous, updatedParsed, []string{filename})
+	if !changes.Complete || !changes.SemanticChanged() {
+		t.Fatalf("expected complete semantic incremental update, got %#v", changes)
+	}
+	if changes.FullRebuild {
+		t.Fatalf("expected ordinary single-file update to stay incremental, got %#v", changes)
+	}
+	assertProjectIndexEquivalent(t, got, BuildProjectIndex(updatedParsed))
+}
+
+func TestBuildProjectIndexIncrementalWithChangesReportsFullRebuildForCollidingDefinitions(t *testing.T) {
+	t.Run("existing duplicate touched", func(t *testing.T) {
+		initialSources := map[string]string{
+			"a.php": "<?php\nclass Shared {}\n",
+			"b.php": "<?php\nclass Shared {}\n",
+		}
+		updatedSources := map[string]string{
+			"a.php": initialSources["a.php"],
+			"b.php": "<?php\nclass Shared { public function label(): string {} }\n",
+		}
+
+		previous := BuildProjectIndex(parseProjectSources(t, initialSources))
+		updatedParsed := parseProjectSources(t, updatedSources)
+		got, changes := BuildProjectIndexIncrementalWithChanges(previous, updatedParsed, []string{"b.php"})
+		if !changes.Complete || !changes.FullRebuild {
+			t.Fatalf("expected duplicate definition update to use a full rebuild, got %#v", changes)
+		}
+		assertProjectIndexEquivalent(t, got, BuildProjectIndex(updatedParsed))
+	})
+
+	t.Run("new definition collides", func(t *testing.T) {
+		initialSources := map[string]string{
+			"a.php": "<?php\nclass Shared {}\n",
+		}
+		updatedSources := map[string]string{
+			"a.php": initialSources["a.php"],
+			"b.php": "<?php\nclass Shared {}\n",
+		}
+
+		previous := BuildProjectIndex(parseProjectSources(t, initialSources))
+		updatedParsed := parseProjectSources(t, updatedSources)
+		got, changes := BuildProjectIndexIncrementalWithChanges(previous, updatedParsed, []string{"b.php"})
+		if !changes.Complete || !changes.FullRebuild {
+			t.Fatalf("expected colliding definition addition to use a full rebuild, got %#v", changes)
+		}
+		assertProjectIndexEquivalent(t, got, BuildProjectIndex(updatedParsed))
+	})
+}
+
 func hasExportedSymbolChange(changes []ExportedSymbolChange, want ExportedSymbolChange) bool {
 	for _, change := range changes {
 		if change.ID == want.ID && change.Kind == want.Kind && change.Owner == want.Owner && change.Name == want.Name {
