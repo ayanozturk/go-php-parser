@@ -48,6 +48,27 @@
       "phpstanIdentifiers": ["method.notFound"]
     },
     {
+      "id": "unknown-this-property",
+      "capability": "unknown properties accessed on $this",
+      "file": "unknown-this-property.php",
+      "engineCodes": ["PHPStan.Level0.Symbols"],
+      "phpstanIdentifiers": ["property.notFound"]
+    },
+    {
+      "id": "unknown-class-constant",
+      "capability": "unknown class constants",
+      "file": "unknown-class-constant.php",
+      "engineCodes": ["PHPStan.Level0.Symbols"],
+      "phpstanIdentifiers": ["classConstant.notFound"]
+    },
+    {
+      "id": "unknown-attribute",
+      "capability": "unknown attribute classes",
+      "file": "unknown-attribute.php",
+      "engineCodes": ["PHPStan.Level0.Symbols"],
+      "phpstanIdentifiers": ["attribute.notFound"]
+    },
+    {
       "id": "argument-count",
       "capability": "function argument counts",
       "file": "argument-count.php",
@@ -69,6 +90,27 @@
       "phpstanIdentifiers": ["method.private"]
     },
     {
+      "id": "instantiate-private-constructor",
+      "capability": "instantiating a private constructor",
+      "file": "instantiate-private-constructor.php",
+      "engineCodes": ["PHPStan.Level0.Invocation"],
+      "phpstanIdentifiers": ["new.privateConstructor"]
+    },
+    {
+      "id": "extra-constructor-arguments",
+      "capability": "constructor arguments on a class without a constructor",
+      "file": "extra-constructor-arguments.php",
+      "engineCodes": ["PHPStan.Level0.Invocation"],
+      "phpstanIdentifiers": ["new.noConstructor"]
+    },
+    {
+      "id": "unknown-named-parameter",
+      "capability": "unknown named arguments",
+      "file": "unknown-named-parameter.php",
+      "engineCodes": ["PHPStan.Level0.Invocation"],
+      "phpstanIdentifiers": ["argument.missing", "argument.unknown"]
+    },
+    {
       "id": "extends-final-class",
       "capability": "extending a final class",
       "file": "extends-final-class.php",
@@ -81,6 +123,13 @@
       "file": "unknown-interface.php",
       "engineCodes": ["PHPStan.Level0.ClassModel"],
       "phpstanIdentifiers": ["interface.notFound"]
+    },
+    {
+      "id": "unknown-trait",
+      "capability": "unknown used traits",
+      "file": "unknown-trait.php",
+      "engineCodes": ["PHPStan.Level0.ClassModel"],
+      "phpstanIdentifiers": ["trait.notFound"]
     },
     {
       "id": "instantiate-abstract-class",
@@ -97,11 +146,60 @@
       "phpstanIdentifiers": ["new.interface"]
     },
     {
+      "id": "instantiate-enum",
+      "capability": "instantiating an enum",
+      "file": "instantiate-enum.php",
+      "engineCodes": ["PHPStan.Level0.ClassModel"],
+      "phpstanIdentifiers": ["new.enum"]
+    },
+    {
       "id": "final-method-override",
       "capability": "overriding a final parent method",
       "file": "final-method-override.php",
       "engineCodes": ["PHPStan.Level0.ClassModel"],
       "phpstanIdentifiers": ["method.parentMethodFinal"]
+    },
+    {
+      "id": "abstract-method-in-concrete-class",
+      "capability": "abstract methods in a non-abstract class",
+      "file": "abstract-method-in-concrete-class.php",
+      "engineCodes": ["PHPStan.Level0.ClassModel"],
+      "phpstanIdentifiers": ["method.abstract", "method.abstract"]
+    },
+    {
+      "id": "missing-interface-method",
+      "capability": "missing interface method implementations",
+      "file": "missing-interface-method.php",
+      "engineCodes": ["PHPStan.Level0.ClassModel"],
+      "phpstanIdentifiers": ["method.abstract"]
+    },
+    {
+      "id": "constructor-return-type",
+      "capability": "constructor return types",
+      "file": "constructor-return-type.php",
+      "engineCodes": ["PHPStan.Level0.ClassModel"],
+      "phpstanIdentifiers": ["constructor.returnType"]
+    },
+    {
+      "id": "readonly-extends-non-readonly",
+      "capability": "readonly class extending a non-readonly class",
+      "file": "readonly-extends-non-readonly.php",
+      "engineCodes": ["PHPStan.Level0.ClassModel"],
+      "phpstanIdentifiers": ["class.readOnly"]
+    },
+    {
+      "id": "duplicate-array-key",
+      "capability": "duplicate literal array keys",
+      "file": "duplicate-array-key.php",
+      "engineCodes": ["PHPStan.Level0.Language"],
+      "phpstanIdentifiers": ["array.duplicateKey"]
+    },
+    {
+      "id": "unknown-goto",
+      "capability": "undefined goto labels",
+      "file": "unknown-goto.php",
+      "engineCodes": ["PHPStan.Level0.Language"],
+      "phpstanIdentifiers": ["goto.labelUndefined"]
     },
     {
       "id": "clean-known-symbols",
