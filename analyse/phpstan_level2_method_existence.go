@@ -48,23 +48,62 @@ func appendLevel2UnknownMethodIssue(filename string, call *ast.MethodCallNode, s
 	}
 
 	receiverType := inferTypeWithFacts(filename, call.Object, scope, ctx)
-	className, ok := receiverType.SingleClassName()
-	if !ok || ctx.Resolver == nil {
+	if className, single := receiverType.SingleClassName(); single {
+		resolvedClass, ok := resolveMethodReceiverClass(className, ctx)
+		if !ok || receiverClassProvidesMethod(resolvedClass.Name, call.Method, ctx) {
+			return
+		}
+		*issues = append(*issues, issueSpan(filename, call, level2MethodExistenceCode, fmt.Sprintf("Call to an undefined method %s::%s().", resolvedClass.Name, call.Method)))
 		return
+	}
+
+	if !allReceiverClassesLackMethod(receiverType, call.Method, ctx) {
+		return
+	}
+	*issues = append(*issues, issueSpan(filename, call, level2MethodExistenceCode, fmt.Sprintf("Call to an undefined method %s::%s().", receiverType.String(), call.Method)))
+}
+
+func resolveMethodReceiverClass(className string, ctx *AnalysisContext) (ResolvedClass, bool) {
+	if ctx == nil || ctx.Resolver == nil {
+		return ResolvedClass{}, false
 	}
 	resolvedClass, ok := ctx.Resolver.ResolveClass(className)
 	if !ok {
 		// Unknown receiver classes are owned by the level-0 symbol checks.
-		return
+		return ResolvedClass{}, false
 	}
-	if _, ok := ctx.Resolver.ResolveMethod(resolvedClass.Name, call.Method); ok {
-		return
-	}
-	if _, ok := ctx.Resolver.ResolveMethod(resolvedClass.Name, "__call"); ok {
-		return
-	}
+	return resolvedClass, true
+}
 
-	*issues = append(*issues, issueSpan(filename, call, level2MethodExistenceCode, fmt.Sprintf("Call to an undefined method %s::%s().", resolvedClass.Name, call.Method)))
+func receiverClassProvidesMethod(className, method string, ctx *AnalysisContext) bool {
+	if _, ok := ctx.Resolver.ResolveMethod(className, method); ok {
+		return true
+	}
+	_, magic := ctx.Resolver.ResolveMethod(className, "__call")
+	return magic
+}
+
+func allReceiverClassesLackMethod(receiverType Type, method string, ctx *AnalysisContext) bool {
+	if receiverType.IsEmpty() || ctx == nil || ctx.Resolver == nil {
+		return false
+	}
+	classCount := 0
+	for _, atom := range receiverType.atoms {
+		if atom.kind != typeKindClass {
+			// Mixed, nullable, and other partly non-object receivers have separate
+			// PHPStan semantics. Keep this rule conservative until those codes are gated.
+			return false
+		}
+		resolvedClass, ok := resolveMethodReceiverClass(atom.display, ctx)
+		if !ok {
+			return false
+		}
+		if receiverClassProvidesMethod(resolvedClass.Name, method, ctx) {
+			return false
+		}
+		classCount++
+	}
+	return classCount > 0
 }
 
 func walkLevel2MethodExpressions(filename string, nodes []ast.Node, ctx *AnalysisContext, observe semanticExpressionObserver) {

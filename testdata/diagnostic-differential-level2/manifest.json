@@ -67,6 +67,41 @@
       "file": "unknown-method-typed-property.php",
       "engineCodes": ["PHPStan.Level2.MethodExistence"],
       "phpstanIdentifiers": ["method.notFound"]
+    },
+    {
+      "id": "unknown-method-named-function-chain",
+      "capability": "unknown methods on named function-return chains",
+      "file": "unknown-method-named-function-chain.php",
+      "engineCodes": ["PHPStan.Level2.MethodExistence"],
+      "phpstanIdentifiers": ["method.notFound"]
+    },
+    {
+      "id": "unknown-method-ternary-receiver",
+      "capability": "unknown methods on ternary receivers",
+      "file": "unknown-method-ternary-receiver.php",
+      "engineCodes": ["PHPStan.Level2.MethodExistence"],
+      "phpstanIdentifiers": ["method.notFound"]
+    },
+    {
+      "id": "unknown-method-union-all-missing",
+      "capability": "unknown methods on unions where all members lack the method",
+      "file": "unknown-method-union-all-missing.php",
+      "engineCodes": ["PHPStan.Level2.MethodExistence"],
+      "phpstanIdentifiers": ["method.notFound"]
+    },
+    {
+      "id": "unknown-method-intersection-all-missing",
+      "capability": "unknown methods on intersections where all members lack the method",
+      "file": "unknown-method-intersection-all-missing.php",
+      "engineCodes": ["PHPStan.Level2.MethodExistence"],
+      "phpstanIdentifiers": ["method.notFound"]
+    },
+    {
+      "id": "known-method-intersection-receiver",
+      "capability": "known methods on intersections where one member declares the method",
+      "file": "known-method-intersection-receiver.php",
+      "engineCodes": [],
+      "phpstanIdentifiers": []
     }
   ]
 }

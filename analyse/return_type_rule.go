@@ -29,7 +29,7 @@ type functionScope struct {
 	methodReturns    map[string]Type
 	// genericContext maps variable names to their generic class instantiations
 	// e.g., "$coll" → (className: "Collection", typeArguments: ["User"])
-	genericContext   map[string]GenericInstance
+	genericContext map[string]GenericInstance
 }
 
 type classScopeData struct {
@@ -277,7 +277,7 @@ func inferTypeWithFacts(filename string, expr ast.Node, scope *functionScope, ct
 func inferType(expr ast.Node, scope *functionScope, ctx *AnalysisContext) Type {
 	switch n := expr.(type) {
 	case *ast.FunctionCallNode:
-		return inferFunctionCallType(n)
+		return inferFunctionCallType(n, scope, ctx)
 	case *ast.MethodCallNode:
 		return inferMethodCallType(n, scope, ctx)
 	case *ast.NewNode:
@@ -290,6 +290,12 @@ func inferType(expr ast.Node, scope *functionScope, ctx *AnalysisContext) Type {
 		return inferType(n.Expr, scope, ctx)
 	case *ast.TypeCastNode:
 		return ParseType(n.Type)
+	case *ast.TernaryExpr:
+		ifTrue := inferType(n.IfTrue, scope, ctx)
+		if n.IfTrue == nil {
+			ifTrue = inferType(n.Condition, scope, ctx)
+		}
+		return unionInferredTypes(ifTrue, inferType(n.IfFalse, scope, ctx))
 	case *ast.VariableNode:
 		if scope != nil {
 			if t, ok := scope.variables[n.Name]; ok {
@@ -307,10 +313,20 @@ func inferType(expr ast.Node, scope *functionScope, ctx *AnalysisContext) Type {
 	}
 }
 
-// inferFunctionCallType handles known function-call return types.
-func inferFunctionCallType(n *ast.FunctionCallNode) Type {
+// inferFunctionCallType handles indexed and known built-in function return types.
+func inferFunctionCallType(n *ast.FunctionCallNode, scope *functionScope, ctx *AnalysisContext) Type {
 	if n == nil || n.Name == nil {
 		return MixedType()
+	}
+	if name := functionCallName(n); name != "" && ctx != nil && ctx.Resolver != nil {
+		var typeCtx FileTypeContext
+		if scope != nil {
+			typeCtx = scope.typeCtx
+		}
+		resolvedName := resolveFunctionNameForCall(name, typeCtx, ctx)
+		if function, ok := ctx.Resolver.ResolveFunction(resolvedName); ok && strings.TrimSpace(function.ReturnType) != "" {
+			return ParseType(function.ReturnType)
+		}
 	}
 	if id, ok := n.Name.(*ast.IdentifierNode); ok {
 		// Normalize FQFN: trim leading backslashes and namespaces
@@ -325,6 +341,19 @@ func inferFunctionCallType(n *ast.FunctionCallNode) Type {
 		}
 	}
 	return MixedType()
+}
+
+func unionInferredTypes(types ...Type) Type {
+	parts := make([]string, 0, len(types))
+	for _, inferred := range types {
+		if value := inferred.String(); value != "" {
+			parts = append(parts, value)
+		}
+	}
+	if len(parts) == 0 {
+		return EmptyType()
+	}
+	return ParseType(strings.Join(parts, "|"))
 }
 
 // inferNodeKindType maps concrete node kinds to simple types. Returns "" if unknown.
