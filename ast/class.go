@@ -163,11 +163,12 @@ func (n *NewNode) TokenLiteral() string {
 
 // MethodCallNode represents a method call on an object
 type MethodCallNode struct {
-	Object Node
-	Method string
-	Args   []Node
-	Pos    Position
-	EndPos Position
+	Object   Node
+	Method   string
+	Args     []Node
+	Pos      Position
+	EndPos   Position
+	Nullsafe bool
 }
 
 func (m *MethodCallNode) NodeType() string       { return "MethodCall" }

@@ -1,6 +1,7 @@
 package parser
 
 import (
+	"github.com/ayanozturk/go-php-parser/ast"
 	"github.com/ayanozturk/go-php-parser/lexer"
 	"testing"
 )
@@ -99,15 +100,45 @@ class Foo {
         return $admin?->getEmail();
     }
 }`
-	l := lexer.New(php)
-	p := New(l, true)
+	p := New(lexer.New(php), true)
 	nodes := p.Parse()
-	err := p.Errors()
-	if len(err) > 0 {
+	if err := p.Errors(); len(err) > 0 {
 		t.Fatalf("Unexpected errors: %v", err)
 	}
-	if len(nodes) == 0 {
-		t.Fatal("No AST nodes returned")
+	class, ok := nodes[0].(*ast.ClassNode)
+	if !ok || len(class.Methods) == 0 {
+		t.Fatalf("expected class with a method, got %#v", nodes)
+	}
+	function, ok := class.Methods[0].(*ast.FunctionNode)
+	if !ok || len(function.Body) == 0 {
+		t.Fatalf("expected method body, got %#v", class.Methods)
+	}
+	ret, ok := function.Body[0].(*ast.ReturnNode)
+	if !ok {
+		t.Fatalf("expected return, got %T", function.Body[0])
+	}
+	call, ok := ret.Expr.(*ast.MethodCallNode)
+	if !ok {
+		t.Fatalf("expected method call, got %T", ret.Expr)
+	}
+	if !call.Nullsafe || call.Method != "getEmail" {
+		t.Fatalf("expected nullsafe getEmail call, got %#v", call)
+	}
+}
+
+func TestParseObjectOperatorMethodCallIsNotNullsafe(t *testing.T) {
+	p := New(lexer.New(`<?php $service->execute();`), true)
+	nodes := p.Parse()
+	if err := p.Errors(); len(err) > 0 {
+		t.Fatalf("Unexpected errors: %v", err)
+	}
+	stmt, ok := nodes[0].(*ast.ExpressionStmt)
+	if !ok {
+		t.Fatalf("expected expression statement, got %T", nodes[0])
+	}
+	call, ok := stmt.Expr.(*ast.MethodCallNode)
+	if !ok || call.Nullsafe || call.Method != "execute" {
+		t.Fatalf("expected ordinary execute call, got %#v", stmt.Expr)
 	}
 }
 

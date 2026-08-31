@@ -1009,7 +1009,7 @@ func (p *Parser) parseSimpleObjectOrMethod(expr ast.Node) ast.Node {
 	member := p.tok.Literal
 	p.nextToken() // consume property/method name
 	if p.tok.Type == token.T_LPAREN {
-		return p.parseSimpleMethodCall(expr, member, objOpPos)
+		return p.parseSimpleMethodCall(expr, member, objOpPos, operator == "?->")
 	}
 	return &ast.PropertyFetchNode{
 		Object:   expr,
@@ -1018,7 +1018,7 @@ func (p *Parser) parseSimpleObjectOrMethod(expr ast.Node) ast.Node {
 	}
 }
 
-func (p *Parser) parseSimpleMethodCall(expr ast.Node, member string, objOpPos token.Position) ast.Node {
+func (p *Parser) parseSimpleMethodCall(expr ast.Node, member string, objOpPos token.Position, nullsafe bool) ast.Node {
 	p.nextToken() // consume '('
 	if p.tok.Type == token.T_ELLIPSIS && p.peekToken().Type == token.T_RPAREN {
 		p.nextToken() // consume '...'
@@ -1038,10 +1038,11 @@ func (p *Parser) parseSimpleMethodCall(expr ast.Node, member string, objOpPos to
 	}
 	p.nextToken() // consume )
 	return &ast.MethodCallNode{
-		Object: expr,
-		Method: member,
-		Args:   args,
-		Pos:    ast.Position(objOpPos),
+		Object:   expr,
+		Method:   member,
+		Args:     args,
+		Pos:      ast.Position(objOpPos),
+		Nullsafe: nullsafe,
 	}
 }
 
