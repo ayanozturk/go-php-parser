@@ -6,9 +6,9 @@ This file records reproducible evidence for the cooperating `go-php-parser` engi
 
 ## Current baseline
 
-- Engine revision validated and consumed by PHP Strom: pushed commit `b2e5b7a`.
-- Extension checkout: `/Users/ayan/Projects/vscode-php-strom`, `main` at pushed commit `b8bbc27`; the current package version is `0.1.29`.
-- Production extension builds pin `github.com/ayanozturk/go-php-parser` at pseudo-version `v0.0.0-20260831123607-b2e5b7abcd9e`. `make test-server-dev` validates the same engine through the generated, ignored sibling-workspace path.
+- Engine revision validated and consumed by PHP Strom: pushed commit `97c5e60`.
+- Extension checkout: `/Users/ayan/Projects/vscode-php-strom`, `main` at pushed commit `cef31c7`; the current package version is `0.1.29`.
+- Production extension builds pin `github.com/ayanozturk/go-php-parser` at pseudo-version `v0.0.0-20260831124355-97c5e60e1c3d`. `make test-server-dev` validates the same engine through the generated, ignored sibling-workspace path.
 - Go toolchain observed: Go 1.26.2. Node toolchain observed: Node 22.20.0 and npm 11.7.0.
 - Representative corpora are fetched at exact revisions from `test_projects/manifest.json`; generated working copies remain uncommitted.
 - The latest recorded full-corpus pass has zero failures for Composer, Drupal, Magento, PHPUnit, and WordPress. Symfony's two remaining fixtures are intentionally invalid/corrupted inputs, and Laravel has two narrow interpolation/callable edge cases. These recorded results are compatibility evidence, not a current performance result.
@@ -278,6 +278,7 @@ Representative workload: 23,556 indexed PHP files, 3,678,678 LOC, 135.68 MB, 151
 - Concrete PHPDoc `class-string<T>` parameters now retain their normalized target for `new $class()` inference. Dynamic construction no longer creates a false level-0 missing-class diagnostic, while unresolved, reassigned, malformed, multi-argument, union, and template-valued class strings remain conservative.
 - PHPDoc parameter splitting now preserves standard spaced callable signatures such as `callable(): Service`. Six neutral missing/known fixtures expand level 2 from nineteen to twenty-five cases; the complete 63-case level-0 and 25-case level-2 runs match pinned PHPStan `2.2.x-dev@e4ab62a` with zero engine or reference mismatches.
 - Extension commit `b8bbc27` pins pseudo-version `v0.0.0-20260831123607-b2e5b7abcd9e` and proves the default editor path reports exactly the three callable/closure/class-string method findings while known controls and level-0 symbols remain clean.
+- A scheduled full-corpus run exposed a scope-less property-fetch panic in the level-2 fallback walker. Parser commit `97c5e60` makes that path conservative when no function scope exists; a local full PSL analysis completed 7,259/7,259 files with zero parse failures, and extension commit `cef31c7` advances the production pin to the hardened revision.
 - Parser tests, vet, and race pass. Pinned and sibling extension tests, vet, race, all six server builds, TypeScript lint/compile/package, VS Code 1.89.1 extension-host tests, the editor-latency gate, and `npm audit --audit-level=low` pass. Packaging retains the known `vscode-languageserver-types` warning and the audit reports 0 vulnerabilities.
 
 ## Next ranked candidates
