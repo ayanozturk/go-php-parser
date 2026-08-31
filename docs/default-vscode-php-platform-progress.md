@@ -6,9 +6,9 @@ This file records reproducible evidence for the cooperating `go-php-parser` engi
 
 ## Current baseline
 
-- Engine revision validated and consumed by PHP Strom: pushed commit `a92ff39`.
-- Extension checkout: `/Users/ayan/Projects/vscode-php-strom`, `main` at pushed commit `960f927`; the current package version is `0.1.33`.
-- Production extension builds pin `github.com/ayanozturk/go-php-parser` at pseudo-version `v0.0.0-20260831160450-a92ff395870a`. `make test-server-dev` validates the same engine through the generated, ignored sibling-workspace path.
+- Engine revision validated and consumed by PHP Strom: pushed commit `e629d42`.
+- Extension checkout: `/Users/ayan/Projects/vscode-php-strom`, `main` at pushed commit `8348748`; the current package version is `0.1.34`.
+- Production extension builds pin `github.com/ayanozturk/go-php-parser` at pseudo-version `v0.0.0-20260831163118-e629d4267f4c`. `make test-server-dev` validates the same engine through the generated, ignored sibling-workspace path.
 - Go toolchain observed: Go 1.26.2. Node toolchain observed: Node 22.20.0 and npm 11.7.0.
 - Representative corpora are fetched at exact revisions from `test_projects/manifest.json`; generated working copies remain uncommitted.
 - The latest recorded full-corpus pass has zero failures for Composer, Drupal, Magento, PHPUnit, and WordPress. Symfony's two remaining fixtures are intentionally invalid/corrupted inputs, and Laravel has two narrow interpolation/callable edge cases. These recorded results are compatibility evidence, not a current performance result.
@@ -336,6 +336,11 @@ Representative workload: 23,556 indexed PHP files, 3,678,678 LOC, 135.68 MB, 151
 
 - `PHPStan.Level7.MethodUnion` reports when some but not all DNF alternatives provide the method, matching PHPStan `method.notFound`. All-missing unions stay on the level-2 rule. Five fixtures bring the executable gates to 88/24/65/1/5 and match pinned PHPStan `2.2.x-dev@e4ab62a`. Nullable `method.nonObject` stays at level 8.
 - Parser commit `a92ff39` lands the pack. Extension commit `960f927` pins pseudo-version `v0.0.0-20260831160450-a92ff395870a` and proves the default editor path reports partial unions through the undefined-symbol setting. Pinned and sibling tests, vet, race, all six server builds, TypeScript lint/compile/package, VS Code 1.89.1 host tests, the editor-latency gate, and `npm audit --audit-level=low` pass.
+
+### 2026-08-31 — Detect known methods on nullable object receivers at PHPStan level 8
+
+- `PHPStan.Level8.MethodNonObject` reports when every remaining object-like alternative provides the method and `null` is also possible, matching PHPStan `method.nonObject`. Scalar `int|null` and unknown nullable methods stay on level 2. Nullsafe `?->` stays clean. Five fixtures bring the executable gates to 88/24/65/1/5/5 and match pinned PHPStan `2.2.x-dev@e4ab62a`.
+- Parser commit `e629d42` lands the pack and records nullsafe operators on `MethodCallNode`. Extension commit `8348748` pins pseudo-version `v0.0.0-20260831163118-e629d4267f4c` and proves the default editor path reports known nullable methods through the type-error setting. Pinned and sibling tests, vet, race, all six server builds, TypeScript lint/compile/package, VS Code 1.89.1 host tests, the editor-latency gate, and `npm audit --audit-level=low` pass.
 
 ## Next ranked candidates
 
