@@ -291,6 +291,62 @@
       "file": "unknown-method-nullsafe-receiver.php",
       "engineCodes": ["PHPStan.Level2.MethodExistence"],
       "phpstanIdentifiers": ["method.notFound"]
+    },
+    {
+      "id": "unknown-method-int-receiver",
+      "capability": "method calls on int receivers",
+      "file": "unknown-method-int-receiver.php",
+      "engineCodes": ["PHPStan.Level2.MethodNonObject"],
+      "phpstanIdentifiers": ["method.nonObject"]
+    },
+    {
+      "id": "unknown-method-array-receiver",
+      "capability": "method calls on array receivers",
+      "file": "unknown-method-array-receiver.php",
+      "engineCodes": ["PHPStan.Level2.MethodNonObject"],
+      "phpstanIdentifiers": ["method.nonObject"]
+    },
+    {
+      "id": "unknown-method-callable-receiver",
+      "capability": "method calls on callable receivers",
+      "file": "unknown-method-callable-receiver.php",
+      "engineCodes": ["PHPStan.Level2.MethodNonObject"],
+      "phpstanIdentifiers": ["method.nonObject"]
+    },
+    {
+      "id": "unknown-method-iterable-receiver",
+      "capability": "method calls on iterable receivers",
+      "file": "unknown-method-iterable-receiver.php",
+      "engineCodes": ["PHPStan.Level2.MethodNonObject"],
+      "phpstanIdentifiers": ["method.nonObject"]
+    },
+    {
+      "id": "object-method-receiver",
+      "capability": "method calls on object receivers stay clean at level 2",
+      "file": "object-method-receiver.php",
+      "engineCodes": [],
+      "phpstanIdentifiers": []
+    },
+    {
+      "id": "unknown-method-union-class-string",
+      "capability": "unknown methods on class-or-string unions",
+      "file": "unknown-method-union-class-string.php",
+      "engineCodes": ["PHPStan.Level2.MethodNonObject"],
+      "phpstanIdentifiers": ["method.nonObject"]
+    },
+    {
+      "id": "known-method-union-class-string",
+      "capability": "known methods on class-or-string unions",
+      "file": "known-method-union-class-string.php",
+      "engineCodes": [],
+      "phpstanIdentifiers": []
+    },
+    {
+      "id": "unknown-method-union-int-class",
+      "capability": "unknown methods on int-or-class unions",
+      "file": "unknown-method-union-int-class.php",
+      "engineCodes": ["PHPStan.Level2.MethodNonObject"],
+      "phpstanIdentifiers": ["method.nonObject"]
     }
   ]
 }
