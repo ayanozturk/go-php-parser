@@ -1273,6 +1273,21 @@ $a = ['x' => 1, 'x' => 2];
 	}
 }
 
+func TestLevel0InvalidVoidAndUnsetCasts(t *testing.T) {
+	issues := runLevel0OnFiles(t, map[string]string{
+		"test.php": `<?php
+$x = (void) 1;
+$y = (unset) 1;
+`,
+	})
+	if !hasIssueContaining(issues, level0LanguageCode, "Cannot cast to void.") {
+		t.Fatalf("expected void cast issue, got %#v", issues)
+	}
+	if !hasIssueContaining(issues, level0LanguageCode, "Cannot cast to unset.") {
+		t.Fatalf("expected unset cast issue, got %#v", issues)
+	}
+}
+
 func TestAnalysisLevel0DoesNotRunHigherLevelRules(t *testing.T) {
 	issues := runLevel0OnFiles(t, map[string]string{
 		"test.php": `<?php

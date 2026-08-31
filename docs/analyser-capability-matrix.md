@@ -24,7 +24,7 @@ go run ./cmd/diagnostic-diff --fixtures testdata/diagnostic-differential-level2 
 go run ./cmd/diagnostic-diff --fixtures testdata/diagnostic-differential-level3 --phpstan-bin /absolute/path/to/phpstan --json
 ```
 
-The full report records the PHPStan version returned by the supplied executable. Results from different reference versions must not be merged without review. Current executable gates: **80 / 24 / 65 / 1** (levels 0–3). The 80-case level-0 pack, sixty-five-case level-2 pack, and one-case level-3 pack were last fully verified against the pinned local reference `PHPStan 2.2.x-dev@e4ab62a`. The ordinary Go suite uses engine-only mode so it does not silently download or depend on an external analyser. Ranked next coverage work is in `docs/full-static-analyser-target.md`.
+The full report records the PHPStan version returned by the supplied executable. Results from different reference versions must not be merged without review. Current executable gates: **88 / 24 / 65 / 1** (levels 0–3). The 88-case level-0 pack, sixty-five-case level-2 pack, and one-case level-3 pack were last fully verified against the pinned local reference `PHPStan 2.2.x-dev@e4ab62a`. The ordinary Go suite uses engine-only mode so it does not silently download or depend on an external analyser. Ranked next coverage work is in `docs/full-static-analyser-target.md`.
 
 ## Executable differential coverage
 
@@ -88,7 +88,8 @@ The full report records the PHPStan version returned by the supplied executable.
 | Interface extending an unknown interface | Partial, differential-gated | `interface-extends-unknown` | `PHPStan.Level0.ClassModel` | `interface.notFound` | Proves `interface Child extends MissingParent`. |
 | Interface extending a class | Partial, differential-gated | `interface-extends-class` | `PHPStan.Level0.ClassModel` | `interfaceExtends.class` | Proves an interface `extends` of a same-file class. |
 | Non-public interface method implementations | Partial, differential-gated | `interface-method-not-public` | `PHPStan.Level0.ClassModel` | `method.visibility` | Proves a protected method implementing a public interface method. |
-| Overriding with fewer parameters | Partial, differential-gated | `override-fewer-params` | `PHPStan.Level0.ClassModel` | `parameter.missing` | Proves an implementation that drops an inherited optional parameter. Extra-required-parameter overrides remain outside the gate. |
+| Overriding with fewer parameters | Partial, differential-gated | `override-fewer-params` | `PHPStan.Level0.ClassModel` | `parameter.missing` | Proves an implementation that drops an inherited optional parameter. |
+| Overriding with extra required parameters | Partial, differential-gated | `override-extra-required-params` | `PHPStan.Level0.ClassModel` | `parameter.notOptional` (twice) | PHPStan emits one identifier per newly required parameter; this engine reports a single class-model diagnostic. |
 | Incompatible inherited return types | Partial, differential-gated | `override-return-type` | `PHPStan.Level0.ClassModel` | `method.childReturnType` | Proves `string` overriding `int`. |
 | Covariant inherited return types | Level-0 clean boundary | `covariant-return-clean` | none | none | Proves `string` overriding `mixed` stays clean at the pinned level-0 boundary. |
 | Instantiating an enum | Partial, differential-gated | `instantiate-enum` | `PHPStan.Level0.ClassModel` | `new.enum` | Proves enum instantiation; other enum and trait legality checks remain outside the gate. |
@@ -105,11 +106,18 @@ The full report records the PHPStan version returned by the supplied executable.
 | Unit enum cases with values | Partial, differential-gated | `enum-unit-with-value` | `PHPStan.Level0.ClassModel` | `enum.caseWithValue` | Proves a non-backed case that declares a value. |
 | Backed enum cases without values | Partial, differential-gated | `enum-missing-backed-value` | `PHPStan.Level0.ClassModel` | `enum.missingCase` | Proves a backed case with no value. |
 | Backed enum case value types | Partial, differential-gated | `enum-case-type-mismatch` | `PHPStan.Level0.ClassModel` | `enum.caseType` | Proves an `int` value on a `string` backed enum. |
+| Enum constructors | Partial, differential-gated | `enum-constructor` | `PHPStan.Level0.ClassModel` | `enum.constructor` | Proves `__construct` inside a backed enum. |
+| Enum destructors | Partial, differential-gated | `enum-destructor` | `PHPStan.Level0.ClassModel` | `enum.destructor` | Proves `__destruct` inside a backed enum. |
+| Disallowed enum magic methods | Partial, differential-gated | `enum-magic-sleep` | `PHPStan.Level0.ClassModel` | `enum.magicMethod`, `return.missing` | Proves `__sleep`; PHPStan also reports a missing return type. Native method redeclaration mixes extra identifiers and stays outside the gate. |
+| Invalid enum backing types | Partial, differential-gated | `enum-float-backing` | `PHPStan.Level0.ClassModel` (twice) | `enum.backingType`, `enum.missingCase` | Proves `: float` plus a valueless case. |
+| Enums implementing Serializable | Partial, differential-gated | `enum-serializable` | `PHPStan.Level0.ClassModel` | `enum.serializable`, `method.abstract` (twice) | PHPStan also reports the two unimplemented `Serializable` methods. |
 | Duplicate literal array keys | Partial, differential-gated | `duplicate-array-key` | `PHPStan.Level0.Language` | `array.duplicateKey` | Proves a string-key duplicate in an array literal. |
 | Undefined goto labels | Partial, differential-gated | `unknown-goto` | `PHPStan.Level0.Language` | `goto.labelUndefined` | Proves `goto missing;` with no matching label. |
 | Incrementing a literal | Partial, differential-gated | `increment-literal` | `PHPStan.Level0.Language` | `phpstan.parse` | Proves a non-writable increment target; PHPStan reports a parse identifier. |
 | Missing included files | Partial, differential-gated | `missing-include` | `PHPStan.Level0.Language` | `include.fileNotFound` | Proves a literal include path that does not exist. Dynamic paths and other include/require resolution remain outside the gate. |
 | Invalid regex patterns | Partial, differential-gated | `invalid-regex` | `PHPStan.Level0.Language` | `regexp.pattern` | Proves a statically invalid regular-expression pattern. Dynamic patterns and full PCRE compatibility remain outside the gate. |
+| Void casts | Partial, differential-gated | `void-cast` | `PHPStan.Level0.Language` | `cast.void` | Proves `(void) 1` after the parser accepts the cast form. |
+| Unset casts | Partial, differential-gated | `unset-cast` | `PHPStan.Level0.Language` | `cast.unset` | Proves `(unset) 1`; the lexer emits `T_UNSET` inside the parentheses. |
 | Invalid throw expressions | Differential-gated at levels 0 and 3 | `invalid-throw` (level 0 and level 3 packs) | none at level 0; `PHPStan.Level3.ThrowType` at level 3 | none at level 0; `throw.notThrowable` at level 3 | The level-0 fixture confirms the clean baseline; the level-3 pack gates resolved non-throwable classes. Unresolved and broader throw-type cases remain outside the gate. |
 | Always undefined variables | Partial, differential-gated | `undefined-variable` (level 1 pack) | `PHPStan.Level1.Variables` | `variable.undefined` | PHPStan 2.2.5 introduces this diagnostic at level 1, including for an always-undefined top-level read. |
 | Possibly undefined variables | Partial, differential-gated | `branch-defined-variable`, `while-defined-variable`, `closure-by-value-undefined-variable`, `reference-assignment`, `dynamic-receiver-by-reference`, `nested-continue-two-undefined-variable`, `switch-continue-two-undefined-variable`, `break-two-finally-undefined-variable`, `unknown-array-extract`, `builtin-reference-input-output-parameters` | `PHPStan.Level1.Variables` | `variable.undefined` | Joined facts cover conditionals, bounded loop convergence, `switch`, `try`/`catch`/`finally`, explicit closure captures, direct reference assignment, conservative dynamic-receiver arguments, numeric multi-level loop/switch transfers, unknown-array `extract()` effects, and selected input/output built-in references. Dynamic calls and dynamic transfer levels remain incomplete. |
@@ -124,10 +132,10 @@ These areas have repository unit coverage but no checked-in PHPStan differential
 
 | Area | Current status | Principal diagnostic codes |
 | --- | --- | --- |
-| Remaining class-model legality beyond the gated hierarchy, enum-case, and signature cases | Partial | `PHPStan.Level0.ClassModel` |
+| Remaining class-model legality beyond the gated hierarchy, enum, and signature cases | Partial | `PHPStan.Level0.ClassModel` |
 | Remaining imports (unused class imports and namespace-alias forms) | Partial | `PHPStan.Level0.Symbols` |
 | Remaining invocation edge cases beyond gated static/instance direction and duplicate names | Partial | `PHPStan.Level0.Invocation` |
-| Remaining language checks (void/unset casts the parser cannot yet represent) | Partial | `PHPStan.Level0.Language` |
+| Remaining language checks beyond gated casts, includes, regex, goto, and duplicate keys | Partial | `PHPStan.Level0.Language` |
 | Return completeness, return types, and property assignment types | Partial, above level 0 | `A.RETURN.TYPE`, `A.PROP.TYPE` |
 | Argument types | Partial, above levels 0–3 | `A.ARG.TYPE` |
 

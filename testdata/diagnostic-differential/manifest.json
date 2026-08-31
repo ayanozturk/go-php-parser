@@ -862,6 +862,100 @@
       "phpstanIdentifiers": [
         "staticMethod.notFound"
       ]
+    },
+    {
+      "id": "override-extra-required-params",
+      "capability": "overriding with extra required parameters",
+      "file": "override-extra-required-params.php",
+      "engineCodes": [
+        "PHPStan.Level0.ClassModel"
+      ],
+      "phpstanIdentifiers": [
+        "parameter.notOptional",
+        "parameter.notOptional"
+      ]
+    },
+    {
+      "id": "enum-constructor",
+      "capability": "enum constructors",
+      "file": "enum-constructor.php",
+      "engineCodes": [
+        "PHPStan.Level0.ClassModel"
+      ],
+      "phpstanIdentifiers": [
+        "enum.constructor"
+      ]
+    },
+    {
+      "id": "enum-destructor",
+      "capability": "enum destructors",
+      "file": "enum-destructor.php",
+      "engineCodes": [
+        "PHPStan.Level0.ClassModel"
+      ],
+      "phpstanIdentifiers": [
+        "enum.destructor"
+      ]
+    },
+    {
+      "id": "enum-magic-sleep",
+      "capability": "disallowed enum magic methods",
+      "file": "enum-magic-sleep.php",
+      "engineCodes": [
+        "PHPStan.Level0.ClassModel"
+      ],
+      "phpstanIdentifiers": [
+        "enum.magicMethod",
+        "return.missing"
+      ]
+    },
+    {
+      "id": "enum-float-backing",
+      "capability": "invalid enum backing types",
+      "file": "enum-float-backing.php",
+      "engineCodes": [
+        "PHPStan.Level0.ClassModel",
+        "PHPStan.Level0.ClassModel"
+      ],
+      "phpstanIdentifiers": [
+        "enum.backingType",
+        "enum.missingCase"
+      ]
+    },
+    {
+      "id": "enum-serializable",
+      "capability": "enums implementing Serializable",
+      "file": "enum-serializable.php",
+      "engineCodes": [
+        "PHPStan.Level0.ClassModel"
+      ],
+      "phpstanIdentifiers": [
+        "enum.serializable",
+        "method.abstract",
+        "method.abstract"
+      ]
+    },
+    {
+      "id": "void-cast",
+      "capability": "void casts",
+      "file": "void-cast.php",
+      "engineCodes": [
+        "PHPStan.Level0.Language"
+      ],
+      "phpstanIdentifiers": [
+        "cast.void"
+      ]
+    },
+    {
+      "id": "unset-cast",
+      "capability": "unset casts",
+      "file": "unset-cast.php",
+      "engineCodes": [
+        "PHPStan.Level0.Language"
+      ],
+      "phpstanIdentifiers": [
+        "cast.unset"
+      ]
     }
   ]
 }

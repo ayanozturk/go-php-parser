@@ -120,3 +120,18 @@ func TestParseInlineHTMLBeforeSwitchClose(t *testing.T) {
 		}
 	}`)
 }
+
+func TestParseVoidAndUnsetCasts(t *testing.T) {
+	for _, src := range []string{
+		`<?php $x = (void) 1;`,
+		`<?php $x = (unset) 1;`,
+		`<?php $x = (UNSET) 1;`,
+		`<?php $x = (VOID) 1;`,
+	} {
+		parseNoErrors(t, src)
+	}
+	nodes := parseNoErrors(t, `<?php $x = (void) 1; $y = (unset) 2;`)
+	if len(nodes) != 2 {
+		t.Fatalf("expected two statements, got %d", len(nodes))
+	}
+}

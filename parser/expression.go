@@ -1273,16 +1273,23 @@ func (p *Parser) parseGroupedExpression() ast.Node {
 }
 
 func (p *Parser) readCastType() (string, bool) {
+	if p.tok.Type == token.T_UNSET_CAST {
+		return "unset", true
+	}
 	if p.tok.Type == token.T_STRING {
 		// PHP cast keywords are case-insensitive, e.g. "(String)", "(INT)".
 		switch strings.ToLower(p.tok.Literal) {
-		case "string", "int", "integer", "float", "double", "real", "bool", "boolean", "object", "unset", "binary":
+		case "string", "int", "integer", "float", "double", "real", "bool", "boolean", "object", "unset", "binary", "void":
 			castType := strings.ToLower(p.tok.Literal)
 			if p.peekToken().Type == token.T_RPAREN {
 				p.nextToken()
 				return castType, true
 			}
 		}
+	}
+	if p.tok.Type == token.T_UNSET && p.peekToken().Type == token.T_RPAREN {
+		p.nextToken()
+		return "unset", true
 	}
 	if p.tok.Type == token.T_ARRAY && p.peekToken().Type == token.T_RPAREN {
 		p.nextToken()
