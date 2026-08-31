@@ -1,6 +1,10 @@
 package analyse
 
-import "github.com/ayanozturk/go-php-parser/ast"
+import (
+	"fmt"
+
+	"github.com/ayanozturk/go-php-parser/ast"
+)
 
 const (
 	level0SymbolsCode    = "PHPStan.Level0.Symbols"
@@ -15,11 +19,25 @@ type PHPStanLevel0Rule struct{}
 func (r *PHPStanLevel0Rule) CheckIssues(filename string, nodes []ast.Node, ctx *AnalysisContext) []AnalysisIssue {
 	ctx = ensureLevel0Context(filename, nodes, ctx)
 	fileCtx := analysisFileTypeContext(ctx, nodes)
-	var issues []AnalysisIssue
-	issues = append(issues, r.checkClassModel(filename, nodes, ctx, fileCtx)...)
-	issues = append(issues, r.checkTypeReferences(filename, nodes, ctx, fileCtx)...)
-	issues = append(issues, r.checkSymbolsAndCalls(filename, nodes, ctx, fileCtx)...)
-	issues = append(issues, r.checkLanguage(filename, nodes, ctx, fileCtx)...)
+	guards := collectReflectionGuards(nodes, ctx, fileCtx)
+	issues := r.checkClassModel(filename, nodes, ctx, fileCtx)
+
+	var typeIssues, symbolIssues, languageIssues []AnalysisIssue
+	labels := map[string]struct{}{}
+	var gotos []*ast.GotoNode
+	walkAllWithFileContext(nodes, fileCtx, ctx, func(node ast.Node, class *ast.ClassNode, currentFn *ast.FunctionNode, ft FileTypeContext) {
+		checkTypeReferenceOnNode(filename, node, ft, ctx, guards, &typeIssues)
+		checkSymbolOnNode(filename, node, class, currentFn, ft, ctx, guards, &symbolIssues)
+		checkLanguageOnNode(filename, node, ft, labels, &gotos, &languageIssues)
+	})
+	issues = append(issues, typeIssues...)
+	issues = append(issues, symbolIssues...)
+	for _, goTo := range gotos {
+		if _, ok := labels[goTo.Label]; !ok {
+			languageIssues = append(languageIssues, issueSpan(filename, goTo, level0LanguageCode, fmt.Sprintf("Goto to undefined label %s.", goTo.Label)))
+		}
+	}
+	issues = append(issues, languageIssues...)
 	return issues
 }
 

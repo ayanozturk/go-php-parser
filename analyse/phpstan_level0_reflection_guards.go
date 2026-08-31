@@ -13,6 +13,9 @@ type reflectionGuards struct {
 }
 
 func collectReflectionGuards(nodes []ast.Node, ctx *AnalysisContext, fileCtx FileTypeContext) reflectionGuards {
+	if ctx != nil && ctx.hasReflectionGuards {
+		return ctx.reflectionGuards
+	}
 	guards := reflectionGuards{
 		classes:   map[string]struct{}{},
 		functions: map[string]struct{}{},
@@ -24,7 +27,7 @@ func collectReflectionGuards(nodes []ast.Node, ctx *AnalysisContext, fileCtx Fil
 		if !ok {
 			return
 		}
-		name := strings.ToLower(functionCallName(call))
+		name := asciiLowerIdent(functionCallName(call))
 		switch name {
 		case "class_exists", "interface_exists", "trait_exists", "enum_exists":
 			if len(call.Args) == 0 {
@@ -61,6 +64,10 @@ func collectReflectionGuards(nodes []ast.Node, ctx *AnalysisContext, fileCtx Fil
 			}
 		}
 	})
+	if ctx != nil {
+		ctx.reflectionGuards = guards
+		ctx.hasReflectionGuards = true
+	}
 	return guards
 }
 
@@ -106,5 +113,5 @@ func methodGuardClass(node ast.Node, current *ast.ClassNode, ft FileTypeContext)
 }
 
 func methodKey(className, methodName string) string {
-	return indexKey(className) + "::" + strings.ToLower(strings.TrimSpace(methodName))
+	return indexKey(className) + "::" + asciiLowerIdent(strings.TrimSpace(methodName))
 }

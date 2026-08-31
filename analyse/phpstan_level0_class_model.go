@@ -17,11 +17,14 @@ func (r *PHPStanLevel0Rule) checkClassModel(filename string, nodes []ast.Node, c
 		for _, node := range nodes {
 			switch n := node.(type) {
 			case *ast.NamespaceNode:
-				nft := CollectFileTypeContext(n.Body)
-				if nft.Namespace == "" {
-					nft.Namespace = n.Name
+				var cache map[*ast.NamespaceNode]FileTypeContext
+				if ctx != nil {
+					if ctx.namespaceContextByNode == nil {
+						ctx.namespaceContextByNode = make(map[*ast.NamespaceNode]FileTypeContext)
+					}
+					cache = ctx.namespaceContextByNode
 				}
-				walk(n.Body, nft, currentClass)
+				walk(n.Body, namespaceTypeContext(n, cache), currentClass)
 			case *ast.ClassNode:
 				className := ft.resolveClassLike(n.Name)
 				if hasClassModifier(n, "final") && hasClassModifier(n, "abstract") {

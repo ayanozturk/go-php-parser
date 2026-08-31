@@ -168,10 +168,13 @@ type AnalysisContext struct {
 	hasMethodReceiverIssues bool
 	namespaceContextByNode  map[*ast.NamespaceNode]FileTypeContext
 
-	argTypeIssues          []AnalysisIssue
-	argCountIssues         []AnalysisIssue
-	argCountSink           *[]AnalysisIssue
-	hasArgCallDiagnostics  bool
+	argTypeIssues         []AnalysisIssue
+	argCountIssues        []AnalysisIssue
+	argCountSink          *[]AnalysisIssue
+	hasArgCallDiagnostics bool
+
+	reflectionGuards    reflectionGuards
+	hasReflectionGuards bool
 }
 
 func analysisLevelAtLeast(ctx *AnalysisContext, level int) bool {

@@ -14,65 +14,8 @@ func (r *PHPStanLevel0Rule) checkLanguage(filename string, nodes []ast.Node, ctx
 	var issues []AnalysisIssue
 	labels := map[string]struct{}{}
 	var gotos []*ast.GotoNode
-	walkAllWithFileContext(nodes, fileCtx, ctx, func(node ast.Node, class *ast.ClassNode, _ *ast.FunctionNode, ft FileTypeContext) {
-		switch n := node.(type) {
-		case *ast.LabelNode:
-			labels[n.Name] = struct{}{}
-		case *ast.GotoNode:
-			gotos = append(gotos, n)
-		case *ast.ArrayNode:
-			seen := map[string]ast.Position{}
-			for _, element := range n.Elements {
-				item, ok := element.(*ast.ArrayItemNode)
-				if !ok || item.Key == nil {
-					continue
-				}
-				key, ok := literalKey(item.Key)
-				if !ok {
-					continue
-				}
-				if first, exists := seen[key]; exists {
-					_ = first
-					issues = append(issues, issueSpan(filename, item, level0LanguageCode, fmt.Sprintf("Array has %s duplicate key.", key)))
-					continue
-				}
-				seen[key] = item.GetPos()
-			}
-		case *ast.UnaryExpr:
-			switch n.Operator {
-			case "include", "include_once", "require", "require_once":
-				if path, ok := stringLiteralValue(n.Operand); ok {
-					if _, err := os.Stat(resolveIncludePath(filename, path)); err != nil {
-						issues = append(issues, issueSpan(filename, n, level0LanguageCode, fmt.Sprintf("Path in %s() \"%s\" is not a file or it does not exist.", n.Operator, path)))
-					}
-				}
-			case "++", "--":
-				if !isWritableExpr(n.Operand) {
-					issues = append(issues, issueSpan(filename, n, level0LanguageCode, fmt.Sprintf("Cannot use %s on non-variable expression.", n.Operator)))
-				}
-			}
-		case *ast.TypeCastNode:
-			if strings.EqualFold(n.Type, "unset") || strings.EqualFold(n.Type, "void") {
-				issues = append(issues, issueSpan(filename, n, level0LanguageCode, fmt.Sprintf("Cannot cast to %s.", n.Type)))
-			}
-		case *ast.FunctionCallNode:
-			name := strings.ToLower(functionCallName(n))
-			if name == "preg_match" && len(n.Args) > 0 {
-				if pattern, ok := stringLiteralValue(argumentValue(n.Args[0])); ok {
-					if _, err := regexp.Compile(extractRegexpBody(pattern)); err != nil {
-						issues = append(issues, issueSpan(filename, n, level0LanguageCode, fmt.Sprintf("Regex pattern is invalid: %s", err.Error())))
-					}
-				}
-			}
-			if (name == "printf" || name == "sprintf") && len(n.Args) > 0 {
-				if format, ok := stringLiteralValue(argumentValue(n.Args[0])); ok {
-					required := countPrintfPlaceholders(format)
-					if required > len(n.Args)-1 {
-						issues = append(issues, issueSpan(filename, n, level0InvocationCode, fmt.Sprintf("Call to function %s contains %d placeholders, %d values given.", name, required, len(n.Args)-1)))
-					}
-				}
-			}
-		}
+	walkAllWithFileContext(nodes, fileCtx, ctx, func(node ast.Node, _ *ast.ClassNode, _ *ast.FunctionNode, ft FileTypeContext) {
+		checkLanguageOnNode(filename, node, ft, labels, &gotos, &issues)
 	})
 	for _, goTo := range gotos {
 		if _, ok := labels[goTo.Label]; !ok {
@@ -80,6 +23,66 @@ func (r *PHPStanLevel0Rule) checkLanguage(filename string, nodes []ast.Node, ctx
 		}
 	}
 	return issues
+}
+
+func checkLanguageOnNode(filename string, node ast.Node, _ FileTypeContext, labels map[string]struct{}, gotos *[]*ast.GotoNode, issues *[]AnalysisIssue) {
+	switch n := node.(type) {
+	case *ast.LabelNode:
+		labels[n.Name] = struct{}{}
+	case *ast.GotoNode:
+		*gotos = append(*gotos, n)
+	case *ast.ArrayNode:
+		seen := map[string]ast.Position{}
+		for _, element := range n.Elements {
+			item, ok := element.(*ast.ArrayItemNode)
+			if !ok || item.Key == nil {
+				continue
+			}
+			key, ok := literalKey(item.Key)
+			if !ok {
+				continue
+			}
+			if _, exists := seen[key]; exists {
+				*issues = append(*issues, issueSpan(filename, item, level0LanguageCode, fmt.Sprintf("Array has %s duplicate key.", key)))
+				continue
+			}
+			seen[key] = item.GetPos()
+		}
+	case *ast.UnaryExpr:
+		switch n.Operator {
+		case "include", "include_once", "require", "require_once":
+			if path, ok := stringLiteralValue(n.Operand); ok {
+				if _, err := os.Stat(resolveIncludePath(filename, path)); err != nil {
+					*issues = append(*issues, issueSpan(filename, n, level0LanguageCode, fmt.Sprintf("Path in %s() \"%s\" is not a file or it does not exist.", n.Operator, path)))
+				}
+			}
+		case "++", "--":
+			if !isWritableExpr(n.Operand) {
+				*issues = append(*issues, issueSpan(filename, n, level0LanguageCode, fmt.Sprintf("Cannot use %s on non-variable expression.", n.Operator)))
+			}
+		}
+	case *ast.TypeCastNode:
+		if strings.EqualFold(n.Type, "unset") || strings.EqualFold(n.Type, "void") {
+			*issues = append(*issues, issueSpan(filename, n, level0LanguageCode, fmt.Sprintf("Cannot cast to %s.", n.Type)))
+		}
+	case *ast.FunctionCallNode:
+		name := asciiLowerIdent(functionCallName(n))
+		if name == "preg_match" && len(n.Args) > 0 {
+			if pattern, ok := stringLiteralValue(argumentValue(n.Args[0])); ok {
+				if _, err := regexp.Compile(extractRegexpBody(pattern)); err != nil {
+					*issues = append(*issues, issueSpan(filename, n, level0LanguageCode, fmt.Sprintf("Regex pattern is invalid: %s", err.Error())))
+				}
+			}
+		}
+		if (name == "printf" || name == "sprintf") && len(n.Args) > 0 {
+			if format, ok := stringLiteralValue(argumentValue(n.Args[0])); ok {
+				required := countPrintfPlaceholders(format)
+				if required > len(n.Args)-1 {
+					*issues = append(*issues, issueSpan(filename, n, level0InvocationCode, fmt.Sprintf("Call to function %s contains %d placeholders, %d values given.", name, required, len(n.Args)-1)))
+				}
+			}
+		}
+	}
 }
 
 func literalKey(node ast.Node) (string, bool) {
