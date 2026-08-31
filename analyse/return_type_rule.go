@@ -36,6 +36,8 @@ type functionScope struct {
 	arrayShapesShared       bool
 	arrayIndexKeys          map[string][]string
 	classConstantValues     map[string]string
+	propertyArrayShapes     map[string]map[string]arrayShapeField
+	methodArrayShapes       map[string]map[string]arrayShapeField
 	// genericContext maps variable names to their generic class instantiations
 	// e.g., "$coll" → (className: "Collection", typeArguments: ["User"])
 	genericContext map[string]GenericInstance
@@ -48,6 +50,8 @@ type classScopeData struct {
 	methods                 map[string]ResolvedMethod
 	methodReturns           map[string]Type
 	propertyCallableReturns map[string]Type
+	propertyArrayShapes     map[string]map[string]arrayShapeField
+	methodArrayShapes       map[string]map[string]arrayShapeField
 }
 
 type ReturnTypeError struct {
@@ -296,6 +300,11 @@ func inferType(expr ast.Node, scope *functionScope, ctx *AnalysisContext) Type {
 		return ParseType("callable")
 	case *ast.PropertyFetchNode:
 		return inferPropertyFetchType(n, scope, ctx)
+	case *ast.ArrayAccessNode:
+		if field := lookupArrayShapeField(arrayShapeFieldsOf(n.Var, scope, ctx), n.Index, scope); !field.typ.IsEmpty() {
+			return field.typ
+		}
+		return MixedType()
 	case *ast.ConcatNode:
 		return ParseType("string")
 	case *ast.ExpressionStmt:
@@ -387,7 +396,7 @@ func inferCallableInvocationReturn(expr ast.Node, scope *functionScope, ctx *Ana
 			return scope.callableReturns[callable.Name]
 		}
 	case *ast.ArrayAccessNode:
-		return inferArrayShapeCallableReturn(callable, scope)
+		return inferArrayShapeCallableReturn(callable, scope, ctx)
 	case *ast.PropertyFetchNode:
 		if object, ok := callable.Object.(*ast.VariableNode); ok && object.Name == "this" && scope != nil {
 			if returnType := scope.propertyCallableReturns[callable.Property]; !returnType.IsEmpty() {
@@ -535,6 +544,8 @@ func newFunctionScopeWithContext(ctx *AnalysisContext, class *ast.ClassNode, fn 
 		scope.methods = classData.methods
 		scope.methodReturns = classData.methodReturns
 		scope.propertyCallableReturns = classData.propertyCallableReturns
+		scope.propertyArrayShapes = classData.propertyArrayShapes
+		scope.methodArrayShapes = classData.methodArrayShapes
 	}
 	templateBounds := localTemplateBounds(class, fn, typeCtx)
 
@@ -641,6 +652,8 @@ func buildClassScopeDataWithSeen(class *ast.ClassNode, typeCtx FileTypeContext, 
 		methods:                 make(map[string]ResolvedMethod),
 		methodReturns:           make(map[string]Type),
 		propertyCallableReturns: make(map[string]Type),
+		propertyArrayShapes:     make(map[string]map[string]arrayShapeField),
+		methodArrayShapes:       make(map[string]map[string]arrayShapeField),
 	}
 	key := strings.ToLower(strings.TrimPrefix(data.className, `\`))
 	if _, ok := seen[key]; ok {
@@ -673,6 +686,9 @@ func buildClassScopeDataWithSeen(class *ast.ClassNode, typeCtx FileTypeContext, 
 		}
 		propertyType := ParseType(normalizeTypeWithContext(property.TypeHint, typeCtx))
 		if property.PHPDoc != nil && property.PHPDoc.VarType != "" {
+			if fields := parseArrayShapeFields(property.PHPDoc.VarType, typeCtx); len(fields) > 0 {
+				data.propertyArrayShapes[property.Name] = fields
+			}
 			if callableReturn := callableReturnType(property.PHPDoc.VarType, typeCtx); !callableReturn.IsEmpty() {
 				propertyType = ParseType("callable")
 				data.propertyCallableReturns[property.Name] = callableReturn
@@ -729,6 +745,9 @@ func buildClassScopeDataWithSeen(class *ast.ClassNode, typeCtx FileTypeContext, 
 		if !methodType.IsEmpty() {
 			data.methodReturns[strings.ToLower(method.Name)] = methodType
 		}
+		if fields := parseArrayShapeFields(methodReturnTypeAnnotation(method), typeCtx); len(fields) > 0 {
+			data.methodArrayShapes[strings.ToLower(method.Name)] = fields
+		}
 	}
 	return data
 }
@@ -748,6 +767,12 @@ func mergeClassScopeData(dst *classScopeData, src classScopeData) {
 	}
 	for name, typ := range src.propertyCallableReturns {
 		dst.propertyCallableReturns[name] = typ
+	}
+	for name, fields := range src.propertyArrayShapes {
+		dst.propertyArrayShapes[name] = fields
+	}
+	for name, fields := range src.methodArrayShapes {
+		dst.methodArrayShapes[name] = fields
 	}
 }
 
@@ -781,7 +806,7 @@ func copyArrayShapeCallables(src map[string]map[string]arrayShapeField) map[stri
 	return dst
 }
 
-func arrayShapeFieldsOf(expr ast.Node, scope *functionScope) map[string]arrayShapeField {
+func arrayShapeFieldsOf(expr ast.Node, scope *functionScope, ctx *AnalysisContext) map[string]arrayShapeField {
 	if expr == nil || scope == nil {
 		return nil
 	}
@@ -789,17 +814,84 @@ func arrayShapeFieldsOf(expr ast.Node, scope *functionScope) map[string]arraySha
 	case *ast.VariableNode:
 		return scope.arrayShapeCallables[node.Name]
 	case *ast.ArrayAccessNode:
-		return lookupArrayShapeField(arrayShapeFieldsOf(node.Var, scope), node.Index, scope).nested
+		return lookupArrayShapeField(arrayShapeFieldsOf(node.Var, scope, ctx), node.Index, scope).nested
+	case *ast.PropertyFetchNode:
+		return propertyArrayShapesOf(node, scope, ctx)
+	case *ast.MethodCallNode:
+		return methodArrayShapesOf(node, scope, ctx)
+	case *ast.ClassConstFetchNode:
+		return staticPropertyArrayShapesOf(node, scope, ctx)
 	default:
 		return nil
 	}
 }
 
-func inferArrayShapeCallableReturn(node *ast.ArrayAccessNode, scope *functionScope) Type {
+func inferArrayShapeCallableReturn(node *ast.ArrayAccessNode, scope *functionScope, ctx *AnalysisContext) Type {
 	if node == nil {
 		return EmptyType()
 	}
-	return lookupArrayShapeField(arrayShapeFieldsOf(node.Var, scope), node.Index, scope).callable
+	return lookupArrayShapeField(arrayShapeFieldsOf(node.Var, scope, ctx), node.Index, scope).callable
+}
+
+func propertyArrayShapesOf(node *ast.PropertyFetchNode, scope *functionScope, ctx *AnalysisContext) map[string]arrayShapeField {
+	if node == nil || scope == nil {
+		return nil
+	}
+	if object, ok := node.Object.(*ast.VariableNode); ok && object.Name == "this" {
+		return scope.propertyArrayShapes[node.Property]
+	}
+	objectType := inferType(node.Object, scope, ctx)
+	className, ok := objectType.SingleClassName()
+	if !ok {
+		return nil
+	}
+	if strings.EqualFold(className, scope.className) {
+		return scope.propertyArrayShapes[node.Property]
+	}
+	data, ok := analysisClassScopeDataByName(ctx, className, scope.typeCtx)
+	if !ok {
+		return nil
+	}
+	return data.propertyArrayShapes[node.Property]
+}
+
+func methodArrayShapesOf(node *ast.MethodCallNode, scope *functionScope, ctx *AnalysisContext) map[string]arrayShapeField {
+	if node == nil || scope == nil {
+		return nil
+	}
+	key := strings.ToLower(node.Method)
+	if object, ok := node.Object.(*ast.VariableNode); ok && object.Name == "this" {
+		return scope.methodArrayShapes[key]
+	}
+	objectType := inferType(node.Object, scope, ctx)
+	className, ok := objectType.SingleClassName()
+	if !ok {
+		return nil
+	}
+	if strings.EqualFold(className, scope.className) {
+		return scope.methodArrayShapes[key]
+	}
+	data, ok := analysisClassScopeDataByName(ctx, className, scope.typeCtx)
+	if !ok {
+		return nil
+	}
+	return data.methodArrayShapes[key]
+}
+
+func staticPropertyArrayShapesOf(node *ast.ClassConstFetchNode, scope *functionScope, ctx *AnalysisContext) map[string]arrayShapeField {
+	if node == nil || scope == nil || node.ConstExpr != nil || !strings.HasPrefix(node.Const, "$") {
+		return nil
+	}
+	property := strings.TrimPrefix(node.Const, "$")
+	className := strings.TrimLeft(node.Class, "\\")
+	if className == "" || strings.EqualFold(className, "self") || strings.EqualFold(className, "static") {
+		return scope.propertyArrayShapes[property]
+	}
+	data, ok := analysisClassScopeDataByName(ctx, className, scope.typeCtx)
+	if !ok {
+		return nil
+	}
+	return data.propertyArrayShapes[property]
 }
 
 type arrayIndexLookup struct {
@@ -856,6 +948,7 @@ func mergeArrayShapeField(left, right arrayShapeField) arrayShapeField {
 	return arrayShapeField{
 		callable: unionInferredTypes(left.callable, right.callable),
 		nested:   nested,
+		typ:      unionInferredTypes(left.typ, right.typ),
 	}
 }
 
@@ -901,6 +994,22 @@ func resolveArrayIndex(node ast.Node, scope *functionScope) arrayIndexLookup {
 			ifTrue = value.Condition
 		}
 		return mergeArrayIndexLookups(resolveArrayIndex(ifTrue, scope), resolveArrayIndex(value.IfFalse, scope))
+	case *ast.MatchNode:
+		if len(value.Arms) == 0 {
+			return arrayIndexLookup{}
+		}
+		lookup := resolveArrayIndex(value.Arms[0].Body, scope)
+		for _, arm := range value.Arms[1:] {
+			lookup = mergeArrayIndexLookups(lookup, resolveArrayIndex(arm.Body, scope))
+		}
+		return lookup
+	case *ast.IdentifierNode:
+		if scope != nil {
+			if key, ok := scope.typeCtx.Constants[value.Value]; ok {
+				return arrayIndexLookup{keys: []string{key}}
+			}
+		}
+		return arrayIndexLookup{}
 	case *ast.VariableNode:
 		if scope != nil {
 			if keys := scope.arrayIndexKeys[value.Name]; len(keys) > 0 {
@@ -949,15 +1058,27 @@ func arrayIndexLookupFromType(typ Type) arrayIndexLookup {
 }
 
 func classConstantArrayKey(node *ast.ClassConstFetchNode, scope *functionScope) (string, bool) {
-	if node == nil || node.ConstExpr != nil || node.Const == "" || scope == nil || len(scope.classConstantValues) == 0 {
+	if node == nil || node.ConstExpr != nil || node.Const == "" || strings.HasPrefix(node.Const, "$") || scope == nil {
 		return "", false
 	}
-	className := strings.TrimLeft(node.Class, "\\")
-	if className != "" && !strings.EqualFold(className, "self") && !strings.EqualFold(className, "static") && (scope.className == "" || !strings.EqualFold(className, scope.className)) {
-		return "", false
-	}
-	key, ok := scope.classConstantValues[node.Const]
+	values := classConstantValuesFor(node.Class, scope)
+	key, ok := values[node.Const]
 	return key, ok
+}
+
+func classConstantValuesFor(className string, scope *functionScope) map[string]string {
+	if scope == nil {
+		return nil
+	}
+	className = strings.TrimLeft(className, "\\")
+	if className == "" || strings.EqualFold(className, "self") || strings.EqualFold(className, "static") || (scope.className != "" && strings.EqualFold(className, scope.className)) {
+		return scope.classConstantValues
+	}
+	class, ok := scope.typeCtx.ClassNodes[strings.ToLower(className)]
+	if !ok {
+		return nil
+	}
+	return classConstantLiteralValues(class)
 }
 
 func classConstantLiteralValues(class *ast.ClassNode) map[string]string {
@@ -1099,6 +1220,8 @@ func (s *functionScope) clone() *functionScope {
 		arrayShapesShared:       true,
 		arrayIndexKeys:          copyArrayIndexKeys(s.arrayIndexKeys),
 		classConstantValues:     s.classConstantValues,
+		propertyArrayShapes:     s.propertyArrayShapes,
+		methodArrayShapes:       s.methodArrayShapes,
 		genericContext:          copyGenericContext(s.genericContext),
 	}
 	return clone
@@ -1262,7 +1385,7 @@ func applyAssignmentScope(scope *functionScope, assignment *ast.AssignmentNode, 
 				scope.setArrayShapeCallables(left.Name, fields)
 			}
 		}
-		if nested := arrayShapeFieldsOf(assignment.Right, scope); len(nested) > 0 {
+		if nested := arrayShapeFieldsOf(assignment.Right, scope, ctx); len(nested) > 0 {
 			scope.setArrayShapeCallables(left.Name, nested)
 		}
 		// If the assigned type contains generic arguments, track it

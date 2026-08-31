@@ -168,10 +168,11 @@ func parseExactGenericTypeFromString(typeStr string) (GenericInstance, bool) {
 type arrayShapeField struct {
 	callable Type
 	nested   map[string]arrayShapeField
+	typ      Type
 }
 
 func (f arrayShapeField) empty() bool {
-	return f.callable.IsEmpty() && len(f.nested) == 0
+	return f.callable.IsEmpty() && len(f.nested) == 0 && f.typ.IsEmpty()
 }
 
 func arrayShapeCallableReturns(raw string, typeCtx FileTypeContext) map[string]Type {
@@ -221,6 +222,11 @@ func parseArrayShapeFields(raw string, typeCtx FileTypeContext) map[string]array
 		field := arrayShapeField{callable: callableReturnType(value, typeCtx)}
 		if nested := parseArrayShapeFields(value, typeCtx); len(nested) > 0 {
 			field.nested = nested
+		}
+		if field.callable.IsEmpty() && len(field.nested) == 0 {
+			if parsed := ParseType(normalizeTypeWithContext(value, typeCtx)); parsed.hasClassAtom() {
+				field.typ = parsed
+			}
 		}
 		if field.empty() {
 			continue

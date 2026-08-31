@@ -403,6 +403,62 @@
       "file": "unknown-method-class-const-array-index.php",
       "engineCodes": ["PHPStan.Level2.MethodExistence"],
       "phpstanIdentifiers": ["method.notFound"]
+    },
+    {
+      "id": "unknown-method-global-const-array-index",
+      "capability": "unknown methods on global-constant array-shape indexes",
+      "file": "unknown-method-global-const-array-index.php",
+      "engineCodes": ["PHPStan.Level2.MethodExistence"],
+      "phpstanIdentifiers": ["method.notFound"]
+    },
+    {
+      "id": "unknown-method-foreign-class-const-array-index",
+      "capability": "unknown methods on other-class-constant array-shape indexes",
+      "file": "unknown-method-foreign-class-const-array-index.php",
+      "engineCodes": ["PHPStan.Level2.MethodExistence"],
+      "phpstanIdentifiers": ["method.notFound"]
+    },
+    {
+      "id": "unknown-method-match-array-index",
+      "capability": "unknown methods on match array-shape indexes",
+      "file": "unknown-method-match-array-index.php",
+      "engineCodes": ["PHPStan.Level2.MethodExistence"],
+      "phpstanIdentifiers": ["method.notFound"]
+    },
+    {
+      "id": "known-method-match-array-index",
+      "capability": "known methods on match array-shape indexes",
+      "file": "known-method-match-array-index.php",
+      "engineCodes": [],
+      "phpstanIdentifiers": []
+    },
+    {
+      "id": "unknown-method-property-array-shape",
+      "capability": "unknown methods on property-held callable array shapes",
+      "file": "unknown-method-property-array-shape.php",
+      "engineCodes": ["PHPStan.Level2.MethodExistence"],
+      "phpstanIdentifiers": ["method.notFound"]
+    },
+    {
+      "id": "known-method-property-array-shape",
+      "capability": "known methods on property-held callable array shapes",
+      "file": "known-method-property-array-shape.php",
+      "engineCodes": [],
+      "phpstanIdentifiers": []
+    },
+    {
+      "id": "unknown-method-returned-array-shape",
+      "capability": "unknown methods on method-returned callable array shapes",
+      "file": "unknown-method-returned-array-shape.php",
+      "engineCodes": ["PHPStan.Level2.MethodExistence"],
+      "phpstanIdentifiers": ["method.notFound"]
+    },
+    {
+      "id": "unknown-method-list-object-index",
+      "capability": "unknown methods on list-of-object indexes",
+      "file": "unknown-method-list-object-index.php",
+      "engineCodes": ["PHPStan.Level2.MethodExistence"],
+      "phpstanIdentifiers": ["method.notFound"]
     }
   ]
 }

@@ -10,6 +10,7 @@ type FileTypeContext struct {
 	Aliases    map[string]string
 	Classes    map[string]ResolvedClass
 	ClassNodes map[string]*ast.ClassNode
+	Constants  map[string]string
 }
 
 func CollectFileTypeContext(nodes []ast.Node) FileTypeContext {
@@ -17,6 +18,7 @@ func CollectFileTypeContext(nodes []ast.Node) FileTypeContext {
 		Aliases:    make(map[string]string),
 		Classes:    make(map[string]ResolvedClass),
 		ClassNodes: make(map[string]*ast.ClassNode),
+		Constants:  make(map[string]string),
 	}
 	collectFileTypeContextFromNodes(nodes, "", &ctx)
 	return ctx
@@ -47,6 +49,12 @@ func collectFileTypeContextFromNodes(nodes []ast.Node, currentNS string, ctx *Fi
 				alias = unqualifiedTypeName(n.Path)
 			}
 			ctx.Aliases[strings.ToLower(alias)] = strings.TrimPrefix(n.Path, `\`)
+		case *ast.ConstantNode:
+			if key, ok := literalArrayKey(n.Value); ok {
+				ctx.Constants[n.Name] = key
+			}
+		case *ast.BlockNode:
+			collectFileTypeContextFromNodes(n.Statements, namespace, ctx)
 		case *ast.ClassNode:
 			className := resolveClassLikeInContext(namespace, ctx.Aliases, n.Name)
 			resolved := ResolvedClass{Name: className}

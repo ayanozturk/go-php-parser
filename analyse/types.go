@@ -362,6 +362,15 @@ func isMockObjectType(name string) bool {
 	return false
 }
 
+func (t Type) hasClassAtom() bool {
+	for _, atom := range t.atoms {
+		if atom.kind == typeKindClass {
+			return true
+		}
+	}
+	return false
+}
+
 func (t Type) SingleClassName() (string, bool) {
 	if len(t.atoms) != 1 {
 		return "", false

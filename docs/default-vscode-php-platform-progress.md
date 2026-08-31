@@ -52,7 +52,7 @@ Representative workload: 23,556 indexed PHP files, 3,678,678 LOC, 135.68 MB, 151
 
 ## Coverage gaps
 
-- PHPStan benchmark: level 0 remains partial but is differential-gated by 63 reviewed fixtures. Level 1 is gated by 24 variable-flow fixtures; level 2 by 57 protected/unknown-method/non-object/dynamic-index fixtures; level 3 by one throw-type fixture. Pinned reference: `PHPStan 2.2.x-dev@e4ab62a`. Remaining analyser gaps: leftover expression-form receivers, ungated level-0 unit-tested surfaces, higher-level per-alternative DNF, narrowing, generic inheritance, higher-level return/property/argument checks, PHPDoc validation, dynamic-call precision, and extension-dependent built-in signatures.
+- PHPStan benchmark: level 0 remains partial but is differential-gated by 63 reviewed fixtures. Level 1 is gated by 24 variable-flow fixtures; level 2 by 65 protected/unknown-method/non-object/dynamic-index/expression-receiver fixtures; level 3 by one throw-type fixture. Pinned reference: `PHPStan 2.2.x-dev@e4ab62a`. Remaining analyser gaps: ungated level-0 unit-tested surfaces, higher-level per-alternative DNF, narrowing, generic inheritance, higher-level return/property/argument checks, PHPDoc validation, dynamic-call precision, and extension-dependent built-in signatures.
 - PHPCS benchmark: the repository comparison records 16 style rules, far below the breadth of PHPCS standards. Security-oriented source rules such as eval/backtick/forbidden-function checks are not implemented.
 - The remaining recorded pure-parser corpus gaps are two narrow Laravel vendor-code cases; intentionally invalid or corrupted fixtures stay classified separately from parser failures.
 - PHP Strom now consumes shared `SemanticSnapshot` facts, flow graphs, and variable-flow state through dependency-scoped exported-semantic revisions, changed documents use immutable incremental project-index replacement, structured analysis diagnostics use UTF-16 spans, and a synthetic editor-path trace suite accounts for cache, dependency, cancellation, publication, and fallback behavior. Remaining extension integration gaps include stale architecture documentation, unstructured parser errors and mixed style-rule point ranges, conservative name-based dependency false positives/global overflow fallback, and no full VS Code extension-activation or representative-project latency trace.
@@ -317,11 +317,15 @@ Representative workload: 23,556 indexed PHP files, 3,678,678 LOC, 135.68 MB, 151
 
 - Living docs now treat M0 as the working baseline and M1 as in-progress. Ranked next work is leftover level-2 expression receivers, ungated level-0 unit-tested surfaces, then higher-level DNF. Performance stays measurement-only until an isolated-host interleaved run passes the 5% CV contract. `FEATURES.md` architecture now names the Go server; leftover TypeScript/tree-sitter prose is marked obsolete.
 
+### 2026-08-31 — Remaining level-2 expression-form receivers
+
+- Eight fixtures expand level 2 from fifty-seven to sixty-five cases for file-level constants, other same-file class constants, `match` indexes, property `@var` shapes, method `@return` shapes, and `list{Class}` object indexes, plus known-method `match` and property controls. Complete 63-case level-0 and 65-case level-2 runs match pinned PHPStan `2.2.x-dev@e4ab62a`. Static properties are unit-tested. Per-alternative DNF remains a separate higher reference level.
+
 ## Next ranked candidates
 
 The analyser target in `docs/full-static-analyser-target.md` is the source of truth for ordering.
 
-1. **Correctness:** remaining level-2 expression-form receivers (probe PHPStan first), then ungated level-0 unit-tested surfaces, then higher-level per-alternative DNF as a separate PHPStan level.
+1. **Correctness:** ungated level-0 unit-tested surfaces, then higher-level per-alternative DNF as a separate PHPStan level.
 2. **Maintenance:** rewrite `FEATURES.md` for the Go language server and `go-php-parser`; decide the fate of `src/server`; extend fuzzing into PHPDoc/type parsing and rule execution.
 3. **Source mapping:** structured parser errors, then style-rule coordinate producers currently stuck at points.
 4. **Dependency matching:** replace conservative lexical invalidation only after generated reference facts cover supported resolver paths.

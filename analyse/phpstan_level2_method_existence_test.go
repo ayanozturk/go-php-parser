@@ -480,6 +480,83 @@ function run(array $factories, array $nested, array $list, array $named, string 
 	}
 }
 
+func TestLevel2UnknownMethodsOnRemainingExpressionReceivers(t *testing.T) {
+	issues := runPHPStanLevelOnFiles(t, map[string]string{
+		"test.php": `<?php
+class ShapeService {}
+class KnownShapeService { public function execute(): void {} }
+class PropService {}
+class MethodShapeService {}
+class OtherConstService {}
+class ListItem {}
+class StaticPropService {}
+
+const KEY = 'service';
+
+class Other {
+    public const KEY = 'service';
+}
+
+class Holder {
+    /** @var array{service: callable(): PropService, known: callable(): KnownShapeService} */
+    public array $factories;
+
+    /**
+     * @return array{service: callable(): MethodShapeService}
+     */
+    public function factories(): array {
+        return ['service' => static fn (): MethodShapeService => new MethodShapeService()];
+    }
+}
+
+class StaticHolder {
+    /** @var array{service: callable(): StaticPropService} */
+    public static array $factories;
+}
+
+/**
+ * @param array{service: callable(): ShapeService, known: callable(): KnownShapeService} $factories
+ * @param array{service: callable(): OtherConstService} $other
+ * @param list{ListItem} $objects
+ */
+function run(array $factories, array $other, array $objects, Holder $holder, bool $flag): void {
+    $factories[KEY]()->missing();
+    $other[Other::KEY]()->missing();
+    $factories[match ($flag) { true => 'service', false => 'known' }]()->missing();
+    $holder->factories["service"]()->missing();
+    $holder->factories["known"]()->execute();
+    $holder->factories()["service"]()->missing();
+    StaticHolder::$factories["service"]()->missing();
+    $objects[0]->missing();
+}
+`,
+	}, 2)
+
+	want := map[string]int{
+		"Call to an undefined method ShapeService::missing().": 1,
+		"Call to an undefined method OtherConstService::missing().": 1,
+		"Call to an undefined method KnownShapeService|ShapeService::missing().": 1,
+		"Call to an undefined method PropService::missing().": 1,
+		"Call to an undefined method MethodShapeService::missing().": 1,
+		"Call to an undefined method StaticPropService::missing().": 1,
+		"Call to an undefined method ListItem::missing().": 1,
+	}
+	got := map[string]int{}
+	for _, issue := range issues {
+		if issue.Code == level2MethodExistenceCode {
+			got[issue.Message]++
+		}
+	}
+	for message, count := range want {
+		if got[message] != count {
+			t.Fatalf("expected %d %q, got %#v", count, message, issues)
+		}
+	}
+	if hasIssueContaining(issues, level2MethodExistenceCode, "KnownShapeService::execute()") {
+		t.Fatalf("known property array-shape methods should remain clean, got %#v", issues)
+	}
+}
+
 func TestLevel2UnknownMethodHandlesMultiClassReceiversConservatively(t *testing.T) {
 	issues := runPHPStanLevelOnFiles(t, map[string]string{
 		"test.php": `<?php
