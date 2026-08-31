@@ -211,6 +211,29 @@ function makeService(): callable {}
 	}
 }
 
+func TestProjectIndexKeepsNativePropertyTypeWhenPHPDocAddsGenerics(t *testing.T) {
+	parsed := map[string][]ast.Node{
+		"collections.php": parsePHPForProjectIndex(t, `<?php
+namespace Doctrine\Common\Collections;
+interface Collection {}
+`),
+		"entity.php": parsePHPForProjectIndex(t, `<?php
+namespace App;
+use Doctrine\Common\Collections\Collection;
+class Policy {}
+class Entity {
+    /** @var Collection<string, Policy> */
+    private Collection $users;
+}
+`),
+	}
+	idx := BuildProjectIndex(parsed)
+	property, ok := idx.ResolveProperty(`App\Entity`, "users")
+	if !ok || property.Type != `Doctrine\Common\Collections\Collection` {
+		t.Fatalf("native Collection type should win over generic PHPDoc, got %#v, %v", property, ok)
+	}
+}
+
 func TestProjectIndexAssignsStableIDsToBuiltinsWithoutFakeLocations(t *testing.T) {
 	idx := NewProjectIndex()
 

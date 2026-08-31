@@ -648,10 +648,11 @@ func buildClassScopeDataWithSeen(class *ast.ClassNode, typeCtx FileTypeContext, 
 		}
 		propertyType := ParseType(normalizeTypeWithContext(property.TypeHint, typeCtx))
 		if property.PHPDoc != nil && property.PHPDoc.VarType != "" {
-			propertyType = ParseType(normalizeTypeWithContext(property.PHPDoc.VarType, typeCtx))
 			if callableReturn := callableReturnType(property.PHPDoc.VarType, typeCtx); !callableReturn.IsEmpty() {
 				propertyType = ParseType("callable")
 				data.propertyCallableReturns[property.Name] = callableReturn
+			} else if propertyType.IsEmpty() {
+				propertyType = ParseType(normalizeTypeWithContext(property.PHPDoc.VarType, typeCtx))
 			}
 		}
 		if propertyType.IsEmpty() && property.DefaultValue != nil {

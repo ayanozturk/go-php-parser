@@ -1220,11 +1220,18 @@ func (idx *ProjectIndex) indexClassMembers(filename, className string, propertie
 		switch p := propNode.(type) {
 		case *ast.PropertyNode:
 			rawType := p.TypeHint
-			if p.PHPDoc != nil && p.PHPDoc.VarType != "" {
-				rawType = p.PHPDoc.VarType
+			docType := ""
+			if p.PHPDoc != nil {
+				docType = p.PHPDoc.VarType
 			}
-			callableReturn := callableReturnType(rawType, ft)
+			callableReturn := callableReturnType(docType, ft)
+			if callableReturn.IsEmpty() {
+				callableReturn = callableReturnType(rawType, ft)
+			}
 			normalizedType := normalizeTypeWithContext(rawType, ft)
+			if normalizedType == "" {
+				normalizedType = normalizeTypeWithContext(docType, ft)
+			}
 			if !callableReturn.IsEmpty() {
 				normalizedType = "callable"
 			}
@@ -1280,11 +1287,18 @@ func (idx *ProjectIndex) indexInterfaceMembers(filename, className string, membe
 			idx.addMethod(className, ResolvedMethod{Name: m.Name, DeclaringClass: className, Declaration: sourceLocation(filename, m), ReturnType: normalizedReturn, CallableReturnType: callableReturn.dnfString(), Params: paramsFromNodesWithPHPDoc(m.Params, m.PHPDoc, ft, templates), Visibility: "public", Abstract: true})
 		case *ast.PropertyNode:
 			rawType := m.TypeHint
-			if m.PHPDoc != nil && m.PHPDoc.VarType != "" {
-				rawType = m.PHPDoc.VarType
+			docType := ""
+			if m.PHPDoc != nil {
+				docType = m.PHPDoc.VarType
 			}
-			callableReturn := callableReturnType(rawType, ft)
+			callableReturn := callableReturnType(docType, ft)
+			if callableReturn.IsEmpty() {
+				callableReturn = callableReturnType(rawType, ft)
+			}
 			normalizedType := normalizeTypeWithContext(rawType, ft)
+			if normalizedType == "" {
+				normalizedType = normalizeTypeWithContext(docType, ft)
+			}
 			if !callableReturn.IsEmpty() {
 				normalizedType = "callable"
 			}
