@@ -344,7 +344,7 @@ Representative workload: 23,556 indexed PHP files, 3,678,678 LOC, 135.68 MB, 151
 
 ### 2026-08-31 — Snapshot-backed full analysis and profile-driven speed work
 
-- `cmd/benchmark` and `analyze` now share one `SemanticSnapshot` per full run. Parser commit `3155c07` also combines the level-2/7/8 method-receiver walks, reuses file/namespace type context, folds ASCII identifier keys, and scans empty-statement source without splitting the file into cached lines. WordPress still accounts for 5,357/5,357 files and 26,321 diagnostics on the profile path. No Mago comparison is claimed.
+- `cmd/benchmark` and `analyze` now share one `SemanticSnapshot` per full run. Parser commit `3155c07` also combines the level-2/7/8 method-receiver walks, reuses file/namespace type context, folds ASCII identifier keys, and scans empty-statement source without splitting the file into cached lines. Follow-up `abb6633` visits PHPStan level-0 type, symbol, and language checks in one walk. WordPress still accounts for 5,357/5,357 files and 26,321 diagnostics on the profile path. No Mago comparison is claimed.
 
 ## Next ranked candidates
 
