@@ -6,9 +6,9 @@ This file records reproducible evidence for the cooperating `go-php-parser` engi
 
 ## Current baseline
 
-- Engine revision validated and consumed by PHP Strom: pushed commit `f3095cd`.
-- Extension checkout: `/Users/ayan/Projects/vscode-php-strom`, `main` at pushed commit `0085089`; the current package version is `0.1.29`.
-- Production extension builds pin `github.com/ayanozturk/go-php-parser` at pseudo-version `v0.0.0-20260831134345-f3095cd1086e`. `make test-server-dev` validates the same engine through the generated, ignored sibling-workspace path.
+- Engine revision validated and consumed by PHP Strom: pushed commit `6df9189`.
+- Extension checkout: `/Users/ayan/Projects/vscode-php-strom`, `main` at pushed commit `8dacb2b`; the current package version is `0.1.29`.
+- Production extension builds pin `github.com/ayanozturk/go-php-parser` at pseudo-version `v0.0.0-20260831141306-6df9189dbf3d`. `make test-server-dev` validates the same engine through the generated, ignored sibling-workspace path.
 - Go toolchain observed: Go 1.26.2. Node toolchain observed: Node 22.20.0 and npm 11.7.0.
 - Representative corpora are fetched at exact revisions from `test_projects/manifest.json`; generated working copies remain uncommitted.
 - The latest recorded full-corpus pass has zero failures for Composer, Drupal, Magento, PHPUnit, and WordPress. Symfony's two remaining fixtures are intentionally invalid/corrupted inputs, and Laravel has two narrow interpolation/callable edge cases. These recorded results are compatibility evidence, not a current performance result.
@@ -306,6 +306,7 @@ Representative workload: 23,556 indexed PHP files, 3,678,678 LOC, 135.68 MB, 151
 ### 2026-08-31 — Level-2 method calls on non-object receivers
 
 - Eight fixtures expand level 2 from forty-one to forty-nine cases for `int`/`array`/`callable`/`iterable`, clean `object`, and class-or-scalar unions. Complete 63-case level-0 and 49-case level-2 runs match pinned PHPStan `2.2.x-dev@e4ab62a`.
+- Parser commit `6df9189` lands the rule. Extension commit `8dacb2b` pins pseudo-version `v0.0.0-20260831141306-6df9189dbf3d`, maps the diagnostic to type-error toggles, and proves the default editor path reports the six non-object findings while `object` and known class-or-string methods stay clean. Pinned and sibling tests, vet, race, all six server builds, TypeScript lint/compile/package, VS Code 1.89.1 host tests, the editor-latency gate, and `npm audit --audit-level=low` pass.
 
 ## Next ranked candidates
 

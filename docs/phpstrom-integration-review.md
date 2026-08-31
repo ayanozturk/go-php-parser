@@ -6,7 +6,7 @@ This document records the August 2026 review of `go-php-parser` as the parser an
 
 PHP Strom's production indexer, semantic cache, diagnostics, and several language providers import this module through its canonical `github.com/ayanozturk/go-php-parser` path. Its former duplicate `server/parser` implementation has been removed, and `cmd/parse-test` now exercises the production parser adapter.
 
-The review findings below are retained as historical context. The missing ESLint configuration and asynchronous diagnostic test-harness race found during that review have since been fixed. As of extension commit `0085089`, pinned and sibling-development Go tests, vet, and race suites pass, as do TypeScript lint/compile/package, all six server builds, the VS Code extension-host suite, the synthetic editor latency trace gate, structured analysis range contracts, and the current PHPStan level-boundary, DNF/nullable, callable-return, declared-callable, nested/list array-shape, clone/coalesce/match/nullsafe, and template class-string receiver integration contracts.
+The review findings below are retained as historical context. The missing ESLint configuration and asynchronous diagnostic test-harness race found during that review have since been fixed. As of extension commit `8dacb2b`, pinned and sibling-development Go tests, vet, and race suites pass, as do TypeScript lint/compile/package, all six server builds, the VS Code extension-host suite, the synthetic editor latency trace gate, structured analysis range contracts, and the current PHPStan level-boundary, DNF/nullable, callable-return, declared-callable, nested/list array-shape, clone/coalesce/match/nullsafe, template class-string, and non-object receiver integration contracts.
 
 ## Recommended changes
 
