@@ -125,6 +125,120 @@ namespace Consumer;
 	}
 }
 
+func TestLevel2UnknownMethodsOnCallableClosureAndDynamicReceivers(t *testing.T) {
+	issues := runPHPStanLevelOnFiles(t, map[string]string{
+		"vendor.php": `<?php
+namespace Vendor;
+
+class CallableService {}
+class ClosureService {}
+class ArrowService {}
+class DynamicService {}
+class AliasService {}
+class StaleService {}
+class StaleDynamicService {}
+class KnownCallableService { public function execute(): void {} }
+class KnownClosureService { public function execute(): void {} }
+class KnownArrowService { public function execute(): void {} }
+class KnownDynamicService { public function execute(): void {} }
+`,
+		"consumer.php": `<?php
+namespace Consumer;
+
+use Vendor\AliasService as ImportedCallableService;
+use Vendor\ClosureService as ImportedClosureService;
+use Vendor\ArrowService as ImportedArrowService;
+use Vendor\DynamicService as ImportedDynamicService;
+use Vendor\StaleService as ImportedStaleService;
+use Vendor\KnownCallableService as ImportedKnownCallableService;
+use Vendor\KnownClosureService as ImportedKnownClosureService;
+use Vendor\KnownArrowService as ImportedKnownArrowService;
+use Vendor\KnownDynamicService as ImportedKnownDynamicService;
+
+/** @param callable(): ImportedCallableService $factory */
+function callableReceiver(callable $factory): void {
+    $factory()->missing();
+}
+
+/** @param callable(): ImportedKnownCallableService $factory */
+function knownCallableReceiver(callable $factory): void {
+    $factory()->execute();
+}
+
+function closureReceiver(): void {
+    $factory = static function (): ImportedClosureService { return new ImportedClosureService(); };
+    $factory()->missing();
+    $known = static function (): ImportedKnownClosureService { return new ImportedKnownClosureService(); };
+    $known()->execute();
+}
+
+function arrowReceiver(): void {
+    $factory = fn(): ImportedArrowService => new ImportedArrowService();
+    $factory()->missing();
+    $known = fn(): ImportedKnownArrowService => new ImportedKnownArrowService();
+    $known()->execute();
+}
+
+/** @param class-string<ImportedDynamicService> $class */
+function dynamicReceiver(string $class): void {
+    $value = new $class();
+    $value->missing();
+}
+
+/** @param class-string<ImportedKnownDynamicService> $class */
+function knownDynamicReceiver(string $class): void {
+    $value = new $class();
+    $value->execute();
+}
+
+/** @param callable(): ImportedStaleService $factory */
+function reassignedReceiver(callable $factory): void {
+    $factory = null;
+    $factory()->missing();
+}
+
+/** @param class-string<\Vendor\StaleDynamicService> $class */
+function reassignedDynamicReceiver(string $class): void {
+    $class = 'runtime-value';
+    $value = new $class();
+    $value->missing();
+}
+`,
+	}, 2)
+
+	var methodIssues []AnalysisIssue
+	for _, issue := range issues {
+		if issue.Code == level2MethodExistenceCode {
+			methodIssues = append(methodIssues, issue)
+		}
+	}
+	if len(methodIssues) != 4 {
+		t.Fatalf("expected four unknown-method diagnostics, got %#v", methodIssues)
+	}
+	for _, expected := range []string{
+		"Vendor\\AliasService::missing()",
+		"Vendor\\ClosureService::missing()",
+		"Vendor\\ArrowService::missing()",
+		"Vendor\\DynamicService::missing()",
+	} {
+		if countIssueContaining(issues, level2MethodExistenceCode, expected) != 1 {
+			t.Fatalf("expected one %s diagnostic, got %#v", expected, methodIssues)
+		}
+	}
+	for _, unexpected := range []string{
+		"KnownCallableService::execute()",
+		"KnownClosureService::execute()",
+		"KnownArrowService::execute()",
+		"KnownDynamicService::execute()",
+		"Vendor\\StaleService::missing()",
+		"Vendor\\StaleDynamicService::missing()",
+	} {
+		if hasIssueContaining(issues, level2MethodExistenceCode, unexpected) {
+			t.Fatalf("unexpected known or stale-callable diagnostic containing %q, got %#v", unexpected, methodIssues)
+		}
+	}
+}
+
 func TestLevel2UnknownMethodHandlesMultiClassReceiversConservatively(t *testing.T) {
 	issues := runPHPStanLevelOnFiles(t, map[string]string{
 		"test.php": `<?php

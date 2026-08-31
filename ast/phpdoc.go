@@ -80,7 +80,7 @@ func ParsePHPDoc(rawContent string) *PHPDocNode {
 		// Check for @param tags
 		if strings.HasPrefix(line, "@param") {
 			inDescription = false
-			typeName, remainder := splitPHPDocTypeAndRest(strings.TrimSpace(strings.TrimPrefix(line, "@param")))
+			typeName, remainder := splitPHPDocParamTypeAndRest(strings.TrimSpace(strings.TrimPrefix(line, "@param")))
 			parts := strings.Fields(remainder)
 			if typeName != "" && len(parts) >= 1 {
 				param := PHPDocParam{
@@ -127,6 +127,26 @@ func ParsePHPDoc(rawContent string) *PHPDocNode {
 
 	phpdoc.Description = strings.Join(descriptionLines, " ")
 	return phpdoc
+}
+
+func splitPHPDocParamTypeAndRest(value string) (string, string) {
+	value = strings.TrimSpace(value)
+	depth := 0
+	for idx, r := range value {
+		switch r {
+		case '<', '(', '{', '[':
+			depth++
+		case '>', ')', '}', ']':
+			if depth > 0 {
+				depth--
+			}
+		case '$':
+			if depth == 0 && (idx == 0 || value[idx-1] == ' ' || value[idx-1] == '\t') {
+				return strings.TrimSpace(value[:idx]), strings.TrimSpace(value[idx:])
+			}
+		}
+	}
+	return splitPHPDocTypeAndRest(value)
 }
 
 func splitPHPDocTypeAndRest(value string) (string, string) {

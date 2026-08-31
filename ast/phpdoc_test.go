@@ -157,6 +157,23 @@ func TestParsePHPDocPreservesWhitespaceInsideGenericTypes(t *testing.T) {
 	}
 }
 
+func TestParsePHPDocPreservesCallableParamReturnType(t *testing.T) {
+	doc := ParsePHPDoc(`/**
+ * @param callable(): A $factory Factory callback
+ */`)
+
+	if len(doc.Params) != 1 {
+		t.Fatalf("expected one callable parameter, got %#v", doc.Params)
+	}
+	param := doc.Params[0]
+	if param.Type != "callable(): A" {
+		t.Fatalf("callable parameter type = %q, want %q", param.Type, "callable(): A")
+	}
+	if param.Name != "factory" || param.Description != "Factory callback" {
+		t.Fatalf("unexpected callable parameter metadata: %#v", param)
+	}
+}
+
 func TestGetParamTypeFromPHPDoc(t *testing.T) {
 	phpdoc := &PHPDocNode{
 		Params: []PHPDocParam{

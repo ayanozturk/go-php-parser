@@ -160,6 +160,56 @@ func TestFunctionScopeChainedAndSiblingClonesRemainIndependent(t *testing.T) {
 	}
 }
 
+func TestFunctionScopeCallableReturnClonesRemainIndependent(t *testing.T) {
+	root := &functionScope{callableReturns: map[string]Type{"factory": ParseType("InitialService")}}
+	parent := root.clone()
+	left := parent.clone()
+	right := parent.clone()
+
+	left.setCallableReturn("factory", ParseType("LeftService"))
+	left.setCallableReturn("leftOnly", ParseType("bool"))
+	right.setCallableReturn("factory", ParseType("RightService"))
+	right.setCallableReturn("rightOnly", ParseType("int"))
+	parent.clearCallableReturn("factory")
+
+	assertScopeType(t, root.callableReturns, "factory", "InitialService")
+	assertScopeType(t, left.callableReturns, "factory", "LeftService")
+	assertScopeType(t, right.callableReturns, "factory", "RightService")
+	if _, ok := parent.callableReturns["factory"]; ok {
+		t.Fatal("parent callable return deletion leaked into root or siblings")
+	}
+	if _, ok := left.callableReturns["rightOnly"]; ok {
+		t.Fatal("right sibling callable return leaked into left sibling")
+	}
+	if _, ok := right.callableReturns["leftOnly"]; ok {
+		t.Fatal("left sibling callable return leaked into right sibling")
+	}
+	if functionScopeMapPointer(left.callableReturns) == functionScopeMapPointer(right.callableReturns) {
+		t.Fatal("callable return sibling writes did not detach their maps")
+	}
+}
+
+func TestFunctionScopeClassStringMetadataClonesRemainIndependent(t *testing.T) {
+	root := &functionScope{genericContext: map[string]GenericInstance{
+		"class": {ClassName: "class-string", TypeArguments: []string{"InitialService"}},
+	}}
+	left := root.clone()
+	right := root.clone()
+
+	delete(left.genericContext, "class")
+	left.genericContext["left"] = GenericInstance{ClassName: "class-string", TypeArguments: []string{"LeftService"}}
+
+	if target, ok := classStringTarget(root, "class"); !ok || target.String() != "InitialService" {
+		t.Fatalf("root class-string target changed through clone: %q, %v", target.String(), ok)
+	}
+	if target, ok := classStringTarget(right, "class"); !ok || target.String() != "InitialService" {
+		t.Fatalf("sibling class-string target changed through clone: %q, %v", target.String(), ok)
+	}
+	if _, ok := left.genericContext["class"]; ok {
+		t.Fatal("left clone retained deleted class-string metadata")
+	}
+}
+
 func TestFunctionScopeCloneNilIsSafe(t *testing.T) {
 	var scope *functionScope
 	if got := scope.clone(); got != nil {

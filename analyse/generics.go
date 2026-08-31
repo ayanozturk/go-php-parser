@@ -150,3 +150,52 @@ func parseGenericTypeFromString(typeStr string) (GenericInstance, bool) {
 
 	return GenericInstance{ClassName: className, TypeArguments: typeArgs}, true
 }
+
+func parseExactGenericTypeFromString(typeStr string) (GenericInstance, bool) {
+	typeStr = strings.TrimSpace(typeStr)
+	instance, ok := parseGenericTypeFromString(typeStr)
+	if !ok {
+		return GenericInstance{}, false
+	}
+	closeIdx := strings.LastIndex(typeStr, ">")
+	if closeIdx < 0 || strings.TrimSpace(typeStr[closeIdx+1:]) != "" {
+		return GenericInstance{}, false
+	}
+	return instance, true
+}
+
+func callableReturnType(raw string, typeCtx FileTypeContext) Type {
+	raw = strings.TrimSpace(raw)
+	open := strings.Index(raw, "(")
+	if open < 0 || !strings.EqualFold(strings.TrimSpace(raw[:open]), "callable") {
+		return EmptyType()
+	}
+	depth := 0
+	closeIdx := -1
+	for idx, r := range raw[open:] {
+		switch r {
+		case '(':
+			depth++
+		case ')':
+			depth--
+			if depth == 0 {
+				closeIdx = open + idx
+			}
+		}
+		if closeIdx >= 0 {
+			break
+		}
+	}
+	if closeIdx < 0 {
+		return EmptyType()
+	}
+	suffix := strings.TrimSpace(raw[closeIdx+1:])
+	if !strings.HasPrefix(suffix, ":") {
+		return EmptyType()
+	}
+	returnType := strings.TrimSpace(strings.TrimPrefix(suffix, ":"))
+	if returnType == "" {
+		return EmptyType()
+	}
+	return ParseType(normalizeTypeWithContext(returnType, typeCtx))
+}

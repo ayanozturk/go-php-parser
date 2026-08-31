@@ -337,6 +337,57 @@ class Example {
 	}
 }
 
+func TestSemanticSnapshotGeneratesCallableAndDynamicNewReceiverFacts(t *testing.T) {
+	const filename = "src/Factories.php"
+	nodes := parsePHPForProjectIndex(t, `<?php
+class CallableResult {}
+class DynamicResult {}
+
+/** @param class-string<DynamicResult> $class */
+function run(string $class): void {
+    $factory = static function (): CallableResult { return new CallableResult(); };
+    $factory()->missing();
+    $value = new $class();
+    $value->missing();
+}
+`)
+
+	var callableReceiver ast.Node
+	var dynamicReceiver ast.Node
+	walkAll(nodes, func(node ast.Node, _ *ast.ClassNode, _ *ast.FunctionNode, _ FileTypeContext) {
+		call, ok := node.(*ast.MethodCallNode)
+		if !ok || call.Method != "missing" {
+			return
+		}
+		switch call.Object.(type) {
+		case *ast.FunctionCallNode:
+			callableReceiver = call.Object
+		case *ast.VariableNode:
+			dynamicReceiver = call.Object
+		}
+	})
+	if callableReceiver == nil || dynamicReceiver == nil {
+		t.Fatalf("expected callable and dynamic-new method receivers, got callable=%T dynamic=%T", callableReceiver, dynamicReceiver)
+	}
+
+	snapshot, err := NewSemanticSnapshot(map[string][]ast.Node{filename: nodes}, nil)
+	if err != nil {
+		t.Fatalf("build snapshot: %v", err)
+	}
+	for label, check := range map[string]struct {
+		receiver ast.Node
+		wantType string
+	}{
+		"callable invocation": {receiver: callableReceiver, wantType: "CallableResult"},
+		"dynamic new":         {receiver: dynamicReceiver, wantType: "DynamicResult"},
+	} {
+		fact, ok := snapshot.Fact(inferredTypeFactKey(filename, check.receiver))
+		if !ok || fact.Type != check.wantType || fact.Subject != "function:run" {
+			t.Fatalf("unexpected %s receiver fact: %#v, %v", label, fact, ok)
+		}
+	}
+}
+
 func TestSemanticSnapshotPreservesDNFReceiverFacts(t *testing.T) {
 	const filename = "src/DNF.php"
 	nodes := parsePHPForProjectIndex(t, `<?php

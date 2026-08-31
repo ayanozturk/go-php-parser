@@ -27,6 +27,8 @@ type functionScope struct {
 	propertiesShared bool
 	methods          map[string]ResolvedMethod
 	methodReturns    map[string]Type
+	callableReturns  map[string]Type
+	callablesShared  bool
 	// genericContext maps variable names to their generic class instantiations
 	// e.g., "$coll" → (className: "Collection", typeArguments: ["User"])
 	genericContext map[string]GenericInstance
@@ -282,6 +284,8 @@ func inferType(expr ast.Node, scope *functionScope, ctx *AnalysisContext) Type {
 		return inferMethodCallType(n, scope, ctx)
 	case *ast.NewNode:
 		return inferNewTypeWithScope(n, scope)
+	case *ast.FunctionNode, *ast.ArrowFunctionNode:
+		return ParseType("callable")
 	case *ast.PropertyFetchNode:
 		return inferPropertyFetchType(n, scope, ctx)
 	case *ast.ConcatNode:
@@ -317,6 +321,11 @@ func inferType(expr ast.Node, scope *functionScope, ctx *AnalysisContext) Type {
 func inferFunctionCallType(n *ast.FunctionCallNode, scope *functionScope, ctx *AnalysisContext) Type {
 	if n == nil || n.Name == nil {
 		return MixedType()
+	}
+	if variable, ok := n.Name.(*ast.VariableNode); ok && scope != nil {
+		if returnType, found := scope.callableReturns[variable.Name]; found && !returnType.IsEmpty() {
+			return returnType
+		}
 	}
 	if name := functionCallName(n); name != "" && ctx != nil && ctx.Resolver != nil {
 		var typeCtx FileTypeContext
@@ -439,18 +448,31 @@ func newFunctionScopeWithContext(ctx *AnalysisContext, class *ast.ClassNode, fn 
 		if !ok {
 			continue
 		}
+		documentedType := ""
+		if fn.PHPDoc != nil {
+			documentedType = fn.PHPDoc.GetParamTypeFromPHPDoc(param.Name)
+		}
 		paramType := ParseType(normalizeTypeWithContext(param.TypeHint, typeCtx))
 		if paramType.IsEmpty() && param.UnionType != nil {
 			paramType = ParseType(normalizeTypeWithContext(param.UnionType.TokenLiteral(), typeCtx))
 		}
-		if paramType.IsEmpty() && fn.PHPDoc != nil {
-			paramType = ParseType(normalizeTypeWithContext(fn.PHPDoc.GetParamTypeFromPHPDoc(param.Name), typeCtx))
+		if paramType.IsEmpty() && documentedType != "" {
+			paramType = ParseType(normalizeTypeWithContext(documentedType, typeCtx))
 		}
 		if paramType.IsEmpty() && param.DefaultValue != nil {
 			paramType = inferType(param.DefaultValue, scope, nil)
 		}
 		if !paramType.IsEmpty() {
 			scope.variables[param.Name] = paramType
+			if returnType := callableReturnType(documentedType, typeCtx); !returnType.IsEmpty() {
+				scope.setCallableReturn(param.Name, returnType)
+			}
+			if instance, ok := parseExactGenericTypeFromString(documentedType); ok && strings.EqualFold(instance.ClassName, "class-string") && len(instance.TypeArguments) == 1 {
+				target := normalizeTypeWithContext(instance.TypeArguments[0], typeCtx)
+				if className, single := ParseType(target).SingleClassName(); single {
+					scope.genericContext[param.Name] = GenericInstance{ClassName: "class-string", TypeArguments: []string{className}}
+				}
+			}
 
 			// Check if param type is a generic class with declared type arguments
 			if genInst, ok := parseGenericTypeFromString(paramType.String()); ok {
@@ -652,6 +674,7 @@ func (s *functionScope) clone() *functionScope {
 	}
 	s.variablesShared = true
 	s.propertiesShared = true
+	s.callablesShared = true
 	clone := &functionScope{
 		className:        s.className,
 		typeCtx:          s.typeCtx,
@@ -662,9 +685,36 @@ func (s *functionScope) clone() *functionScope {
 		propertiesShared: true,
 		methods:          s.methods,
 		methodReturns:    s.methodReturns,
+		callableReturns:  s.callableReturns,
+		callablesShared:  true,
 		genericContext:   copyGenericContext(s.genericContext),
 	}
 	return clone
+}
+
+func (s *functionScope) setCallableReturn(name string, typ Type) {
+	if s == nil || typ.IsEmpty() {
+		return
+	}
+	if s.callablesShared {
+		s.callableReturns = copyTypeMap(s.callableReturns)
+		s.callablesShared = false
+	}
+	if s.callableReturns == nil {
+		s.callableReturns = make(map[string]Type)
+	}
+	s.callableReturns[name] = typ
+}
+
+func (s *functionScope) clearCallableReturn(name string) {
+	if s == nil || s.callableReturns == nil {
+		return
+	}
+	if s.callablesShared {
+		s.callableReturns = copyTypeMap(s.callableReturns)
+		s.callablesShared = false
+	}
+	delete(s.callableReturns, name)
 }
 
 func (s *functionScope) setVariable(name string, typ Type) {
@@ -734,7 +784,12 @@ func applyAssignmentScope(scope *functionScope, assignment *ast.AssignmentNode, 
 	assignedType := inferType(assignment.Right, scope, ctx)
 	switch left := assignment.Left.(type) {
 	case *ast.VariableNode:
+		scope.clearCallableReturn(left.Name)
+		delete(scope.genericContext, left.Name)
 		scope.setVariable(left.Name, assignedType)
+		if returnType := declaredCallableExpressionReturnType(assignment.Right, scope.typeCtx); !returnType.IsEmpty() {
+			scope.setCallableReturn(left.Name, returnType)
+		}
 		// If the assigned type contains generic arguments, track it
 		if genInst, ok := parseGenericTypeFromString(assignedType.String()); ok {
 			if scope.genericContext == nil {
@@ -758,7 +813,19 @@ func inferNewTypeWithScope(node *ast.NewNode, scope *functionScope) Type {
 		return MixedType()
 	}
 	className := node.ClassName
+	if strings.HasPrefix(className, "$") {
+		if target, ok := classStringTarget(scope, strings.TrimPrefix(className, "$")); ok {
+			return target
+		}
+		return MixedType()
+	}
 	if className == "" {
+		if variable, ok := node.ClassExpr.(*ast.VariableNode); ok {
+			if target, found := classStringTarget(scope, variable.Name); found {
+				return target
+			}
+			return MixedType()
+		}
 		if ident, ok := node.ClassExpr.(*ast.IdentifierNode); ok {
 			className = ident.Value
 		}
@@ -770,6 +837,30 @@ func inferNewTypeWithScope(node *ast.NewNode, scope *functionScope) Type {
 		className = scope.typeCtx.resolveClassLike(className)
 	}
 	return ClassType(className)
+}
+
+func classStringTarget(scope *functionScope, variable string) (Type, bool) {
+	if scope == nil {
+		return EmptyType(), false
+	}
+	instance, ok := scope.genericContext[variable]
+	if !ok || !strings.EqualFold(instance.ClassName, "class-string") || len(instance.TypeArguments) != 1 {
+		return EmptyType(), false
+	}
+	target := ParseType(instance.TypeArguments[0])
+	_, single := target.SingleClassName()
+	return target, single
+}
+
+func declaredCallableExpressionReturnType(expr ast.Node, typeCtx FileTypeContext) Type {
+	switch closure := expr.(type) {
+	case *ast.FunctionNode:
+		return declaredFunctionReturnType(closure, typeCtx)
+	case *ast.ArrowFunctionNode:
+		return ParseType(normalizeTypeWithContext(closure.ReturnType, typeCtx))
+	default:
+		return EmptyType()
+	}
 }
 
 func inferPropertyFetchType(node *ast.PropertyFetchNode, scope *functionScope, ctx *AnalysisContext) Type {

@@ -28,6 +28,9 @@ func trimFunctionCallNamePrefix(raw string) string {
 
 func resolveNewClassName(node *ast.NewNode, ft FileTypeContext) string {
 	if node.ClassName != "" {
+		if strings.HasPrefix(node.ClassName, "$") {
+			return ""
+		}
 		return ft.resolveClassLike(node.ClassName)
 	}
 	if ident, ok := node.ClassExpr.(*ast.IdentifierNode); ok {

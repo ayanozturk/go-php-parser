@@ -137,6 +137,48 @@
       "file": "unknown-method-ternary-null-receiver.php",
       "engineCodes": ["PHPStan.Level2.MethodExistence"],
       "phpstanIdentifiers": ["method.notFound"]
+    },
+    {
+      "id": "unknown-method-callable-variable",
+      "capability": "unknown methods after invoking a PHPDoc callable variable",
+      "file": "unknown-method-callable-variable.php",
+      "engineCodes": ["PHPStan.Level2.MethodExistence"],
+      "phpstanIdentifiers": ["method.notFound"]
+    },
+    {
+      "id": "known-method-callable-variable",
+      "capability": "known methods after invoking a PHPDoc callable variable",
+      "file": "known-method-callable-variable.php",
+      "engineCodes": [],
+      "phpstanIdentifiers": []
+    },
+    {
+      "id": "unknown-method-closure-variable",
+      "capability": "unknown methods after invoking a closure variable with a native return type",
+      "file": "unknown-method-closure-variable.php",
+      "engineCodes": ["PHPStan.Level2.MethodExistence"],
+      "phpstanIdentifiers": ["method.notFound"]
+    },
+    {
+      "id": "known-method-closure-variable",
+      "capability": "known methods after invoking a closure variable with a native return type",
+      "file": "known-method-closure-variable.php",
+      "engineCodes": [],
+      "phpstanIdentifiers": []
+    },
+    {
+      "id": "unknown-method-dynamic-class-string",
+      "capability": "unknown methods after dynamic construction from class-string",
+      "file": "unknown-method-dynamic-class-string.php",
+      "engineCodes": ["PHPStan.Level2.MethodExistence"],
+      "phpstanIdentifiers": ["method.notFound"]
+    },
+    {
+      "id": "known-method-dynamic-class-string",
+      "capability": "known methods after dynamic construction from class-string",
+      "file": "known-method-dynamic-class-string.php",
+      "engineCodes": [],
+      "phpstanIdentifiers": []
     }
   ]
 }
