@@ -11,10 +11,21 @@ type ArgumentTypeRule struct{}
 type semanticExpressionObserver func(filename string, expr ast.Node, scope *functionScope, ctx *AnalysisContext)
 
 func (r *ArgumentTypeRule) CheckIssues(nodes []ast.Node, filename string, ctx *AnalysisContext) []AnalysisIssue {
-	var issues []AnalysisIssue
+	ctx = ensureArgCallDiagnostics(filename, nodes, ctx)
+	return ctx.argTypeIssues
+}
+
+func ensureArgCallDiagnostics(filename string, nodes []ast.Node, ctx *AnalysisContext) *AnalysisContext {
+	if ctx == nil {
+		ctx = &AnalysisContext{}
+	}
+	if ctx.hasArgCallDiagnostics {
+		return ctx
+	}
+	var typeIssues []AnalysisIssue
+	ctx.argCountSink = &ctx.argCountIssues
 	fileCtx := analysisFileTypeContext(ctx, nodes)
 	var walk func(node ast.Node, class *ast.ClassNode, scope *functionScope)
-
 	walk = func(node ast.Node, class *ast.ClassNode, scope *functionScope) {
 		switch n := node.(type) {
 		case *ast.ClassNode:
@@ -23,19 +34,20 @@ func (r *ArgumentTypeRule) CheckIssues(nodes []ast.Node, filename string, ctx *A
 			}
 		case *ast.FunctionNode:
 			fnScope := analysisFunctionScope(ctx, class, n, fileCtx)
-			walkStatementsForArgTypes(n.Body, fnScope, ctx, filename, &issues)
+			walkStatementsForArgTypes(n.Body, fnScope, ctx, filename, &typeIssues)
 		case *ast.NamespaceNode:
 			for _, child := range n.Body {
 				walk(child, class, scope)
 			}
 		}
 	}
-
 	for _, node := range nodes {
 		walk(node, nil, nil)
 	}
-
-	return issues
+	ctx.argCountSink = nil
+	ctx.argTypeIssues = typeIssues
+	ctx.hasArgCallDiagnostics = true
+	return ctx
 }
 
 func walkStatementsForArgTypes(nodes []ast.Node, scope *functionScope, ctx *AnalysisContext, filename string, issues *[]AnalysisIssue) {
@@ -476,6 +488,9 @@ func walkExprForArgTypesUsing(node ast.Node, scope *functionScope, ctx *Analysis
 		if issues != nil {
 			checkMethodCallArgTypes(n, scope, ctx, filename, issues)
 		}
+		if ctx != nil && ctx.argCountSink != nil {
+			checkMethodCallArgCount(n, scope, ctx, filename, ctx.argCountSink)
+		}
 		observeArgumentExpressions(n.Args, scope, ctx, filename, observe)
 		walkExprForArgTypesUsing(n.Object, scope, ctx, filename, issues, observe)
 		observeSemanticExpression(filename, n.Object, scope, ctx, observe)
@@ -523,6 +538,9 @@ func walkExprForArgTypesUsing(node ast.Node, scope *functionScope, ctx *Analysis
 	case *ast.NewNode:
 		if issues != nil {
 			checkNewArgTypes(n, scope, ctx, filename, issues)
+		}
+		if ctx != nil && ctx.argCountSink != nil {
+			checkNewArgCount(n, scope, ctx, filename, ctx.argCountSink)
 		}
 		observeArgumentExpressions(n.Args, scope, ctx, filename, observe)
 		for _, arg := range n.Args {

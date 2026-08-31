@@ -5,7 +5,6 @@ import (
 	"github.com/ayanozturk/go-php-parser/sharedcache"
 	"github.com/ayanozturk/go-php-parser/style/helper"
 	"strings"
-	"unicode"
 )
 
 // EmptyStatementRule detects superfluous empty statements (standalone semicolons)
@@ -59,15 +58,6 @@ func (r *EmptyStatementRule) CheckIssuesWithSource(filename string, content []by
 		}
 		*qs = helper.QuoteState{}
 
-		// Convenience closures
-		isWordBoundary := func(idx int) bool {
-			if idx < 0 || idx >= len(line) {
-				return true
-			}
-			return !unicode.IsLetter(rune(line[idx])) && !unicode.IsDigit(rune(line[idx])) && line[idx] != '_'
-		}
-
-		// Scan characters of the line
 		j := 0
 		for j < len(line) {
 			// Handle/skip block comments spanning lines
@@ -117,10 +107,9 @@ func (r *EmptyStatementRule) CheckIssuesWithSource(filename string, content []by
 			// Recognize control keywords if/for/while followed by '(' (word boundaries)
 			if !inForControl && !ctrl.active {
 				// try "for"
-				if j+3 <= len(line) && strings.EqualFold(line[j:j+3], "for") && isWordBoundary(j-1) && isWordBoundary(j+3) {
-					// Skip whitespace to find '('
+				if hasKeywordAtASCII(line, j, "for") {
 					k := j + 3
-					for k < len(line) && unicode.IsSpace(rune(line[k])) {
+					for k < len(line) && isASCIISpace(line[k]) {
 						k++
 					}
 					if k < len(line) && line[k] == '(' {
@@ -132,10 +121,9 @@ func (r *EmptyStatementRule) CheckIssuesWithSource(filename string, content []by
 					}
 				}
 				// try "if" / "while"
-				if j+2 <= len(line) && strings.EqualFold(line[j:j+2], "if") && isWordBoundary(j-1) && isWordBoundary(j+2) {
-					// find matching ')'
+				if hasKeywordAtASCII(line, j, "if") {
 					k := j + 2
-					for k < len(line) && unicode.IsSpace(rune(line[k])) {
+					for k < len(line) && isASCIISpace(line[k]) {
 						k++
 					}
 					if k < len(line) && line[k] == '(' {
@@ -158,9 +146,9 @@ func (r *EmptyStatementRule) CheckIssuesWithSource(filename string, content []by
 						}
 					}
 				}
-				if j+5 <= len(line) && strings.EqualFold(line[j:j+5], "while") && isWordBoundary(j-1) && isWordBoundary(j+5) {
+				if hasKeywordAtASCII(line, j, "while") {
 					k := j + 5
-					for k < len(line) && unicode.IsSpace(rune(line[k])) {
+					for k < len(line) && isASCIISpace(line[k]) {
 						k++
 					}
 					if k < len(line) && line[k] == '(' {
@@ -202,7 +190,7 @@ func (r *EmptyStatementRule) CheckIssuesWithSource(filename string, content []by
 
 			// After control paren, if we encounter non-space code before ';' or '{', cancel pending
 			if ctrl.active {
-				if unicode.IsSpace(rune(ch)) {
+				if isASCIISpace(ch) {
 					// keep waiting
 				} else if ch == '{' {
 					ctrl.active = false // has body, not empty
@@ -240,7 +228,7 @@ func (r *EmptyStatementRule) CheckIssuesWithSource(filename string, content []by
 			}
 
 			// Any other visible character counts as code (outside comments/strings)
-			if !unicode.IsSpace(rune(ch)) {
+			if !isASCIISpace(ch) {
 				hasCodeSinceBoundary = true
 			}
 			j++
@@ -309,6 +297,10 @@ func hasKeywordAtASCII(line string, start int, keyword string) bool {
 		}
 	}
 	return true
+}
+
+func isASCIISpace(ch byte) bool {
+	return ch == ' ' || ch == '\t' || ch == '\n' || ch == '\r' || ch == '\v' || ch == '\f'
 }
 
 func isEmptyStatementIdentByte(ch byte) bool {
