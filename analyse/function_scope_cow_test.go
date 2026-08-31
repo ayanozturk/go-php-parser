@@ -5,6 +5,7 @@ import (
 	"github.com/ayanozturk/go-php-parser/lexer"
 	"github.com/ayanozturk/go-php-parser/parser"
 	"reflect"
+	"strings"
 	"testing"
 )
 
@@ -240,6 +241,37 @@ func TestFunctionScopeArrayShapeCallablesClonesRemainIndependent(t *testing.T) {
 	}
 	if _, ok := right.arrayShapeCallables["leftOnly"]; ok {
 		t.Fatal("left sibling array-shape leaked into right sibling")
+	}
+}
+
+func TestFunctionScopeArrayIndexKeysCloneIndependently(t *testing.T) {
+	root := &functionScope{arrayIndexKeys: map[string][]string{"key": {"service"}}}
+	parent := root.clone()
+	left := parent.clone()
+	right := parent.clone()
+
+	left.setArrayIndexKeys("key", []string{"left"})
+	left.setArrayIndexKeys("leftOnly", []string{"inner"})
+	right.setArrayIndexKeys("key", []string{"right"})
+	parent.clearArrayIndexKeys("key")
+
+	if got := strings.Join(root.arrayIndexKeys["key"], ","); got != "service" {
+		t.Fatalf("root array-index keys changed through clone: %q", got)
+	}
+	if got := strings.Join(left.arrayIndexKeys["key"], ","); got != "left" {
+		t.Fatalf("left array-index keys = %q, want left", got)
+	}
+	if got := strings.Join(right.arrayIndexKeys["key"], ","); got != "right" {
+		t.Fatalf("right array-index keys = %q, want right", got)
+	}
+	if _, ok := parent.arrayIndexKeys["key"]; ok {
+		t.Fatal("parent array-index deletion leaked into root or siblings")
+	}
+	if _, ok := left.arrayIndexKeys["rightOnly"]; ok {
+		t.Fatal("right sibling array-index leaked into left sibling")
+	}
+	if _, ok := right.arrayIndexKeys["leftOnly"]; ok {
+		t.Fatal("left sibling array-index leaked into right sibling")
 	}
 }
 

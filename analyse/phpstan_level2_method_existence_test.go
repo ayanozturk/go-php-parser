@@ -396,6 +396,90 @@ function run(array $nested, array $list, CloneService $clone, ?CoalesceService $
 	}
 }
 
+func TestLevel2UnknownMethodsOnDynamicArrayShapeIndexes(t *testing.T) {
+	issues := runPHPStanLevelOnFiles(t, map[string]string{
+		"test.php": `<?php
+class AssignedService {}
+class KnownAssignedService { public function execute(): void {} }
+class UnionLeft {}
+class UnionRight { public function execute(): void {} }
+class ListItem {}
+class KnownListItem { public function execute(): void {} }
+class ConcatService {}
+class NestedDynamic {}
+class ConstService {}
+class Holder {
+    public const KEY = 'service';
+    /**
+     * @param array{service: callable(): ConstService} $factories
+     */
+    public function constKey(array $factories): void {
+        $factories[self::KEY]()->missing();
+        $factories[Holder::KEY]()->missing();
+    }
+}
+
+/**
+ * @param array{service: callable(): AssignedService, known: callable(): KnownAssignedService, extra: callable(): UnionLeft, ready: callable(): UnionRight} $factories
+ * @param array{inner: array{service: callable(): NestedDynamic}} $nested
+ * @param list{callable(): ListItem, callable(): KnownListItem} $list
+ * @param array{service: callable(): AssignedService} $named
+ */
+function run(array $factories, array $nested, array $list, array $named, string $name, int $i, bool $flag): void {
+    $key = "service";
+    $factories[$key]()->missing();
+    $knownKey = 'known';
+    $factories[$knownKey]()->execute();
+    $concat = "serv" . "ice";
+    $factories[$concat]()->missing();
+    $ternary = $flag ? "extra" : "ready";
+    $factories[$ternary]()->missing();
+    $factories[$name]()->missing();
+    $factories[$name]()->execute();
+    $innerKey = "inner";
+    $nested[$innerKey]["service"]()->missing();
+    $list[$i]()->missing();
+    $list[$i]()->execute();
+    $named[$i]()->missing();
+    $factories["missing"]()->dynamic();
+}
+`,
+	}, 2)
+
+	want := map[string]int{
+		"Call to an undefined method AssignedService::missing().": 2,
+		"Call to an undefined method UnionLeft|UnionRight::missing().": 1,
+		"Call to an undefined method AssignedService|KnownAssignedService|UnionLeft|UnionRight::missing().": 1,
+		"Call to an undefined method NestedDynamic::missing().": 1,
+		"Call to an undefined method KnownListItem|ListItem::missing().": 1,
+		"Call to an undefined method ConstService::missing().": 2,
+	}
+	got := map[string]int{}
+	for _, issue := range issues {
+		if issue.Code == level2MethodExistenceCode {
+			got[issue.Message]++
+		}
+	}
+	for message, count := range want {
+		if got[message] != count {
+			t.Fatalf("expected %d %q, got %#v", count, message, issues)
+		}
+	}
+	if hasIssueContaining(issues, level2MethodExistenceCode, "KnownAssignedService::execute()") {
+		t.Fatalf("known assigned array-shape indexes should remain clean, got %#v", issues)
+	}
+	if hasIssueContaining(issues, level2MethodExistenceCode, "dynamic()") {
+		t.Fatalf("unknown literal array-shape keys should remain conservative, got %#v", issues)
+	}
+	total := 0
+	for _, count := range got {
+		total += count
+	}
+	if total != 8 {
+		t.Fatalf("expected eight unknown-method diagnostics, got %#v", issues)
+	}
+}
+
 func TestLevel2UnknownMethodHandlesMultiClassReceiversConservatively(t *testing.T) {
 	issues := runPHPStanLevelOnFiles(t, map[string]string{
 		"test.php": `<?php

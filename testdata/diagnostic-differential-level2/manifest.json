@@ -347,6 +347,62 @@
       "file": "unknown-method-union-int-class.php",
       "engineCodes": ["PHPStan.Level2.MethodNonObject"],
       "phpstanIdentifiers": ["method.nonObject"]
+    },
+    {
+      "id": "unknown-method-assigned-array-index",
+      "capability": "unknown methods on assigned constant array-shape indexes",
+      "file": "unknown-method-assigned-array-index.php",
+      "engineCodes": ["PHPStan.Level2.MethodExistence"],
+      "phpstanIdentifiers": ["method.notFound"]
+    },
+    {
+      "id": "known-method-assigned-array-index",
+      "capability": "known methods on assigned constant array-shape indexes",
+      "file": "known-method-assigned-array-index.php",
+      "engineCodes": [],
+      "phpstanIdentifiers": []
+    },
+    {
+      "id": "unknown-method-string-array-index",
+      "capability": "unknown methods on unknown string array-shape indexes",
+      "file": "unknown-method-string-array-index.php",
+      "engineCodes": ["PHPStan.Level2.MethodExistence"],
+      "phpstanIdentifiers": ["method.notFound"]
+    },
+    {
+      "id": "known-method-string-array-index",
+      "capability": "known methods on unknown string array-shape indexes",
+      "file": "known-method-string-array-index.php",
+      "engineCodes": [],
+      "phpstanIdentifiers": []
+    },
+    {
+      "id": "unknown-method-int-list-index",
+      "capability": "unknown methods on unknown int list indexes",
+      "file": "unknown-method-int-list-index.php",
+      "engineCodes": ["PHPStan.Level2.MethodExistence"],
+      "phpstanIdentifiers": ["method.notFound"]
+    },
+    {
+      "id": "known-method-int-list-index",
+      "capability": "known methods on unknown int list indexes",
+      "file": "known-method-int-list-index.php",
+      "engineCodes": [],
+      "phpstanIdentifiers": []
+    },
+    {
+      "id": "unknown-method-concat-array-index",
+      "capability": "unknown methods on concatenated literal array-shape indexes",
+      "file": "unknown-method-concat-array-index.php",
+      "engineCodes": ["PHPStan.Level2.MethodExistence"],
+      "phpstanIdentifiers": ["method.notFound"]
+    },
+    {
+      "id": "unknown-method-class-const-array-index",
+      "capability": "unknown methods on class-constant array-shape indexes",
+      "file": "unknown-method-class-const-array-index.php",
+      "engineCodes": ["PHPStan.Level2.MethodExistence"],
+      "phpstanIdentifiers": ["method.notFound"]
     }
   ]
 }

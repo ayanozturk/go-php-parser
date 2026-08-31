@@ -34,6 +34,8 @@ type functionScope struct {
 	callablesShared         bool
 	arrayShapeCallables     map[string]map[string]arrayShapeField
 	arrayShapesShared       bool
+	arrayIndexKeys          map[string][]string
+	classConstantValues     map[string]string
 	// genericContext maps variable names to their generic class instantiations
 	// e.g., "$coll" → (className: "Collection", typeArguments: ["User"])
 	genericContext map[string]GenericInstance
@@ -524,6 +526,7 @@ func newFunctionScopeWithContext(ctx *AnalysisContext, class *ast.ClassNode, fn 
 	}
 
 	if class != nil {
+		scope.classConstantValues = classConstantLiteralValues(class)
 		classData := analysisClassScopeData(ctx, class, typeCtx)
 		scope.className = classData.className
 		scope.propertyDecls = classData.propertyDecls
@@ -786,11 +789,7 @@ func arrayShapeFieldsOf(expr ast.Node, scope *functionScope) map[string]arraySha
 	case *ast.VariableNode:
 		return scope.arrayShapeCallables[node.Name]
 	case *ast.ArrayAccessNode:
-		key, ok := literalArrayKey(node.Index)
-		if !ok {
-			return nil
-		}
-		return arrayShapeFieldsOf(node.Var, scope)[key].nested
+		return lookupArrayShapeField(arrayShapeFieldsOf(node.Var, scope), node.Index, scope).nested
 	default:
 		return nil
 	}
@@ -800,11 +799,224 @@ func inferArrayShapeCallableReturn(node *ast.ArrayAccessNode, scope *functionSco
 	if node == nil {
 		return EmptyType()
 	}
-	key, ok := literalArrayKey(node.Index)
-	if !ok {
-		return EmptyType()
+	return lookupArrayShapeField(arrayShapeFieldsOf(node.Var, scope), node.Index, scope).callable
+}
+
+type arrayIndexLookup struct {
+	keys    []string
+	all     bool
+	numeric bool
+}
+
+func (lookup arrayIndexLookup) empty() bool {
+	return !lookup.all && !lookup.numeric && len(lookup.keys) == 0
+}
+
+func lookupArrayShapeField(fields map[string]arrayShapeField, index ast.Node, scope *functionScope) arrayShapeField {
+	if len(fields) == 0 {
+		return arrayShapeField{}
 	}
-	return arrayShapeFieldsOf(node.Var, scope)[key].callable
+	lookup := resolveArrayIndex(index, scope)
+	if lookup.empty() {
+		return arrayShapeField{}
+	}
+	var result arrayShapeField
+	for key, field := range fields {
+		if !arrayIndexIncludes(lookup, key) {
+			continue
+		}
+		result = mergeArrayShapeField(result, field)
+	}
+	return result
+}
+
+func arrayIndexIncludes(lookup arrayIndexLookup, key string) bool {
+	if lookup.all {
+		return true
+	}
+	if lookup.numeric {
+		return isNumericArrayKey(key)
+	}
+	for _, candidate := range lookup.keys {
+		if candidate == key {
+			return true
+		}
+	}
+	return false
+}
+
+func mergeArrayShapeField(left, right arrayShapeField) arrayShapeField {
+	nested := copyArrayShapeFieldMap(left.nested)
+	for key, field := range right.nested {
+		if nested == nil {
+			nested = make(map[string]arrayShapeField)
+		}
+		nested[key] = mergeArrayShapeField(nested[key], field)
+	}
+	return arrayShapeField{
+		callable: unionInferredTypes(left.callable, right.callable),
+		nested:   nested,
+	}
+}
+
+func copyArrayShapeFieldMap(src map[string]arrayShapeField) map[string]arrayShapeField {
+	if len(src) == 0 {
+		return nil
+	}
+	dst := make(map[string]arrayShapeField, len(src))
+	for key, field := range src {
+		dst[key] = field
+	}
+	return dst
+}
+
+func resolveArrayIndex(node ast.Node, scope *functionScope) arrayIndexLookup {
+	if node == nil {
+		return arrayIndexLookup{}
+	}
+	if key, ok := literalArrayKey(node); ok {
+		return arrayIndexLookup{keys: []string{key}}
+	}
+	switch value := node.(type) {
+	case *ast.ConcatNode:
+		parts := make([]string, 0, len(value.Parts))
+		for _, part := range value.Parts {
+			partLookup := resolveArrayIndex(part, scope)
+			if partLookup.all || partLookup.numeric || len(partLookup.keys) != 1 {
+				return arrayIndexLookup{}
+			}
+			parts = append(parts, partLookup.keys[0])
+		}
+		if len(parts) == 0 {
+			return arrayIndexLookup{}
+		}
+		return arrayIndexLookup{keys: []string{strings.Join(parts, "")}}
+	case *ast.BinaryExpr:
+		if value.Operator == "." {
+			return resolveArrayIndex(&ast.ConcatNode{Parts: []ast.Node{value.Left, value.Right}}, scope)
+		}
+	case *ast.TernaryExpr:
+		ifTrue := value.IfTrue
+		if ifTrue == nil {
+			ifTrue = value.Condition
+		}
+		return mergeArrayIndexLookups(resolveArrayIndex(ifTrue, scope), resolveArrayIndex(value.IfFalse, scope))
+	case *ast.VariableNode:
+		if scope != nil {
+			if keys := scope.arrayIndexKeys[value.Name]; len(keys) > 0 {
+				return arrayIndexLookup{keys: append([]string(nil), keys...)}
+			}
+			if typ, ok := scope.variables[value.Name]; ok {
+				return arrayIndexLookupFromType(typ)
+			}
+		}
+		return arrayIndexLookup{}
+	case *ast.ClassConstFetchNode:
+		if key, ok := classConstantArrayKey(value, scope); ok {
+			return arrayIndexLookup{keys: []string{key}}
+		}
+	}
+	return arrayIndexLookup{}
+}
+
+func mergeArrayIndexLookups(left, right arrayIndexLookup) arrayIndexLookup {
+	if left.empty() && right.empty() {
+		return arrayIndexLookup{}
+	}
+	if left.all || right.all || left.empty() || right.empty() {
+		return arrayIndexLookup{all: true}
+	}
+	if left.numeric && right.numeric {
+		return arrayIndexLookup{numeric: true}
+	}
+	if left.numeric || right.numeric {
+		return arrayIndexLookup{all: true}
+	}
+	return arrayIndexLookup{keys: uniqueStrings(append(append([]string{}, left.keys...), right.keys...))}
+}
+
+func arrayIndexLookupFromType(typ Type) arrayIndexLookup {
+	if typ.IsEmpty() {
+		return arrayIndexLookup{}
+	}
+	if typ.hasBuiltin("mixed") || typ.hasBuiltin("string") {
+		return arrayIndexLookup{all: true}
+	}
+	if typ.hasBuiltin("int") || typ.hasBuiltin("float") {
+		return arrayIndexLookup{numeric: true}
+	}
+	return arrayIndexLookup{}
+}
+
+func classConstantArrayKey(node *ast.ClassConstFetchNode, scope *functionScope) (string, bool) {
+	if node == nil || node.ConstExpr != nil || node.Const == "" || scope == nil || len(scope.classConstantValues) == 0 {
+		return "", false
+	}
+	className := strings.TrimLeft(node.Class, "\\")
+	if className != "" && !strings.EqualFold(className, "self") && !strings.EqualFold(className, "static") && (scope.className == "" || !strings.EqualFold(className, scope.className)) {
+		return "", false
+	}
+	key, ok := scope.classConstantValues[node.Const]
+	return key, ok
+}
+
+func classConstantLiteralValues(class *ast.ClassNode) map[string]string {
+	if class == nil {
+		return nil
+	}
+	values := make(map[string]string)
+	var visit func(ast.Node)
+	visit = func(node ast.Node) {
+		switch value := node.(type) {
+		case *ast.ConstantNode:
+			if key, ok := literalArrayKey(value.Value); ok {
+				values[value.Name] = key
+			}
+		case *ast.BlockNode:
+			for _, child := range value.Statements {
+				visit(child)
+			}
+		}
+	}
+	for _, node := range class.Constants {
+		visit(node)
+	}
+	if len(values) == 0 {
+		return nil
+	}
+	return values
+}
+
+func isNumericArrayKey(key string) bool {
+	_, err := strconv.ParseInt(key, 10, 64)
+	return err == nil
+}
+
+func uniqueStrings(values []string) []string {
+	if len(values) == 0 {
+		return nil
+	}
+	seen := make(map[string]struct{}, len(values))
+	result := make([]string, 0, len(values))
+	for _, value := range values {
+		if _, ok := seen[value]; ok {
+			continue
+		}
+		seen[value] = struct{}{}
+		result = append(result, value)
+	}
+	return result
+}
+
+func copyArrayIndexKeys(src map[string][]string) map[string][]string {
+	if len(src) == 0 {
+		return nil
+	}
+	dst := make(map[string][]string, len(src))
+	for name, keys := range src {
+		dst[name] = append([]string(nil), keys...)
+	}
+	return dst
 }
 
 func literalArrayKey(node ast.Node) (string, bool) {
@@ -885,6 +1097,8 @@ func (s *functionScope) clone() *functionScope {
 		callablesShared:         true,
 		arrayShapeCallables:     s.arrayShapeCallables,
 		arrayShapesShared:       true,
+		arrayIndexKeys:          copyArrayIndexKeys(s.arrayIndexKeys),
+		classConstantValues:     s.classConstantValues,
 		genericContext:          copyGenericContext(s.genericContext),
 	}
 	return clone
@@ -938,6 +1152,31 @@ func (s *functionScope) clearArrayShapeCallables(name string) {
 		s.arrayShapesShared = false
 	}
 	delete(s.arrayShapeCallables, name)
+}
+
+func (s *functionScope) setArrayIndexKeys(name string, keys []string) {
+	if s == nil || name == "" || len(keys) == 0 {
+		return
+	}
+	if s.arrayIndexKeys == nil {
+		s.arrayIndexKeys = make(map[string][]string)
+	}
+	s.arrayIndexKeys[name] = append([]string(nil), keys...)
+}
+
+func (s *functionScope) clearArrayIndexKeys(name string) {
+	if s == nil || s.arrayIndexKeys == nil {
+		return
+	}
+	delete(s.arrayIndexKeys, name)
+}
+
+func definiteArrayIndexKeys(expr ast.Node, scope *functionScope) []string {
+	lookup := resolveArrayIndex(expr, scope)
+	if lookup.all || lookup.numeric || len(lookup.keys) == 0 {
+		return nil
+	}
+	return lookup.keys
 }
 
 func (s *functionScope) setVariable(name string, typ Type) {
@@ -1009,8 +1248,12 @@ func applyAssignmentScope(scope *functionScope, assignment *ast.AssignmentNode, 
 	case *ast.VariableNode:
 		scope.clearCallableReturn(left.Name)
 		scope.clearArrayShapeCallables(left.Name)
+		scope.clearArrayIndexKeys(left.Name)
 		delete(scope.genericContext, left.Name)
 		scope.setVariable(left.Name, assignedType)
+		if keys := definiteArrayIndexKeys(assignment.Right, scope); len(keys) > 0 {
+			scope.setArrayIndexKeys(left.Name, keys)
+		}
 		if returnType := inferCallableInvocationReturn(assignment.Right, scope, ctx); !returnType.IsEmpty() {
 			scope.setCallableReturn(left.Name, returnType)
 		}
