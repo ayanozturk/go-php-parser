@@ -235,6 +235,62 @@
       "file": "known-method-template-class-string.php",
       "engineCodes": [],
       "phpstanIdentifiers": []
+    },
+    {
+      "id": "unknown-method-nested-array-shape",
+      "capability": "unknown methods after invoking a nested callable array-shape element",
+      "file": "unknown-method-nested-array-shape.php",
+      "engineCodes": ["PHPStan.Level2.MethodExistence"],
+      "phpstanIdentifiers": ["method.notFound"]
+    },
+    {
+      "id": "known-method-nested-array-shape",
+      "capability": "known methods after invoking a nested callable array-shape element",
+      "file": "known-method-nested-array-shape.php",
+      "engineCodes": [],
+      "phpstanIdentifiers": []
+    },
+    {
+      "id": "unknown-method-list-callable",
+      "capability": "unknown methods after invoking a list callable element",
+      "file": "unknown-method-list-callable.php",
+      "engineCodes": ["PHPStan.Level2.MethodExistence"],
+      "phpstanIdentifiers": ["method.notFound"]
+    },
+    {
+      "id": "known-method-list-callable",
+      "capability": "known methods after invoking a list callable element",
+      "file": "known-method-list-callable.php",
+      "engineCodes": [],
+      "phpstanIdentifiers": []
+    },
+    {
+      "id": "unknown-method-clone-receiver",
+      "capability": "unknown methods on clone receivers",
+      "file": "unknown-method-clone-receiver.php",
+      "engineCodes": ["PHPStan.Level2.MethodExistence"],
+      "phpstanIdentifiers": ["method.notFound"]
+    },
+    {
+      "id": "unknown-method-coalesce-receiver",
+      "capability": "unknown methods on null-coalesce receivers",
+      "file": "unknown-method-coalesce-receiver.php",
+      "engineCodes": ["PHPStan.Level2.MethodExistence"],
+      "phpstanIdentifiers": ["method.notFound"]
+    },
+    {
+      "id": "unknown-method-match-receiver",
+      "capability": "unknown methods on match-expression receivers",
+      "file": "unknown-method-match-receiver.php",
+      "engineCodes": ["PHPStan.Level2.MethodExistence"],
+      "phpstanIdentifiers": ["method.notFound"]
+    },
+    {
+      "id": "unknown-method-nullsafe-receiver",
+      "capability": "unknown methods on nullsafe receivers",
+      "file": "unknown-method-nullsafe-receiver.php",
+      "engineCodes": ["PHPStan.Level2.MethodExistence"],
+      "phpstanIdentifiers": ["method.notFound"]
     }
   ]
 }

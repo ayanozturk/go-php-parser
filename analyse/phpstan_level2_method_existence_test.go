@@ -343,6 +343,59 @@ function run(array $factories): void {
 	}
 }
 
+func TestLevel2UnknownMethodsOnNestedShapesAndRemainingReceivers(t *testing.T) {
+	issues := runPHPStanLevelOnFiles(t, map[string]string{
+		"test.php": `<?php
+class NestedService {}
+class KnownNestedService { public function execute(): void {} }
+class ListService {}
+class CloneService {}
+class CoalesceService {}
+class MatchLeft {}
+class MatchRight {}
+class NullsafeService {}
+
+/**
+ * @param array{inner: array{service: callable(): NestedService, known: callable(): KnownNestedService}} $nested
+ * @param list{callable(): ListService} $list
+ */
+function run(array $nested, array $list, CloneService $clone, ?CoalesceService $coalesce, bool $flag, ?NullsafeService $nullsafe): void {
+    $inner = $nested["inner"];
+    $inner["service"]()->missing();
+    $nested["inner"]["service"]()->missing();
+    $nested["inner"]["known"]()->execute();
+    $list[0]()->missing();
+    (clone $clone)->missing();
+    ($coalesce ?? new CoalesceService())->missing();
+    (match ($flag) { true => new MatchLeft(), false => new MatchRight() })->missing();
+    $nullsafe?->missing();
+}
+`,
+	}, 2)
+
+	if countIssueContaining(issues, level2MethodExistenceCode, "NestedService::missing()") != 2 {
+		t.Fatalf("expected nested array-shape callable diagnostics, got %#v", issues)
+	}
+	if countIssueContaining(issues, level2MethodExistenceCode, "ListService::missing()") != 1 {
+		t.Fatalf("expected list callable diagnostic, got %#v", issues)
+	}
+	if countIssueContaining(issues, level2MethodExistenceCode, "CloneService::missing()") != 1 {
+		t.Fatalf("expected clone receiver diagnostic, got %#v", issues)
+	}
+	if countIssueContaining(issues, level2MethodExistenceCode, "CoalesceService::missing()") != 1 {
+		t.Fatalf("expected coalesce receiver diagnostic, got %#v", issues)
+	}
+	if countIssueContaining(issues, level2MethodExistenceCode, "MatchLeft|MatchRight::missing()") != 1 {
+		t.Fatalf("expected match receiver diagnostic, got %#v", issues)
+	}
+	if countIssueContaining(issues, level2MethodExistenceCode, "NullsafeService::missing()") != 1 {
+		t.Fatalf("expected nullsafe receiver diagnostic, got %#v", issues)
+	}
+	if hasIssueContaining(issues, level2MethodExistenceCode, "KnownNestedService::execute()") {
+		t.Fatalf("known nested array-shape callable results should remain clean, got %#v", issues)
+	}
+}
+
 func TestLevel2UnknownMethodHandlesMultiClassReceiversConservatively(t *testing.T) {
 	issues := runPHPStanLevelOnFiles(t, map[string]string{
 		"test.php": `<?php

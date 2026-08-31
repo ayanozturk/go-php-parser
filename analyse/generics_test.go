@@ -284,4 +284,12 @@ func TestArrayShapeCallableReturnsExtractsLiteralKeys(t *testing.T) {
 	if fields := arrayShapeCallableReturns(`?non-empty-array{factory: callable(): Service}|null`, FileTypeContext{}); fields["factory"].String() != "Service" {
 		t.Fatalf("nullable array-shape callables were not extracted: %#v", fields)
 	}
+	nested := parseArrayShapeFields(`array{inner: array{service: callable(): NestedService}}`, FileTypeContext{})
+	if nested["inner"].nested["service"].callable.String() != "NestedService" {
+		t.Fatalf("nested array-shape callables were not extracted: %#v", nested)
+	}
+	listFields := parseArrayShapeFields(`list{callable(): ListService}`, FileTypeContext{})
+	if listFields["0"].callable.String() != "ListService" {
+		t.Fatalf("list callable shapes were not extracted: %#v", listFields)
+	}
 }

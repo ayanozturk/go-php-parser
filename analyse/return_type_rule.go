@@ -32,7 +32,7 @@ type functionScope struct {
 	propertyCallableReturns map[string]Type
 	callableReturns         map[string]Type
 	callablesShared         bool
-	arrayShapeCallables     map[string]map[string]Type
+	arrayShapeCallables     map[string]map[string]arrayShapeField
 	arrayShapesShared       bool
 	// genericContext maps variable names to their generic class instantiations
 	// e.g., "$coll" → (className: "Collection", typeArguments: ["User"])
@@ -306,6 +306,28 @@ func inferType(expr ast.Node, scope *functionScope, ctx *AnalysisContext) Type {
 			ifTrue = inferType(n.Condition, scope, ctx)
 		}
 		return unionInferredTypes(ifTrue, inferType(n.IfFalse, scope, ctx))
+	case *ast.UnaryExpr:
+		if n.Operator == "clone" {
+			return inferType(n.Operand, scope, ctx)
+		}
+		if t := inferNodeKindType(n); t != "" {
+			return ParseType(t)
+		}
+		return ParseType(inferFallbackType(n))
+	case *ast.BinaryExpr:
+		if n.Operator == "??" {
+			return unionInferredTypes(inferType(n.Left, scope, ctx).withoutBuiltin("null"), inferType(n.Right, scope, ctx))
+		}
+		if t := inferNodeKindType(n); t != "" {
+			return ParseType(t)
+		}
+		return ParseType(inferFallbackType(n))
+	case *ast.MatchNode:
+		armTypes := make([]Type, 0, len(n.Arms))
+		for _, arm := range n.Arms {
+			armTypes = append(armTypes, inferType(arm.Body, scope, ctx))
+		}
+		return unionInferredTypes(armTypes...)
 	case *ast.VariableNode:
 		if scope != nil {
 			if t, ok := scope.variables[n.Name]; ok {
@@ -537,7 +559,7 @@ func newFunctionScopeWithContext(ctx *AnalysisContext, class *ast.ClassNode, fn 
 			if returnType := callableReturnType(documentedType, typeCtx); !returnType.IsEmpty() {
 				scope.setCallableReturn(param.Name, returnType)
 			}
-			if fields := arrayShapeCallableReturns(documentedType, typeCtx); len(fields) > 0 {
+			if fields := parseArrayShapeFields(documentedType, typeCtx); len(fields) > 0 {
 				scope.setArrayShapeCallables(param.Name, fields)
 			}
 			if instance, ok := parseExactGenericTypeFromString(documentedType); ok && strings.EqualFold(instance.ClassName, "class-string") && len(instance.TypeArguments) == 1 {
@@ -745,30 +767,44 @@ func copyGenericContext(src map[string]GenericInstance) map[string]GenericInstan
 	return dst
 }
 
-func copyArrayShapeCallables(src map[string]map[string]Type) map[string]map[string]Type {
+func copyArrayShapeCallables(src map[string]map[string]arrayShapeField) map[string]map[string]arrayShapeField {
 	if len(src) == 0 {
 		return nil
 	}
-	dst := make(map[string]map[string]Type, len(src))
+	dst := make(map[string]map[string]arrayShapeField, len(src))
 	for name, fields := range src {
 		dst[name] = fields
 	}
 	return dst
 }
 
-func inferArrayShapeCallableReturn(node *ast.ArrayAccessNode, scope *functionScope) Type {
-	if node == nil || scope == nil {
-		return EmptyType()
+func arrayShapeFieldsOf(expr ast.Node, scope *functionScope) map[string]arrayShapeField {
+	if expr == nil || scope == nil {
+		return nil
 	}
-	variable, ok := node.Var.(*ast.VariableNode)
-	if !ok {
+	switch node := expr.(type) {
+	case *ast.VariableNode:
+		return scope.arrayShapeCallables[node.Name]
+	case *ast.ArrayAccessNode:
+		key, ok := literalArrayKey(node.Index)
+		if !ok {
+			return nil
+		}
+		return arrayShapeFieldsOf(node.Var, scope)[key].nested
+	default:
+		return nil
+	}
+}
+
+func inferArrayShapeCallableReturn(node *ast.ArrayAccessNode, scope *functionScope) Type {
+	if node == nil {
 		return EmptyType()
 	}
 	key, ok := literalArrayKey(node.Index)
 	if !ok {
 		return EmptyType()
 	}
-	return scope.arrayShapeCallables[variable.Name][key]
+	return arrayShapeFieldsOf(node.Var, scope)[key].callable
 }
 
 func literalArrayKey(node ast.Node) (string, bool) {
@@ -879,7 +915,7 @@ func (s *functionScope) clearCallableReturn(name string) {
 	delete(s.callableReturns, name)
 }
 
-func (s *functionScope) setArrayShapeCallables(name string, fields map[string]Type) {
+func (s *functionScope) setArrayShapeCallables(name string, fields map[string]arrayShapeField) {
 	if s == nil || name == "" || len(fields) == 0 {
 		return
 	}
@@ -888,7 +924,7 @@ func (s *functionScope) setArrayShapeCallables(name string, fields map[string]Ty
 		s.arrayShapesShared = false
 	}
 	if s.arrayShapeCallables == nil {
-		s.arrayShapeCallables = make(map[string]map[string]Type)
+		s.arrayShapeCallables = make(map[string]map[string]arrayShapeField)
 	}
 	s.arrayShapeCallables[name] = fields
 }
@@ -982,6 +1018,9 @@ func applyAssignmentScope(scope *functionScope, assignment *ast.AssignmentNode, 
 			if fields := scope.arrayShapeCallables[source.Name]; len(fields) > 0 {
 				scope.setArrayShapeCallables(left.Name, fields)
 			}
+		}
+		if nested := arrayShapeFieldsOf(assignment.Right, scope); len(nested) > 0 {
+			scope.setArrayShapeCallables(left.Name, nested)
 		}
 		// If the assigned type contains generic arguments, track it
 		if genInst, ok := parseGenericTypeFromString(assignedType.String()); ok {

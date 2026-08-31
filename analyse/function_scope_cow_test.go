@@ -211,25 +211,25 @@ func TestFunctionScopeClassStringMetadataClonesRemainIndependent(t *testing.T) {
 }
 
 func TestFunctionScopeArrayShapeCallablesClonesRemainIndependent(t *testing.T) {
-	root := &functionScope{arrayShapeCallables: map[string]map[string]Type{
-		"factories": {"service": ParseType("InitialService")},
+	root := &functionScope{arrayShapeCallables: map[string]map[string]arrayShapeField{
+		"factories": {"service": {callable: ParseType("InitialService")}},
 	}}
 	parent := root.clone()
 	left := parent.clone()
 	right := parent.clone()
 
-	left.setArrayShapeCallables("factories", map[string]Type{"service": ParseType("LeftService")})
-	left.setArrayShapeCallables("leftOnly", map[string]Type{"service": ParseType("bool")})
-	right.setArrayShapeCallables("factories", map[string]Type{"service": ParseType("RightService")})
+	left.setArrayShapeCallables("factories", map[string]arrayShapeField{"service": {callable: ParseType("LeftService")}})
+	left.setArrayShapeCallables("leftOnly", map[string]arrayShapeField{"service": {callable: ParseType("bool")}})
+	right.setArrayShapeCallables("factories", map[string]arrayShapeField{"service": {callable: ParseType("RightService")}})
 	parent.clearArrayShapeCallables("factories")
 
-	if got := root.arrayShapeCallables["factories"]["service"].String(); got != "InitialService" {
+	if got := root.arrayShapeCallables["factories"]["service"].callable.String(); got != "InitialService" {
 		t.Fatalf("root array-shape callable changed through clone: %q", got)
 	}
-	if got := left.arrayShapeCallables["factories"]["service"].String(); got != "LeftService" {
+	if got := left.arrayShapeCallables["factories"]["service"].callable.String(); got != "LeftService" {
 		t.Fatalf("left array-shape callable = %q, want LeftService", got)
 	}
-	if got := right.arrayShapeCallables["factories"]["service"].String(); got != "RightService" {
+	if got := right.arrayShapeCallables["factories"]["service"].callable.String(); got != "RightService" {
 		t.Fatalf("right array-shape callable = %q, want RightService", got)
 	}
 	if _, ok := parent.arrayShapeCallables["factories"]; ok {

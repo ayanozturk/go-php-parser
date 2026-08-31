@@ -1,6 +1,7 @@
 package analyse
 
 import (
+	"strconv"
 	"strings"
 	"unicode"
 	"unicode/utf8"
@@ -164,7 +165,40 @@ func parseExactGenericTypeFromString(typeStr string) (GenericInstance, bool) {
 	return instance, true
 }
 
+type arrayShapeField struct {
+	callable Type
+	nested   map[string]arrayShapeField
+}
+
+func (f arrayShapeField) empty() bool {
+	return f.callable.IsEmpty() && len(f.nested) == 0
+}
+
 func arrayShapeCallableReturns(raw string, typeCtx FileTypeContext) map[string]Type {
+	fields := flattenArrayShapeCallables(parseArrayShapeFields(raw, typeCtx))
+	if len(fields) == 0 {
+		return nil
+	}
+	return fields
+}
+
+func flattenArrayShapeCallables(fields map[string]arrayShapeField) map[string]Type {
+	if len(fields) == 0 {
+		return nil
+	}
+	flat := make(map[string]Type, len(fields))
+	for key, field := range fields {
+		if !field.callable.IsEmpty() {
+			flat[key] = field.callable
+		}
+	}
+	if len(flat) == 0 {
+		return nil
+	}
+	return flat
+}
+
+func parseArrayShapeFields(raw string, typeCtx FileTypeContext) map[string]arrayShapeField {
 	raw = strings.TrimSpace(raw)
 	if raw == "" {
 		return nil
@@ -173,15 +207,25 @@ func arrayShapeCallableReturns(raw string, typeCtx FileTypeContext) map[string]T
 	if !ok {
 		return nil
 	}
-	fields := make(map[string]Type)
+	fields := make(map[string]arrayShapeField)
+	nextIndex := 0
 	for _, entry := range splitTopLevelTypes(body, ',') {
 		key, value, ok := splitArrayShapeEntry(entry)
 		if !ok {
 			continue
 		}
-		if returnType := callableReturnType(value, typeCtx); !returnType.IsEmpty() {
-			fields[key] = returnType
+		if key == "" {
+			key = strconv.Itoa(nextIndex)
+			nextIndex++
 		}
+		field := arrayShapeField{callable: callableReturnType(value, typeCtx)}
+		if nested := parseArrayShapeFields(value, typeCtx); len(nested) > 0 {
+			field.nested = nested
+		}
+		if field.empty() {
+			continue
+		}
+		fields[key] = field
 	}
 	if len(fields) == 0 {
 		return nil
@@ -194,7 +238,7 @@ func arrayShapeBody(raw string) (string, bool) {
 	raw = strings.TrimPrefix(raw, "?")
 	lower := strings.ToLower(raw)
 	start := -1
-	for _, prefix := range []string{"non-empty-array{", "array{"} {
+	for _, prefix := range []string{"non-empty-array{", "non-empty-list{", "array{", "list{"} {
 		if idx := strings.Index(lower, prefix); idx >= 0 {
 			start = idx + len(prefix) - 1
 			break
@@ -248,11 +292,14 @@ func splitArrayShapeEntry(entry string) (string, string, bool) {
 			if depthAngle == 0 && depthParen == 0 && depthBrace == 0 {
 				key := normalizeArrayShapeKey(entry[:idx])
 				value := strings.TrimSpace(entry[idx+1:])
-				return key, value, key != "" && value != ""
+				if key == "" || strings.ContainsAny(key, "()<>") {
+					return "", entry, true
+				}
+				return key, value, value != ""
 			}
 		}
 	}
-	return "", "", false
+	return "", entry, true
 }
 
 func normalizeArrayShapeKey(raw string) string {

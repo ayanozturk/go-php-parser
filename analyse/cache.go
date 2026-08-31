@@ -20,21 +20,21 @@ type CacheManager struct {
 
 // CacheEntry wraps ProjectIndex with metadata for validation.
 type CacheEntry struct {
-	Version       int            `json:"version"`
-	Timestamp     int64          `json:"timestamp"`
-	ProjectHash   string         `json:"projectHash"`   // Hash of all source files
-	FileChecksums map[string]string `json:"fileChecksums"` // path -> content MD5
-	OldChecksums  map[string]string `json:"old_checksums"` // prev run checksums for diff
+	Version       int                    `json:"version"`
+	Timestamp     int64                  `json:"timestamp"`
+	ProjectHash   string                 `json:"projectHash"`   // Hash of all source files
+	FileChecksums map[string]string      `json:"fileChecksums"` // path -> content MD5
+	OldChecksums  map[string]string      `json:"old_checksums"` // prev run checksums for diff
 	Index         SerializedProjectIndex `json:"index"`
 }
 
 // SerializedProjectIndex is a serializable view of ProjectIndex.
 // Omits caches/derivations; only keeps essential symbol tables.
 type SerializedProjectIndex struct {
-	Classes    map[string]ResolvedClass             `json:"classes"`
-	Methods    map[string]map[string]ResolvedMethod `json:"methods"`
+	Classes    map[string]ResolvedClass               `json:"classes"`
+	Methods    map[string]map[string]ResolvedMethod   `json:"methods"`
 	Properties map[string]map[string]ResolvedProperty `json:"properties"`
-	Functions  map[string]ResolvedFunction          `json:"functions"`
+	Functions  map[string]ResolvedFunction            `json:"functions"`
 }
 
 const (
@@ -116,10 +116,10 @@ func (cm *CacheManager) Store(index *ProjectIndex, fileChecksums map[string]stri
 	defer cm.mu.Unlock()
 
 	entry := CacheEntry{
-		Version:        cacheVersion,
-		Timestamp:      time.Now().Unix(),
-		FileChecksums:  fileChecksums,
-		OldChecksums:   fileChecksums, // Store for next diff
+		Version:       cacheVersion,
+		Timestamp:     time.Now().Unix(),
+		FileChecksums: fileChecksums,
+		OldChecksums:  fileChecksums, // Store for next diff
 		Index: SerializedProjectIndex{
 			Classes:    index.Classes,
 			Methods:    index.Methods,

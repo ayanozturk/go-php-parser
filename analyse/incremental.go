@@ -108,9 +108,9 @@ func (dg *DependencyGraph) FilesAffectedByChange(changedFile string) []string {
 
 // SymbolSet tracks classes, functions, constants, namespaces.
 type SymbolSet struct {
-	Classes   map[string]struct{}
-	Functions map[string]struct{}
-	Constants map[string]struct{}
+	Classes    map[string]struct{}
+	Functions  map[string]struct{}
+	Constants  map[string]struct{}
 	Namespaces map[string]struct{}
 }
 
