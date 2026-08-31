@@ -6,9 +6,9 @@ This file records reproducible evidence for the cooperating `go-php-parser` engi
 
 ## Current baseline
 
-- Engine revision validated and consumed by PHP Strom: pushed commit `6372f1d`.
-- Extension checkout: `/Users/ayan/Projects/vscode-php-strom`, `main` at pushed commit `5462c74`; the current package version is `0.1.29`.
-- Production extension builds pin `github.com/ayanozturk/go-php-parser` at pseudo-version `v0.0.0-20260831144126-6372f1de78af`. `make test-server-dev` validates the same engine through the generated, ignored sibling-workspace path.
+- Engine revision validated and consumed by PHP Strom: pushed commit `ab99bf5`.
+- Extension checkout: `/Users/ayan/Projects/vscode-php-strom`, `main` at pushed commit `296d585`; the current package version is `0.1.30`.
+- Production extension builds pin `github.com/ayanozturk/go-php-parser` at pseudo-version `v0.0.0-20260831151502-ab99bf53c3f0`. `make test-server-dev` validates the same engine through the generated, ignored sibling-workspace path.
 - Go toolchain observed: Go 1.26.2. Node toolchain observed: Node 22.20.0 and npm 11.7.0.
 - Representative corpora are fetched at exact revisions from `test_projects/manifest.json`; generated working copies remain uncommitted.
 - The latest recorded full-corpus pass has zero failures for Composer, Drupal, Magento, PHPUnit, and WordPress. Symfony's two remaining fixtures are intentionally invalid/corrupted inputs, and Laravel has two narrow interpolation/callable edge cases. These recorded results are compatibility evidence, not a current performance result.
@@ -320,6 +320,7 @@ Representative workload: 23,556 indexed PHP files, 3,678,678 LOC, 135.68 MB, 151
 ### 2026-08-31 — Remaining level-2 expression-form receivers
 
 - Eight fixtures expand level 2 from fifty-seven to sixty-five cases for file-level constants, other same-file class constants, `match` indexes, property `@var` shapes, method `@return` shapes, and `list{Class}` object indexes, plus known-method `match` and property controls. Complete 63-case level-0 and 65-case level-2 runs match pinned PHPStan `2.2.x-dev@e4ab62a`. Static properties are unit-tested. Per-alternative DNF remains a separate higher reference level.
+- Parser commit `ab99bf5` lands the inference. Extension commit `296d585` pins pseudo-version `v0.0.0-20260831151502-ab99bf53c3f0` and proves the default editor path reports global-const, foreign-class-const, match, property, method-return, and list-object missing methods while known match and property methods stay clean. Pinned and sibling tests, vet, race, all six server builds, TypeScript lint/compile/package, VS Code 1.89.1 host tests, the editor-latency gate, and `npm audit --audit-level=low` pass.
 
 ## Next ranked candidates
 
