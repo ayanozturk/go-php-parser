@@ -346,11 +346,18 @@ Representative workload: 23,556 indexed PHP files, 3,678,678 LOC, 135.68 MB, 151
 
 - `cmd/benchmark` and `analyze` now share one `SemanticSnapshot` per full run. Parser commit `3155c07` also combines the level-2/7/8 method-receiver walks, reuses file/namespace type context, folds ASCII identifier keys, and scans empty-statement source without splitting the file into cached lines. Follow-up `abb6633` visits PHPStan level-0 type, symbol, and language checks in one walk. Method-visibility, throw-type, and return-type checks now share one AST walk when the analysis level includes them. Deprecated-call issues are collected during the shared argument walk. WordPress still accounts for 5,357/5,357 files and 26,321 diagnostics on the profile path. No Mago comparison is claimed.
 
+### 2026-08-31 — Compact semantic facts and reuse the argument walk
+
+- Semantic facts are partitioned by filename internally, so each stored span no longer repeats the filename in both its map key and value. `asciiLowerIdent` now returns its owned lowercase byte buffer without a second string copy, with allocation regression coverage. Method-receiver diagnostics are collected during the existing flow-sensitive argument walk while preserving file-scope and unsupported-shape fallbacks.
+- A three-iteration WordPress profile retained 5,357/5,357 files and 26,321 diagnostics while allocated space fell from 8.43 GB at exact baseline `de5598e` to 6.46 GB, a 23.3% reduction. Generated-fact insertion fell from approximately 1.54 GB to 0.75 GB in the sampled profile.
+- A ten-round exact-baseline cold comparison retained identical accounting and produced candidate/baseline means of 2.964s/3.435s and maximum RSS of 1.357GB/1.665GB. It is rejected as a performance claim because candidate CV was 5.15% versus the 5% contract.
+- A separate ten-round Mago 1.47.4 indicator produced raw engine/Mago mean ratios of 0.848x and maximum-RSS ratios of 1.152x, but both CVs failed and semantic/file accounting remained non-comparable. See `docs/benchmarks/2026-08-31-wordpress-snapshot-allocation-batch.md`; no Mago-parity claim is made.
+
 ## Next ranked candidates
 
 The analyser target in `docs/full-static-analyser-target.md` is the source of truth for ordering.
 
-1. **Performance:** interleaved WordPress process-cold vs contemporaneous Mago on the snapshot-backed pipeline; keep the 5% CV contract and the 1.5× mean / 1.25× RSS gates. Optimize from CPU/heap profiles. Do not cut rules or `vendor` to win.
+1. **Performance:** reduce the measured `copyTypeMap` and remaining snapshot-generation allocation, then rerun interleaved WordPress process-cold vs exact baseline and contemporaneous Mago on an isolated host. Keep the 5% CV contract and the 1.5× mean / 1.25× RSS gates. Do not cut rules or `vendor` to win.
 2. **Maintenance:** rewrite `FEATURES.md` for the Go language server after the first accepted Mago comparison; decide the fate of `src/server`.
 3. **Source mapping:** structured parser errors, then style-rule coordinate producers currently stuck at points.
 4. **Dependency matching:** replace conservative lexical invalidation only after generated reference facts cover supported resolver paths.

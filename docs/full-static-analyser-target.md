@@ -146,6 +146,12 @@ The dynamic-variable slice now resolves reads whose runtime name is a tracked co
 
 The built-in reference-metadata slice broadens the immutable signature catalogue across core/standard output-only parameters (regex match/count results, scanning variadics, process/status results, header locations, and related result holders) and common input/output array and type mutations. Variable flow continues to use the same allocation-light reference-parameter query and supports positional, named, and variadic mappings. Two reviewed PHPStan 2.2.5 fixtures expand the level-1 gate from twenty-two to twenty-four cases: one clean output-only case and one three-diagnostic input/output control. A fresh same-machine three-iteration WordPress allocation indicator retained exact 5,357/5,357 file and 22,602-diagnostic accounting. The candidate allocated 2.07GB versus 2.09GB for exact committed baseline `ec5dd23`, a roughly 1% sampled reduction that is treated as allocation-neutral rather than a performance improvement. The generated heap profiles remain under `/tmp` and are not committed. Extension-dependent reference metadata remains outside this core/standard slice.
 
+### Snapshot allocation batch, 2026-08-31
+
+The snapshot-backed production pipeline now partitions semantic facts by file, avoids the second uppercase-ASCII lowercase copy, and collects method-receiver diagnostics during the existing argument walk. A three-iteration WordPress profile retained 5,357/5,357 files and 26,321 diagnostics while allocated space fell from 8.43GB at exact baseline `de5598e` to 6.46GB, a 23.3% reduction. Generated-fact insertion fell from approximately 1.54GB to 0.75GB; `copyTypeMap` is now the largest flat allocation site at approximately 1.04GB.
+
+The exact-baseline and Mago process-cold indicators are both rejected. The ten-round candidate/baseline comparison produced 2.964s/3.435s means and 1.357GB/1.665GB maximum RSS, but candidate CV was 5.15%. A separate alternating-order comparison against verified Mago 1.47.4 produced raw engine/Mago ratios of 0.848x mean time and 1.152x maximum RSS, but engine/Mago CVs were 8.72%/6.76%, Mago analysed-file accounting remained unknown, and diagnostic coverage differed materially (26,321 versus 218,741 findings). These are profile and direction indicators only, not accepted cold-performance or parity claims. Durable reproduction details are in `docs/benchmarks/2026-08-31-wordpress-snapshot-allocation-batch.md`; generated evidence remains local.
+
 ## Comparable-performance contract
 
 All performance claims must use a checked-in, reproducible harness and record:
@@ -409,8 +415,8 @@ A release must not advance the parser version pinned by PHP Strom until the engi
 
 Performance is now the primary stream. Diagnostic packs stay frozen unless a change would regress the checked-in gates. Match Mago on the same-machine WordPress cold protocol: no more than 1.5× mean time and 1.25× peak RSS, with CV at most 5% and 100% file accounting. The stretch target is equal or faster.
 
-1. **Measure the production pipeline against contemporaneous Mago.** `cmd/benchmark` and `analyze` share one `SemanticSnapshot` per full run. Record an interleaved WordPress indicator on a quiet host; keep the 5% CV contract. Generated profiles stay local.
-2. **Optimize from profiles, not from diagnostic cuts.** Remaining cost is still GC-heavy. Next: more `ToLower`/resolve folding, argument-count walks, and snapshot fact generation. Do not disable rules or skip `vendor` to win the comparison.
+1. **Optimize from profiles, not from diagnostic cuts.** The first snapshot-backed Mago indicator is recorded but rejected. Remaining cost is still GC-heavy. Next: reduce measured `copyTypeMap` and remaining snapshot fact-generation allocation. Do not disable rules or skip `vendor` to win the comparison.
+2. **Rerun the production pipeline against exact baseline and contemporaneous Mago on an isolated host.** Keep the 5% CV contract, stable accounting, and the 1.5x mean / 1.25x RSS gates. Generated profiles stay local.
 3. **Maintenance after the first accepted Mago comparison:** rewrite `vscode-php-strom/FEATURES.md`; structured parser errors and style-rule range migration.
 
 Completed deliveries 1–35 are archived below and are not the current queue.

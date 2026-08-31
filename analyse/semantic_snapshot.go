@@ -53,6 +53,46 @@ type SemanticFact struct {
 	Value   string
 }
 
+// semanticFactSpanKey omits the filename because facts are partitioned by
+// file internally. SemanticFactKey remains the public lookup contract, while
+// the compact key avoids storing the same filename twice in every map entry.
+type semanticFactSpanKey struct {
+	StartOffset int
+	EndOffset   int
+	Kind        FactKind
+}
+
+type storedSemanticFact struct {
+	Subject SymbolID
+	Type    string
+	Value   string
+}
+
+type semanticFactStore map[string]map[semanticFactSpanKey]storedSemanticFact
+
+func (s semanticFactStore) fact(key SemanticFactKey) (SemanticFact, bool) {
+	fileFacts := s[key.File]
+	stored, ok := fileFacts[semanticFactSpanKey{StartOffset: key.StartOffset, EndOffset: key.EndOffset, Kind: key.Kind}]
+	if !ok {
+		return SemanticFact{}, false
+	}
+	return SemanticFact{Key: key, Subject: stored.Subject, Type: stored.Type, Value: stored.Value}, true
+}
+
+func (s semanticFactStore) put(fact SemanticFact) bool {
+	span := semanticFactSpanKey{StartOffset: fact.Key.StartOffset, EndOffset: fact.Key.EndOffset, Kind: fact.Key.Kind}
+	fileFacts := s[fact.Key.File]
+	if fileFacts == nil {
+		fileFacts = make(map[semanticFactSpanKey]storedSemanticFact)
+		s[fact.Key.File] = fileFacts
+	}
+	if _, exists := fileFacts[span]; exists {
+		return false
+	}
+	fileFacts[span] = storedSemanticFact{Subject: fact.Subject, Type: fact.Type, Value: fact.Value}
+	return true
+}
+
 // SemanticFactReader is the read-only contract shared by analysis passes.
 // Facts must come from the same content snapshot as the AST being analysed;
 // exact byte-span keys prevent unrelated or shifted facts from being reused.
@@ -66,7 +106,7 @@ type SemanticFactReader interface {
 // callers can only query defensive value copies through this facade.
 type SemanticSnapshot struct {
 	project                 *ProjectIndex
-	facts                   map[SemanticFactKey]SemanticFact
+	facts                   semanticFactStore
 	flowGraphs              map[FlowScopeKey]ControlFlowGraph
 	statementReachability   map[FlowStatementKey]bool
 	ambiguousFlowStatements map[FlowStatementKey]struct{}
@@ -129,7 +169,7 @@ func NewSemanticSnapshotWithIndex(idx *ProjectIndex, parsed map[string][]ast.Nod
 }
 
 func newSemanticSnapshot(idx *ProjectIndex, parsed map[string][]ast.Node, facts []SemanticFact, targets []string) (*SemanticSnapshot, error) {
-	store := make(map[SemanticFactKey]SemanticFact, len(facts))
+	store := make(semanticFactStore)
 
 	// Explicit facts (currently unused by any caller, but kept strict for
 	// future callers) must not collide with one another.
@@ -137,10 +177,9 @@ func newSemanticSnapshot(idx *ProjectIndex, parsed map[string][]ast.Node, facts 
 		if err := validateSemanticFactKey(fact.Key); err != nil {
 			return nil, err
 		}
-		if _, exists := store[fact.Key]; exists {
+		if !store.put(fact) {
 			return nil, fmt.Errorf("duplicate semantic fact key: %s:%d-%d:%s", fact.Key.File, fact.Key.StartOffset, fact.Key.EndOffset, fact.Key.Kind)
 		}
-		store[fact.Key] = fact
 	}
 
 	scoped := parsed
@@ -169,10 +208,7 @@ func newSemanticSnapshot(idx *ProjectIndex, parsed map[string][]ast.Node, facts 
 			if err := validateSemanticFactKey(fact.Key); err != nil {
 				return nil, err
 			}
-			if _, exists := store[fact.Key]; exists {
-				continue
-			}
-			store[fact.Key] = fact
+			store.put(fact)
 		}
 	}
 
@@ -229,14 +265,14 @@ func (s *SemanticSnapshot) addGeneratedInferredTypeFact(filename string, expr as
 		return
 	}
 	key := SemanticFactKey{File: filename, StartOffset: start.Offset, EndOffset: end.Offset, Kind: FactKindInferredType}
-	if _, explicitOrGenerated := s.facts[key]; explicitOrGenerated {
+	if _, explicitOrGenerated := s.facts.fact(key); explicitOrGenerated {
 		return
 	}
 	inferred := infer()
 	if inferred.IsEmpty() {
 		return
 	}
-	s.facts[key] = SemanticFact{Key: key, Subject: s.functionSymbolID(fileCtx, class, function), Type: inferred.dnfString()}
+	s.facts.put(SemanticFact{Key: key, Subject: s.functionSymbolID(fileCtx, class, function), Type: inferred.dnfString()})
 }
 
 func (s *SemanticSnapshot) functionSymbolID(fileCtx FileTypeContext, class *ast.ClassNode, function *ast.FunctionNode) SymbolID {
@@ -324,8 +360,7 @@ func (s *SemanticSnapshot) Fact(key SemanticFactKey) (SemanticFact, bool) {
 	if s == nil {
 		return SemanticFact{}, false
 	}
-	fact, ok := s.facts[key]
-	return fact, ok
+	return s.facts.fact(key)
 }
 
 // FactsForFile returns facts in deterministic source order.
@@ -334,10 +369,9 @@ func (s *SemanticSnapshot) FactsForFile(filename string) []SemanticFact {
 		return nil
 	}
 	facts := make([]SemanticFact, 0)
-	for key, fact := range s.facts {
-		if key.File == filename {
-			facts = append(facts, fact)
-		}
+	for span, stored := range s.facts[filename] {
+		key := SemanticFactKey{File: filename, StartOffset: span.StartOffset, EndOffset: span.EndOffset, Kind: span.Kind}
+		facts = append(facts, SemanticFact{Key: key, Subject: stored.Subject, Type: stored.Type, Value: stored.Value})
 	}
 	sort.Slice(facts, func(i, j int) bool {
 		left, right := facts[i].Key, facts[j].Key

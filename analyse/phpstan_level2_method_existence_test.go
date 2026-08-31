@@ -629,14 +629,19 @@ function run(Service $service): void {
 `)
 	level := 10
 	ctx := ensureLevel0Context(filename, nodes, &AnalysisContext{AnalysisLevel: &level})
-	existence := checkLevel2MethodExistence(filename, nodes, ctx)
+	ctx = ensureArgCallDiagnostics(filename, nodes, ctx)
 	if !ctx.hasMethodReceiverIssues {
-		t.Fatal("expected the first method-receiver rule to cache the shared walk")
+		t.Fatal("expected the argument walk to collect method-receiver diagnostics")
 	}
+	primed := ctx.methodReceiverIssues
+	existence := checkLevel2MethodExistence(filename, nodes, ctx)
 	if len(existence) == 0 {
 		t.Fatal("expected a level-2 unknown-method diagnostic")
 	}
 	cached := ctx.methodReceiverIssues
+	if len(cached) != len(primed) || (len(primed) > 0 && &cached[0] != &primed[0]) {
+		t.Fatal("the first method-receiver rule must reuse the argument walk result")
+	}
 	if len(checkLevel2MethodNonObject(filename, nodes, ctx)) != 0 {
 		t.Fatal("typed class receivers should not emit level-2 non-object diagnostics")
 	}

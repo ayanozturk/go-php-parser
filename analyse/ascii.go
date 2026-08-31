@@ -27,7 +27,7 @@ func asciiLowerIdent(s string) string {
 					b[j] = cj + ('a' - 'A')
 				}
 			}
-			return string(b)
+			return bytesAsString(b)
 		}
 	}
 	return s

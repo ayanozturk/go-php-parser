@@ -26,6 +26,19 @@ func ensureArgCallDiagnostics(filename string, nodes []ast.Node, ctx *AnalysisCo
 	ctx.argCountSink = &ctx.argCountIssues
 	ctx.deprecatedCallSink = &ctx.deprecatedCallIssues
 	ctx.deprecatedCallSeen = make(map[ast.Node]struct{})
+	var methodReceiverSeen map[*ast.MethodCallNode]struct{}
+	var observe semanticExpressionObserver
+	if ctx.Resolver != nil && analysisLevelAtLeast(ctx, 2) {
+		methodReceiverSeen = make(map[*ast.MethodCallNode]struct{})
+		observe = func(filename string, expr ast.Node, scope *functionScope, ctx *AnalysisContext) {
+			call, ok := expr.(*ast.MethodCallNode)
+			if !ok {
+				return
+			}
+			methodReceiverSeen[call] = struct{}{}
+			appendMethodReceiverIssuesForCall(filename, call, scope, ctx, &ctx.methodReceiverIssues)
+		}
+	}
 	fileCtx := analysisFileTypeContext(ctx, nodes)
 	var walk func(node ast.Node, class *ast.ClassNode, scope *functionScope)
 	walk = func(node ast.Node, class *ast.ClassNode, scope *functionScope) {
@@ -36,7 +49,7 @@ func ensureArgCallDiagnostics(filename string, nodes []ast.Node, ctx *AnalysisCo
 			}
 		case *ast.FunctionNode:
 			fnScope := analysisFunctionScope(ctx, class, n, fileCtx)
-			walkStatementsForArgTypes(n.Body, fnScope, ctx, filename, &typeIssues)
+			walkStatementsForArgTypesUsing(n.Body, fnScope, ctx, filename, &typeIssues, observe)
 		case *ast.NamespaceNode:
 			for _, child := range n.Body {
 				walk(child, class, scope)
@@ -49,6 +62,25 @@ func ensureArgCallDiagnostics(filename string, nodes []ast.Node, ctx *AnalysisCo
 	ctx.argCountSink = nil
 	ctx.deprecatedCallSink = nil
 	ctx.deprecatedCallSeen = nil
+	if observe != nil {
+		// Argument diagnostics intentionally cover function bodies only. Reuse
+		// the same walker for receiver checks at file scope without enabling the
+		// argument/deprecation sinks, then conservatively handle calls in AST
+		// shapes the flow-sensitive walker does not support yet.
+		fileScope := newFunctionScopeWithContext(ctx, nil, &ast.FunctionNode{}, fileCtx)
+		walkStatementsForArgTypesUsing(nodes, fileScope, ctx, filename, nil, observe)
+		walkAllWithoutTypeContext(nodes, func(node ast.Node) {
+			call, ok := node.(*ast.MethodCallNode)
+			if !ok {
+				return
+			}
+			if _, alreadyChecked := methodReceiverSeen[call]; alreadyChecked {
+				return
+			}
+			appendMethodReceiverIssuesForCall(filename, call, nil, ctx, &ctx.methodReceiverIssues)
+		})
+		ctx.hasMethodReceiverIssues = true
+	}
 	ctx.argTypeIssues = typeIssues
 	ctx.hasArgCallDiagnostics = true
 	return ctx

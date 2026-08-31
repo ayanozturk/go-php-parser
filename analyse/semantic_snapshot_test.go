@@ -95,6 +95,9 @@ func TestSemanticSnapshotFactsValidateAndSortDeterministically(t *testing.T) {
 	if fact, ok := snapshot.Fact(first.Key); !ok || fact != first {
 		t.Fatalf("exact fact lookup failed: %#v, %v", fact, ok)
 	}
+	if fact, ok := snapshot.Fact(otherFile.Key); !ok || fact != otherFile {
+		t.Fatalf("same-span fact in another file was not isolated: %#v, %v", fact, ok)
+	}
 
 	if _, err := NewSemanticSnapshot(nil, []SemanticFact{first, first}); err == nil {
 		t.Fatal("expected duplicate fact keys to be rejected")

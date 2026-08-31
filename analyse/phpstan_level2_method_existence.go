@@ -15,6 +15,7 @@ func checkLevel2MethodExistence(filename string, nodes []ast.Node, ctx *Analysis
 
 func methodReceiverIssuesForFile(filename string, nodes []ast.Node, ctx *AnalysisContext) []AnalysisIssue {
 	ctx = ensureLevel0Context(filename, nodes, ctx)
+	ctx = ensureArgCallDiagnostics(filename, nodes, ctx)
 	if ctx.hasMethodReceiverIssues {
 		return ctx.methodReceiverIssues
 	}
