@@ -306,6 +306,7 @@ Representative workload: 23,556 indexed PHP files, 3,678,678 LOC, 135.68 MB, 151
 ### 2026-08-31 — Level-2 dynamic array-shape and list indexes
 
 - Eight fixtures expand level 2 from forty-nine to fifty-seven cases for assigned constant keys, concatenated literals, class constants, unknown string indexes (union of callable fields), unknown int list indexes, and matching known-method controls. Complete 63-case level-0 and 57-case level-2 runs match pinned PHPStan `2.2.x-dev@e4ab62a`. Int indexes into purely named shapes and unknown literal keys stay conservative. Per-alternative DNF remains a separate higher reference level.
+- Parser commit `6372f1d` lands the inference. Extension commit `5462c74` pins pseudo-version `v0.0.0-20260831144126-6372f1de78af` and proves the default editor path reports assigned, concatenated, class-constant, and unknown int-list missing methods while known assigned and unknown-string methods stay clean. Pinned and sibling tests, vet, race, all six server builds, TypeScript lint/compile/package, VS Code 1.89.1 host tests, the editor-latency gate, and `npm audit --audit-level=low` pass.
 
 ### 2026-08-31 — Level-2 method calls on non-object receivers
 
