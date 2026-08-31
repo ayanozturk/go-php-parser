@@ -471,7 +471,7 @@ func inferFunctionCallType(n *ast.FunctionCallNode, scope *functionScope, ctx *A
 			typeCtx = scope.typeCtx
 		}
 		resolvedName := resolveFunctionNameForCall(name, typeCtx, ctx)
-		if function, ok := ctx.Resolver.ResolveFunction(resolvedName); ok && strings.TrimSpace(function.ReturnType) != "" {
+		if function, ok := resolveFunctionView(ctx.Resolver, resolvedName); ok && strings.TrimSpace(function.ReturnType) != "" {
 			return ParseType(function.ReturnType)
 		}
 	}
@@ -517,7 +517,7 @@ func inferCallableInvocationReturn(expr ast.Node, scope *functionScope, ctx *Ana
 			if scope != nil {
 				typeCtx = scope.typeCtx
 			}
-			if function, ok := ctx.Resolver.ResolveFunction(resolveFunctionNameForCall(name, typeCtx, ctx)); ok {
+			if function, ok := resolveFunctionView(ctx.Resolver, resolveFunctionNameForCall(name, typeCtx, ctx)); ok {
 				return ParseType(function.CallableReturnType)
 			}
 		}

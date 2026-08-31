@@ -38,6 +38,23 @@ type methodReferenceParamResolver interface {
 	methodReferenceParams(className, methodName string) ([]ResolvedParam, bool)
 }
 
+// functionViewResolver is an internal allocation-light query for analyses
+// that only read function metadata. Implementations return immutable
+// index-owned parameter storage; callers must not retain or mutate it.
+type functionViewResolver interface {
+	resolveFunctionView(name string) (ResolvedFunction, bool)
+}
+
+func resolveFunctionView(resolver SymbolResolver, name string) (ResolvedFunction, bool) {
+	if resolver == nil {
+		return ResolvedFunction{}, false
+	}
+	if viewResolver, ok := resolver.(functionViewResolver); ok {
+		return viewResolver.resolveFunctionView(name)
+	}
+	return resolver.ResolveFunction(name)
+}
+
 func resolveMethodReferenceParams(resolver SymbolResolver, className, methodName string) ([]ResolvedParam, bool) {
 	if resolver == nil {
 		return nil, false

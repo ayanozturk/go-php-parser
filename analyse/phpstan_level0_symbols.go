@@ -80,7 +80,7 @@ func checkSymbolOnNode(filename string, node ast.Node, class *ast.ClassNode, cur
 			*issues = append(*issues, issueSpan(filename, n, level0SymbolsCode, fmt.Sprintf("Function %s not found.", name)))
 			return
 		}
-		if fn, ok := ctx.Resolver.ResolveFunction(resolvedName); ok {
+		if fn, ok := resolveFunctionView(ctx.Resolver, resolvedName); ok {
 			checkCallArguments(filename, n.GetPos(), "Function "+fn.Name, fn.Name, n.Args, ResolvedMethod{Name: fn.Name, Params: fn.Params}, issues)
 		}
 	case *ast.MethodCallNode:

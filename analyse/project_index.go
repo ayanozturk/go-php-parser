@@ -1059,6 +1059,10 @@ func (idx *ProjectIndex) ResolveFunction(name string) (ResolvedFunction, bool) {
 	return fn, ok
 }
 
+func (idx *ProjectIndex) resolveFunctionView(name string) (ResolvedFunction, bool) {
+	return idx.ResolveFunction(name)
+}
+
 func (idx *ProjectIndex) classLineage(className string) []string {
 	if idx == nil {
 		return nil

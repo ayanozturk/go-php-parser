@@ -287,7 +287,7 @@ func (s *SemanticSnapshot) functionSymbolID(fileCtx FileTypeContext, class *ast.
 		return stableSymbolID("method", className, function.Name)
 	}
 	functionName := fileCtx.resolveClassLike(function.Name)
-	if resolved, ok := s.ResolveFunction(functionName); ok {
+	if resolved, ok := s.resolveFunctionView(functionName); ok {
 		return resolved.ID
 	}
 	return stableSymbolID("function", "", functionName)
@@ -392,8 +392,7 @@ func (s *SemanticSnapshot) ClassExists(name string) bool {
 }
 
 func (s *SemanticSnapshot) FunctionExists(name string) bool {
-	_, ok := s.ResolveFunction(name)
-	return ok
+	return s != nil && s.project != nil && s.project.FunctionExists(name)
 }
 
 func (s *SemanticSnapshot) ConstantExists(name string) bool {
@@ -510,6 +509,13 @@ func (s *SemanticSnapshot) ResolveFunction(name string) (ResolvedFunction, bool)
 	}
 	fn.Params = append([]ResolvedParam(nil), fn.Params...)
 	return fn, true
+}
+
+func (s *SemanticSnapshot) resolveFunctionView(name string) (ResolvedFunction, bool) {
+	if s == nil || s.project == nil {
+		return ResolvedFunction{}, false
+	}
+	return s.project.ResolveFunction(name)
 }
 
 // ResolveConstant resolves a class constant and attaches its stable identity.

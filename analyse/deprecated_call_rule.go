@@ -41,7 +41,7 @@ func appendDeprecatedCallFromExpr(filename string, expr ast.Node, scope *functio
 		if name == "" || ctx.Resolver == nil {
 			return
 		}
-		fn, ok := ctx.Resolver.ResolveFunction(name)
+		fn, ok := resolveFunctionView(ctx.Resolver, name)
 		if !ok || !fn.Deprecated {
 			return
 		}

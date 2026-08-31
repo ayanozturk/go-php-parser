@@ -158,6 +158,10 @@ Variable and property flow types now use bounded persistent layers instead of ea
 
 A three-iteration WordPress profile retained exact 5,357/5,357 file and 26,321-diagnostic accounting while allocated space fell from 6.61GB at exact baseline `6fdfba0` to 5.54GB, a 16.2% reduction. The prior approximately 1.04GB `copyTypeMap` hot site disappeared. The ten-round interleaved cold comparison passed the contract: candidate/baseline means were 2.432s/2.511s with CVs 4.26%/1.87%, medians 2.392s/2.493s, and maximum RSS 1.408GB/1.489GB. This accepts a 3.1% mean and 5.4% maximum-RSS improvement against the exact previous engine only. No Mago comparison follows from it. Durable details are in `docs/benchmarks/2026-08-31-wordpress-persistent-scope-layers.md`; generated evidence remains local.
 
+### Allocation-light function resolver views, 2026-08-31
+
+Internal analyser lookups now borrow immutable function parameter metadata through a private resolver view; the public snapshot resolver retains defensive copies. Against exact baseline `0f8eee4`, three-pass WordPress allocated space fell from 5.54GB to 5.11GB, a 7.8% reduction, and the previous approximately 0.44GB public function-resolver allocation site disappeared. The ten-round cold comparison met the stability contract but was runtime-neutral: candidate/baseline means were 2.434s/2.431s with CVs 2.00%/3.54%, while maximum RSS was 1.347GB/1.366GB. This is an accepted allocation result, not a speed or Mago comparison. Durable details are in `docs/benchmarks/2026-08-31-wordpress-function-resolver-view.md`; generated evidence remains local.
+
 ## Comparable-performance contract
 
 All performance claims must use a checked-in, reproducible harness and record:
@@ -421,7 +425,7 @@ A release must not advance the parser version pinned by PHP Strom until the engi
 
 Performance is now the primary stream. Diagnostic packs stay frozen unless a change would regress the checked-in gates. Match Mago on the same-machine WordPress cold protocol: no more than 1.5× mean time and 1.25× peak RSS, with CV at most 5% and 100% file accounting. The stretch target is equal or faster.
 
-1. **Optimize from profiles, not from diagnostic cuts.** Persistent scope layers removed `copyTypeMap` from the hot list and passed the exact-baseline gate. Next: reduce semantic-fact insertion, repeated normalized resolver queries, function-scope clone metadata, and control-flow graph storage. Do not disable rules or skip `vendor` to win the comparison.
+1. **Optimize from profiles, not from diagnostic cuts.** Persistent scope layers removed `copyTypeMap`, and private function views removed public resolver-result copying from the hot list. Next: reduce semantic-fact insertion, ASCII identifier folding, method resolver result construction, function-scope clone metadata, and control-flow graph storage. Do not disable rules or skip `vendor` to win the comparison.
 2. **Rerun the production pipeline against exact baseline and contemporaneous Mago on an isolated host.** Keep the 5% CV contract, stable accounting, and the 1.5x mean / 1.25x RSS gates. Generated profiles stay local.
 3. **Maintenance after the first accepted Mago comparison:** rewrite `vscode-php-strom/FEATURES.md`; structured parser errors and style-rule range migration.
 

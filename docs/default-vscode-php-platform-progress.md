@@ -360,11 +360,17 @@ Representative workload: 23,556 indexed PHP files, 3,678,678 LOC, 135.68 MB, 151
 - The ten-round interleaved process-cold comparison passed: candidate/baseline means were 2.432s/2.511s with CVs 4.26%/1.87%, medians 2.392s/2.493s, and maximum RSS 1.408GB/1.489GB. Accounting was identical in every run. This supports a 3.1% exact-baseline mean improvement and 5.4% maximum-RSS reduction, not a Mago-parity claim.
 - An assignment-observer shortcut was rejected before delivery because it changed WordPress diagnostics by 42. See `docs/benchmarks/2026-08-31-wordpress-persistent-scope-layers.md`.
 
+### 2026-08-31 — Allocation-light function resolver views
+
+- Private analyser function lookups now borrow immutable index-owned parameter metadata, while the public `SemanticSnapshot.ResolveFunction` API retains defensive parameter copies. Focused tests cover public mutation isolation, internal backing-storage reuse, and lower per-call allocation.
+- A three-iteration WordPress profile retained 5,357/5,357 files and 26,321 diagnostics while allocated space fell from 5.54 GB at exact baseline `0f8eee4` to 5.11 GB, a 7.8% reduction. The prior approximately 0.44 GB `SemanticSnapshot.ResolveFunction` hot site disappeared.
+- The ten-round interleaved comparison was stable but runtime-neutral: candidate/baseline means were 2.434s/2.431s with CVs 2.00%/3.54%; maximum RSS was 1.347GB/1.366GB. See `docs/benchmarks/2026-08-31-wordpress-function-resolver-view.md`; no speed or Mago-parity claim is made.
+
 ## Next ranked candidates
 
 The analyser target in `docs/full-static-analyser-target.md` is the source of truth for ordering.
 
-1. **Performance:** optimize the new profile leaders—semantic-fact insertion, repeated normalized resolver queries, function-scope clone metadata, and control-flow graph storage—then rerun the exact-baseline gate. Keep the 5% CV contract and do not cut rules or `vendor` to win.
+1. **Performance:** optimize the new profile leaders—semantic-fact insertion, ASCII identifier folding, method resolver result construction, function-scope clone metadata, and control-flow graph storage—then rerun the exact-baseline gate. Keep the 5% CV contract and do not cut rules or `vendor` to win.
 2. **Maintenance:** rewrite `FEATURES.md` for the Go language server after the first accepted Mago comparison; decide the fate of `src/server`.
 3. **Source mapping:** structured parser errors, then style-rule coordinate producers currently stuck at points.
 4. **Dependency matching:** replace conservative lexical invalidation only after generated reference facts cover supported resolver paths.

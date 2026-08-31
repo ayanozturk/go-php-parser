@@ -15,6 +15,7 @@ class AllocationProbe {
     protected function alpha(string $name): string {}
     private function middle(bool $enabled, array $values): string {}
 }
+function allocation_probe(int $count, string $label, array $options): string {}
 `)
 	snapshot, err := NewSemanticSnapshot(map[string][]ast.Node{"src/AllocationProbe.php": nodes}, nil)
 	if err != nil {
@@ -47,6 +48,104 @@ func TestMethodsDeclaredByIsDefensiveAndDeterministic(t *testing.T) {
 	}
 	if !reflect.DeepEqual(second, snapshot.MethodsDeclaredBy("AllocationProbe")) {
 		t.Fatalf("repeated declared-method query was not deterministic:\nfirst %#v\nsecond %#v", second, snapshot.MethodsDeclaredBy("AllocationProbe"))
+	}
+}
+
+func TestSemanticSnapshotResolveFunctionIsDefensiveAndDeterministic(t *testing.T) {
+	snapshot := resolverAllocationSnapshot(t)
+
+	first, ok := snapshot.ResolveFunction("allocation_probe")
+	if !ok {
+		t.Fatal("expected allocation_probe function")
+	}
+	if got, want := len(first.Params), 3; got != want {
+		t.Fatalf("allocation_probe parameter count = %d, want %d", got, want)
+	}
+	if first.Params[0].Name != "count" || first.Params[0].Type != "int" {
+		t.Fatalf("unexpected allocation_probe parameter metadata: %#v", first.Params)
+	}
+
+	first.Name = "mutated"
+	first.Params[0].Name = "callerOnly"
+	first.Params[0].Type = "mutated"
+	first.Params = append(first.Params, ResolvedParam{Name: "extra"})
+
+	second, ok := snapshot.ResolveFunction("ALLOCATION_PROBE")
+	if !ok {
+		t.Fatal("expected allocation_probe function after caller mutation")
+	}
+	if second.Name != "allocation_probe" {
+		t.Fatalf("function name leaked caller mutation: %q", second.Name)
+	}
+	if got, want := len(second.Params), 3; got != want {
+		t.Fatalf("function parameter count leaked caller mutation: got %d, want %d", got, want)
+	}
+	if second.Params[0].Name != "count" || second.Params[0].Type != "int" {
+		t.Fatalf("function parameter metadata leaked caller mutation: %#v", second.Params)
+	}
+}
+
+func TestResolveFunctionViewReusesImmutableParams(t *testing.T) {
+	snapshot := resolverAllocationSnapshot(t)
+
+	first, ok := resolveFunctionView(snapshot, "allocation_probe")
+	if !ok {
+		t.Fatal("expected allocation_probe function view")
+	}
+	second, ok := resolveFunctionView(snapshot, "ALLOCATION_PROBE")
+	if !ok {
+		t.Fatal("expected allocation_probe function view on repeated lookup")
+	}
+	if got, want := len(first.Params), 3; got != want {
+		t.Fatalf("function view parameter count = %d, want %d", got, want)
+	}
+	if &first.Params[0] != &second.Params[0] {
+		t.Fatal("function view cloned immutable parameter storage between calls")
+	}
+	if first.Params[0].Name != "count" || first.Params[1].Name != "label" || first.Params[2].Name != "options" {
+		t.Fatalf("unexpected function view parameters: %#v", first.Params)
+	}
+}
+
+func consumeResolvedFunctionForAllocationTest(function ResolvedFunction) {
+	resolverAllocationSink = function.Name
+	if len(function.Params) > 0 {
+		resolverAllocationSink = function.Params[len(function.Params)-1].Name
+	}
+}
+
+func TestResolveFunctionViewReducesPerCallAllocations(t *testing.T) {
+	snapshot := resolverAllocationSnapshot(t)
+
+	// Warm both lookup paths before measuring. The setup allocation is
+	// intentionally outside both AllocsPerRun bodies.
+	public, ok := snapshot.ResolveFunction("allocation_probe")
+	if !ok {
+		t.Fatal("expected allocation_probe function")
+	}
+	consumeResolvedFunctionForAllocationTest(public)
+	view, ok := resolveFunctionView(snapshot, "allocation_probe")
+	if !ok {
+		t.Fatal("expected allocation_probe function view")
+	}
+	consumeResolvedFunctionForAllocationTest(view)
+
+	publicAllocs := testing.AllocsPerRun(100, func() {
+		function, ok := snapshot.ResolveFunction("allocation_probe")
+		if !ok {
+			t.Fatal("public function lookup unexpectedly failed")
+		}
+		consumeResolvedFunctionForAllocationTest(function)
+	})
+	viewAllocs := testing.AllocsPerRun(100, func() {
+		function, ok := resolveFunctionView(snapshot, "allocation_probe")
+		if !ok {
+			t.Fatal("function view lookup unexpectedly failed")
+		}
+		consumeResolvedFunctionForAllocationTest(function)
+	})
+	if viewAllocs >= publicAllocs {
+		t.Fatalf("function view allocations = %v, public lookup allocations = %v; view should reuse immutable parameter storage", viewAllocs, publicAllocs)
 	}
 }
 

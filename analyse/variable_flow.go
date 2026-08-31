@@ -1088,7 +1088,7 @@ func (a *variableFlowAnalyzer) functionCallParams(call *ast.FunctionCallNode) []
 		return params
 	}
 	resolvedName := resolveFunctionNameForCall(name, a.typeContext, &AnalysisContext{Resolver: a.resolver})
-	function, ok := a.resolver.ResolveFunction(resolvedName)
+	function, ok := resolveFunctionView(a.resolver, resolvedName)
 	if !ok {
 		return nil
 	}
