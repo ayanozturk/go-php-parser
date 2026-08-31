@@ -96,6 +96,7 @@ type ResolvedMethod struct {
 	Name               string
 	DeclaringClass     string
 	ReturnType         string
+	CallableReturnType string
 	Params             []ResolvedParam
 	Visibility         string
 	IsStatic           bool
@@ -106,14 +107,15 @@ type ResolvedMethod struct {
 }
 
 type ResolvedProperty struct {
-	ID             SymbolID
-	Declaration    SourceLocation
-	DeclaringClass string
-	Name           string
-	Type           string
-	Visibility     string
-	IsStatic       bool
-	Readonly       bool
+	ID                 SymbolID
+	Declaration        SourceLocation
+	DeclaringClass     string
+	Name               string
+	Type               string
+	CallableReturnType string
+	Visibility         string
+	IsStatic           bool
+	Readonly           bool
 }
 
 type ResolvedConstant struct {
@@ -131,6 +133,7 @@ type ResolvedFunction struct {
 	Declaration        SourceLocation
 	Name               string
 	ReturnType         string
+	CallableReturnType string
 	Params             []ResolvedParam
 	Deprecated         bool
 	DeprecationMessage string

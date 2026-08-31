@@ -415,3 +415,77 @@ class TestClass {
 		}
 	}
 }
+
+func TestParsePropertyPHPDocForGroupedAndInterfaceProperties(t *testing.T) {
+	php := `<?php
+class Service {}
+class InterfaceService {}
+
+class GroupedProperties {
+    /** @var callable(): Service */
+    public $first, $second;
+
+    public function following(): void {}
+}
+
+interface PropertyContract {
+    /** @var callable(): InterfaceService */
+    public $factory { get; }
+
+    public function following(): void;
+}
+`
+	p := New(lexer.New(php), false)
+	nodes := p.Parse()
+	if errs := p.Errors(); len(errs) > 0 {
+		t.Fatalf("Parser errors: %v", errs)
+	}
+
+	var grouped *ast.ClassNode
+	var contract *ast.InterfaceNode
+	for _, node := range nodes {
+		switch typed := node.(type) {
+		case *ast.ClassNode:
+			if typed.Name == "GroupedProperties" {
+				grouped = typed
+			}
+		case *ast.InterfaceNode:
+			contract = typed
+		}
+	}
+	if grouped == nil || contract == nil {
+		t.Fatalf("expected grouped class and interface declarations, got %#v", nodes)
+	}
+	if len(grouped.Properties) != 2 {
+		t.Fatalf("expected two grouped properties, got %d", len(grouped.Properties))
+	}
+	for _, propertyNode := range grouped.Properties {
+		property, ok := propertyNode.(*ast.PropertyNode)
+		if !ok || property.PHPDoc == nil || property.PHPDoc.VarType != "callable(): Service" {
+			t.Fatalf("expected grouped property callable PHPDoc, got %#v", propertyNode)
+		}
+	}
+	if len(grouped.Methods) != 1 {
+		t.Fatalf("expected following class method, got %d", len(grouped.Methods))
+	}
+	if method, ok := grouped.Methods[0].(*ast.FunctionNode); !ok || method.PHPDoc != nil {
+		t.Fatalf("property PHPDoc leaked to following class method: %#v", grouped.Methods[0])
+	}
+
+	var property *ast.PropertyNode
+	var method *ast.InterfaceMethodNode
+	for _, member := range contract.Members {
+		switch typed := member.(type) {
+		case *ast.PropertyNode:
+			property = typed
+		case *ast.InterfaceMethodNode:
+			method = typed
+		}
+	}
+	if property == nil || property.PHPDoc == nil || property.PHPDoc.VarType != "callable(): InterfaceService" {
+		t.Fatalf("expected interface property callable PHPDoc, got %#v", property)
+	}
+	if method == nil || method.PHPDoc != nil {
+		t.Fatalf("property PHPDoc leaked to following interface method: %#v", method)
+	}
+}

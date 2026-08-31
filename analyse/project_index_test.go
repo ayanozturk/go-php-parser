@@ -157,6 +157,60 @@ enum Status {
 	assertIndexedSymbol(t, source, enumMethod.ID, `method:app\status:cases`, enumMethod.Declaration, filename)
 }
 
+func TestProjectIndexExposesCallableReturnMetadata(t *testing.T) {
+	parsed := map[string][]ast.Node{
+		"service.php": parsePHPForProjectIndex(t, `<?php
+class Service {}
+`),
+		"declarations.php": parsePHPForProjectIndex(t, `<?php
+class Holder {
+    /** @var callable(): Service */
+    public $factory;
+
+    /** @return callable(): Service */
+    public function make(): callable {}
+}
+
+interface FactoryContract {
+	/** @var callable(): Service */
+	public $factory { get; }
+
+	/** @return callable(): Service */
+	public function make(): callable;
+}
+
+/** @return callable(): Service */
+function makeService(): callable {}
+`),
+	}
+	idx := BuildProjectIndex(parsed)
+
+	property, ok := idx.ResolveProperty("Holder", "factory")
+	if !ok || property.Type != "callable" || property.CallableReturnType != "Service" {
+		t.Fatalf("unexpected callable property metadata: %#v, %v", property, ok)
+	}
+
+	function, ok := idx.ResolveFunction("makeService")
+	if !ok || function.ReturnType != "callable" || function.CallableReturnType != "Service" {
+		t.Fatalf("unexpected callable global function metadata: %#v, %v", function, ok)
+	}
+
+	method, ok := idx.ResolveMethod("Holder", "make")
+	if !ok || method.ReturnType != "callable" || method.CallableReturnType != "Service" {
+		t.Fatalf("unexpected callable class method metadata: %#v, %v", method, ok)
+	}
+
+	interfaceMethod, ok := idx.ResolveMethod("FactoryContract", "make")
+	if !ok || interfaceMethod.ReturnType != "callable" || interfaceMethod.CallableReturnType != "Service" {
+		t.Fatalf("unexpected callable interface method metadata: %#v, %v", interfaceMethod, ok)
+	}
+
+	interfaceProperty, ok := idx.ResolveProperty("FactoryContract", "factory")
+	if !ok || interfaceProperty.Type != "callable" || interfaceProperty.CallableReturnType != "Service" {
+		t.Fatalf("unexpected callable interface property metadata: %#v, %v", interfaceProperty, ok)
+	}
+}
+
 func TestProjectIndexAssignsStableIDsToBuiltinsWithoutFakeLocations(t *testing.T) {
 	idx := NewProjectIndex()
 

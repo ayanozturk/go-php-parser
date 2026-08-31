@@ -43,6 +43,7 @@ func (c *ClassNode) TokenLiteral() string {
 type PropertyNode struct {
 	Name          string
 	TypeHint      string
+	PHPDoc        *PHPDocNode
 	DefaultValue  Node
 	Visibility    string // public, private, protected
 	SetVisibility string // PHP 8.4 asymmetric visibility: public(set), protected(set), private(set)

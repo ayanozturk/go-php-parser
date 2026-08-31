@@ -162,6 +162,11 @@ func splitPHPDocTypeAndRest(value string) (string, string) {
 			}
 		case ' ', '\t':
 			if depth == 0 {
+				// Callable signatures conventionally permit whitespace after
+				// their return separator: callable(): Result.
+				if strings.HasSuffix(strings.TrimSpace(value[:idx]), ":") {
+					continue
+				}
 				return strings.TrimSpace(value[:idx]), strings.TrimSpace(value[idx:])
 			}
 		}

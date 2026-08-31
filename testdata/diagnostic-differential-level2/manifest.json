@@ -179,6 +179,62 @@
       "file": "known-method-dynamic-class-string.php",
       "engineCodes": [],
       "phpstanIdentifiers": []
+    },
+    {
+      "id": "unknown-method-callable-property",
+      "capability": "unknown methods after invoking a PHPDoc callable property",
+      "file": "unknown-method-callable-property.php",
+      "engineCodes": ["PHPStan.Level2.MethodExistence"],
+      "phpstanIdentifiers": ["method.notFound"]
+    },
+    {
+      "id": "known-method-callable-property",
+      "capability": "known methods after invoking a PHPDoc callable property",
+      "file": "known-method-callable-property.php",
+      "engineCodes": [],
+      "phpstanIdentifiers": []
+    },
+    {
+      "id": "unknown-method-callable-array-shape",
+      "capability": "unknown methods after invoking a callable array-shape element",
+      "file": "unknown-method-callable-array-shape.php",
+      "engineCodes": [],
+      "phpstanIdentifiers": ["method.notFound"]
+    },
+    {
+      "id": "known-method-callable-array-shape",
+      "capability": "known methods after invoking a callable array-shape element",
+      "file": "known-method-callable-array-shape.php",
+      "engineCodes": [],
+      "phpstanIdentifiers": []
+    },
+    {
+      "id": "unknown-method-callable-method-return",
+      "capability": "unknown methods after invoking a method PHPDoc callable return",
+      "file": "unknown-method-callable-method-return.php",
+      "engineCodes": ["PHPStan.Level2.MethodExistence"],
+      "phpstanIdentifiers": ["method.notFound"]
+    },
+    {
+      "id": "known-method-callable-method-return",
+      "capability": "known methods after invoking a method PHPDoc callable return",
+      "file": "known-method-callable-method-return.php",
+      "engineCodes": [],
+      "phpstanIdentifiers": []
+    },
+    {
+      "id": "unknown-method-template-class-string",
+      "capability": "unknown methods after template-valued class-string construction",
+      "file": "unknown-method-template-class-string.php",
+      "engineCodes": ["PHPStan.Level2.MethodExistence"],
+      "phpstanIdentifiers": ["method.notFound"]
+    },
+    {
+      "id": "known-method-template-class-string",
+      "capability": "known methods after template-valued class-string construction",
+      "file": "known-method-template-class-string.php",
+      "engineCodes": [],
+      "phpstanIdentifiers": []
     }
   ]
 }

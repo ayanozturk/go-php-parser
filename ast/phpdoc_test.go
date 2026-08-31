@@ -174,6 +174,20 @@ func TestParsePHPDocPreservesCallableParamReturnType(t *testing.T) {
 	}
 }
 
+func TestParsePHPDocPreservesCallableReturnAndVarTypes(t *testing.T) {
+	doc := ParsePHPDoc(`/**
+ * @return callable(): Result Factory callback
+ * @var callable(): Result
+ */`)
+
+	if doc.ReturnType != "callable(): Result" {
+		t.Fatalf("callable return type = %q, want %q", doc.ReturnType, "callable(): Result")
+	}
+	if doc.VarType != "callable(): Result" {
+		t.Fatalf("callable var type = %q, want %q", doc.VarType, "callable(): Result")
+	}
+}
+
 func TestGetParamTypeFromPHPDoc(t *testing.T) {
 	phpdoc := &PHPDocNode{
 		Params: []PHPDocParam{

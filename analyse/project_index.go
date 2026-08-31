@@ -1174,7 +1174,16 @@ func (idx *ProjectIndex) indexNodes(filename string, nodes []ast.Node, ft FileTy
 				continue
 			}
 			name := ft.resolveClassLike(n.Name)
-			fn := ResolvedFunction{Name: name, Declaration: sourceLocation(filename, n), ReturnType: normalizeTypeWithContext(n.ReturnType, ft), Params: paramsFromNodes(n.Params, ft)}
+			returnType := n.ReturnType
+			if n.PHPDoc != nil && n.PHPDoc.ReturnType != "" {
+				returnType = n.PHPDoc.ReturnType
+			}
+			callableReturn := callableReturnType(returnType, ft)
+			normalizedReturn := normalizeTypeWithContext(returnType, ft)
+			if !callableReturn.IsEmpty() {
+				normalizedReturn = "callable"
+			}
+			fn := ResolvedFunction{Name: name, Declaration: sourceLocation(filename, n), ReturnType: normalizedReturn, CallableReturnType: callableReturn.dnfString(), Params: paramsFromNodesWithPHPDoc(n.Params, n.PHPDoc, ft, nil)}
 			if n.PHPDoc != nil {
 				fn.Deprecated = n.PHPDoc.Deprecated
 				fn.DeprecationMessage = n.PHPDoc.DeprecationMessage
@@ -1210,13 +1219,23 @@ func (idx *ProjectIndex) indexClassMembers(filename, className string, propertie
 	for _, propNode := range properties {
 		switch p := propNode.(type) {
 		case *ast.PropertyNode:
+			rawType := p.TypeHint
+			if p.PHPDoc != nil && p.PHPDoc.VarType != "" {
+				rawType = p.PHPDoc.VarType
+			}
+			callableReturn := callableReturnType(rawType, ft)
+			normalizedType := normalizeTypeWithContext(rawType, ft)
+			if !callableReturn.IsEmpty() {
+				normalizedType = "callable"
+			}
 			idx.addProperty(className, ResolvedProperty{
-				Declaration: sourceLocation(filename, p),
-				Name:        p.Name,
-				Type:        normalizeTypeWithContext(p.TypeHint, ft),
-				Visibility:  defaultVisibility(p.Visibility),
-				IsStatic:    p.IsStatic,
-				Readonly:    p.IsReadonly,
+				Declaration:        sourceLocation(filename, p),
+				Name:               p.Name,
+				Type:               normalizedType,
+				CallableReturnType: callableReturn.dnfString(),
+				Visibility:         defaultVisibility(p.Visibility),
+				IsStatic:           p.IsStatic,
+				Readonly:           p.IsReadonly,
 			})
 		case *ast.TraitUseNode:
 			// Trait use is checked by level-0 rules; no index entry needed.
@@ -1253,7 +1272,23 @@ func (idx *ProjectIndex) indexInterfaceMembers(filename, className string, membe
 			if m.PHPDoc != nil && m.PHPDoc.ReturnType != "" {
 				returnType = m.PHPDoc.ReturnType
 			}
-			idx.addMethod(className, ResolvedMethod{Name: m.Name, DeclaringClass: className, Declaration: sourceLocation(filename, m), ReturnType: normalizeTemplateAwareType(returnType, ft, templates), Params: paramsFromNodesWithPHPDoc(m.Params, m.PHPDoc, ft, templates), Visibility: "public", Abstract: true})
+			callableReturn := callableReturnType(returnType, ft)
+			normalizedReturn := normalizeTemplateAwareType(returnType, ft, templates)
+			if !callableReturn.IsEmpty() {
+				normalizedReturn = "callable"
+			}
+			idx.addMethod(className, ResolvedMethod{Name: m.Name, DeclaringClass: className, Declaration: sourceLocation(filename, m), ReturnType: normalizedReturn, CallableReturnType: callableReturn.dnfString(), Params: paramsFromNodesWithPHPDoc(m.Params, m.PHPDoc, ft, templates), Visibility: "public", Abstract: true})
+		case *ast.PropertyNode:
+			rawType := m.TypeHint
+			if m.PHPDoc != nil && m.PHPDoc.VarType != "" {
+				rawType = m.PHPDoc.VarType
+			}
+			callableReturn := callableReturnType(rawType, ft)
+			normalizedType := normalizeTypeWithContext(rawType, ft)
+			if !callableReturn.IsEmpty() {
+				normalizedType = "callable"
+			}
+			idx.addProperty(className, ResolvedProperty{Name: m.Name, DeclaringClass: className, Declaration: sourceLocation(filename, m), Type: normalizedType, CallableReturnType: callableReturn.dnfString(), Visibility: "public", Readonly: m.IsReadonly})
 		case *ast.ConstantNode:
 			idx.addClassConstant(className, constantFromNode(filename, className, m, ft))
 		}
@@ -1384,16 +1419,22 @@ func methodFromFunction(filename, className string, fn *ast.FunctionNode, ft Fil
 		returnType = fn.PHPDoc.ReturnType
 	}
 	templates := templateNames(templateParams)
+	callableReturn := callableReturnType(returnType, ft)
+	normalizedReturn := normalizeTemplateAwareType(returnType, ft, templates)
+	if !callableReturn.IsEmpty() {
+		normalizedReturn = "callable"
+	}
 	method := ResolvedMethod{
-		Name:           fn.Name,
-		DeclaringClass: className,
-		Declaration:    sourceLocation(filename, fn),
-		ReturnType:     normalizeTemplateAwareType(returnType, ft, templates),
-		Params:         paramsFromNodesWithPHPDoc(fn.Params, fn.PHPDoc, ft, templates),
-		Visibility:     functionVisibility(fn),
-		IsStatic:       hasModifier(fn.Modifiers, "static"),
-		Abstract:       hasModifier(fn.Modifiers, "abstract"),
-		Final:          hasModifier(fn.Modifiers, "final"),
+		Name:               fn.Name,
+		DeclaringClass:     className,
+		Declaration:        sourceLocation(filename, fn),
+		ReturnType:         normalizedReturn,
+		CallableReturnType: callableReturn.dnfString(),
+		Params:             paramsFromNodesWithPHPDoc(fn.Params, fn.PHPDoc, ft, templates),
+		Visibility:         functionVisibility(fn),
+		IsStatic:           hasModifier(fn.Modifiers, "static"),
+		Abstract:           hasModifier(fn.Modifiers, "abstract"),
+		Final:              hasModifier(fn.Modifiers, "final"),
 	}
 	if fn.PHPDoc != nil {
 		method.Deprecated = fn.PHPDoc.Deprecated

@@ -464,6 +464,7 @@ func (p *Parser) parsePropertyModifier() (string, bool) {
 }
 
 func (p *Parser) parsePropertyDeclaration(modifiers []string, typeHint string) ([]ast.Node, error) {
+	phpdoc := p.consumeCurrentDoc(p.tok.Pos)
 	// Interpret modifiers
 	var visibility, setVisibility string
 	var isStatic, isReadonly bool
@@ -499,7 +500,7 @@ func (p *Parser) parsePropertyDeclaration(modifiers []string, typeHint string) (
 		if p.tok.Type == token.T_LBRACE {
 			hooks = p.parsePropertyHooks(name)
 			properties = append(properties, &ast.PropertyNode{
-				Name: name, TypeHint: typeHint, DefaultValue: defaultValue,
+				Name: name, TypeHint: typeHint, PHPDoc: phpdoc, DefaultValue: defaultValue,
 				Visibility: visibility, SetVisibility: setVisibility,
 				IsStatic: isStatic, IsReadonly: isReadonly, Hooks: hooks,
 				Pos: ast.Position(pos), EndPos: ast.Position(p.prevTokEnd),
@@ -508,7 +509,7 @@ func (p *Parser) parsePropertyDeclaration(modifiers []string, typeHint string) (
 		}
 
 		property := &ast.PropertyNode{
-			Name: name, TypeHint: typeHint, DefaultValue: defaultValue,
+			Name: name, TypeHint: typeHint, PHPDoc: phpdoc, DefaultValue: defaultValue,
 			Visibility: visibility, SetVisibility: setVisibility,
 			IsStatic: isStatic, IsReadonly: isReadonly,
 			Pos: ast.Position(pos), EndPos: ast.Position(p.prevTokEnd),

@@ -239,6 +239,80 @@ function reassignedDynamicReceiver(string $class): void {
 	}
 }
 
+func TestLevel2UnknownMethodsOnDirectCallableResultsAndTemplateClassString(t *testing.T) {
+	issues := runPHPStanLevelOnFiles(t, map[string]string{
+		"services.php": `<?php
+class Service {}
+class KnownService { public function execute(): void {} }
+
+class Holder {
+    /** @var callable(): Service */
+    public $factory;
+
+    /** @return callable(): Service */
+    public function make(): callable {}
+
+    /** @return callable(): KnownService */
+    public function knownMake(): callable {}
+}
+
+class KnownHolder {
+    /** @var callable(): KnownService */
+    public $factory;
+
+    /** @return callable(): KnownService */
+    public function make(): callable {}
+}
+
+/** @return callable(): Service */
+function makeFactory(): callable {}
+
+/** @return callable(): KnownService */
+function makeKnownFactory(): callable {}
+`,
+		"consumer.php": `<?php
+/**
+ * @template T of Service
+ * @param class-string<T> $class
+ */
+function run(Holder $holder, KnownHolder $knownHolder, string $class): void {
+    ($holder->factory)()->missing();
+    makeFactory()()->missing();
+	$holder->make()()->missing();
+	$functionFactory = makeFactory();
+	$functionFactory()->missing();
+	$methodFactory = $holder->make();
+	$methodFactory()->missing();
+	($knownHolder->factory)()->execute();
+	makeKnownFactory()()->execute();
+	$knownHolder->make()()->execute();
+	$knownFunctionFactory = makeKnownFactory();
+	$knownFunctionFactory()->execute();
+	$knownMethodFactory = $knownHolder->make();
+	$knownMethodFactory()->execute();
+    $value = new $class();
+    $value->missing();
+}
+`,
+	}, 2)
+
+	var methodIssues []AnalysisIssue
+	for _, issue := range issues {
+		if issue.Code == level2MethodExistenceCode {
+			methodIssues = append(methodIssues, issue)
+		}
+	}
+	if len(methodIssues) != 6 {
+		t.Fatalf("expected six unknown-method diagnostics, got %#v", methodIssues)
+	}
+	if countIssueContaining(issues, level2MethodExistenceCode, "Service::missing()") != 6 {
+		t.Fatalf("expected direct callable and template class-string calls to target Service, got %#v", methodIssues)
+	}
+	if hasIssueContaining(issues, level2MethodExistenceCode, "KnownService::execute()") {
+		t.Fatalf("known direct callable results should remain clean, got %#v", methodIssues)
+	}
+}
+
 func TestLevel2UnknownMethodHandlesMultiClassReceiversConservatively(t *testing.T) {
 	issues := runPHPStanLevelOnFiles(t, map[string]string{
 		"test.php": `<?php

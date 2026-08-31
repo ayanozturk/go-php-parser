@@ -125,6 +125,7 @@ func isInterfacePropertyTypeStart(tokenType token.TokenType) bool {
 // only bare hook declarations like "{ get; }" or "{ get; set; }".
 func (p *Parser) parseInterfaceProperty(visibility string) ast.Node {
 	pos := p.tok.Pos
+	phpdoc := p.consumeCurrentDoc(pos)
 	var typeHint string
 	if p.tok.Type != token.T_VARIABLE {
 		if p.tok.Type == token.T_LPAREN {
@@ -152,6 +153,7 @@ func (p *Parser) parseInterfaceProperty(visibility string) ast.Node {
 	return &ast.PropertyNode{
 		Name:       name,
 		TypeHint:   typeHint,
+		PHPDoc:     phpdoc,
 		Visibility: visibility,
 		Hooks:      hooks,
 		Pos:        ast.Position(pos),
