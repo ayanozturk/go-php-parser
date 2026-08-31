@@ -6,9 +6,9 @@ This file records reproducible evidence for the cooperating `go-php-parser` engi
 
 ## Current baseline
 
-- Engine revision validated and consumed by PHP Strom: pushed commit `a148d43`.
-- Extension checkout: `/Users/ayan/Projects/vscode-php-strom`, `main` at pushed commit `c19fd50`; the current package version is `0.1.31`.
-- Production extension builds pin `github.com/ayanozturk/go-php-parser` at pseudo-version `v0.0.0-20260831152801-a148d43be45e`. `make test-server-dev` validates the same engine through the generated, ignored sibling-workspace path.
+- Engine revision validated and consumed by PHP Strom: pushed commit `61f2487`.
+- Extension checkout: `/Users/ayan/Projects/vscode-php-strom`, `main` at pushed commit `a782887`; the current package version is `0.1.32`.
+- Production extension builds pin `github.com/ayanozturk/go-php-parser` at pseudo-version `v0.0.0-20260831153651-61f24873c7dd`. `make test-server-dev` validates the same engine through the generated, ignored sibling-workspace path.
 - Go toolchain observed: Go 1.26.2. Node toolchain observed: Node 22.20.0 and npm 11.7.0.
 - Representative corpora are fetched at exact revisions from `test_projects/manifest.json`; generated working copies remain uncommitted.
 - The latest recorded full-corpus pass has zero failures for Composer, Drupal, Magento, PHPUnit, and WordPress. Symfony's two remaining fixtures are intentionally invalid/corrupted inputs, and Laravel has two narrow interpolation/callable edge cases. These recorded results are compatibility evidence, not a current performance result.
@@ -330,6 +330,7 @@ Representative workload: 23,556 indexed PHP files, 3,678,678 LOC, 135.68 MB, 151
 ### 2026-08-31 — Gate leftover level-0 enum, signature, and cast surfaces
 
 - The parser now accepts `(void)` and `(unset)` casts so the existing language rule can report them. Eight fixtures expand level 0 from eighty to eighty-eight cases for extra required parameters, enum constructor/destructor/magic/`Serializable`/float backing, and void/unset casts. Complete 88-case level-0 runs match pinned PHPStan `2.2.x-dev@e4ab62a`. Left out: inherited parameter-name changes (PHPStan silent) and native enum method redeclaration (mixed extra identifiers).
+- Parser commit `61f2487` lands the pack. Extension commit `a782887` pins pseudo-version `v0.0.0-20260831153651-61f24873c7dd` and proves the default editor path reports void/unset casts and enum constructors. Pinned and sibling tests, vet, race, all six server builds, TypeScript lint/compile/package, VS Code 1.89.1 host tests, the editor-latency gate, and `npm audit --audit-level=low` pass.
 
 ## Next ranked candidates
 
