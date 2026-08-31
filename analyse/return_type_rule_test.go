@@ -261,3 +261,13 @@ func inferredTypeFactKey(filename string, expression ast.Node) SemanticFactKey {
 		Kind:        FactKindInferredType,
 	}
 }
+
+func TestInferThisPropertyWithoutScopeIsConservative(t *testing.T) {
+	fetch := &ast.PropertyFetchNode{
+		Object:   &ast.VariableNode{Name: "this"},
+		Property: "service",
+	}
+	if inferred := inferPropertyFetchType(fetch, nil, nil); inferred.String() != "mixed" {
+		t.Fatalf("scope-less this-property type = %q, want mixed", inferred.String())
+	}
+}

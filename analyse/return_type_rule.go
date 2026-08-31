@@ -867,7 +867,7 @@ func inferPropertyFetchType(node *ast.PropertyFetchNode, scope *functionScope, c
 	if node == nil {
 		return MixedType()
 	}
-	if object, ok := node.Object.(*ast.VariableNode); ok && object.Name == "this" {
+	if object, ok := node.Object.(*ast.VariableNode); ok && object.Name == "this" && scope != nil {
 		// Narrowed/assigned type takes precedence over the declared type so
 		// that flow-based updates (e.g. lazy-init null strips) are respected.
 		if propertyType, ok := scope.properties[node.Property]; ok {
