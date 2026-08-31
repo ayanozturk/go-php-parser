@@ -8,7 +8,7 @@ This host indicator is **rejected** as a performance claim: twenty measured Word
 
 ## Reproducible source and workload
 
-- Engine commit: `9a06bdb` plus the uncommitted protocol changes recorded with this document's landing commit.
+- Engine commit: `67a1492`.
 - WordPress commit: `daaca56d3d6a9a42a0c87f6eda766c33a77c1d05`.
 - Paths: `src`, `tests`, `vendor`; excluded path: `src/js`.
 - Engine configuration: every currently registered rule, eight workers (`GOMAXPROCS=8` in each worker).

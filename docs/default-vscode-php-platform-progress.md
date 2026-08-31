@@ -7,7 +7,7 @@ This file records reproducible evidence for the cooperating `go-php-parser` engi
 ## Current baseline
 
 - Engine revision validated and consumed by PHP Strom: pushed commit `f3095cd`.
-- Extension checkout: `/Users/ayan/Projects/vscode-php-strom`, `main` at pushed commit `82f2a08`; the current package version is `0.1.29`.
+- Extension checkout: `/Users/ayan/Projects/vscode-php-strom`, `main` at pushed commit `0085089`; the current package version is `0.1.29`.
 - Production extension builds pin `github.com/ayanozturk/go-php-parser` at pseudo-version `v0.0.0-20260831134345-f3095cd1086e`. `make test-server-dev` validates the same engine through the generated, ignored sibling-workspace path.
 - Go toolchain observed: Go 1.26.2. Node toolchain observed: Node 22.20.0 and npm 11.7.0.
 - Representative corpora are fetched at exact revisions from `test_projects/manifest.json`; generated working copies remain uncommitted.
