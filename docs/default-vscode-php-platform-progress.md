@@ -52,7 +52,7 @@ Representative workload: 23,556 indexed PHP files, 3,678,678 LOC, 135.68 MB, 151
 
 ## Coverage gaps
 
-- PHPStan benchmark: level 0 remains partial but is differential-gated by 88 reviewed fixtures. Level 1 is gated by 24 variable-flow fixtures; level 2 by 65 protected/unknown-method/non-object/dynamic-index/expression-receiver fixtures; level 3 by one throw-type fixture. Pinned reference: `PHPStan 2.2.x-dev@e4ab62a`. Remaining analyser gaps: higher-level per-alternative DNF, remaining silent or extra-identifier level-0 leftovers, narrowing, generic inheritance, higher-level return/property/argument checks, PHPDoc validation, dynamic-call precision, and extension-dependent built-in signatures.
+- PHPStan benchmark: level 0 remains partial but is differential-gated by 88 reviewed fixtures. Level 1 is gated by 24 variable-flow fixtures; level 2 by 65 protected/unknown-method/non-object/dynamic-index/expression-receiver fixtures; level 3 by one throw-type fixture; level 7 by five partial-union fixtures. Pinned reference: `PHPStan 2.2.x-dev@e4ab62a`. Remaining analyser gaps: nullable `method.nonObject` at level 8, remaining silent or extra-identifier level-0 leftovers, narrowing, generic inheritance, higher-level return/property/argument checks, PHPDoc validation, dynamic-call precision, and extension-dependent built-in signatures.
 - PHPCS benchmark: the repository comparison records 16 style rules, far below the breadth of PHPCS standards. Security-oriented source rules such as eval/backtick/forbidden-function checks are not implemented.
 - The remaining recorded pure-parser corpus gaps are two narrow Laravel vendor-code cases; intentionally invalid or corrupted fixtures stay classified separately from parser failures.
 - PHP Strom now consumes shared `SemanticSnapshot` facts, flow graphs, and variable-flow state through dependency-scoped exported-semantic revisions, changed documents use immutable incremental project-index replacement, structured analysis diagnostics use UTF-16 spans, and a synthetic editor-path trace suite accounts for cache, dependency, cancellation, publication, and fallback behavior. Remaining extension integration gaps include stale architecture documentation, unstructured parser errors and mixed style-rule point ranges, conservative name-based dependency false positives/global overflow fallback, and no full VS Code extension-activation or representative-project latency trace.
@@ -336,7 +336,7 @@ Representative workload: 23,556 indexed PHP files, 3,678,678 LOC, 135.68 MB, 151
 
 The analyser target in `docs/full-static-analyser-target.md` is the source of truth for ordering.
 
-1. **Correctness:** higher-level per-alternative DNF as a separate PHPStan level. Remaining silent or extra-identifier level-0 leftovers (inherited parameter names, native enum method redeclaration) stay out of the level-0 pack.
+1. **Correctness:** nullable `method.nonObject` at PHPStan level 8. Remaining silent or extra-identifier level-0 leftovers (inherited parameter names, native enum method redeclaration) stay out of the level-0 pack.
 2. **Maintenance:** rewrite `FEATURES.md` for the Go language server and `go-php-parser`; decide the fate of `src/server`; extend fuzzing into PHPDoc/type parsing and rule execution.
 3. **Source mapping:** structured parser errors, then style-rule coordinate producers currently stuck at points.
 4. **Dependency matching:** replace conservative lexical invalidation only after generated reference facts cover supported resolver paths.

@@ -7,7 +7,7 @@
 - Baseline date: 2026-08-23 (Europe/London)
 - Last roadmap tidy: 2026-08-31 (Europe/London)
 - Current production pin: parser `61f2487` (`v0.0.0-20260831153651-61f24873c7dd`), extension `a782887`, package `0.1.32`
-- Executable PHPStan gates: 88 / 24 / 65 / 1 (levels 0–3) vs `2.2.x-dev@e4ab62a`
+- Executable PHPStan gates: 88 / 24 / 65 / 1 / 5 (levels 0–3 and 7) vs `2.2.x-dev@e4ab62a`
 - Benchmark references: Mago for performance and modern PHP type analysis, PHPStan and Psalm for diagnostic depth, and PHPCS for source-style breadth
 - Working milestone: **M0 done as a baseline; M1 in progress.** Full level-0 parity and accepted cold-performance claims are still open.
 
@@ -333,7 +333,7 @@ Exit criteria:
 - Full PHPStan level 0 behavior for the agreed corpus and documented progress through levels 1–3.
 - Cold WordPress analysis completes reliably in at most 60 seconds and 2 GB peak RSS on the reference machine.
 
-Progress: spans, immutable snapshots, allocation-light resolver views, copy-on-write function-scope maps, CFG slices, incremental indexing, and PHPStan-gated packs through levels 0–3 are in place. Level 0 is **partial** (88 reviewed fixtures, not corpus parity). Levels 1–3 are gated but thin (24 / 65 / 1). Same-host WordPress cold runs finish inside the 60s / 2 GB envelope with full file accounting, but CV has not met the 5% contract, so the timing gate is not claimed. Remaining M1 work is correctness coverage first, then an isolated-host measurement.
+Progress: spans, immutable snapshots, allocation-light resolver views, copy-on-write function-scope maps, CFG slices, incremental indexing, and PHPStan-gated packs through levels 0–3 and 7 are in place. Level 0 is **partial** (88 reviewed fixtures, not corpus parity). Levels 1–3 and 7 are gated but thin (24 / 65 / 1 / 5). Same-host WordPress cold runs finish inside the 60s / 2 GB envelope with full file accounting, but CV has not met the 5% contract, so the timing gate is not claimed. Remaining M1 work is correctness coverage first, then an isolated-host measurement.
 
 ### M2 — Broad type-analysis capability
 
@@ -409,11 +409,11 @@ A release must not advance the parser version pinned by PHP Strom until the engi
 
 Keep the main stream on PHPStan-gated correctness. Do not make Mago-class performance the primary stream yet: current WordPress work is far smaller than Mago's strict diagnostic set, and no interleaved isolated-host comparison has passed the 5% CV contract.
 
-1. **Higher-level per-alternative DNF.** Separate PHPStan reference level and rule. Level 2 already reports missing methods on DNF unions as one combined type. Do not fold this into level 2. Remaining silent or extra-identifier level-0 leftovers (inherited parameter names, native enum method redeclaration) stay out of the level-0 pack.
+1. **Level-8 nullable `method.nonObject`.** PHPStan reports `method.nonObject` for `?Service->execute()` at level 8; keep that separate from the level-7 partial-union pack. Remaining silent or extra-identifier level-0 leftovers (inherited parameter names, native enum method redeclaration) stay out of the level-0 pack.
 2. **Maintenance:** rewrite `vscode-php-strom/FEATURES.md` for the Go language server and `go-php-parser`; decide whether to delete `src/server`. Then structured parser errors and style-rule range migration.
 3. **Performance measurement only:** isolated-host interleaved WordPress vs contemporaneous Mago using the stability protocol. Generated reference facts and representative editor-path traces follow. Do not optimize for the 1.5× Mago gate until coverage is in the same work class.
 
-Completed deliveries 1–32 are archived below and are not the current queue.
+Completed deliveries 1–33 are archived below and are not the current queue.
 
 ## Completed action log
 
@@ -449,6 +449,7 @@ Completed deliveries 1–32 are archived below and are not the current queue.
 30. **Done — infer remaining level-2 expression-form receivers.** Parser commit `ab99bf5` resolves file-level constants, other same-file class constants, `match` indexes, property `@var` shapes (including native `array` hints), method `@return` shapes, static properties, and `list{Class}` object indexes to the same `method.notFound` receivers as pinned PHPStan. Eight fixtures bring the executable gates to 63/24/65/1 and match PHPStan `2.2.x-dev@e4ab62a`. Extension commit `296d585` pins pseudo-version `v0.0.0-20260831151502-ab99bf53c3f0` and gates editor behavior. Per-alternative DNF availability remains a separate higher reference level.
 31. **Done — expand the PHPStan level-0 pack across remaining matching unit-tested surfaces.** Live PHPStan `2.2.x-dev@e4ab62a` review added seventeen fixtures, taking the pack from sixty-three cases to eighty. New gates cover unknown parent classes, implementing a class, extending an interface, interface `extends` of unknown types and classes, using a class as a trait, non-public interface implementations, fewer inherited parameters, incompatible inherited return types, a covariant-return clean control, unit/backed enum case legality, static calls to instance methods, duplicate named arguments, unknown function imports, and unknown static methods. Left out on mismatch or extra identifiers: inherited parameter-name changes (PHPStan silent), extra-required-parameter overrides (PHPStan emits two `parameter.notOptional`), enum constructor/float-backing/`Serializable`, and `(void)`/`(unset)` casts the parser cannot yet represent. Parser commit `a148d43` lands the pack. Extension commit `c19fd50` pins pseudo-version `v0.0.0-20260831152801-a148d43be45e` and gates editor behavior.
 32. **Done — gate leftover level-0 enum, signature, and cast surfaces.** Parser `readCastType` now accepts `(void)` and keyword `(unset)` so the existing language rule can report them. Eight fixtures expand the pack from eighty to eighty-eight cases: extra required parameters, enum constructor/destructor/magic/`Serializable`/float backing, and void/unset casts. Native enum method redeclaration stays out because PHPStan mixes extra identifiers; inherited parameter-name changes remain silent in PHPStan. Parser commit `61f2487` lands the pack. Extension commit `a782887` pins pseudo-version `v0.0.0-20260831153651-61f24873c7dd` and gates editor behavior.
+33. **Done — detect unknown methods on partial unions at PHPStan level 7.** `PHPStan.Level7.MethodUnion` reports receivers where some but not all DNF alternatives provide the method, matching PHPStan `method.notFound` without duplicating all-missing level-2 diagnostics. Five fixtures bring the executable gates to 88/24/65/1/5 and match PHPStan `2.2.x-dev@e4ab62a`. The editor maps the new code through the undefined-symbol setting. Nullable `method.nonObject` stays at level 8.
 
 Note: a benchmark run on `test_projects/symfony` also showed the diagnostic count vary slightly between cold runs on an otherwise-identical corpus (e.g. 82,722 vs 82,883 in one sample). **Fixed:** `BuildProjectIndex` iterated its `map[string][]ast.Node` input in Go's randomized map-iteration order, so which file's declaration won duplicate-symbol resolution (`addClass`'s "first file wins", and "last file processed wins" for methods/properties/constants registered per file) varied between runs. It now processes files in sorted filename order, making both the class-metadata winner and the member winner deterministic; `TestBuildProjectIndexDuplicateClassResolutionIsDeterministic` in `analyse/project_index_test.go` guards this, and a 5-run benchmark on `test_projects/symfony` now reports a stable 82,722 diagnostics on every cold run.
 

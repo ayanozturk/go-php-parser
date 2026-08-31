@@ -1,0 +1,44 @@
+{
+  "schemaVersion": 1,
+  "reference": {
+    "tool": "PHPStan",
+    "level": 7
+  },
+  "cases": [
+    {
+      "id": "unknown-method-partial-union",
+      "capability": "unknown methods on partial unions",
+      "file": "unknown-method-partial-union.php",
+      "engineCodes": ["PHPStan.Level7.MethodUnion"],
+      "phpstanIdentifiers": ["method.notFound"]
+    },
+    {
+      "id": "unknown-method-partial-dnf",
+      "capability": "unknown methods on partial DNF receivers",
+      "file": "unknown-method-partial-dnf.php",
+      "engineCodes": ["PHPStan.Level7.MethodUnion"],
+      "phpstanIdentifiers": ["method.notFound"]
+    },
+    {
+      "id": "unknown-method-partial-dnf-available",
+      "capability": "unknown methods on partial DNF with an available member",
+      "file": "unknown-method-partial-dnf-available.php",
+      "engineCodes": ["PHPStan.Level7.MethodUnion"],
+      "phpstanIdentifiers": ["method.notFound"]
+    },
+    {
+      "id": "known-method-all-dnf-alternatives",
+      "capability": "known methods on every DNF alternative",
+      "file": "known-method-all-dnf-alternatives.php",
+      "engineCodes": [],
+      "phpstanIdentifiers": []
+    },
+    {
+      "id": "known-method-intersection-receiver",
+      "capability": "known methods on intersection receivers",
+      "file": "known-method-intersection-receiver.php",
+      "engineCodes": [],
+      "phpstanIdentifiers": []
+    }
+  ]
+}

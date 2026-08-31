@@ -56,6 +56,17 @@ func TestCheckedInEngineDifferentialBaseline(t *testing.T) {
 	if level3Report.Reference != nil {
 		t.Fatalf("engine-only level-3 report should not contain a reference run: %#v", level3Report.Reference)
 	}
+
+	level7Report, err := runDifferential(filepath.Join("..", "..", "testdata", "diagnostic-differential-level7"), "", true)
+	if err != nil {
+		t.Fatalf("run engine level-7 differential baseline: %v", err)
+	}
+	if level7Report.Totals.Cases != 5 || level7Report.Totals.EngineMismatches != 0 {
+		t.Fatalf("unexpected level-7 differential baseline: %#v", level7Report.Totals)
+	}
+	if level7Report.Reference != nil {
+		t.Fatalf("engine-only level-7 report should not contain a reference run: %#v", level7Report.Reference)
+	}
 }
 
 func TestLoadManifestRejectsDuplicateCaseIDs(t *testing.T) {
