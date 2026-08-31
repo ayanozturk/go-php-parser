@@ -342,6 +342,10 @@ Representative workload: 23,556 indexed PHP files, 3,678,678 LOC, 135.68 MB, 151
 - `PHPStan.Level8.MethodNonObject` reports when every remaining object-like alternative provides the method and `null` is also possible, matching PHPStan `method.nonObject`. Scalar `int|null` and unknown nullable methods stay on level 2. Nullsafe `?->` stays clean. Five fixtures bring the executable gates to 88/24/65/1/5/5 and match pinned PHPStan `2.2.x-dev@e4ab62a`.
 - Parser commit `e629d42` lands the pack and records nullsafe operators on `MethodCallNode`. Extension commit `8348748` pins pseudo-version `v0.0.0-20260831163118-e629d4267f4c` and proves the default editor path reports known nullable methods through the type-error setting. Pinned and sibling tests, vet, race, all six server builds, TypeScript lint/compile/package, VS Code 1.89.1 host tests, the editor-latency gate, and `npm audit --audit-level=low` pass.
 
+### 2026-08-31 — Snapshot-backed full analysis and profile-driven speed work
+
+- `cmd/benchmark` and `analyze` now share one `SemanticSnapshot` per full run. Parser commit `3155c07` also combines the level-2/7/8 method-receiver walks, reuses file/namespace type context, folds ASCII identifier keys, and scans empty-statement source without splitting the file into cached lines. WordPress still accounts for 5,357/5,357 files and 26,321 diagnostics on the profile path. No Mago comparison is claimed.
+
 ## Next ranked candidates
 
 The analyser target in `docs/full-static-analyser-target.md` is the source of truth for ordering.
