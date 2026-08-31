@@ -10,31 +10,7 @@ import (
 const level7MethodUnionCode = "PHPStan.Level7.MethodUnion"
 
 func checkLevel7MethodUnion(filename string, nodes []ast.Node, ctx *AnalysisContext) []AnalysisIssue {
-	ctx = ensureLevel0Context(filename, nodes, ctx)
-	var issues []AnalysisIssue
-	seen := make(map[*ast.MethodCallNode]struct{})
-	check := func(filename string, expr ast.Node, scope *functionScope, ctx *AnalysisContext) {
-		call, ok := expr.(*ast.MethodCallNode)
-		if !ok {
-			return
-		}
-		seen[call] = struct{}{}
-		appendLevel7PartialUnionMethodIssue(filename, call, scope, ctx, &issues)
-	}
-	walkLevel2MethodExpressions(filename, nodes, ctx, check)
-
-	walkAll(nodes, func(node ast.Node, _ *ast.ClassNode, _ *ast.FunctionNode, _ FileTypeContext) {
-		call, ok := node.(*ast.MethodCallNode)
-		if !ok {
-			return
-		}
-		if _, alreadyChecked := seen[call]; alreadyChecked {
-			return
-		}
-		appendLevel7PartialUnionMethodIssue(filename, call, nil, ctx, &issues)
-	})
-
-	return issues
+	return filterIssuesByCode(methodReceiverIssuesForFile(filename, nodes, ctx), level7MethodUnionCode)
 }
 
 func appendLevel7PartialUnionMethodIssue(filename string, call *ast.MethodCallNode, scope *functionScope, ctx *AnalysisContext, issues *[]AnalysisIssue) {
@@ -44,8 +20,10 @@ func appendLevel7PartialUnionMethodIssue(filename string, call *ast.MethodCallNo
 	if receiver, ok := call.Object.(*ast.VariableNode); ok && receiver.Name == "this" {
 		return
 	}
+	appendLevel7PartialUnionMethodFromType(filename, call, inferTypeWithFacts(filename, call.Object, scope, ctx), ctx, issues)
+}
 
-	receiverType := inferTypeWithFacts(filename, call.Object, scope, ctx)
+func appendLevel7PartialUnionMethodFromType(filename string, call *ast.MethodCallNode, receiverType Type, ctx *AnalysisContext, issues *[]AnalysisIssue) {
 	if !someButNotAllDNFAlternativesLackMethod(receiverType, call.Method, ctx) {
 		return
 	}

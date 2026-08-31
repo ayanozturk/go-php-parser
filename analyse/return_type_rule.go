@@ -145,7 +145,8 @@ func (r *ReturnTypeRule) checkFunctionReturnType(filename string, fn *ast.Functi
 
 func (r *ReturnTypeRule) CheckIssues(nodes []ast.Node, filename string, ctx *AnalysisContext) []AnalysisIssue {
 	var issues []AnalysisIssue
-	walkAll(nodes, func(node ast.Node, class *ast.ClassNode, _ *ast.FunctionNode, fileCtx FileTypeContext) {
+	fileCtx := analysisFileTypeContext(ctx, nodes)
+	walkAllWithFileContext(nodes, fileCtx, ctx, func(node ast.Node, class *ast.ClassNode, _ *ast.FunctionNode, fileCtx FileTypeContext) {
 		fn, ok := node.(*ast.FunctionNode)
 		if !ok {
 			return

@@ -10,20 +10,32 @@ import (
 const level2MethodExistenceCode = "PHPStan.Level2.MethodExistence"
 
 func checkLevel2MethodExistence(filename string, nodes []ast.Node, ctx *AnalysisContext) []AnalysisIssue {
+	return filterIssuesByCode(methodReceiverIssuesForFile(filename, nodes, ctx), level2MethodExistenceCode)
+}
+
+func methodReceiverIssuesForFile(filename string, nodes []ast.Node, ctx *AnalysisContext) []AnalysisIssue {
 	ctx = ensureLevel0Context(filename, nodes, ctx)
+	if ctx.hasMethodReceiverIssues {
+		return ctx.methodReceiverIssues
+	}
+	ctx.methodReceiverIssues = collectMethodReceiverIssues(filename, nodes, ctx)
+	ctx.hasMethodReceiverIssues = true
+	return ctx.methodReceiverIssues
+}
+
+func collectMethodReceiverIssues(filename string, nodes []ast.Node, ctx *AnalysisContext) []AnalysisIssue {
 	var issues []AnalysisIssue
 	seen := make(map[*ast.MethodCallNode]struct{})
-	check := func(filename string, expr ast.Node, scope *functionScope, ctx *AnalysisContext) {
+	observe := func(filename string, expr ast.Node, scope *functionScope, ctx *AnalysisContext) {
 		call, ok := expr.(*ast.MethodCallNode)
 		if !ok {
 			return
 		}
 		seen[call] = struct{}{}
-		appendLevel2UnknownMethodIssue(filename, call, scope, ctx, &issues)
+		appendMethodReceiverIssuesForCall(filename, call, scope, ctx, &issues)
 	}
-	walkLevel2MethodExpressions(filename, nodes, ctx, check)
-
-	walkAll(nodes, func(node ast.Node, _ *ast.ClassNode, _ *ast.FunctionNode, _ FileTypeContext) {
+	walkLevel2MethodExpressions(filename, nodes, ctx, observe)
+	walkAllWithoutTypeContext(nodes, func(node ast.Node) {
 		call, ok := node.(*ast.MethodCallNode)
 		if !ok {
 			return
@@ -31,10 +43,37 @@ func checkLevel2MethodExistence(filename string, nodes []ast.Node, ctx *Analysis
 		if _, alreadyChecked := seen[call]; alreadyChecked {
 			return
 		}
-		appendLevel2UnknownMethodIssue(filename, call, nil, ctx, &issues)
+		appendMethodReceiverIssuesForCall(filename, call, nil, ctx, &issues)
 	})
-
 	return issues
+}
+
+func appendMethodReceiverIssuesForCall(filename string, call *ast.MethodCallNode, scope *functionScope, ctx *AnalysisContext, issues *[]AnalysisIssue) {
+	if call == nil || strings.TrimSpace(call.Method) == "" {
+		return
+	}
+	if receiver, ok := call.Object.(*ast.VariableNode); ok && receiver.Name == "this" {
+		return
+	}
+	receiverType := inferTypeWithFacts(filename, call.Object, scope, ctx)
+	appendLevel2UnknownMethodFromType(filename, call, receiverType, ctx, issues)
+	appendLevel2NonObjectMethodFromType(filename, call, receiverType, ctx, issues)
+	if analysisLevelAtLeast(ctx, 7) {
+		appendLevel7PartialUnionMethodFromType(filename, call, receiverType, ctx, issues)
+	}
+	if analysisLevelAtLeast(ctx, 8) {
+		appendLevel8NullableMethodFromType(filename, call, receiverType, ctx, issues)
+	}
+}
+
+func filterIssuesByCode(issues []AnalysisIssue, code string) []AnalysisIssue {
+	var filtered []AnalysisIssue
+	for _, issue := range issues {
+		if issue.Code == code {
+			filtered = append(filtered, issue)
+		}
+	}
+	return filtered
 }
 
 func appendLevel2UnknownMethodIssue(filename string, call *ast.MethodCallNode, scope *functionScope, ctx *AnalysisContext, issues *[]AnalysisIssue) {
@@ -46,8 +85,10 @@ func appendLevel2UnknownMethodIssue(filename string, call *ast.MethodCallNode, s
 		// symbols pass owns that diagnostic and must not be duplicated here.
 		return
 	}
+	appendLevel2UnknownMethodFromType(filename, call, inferTypeWithFacts(filename, call.Object, scope, ctx), ctx, issues)
+}
 
-	receiverType := inferTypeWithFacts(filename, call.Object, scope, ctx)
+func appendLevel2UnknownMethodFromType(filename string, call *ast.MethodCallNode, receiverType Type, ctx *AnalysisContext, issues *[]AnalysisIssue) {
 	if className, single := receiverType.SingleClassName(); single {
 		resolvedClass, ok := resolveMethodReceiverClass(className, ctx)
 		if !ok || receiverClassProvidesMethod(resolvedClass.Name, call.Method, ctx) {

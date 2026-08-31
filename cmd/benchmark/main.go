@@ -64,6 +64,7 @@ import (
 	"github.com/ayanozturk/go-php-parser/ast"
 	"github.com/ayanozturk/go-php-parser/lexer"
 	"github.com/ayanozturk/go-php-parser/parser"
+	"github.com/ayanozturk/go-php-parser/sharedcache"
 )
 
 // runMetrics captures everything the comparable-performance contract asks
@@ -595,6 +596,7 @@ func runWorker(phase, root string, paths, excludes []string, level, workers, rep
 	}
 
 	parsed, parseMetrics := parseFiles(files, workers)
+	defer releaseBenchmarkSourceCache(parsed)
 
 	switch phase {
 	case "index":
@@ -664,6 +666,7 @@ func runProfile(root string, paths, excludes []string, level, workers, iteration
 	}
 
 	parsed, parseMetrics := parseFiles(files, workers)
+	defer releaseBenchmarkSourceCache(parsed)
 	var diagnostics int
 	for i := 0; i < iterations; i++ {
 		start := time.Now()
@@ -854,6 +857,7 @@ func parseFiles(files []string, workers int) (map[string][]ast.Node, runMetrics)
 					resultCh <- parseOutcome{path: path, failed: true, bytes: int64(len(content))}
 					continue
 				}
+				sharedcache.StoreCachedFileContent(path, content)
 				resultCh <- parseOutcome{
 					path:  path,
 					nodes: nodes,
@@ -903,14 +907,27 @@ func countLines(content []byte) int {
 	return n
 }
 
-// runAnalysis runs the registered analysis rules over every successfully
-// parsed file concurrently against a shared project index — the same
-// concurrency shape as command.ProcessStyleFilesParallelWithCallback, which
-// is deliberate: this is the exact code path that a cyclic class hierarchy
-// previously crashed via unbounded recursion in ancestor-walking helpers
-// (see analyse/phpstan_level0_class_model.go), so this benchmark doubles as
-// a regression exerciser for that fix at realistic corpus scale.
+// runAnalysis builds one shared semantic snapshot from the project index,
+// then runs the registered analysis rules over every parsed file concurrently.
+// This is the same snapshot-backed path as command.AnalyzeFiles and PHP Strom,
+// so benchmark timings include fact, CFG, and variable-flow construction.
+func releaseBenchmarkSourceCache(parsed map[string][]ast.Node) {
+	for path := range parsed {
+		content, err := sharedcache.GetCachedFileContent(path)
+		if err != nil {
+			continue
+		}
+		sharedcache.DeleteCachedLines(content)
+		sharedcache.DeleteCachedFileContent(path)
+	}
+}
+
 func runAnalysis(parsed map[string][]ast.Node, project *analyse.ProjectIndex, level *int, workers int) int {
+	snapshot, err := analyse.NewSemanticSnapshotWithIndex(project, parsed, nil, nil)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "benchmark: semantic snapshot: %v\n", err)
+		os.Exit(1)
+	}
 	type job struct {
 		path  string
 		nodes []ast.Node
@@ -923,7 +940,8 @@ func runAnalysis(parsed map[string][]ast.Node, project *analyse.ProjectIndex, le
 		go func() {
 			defer wg.Done()
 			for j := range jobCh {
-				ctx := &analyse.AnalysisContext{Resolver: project, AnalysisLevel: level}
+				ctx := snapshot.NewAnalysisContext()
+				ctx.AnalysisLevel = level
 				issues := analyse.RunAnalysisRulesWithContext(j.path, j.nodes, ctx)
 				total.add(int64(len(issues)))
 			}

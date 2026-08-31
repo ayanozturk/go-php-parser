@@ -12,7 +12,8 @@ func checkLevel3ThrowTypes(filename string, nodes []ast.Node, ctx *AnalysisConte
 	ctx = ensureLevel0Context(filename, nodes, ctx)
 	var issues []AnalysisIssue
 
-	walkAll(nodes, func(node ast.Node, _ *ast.ClassNode, _ *ast.FunctionNode, ft FileTypeContext) {
+	fileCtx := analysisFileTypeContext(ctx, nodes)
+	walkAllWithFileContext(nodes, fileCtx, ctx, func(node ast.Node, _ *ast.ClassNode, _ *ast.FunctionNode, ft FileTypeContext) {
 		throwNode, ok := node.(*ast.ThrowNode)
 		if !ok {
 			return

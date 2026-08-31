@@ -1,6 +1,6 @@
 # Near-term CLI and adoption plan
 
-The primary project target is [Full Static Analyser and Mago-Class Performance Target](full-static-analyser-target.md). Ranked next work lives there. This file is only the remaining CLI/adoption backlog; it must not pull implementation away from PHPStan-gated M1 coverage.
+The primary project target is [Full Static Analyser and Mago-Class Performance Target](full-static-analyser-target.md). Ranked next work lives there. This file is only the remaining CLI/adoption backlog; it must not pull implementation away from Mago-class performance.
 
 ## Already in place
 

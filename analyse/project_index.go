@@ -881,7 +881,7 @@ func (idx *ProjectIndex) methodReferenceParamsSeen(className, methodName string,
 		}
 	}
 	seen = append(seen, key)
-	if method, found := idx.Methods[key][strings.ToLower(methodName)]; found {
+	if method, found := idx.Methods[key][asciiLowerIdent(methodName)]; found {
 		return method.Params, true
 	}
 	for _, parentName := range class.Extends {
@@ -905,7 +905,7 @@ func (idx *ProjectIndex) ResolveOwnMethod(className, methodName string) (Resolve
 	if !ok {
 		return ResolvedMethod{}, false
 	}
-	method, ok := idx.Methods[indexKey(class.Name)][strings.ToLower(methodName)]
+	method, ok := idx.Methods[indexKey(class.Name)][asciiLowerIdent(methodName)]
 	if !ok {
 		return ResolvedMethod{}, false
 	}
@@ -966,7 +966,7 @@ func (idx *ProjectIndex) resolveMethodWithTemplates(className, methodName string
 	}
 	seen[key] = struct{}{}
 	defer delete(seen, key)
-	if method, found := idx.Methods[key][strings.ToLower(methodName)]; found {
+	if method, found := idx.Methods[key][asciiLowerIdent(methodName)]; found {
 		// ResolvedMethod is returned by value, but Params is a slice. Clone it
 		// before applying call-specific generic bindings so resolution cannot
 		// mutate the project index or race with concurrent snapshot readers.
@@ -1590,7 +1590,7 @@ func defaultVisibility(visibility string) string {
 }
 
 func indexKey(name string) string {
-	return strings.ToLower(strings.TrimPrefix(strings.TrimSpace(name), `\`))
+	return asciiLowerIdent(strings.TrimPrefix(strings.TrimSpace(name), `\`))
 }
 
 func unqualifiedName(name string) string {

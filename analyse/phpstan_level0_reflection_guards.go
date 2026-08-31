@@ -12,14 +12,14 @@ type reflectionGuards struct {
 	methods   map[string]struct{}
 }
 
-func collectReflectionGuards(nodes []ast.Node, fileCtx FileTypeContext) reflectionGuards {
+func collectReflectionGuards(nodes []ast.Node, ctx *AnalysisContext, fileCtx FileTypeContext) reflectionGuards {
 	guards := reflectionGuards{
 		classes:   map[string]struct{}{},
 		functions: map[string]struct{}{},
 		constants: map[string]struct{}{},
 		methods:   map[string]struct{}{},
 	}
-	walkAll(nodes, func(node ast.Node, class *ast.ClassNode, _ *ast.FunctionNode, ft FileTypeContext) {
+	walkAllWithFileContext(nodes, fileCtx, ctx, func(node ast.Node, class *ast.ClassNode, _ *ast.FunctionNode, ft FileTypeContext) {
 		call, ok := node.(*ast.FunctionCallNode)
 		if !ok {
 			return

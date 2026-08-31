@@ -8,8 +8,8 @@ import (
 
 func (r *PHPStanLevel0Rule) checkTypeReferences(filename string, nodes []ast.Node, ctx *AnalysisContext, fileCtx FileTypeContext) []AnalysisIssue {
 	var issues []AnalysisIssue
-	guards := collectReflectionGuards(nodes, fileCtx)
-	walkAll(nodes, func(node ast.Node, class *ast.ClassNode, _ *ast.FunctionNode, ft FileTypeContext) {
+	guards := collectReflectionGuards(nodes, ctx, fileCtx)
+	walkAllWithFileContext(nodes, fileCtx, ctx, func(node ast.Node, class *ast.ClassNode, _ *ast.FunctionNode, ft FileTypeContext) {
 		switch n := node.(type) {
 		case *ast.UseNode:
 			switch n.Type {

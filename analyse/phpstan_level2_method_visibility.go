@@ -13,7 +13,8 @@ func checkLevel2MethodVisibility(filename string, nodes []ast.Node, ctx *Analysi
 	ctx = ensureLevel0Context(filename, nodes, ctx)
 	var issues []AnalysisIssue
 
-	walkAll(nodes, func(node ast.Node, class *ast.ClassNode, currentFn *ast.FunctionNode, ft FileTypeContext) {
+	fileCtx := analysisFileTypeContext(ctx, nodes)
+	walkAllWithFileContext(nodes, fileCtx, ctx, func(node ast.Node, class *ast.ClassNode, currentFn *ast.FunctionNode, ft FileTypeContext) {
 		switch n := node.(type) {
 		case *ast.FunctionCallNode:
 			name := functionCallName(n)

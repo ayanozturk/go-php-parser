@@ -618,3 +618,35 @@ function run((HasMethod&FirstTag)|MissingAlternative $partiallyAvailable, (HasMe
 		}
 	}
 }
+
+func TestMethodReceiverRulesShareOneCachedWalk(t *testing.T) {
+	filename := "test.php"
+	nodes := parsePHPForLevel0(t, `<?php
+class Service {}
+function run(Service $service): void {
+    $service->missing();
+}
+`)
+	level := 10
+	ctx := ensureLevel0Context(filename, nodes, &AnalysisContext{AnalysisLevel: &level})
+	existence := checkLevel2MethodExistence(filename, nodes, ctx)
+	if !ctx.hasMethodReceiverIssues {
+		t.Fatal("expected the first method-receiver rule to cache the shared walk")
+	}
+	if len(existence) == 0 {
+		t.Fatal("expected a level-2 unknown-method diagnostic")
+	}
+	cached := ctx.methodReceiverIssues
+	if len(checkLevel2MethodNonObject(filename, nodes, ctx)) != 0 {
+		t.Fatal("typed class receivers should not emit level-2 non-object diagnostics")
+	}
+	if len(checkLevel7MethodUnion(filename, nodes, ctx)) != 0 {
+		t.Fatal("single-class receivers should not emit level-7 partial-union diagnostics")
+	}
+	if len(checkLevel8MethodNonObject(filename, nodes, ctx)) != 0 {
+		t.Fatal("non-nullable class receivers should not emit level-8 nullable diagnostics")
+	}
+	if len(ctx.methodReceiverIssues) != len(cached) || (len(cached) > 0 && &ctx.methodReceiverIssues[0] != &cached[0]) {
+		t.Fatal("later method-receiver rules must reuse the cached walk result")
+	}
+}

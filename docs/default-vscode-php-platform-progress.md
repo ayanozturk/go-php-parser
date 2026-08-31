@@ -346,8 +346,7 @@ Representative workload: 23,556 indexed PHP files, 3,678,678 LOC, 135.68 MB, 151
 
 The analyser target in `docs/full-static-analyser-target.md` is the source of truth for ordering.
 
-1. **Maintenance:** rewrite `FEATURES.md` for the Go language server and `go-php-parser`; decide the fate of `src/server`; extend fuzzing into PHPDoc/type parsing and rule execution. Remaining silent or extra-identifier level-0 leftovers stay out of the level-0 pack.
-2. **Maintenance:** rewrite `FEATURES.md` for the Go language server and `go-php-parser`; decide the fate of `src/server`; extend fuzzing into PHPDoc/type parsing and rule execution.
+1. **Performance:** interleaved WordPress process-cold vs contemporaneous Mago on the snapshot-backed pipeline; keep the 5% CV contract and the 1.5× mean / 1.25× RSS gates. Optimize from CPU/heap profiles. Do not cut rules or `vendor` to win.
+2. **Maintenance:** rewrite `FEATURES.md` for the Go language server after the first accepted Mago comparison; decide the fate of `src/server`.
 3. **Source mapping:** structured parser errors, then style-rule coordinate producers currently stuck at points.
 4. **Dependency matching:** replace conservative lexical invalidation only after generated reference facts cover supported resolver paths.
-5. **Performance:** isolated-host interleaved full-analysis vs contemporaneous Mago; keep the 5% CV contract. Synthetic editor-path gates stay; representative VS Code traces are later. Do not treat Mago 1.5× as the next implementation slice.

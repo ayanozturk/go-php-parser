@@ -15,10 +15,11 @@ type EmptyStatementRule struct{}
 
 // CheckIssuesWithSource performs analysis given explicit source content (used by tests for isolation).
 func (r *EmptyStatementRule) CheckIssuesWithSource(filename string, content []byte, _ []ast.Node) []AnalysisIssue {
-	lines := sharedcache.SplitLinesCached(content)
+	source := bytesAsString(content)
 	var issues []AnalysisIssue
 
 	commentState := &helper.CommentState{}
+	qs := &helper.QuoteState{}
 
 	// Track potential control header immediately followed by a semicolon.
 	type pendingCtrl struct {
@@ -36,13 +37,27 @@ func (r *EmptyStatementRule) CheckIssuesWithSource(filename string, content []by
 	// Reset per-statement segment tracking at line start and after each semicolon.
 	hasCodeSinceBoundary := false
 
-	for i, line := range lines {
-		// Reset segment tracker at start of each new line
+	lineStart := 0
+	i := 0
+	for lineStart <= len(source) {
+		lineEnd := lineStart
+		for lineEnd < len(source) && source[lineEnd] != '\n' {
+			lineEnd++
+		}
+		line := source[lineStart:lineEnd]
+		if n := len(line); n > 0 && line[n-1] == '\r' {
+			line = line[:n-1]
+		}
 		hasCodeSinceBoundary = false
 		if !commentState.InBlockComment && !commentState.InHeredoc && !ctrl.active && !emptyStatementLineNeedsScan(line) {
+			if lineEnd == len(source) {
+				break
+			}
+			lineStart = lineEnd + 1
+			i++
 			continue
 		}
-		qs := &helper.QuoteState{}
+		*qs = helper.QuoteState{}
 
 		// Convenience closures
 		isWordBoundary := func(idx int) bool {
@@ -233,6 +248,11 @@ func (r *EmptyStatementRule) CheckIssuesWithSource(filename string, content []by
 
 		// Handle heredoc end state per line
 		_ = helper.HandleHeredocEnd(line, commentState)
+		if lineEnd == len(source) {
+			break
+		}
+		lineStart = lineEnd + 1
+		i++
 	}
 
 	return issues

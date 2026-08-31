@@ -2,17 +2,49 @@ package analyse
 
 import "github.com/ayanozturk/go-php-parser/ast"
 
+type walkAllConfig struct {
+	collectContext bool
+	hasRoot        bool
+	root           FileTypeContext
+	namespaces     map[*ast.NamespaceNode]FileTypeContext
+}
+
 func walkAll(nodes []ast.Node, fn func(ast.Node, *ast.ClassNode, *ast.FunctionNode, FileTypeContext)) {
-	walkAllUsing(nodes, fn, true)
+	walkAllConfigured(nodes, fn, walkAllConfig{collectContext: true})
 }
 
 func walkAllWithoutTypeContext(nodes []ast.Node, fn func(ast.Node)) {
-	walkAllUsing(nodes, func(node ast.Node, _ *ast.ClassNode, _ *ast.FunctionNode, _ FileTypeContext) {
+	walkAllConfigured(nodes, func(node ast.Node, _ *ast.ClassNode, _ *ast.FunctionNode, _ FileTypeContext) {
 		fn(node)
-	}, false)
+	}, walkAllConfig{})
 }
 
-func walkAllUsing(nodes []ast.Node, fn func(ast.Node, *ast.ClassNode, *ast.FunctionNode, FileTypeContext), collectContext bool) {
+func walkAllWithFileContext(nodes []ast.Node, ft FileTypeContext, ctx *AnalysisContext, fn func(ast.Node, *ast.ClassNode, *ast.FunctionNode, FileTypeContext)) {
+	cfg := walkAllConfig{collectContext: true, hasRoot: true, root: ft}
+	if ctx != nil {
+		if ctx.namespaceContextByNode == nil {
+			ctx.namespaceContextByNode = make(map[*ast.NamespaceNode]FileTypeContext)
+		}
+		cfg.namespaces = ctx.namespaceContextByNode
+	}
+	walkAllConfigured(nodes, fn, cfg)
+}
+
+func namespaceTypeContext(n *ast.NamespaceNode, cache map[*ast.NamespaceNode]FileTypeContext) FileTypeContext {
+	if cached, ok := cache[n]; ok {
+		return cached
+	}
+	nft := CollectFileTypeContext(n.Body)
+	if nft.Namespace == "" {
+		nft.Namespace = n.Name
+	}
+	if cache != nil {
+		cache[n] = nft
+	}
+	return nft
+}
+
+func walkAllConfigured(nodes []ast.Node, fn func(ast.Node, *ast.ClassNode, *ast.FunctionNode, FileTypeContext), cfg walkAllConfig) {
 	var walk func(ast.Node, *ast.ClassNode, *ast.FunctionNode, FileTypeContext)
 	walk = func(node ast.Node, class *ast.ClassNode, currentFn *ast.FunctionNode, ft FileTypeContext) {
 		if node == nil {
@@ -22,11 +54,8 @@ func walkAllUsing(nodes []ast.Node, fn func(ast.Node, *ast.ClassNode, *ast.Funct
 		switch n := node.(type) {
 		case *ast.NamespaceNode:
 			nft := ft
-			if collectContext {
-				nft = CollectFileTypeContext(n.Body)
-				if nft.Namespace == "" {
-					nft.Namespace = n.Name
-				}
+			if cfg.collectContext {
+				nft = namespaceTypeContext(n, cfg.namespaces)
 			}
 			for _, child := range n.Body {
 				walk(child, class, currentFn, nft)
@@ -204,7 +233,9 @@ func walkAllUsing(nodes []ast.Node, fn func(ast.Node, *ast.ClassNode, *ast.Funct
 		}
 	}
 	ft := FileTypeContext{}
-	if collectContext {
+	if cfg.hasRoot {
+		ft = cfg.root
+	} else if cfg.collectContext {
 		ft = CollectFileTypeContext(nodes)
 	}
 	for _, node := range nodes {

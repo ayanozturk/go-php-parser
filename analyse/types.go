@@ -434,7 +434,7 @@ func normalizeTypeAtom(raw string) (typeAtom, bool) {
 	raw = strings.TrimPrefix(raw, "\\")
 	raw = canonicalizeDocType(raw)
 
-	lower := strings.ToLower(raw)
+	lower := asciiLowerIdent(raw)
 	if _, ok := builtinTypeNames[lower]; ok {
 		return typeAtom{key: lower, display: lower, kind: typeKindBuiltin}, true
 	}
@@ -445,7 +445,7 @@ func normalizeTypeAtom(raw string) (typeAtom, bool) {
 	}
 
 	return typeAtom{
-		key:     "class:" + strings.ToLower(trimmed),
+		key:     "class:" + asciiLowerIdent(trimmed),
 		display: trimmed,
 		kind:    typeKindClass,
 	}, true

@@ -161,6 +161,19 @@ type AnalysisContext struct {
 	hasFileTypeContext  bool
 	functionScopeByNode map[*ast.FunctionNode]*functionScope
 	classScopeByNode    map[*ast.ClassNode]classScopeData
+
+	// Cached once per file so the level-2/7/8 method-receiver rules share one
+	// flow-sensitive walk and one type inference per call site.
+	methodReceiverIssues    []AnalysisIssue
+	hasMethodReceiverIssues bool
+	namespaceContextByNode  map[*ast.NamespaceNode]FileTypeContext
+}
+
+func analysisLevelAtLeast(ctx *AnalysisContext, level int) bool {
+	if ctx == nil || ctx.AnalysisLevel == nil {
+		return true
+	}
+	return *ctx.AnalysisLevel >= level
 }
 
 func analysisFileTypeContext(ctx *AnalysisContext, nodes []ast.Node) FileTypeContext {

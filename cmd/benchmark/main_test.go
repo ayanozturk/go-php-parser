@@ -5,6 +5,11 @@ import (
 	"path/filepath"
 	"reflect"
 	"testing"
+
+	"github.com/ayanozturk/go-php-parser/analyse"
+	"github.com/ayanozturk/go-php-parser/ast"
+	"github.com/ayanozturk/go-php-parser/lexer"
+	"github.com/ayanozturk/go-php-parser/parser"
 )
 
 func TestDiscoverPHPFilesUsesConfiguredPathsAndExcludes(t *testing.T) {
@@ -53,3 +58,24 @@ func writeBenchmarkFixture(t *testing.T, root, relative string) {
 		t.Fatalf("write fixture: %v", err)
 	}
 }
+
+func TestRunAnalysisUsesSharedSemanticSnapshot(t *testing.T) {
+	php := `<?php
+function identifier(): string {
+    $value = 42;
+    return $value;
+}
+`
+	p := parser.New(lexer.New(php), false)
+	nodes := p.Parse()
+	if errs := p.Errors(); len(errs) > 0 {
+		t.Fatalf("parse fixture: %v", errs)
+	}
+	parsed := map[string][]ast.Node{"file.php": nodes}
+	project := analyse.BuildProjectIndex(parsed)
+	level := 10
+	if got := runAnalysis(parsed, project, &level, 2); got == 0 {
+		t.Fatal("expected snapshot-backed return-type diagnostics")
+	}
+}
+

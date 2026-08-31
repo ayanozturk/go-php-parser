@@ -309,7 +309,7 @@ func analyzeFilesWithCache(files []string, targets []string, level *int, matcher
 		_ = cm.Store(idx, checksums) // Best-effort; ignore errors
 	}
 
-	snapshot, err := analyse.NewSemanticSnapshotScoped(parsed, nil, targets)
+	snapshot, err := analyse.NewSemanticSnapshotWithIndex(idx, parsed, nil, targets)
 	if err != nil {
 		result.ReadErrors = append(result.ReadErrors, FileReadError{File: "<project>", Message: err.Error()})
 		return sortedAnalyzeResult(result)

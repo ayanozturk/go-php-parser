@@ -10,31 +10,7 @@ import (
 const level2MethodNonObjectCode = "PHPStan.Level2.MethodNonObject"
 
 func checkLevel2MethodNonObject(filename string, nodes []ast.Node, ctx *AnalysisContext) []AnalysisIssue {
-	ctx = ensureLevel0Context(filename, nodes, ctx)
-	var issues []AnalysisIssue
-	seen := make(map[*ast.MethodCallNode]struct{})
-	check := func(filename string, expr ast.Node, scope *functionScope, ctx *AnalysisContext) {
-		call, ok := expr.(*ast.MethodCallNode)
-		if !ok {
-			return
-		}
-		seen[call] = struct{}{}
-		appendLevel2NonObjectMethodIssue(filename, call, scope, ctx, &issues)
-	}
-	walkLevel2MethodExpressions(filename, nodes, ctx, check)
-
-	walkAll(nodes, func(node ast.Node, _ *ast.ClassNode, _ *ast.FunctionNode, _ FileTypeContext) {
-		call, ok := node.(*ast.MethodCallNode)
-		if !ok {
-			return
-		}
-		if _, alreadyChecked := seen[call]; alreadyChecked {
-			return
-		}
-		appendLevel2NonObjectMethodIssue(filename, call, nil, ctx, &issues)
-	})
-
-	return issues
+	return filterIssuesByCode(methodReceiverIssuesForFile(filename, nodes, ctx), level2MethodNonObjectCode)
 }
 
 func appendLevel2NonObjectMethodIssue(filename string, call *ast.MethodCallNode, scope *functionScope, ctx *AnalysisContext, issues *[]AnalysisIssue) {
@@ -44,7 +20,11 @@ func appendLevel2NonObjectMethodIssue(filename string, call *ast.MethodCallNode,
 	if receiver, ok := call.Object.(*ast.VariableNode); ok && receiver.Name == "this" {
 		return
 	}
-	label, ok := methodNonObjectLabel(inferTypeWithFacts(filename, call.Object, scope, ctx), call.Method, ctx)
+	appendLevel2NonObjectMethodFromType(filename, call, inferTypeWithFacts(filename, call.Object, scope, ctx), ctx, issues)
+}
+
+func appendLevel2NonObjectMethodFromType(filename string, call *ast.MethodCallNode, receiverType Type, ctx *AnalysisContext, issues *[]AnalysisIssue) {
+	label, ok := methodNonObjectLabel(receiverType, call.Method, ctx)
 	if !ok {
 		return
 	}
