@@ -19,6 +19,20 @@ func TestNormalizeTypeWithContextPreservesDNFGrouping(t *testing.T) {
 	}
 }
 
+func TestNormalizeTypeWithContextResolvesGenericClassAliases(t *testing.T) {
+	ctx := FileTypeContext{
+		Namespace: "App",
+		Aliases: map[string]string{
+			"collection": "Doctrine\\Common\\Collections\\Collection",
+		},
+	}
+	got := normalizeTypeWithContext("Collection<string, Policy>", ctx)
+	want := `Doctrine\Common\Collections\Collection<string, App\Policy>`
+	if got != want {
+		t.Fatalf("normalized generic = %q, want %q", got, want)
+	}
+}
+
 func TestNormalizeTemplateAwareTypePreservesDNFGrouping(t *testing.T) {
 	ctx := FileTypeContext{Namespace: "App", Aliases: map[string]string{}}
 	got := normalizeTemplateAwareType("(T&Marker)|Alternative", ctx, map[string]struct{}{"T": {}})

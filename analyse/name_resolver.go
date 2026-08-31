@@ -164,6 +164,14 @@ func normalizeTypeExpressionWithContext(raw string, ctx FileTypeContext) string 
 		}
 		return strings.Join(parts, "&")
 	}
+	if instance, ok := parseGenericTypeFromString(raw); ok {
+		name := normalizeTypeExpressionWithContext(instance.ClassName, ctx)
+		args := make([]string, len(instance.TypeArguments))
+		for idx, argument := range instance.TypeArguments {
+			args[idx] = normalizeTypeExpressionWithContext(argument, ctx)
+		}
+		return name + "<" + strings.Join(args, ", ") + ">"
+	}
 
 	canonical := canonicalizeDocType(strings.TrimPrefix(raw, `\`))
 	if len(splitTopLevelTypes(canonical, '|')) > 1 || len(splitTopLevelTypes(canonical, '&')) > 1 {
