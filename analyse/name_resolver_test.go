@@ -2,6 +2,32 @@ package analyse
 
 import "testing"
 
+func TestNormalizeTypeWithContextPreservesDNFGrouping(t *testing.T) {
+	ctx := FileTypeContext{
+		Namespace: "App",
+		Aliases: map[string]string{
+			"left": "Vendor\\LeftContract",
+		},
+	}
+	got := normalizeTypeWithContext("(Left&Right)|Third", ctx)
+	want := "(Vendor\\LeftContract&App\\Right)|App\\Third"
+	if got != want {
+		t.Fatalf("normalized DNF = %q, want %q", got, want)
+	}
+	if reparsed := ParseType(got).dnfString(); reparsed != "(App\\Right&Vendor\\LeftContract)|App\\Third" {
+		t.Fatalf("reparsed normalized DNF = %q", reparsed)
+	}
+}
+
+func TestNormalizeTemplateAwareTypePreservesDNFGrouping(t *testing.T) {
+	ctx := FileTypeContext{Namespace: "App", Aliases: map[string]string{}}
+	got := normalizeTemplateAwareType("(T&Marker)|Alternative", ctx, map[string]struct{}{"T": {}})
+	want := "(T&App\\Marker)|App\\Alternative"
+	if got != want {
+		t.Fatalf("template-aware DNF = %q, want %q", got, want)
+	}
+}
+
 func TestReturnTypeRuleResolvesUseAliasForNewExpression(t *testing.T) {
 	php := `<?php
 namespace App;

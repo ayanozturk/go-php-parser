@@ -145,7 +145,7 @@ function run(FirstChoice|SecondChoice $choice, FirstMissing|SecondMissing $missi
 `,
 	}, 2)
 
-	for _, expected := range []string{"FirstMissing|SecondMissing::absent()", "LeftMissing|RightMissing::absent()"} {
+	for _, expected := range []string{"FirstMissing|SecondMissing::absent()", "LeftMissing&RightMissing::absent()"} {
 		if countIssueContaining(issues, level2MethodExistenceCode, expected) != 1 {
 			t.Fatalf("expected one %s diagnostic, got %#v", expected, issues)
 		}
@@ -153,6 +153,36 @@ function run(FirstChoice|SecondChoice $choice, FirstMissing|SecondMissing $missi
 	for _, unexpected := range []string{"optional()", "available()"} {
 		if hasIssueContaining(issues, level2MethodExistenceCode, unexpected) {
 			t.Fatalf("multi-class receiver should remain clean when one class provides %s, got %#v", unexpected, issues)
+		}
+	}
+}
+
+func TestLevel2UnknownMethodHandlesDNFAndNullableReceivers(t *testing.T) {
+	issues := runPHPStanLevelOnFiles(t, map[string]string{
+		"test.php": `<?php
+interface HasMethod { public function available(): void; }
+interface FirstTag {}
+interface SecondTag {}
+class MissingAlternative {}
+class NullableService {}
+class KnownNullableService { public function execute(): void {} }
+
+function run((HasMethod&FirstTag)|MissingAlternative $partiallyAvailable, (HasMethod&FirstTag)|(HasMethod&SecondTag) $availableEverywhere, ?NullableService $nullableMissing, KnownNullableService|null $nullableKnown, bool $flag): void {
+    $partiallyAvailable->available();
+    $availableEverywhere->available();
+    $nullableMissing->missing();
+    $nullableKnown->execute();
+    ($flag ? new NullableService() : null)->missing();
+}
+`,
+	}, 2)
+
+	if countIssueContaining(issues, level2MethodExistenceCode, "NullableService::missing()") != 2 {
+		t.Fatalf("expected nullable parameter and ternary diagnostics, got %#v", issues)
+	}
+	for _, unexpected := range []string{"partiallyAvailable", "available()", "KnownNullableService::execute()"} {
+		if hasIssueContaining(issues, level2MethodExistenceCode, unexpected) {
+			t.Fatalf("unexpected DNF/known nullable diagnostic containing %q: %#v", unexpected, issues)
 		}
 	}
 }

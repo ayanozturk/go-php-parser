@@ -99,33 +99,16 @@ func checkTypeReference(filename string, pos ast.Position, subject, raw string, 
 }
 
 func referencedClassTypes(raw string, ft FileTypeContext) []string {
-	raw = strings.TrimSpace(raw)
-	if raw == "" {
+	typ := ParseType(raw)
+	if typ.IsEmpty() {
 		return nil
 	}
-	if strings.HasPrefix(raw, "?") {
-		raw = strings.TrimSpace(strings.TrimPrefix(raw, "?"))
-	}
 	var refs []string
-	for _, unionPart := range splitTopLevelTypes(raw, '|') {
-		for _, part := range splitTopLevelTypes(unionPart, '&') {
-			part = strings.TrimSpace(part)
-			part = strings.Trim(part, "()")
-			if part == "" {
-				continue
-			}
-			canonical := canonicalizeDocType(strings.TrimPrefix(part, `\`))
-			if atom, ok := normalizeTypeAtom(canonical); ok {
-				if atom.kind == typeKindBuiltin {
-					continue
-				}
-				part = atom.display
-			}
-			if strings.ContainsAny(part, "$[]{}") {
-				continue
-			}
-			refs = append(refs, ft.resolveClassLike(part))
+	for _, atom := range typ.sortedAtoms() {
+		if atom.kind != typeKindClass || strings.ContainsAny(atom.display, "$[]{}") {
+			continue
 		}
+		refs = append(refs, ft.resolveClassLike(atom.display))
 	}
 	return refs
 }

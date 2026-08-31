@@ -236,7 +236,7 @@ func (s *SemanticSnapshot) addGeneratedInferredTypeFact(filename string, expr as
 	if inferred.IsEmpty() {
 		return
 	}
-	s.facts[key] = SemanticFact{Key: key, Subject: s.functionSymbolID(fileCtx, class, function), Type: inferred.String()}
+	s.facts[key] = SemanticFact{Key: key, Subject: s.functionSymbolID(fileCtx, class, function), Type: inferred.dnfString()}
 }
 
 func (s *SemanticSnapshot) functionSymbolID(fileCtx FileTypeContext, class *ast.ClassNode, function *ast.FunctionNode) SymbolID {

@@ -102,6 +102,41 @@
       "file": "known-method-intersection-receiver.php",
       "engineCodes": [],
       "phpstanIdentifiers": []
+    },
+    {
+      "id": "unknown-method-dnf-all-missing",
+      "capability": "unknown methods on all-missing DNF receivers",
+      "file": "unknown-method-dnf-all-missing.php",
+      "engineCodes": ["PHPStan.Level2.MethodExistence"],
+      "phpstanIdentifiers": ["method.notFound"]
+    },
+    {
+      "id": "known-method-dnf-member",
+      "capability": "known methods on DNF receivers when any member provides the method",
+      "file": "known-method-dnf-member.php",
+      "engineCodes": [],
+      "phpstanIdentifiers": []
+    },
+    {
+      "id": "unknown-method-nullable-receiver",
+      "capability": "unknown methods on nullable receivers",
+      "file": "unknown-method-nullable-receiver.php",
+      "engineCodes": ["PHPStan.Level2.MethodExistence"],
+      "phpstanIdentifiers": ["method.notFound"]
+    },
+    {
+      "id": "known-method-nullable-receiver",
+      "capability": "known methods on nullable receivers",
+      "file": "known-method-nullable-receiver.php",
+      "engineCodes": [],
+      "phpstanIdentifiers": []
+    },
+    {
+      "id": "unknown-method-ternary-null-receiver",
+      "capability": "unknown methods on ternary receivers with a null branch",
+      "file": "unknown-method-ternary-null-receiver.php",
+      "engineCodes": ["PHPStan.Level2.MethodExistence"],
+      "phpstanIdentifiers": ["method.notFound"]
     }
   ]
 }

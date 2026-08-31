@@ -88,6 +88,31 @@ func TestParseTypeCacheConcurrentEvictionPreservesResults(t *testing.T) {
 	}
 }
 
+func TestParseTypeCacheConcurrentDNFSerializationIsStable(t *testing.T) {
+	resetParsedTypeCache(t)
+
+	const raw = "(LeftContract&MarkerContract)|RightChoice|null"
+	const want = "(LeftContract&MarkerContract)|RightChoice|null"
+	ParseType(raw)
+
+	const workers = 16
+	const iterations = 1000
+	var wg sync.WaitGroup
+	for worker := 0; worker < workers; worker++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for i := 0; i < iterations; i++ {
+				if got := ParseType(raw).dnfString(); got != want {
+					t.Errorf("ParseType(%q).dnfString() = %q, want %q", raw, got, want)
+					return
+				}
+			}
+		}()
+	}
+	wg.Wait()
+}
+
 func BenchmarkParseTypeCacheHit(b *testing.B) {
 	resetParsedTypeCache(b)
 	const raw = "array<string, list<WorkspaceEntity>>|null"

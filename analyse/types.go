@@ -14,7 +14,8 @@ const (
 )
 
 type Type struct {
-	atoms map[string]typeAtom
+	atoms        map[string]typeAtom
+	alternatives [][]string // union alternatives containing intersection atom keys
 }
 
 type typeAtom struct {
@@ -130,11 +131,27 @@ func ParseType(raw string) Type {
 	}
 
 	t := Type{atoms: make(map[string]typeAtom)}
-	for _, part := range splitTopLevelTypes(raw, '|') {
-		for _, intersectionPart := range splitTopLevelTypes(part, '&') {
-			for _, atom := range normalizeTypeAtoms(intersectionPart) {
-				t.atoms[atom.key] = atom
+	seenAlternatives := make(map[string]struct{})
+	for _, alternative := range parseTypeAlternatives(raw) {
+		keys := make([]string, 0, len(alternative))
+		seen := make(map[string]struct{}, len(alternative))
+		for _, atom := range alternative {
+			if _, duplicate := seen[atom.key]; duplicate {
+				continue
 			}
+			seen[atom.key] = struct{}{}
+			t.atoms[atom.key] = atom
+			keys = append(keys, atom.key)
+		}
+		if len(keys) > 0 {
+			canonicalKeys := append([]string(nil), keys...)
+			sort.Strings(canonicalKeys)
+			identity := strings.Join(canonicalKeys, "&")
+			if _, duplicate := seenAlternatives[identity]; duplicate {
+				continue
+			}
+			seenAlternatives[identity] = struct{}{}
+			t.alternatives = append(t.alternatives, keys)
 		}
 	}
 
@@ -145,54 +162,86 @@ func ParseType(raw string) Type {
 	return t
 }
 
-func normalizeTypeAtoms(raw string) []typeAtom {
-	raw = strings.TrimSpace(raw)
+func parseTypeAlternatives(raw string) [][]typeAtom {
+	raw = stripBalancedOuterTypeParens(strings.TrimSpace(raw))
 	if raw == "" {
 		return nil
 	}
-	raw = strings.TrimPrefix(raw, "\\")
-	canonical := canonicalizeDocType(raw)
-	parts := splitTopLevelTypes(canonical, '|')
-	if len(parts) > 1 {
-		atoms := make([]typeAtom, 0, len(parts))
+	if parts := splitTopLevelTypes(raw, '|'); len(parts) > 1 {
+		var alternatives [][]typeAtom
 		for _, part := range parts {
-			for _, intersectionPart := range splitTopLevelTypes(part, '&') {
-				atom, ok := normalizeTypeAtom(intersectionPart)
-				if ok {
-					atoms = append(atoms, atom)
+			alternatives = append(alternatives, parseTypeAlternatives(part)...)
+		}
+		return alternatives
+	}
+	if parts := splitTopLevelTypes(raw, '&'); len(parts) > 1 {
+		alternatives := [][]typeAtom{{}}
+		for _, part := range parts {
+			choices := parseTypeAlternatives(part)
+			if len(choices) == 0 {
+				continue
+			}
+			combined := make([][]typeAtom, 0, len(alternatives)*len(choices))
+			for _, existing := range alternatives {
+				for _, choice := range choices {
+					members := make([]typeAtom, 0, len(existing)+len(choice))
+					members = append(members, existing...)
+					members = append(members, choice...)
+					combined = append(combined, members)
 				}
 			}
+			alternatives = combined
 		}
-		return atoms
+		return alternatives
 	}
-	parts = splitTopLevelTypes(canonical, '&')
-	if len(parts) > 1 {
-		atoms := make([]typeAtom, 0, len(parts))
-		for _, part := range parts {
-			atom, ok := normalizeTypeAtom(part)
-			if ok {
-				atoms = append(atoms, atom)
-			}
-		}
-		return atoms
+
+	canonical := canonicalizeDocType(strings.TrimPrefix(raw, "\\"))
+	if canonical != raw && (len(splitTopLevelTypes(canonical, '|')) > 1 || len(splitTopLevelTypes(canonical, '&')) > 1) {
+		return parseTypeAlternatives(canonical)
 	}
 	atom, ok := normalizeTypeAtom(canonical)
 	if !ok {
 		return nil
 	}
-	return []typeAtom{atom}
+	return [][]typeAtom{{atom}}
 }
 
 func normalizeRawType(raw string) string {
 	raw = strings.TrimSpace(raw)
-	for strings.HasPrefix(raw, "(") && strings.HasSuffix(raw, ")") {
-		inner := strings.TrimSpace(raw[1 : len(raw)-1])
-		if inner == "" {
+	for {
+		stripped := stripBalancedOuterTypeParens(raw)
+		if stripped == raw {
 			break
 		}
-		raw = inner
+		raw = stripped
 	}
 	return raw
+}
+
+func stripBalancedOuterTypeParens(raw string) string {
+	raw = strings.TrimSpace(raw)
+	if len(raw) < 2 || raw[0] != '(' || raw[len(raw)-1] != ')' {
+		return raw
+	}
+	depth := 0
+	for idx, r := range raw {
+		switch r {
+		case '(':
+			depth++
+		case ')':
+			depth--
+			if depth == 0 && idx != len(raw)-1 {
+				return raw
+			}
+			if depth < 0 {
+				return raw
+			}
+		}
+	}
+	if depth != 0 {
+		return raw
+	}
+	return strings.TrimSpace(raw[1 : len(raw)-1])
 }
 
 func (t Type) IsEmpty() bool {
@@ -210,6 +259,35 @@ func (t Type) String() string {
 	}
 	sort.Strings(parts)
 	return strings.Join(parts, "|")
+}
+
+func (t Type) dnfString() string {
+	if t.IsEmpty() {
+		return ""
+	}
+	if len(t.alternatives) == 0 {
+		return t.String()
+	}
+	alternatives := make([]string, 0, len(t.alternatives))
+	for _, alternative := range t.alternatives {
+		members := make([]string, 0, len(alternative))
+		for _, key := range alternative {
+			if atom, ok := t.atoms[key]; ok {
+				members = append(members, atom.display)
+			}
+		}
+		if len(members) == 0 {
+			continue
+		}
+		sort.Strings(members)
+		value := strings.Join(members, "&")
+		if len(t.alternatives) > 1 && len(members) > 1 {
+			value = "(" + value + ")"
+		}
+		alternatives = append(alternatives, value)
+	}
+	sort.Strings(alternatives)
+	return strings.Join(alternatives, "|")
 }
 
 func (t Type) Accepts(actual Type) bool {
@@ -312,6 +390,17 @@ func (t Type) withoutBuiltin(name string) Type {
 			continue
 		}
 		refined.atoms[key] = atom
+	}
+	for _, alternative := range t.alternatives {
+		members := make([]string, 0, len(alternative))
+		for _, key := range alternative {
+			if key != name {
+				members = append(members, key)
+			}
+		}
+		if len(members) > 0 {
+			refined.alternatives = append(refined.alternatives, members)
+		}
 	}
 	return refined
 }

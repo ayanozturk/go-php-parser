@@ -62,20 +62,34 @@ func normalizeTemplateAwareType(raw string, ctx FileTypeContext, templates map[s
 		prefix = "?"
 		raw = strings.TrimSpace(strings.TrimPrefix(raw, "?"))
 	}
-	parts := splitTopLevelTypes(raw, '|')
-	for i, part := range parts {
-		intersections := splitTopLevelTypes(part, '&')
-		for j, atom := range intersections {
-			atom = strings.TrimSpace(atom)
-			if _, ok := templates[atom]; ok {
-				intersections[j] = atom
-				continue
-			}
-			intersections[j] = normalizeTypeWithContext(atom, ctx)
-		}
-		parts[i] = strings.Join(intersections, "&")
+	return prefix + normalizeTemplateAwareTypeExpression(raw, ctx, templates)
+}
+
+func normalizeTemplateAwareTypeExpression(raw string, ctx FileTypeContext, templates map[string]struct{}) string {
+	raw = stripBalancedOuterTypeParens(strings.TrimSpace(raw))
+	if raw == "" {
+		return ""
 	}
-	return prefix + strings.Join(parts, "|")
+	if parts := splitTopLevelTypes(raw, '|'); len(parts) > 1 {
+		for idx, part := range parts {
+			normalized := normalizeTemplateAwareTypeExpression(part, ctx, templates)
+			if len(splitTopLevelTypes(normalized, '&')) > 1 {
+				normalized = "(" + normalized + ")"
+			}
+			parts[idx] = normalized
+		}
+		return strings.Join(parts, "|")
+	}
+	if parts := splitTopLevelTypes(raw, '&'); len(parts) > 1 {
+		for idx, part := range parts {
+			parts[idx] = normalizeTemplateAwareTypeExpression(part, ctx, templates)
+		}
+		return strings.Join(parts, "&")
+	}
+	if _, ok := templates[raw]; ok {
+		return raw
+	}
+	return normalizeTypeWithContext(raw, ctx)
 }
 
 func bindGenericParent(parent ResolvedClass, relation ResolvedGenericParent, current map[string]string) map[string]string {

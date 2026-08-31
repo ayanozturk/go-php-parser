@@ -42,6 +42,20 @@ func runPHPStanLevelOnFiles(t *testing.T, files map[string]string, level int) []
 	return issues
 }
 
+func TestLevel0DNFTypeReferencesResolveIndividualMembers(t *testing.T) {
+	issues := runPHPStanLevelOnFiles(t, map[string]string{
+		"test.php": `<?php
+interface FirstContract {}
+interface SecondContract {}
+class Alternative {}
+function run((FirstContract&SecondContract)|Alternative $value): void {}
+`,
+	}, 0)
+	if hasIssueContaining(issues, level0SymbolsCode, "unknown class") {
+		t.Fatalf("expected DNF members to resolve individually, got %#v", issues)
+	}
+}
+
 func hasIssueContaining(issues []AnalysisIssue, code, needle string) bool {
 	for _, issue := range issues {
 		if issue.Code == code && strings.Contains(issue.Message, needle) {

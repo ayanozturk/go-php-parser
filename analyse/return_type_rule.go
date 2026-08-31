@@ -346,7 +346,7 @@ func inferFunctionCallType(n *ast.FunctionCallNode, scope *functionScope, ctx *A
 func unionInferredTypes(types ...Type) Type {
 	parts := make([]string, 0, len(types))
 	for _, inferred := range types {
-		if value := inferred.String(); value != "" {
+		if value := inferred.dnfString(); value != "" {
 			parts = append(parts, value)
 		}
 	}

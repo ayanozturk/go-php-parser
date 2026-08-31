@@ -140,30 +140,40 @@ func normalizeTypeWithContext(raw string, ctx FileTypeContext) string {
 		raw = strings.TrimSpace(strings.TrimPrefix(raw, "?"))
 	}
 
-	parts := splitTopLevelTypes(raw, '|')
-	for idx, part := range parts {
-		intersectionParts := splitTopLevelTypes(part, '&')
-		for intersectionIdx, intersectionPart := range intersectionParts {
-			intersectionPart = strings.TrimSpace(intersectionPart)
-			if intersectionPart == "" {
-				continue
+	return prefix + normalizeTypeExpressionWithContext(raw, ctx)
+}
+
+func normalizeTypeExpressionWithContext(raw string, ctx FileTypeContext) string {
+	raw = stripBalancedOuterTypeParens(strings.TrimSpace(raw))
+	if raw == "" {
+		return ""
+	}
+	if parts := splitTopLevelTypes(raw, '|'); len(parts) > 1 {
+		for idx, part := range parts {
+			normalized := normalizeTypeExpressionWithContext(part, ctx)
+			if len(splitTopLevelTypes(normalized, '&')) > 1 {
+				normalized = "(" + normalized + ")"
 			}
-			intersectionPart = canonicalizeDocType(strings.TrimPrefix(intersectionPart, `\`))
-			if len(splitTopLevelTypes(intersectionPart, '|')) > 1 {
-				intersectionParts[intersectionIdx] = intersectionPart
-				continue
-			}
-			atom, ok := normalizeTypeAtom(intersectionPart)
-			if ok && atom.kind == typeKindClass {
-				intersectionParts[intersectionIdx] = ctx.resolveClassLike(intersectionPart)
-				continue
-			}
-			intersectionParts[intersectionIdx] = intersectionPart
+			parts[idx] = normalized
 		}
-		parts[idx] = strings.Join(intersectionParts, "&")
+		return strings.Join(parts, "|")
+	}
+	if parts := splitTopLevelTypes(raw, '&'); len(parts) > 1 {
+		for idx, part := range parts {
+			parts[idx] = normalizeTypeExpressionWithContext(part, ctx)
+		}
+		return strings.Join(parts, "&")
 	}
 
-	return prefix + strings.Join(parts, "|")
+	canonical := canonicalizeDocType(strings.TrimPrefix(raw, `\`))
+	if len(splitTopLevelTypes(canonical, '|')) > 1 || len(splitTopLevelTypes(canonical, '&')) > 1 {
+		return normalizeTypeExpressionWithContext(canonical, ctx)
+	}
+	atom, ok := normalizeTypeAtom(canonical)
+	if ok && atom.kind == typeKindClass {
+		return ctx.resolveClassLike(canonical)
+	}
+	return canonical
 }
 
 func unqualifiedTypeName(name string) string {

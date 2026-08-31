@@ -337,6 +337,36 @@ class Example {
 	}
 }
 
+func TestSemanticSnapshotPreservesDNFReceiverFacts(t *testing.T) {
+	const filename = "src/DNF.php"
+	nodes := parsePHPForProjectIndex(t, `<?php
+interface LeftContract {}
+interface LeftTag {}
+class RightChoice {}
+
+function run((LeftContract&LeftTag)|RightChoice $value): void {
+    $value->missing();
+}
+`)
+	function := nodes[3].(*ast.FunctionNode)
+	call := function.Body[0].(*ast.ExpressionStmt).Expr.(*ast.MethodCallNode)
+
+	snapshot, err := NewSemanticSnapshot(map[string][]ast.Node{filename: nodes}, nil)
+	if err != nil {
+		t.Fatalf("build snapshot: %v", err)
+	}
+	fact, ok := snapshot.Fact(inferredTypeFactKey(filename, call.Object))
+	if !ok || fact.Type != "(LeftContract&LeftTag)|RightChoice" {
+		t.Fatalf("expected lossless DNF receiver fact, got %#v, %v", fact, ok)
+	}
+
+	ctx := snapshot.NewAnalysisContext()
+	issues := checkLevel2MethodExistence(filename, nodes, ctx)
+	if !hasIssueContaining(issues, level2MethodExistenceCode, "(LeftContract&LeftTag)|RightChoice::missing()") {
+		t.Fatalf("expected DNF fact to drive method-existence analysis, got %#v", issues)
+	}
+}
+
 func TestSemanticSnapshotGeneratesHoverAndConditionTypeFacts(t *testing.T) {
 	const filename = "src/Example.php"
 	nodes := parsePHPForProjectIndex(t, `<?php

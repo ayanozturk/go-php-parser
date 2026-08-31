@@ -60,7 +60,8 @@ func appendLevel2UnknownMethodIssue(filename string, call *ast.MethodCallNode, s
 	if !allReceiverClassesLackMethod(receiverType, call.Method, ctx) {
 		return
 	}
-	*issues = append(*issues, issueSpan(filename, call, level2MethodExistenceCode, fmt.Sprintf("Call to an undefined method %s::%s().", receiverType.String(), call.Method)))
+	receiverLabel := receiverType.withoutBuiltin("null").dnfString()
+	*issues = append(*issues, issueSpan(filename, call, level2MethodExistenceCode, fmt.Sprintf("Call to an undefined method %s::%s().", receiverLabel, call.Method)))
 }
 
 func resolveMethodReceiverClass(className string, ctx *AnalysisContext) (ResolvedClass, bool) {
@@ -90,8 +91,11 @@ func allReceiverClassesLackMethod(receiverType Type, method string, ctx *Analysi
 	classCount := 0
 	for _, atom := range receiverType.atoms {
 		if atom.kind != typeKindClass {
-			// Mixed, nullable, and other partly non-object receivers have separate
-			// PHPStan semantics. Keep this rule conservative until those codes are gated.
+			if atom.kind == typeKindBuiltin && atom.key == "null" {
+				continue
+			}
+			// Mixed and other partly non-object receivers have separate PHPStan
+			// semantics. Keep this rule conservative until those codes are gated.
 			return false
 		}
 		resolvedClass, ok := resolveMethodReceiverClass(atom.display, ctx)
