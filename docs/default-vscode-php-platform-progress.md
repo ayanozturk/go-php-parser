@@ -6,9 +6,9 @@ This file records reproducible evidence for the cooperating `go-php-parser` engi
 
 ## Current baseline
 
-- Engine revision validated and consumed by PHP Strom: pushed commit `492e88e`.
-- Extension checkout: `/Users/ayan/Projects/vscode-php-strom`, `main` at pushed commit `b4e2c49`; the current package version is `0.1.29`.
-- Production extension builds pin `github.com/ayanozturk/go-php-parser` at pseudo-version `v0.0.0-20260830203247-492e88e949bd`. `make test-server-dev` validates the same engine through the generated, ignored sibling-workspace path.
+- Engine revision validated and consumed by PHP Strom: pushed commit `c948b5b`.
+- Extension checkout: `/Users/ayan/Projects/vscode-php-strom`, `main` at pushed commit `439bcb0`; the current package version is `0.1.29`.
+- Production extension builds pin `github.com/ayanozturk/go-php-parser` at pseudo-version `v0.0.0-20260831064154-c948b5b9b7a6`. `make test-server-dev` validates the same engine through the generated, ignored sibling-workspace path.
 - Go toolchain observed: Go 1.26.2. Node toolchain observed: Node 22.20.0 and npm 11.7.0.
 - Representative corpora are fetched at exact revisions from `test_projects/manifest.json`; generated working copies remain uncommitted.
 - The latest recorded full-corpus pass has zero failures for Composer, Drupal, Magento, PHPUnit, and WordPress. Symfony's two remaining fixtures are intentionally invalid/corrupted inputs, and Laravel has two narrow interpolation/callable edge cases. These recorded results are compatibility evidence, not a current performance result.
@@ -52,7 +52,7 @@ Representative workload: 23,556 indexed PHP files, 3,678,678 LOC, 135.68 MB, 151
 
 ## Coverage gaps
 
-- PHPStan benchmark: level 0 remains partial but is now differential-gated by 63 reviewed fixtures (symbols, `$this` methods and properties, argument counts, constructors, named arguments, class-model legality, language checks, and clean level boundaries). Level 1 variable-flow behavior remains gated by 24 reviewed fixtures; the level-2 pack now gates nine protected/unknown-method cases and the level-3 throw-type pack gates one case. Typed parameters, direct and assigned `new` expressions, method-return chains, and typed-property chains now detect unknown methods; function-return chains, dynamic expressions, and precise multi-type member availability remain partial alongside narrowing, generic inheritance, higher-level return/property/argument checks, PHPDoc validation, dynamic-call precision, and broader extension-dependent built-in signatures.
+- PHPStan benchmark: level 0 remains partial but is now differential-gated by 63 reviewed fixtures (symbols, `$this` methods and properties, argument counts, constructors, named arguments, class-model legality, language checks, and clean level boundaries). Level 1 variable-flow behavior remains gated by 24 reviewed fixtures; the level-2 pack now gates fourteen protected/unknown-method cases and the level-3 throw-type pack gates one case. Typed parameters, direct and assigned `new` expressions, method and named-function return chains, typed-property chains, class-only ternaries, and union/intersection receivers where every class lacks the method now detect unknown methods. Variable calls, dynamic construction, nullable/non-object branches, and full DNF member availability remain partial alongside narrowing, generic inheritance, higher-level return/property/argument checks, PHPDoc validation, dynamic-call precision, and broader extension-dependent built-in signatures.
 - PHPCS benchmark: the repository comparison records 16 style rules, far below the breadth of PHPCS standards. Security-oriented source rules such as eval/backtick/forbidden-function checks are not implemented.
 - The remaining recorded pure-parser corpus gaps are two narrow Laravel vendor-code cases; intentionally invalid or corrupted fixtures stay classified separately from parser failures.
 - PHP Strom now consumes shared `SemanticSnapshot` facts, flow graphs, and variable-flow state through dependency-scoped exported-semantic revisions, changed documents use immutable incremental project-index replacement, structured analysis diagnostics use UTF-16 spans, and a synthetic editor-path trace suite accounts for cache, dependency, cancellation, publication, and fallback behavior. Remaining extension integration gaps include stale architecture documentation, unstructured parser errors and mixed style-rule point ranges, conservative name-based dependency false positives/global overflow fallback, and no full VS Code extension-activation or representative-project latency trace.
@@ -257,9 +257,16 @@ Representative workload: 23,556 indexed PHP files, 3,678,678 LOC, 135.68 MB, 151
 - Extension commit `b4e2c49` pins pseudo-version `v0.0.0-20260830203247-492e88e949bd`, proves the default editor path surfaces the new diagnostic, and maps the existing undefined-symbol setting to suppress it alongside level-0 symbol diagnostics.
 - Parser tests, vet, race, and live level-0/level-2 differential runs pass. Pinned and sibling extension tests, vet, race, all six server builds, TypeScript lint/compile/package, VS Code 1.89.1 extension-host tests, the editor-latency gate, and `npm audit --audit-level=low` pass. Packaging retains the known `vscode-languageserver-types` warning and the audit reports 0 vulnerabilities.
 
+### 2026-08-31 — Function, conditional, and multi-class method receivers
+
+- Parser commit `c948b5b` resolves statically named function return types through the project resolver, unions ternary branch inference, and extends `PHPStan.Level2.MethodExistence` to class-only multi-atom receivers when every resolved class lacks the method. The ordinary single-class path remains allocation-light; ambiguous built-in/non-object atoms, unknown classes, and any member providing the method stay conservative.
+- Five neutral level-2 fixtures add named function-return, class-only ternary, all-missing union/intersection, and clean intersection-member coverage. The executable gates are now 63 level-0, 24 level-1, fourteen level-2, and one level-3 cases. Complete level-0 and level-2 reference runs match pinned PHPStan `2.2.x-dev@e4ab62a` with zero engine or reference mismatches.
+- Extension commit `439bcb0` pins pseudo-version `v0.0.0-20260831064154-c948b5b9b7a6` and proves the default editor path reports exactly the three supported unknown-method forms while union/intersection receivers with an available member remain clean.
+- Parser tests, vet, and race pass. Pinned and sibling extension tests, vet, race, all six server builds, TypeScript lint/compile/package, VS Code 1.89.1 extension-host tests, the editor-latency gate, and `npm audit --audit-level=low` pass. Packaging retains the known `vscode-languageserver-types` warning and the audit reports 0 vulnerabilities.
+
 ## Next ranked candidates
 
-1. **Correctness:** extend reusable receiver facts to function-return chains and dynamic expressions, then make multi-type method availability precise before expanding into other reviewed partial capability-matrix rows.
+1. **Correctness:** preserve union/intersection grouping for full DNF method availability, then extend receiver facts to variable calls, dynamic construction, nullable/non-object branches, and remaining expression forms.
 2. **Maintenance and security:** correct `FEATURES.md`, decide the legacy TypeScript server's fate, and extend deterministic fuzzing into PHPDoc/type parsing and rule execution.
 3. **Dependency refinement:** replace conservative lexical matching only after generated reference facts cover the supported resolver paths completely; do not trade false positives for stale snapshots.
 4. **Latency expansion:** add opt-in extension-host/JSON-RPC traces on pinned representative projects before making perceived-editor-latency claims; retain synthetic PR gates for deterministic accounting and absolute budgets.
