@@ -6,9 +6,9 @@ This file records reproducible evidence for the cooperating `go-php-parser` engi
 
 ## Current baseline
 
-- Engine revision validated and consumed by PHP Strom: pushed commit `badc81c`.
-- Extension checkout: `/Users/ayan/Projects/vscode-php-strom`, `main` at pushed commit `b40b003`; the current package version is `0.1.29`.
-- Production extension builds pin `github.com/ayanozturk/go-php-parser` at pseudo-version `v0.0.0-20260831132841-badc81c2a8e8`. `make test-server-dev` validates the same engine through the generated, ignored sibling-workspace path.
+- Engine revision validated and consumed by PHP Strom: pushed commit `f3095cd`.
+- Extension checkout: `/Users/ayan/Projects/vscode-php-strom`, `main` at pushed commit `82f2a08`; the current package version is `0.1.29`.
+- Production extension builds pin `github.com/ayanozturk/go-php-parser` at pseudo-version `v0.0.0-20260831134345-f3095cd1086e`. `make test-server-dev` validates the same engine through the generated, ignored sibling-workspace path.
 - Go toolchain observed: Go 1.26.2. Node toolchain observed: Node 22.20.0 and npm 11.7.0.
 - Representative corpora are fetched at exact revisions from `test_projects/manifest.json`; generated working copies remain uncommitted.
 - The latest recorded full-corpus pass has zero failures for Composer, Drupal, Magento, PHPUnit, and WordPress. Symfony's two remaining fixtures are intentionally invalid/corrupted inputs, and Laravel has two narrow interpolation/callable edge cases. These recorded results are compatibility evidence, not a current performance result.
@@ -293,7 +293,8 @@ Representative workload: 23,556 indexed PHP files, 3,678,678 LOC, 135.68 MB, 151
 
 - Nested PHPDoc `array{inner: array{key: callable(): T}}` fields and `list{callable(): T}` elements retain copy-on-write shape metadata through assignment and chained access.
 - `clone`, `??`, `match`, and nullsafe method calls infer object receivers at the pinned level-2 boundary.
-- Eight fixtures expand level 2 from thirty-three to forty-one cases; the complete 63-case level-0 and 41-case level-2 runs match pinned PHPStan `2.2.x-dev@e4ab62a` with zero engine or reference mismatches. Scalar/array/`object` receivers remain a separate `method.nonObject` identifier.
+- Parser commit `f3095cd` lands the nested/list shape and object-expression inference. Eight fixtures expand level 2 from thirty-three to forty-one cases; the complete 63-case level-0 and 41-case level-2 runs match pinned PHPStan `2.2.x-dev@e4ab62a` with zero engine or reference mismatches. Scalar/array/`object` receivers remain a separate `method.nonObject` identifier.
+- Parser tests, vet, and the analyser race suite pass. Extension commit `82f2a08` pins pseudo-version `v0.0.0-20260831134345-f3095cd1086e` and proves the default editor path reports exactly the six nested-shape, list, clone, coalesce, match, and nullsafe findings while known nested-shape methods and level-0 symbols remain clean. Pinned and sibling extension tests, vet, race, all six server builds, TypeScript lint/compile/package, VS Code 1.89.1 extension-host tests, the editor-latency gate, and `npm audit --audit-level=low` pass. Packaging retains the known `vscode-languageserver-types` warning and the audit reports 0 vulnerabilities.
 
 ## Next ranked candidates
 
