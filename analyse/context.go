@@ -175,6 +175,10 @@ type AnalysisContext struct {
 
 	reflectionGuards    reflectionGuards
 	hasReflectionGuards bool
+
+	methodVisibilityIssues []AnalysisIssue
+	throwTypeIssues        []AnalysisIssue
+	hasStructuralIssues    bool
 }
 
 func analysisLevelAtLeast(ctx *AnalysisContext, level int) bool {
