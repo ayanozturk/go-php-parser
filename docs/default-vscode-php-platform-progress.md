@@ -296,10 +296,17 @@ Representative workload: 23,556 indexed PHP files, 3,678,678 LOC, 135.68 MB, 151
 - Parser commit `f3095cd` lands the nested/list shape and object-expression inference. Eight fixtures expand level 2 from thirty-three to forty-one cases; the complete 63-case level-0 and 41-case level-2 runs match pinned PHPStan `2.2.x-dev@e4ab62a` with zero engine or reference mismatches. Scalar/array/`object` receivers remain a separate `method.nonObject` identifier.
 - Parser tests, vet, and the analyser race suite pass. Extension commit `82f2a08` pins pseudo-version `v0.0.0-20260831134345-f3095cd1086e` and proves the default editor path reports exactly the six nested-shape, list, clone, coalesce, match, and nullsafe findings while known nested-shape methods and level-0 symbols remain clean. Pinned and sibling extension tests, vet, race, all six server builds, TypeScript lint/compile/package, VS Code 1.89.1 extension-host tests, the editor-latency gate, and `npm audit --audit-level=low` pass. Packaging retains the known `vscode-languageserver-types` warning and the audit reports 0 vulnerabilities.
 
+### 2026-08-31 — Process-cold benchmark stability protocol
+
+- `cmd/benchmark` pins worker `GOMAXPROCS` to `--workers`, discards unmeasured process-cold warmups, settles between subprocesses, and can append extra measured runs when CV exceeds 5% without dropping outliers from the gate. Drop-max CV is recorded only as a diagnostic. Linux reports also include `/proc/loadavg`.
+- Weekly CI now uses Mago-aligned path sets for the three required workloads and `--max-cv 0` so noisy hosted runners still upload accounting and RSS artifacts. Local interleaved comparisons keep the 5% gate.
+- A WordPress indicator on this host accounted for 5,357/5,357 files, 1,451,208 LOC, 47,344,277 bytes, zero parse failures, and 24,770 diagnostics on every run, then remained rejected at 8.22% CV after twenty measured cold runs. See `docs/benchmarks/2026-08-31-wordpress-stability-protocol.md`.
+- PHP Strom's synthetic editor harness discards one process-cold warmup and pins worker `GOMAXPROCS`.
+
 ## Next ranked candidates
 
 1. **Correctness:** add a separate level-2 `method.nonObject` rule for scalar/array/callable/`object`/union-with-non-object receivers; then remaining dynamic indexes and higher-level per-alternative DNF availability.
 2. **Maintenance and security:** correct `FEATURES.md`, decide the legacy TypeScript server's fate, and extend deterministic fuzzing into PHPDoc/type parsing and rule execution.
 3. **Dependency refinement:** replace conservative lexical matching only after generated reference facts cover the supported resolver paths completely; do not trade false positives for stale snapshots.
-4. **Latency expansion:** add opt-in extension-host/JSON-RPC traces on pinned representative projects before making perceived-editor-latency claims; retain synthetic PR gates for deterministic accounting and absolute budgets.
+4. **Latency expansion:** add opt-in extension-host/JSON-RPC traces on pinned representative projects before making perceived-editor-latency claims; retain synthetic PR gates for deterministic accounting and absolute budgets. Isolated-host interleaved full-analysis comparisons remain required before any speed claim.
 5. **Source-mapping expansion:** introduce structured parser errors and audit the mixed style-rule coordinate producers before upgrading those remaining point diagnostics to ranges.

@@ -130,3 +130,66 @@ func TestValidatePhaseCVAcceptsThresholdAndSingleRunCases(t *testing.T) {
 		}
 	}
 }
+
+func TestWorkerEnvPinsGOMAXPROCS(t *testing.T) {
+	t.Setenv("GOMAXPROCS", "99")
+	env := workerEnv(4)
+	found := false
+	for _, kv := range env {
+		if kv == "GOMAXPROCS=99" {
+			t.Fatal("parent GOMAXPROCS leaked into worker environment")
+		}
+		if kv == "GOMAXPROCS=4" {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("expected GOMAXPROCS=4 in worker environment, got %v", env)
+	}
+}
+
+func TestShouldExtendColdRunsRequiresFailingCVAndBudget(t *testing.T) {
+	unstable := phaseReport{Runs: []runMetrics{{DurationMs: 100}, {DurationMs: 140}}, CoefficientOfVar: 0.12}
+	stable := phaseReport{Runs: []runMetrics{{DurationMs: 100}, {DurationMs: 102}}, CoefficientOfVar: 0.02}
+	if shouldExtendColdRuns(stable, nil, 0.05, 10) {
+		t.Fatal("stable candidate should not extend")
+	}
+	if !shouldExtendColdRuns(unstable, nil, 0.05, 10) {
+		t.Fatal("unstable candidate should extend while budget remains")
+	}
+	if shouldExtendColdRuns(unstable, nil, 0.05, 0) {
+		t.Fatal("exhausted extra budget should not extend")
+	}
+	if shouldExtendColdRuns(unstable, nil, 0, 10) {
+		t.Fatal("disabled CV gate should not extend")
+	}
+	if !shouldExtendColdRuns(stable, &unstable, 0.05, 1) {
+		t.Fatal("unstable baseline should extend the interleaved pair")
+	}
+}
+
+func TestExtraInterleavedPairContinuesBalancedOrder(t *testing.T) {
+	even := extraInterleavedPair(0)
+	if !reflect.DeepEqual(even, []benchmarkRunTarget{benchmarkCandidate, benchmarkBaseline}) {
+		t.Fatalf("even extra pair = %v", even)
+	}
+	odd := extraInterleavedPair(1)
+	if !reflect.DeepEqual(odd, []benchmarkRunTarget{benchmarkBaseline, benchmarkCandidate}) {
+		t.Fatalf("odd extra pair = %v", odd)
+	}
+}
+
+func TestSummarizeDropMaxCVIsInformationalAndDoesNotBypassGate(t *testing.T) {
+	report := summarize([]runMetrics{
+		{DurationMs: 100},
+		{DurationMs: 102},
+		{DurationMs: 101},
+		{DurationMs: 180},
+	})
+	if report.CoefficientOfVarDropMax <= 0 || report.CoefficientOfVar <= report.CoefficientOfVarDropMax {
+		t.Fatalf("expected full CV to exceed drop-max CV, got %#v", report)
+	}
+	if reason := validatePhaseCV("candidate", report, 0.05); reason == "" {
+		t.Fatal("CV gate must still reject the full sample including the outlier")
+	}
+}

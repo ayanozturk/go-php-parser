@@ -8,7 +8,9 @@ name: Corpus benchmark and compatibility metrics
 # wordpress-develop alone are hundreds of MB) and cmd/benchmark's
 # process-cold phase runs 10 measured subprocess re-execs per corpus by
 # default, which is too slow for pull-request CI. Also runnable on demand
-# via workflow_dispatch.
+# via workflow_dispatch. Timing CV is recorded but not used as a job
+# failure (`--max-cv 0`) so noisy hosted runners still upload accounting
+# and RSS artifacts. Local interleaved comparisons keep the 5% gate.
 
 on:
   schedule:
@@ -58,10 +60,29 @@ jobs:
           set -e
           for project in psl wordpress-develop magento2; do
             echo "::group::benchmark $project"
+            case "$project" in
+              psl)
+                PATHS="src,examples,vendor"
+                EXCLUDES=""
+                ;;
+              wordpress-develop)
+                PATHS="src,tests,vendor"
+                EXCLUDES="src/js"
+                ;;
+              magento2)
+                PATHS="app,dev,phpserver,setup,pub,vendor"
+                EXCLUDES=""
+                ;;
+            esac
+            extra_args=(--paths "$PATHS" --settle-ms 250 --cold-warmups 1 --extra-cold-runs 10 --max-cv 0)
+            if [ -n "$EXCLUDES" ]; then
+              extra_args+=(--excludes "$EXCLUDES")
+            fi
             ./bin/benchmark \
               --root "test_projects/$project" \
               --cold-runs "$COLD_RUNS" \
               --warm-iterations "$WARM_ITERATIONS" \
+              "${extra_args[@]}" \
               --json \
               --output "benchmark-results/benchmark-$project.json"
             echo "::endgroup::"

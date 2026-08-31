@@ -17,7 +17,11 @@
 // Index-only and cold-full-analysis measurements each re-exec this binary
 // as a fresh subprocess per measured run, so every measured run starts with
 // empty in-process caches (parsedTypeCache, project index, OS process
-// state). The parent measures the entire child lifetime, including startup,
+// state). Worker subprocesses pin GOMAXPROCS to --workers. After an
+// unmeasured validation run the harness discards --cold-warmups process-cold
+// subprocesses, pauses --settle-ms between measured runs, and may append
+// --extra-cold-runs when the CV gate fails while still evaluating every
+// measured sample. The parent measures the entire child lifetime, including startup,
 // discovery, reads, parsing, indexing, analysis, reduction, and result
 // serialization — a "process-cold" run in the terms of the comparable-
 // performance contract. It does NOT drop the OS page/file cache; callers
@@ -86,14 +90,15 @@ type runMetrics struct {
 // divergence between runs is itself a signal worth surfacing, so raw runs
 // are kept in full rather than only the aggregate).
 type phaseReport struct {
-	Runs             []runMetrics `json:"runs"`
-	MeanMs           float64      `json:"meanMs"`
-	MedianMs         float64      `json:"medianMs"`
-	MinMs            float64      `json:"minMs"`
-	MaxMs            float64      `json:"maxMs"`
-	StdDevMs         float64      `json:"stdDevMs"`
-	CoefficientOfVar float64      `json:"coefficientOfVariation"`
-	MaxPeakRSSBytes  int64        `json:"maxPeakRssBytes,omitempty"`
+	Runs                    []runMetrics `json:"runs"`
+	MeanMs                  float64      `json:"meanMs"`
+	MedianMs                float64      `json:"medianMs"`
+	MinMs                   float64      `json:"minMs"`
+	MaxMs                   float64      `json:"maxMs"`
+	StdDevMs                float64      `json:"stdDevMs"`
+	CoefficientOfVar        float64      `json:"coefficientOfVariation"`
+	CoefficientOfVarDropMax float64      `json:"coefficientOfVariationDropMax,omitempty"`
+	MaxPeakRSSBytes         int64        `json:"maxPeakRssBytes,omitempty"`
 }
 
 type incrementalReport struct {
@@ -115,9 +120,10 @@ type baselineReport struct {
 }
 
 type benchmarkValidation struct {
-	Accepted bool     `json:"accepted"`
-	MaxCV    float64  `json:"maxCoefficientOfVariation"`
-	Reasons  []string `json:"reasons,omitempty"`
+	Accepted          bool     `json:"accepted"`
+	MaxCV             float64  `json:"maxCoefficientOfVariation"`
+	ExtraColdRunsUsed int      `json:"extraColdRunsUsed,omitempty"`
+	Reasons           []string `json:"reasons,omitempty"`
 }
 
 type benchmarkReport struct {
@@ -128,6 +134,7 @@ type benchmarkReport struct {
 	Arch          string              `json:"arch"`
 	NumCPU        int                 `json:"numCpu"`
 	Workers       int                 `json:"workers"`
+	Host          hostEnvironment     `json:"host"`
 	Level         *int                `json:"analysisLevel"`
 	Paths         []string            `json:"paths"`
 	Excludes      []string            `json:"excludes,omitempty"`
@@ -154,6 +161,9 @@ func main() {
 	skipCold := flag.Bool("skip-cold", false, "skip the process-cold subprocess runs (index-only and warm-loop still run)")
 	baselineBinary := flag.String("baseline-binary", "", "optional previous-engine benchmark binary to interleave with candidate cold runs")
 	maxCV := flag.Float64("max-cv", 0.05, "maximum accepted cold-run coefficient of variation (0 disables the gate)")
+	settleMs := flag.Int("settle-ms", 250, "pause between process-cold subprocesses so frequency scaling and background load can settle")
+	coldWarmups := flag.Int("cold-warmups", 1, "unmeasured process-cold full-analysis subprocesses per engine after validation and before measured runs")
+	extraColdRuns := flag.Int("extra-cold-runs", 10, "additional measured runs per engine when the CV gate fails; 0 disables extension. The gate still uses every measured sample.")
 
 	// Internal re-exec entrypoint: when set, this process performs exactly
 	// one measured phase and prints its runMetrics as a single JSON line to
@@ -219,8 +229,28 @@ func main() {
 		Validation:  benchmarkValidation{Accepted: true, MaxCV: *maxCV},
 		Incremental: incrementalReport{
 			Supported: false,
-			Reason:    "the analysis engine has no incremental invalidation API yet (immutable project graph / incremental analysis are M1-M2 roadmap items); see docs/full-static-analyser-target.md",
+			Reason:    "this CLI harness measures process-cold and warm full analysis only; editor-path incremental timing is gated by vscode-php-strom/cmd/benchmark-editor",
 		},
+	}
+	if *coldWarmups < 0 {
+		*coldWarmups = 0
+	}
+	if *extraColdRuns < 0 {
+		*extraColdRuns = 0
+	}
+	if *settleMs < 0 {
+		*settleMs = 0
+	}
+	report.Host = hostEnvironment{
+		GoMaxProcs:         *workers,
+		ProcessColdWarmups: *coldWarmups,
+		SettleMs:           *settleMs,
+		ExtraColdBudget:    *extraColdRuns,
+	}
+	if one, five, fifteen, ok := hostLoadAverages(); ok {
+		report.Host.LoadAverage1 = one
+		report.Host.LoadAverage5 = five
+		report.Host.LoadAverage15 = fifteen
 	}
 
 	fmt.Fprintf(os.Stderr, "benchmark: discovering PHP files under %s (paths: %s)\n", *root, strings.Join(paths, ", "))
@@ -269,9 +299,45 @@ func main() {
 	}
 
 	if !*skipCold {
+		fmt.Fprintf(os.Stderr, "benchmark: running %d unmeasured process-cold warmup(s) per engine\n", *coldWarmups)
+		for i := 0; i < *coldWarmups; i++ {
+			if _, err := execWorker(*root, paths, excludes, *level, *workers, "full", 1); err != nil {
+				fmt.Fprintf(os.Stderr, "benchmark: candidate warmup failed: %v\n", err)
+				os.Exit(1)
+			}
+			settle(*settleMs)
+			if report.Baseline != nil {
+				if _, err := execWorkerBinary(report.Baseline.Binary, *root, paths, excludes, *level, *workers, "full", 1); err != nil {
+					fmt.Fprintf(os.Stderr, "benchmark: baseline warmup failed: %v\n", err)
+					os.Exit(1)
+				}
+				settle(*settleMs)
+			}
+		}
+
 		fmt.Fprintf(os.Stderr, "benchmark: running %d process-cold full-analysis runs\n", *coldRuns)
-		coldRunsResults := make([]runMetrics, 0, *coldRuns)
-		baselineRunsResults := make([]runMetrics, 0, *coldRuns)
+		coldRunsResults := make([]runMetrics, 0, *coldRuns+*extraColdRuns)
+		baselineRunsResults := make([]runMetrics, 0, *coldRuns+*extraColdRuns)
+		runCold := func(target benchmarkRunTarget) error {
+			binary := ""
+			if target == benchmarkBaseline {
+				binary = report.Baseline.Binary
+			}
+			run, err := execWorkerBinary(binary, *root, paths, excludes, *level, *workers, "full", 1)
+			if err != nil {
+				return fmt.Errorf("%s cold run: %w", target, err)
+			}
+			if target == benchmarkBaseline {
+				baselineRunsResults = append(baselineRunsResults, run)
+				fmt.Fprintf(os.Stderr, "  baseline cold run %d: %dms, %d diagnostics\n", len(baselineRunsResults), run.DurationMs, run.DiagnosticsEmitted)
+			} else {
+				coldRunsResults = append(coldRunsResults, run)
+				fmt.Fprintf(os.Stderr, "  candidate cold run %d: %dms, %d diagnostics\n", len(coldRunsResults), run.DurationMs, run.DiagnosticsEmitted)
+			}
+			settle(*settleMs)
+			return nil
+		}
+
 		orders := make([]benchmarkRunTarget, *coldRuns)
 		for i := range orders {
 			orders[i] = benchmarkCandidate
@@ -280,23 +346,38 @@ func main() {
 			orders = interleavedRunOrder(*coldRuns)
 		}
 		for _, target := range orders {
-			binary := ""
-			if target == benchmarkBaseline {
-				binary = report.Baseline.Binary
-			}
-			run, err := execWorkerBinary(binary, *root, paths, excludes, *level, *workers, "full", 1)
-			if err != nil {
-				fmt.Fprintf(os.Stderr, "benchmark: %s cold run failed: %v\n", target, err)
+			if err := runCold(target); err != nil {
+				fmt.Fprintf(os.Stderr, "benchmark: %v\n", err)
 				os.Exit(1)
 			}
-			if target == benchmarkBaseline {
-				baselineRunsResults = append(baselineRunsResults, run)
-				fmt.Fprintf(os.Stderr, "  baseline cold run %d/%d: %dms, %d diagnostics\n", len(baselineRunsResults), *coldRuns, run.DurationMs, run.DiagnosticsEmitted)
-			} else {
-				coldRunsResults = append(coldRunsResults, run)
-				fmt.Fprintf(os.Stderr, "  candidate cold run %d/%d: %dms, %d diagnostics\n", len(coldRunsResults), *coldRuns, run.DurationMs, run.DiagnosticsEmitted)
-			}
 		}
+
+		for extraUsed := 0; extraUsed < *extraColdRuns; extraUsed++ {
+			report.ColdFullAnalysis = summarize(coldRunsResults)
+			var baselinePhase *phaseReport
+			if report.Baseline != nil {
+				summarized := summarize(baselineRunsResults)
+				report.Baseline.ColdFullAnalysis = summarized
+				baselinePhase = &summarized
+			}
+			if !shouldExtendColdRuns(report.ColdFullAnalysis, baselinePhase, *maxCV, *extraColdRuns-extraUsed) {
+				break
+			}
+			fmt.Fprintf(os.Stderr, "benchmark: extending measured cold runs (%d/%d extra)\n", extraUsed+1, *extraColdRuns)
+			if report.Baseline != nil {
+				for _, target := range extraInterleavedPair(len(coldRunsResults)) {
+					if err := runCold(target); err != nil {
+						fmt.Fprintf(os.Stderr, "benchmark: %v\n", err)
+						os.Exit(1)
+					}
+				}
+			} else if err := runCold(benchmarkCandidate); err != nil {
+				fmt.Fprintf(os.Stderr, "benchmark: %v\n", err)
+				os.Exit(1)
+			}
+			report.Validation.ExtraColdRunsUsed++
+		}
+
 		report.ColdFullAnalysis = summarize(coldRunsResults)
 		if err := validatePhaseAccounting(validationRun, coldRunsResults, true); err != nil {
 			report.Validation.Accepted = false
@@ -384,6 +465,7 @@ func execWorkerBinary(binary, root string, paths, excludes []string, level, work
 		"--harness-worker-repeat=" + strconv.Itoa(repeat),
 	}
 	cmd := exec.Command(self, args...)
+	cmd.Env = workerEnv(workers)
 	var stdout, stderr strings.Builder
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
@@ -464,6 +546,7 @@ func execWorkerRepeat(root string, paths, excludes []string, level, workers, rep
 		"--harness-worker-repeat=" + strconv.Itoa(repeat),
 	}
 	cmd := exec.Command(self, args...)
+	cmd.Env = workerEnv(workers)
 	var stdout, stderr strings.Builder
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
@@ -915,15 +998,21 @@ func summarize(runs []runMetrics) phaseReport {
 		cv = stdDev / mean
 	}
 
+	dropMaxCV := 0.0
+	if len(durations) >= 3 {
+		dropMaxCV = coefficientOfVariation(dropOneMax(durations))
+	}
+
 	return phaseReport{
-		Runs:             runs,
-		MeanMs:           mean,
-		MedianMs:         median,
-		MinMs:            sorted[0],
-		MaxMs:            sorted[len(sorted)-1],
-		StdDevMs:         stdDev,
-		CoefficientOfVar: cv,
-		MaxPeakRSSBytes:  maxRSS,
+		Runs:                    runs,
+		MeanMs:                  mean,
+		MedianMs:                median,
+		MinMs:                   sorted[0],
+		MaxMs:                   sorted[len(sorted)-1],
+		StdDevMs:                stdDev,
+		CoefficientOfVar:        cv,
+		CoefficientOfVarDropMax: dropMaxCV,
+		MaxPeakRSSBytes:         maxRSS,
 	}
 }
 
@@ -931,7 +1020,12 @@ func printTextReport(w io.Writer, r benchmarkReport) {
 	fmt.Fprintf(w, "Full-Analyser Benchmark\n")
 	fmt.Fprintf(w, "Root: %s\n", r.Root)
 	fmt.Fprintf(w, "Generated: %s\n", r.GeneratedAt)
-	fmt.Fprintf(w, "Go: %s  OS/Arch: %s/%s  CPUs: %d  Workers: %d\n", r.GoVersion, r.OS, r.Arch, r.NumCPU, r.Workers)
+	fmt.Fprintf(w, "Go: %s  OS/Arch: %s/%s  CPUs: %d  Workers/GOMAXPROCS: %d\n", r.GoVersion, r.OS, r.Arch, r.NumCPU, r.Workers)
+	fmt.Fprintf(w, "Host: coldWarmups=%d settleMs=%d extraColdBudget=%d extraColdUsed=%d", r.Host.ProcessColdWarmups, r.Host.SettleMs, r.Host.ExtraColdBudget, r.Validation.ExtraColdRunsUsed)
+	if r.Host.LoadAverage1 > 0 || r.Host.LoadAverage5 > 0 || r.Host.LoadAverage15 > 0 {
+		fmt.Fprintf(w, " loadavg=%.2f/%.2f/%.2f", r.Host.LoadAverage1, r.Host.LoadAverage5, r.Host.LoadAverage15)
+	}
+	fmt.Fprintln(w)
 	fmt.Fprintf(w, "Paths: %s", strings.Join(r.Paths, ", "))
 	if len(r.Excludes) > 0 {
 		fmt.Fprintf(w, "  Excludes: %s", strings.Join(r.Excludes, ", "))
@@ -950,8 +1044,12 @@ func printTextReport(w io.Writer, r benchmarkReport) {
 		}
 		last := p.Runs[len(p.Runs)-1]
 		fmt.Fprintf(w, "%s (%d run(s)):\n", name, len(p.Runs))
-		fmt.Fprintf(w, "  mean=%.1fms median=%.1fms min=%.1fms max=%.1fms stddev=%.1fms cv=%.3f\n",
+		fmt.Fprintf(w, "  mean=%.1fms median=%.1fms min=%.1fms max=%.1fms stddev=%.1fms cv=%.3f",
 			p.MeanMs, p.MedianMs, p.MinMs, p.MaxMs, p.StdDevMs, p.CoefficientOfVar)
+		if p.CoefficientOfVarDropMax > 0 {
+			fmt.Fprintf(w, " cvDropMax=%.3f", p.CoefficientOfVarDropMax)
+		}
+		fmt.Fprintln(w)
 		fmt.Fprintf(w, "  filesDiscovered=%d filesParsed=%d filesFailed=%d totalLOC=%d totalBytes=%d diagnostics=%d\n",
 			last.FilesDiscovered, last.FilesParsed, last.FilesFailed, last.TotalLOC, last.TotalBytes, last.DiagnosticsEmitted)
 		if p.MaxPeakRSSBytes > 0 {
