@@ -52,7 +52,7 @@ Representative workload: 23,556 indexed PHP files, 3,678,678 LOC, 135.68 MB, 151
 
 ## Coverage gaps
 
-- PHPStan benchmark: level 0 remains partial but is differential-gated by 63 reviewed fixtures. Level 1 is gated by 24 variable-flow fixtures; level 2 by 65 protected/unknown-method/non-object/dynamic-index/expression-receiver fixtures; level 3 by one throw-type fixture. Pinned reference: `PHPStan 2.2.x-dev@e4ab62a`. Remaining analyser gaps: ungated level-0 unit-tested surfaces, higher-level per-alternative DNF, narrowing, generic inheritance, higher-level return/property/argument checks, PHPDoc validation, dynamic-call precision, and extension-dependent built-in signatures.
+- PHPStan benchmark: level 0 remains partial but is differential-gated by 80 reviewed fixtures. Level 1 is gated by 24 variable-flow fixtures; level 2 by 65 protected/unknown-method/non-object/dynamic-index/expression-receiver fixtures; level 3 by one throw-type fixture. Pinned reference: `PHPStan 2.2.x-dev@e4ab62a`. Remaining analyser gaps: leftover reviewed level-0 surfaces, higher-level per-alternative DNF, narrowing, generic inheritance, higher-level return/property/argument checks, PHPDoc validation, dynamic-call precision, and extension-dependent built-in signatures.
 - PHPCS benchmark: the repository comparison records 16 style rules, far below the breadth of PHPCS standards. Security-oriented source rules such as eval/backtick/forbidden-function checks are not implemented.
 - The remaining recorded pure-parser corpus gaps are two narrow Laravel vendor-code cases; intentionally invalid or corrupted fixtures stay classified separately from parser failures.
 - PHP Strom now consumes shared `SemanticSnapshot` facts, flow graphs, and variable-flow state through dependency-scoped exported-semantic revisions, changed documents use immutable incremental project-index replacement, structured analysis diagnostics use UTF-16 spans, and a synthetic editor-path trace suite accounts for cache, dependency, cancellation, publication, and fallback behavior. Remaining extension integration gaps include stale architecture documentation, unstructured parser errors and mixed style-rule point ranges, conservative name-based dependency false positives/global overflow fallback, and no full VS Code extension-activation or representative-project latency trace.
@@ -322,11 +322,15 @@ Representative workload: 23,556 indexed PHP files, 3,678,678 LOC, 135.68 MB, 151
 - Eight fixtures expand level 2 from fifty-seven to sixty-five cases for file-level constants, other same-file class constants, `match` indexes, property `@var` shapes, method `@return` shapes, and `list{Class}` object indexes, plus known-method `match` and property controls. Complete 63-case level-0 and 65-case level-2 runs match pinned PHPStan `2.2.x-dev@e4ab62a`. Static properties are unit-tested. Per-alternative DNF remains a separate higher reference level.
 - Parser commit `ab99bf5` lands the inference. Extension commit `296d585` pins pseudo-version `v0.0.0-20260831151502-ab99bf53c3f0` and proves the default editor path reports global-const, foreign-class-const, match, property, method-return, and list-object missing methods while known match and property methods stay clean. Pinned and sibling tests, vet, race, all six server builds, TypeScript lint/compile/package, VS Code 1.89.1 host tests, the editor-latency gate, and `npm audit --audit-level=low` pass.
 
+### 2026-08-31 — Expand the PHPStan level-0 pack to eighty cases
+
+- Seventeen reviewed fixtures expand level 0 from sixty-three to eighty cases for unknown parents, invalid implements/extends/trait-use combinations, non-public interface implementations, inherited parameter/return compatibility, enum case legality, static calls to instance methods, duplicate named arguments, unknown function imports, and unknown static methods, plus a covariant-return clean control. Complete 80-case level-0 and 65-case level-2 runs match pinned PHPStan `2.2.x-dev@e4ab62a`. Left out: inherited parameter-name changes (PHPStan silent), extra-required-parameter overrides, remaining enum constructor/backing/`Serializable` cases, and `(void)`/`(unset)` casts.
+
 ## Next ranked candidates
 
 The analyser target in `docs/full-static-analyser-target.md` is the source of truth for ordering.
 
-1. **Correctness:** ungated level-0 unit-tested surfaces, then higher-level per-alternative DNF as a separate PHPStan level.
+1. **Correctness:** leftover reviewed level-0 surfaces (extra-required-parameter overrides, remaining enum constructor/backing/`Serializable`, language casts), then higher-level per-alternative DNF as a separate PHPStan level.
 2. **Maintenance:** rewrite `FEATURES.md` for the Go language server and `go-php-parser`; decide the fate of `src/server`; extend fuzzing into PHPDoc/type parsing and rule execution.
 3. **Source mapping:** structured parser errors, then style-rule coordinate producers currently stuck at points.
 4. **Dependency matching:** replace conservative lexical invalidation only after generated reference facts cover supported resolver paths.
