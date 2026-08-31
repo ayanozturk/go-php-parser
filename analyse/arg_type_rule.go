@@ -226,7 +226,7 @@ func nonNullVariableType(scope *functionScope, variableName string) (Type, bool)
 	if scope == nil {
 		return EmptyType(), false
 	}
-	current, ok := scope.variables[variableName]
+	current, ok := scope.variable(variableName)
 	if !ok {
 		return EmptyType(), false
 	}
@@ -302,7 +302,7 @@ func applyTerminatingIfFalseScope(scope *functionScope, node *ast.IfNode) {
 	// Strip null from variables that are non-null when the condition is false
 	// (e.g. `if ($x === null) { return; }` → $x is non-null after).
 	for _, variableName := range variablesNonNullWhenFalse(node.Condition) {
-		current, ok := scope.variables[variableName]
+		current, ok := scope.variable(variableName)
 		if !ok {
 			continue
 		}
@@ -495,7 +495,7 @@ func applyLazyInitPropertyScope(scope *functionScope, node *ast.IfNode, ctx *Ana
 	if !bodyAssignsToThisProperty(node.Body, propertyName) {
 		return
 	}
-	current, hasCurrent := scope.properties[propertyName]
+	current, hasCurrent := scope.property(propertyName)
 	if !hasCurrent {
 		if declType, ok := scope.propertyDecls[propertyName]; ok {
 			current = declType

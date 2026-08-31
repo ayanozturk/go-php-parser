@@ -353,11 +353,18 @@ Representative workload: 23,556 indexed PHP files, 3,678,678 LOC, 135.68 MB, 151
 - A ten-round exact-baseline cold comparison retained identical accounting and produced candidate/baseline means of 2.964s/3.435s and maximum RSS of 1.357GB/1.665GB. It is rejected as a performance claim because candidate CV was 5.15% versus the 5% contract.
 - A separate ten-round Mago 1.47.4 indicator produced raw engine/Mago mean ratios of 0.848x and maximum-RSS ratios of 1.152x, but both CVs failed and semantic/file accounting remained non-comparable. See `docs/benchmarks/2026-08-31-wordpress-snapshot-allocation-batch.md`; no Mago-parity claim is made.
 
+### 2026-08-31 — Persistent function-scope type layers
+
+- Variable and property flow types now use bounded persistent layers: clones share immutable parents, first writes use inline one-entry deltas, and longer chains compact at a fixed depth. This replaces eager whole-map detachment while preserving original, child, sibling, cached-class-property, and chained-scope isolation. Missing callable/array-shape deletion also avoids needless copy-on-write detachment.
+- A three-iteration WordPress profile retained 5,357/5,357 files and 26,321 diagnostics while allocated space fell from 6.61 GB at exact baseline `6fdfba0` to 5.54 GB, a 16.2% reduction. The prior approximately 1.04 GB `copyTypeMap` hot site disappeared.
+- The ten-round interleaved process-cold comparison passed: candidate/baseline means were 2.432s/2.511s with CVs 4.26%/1.87%, medians 2.392s/2.493s, and maximum RSS 1.408GB/1.489GB. Accounting was identical in every run. This supports a 3.1% exact-baseline mean improvement and 5.4% maximum-RSS reduction, not a Mago-parity claim.
+- An assignment-observer shortcut was rejected before delivery because it changed WordPress diagnostics by 42. See `docs/benchmarks/2026-08-31-wordpress-persistent-scope-layers.md`.
+
 ## Next ranked candidates
 
 The analyser target in `docs/full-static-analyser-target.md` is the source of truth for ordering.
 
-1. **Performance:** reduce the measured `copyTypeMap` and remaining snapshot-generation allocation, then rerun interleaved WordPress process-cold vs exact baseline and contemporaneous Mago on an isolated host. Keep the 5% CV contract and the 1.5× mean / 1.25× RSS gates. Do not cut rules or `vendor` to win.
+1. **Performance:** optimize the new profile leaders—semantic-fact insertion, repeated normalized resolver queries, function-scope clone metadata, and control-flow graph storage—then rerun the exact-baseline gate. Keep the 5% CV contract and do not cut rules or `vendor` to win.
 2. **Maintenance:** rewrite `FEATURES.md` for the Go language server after the first accepted Mago comparison; decide the fate of `src/server`.
 3. **Source mapping:** structured parser errors, then style-rule coordinate producers currently stuck at points.
 4. **Dependency matching:** replace conservative lexical invalidation only after generated reference facts cover supported resolver paths.

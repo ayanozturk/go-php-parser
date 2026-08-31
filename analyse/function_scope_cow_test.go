@@ -1,15 +1,17 @@
 package analyse
 
 import (
-	"github.com/ayanozturk/go-php-parser/ast"
-	"github.com/ayanozturk/go-php-parser/lexer"
-	"github.com/ayanozturk/go-php-parser/parser"
+	"fmt"
 	"reflect"
 	"strings"
 	"testing"
+
+	"github.com/ayanozturk/go-php-parser/ast"
+	"github.com/ayanozturk/go-php-parser/lexer"
+	"github.com/ayanozturk/go-php-parser/parser"
 )
 
-func TestFunctionScopeCloneSharesReadOnlyMaps(t *testing.T) {
+func TestFunctionScopeCloneSharesReadOnlyLayers(t *testing.T) {
 	original := seededFunctionScope()
 	clone := original.clone()
 
@@ -19,24 +21,29 @@ func TestFunctionScopeCloneSharesReadOnlyMaps(t *testing.T) {
 	if clone == original {
 		t.Fatal("clone returned the original scope")
 	}
-	if !original.variablesShared || !clone.variablesShared {
-		t.Fatalf("variable maps are not marked shared after clone: original=%v clone=%v", original.variablesShared, clone.variablesShared)
+	if original.variablesOwned || clone.variablesOwned {
+		t.Fatalf("variable layers are not marked shared after clone: originalOwned=%v cloneOwned=%v", original.variablesOwned, clone.variablesOwned)
 	}
-	if !original.propertiesShared || !clone.propertiesShared {
-		t.Fatalf("property maps are not marked shared after clone: original=%v clone=%v", original.propertiesShared, clone.propertiesShared)
+	if original.propertiesOwned || clone.propertiesOwned {
+		t.Fatalf("property layers are not marked shared after clone: originalOwned=%v cloneOwned=%v", original.propertiesOwned, clone.propertiesOwned)
 	}
-	if got, want := clone.variables["seed"].String(), "int"; got != want {
-		t.Fatalf("clone variable seed = %q, want %q", got, want)
+	if clone.variables != original.variables {
+		t.Fatal("read-only clone did not share the variable layer")
 	}
-	if got, want := clone.properties["state"].String(), "string"; got != want {
-		t.Fatalf("clone property state = %q, want %q", got, want)
+	if clone.properties != original.properties {
+		t.Fatal("read-only clone did not share the property layer")
 	}
+	assertScopeVariable(t, clone, "seed", "int")
+	assertScopeProperty(t, clone, "state", "string")
 
-	assertFunctionScopeMapsShareBacking(t, original, clone)
+	assertFunctionScopeLayersShareBaseMaps(t, original, clone)
 
 	allocs := testing.AllocsPerRun(100, func() {
 		readOnly := original.clone()
-		if readOnly.variables["seed"].IsEmpty() || readOnly.properties["state"].IsEmpty() {
+		if typ, ok := readOnly.variable("seed"); !ok || typ.IsEmpty() {
+			t.Fatal("read-only clone lost seeded variable state")
+		}
+		if typ, ok := readOnly.property("state"); !ok || typ.IsEmpty() {
 			t.Fatal("read-only clone lost seeded state")
 		}
 	})
@@ -50,20 +57,18 @@ func TestFunctionScopeCloneFirstVariableWriteIsolatesClone(t *testing.T) {
 	clone.setVariable("seed", ParseType("bool"))
 	clone.setVariable("branch", ParseType("float"))
 
-	assertScopeType(t, clone.variables, "seed", "bool")
-	assertScopeType(t, clone.variables, "branch", "float")
-	assertScopeType(t, original.variables, "seed", "int")
-	if _, ok := original.variables["branch"]; ok {
-		t.Fatal("clone variable write leaked into original")
+	assertScopeVariable(t, clone, "seed", "bool")
+	assertScopeVariable(t, clone, "branch", "float")
+	assertScopeVariable(t, original, "seed", "int")
+	assertScopeVariableMissing(t, original, "branch")
+	if clone.variables == original.variables || clone.variables.parent != original.variables {
+		t.Fatal("clone variable write did not add a delta layer")
 	}
-	if functionScopeMapPointer(clone.variables) == functionScopeMapPointer(original.variables) {
-		t.Fatal("clone variable write did not detach the variable map")
+	if !clone.variablesOwned || original.variablesOwned {
+		t.Fatalf("variable ownership after clone write = clone=%v original=%v", clone.variablesOwned, original.variablesOwned)
 	}
-	if clone.variablesShared || !original.variablesShared {
-		t.Fatalf("variable sharing flags after clone write = clone=%v original=%v", clone.variablesShared, original.variablesShared)
-	}
-	if functionScopeMapPointer(clone.properties) != functionScopeMapPointer(original.properties) {
-		t.Fatal("unmodified property map detached during variable write")
+	if clone.properties != original.properties {
+		t.Fatal("unmodified property layer detached during variable write")
 	}
 }
 
@@ -74,20 +79,18 @@ func TestFunctionScopeCloneFirstPropertyWriteIsolatesClone(t *testing.T) {
 	clone.setProperty("state", ParseType("bool"))
 	clone.setProperty("branch", ParseType("float"))
 
-	assertScopeType(t, clone.properties, "state", "bool")
-	assertScopeType(t, clone.properties, "branch", "float")
-	assertScopeType(t, original.properties, "state", "string")
-	if _, ok := original.properties["branch"]; ok {
-		t.Fatal("clone property write leaked into original")
+	assertScopeProperty(t, clone, "state", "bool")
+	assertScopeProperty(t, clone, "branch", "float")
+	assertScopeProperty(t, original, "state", "string")
+	assertScopePropertyMissing(t, original, "branch")
+	if clone.properties == original.properties || clone.properties.parent != original.properties {
+		t.Fatal("clone property write did not add a delta layer")
 	}
-	if functionScopeMapPointer(clone.properties) == functionScopeMapPointer(original.properties) {
-		t.Fatal("clone property write did not detach the property map")
+	if !clone.propertiesOwned || original.propertiesOwned {
+		t.Fatalf("property ownership after clone write = clone=%v original=%v", clone.propertiesOwned, original.propertiesOwned)
 	}
-	if clone.propertiesShared || !original.propertiesShared {
-		t.Fatalf("property sharing flags after clone write = clone=%v original=%v", clone.propertiesShared, original.propertiesShared)
-	}
-	if functionScopeMapPointer(clone.variables) != functionScopeMapPointer(original.variables) {
-		t.Fatal("unmodified variable map detached during property write")
+	if clone.variables != original.variables {
+		t.Fatal("unmodified variable layer detached during property write")
 	}
 }
 
@@ -100,29 +103,25 @@ func TestFunctionScopeOriginalWriteAfterCloneIsolatesOriginal(t *testing.T) {
 	original.setProperty("state", ParseType("bool"))
 	original.setProperty("originalOnly", ParseType("int"))
 
-	assertScopeType(t, original.variables, "seed", "float")
-	assertScopeType(t, original.variables, "originalOnly", "bool")
-	assertScopeType(t, original.properties, "state", "bool")
-	assertScopeType(t, original.properties, "originalOnly", "int")
-	assertScopeType(t, clone.variables, "seed", "int")
-	assertScopeType(t, clone.properties, "state", "string")
-	if _, ok := clone.variables["originalOnly"]; ok {
-		t.Fatal("original variable write leaked into clone")
+	assertScopeVariable(t, original, "seed", "float")
+	assertScopeVariable(t, original, "originalOnly", "bool")
+	assertScopeProperty(t, original, "state", "bool")
+	assertScopeProperty(t, original, "originalOnly", "int")
+	assertScopeVariable(t, clone, "seed", "int")
+	assertScopeProperty(t, clone, "state", "string")
+	assertScopeVariableMissing(t, clone, "originalOnly")
+	assertScopePropertyMissing(t, clone, "originalOnly")
+	if original.variables == clone.variables || original.variables.parent != clone.variables {
+		t.Fatal("original variable write did not add a delta layer")
 	}
-	if _, ok := clone.properties["originalOnly"]; ok {
-		t.Fatal("original property write leaked into clone")
+	if original.properties == clone.properties || original.properties.parent != clone.properties {
+		t.Fatal("original property write did not add a delta layer")
 	}
-	if functionScopeMapPointer(clone.variables) == functionScopeMapPointer(original.variables) {
-		t.Fatal("original variable write did not detach the original map")
+	if !original.variablesOwned || clone.variablesOwned {
+		t.Fatalf("variable ownership after original write = original=%v clone=%v", original.variablesOwned, clone.variablesOwned)
 	}
-	if functionScopeMapPointer(clone.properties) == functionScopeMapPointer(original.properties) {
-		t.Fatal("original property write did not detach the original map")
-	}
-	if original.variablesShared || !clone.variablesShared {
-		t.Fatalf("variable sharing flags after original write = original=%v clone=%v", original.variablesShared, clone.variablesShared)
-	}
-	if original.propertiesShared || !clone.propertiesShared {
-		t.Fatalf("property sharing flags after original write = original=%v clone=%v", original.propertiesShared, clone.propertiesShared)
+	if !original.propertiesOwned || clone.propertiesOwned {
+		t.Fatalf("property ownership after original write = original=%v clone=%v", original.propertiesOwned, clone.propertiesOwned)
 	}
 }
 
@@ -137,28 +136,16 @@ func TestFunctionScopeChainedAndSiblingClonesRemainIndependent(t *testing.T) {
 	parent.setProperty("branch", ParseType("int"))
 	root.setVariable("rootOnly", ParseType("string"))
 
-	assertScopeType(t, left.variables, "branch", "bool")
-	assertScopeType(t, right.variables, "branch", "float")
-	assertScopeType(t, parent.properties, "branch", "int")
-	if _, ok := parent.variables["branch"]; ok {
-		t.Fatal("sibling variable write leaked into parent")
-	}
-	if _, ok := left.variables["rootOnly"]; ok {
-		t.Fatal("root variable write leaked into left sibling")
-	}
-	if _, ok := right.variables["rootOnly"]; ok {
-		t.Fatal("root variable write leaked into right sibling")
-	}
-	if _, ok := left.properties["branch"]; ok {
-		t.Fatal("parent property write leaked into left sibling")
-	}
-	if _, ok := right.properties["branch"]; ok {
-		t.Fatal("parent property write leaked into right sibling")
-	}
-	assertScopeType(t, root.variables, "seed", "int")
-	if _, ok := root.variables["branch"]; ok {
-		t.Fatal("descendant variable write leaked into root")
-	}
+	assertScopeVariable(t, left, "branch", "bool")
+	assertScopeVariable(t, right, "branch", "float")
+	assertScopeProperty(t, parent, "branch", "int")
+	assertScopeVariableMissing(t, parent, "branch")
+	assertScopeVariableMissing(t, left, "rootOnly")
+	assertScopeVariableMissing(t, right, "rootOnly")
+	assertScopePropertyMissing(t, left, "branch")
+	assertScopePropertyMissing(t, right, "branch")
+	assertScopeVariable(t, root, "seed", "int")
+	assertScopeVariableMissing(t, root, "branch")
 }
 
 func TestFunctionScopeCallableReturnClonesRemainIndependent(t *testing.T) {
@@ -188,6 +175,23 @@ func TestFunctionScopeCallableReturnClonesRemainIndependent(t *testing.T) {
 	if functionScopeMapPointer(left.callableReturns) == functionScopeMapPointer(right.callableReturns) {
 		t.Fatal("callable return sibling writes did not detach their maps")
 	}
+}
+
+func TestFunctionScopeClearMissingCallableReturnPreservesSharing(t *testing.T) {
+	root := &functionScope{callableReturns: map[string]Type{"factory": ParseType("InitialService")}}
+	clone := root.clone()
+	before := functionScopeMapPointer(clone.callableReturns)
+
+	clone.clearCallableReturn("missing")
+
+	if !root.callablesShared || !clone.callablesShared {
+		t.Fatalf("missing callable return clear changed sharing flags: root=%v clone=%v", root.callablesShared, clone.callablesShared)
+	}
+	if got := functionScopeMapPointer(clone.callableReturns); got != before {
+		t.Fatalf("missing callable return clear detached backing map: before=%x after=%x", before, got)
+	}
+	assertScopeType(t, root.callableReturns, "factory", "InitialService")
+	assertScopeType(t, clone.callableReturns, "factory", "InitialService")
 }
 
 func TestFunctionScopeClassStringMetadataClonesRemainIndependent(t *testing.T) {
@@ -244,6 +248,26 @@ func TestFunctionScopeArrayShapeCallablesClonesRemainIndependent(t *testing.T) {
 	}
 }
 
+func TestFunctionScopeClearMissingArrayShapeCallablePreservesSharing(t *testing.T) {
+	root := &functionScope{arrayShapeCallables: map[string]map[string]arrayShapeField{
+		"factories": {"service": {callable: ParseType("InitialService")}},
+	}}
+	clone := root.clone()
+	before := functionScopeMapPointer(clone.arrayShapeCallables)
+
+	clone.clearArrayShapeCallables("missing")
+
+	if !root.arrayShapesShared || !clone.arrayShapesShared {
+		t.Fatalf("missing array-shape clear changed sharing flags: root=%v clone=%v", root.arrayShapesShared, clone.arrayShapesShared)
+	}
+	if got := functionScopeMapPointer(clone.arrayShapeCallables); got != before {
+		t.Fatalf("missing array-shape clear detached backing map: before=%x after=%x", before, got)
+	}
+	if got := clone.arrayShapeCallables["factories"]["service"].callable.String(); got != "InitialService" {
+		t.Fatalf("missing array-shape clear changed callable: %q", got)
+	}
+}
+
 func TestFunctionScopeArrayIndexKeysCloneIndependently(t *testing.T) {
 	root := &functionScope{arrayIndexKeys: map[string][]string{"key": {"service"}}}
 	parent := root.clone()
@@ -288,41 +312,108 @@ func TestNewFunctionScopeWithContextSharesAndDetachesCachedClassProperties(t *te
 
 	first := newFunctionScopeWithContext(ctx, class, method, typeCtx)
 	second := newFunctionScopeWithContext(ctx, class, method, typeCtx)
-	if !first.propertiesShared || !second.propertiesShared {
-		t.Fatalf("new scopes should share cached class properties: first=%v second=%v", first.propertiesShared, second.propertiesShared)
+	if first.propertiesOwned || second.propertiesOwned {
+		t.Fatalf("new scopes should share cached class properties: firstOwned=%v secondOwned=%v", first.propertiesOwned, second.propertiesOwned)
 	}
-	if functionScopeMapPointer(first.properties) != functionScopeMapPointer(second.properties) {
+	if first.properties == second.properties {
+		t.Fatal("new scopes unexpectedly share mutable property layer")
+	}
+	if functionScopeLayerBaseMapPointer(first.properties) != functionScopeLayerBaseMapPointer(second.properties) {
 		t.Fatal("new scopes did not share cached class property map")
 	}
-	assertScopeType(t, first.properties, "state", "string")
-	assertScopeType(t, second.properties, "count", "int")
+	assertScopeProperty(t, first, "state", "string")
+	assertScopeProperty(t, second, "count", "int")
 
 	first.setProperty("state", ParseType("bool"))
-	if first.propertiesShared {
-		t.Fatal("first scope remained shared after its first property write")
+	if !first.propertiesOwned {
+		t.Fatal("first scope remained unowned after its first property write")
 	}
-	if !second.propertiesShared {
+	if second.propertiesOwned {
 		t.Fatal("second scope detached before it was written")
 	}
-	assertScopeType(t, first.properties, "state", "bool")
-	assertScopeType(t, second.properties, "state", "string")
-	if functionScopeMapPointer(first.properties) == functionScopeMapPointer(second.properties) {
-		t.Fatal("first property write did not detach the scope")
+	assertScopeProperty(t, first, "state", "bool")
+	assertScopeProperty(t, second, "state", "string")
+	if first.properties.parent == nil || functionScopeLayerBaseMapPointer(first.properties) != functionScopeLayerBaseMapPointer(second.properties) {
+		t.Fatal("first property write did not retain the cached base layer")
 	}
 
 	second.setProperty("count", ParseType("string"))
-	if second.propertiesShared {
-		t.Fatal("second scope remained shared after its first property write")
+	if !second.propertiesOwned {
+		t.Fatal("second scope remained unowned after its first property write")
 	}
-	assertScopeType(t, second.properties, "count", "string")
-	assertScopeType(t, first.properties, "count", "int")
+	assertScopeProperty(t, second, "count", "string")
+	assertScopeProperty(t, first, "count", "int")
 
 	third := newFunctionScopeWithContext(ctx, class, method, typeCtx)
-	if !third.propertiesShared {
+	if third.propertiesOwned {
 		t.Fatal("new scope did not share the cached class properties after sibling writes")
 	}
-	assertScopeType(t, third.properties, "state", "string")
-	assertScopeType(t, third.properties, "count", "int")
+	assertScopeProperty(t, third, "state", "string")
+	assertScopeProperty(t, third, "count", "int")
+	if got, want := functionScopeLayerBaseMapPointer(third.properties), functionScopeLayerBaseMapPointer(first.properties); got != want {
+		t.Fatalf("new scope cached class property base = %x, want %x", got, want)
+	}
+}
+
+func TestFunctionScopeCloneFirstWritesUseSmallDeltaLayers(t *testing.T) {
+	const baseEntries = 256
+	variables := make(map[string]Type, baseEntries)
+	properties := make(map[string]Type, baseEntries)
+	for i := 0; i < baseEntries; i++ {
+		name := fmt.Sprintf("entry%d", i)
+		variables[name] = ParseType("int")
+		properties[name] = ParseType("string")
+	}
+	original := &functionScope{
+		variables:       rootScopeTypeLayer(variables),
+		properties:      rootScopeTypeLayer(properties),
+		variablesOwned:  true,
+		propertiesOwned: true,
+	}
+	clone := original.clone()
+	variableBase := original.variables
+	propertyBase := original.properties
+
+	clone.setVariable("written", ParseType("bool"))
+	clone.setProperty("written", ParseType("float"))
+
+	if clone.variables.parent != variableBase || clone.properties.parent != propertyBase {
+		t.Fatal("first writes did not retain the original layers as their bases")
+	}
+	if got := scopeTypeLayerLocalSize(clone.variables); got != 1 {
+		t.Fatalf("first variable write materialized %d entries, want one delta entry", got)
+	}
+	if got := scopeTypeLayerLocalSize(clone.properties); got != 1 {
+		t.Fatalf("first property write materialized %d entries, want one delta entry", got)
+	}
+	if got := len(variableBase.values); got != baseEntries {
+		t.Fatalf("variable base changed size after clone write: got %d, want %d", got, baseEntries)
+	}
+	if got := len(propertyBase.values); got != baseEntries {
+		t.Fatalf("property base changed size after clone write: got %d, want %d", got, baseEntries)
+	}
+	assertScopeVariable(t, clone, "entry0", "int")
+	assertScopeProperty(t, clone, "entry0", "string")
+}
+
+func TestFunctionScopeSequentialCloneWritesKeepLayerDepthBounded(t *testing.T) {
+	scope := seededFunctionScope()
+	const writeCount = 256
+	for i := 0; i < writeCount; i++ {
+		previous := scope.clone()
+		name := fmt.Sprintf("branch%d", i)
+		scope.setVariable(name, ParseType("bool"))
+		scope.setProperty(name, ParseType("float"))
+		assertScopeVariableMissing(t, previous, name)
+		assertScopePropertyMissing(t, previous, name)
+		if scope.variables.depth > maxScopeTypeLayerDepth || scope.properties.depth > maxScopeTypeLayerDepth {
+			t.Fatalf("write %d exceeded layer depth bound: variables=%d properties=%d", i, scope.variables.depth, scope.properties.depth)
+		}
+	}
+	assertScopeVariable(t, scope, "seed", "int")
+	assertScopeVariable(t, scope, "branch255", "bool")
+	assertScopeProperty(t, scope, "state", "string")
+	assertScopeProperty(t, scope, "branch255", "float")
 }
 
 func BenchmarkFunctionScopeCloneReadOnly(b *testing.B) {
@@ -364,8 +455,46 @@ var benchmarkFunctionScopeSink *functionScope
 
 func seededFunctionScope() *functionScope {
 	return &functionScope{
-		variables:  map[string]Type{"seed": ParseType("int")},
-		properties: map[string]Type{"state": ParseType("string")},
+		variables:       rootScopeTypeLayer(map[string]Type{"seed": ParseType("int")}),
+		properties:      rootScopeTypeLayer(map[string]Type{"state": ParseType("string")}),
+		variablesOwned:  true,
+		propertiesOwned: true,
+	}
+}
+
+func assertScopeVariable(t *testing.T, scope *functionScope, name, want string) {
+	t.Helper()
+	typ, ok := scope.variable(name)
+	if !ok {
+		t.Fatalf("scope is missing variable %q", name)
+	}
+	if got := typ.String(); got != want {
+		t.Fatalf("variable %q = %q, want %q", name, got, want)
+	}
+}
+
+func assertScopeProperty(t *testing.T, scope *functionScope, name, want string) {
+	t.Helper()
+	typ, ok := scope.property(name)
+	if !ok {
+		t.Fatalf("scope is missing property %q", name)
+	}
+	if got := typ.String(); got != want {
+		t.Fatalf("property %q = %q, want %q", name, got, want)
+	}
+}
+
+func assertScopeVariableMissing(t *testing.T, scope *functionScope, name string) {
+	t.Helper()
+	if _, ok := scope.variable(name); ok {
+		t.Fatalf("scope unexpectedly contains variable %q", name)
+	}
+}
+
+func assertScopePropertyMissing(t *testing.T, scope *functionScope, name string) {
+	t.Helper()
+	if _, ok := scope.property(name); ok {
+		t.Fatalf("scope unexpectedly contains property %q", name)
 	}
 }
 
@@ -380,17 +509,38 @@ func assertScopeType(t *testing.T, values map[string]Type, name, want string) {
 	}
 }
 
-func assertFunctionScopeMapsShareBacking(t *testing.T, first, second *functionScope) {
+func assertFunctionScopeLayersShareBaseMaps(t *testing.T, first, second *functionScope) {
 	t.Helper()
-	if got, want := functionScopeMapPointer(first.variables), functionScopeMapPointer(second.variables); got != want {
-		t.Fatalf("variable map pointers differ: %x != %x", got, want)
+	if got, want := functionScopeLayerBaseMapPointer(first.variables), functionScopeLayerBaseMapPointer(second.variables); got != want {
+		t.Fatalf("variable base map pointers differ: %x != %x", got, want)
 	}
-	if got, want := functionScopeMapPointer(first.properties), functionScopeMapPointer(second.properties); got != want {
-		t.Fatalf("property map pointers differ: %x != %x", got, want)
+	if got, want := functionScopeLayerBaseMapPointer(first.properties), functionScopeLayerBaseMapPointer(second.properties); got != want {
+		t.Fatalf("property base map pointers differ: %x != %x", got, want)
 	}
 }
 
-func functionScopeMapPointer(values map[string]Type) uintptr {
+func functionScopeLayerBaseMapPointer(layer *scopeTypeLayer) uintptr {
+	if layer == nil {
+		return 0
+	}
+	for layer.parent != nil {
+		layer = layer.parent
+	}
+	return functionScopeMapPointer(layer.values)
+}
+
+func scopeTypeLayerLocalSize(layer *scopeTypeLayer) int {
+	if layer == nil {
+		return 0
+	}
+	size := len(layer.values)
+	if layer.hasOne {
+		size++
+	}
+	return size
+}
+
+func functionScopeMapPointer(values any) uintptr {
 	if values == nil {
 		return 0
 	}

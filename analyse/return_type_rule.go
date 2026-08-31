@@ -19,14 +19,95 @@ type observedReturn struct {
 
 type expressionTypeInferer func(filename string, expr ast.Node, scope *functionScope, ctx *AnalysisContext) Type
 
+// scopeTypeLayer is a persistent type map used by branch-sensitive scopes.
+// A clone shares its immutable layer chain; the first write adds a small
+// writable delta instead of copying every type visible at that branch.
+type scopeTypeLayer struct {
+	values map[string]Type
+	parent *scopeTypeLayer
+	depth  int
+	name   string
+	typ    Type
+	hasOne bool
+}
+
+const maxScopeTypeLayerDepth = 16
+
+func rootScopeTypeLayer(values map[string]Type) *scopeTypeLayer {
+	if values == nil {
+		values = make(map[string]Type)
+	}
+	return &scopeTypeLayer{values: values, depth: 1}
+}
+
+func deltaScopeTypeLayer(parent *scopeTypeLayer) *scopeTypeLayer {
+	if parent == nil {
+		return rootScopeTypeLayer(nil)
+	}
+	if parent.depth < maxScopeTypeLayerDepth {
+		return &scopeTypeLayer{parent: parent, depth: parent.depth + 1}
+	}
+
+	capacity := 0
+	for current := parent; current != nil; current = current.parent {
+		capacity += len(current.values)
+		if current.hasOne {
+			capacity++
+		}
+	}
+	values := make(map[string]Type, capacity)
+	layers := make([]*scopeTypeLayer, 0, parent.depth)
+	for current := parent; current != nil; current = current.parent {
+		layers = append(layers, current)
+	}
+	for i := len(layers) - 1; i >= 0; i-- {
+		for name, typ := range layers[i].values {
+			values[name] = typ
+		}
+		if layers[i].hasOne {
+			values[layers[i].name] = layers[i].typ
+		}
+	}
+	return rootScopeTypeLayer(values)
+}
+
+func (l *scopeTypeLayer) get(name string) (Type, bool) {
+	for current := l; current != nil; current = current.parent {
+		if current.hasOne && current.name == name {
+			return current.typ, true
+		}
+		if typ, ok := current.values[name]; ok {
+			return typ, true
+		}
+	}
+	return EmptyType(), false
+}
+
+func (l *scopeTypeLayer) set(name string, typ Type) {
+	if l.hasOne && l.name == name {
+		l.typ = typ
+		return
+	}
+	if !l.hasOne && len(l.values) == 0 {
+		l.name = name
+		l.typ = typ
+		l.hasOne = true
+		return
+	}
+	if l.values == nil {
+		l.values = make(map[string]Type)
+	}
+	l.values[name] = typ
+}
+
 type functionScope struct {
 	className               string
 	typeCtx                 FileTypeContext
 	propertyDecls           map[string]Type
-	variables               map[string]Type
-	properties              map[string]Type
-	variablesShared         bool
-	propertiesShared        bool
+	variables               *scopeTypeLayer
+	properties              *scopeTypeLayer
+	variablesOwned          bool
+	propertiesOwned         bool
 	methods                 map[string]ResolvedMethod
 	methodReturns           map[string]Type
 	propertyCallableReturns map[string]Type
@@ -361,7 +442,7 @@ func inferType(expr ast.Node, scope *functionScope, ctx *AnalysisContext) Type {
 		return unionInferredTypes(armTypes...)
 	case *ast.VariableNode:
 		if scope != nil {
-			if t, ok := scope.variables[n.Name]; ok {
+			if t, ok := scope.variable(n.Name); ok {
 				return t
 			}
 		}
@@ -546,8 +627,10 @@ func newFunctionScopeWithContext(ctx *AnalysisContext, class *ast.ClassNode, fn 
 	scope := &functionScope{
 		typeCtx:                 typeCtx,
 		propertyDecls:           make(map[string]Type),
-		variables:               make(map[string]Type),
-		properties:              make(map[string]Type),
+		variables:               rootScopeTypeLayer(nil),
+		properties:              rootScopeTypeLayer(nil),
+		variablesOwned:          true,
+		propertiesOwned:         true,
 		methods:                 make(map[string]ResolvedMethod),
 		methodReturns:           make(map[string]Type),
 		propertyCallableReturns: make(map[string]Type),
@@ -559,8 +642,8 @@ func newFunctionScopeWithContext(ctx *AnalysisContext, class *ast.ClassNode, fn 
 		classData := analysisClassScopeData(ctx, class, typeCtx)
 		scope.className = classData.className
 		scope.propertyDecls = classData.propertyDecls
-		scope.properties = classData.properties
-		scope.propertiesShared = true
+		scope.properties = rootScopeTypeLayer(classData.properties)
+		scope.propertiesOwned = false
 		scope.methods = classData.methods
 		scope.methodReturns = classData.methodReturns
 		scope.propertyCallableReturns = classData.propertyCallableReturns
@@ -589,7 +672,7 @@ func newFunctionScopeWithContext(ctx *AnalysisContext, class *ast.ClassNode, fn 
 			paramType = inferType(param.DefaultValue, scope, nil)
 		}
 		if !paramType.IsEmpty() {
-			scope.variables[param.Name] = paramType
+			scope.setVariable(param.Name, paramType)
 			if returnType := callableReturnType(documentedType, typeCtx); !returnType.IsEmpty() {
 				scope.setCallableReturn(param.Name, returnType)
 			}
@@ -692,8 +775,10 @@ func buildClassScopeDataWithSeen(class *ast.ClassNode, typeCtx FileTypeContext, 
 		className:               data.className,
 		typeCtx:                 typeCtx,
 		propertyDecls:           data.propertyDecls,
-		variables:               make(map[string]Type),
-		properties:              data.properties,
+		variables:               rootScopeTypeLayer(nil),
+		properties:              rootScopeTypeLayer(data.properties),
+		variablesOwned:          true,
+		propertiesOwned:         true,
 		methods:                 data.methods,
 		methodReturns:           data.methodReturns,
 		propertyCallableReturns: data.propertyCallableReturns,
@@ -1035,7 +1120,7 @@ func resolveArrayIndex(node ast.Node, scope *functionScope) arrayIndexLookup {
 			if keys := scope.arrayIndexKeys[value.Name]; len(keys) > 0 {
 				return arrayIndexLookup{keys: append([]string(nil), keys...)}
 			}
-			if typ, ok := scope.variables[value.Name]; ok {
+			if typ, ok := scope.variable(value.Name); ok {
 				return arrayIndexLookupFromType(typ)
 			}
 		}
@@ -1219,8 +1304,8 @@ func (s *functionScope) clone() *functionScope {
 	if s == nil {
 		return nil
 	}
-	s.variablesShared = true
-	s.propertiesShared = true
+	s.variablesOwned = false
+	s.propertiesOwned = false
 	s.callablesShared = true
 	s.arrayShapesShared = true
 	clone := &functionScope{
@@ -1229,8 +1314,8 @@ func (s *functionScope) clone() *functionScope {
 		propertyDecls:           s.propertyDecls,
 		variables:               s.variables,
 		properties:              s.properties,
-		variablesShared:         true,
-		propertiesShared:        true,
+		variablesOwned:          false,
+		propertiesOwned:         false,
 		methods:                 s.methods,
 		methodReturns:           s.methodReturns,
 		propertyCallableReturns: s.propertyCallableReturns,
@@ -1265,6 +1350,9 @@ func (s *functionScope) clearCallableReturn(name string) {
 	if s == nil || s.callableReturns == nil {
 		return
 	}
+	if _, exists := s.callableReturns[name]; !exists {
+		return
+	}
 	if s.callablesShared {
 		s.callableReturns = copyTypeMap(s.callableReturns)
 		s.callablesShared = false
@@ -1288,6 +1376,9 @@ func (s *functionScope) setArrayShapeCallables(name string, fields map[string]ar
 
 func (s *functionScope) clearArrayShapeCallables(name string) {
 	if s == nil || s.arrayShapeCallables == nil {
+		return
+	}
+	if _, exists := s.arrayShapeCallables[name]; !exists {
 		return
 	}
 	if s.arrayShapesShared {
@@ -1326,28 +1417,42 @@ func (s *functionScope) setVariable(name string, typ Type) {
 	if s == nil {
 		return
 	}
-	if s.variablesShared {
-		s.variables = copyTypeMap(s.variables)
-		s.variablesShared = false
-	}
 	if s.variables == nil {
-		s.variables = make(map[string]Type)
+		s.variables = rootScopeTypeLayer(nil)
+		s.variablesOwned = true
+	} else if !s.variablesOwned {
+		s.variables = deltaScopeTypeLayer(s.variables)
+		s.variablesOwned = true
 	}
-	s.variables[name] = typ
+	s.variables.set(name, typ)
 }
 
 func (s *functionScope) setProperty(name string, typ Type) {
 	if s == nil {
 		return
 	}
-	if s.propertiesShared {
-		s.properties = copyTypeMap(s.properties)
-		s.propertiesShared = false
-	}
 	if s.properties == nil {
-		s.properties = make(map[string]Type)
+		s.properties = rootScopeTypeLayer(nil)
+		s.propertiesOwned = true
+	} else if !s.propertiesOwned {
+		s.properties = deltaScopeTypeLayer(s.properties)
+		s.propertiesOwned = true
 	}
-	s.properties[name] = typ
+	s.properties.set(name, typ)
+}
+
+func (s *functionScope) variable(name string) (Type, bool) {
+	if s == nil {
+		return EmptyType(), false
+	}
+	return s.variables.get(name)
+}
+
+func (s *functionScope) property(name string) (Type, bool) {
+	if s == nil {
+		return EmptyType(), false
+	}
+	return s.properties.get(name)
 }
 
 func applyExpressionScope(scope *functionScope, expr ast.Node, ctx *AnalysisContext) {
@@ -1488,7 +1593,7 @@ func inferPropertyFetchType(node *ast.PropertyFetchNode, scope *functionScope, c
 	if object, ok := node.Object.(*ast.VariableNode); ok && object.Name == "this" && scope != nil {
 		// Narrowed/assigned type takes precedence over the declared type so
 		// that flow-based updates (e.g. lazy-init null strips) are respected.
-		if propertyType, ok := scope.properties[node.Property]; ok {
+		if propertyType, ok := scope.property(node.Property); ok {
 			return propertyType
 		}
 		if propertyType, ok := resolveSameClassPropertyType(scope, node.Property); ok {
@@ -1502,7 +1607,7 @@ func inferPropertyFetchType(node *ast.PropertyFetchNode, scope *functionScope, c
 		return MixedType()
 	}
 	if scope != nil && strings.EqualFold(className, scope.className) {
-		if propertyType, ok := scope.properties[node.Property]; ok {
+		if propertyType, ok := scope.property(node.Property); ok {
 			return propertyType
 		}
 		if propertyType, ok := resolveSameClassPropertyType(scope, node.Property); ok {
