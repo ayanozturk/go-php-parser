@@ -195,10 +195,10 @@
       "phpstanIdentifiers": []
     },
     {
-      "id": "unknown-method-callable-array-shape",
+			"id": "unknown-method-callable-array-shape",
       "capability": "unknown methods after invoking a callable array-shape element",
       "file": "unknown-method-callable-array-shape.php",
-      "engineCodes": [],
+      "engineCodes": ["PHPStan.Level2.MethodExistence"],
       "phpstanIdentifiers": ["method.notFound"]
     },
     {

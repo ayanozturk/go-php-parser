@@ -313,6 +313,36 @@ function run(Holder $holder, KnownHolder $knownHolder, string $class): void {
 	}
 }
 
+func TestLevel2UnknownMethodsOnArrayShapeCallableResults(t *testing.T) {
+	issues := runPHPStanLevelOnFiles(t, map[string]string{
+		"test.php": `<?php
+class ShapeService {}
+class KnownShapeService { public function execute(): void {} }
+
+/** @param array{service: callable(): ShapeService, known?: callable(): KnownShapeService, 0: callable(): ShapeService} $factories */
+function run(array $factories): void {
+    $factory = $factories["service"];
+    $factory()->missing();
+    $factories["service"]()->missing();
+    $copy = $factories;
+    $copy[0]()->missing();
+    $factories["known"]()->execute();
+    $factories["missing"]()->dynamic();
+}
+`,
+	}, 2)
+
+	if countIssueContaining(issues, level2MethodExistenceCode, "ShapeService::missing()") != 3 {
+		t.Fatalf("expected assigned, direct, and copied array-shape callable diagnostics, got %#v", issues)
+	}
+	if hasIssueContaining(issues, level2MethodExistenceCode, "KnownShapeService::execute()") {
+		t.Fatalf("known array-shape callable results should remain clean, got %#v", issues)
+	}
+	if hasIssueContaining(issues, level2MethodExistenceCode, "dynamic()") {
+		t.Fatalf("unknown array-shape keys should remain conservative, got %#v", issues)
+	}
+}
+
 func TestLevel2UnknownMethodHandlesMultiClassReceiversConservatively(t *testing.T) {
 	issues := runPHPStanLevelOnFiles(t, map[string]string{
 		"test.php": `<?php

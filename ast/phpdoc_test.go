@@ -188,6 +188,23 @@ func TestParsePHPDocPreservesCallableReturnAndVarTypes(t *testing.T) {
 	}
 }
 
+func TestParsePHPDocPreservesArrayShapeCallableParamType(t *testing.T) {
+	doc := ParsePHPDoc(`/**
+ * @param array{service: callable(): ShapeService} $factories Factory map
+ */`)
+
+	if len(doc.Params) != 1 {
+		t.Fatalf("expected one array-shape parameter, got %#v", doc.Params)
+	}
+	param := doc.Params[0]
+	if param.Type != "array{service: callable(): ShapeService}" {
+		t.Fatalf("array-shape parameter type = %q, want preserved shape", param.Type)
+	}
+	if param.Name != "factories" || param.Description != "Factory map" {
+		t.Fatalf("unexpected array-shape parameter metadata: %#v", param)
+	}
+}
+
 func TestGetParamTypeFromPHPDoc(t *testing.T) {
 	phpdoc := &PHPDocNode{
 		Params: []PHPDocParam{

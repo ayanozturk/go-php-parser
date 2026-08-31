@@ -164,6 +164,109 @@ func parseExactGenericTypeFromString(typeStr string) (GenericInstance, bool) {
 	return instance, true
 }
 
+func arrayShapeCallableReturns(raw string, typeCtx FileTypeContext) map[string]Type {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return nil
+	}
+	body, ok := arrayShapeBody(raw)
+	if !ok {
+		return nil
+	}
+	fields := make(map[string]Type)
+	for _, entry := range splitTopLevelTypes(body, ',') {
+		key, value, ok := splitArrayShapeEntry(entry)
+		if !ok {
+			continue
+		}
+		if returnType := callableReturnType(value, typeCtx); !returnType.IsEmpty() {
+			fields[key] = returnType
+		}
+	}
+	if len(fields) == 0 {
+		return nil
+	}
+	return fields
+}
+
+func arrayShapeBody(raw string) (string, bool) {
+	raw = strings.TrimSpace(raw)
+	raw = strings.TrimPrefix(raw, "?")
+	lower := strings.ToLower(raw)
+	start := -1
+	for _, prefix := range []string{"non-empty-array{", "array{"} {
+		if idx := strings.Index(lower, prefix); idx >= 0 {
+			start = idx + len(prefix) - 1
+			break
+		}
+	}
+	if start < 0 || start >= len(raw) || raw[start] != '{' {
+		return "", false
+	}
+	depth := 0
+	for idx := start; idx < len(raw); idx++ {
+		switch raw[idx] {
+		case '{':
+			depth++
+		case '}':
+			depth--
+			if depth == 0 {
+				return raw[start+1 : idx], true
+			}
+		}
+	}
+	return "", false
+}
+
+func splitArrayShapeEntry(entry string) (string, string, bool) {
+	entry = strings.TrimSpace(entry)
+	if entry == "" || entry == "..." {
+		return "", "", false
+	}
+	depthAngle, depthParen, depthBrace := 0, 0, 0
+	for idx, r := range entry {
+		switch r {
+		case '<':
+			depthAngle++
+		case '>':
+			if depthAngle > 0 {
+				depthAngle--
+			}
+		case '(':
+			depthParen++
+		case ')':
+			if depthParen > 0 {
+				depthParen--
+			}
+		case '{':
+			depthBrace++
+		case '}':
+			if depthBrace > 0 {
+				depthBrace--
+			}
+		case ':':
+			if depthAngle == 0 && depthParen == 0 && depthBrace == 0 {
+				key := normalizeArrayShapeKey(entry[:idx])
+				value := strings.TrimSpace(entry[idx+1:])
+				return key, value, key != "" && value != ""
+			}
+		}
+	}
+	return "", "", false
+}
+
+func normalizeArrayShapeKey(raw string) string {
+	raw = strings.TrimSpace(raw)
+	raw = strings.TrimSuffix(raw, "?")
+	raw = strings.TrimSpace(raw)
+	if len(raw) >= 2 {
+		if (raw[0] == '\'' && raw[len(raw)-1] == '\'') || (raw[0] == '"' && raw[len(raw)-1] == '"') {
+			return raw[1 : len(raw)-1]
+		}
+	}
+	return raw
+}
+
 func callableReturnType(raw string, typeCtx FileTypeContext) Type {
 	raw = strings.TrimSpace(raw)
 	open := strings.Index(raw, "(")

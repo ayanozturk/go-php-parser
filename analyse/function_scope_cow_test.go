@@ -210,6 +210,39 @@ func TestFunctionScopeClassStringMetadataClonesRemainIndependent(t *testing.T) {
 	}
 }
 
+func TestFunctionScopeArrayShapeCallablesClonesRemainIndependent(t *testing.T) {
+	root := &functionScope{arrayShapeCallables: map[string]map[string]Type{
+		"factories": {"service": ParseType("InitialService")},
+	}}
+	parent := root.clone()
+	left := parent.clone()
+	right := parent.clone()
+
+	left.setArrayShapeCallables("factories", map[string]Type{"service": ParseType("LeftService")})
+	left.setArrayShapeCallables("leftOnly", map[string]Type{"service": ParseType("bool")})
+	right.setArrayShapeCallables("factories", map[string]Type{"service": ParseType("RightService")})
+	parent.clearArrayShapeCallables("factories")
+
+	if got := root.arrayShapeCallables["factories"]["service"].String(); got != "InitialService" {
+		t.Fatalf("root array-shape callable changed through clone: %q", got)
+	}
+	if got := left.arrayShapeCallables["factories"]["service"].String(); got != "LeftService" {
+		t.Fatalf("left array-shape callable = %q, want LeftService", got)
+	}
+	if got := right.arrayShapeCallables["factories"]["service"].String(); got != "RightService" {
+		t.Fatalf("right array-shape callable = %q, want RightService", got)
+	}
+	if _, ok := parent.arrayShapeCallables["factories"]; ok {
+		t.Fatal("parent array-shape deletion leaked into root or siblings")
+	}
+	if _, ok := left.arrayShapeCallables["rightOnly"]; ok {
+		t.Fatal("right sibling array-shape leaked into left sibling")
+	}
+	if _, ok := right.arrayShapeCallables["leftOnly"]; ok {
+		t.Fatal("left sibling array-shape leaked into right sibling")
+	}
+}
+
 func TestFunctionScopeCloneNilIsSafe(t *testing.T) {
 	var scope *functionScope
 	if got := scope.clone(); got != nil {

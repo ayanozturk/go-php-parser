@@ -272,3 +272,16 @@ function processUsers(UserRepository $users) {
 		t.Logf("Issues found: %#v", argTypeIssues)
 	}
 }
+
+func TestArrayShapeCallableReturnsExtractsLiteralKeys(t *testing.T) {
+	fields := arrayShapeCallableReturns(`array{service: callable(): ShapeService, 'known'?: callable(): KnownService, 0: callable(): ShapeService, count: int, ...}`, FileTypeContext{})
+	if fields["service"].String() != "ShapeService" || fields["known"].String() != "KnownService" || fields["0"].String() != "ShapeService" {
+		t.Fatalf("unexpected array-shape callable fields: %#v", fields)
+	}
+	if _, ok := fields["count"]; ok {
+		t.Fatalf("non-callable shape keys should be ignored: %#v", fields)
+	}
+	if fields := arrayShapeCallableReturns(`?non-empty-array{factory: callable(): Service}|null`, FileTypeContext{}); fields["factory"].String() != "Service" {
+		t.Fatalf("nullable array-shape callables were not extracted: %#v", fields)
+	}
+}

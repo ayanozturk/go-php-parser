@@ -1,6 +1,6 @@
 # Default VS Code PHP Platform Progress
 
-Last updated: 2026-08-30 (Europe/London)
+Last updated: 2026-08-31 (Europe/London)
 
 This file records reproducible evidence for the cooperating `go-php-parser` engine and `vscode-php-strom` extension. PHPStan, PHPCS, and Mago are benchmark references only; no parity claim is made.
 
@@ -52,7 +52,7 @@ Representative workload: 23,556 indexed PHP files, 3,678,678 LOC, 135.68 MB, 151
 
 ## Coverage gaps
 
-- PHPStan benchmark: level 0 remains partial but is now differential-gated by 63 reviewed fixtures (symbols, `$this` methods and properties, argument counts, constructors, named arguments, class-model legality, language checks, and clean level boundaries). Level 1 variable-flow behavior remains gated by 24 reviewed fixtures; the level-2 pack now gates twenty-five protected/unknown-method cases and the level-3 throw-type pack gates one case. Typed parameters, direct, assigned, and concrete `class-string<T>` dynamic construction, named function/method/callable-variable/closure return chains, typed-property chains, class and nullable ternaries, nullable receivers, and union/intersection/DNF receivers now retain the pinned level-2 behavior. Other non-object branches, callable properties/arrays and dynamically produced callables, template-valued class strings, and higher-level per-alternative DNF availability remain partial alongside narrowing, generic inheritance, higher-level return/property/argument checks, PHPDoc validation, dynamic-call precision, and broader extension-dependent built-in signatures.
+- PHPStan benchmark: level 0 remains partial but is now differential-gated by 63 reviewed fixtures (symbols, `$this` methods and properties, argument counts, constructors, named arguments, class-model legality, language checks, and clean level boundaries). Level 1 variable-flow behavior remains gated by 24 reviewed fixtures; the level-2 pack now gates thirty-three protected/unknown-method cases and the level-3 throw-type pack gates one case. Typed parameters, direct, assigned, concrete, and template-bounded `class-string<T>` dynamic construction, named function/method/callable-variable/callable-property/callable-array-shape/declared-callable/closure return chains, typed-property chains, class and nullable ternaries, nullable receivers, and union/intersection/DNF receivers now retain the pinned level-2 behavior. Nested/dynamic shapes, other non-object branches, and higher-level per-alternative DNF availability remain partial alongside narrowing, generic inheritance, higher-level return/property/argument checks, PHPDoc validation, dynamic-call precision, and broader extension-dependent built-in signatures.
 - PHPCS benchmark: the repository comparison records 16 style rules, far below the breadth of PHPCS standards. Security-oriented source rules such as eval/backtick/forbidden-function checks are not implemented.
 - The remaining recorded pure-parser corpus gaps are two narrow Laravel vendor-code cases; intentionally invalid or corrupted fixtures stay classified separately from parser failures.
 - PHP Strom now consumes shared `SemanticSnapshot` facts, flow graphs, and variable-flow state through dependency-scoped exported-semantic revisions, changed documents use immutable incremental project-index replacement, structured analysis diagnostics use UTF-16 spans, and a synthetic editor-path trace suite accounts for cache, dependency, cancellation, publication, and fallback behavior. Remaining extension integration gaps include stale architecture documentation, unstructured parser errors and mixed style-rule point ranges, conservative name-based dependency false positives/global overflow fallback, and no full VS Code extension-activation or representative-project latency trace.
@@ -281,9 +281,15 @@ Representative workload: 23,556 indexed PHP files, 3,678,678 LOC, 135.68 MB, 151
 - A scheduled full-corpus run exposed a scope-less property-fetch panic in the level-2 fallback walker. Parser commit `97c5e60` makes that path conservative when no function scope exists; a local full PSL analysis completed 7,259/7,259 files with zero parse failures, and extension commit `cef31c7` advances the production pin to the hardened revision.
 - Parser tests, vet, and race pass. Pinned and sibling extension tests, vet, race, all six server builds, TypeScript lint/compile/package, VS Code 1.89.1 extension-host tests, the editor-latency gate, and `npm audit --audit-level=low` pass. Packaging retains the known `vscode-languageserver-types` warning and the audit reports 0 vulnerabilities.
 
+### 2026-08-31 — Declared callable, array-shape, and template class-string receivers
+
+- Parser commit `fe4dd3d` retains callable-return metadata on indexed properties, methods, interface members, and global functions, and resolves `@template T of Class` bounds for `class-string<T>` construction.
+- This follow-up extracts literal PHPDoc `array{key: callable(): T}` fields into copy-on-write function scopes so assigned, copied, and directly invoked shape elements produce the same receiver facts. Unknown keys, non-callable fields, and dynamic indexes remain conservative.
+- Eight missing/known fixtures expand level 2 from twenty-five to thirty-three cases; the complete 63-case level-0 and 33-case level-2 runs match pinned PHPStan `2.2.x-dev@e4ab62a` with zero engine or reference mismatches.
+
 ## Next ranked candidates
 
-1. **Correctness:** probe and cover remaining non-object receiver branches, callable properties/arrays and dynamically produced callables, and template-valued class strings; separately gate higher-level per-alternative DNF availability.
+1. **Correctness:** probe remaining non-object receiver branches, nested/dynamic array shapes, and remaining expression forms; separately gate higher-level per-alternative DNF availability.
 2. **Maintenance and security:** correct `FEATURES.md`, decide the legacy TypeScript server's fate, and extend deterministic fuzzing into PHPDoc/type parsing and rule execution.
 3. **Dependency refinement:** replace conservative lexical matching only after generated reference facts cover the supported resolver paths completely; do not trade false positives for stale snapshots.
 4. **Latency expansion:** add opt-in extension-host/JSON-RPC traces on pinned representative projects before making perceived-editor-latency claims; retain synthetic PR gates for deterministic accounting and absolute budgets.
