@@ -16,10 +16,17 @@ func ensureStructuralIssues(filename string, nodes []ast.Node, ctx *AnalysisCont
 		return ctx
 	}
 	fileCtx := analysisFileTypeContext(ctx, nodes)
+	collectReturn := analysisLevelAtLeast(ctx, 10)
 	walkAllWithFileContext(nodes, fileCtx, ctx, func(node ast.Node, class *ast.ClassNode, currentFn *ast.FunctionNode, ft FileTypeContext) {
 		appendMethodVisibilityOnNode(filename, node, class, currentFn, ft, ctx, &ctx.methodVisibilityIssues)
 		appendThrowTypeOnNode(filename, node, ft, ctx, &ctx.throwTypeIssues)
+		if collectReturn {
+			appendReturnTypeOnNode(filename, node, class, ft, ctx, &ctx.returnTypeIssues)
+		}
 	})
 	ctx.hasStructuralIssues = true
+	if collectReturn {
+		ctx.hasReturnTypeIssues = true
+	}
 	return ctx
 }

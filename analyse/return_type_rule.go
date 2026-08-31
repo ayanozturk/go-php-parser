@@ -144,38 +144,57 @@ func (r *ReturnTypeRule) checkFunctionReturnType(filename string, fn *ast.Functi
 }
 
 func (r *ReturnTypeRule) CheckIssues(nodes []ast.Node, filename string, ctx *AnalysisContext) []AnalysisIssue {
-	var issues []AnalysisIssue
+	return returnTypeIssuesForFile(filename, nodes, ctx)
+}
+
+func returnTypeIssuesForFile(filename string, nodes []ast.Node, ctx *AnalysisContext) []AnalysisIssue {
+	ctx = ensureStructuralIssues(filename, nodes, ctx)
+	if !ctx.hasReturnTypeIssues {
+		collectReturnTypeIssues(filename, nodes, ctx)
+	}
+	return ctx.returnTypeIssues
+}
+
+func collectReturnTypeIssues(filename string, nodes []ast.Node, ctx *AnalysisContext) {
+	if ctx.hasReturnTypeIssues {
+		return
+	}
 	fileCtx := analysisFileTypeContext(ctx, nodes)
 	walkAllWithFileContext(nodes, fileCtx, ctx, func(node ast.Node, class *ast.ClassNode, _ *ast.FunctionNode, fileCtx FileTypeContext) {
-		fn, ok := node.(*ast.FunctionNode)
-		if !ok {
-			return
-		}
-		for _, err := range r.checkFunctionReturnType(filename, fn, class, fileCtx, ctx) {
-			pos := fn.GetPos()
-			if typedErr, ok := err.(*ReturnTypeError); ok {
-				pos = typedErr.Pos
-			}
-			issues = append(issues, AnalysisIssue{
-				Filename: filename,
-				Line:     pos.Line,
-				Column:   pos.Column,
-				Code:     "A.RETURN.TYPE",
-				Message:  err.Error(),
-			})
-		}
-		if missingReturnValue(fn, filename, fileCtx, ctx) {
-			name := fn.Name
-			if name == "" {
-				name = "closure"
-			}
-			declared := declaredFunctionReturnType(fn, fileCtx).String()
-			issues = append(issues, issueSpan(filename, fn, "A.RETURN.TYPE", fmt.Sprintf(
-				"Function %s: declared return type %s but not all paths return a value", name, declared,
-			)))
-		}
+		appendReturnTypeOnNode(filename, node, class, fileCtx, ctx, &ctx.returnTypeIssues)
 	})
-	return issues
+	ctx.hasReturnTypeIssues = true
+}
+
+func appendReturnTypeOnNode(filename string, node ast.Node, class *ast.ClassNode, fileCtx FileTypeContext, ctx *AnalysisContext, issues *[]AnalysisIssue) {
+	fn, ok := node.(*ast.FunctionNode)
+	if !ok {
+		return
+	}
+	rule := ReturnTypeRule{}
+	for _, err := range rule.checkFunctionReturnType(filename, fn, class, fileCtx, ctx) {
+		pos := fn.GetPos()
+		if typedErr, ok := err.(*ReturnTypeError); ok {
+			pos = typedErr.Pos
+		}
+		*issues = append(*issues, AnalysisIssue{
+			Filename: filename,
+			Line:     pos.Line,
+			Column:   pos.Column,
+			Code:     "A.RETURN.TYPE",
+			Message:  err.Error(),
+		})
+	}
+	if missingReturnValue(fn, filename, fileCtx, ctx) {
+		name := fn.Name
+		if name == "" {
+			name = "closure"
+		}
+		declared := declaredFunctionReturnType(fn, fileCtx).String()
+		*issues = append(*issues, issueSpan(filename, fn, "A.RETURN.TYPE", fmt.Sprintf(
+			"Function %s: declared return type %s but not all paths return a value", name, declared,
+		)))
+	}
 }
 
 func missingReturnValue(fn *ast.FunctionNode, filename string, typeCtx FileTypeContext, ctx *AnalysisContext) bool {

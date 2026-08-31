@@ -181,7 +181,9 @@ type AnalysisContext struct {
 
 	methodVisibilityIssues []AnalysisIssue
 	throwTypeIssues        []AnalysisIssue
+	returnTypeIssues       []AnalysisIssue
 	hasStructuralIssues    bool
+	hasReturnTypeIssues    bool
 }
 
 func analysisLevelAtLeast(ctx *AnalysisContext, level int) bool {
