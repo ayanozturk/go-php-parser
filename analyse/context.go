@@ -171,6 +171,9 @@ type AnalysisContext struct {
 	argTypeIssues         []AnalysisIssue
 	argCountIssues        []AnalysisIssue
 	argCountSink          *[]AnalysisIssue
+	deprecatedCallIssues  []AnalysisIssue
+	deprecatedCallSink    *[]AnalysisIssue
+	deprecatedCallSeen    map[ast.Node]struct{}
 	hasArgCallDiagnostics bool
 
 	reflectionGuards    reflectionGuards

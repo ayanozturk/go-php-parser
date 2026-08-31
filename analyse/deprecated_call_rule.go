@@ -12,68 +12,42 @@ func init() {
 	})
 }
 
-// checkDeprecatedCalls flags calls to methods or functions annotated with
-// @deprecated in their PHPDoc, mirroring PHPStan/mago's deprecation check.
 func checkDeprecatedCalls(nodes []ast.Node, filename string, ctx *AnalysisContext) []AnalysisIssue {
-	var issues []AnalysisIssue
-	fileCtx := analysisFileTypeContext(ctx, nodes)
+	ctx = ensureArgCallDiagnostics(filename, nodes, ctx)
+	return ctx.deprecatedCallIssues
+}
 
-	// The statement walker can invoke the observer more than once for the
-	// same call expression (e.g. return statements); dedupe on node identity.
-	seen := make(map[ast.Node]struct{})
-
-	observer := func(filename string, expr ast.Node, scope *functionScope, ctx *AnalysisContext) {
-		if _, dup := seen[expr]; dup {
+func appendDeprecatedCallFromExpr(filename string, expr ast.Node, scope *functionScope, ctx *AnalysisContext) {
+	if ctx == nil || ctx.deprecatedCallSink == nil || expr == nil {
+		return
+	}
+	if _, dup := ctx.deprecatedCallSeen[expr]; dup {
+		return
+	}
+	switch call := expr.(type) {
+	case *ast.MethodCallNode:
+		method, ok := resolveMethodForCall(call, scope, ctx, filename)
+		if !ok || !method.Deprecated {
 			return
 		}
-		switch call := expr.(type) {
-		case *ast.MethodCallNode:
-			method, ok := resolveMethodForCall(call, scope, ctx, filename)
-			if !ok || !method.Deprecated {
-				return
-			}
-			target := method.Name
-			if method.DeclaringClass != "" {
-				target = method.DeclaringClass + "::" + method.Name
-			}
-			seen[expr] = struct{}{}
-			issues = append(issues, deprecatedCallIssue(filename, call, "method", target, method.DeprecationMessage))
-		case *ast.FunctionCallNode:
-			name := functionCallName(call)
-			if name == "" || ctx == nil || ctx.Resolver == nil {
-				return
-			}
-			fn, ok := ctx.Resolver.ResolveFunction(name)
-			if !ok || !fn.Deprecated {
-				return
-			}
-			seen[expr] = struct{}{}
-			issues = append(issues, deprecatedCallIssue(filename, call, "function", fn.Name, fn.DeprecationMessage))
+		target := method.Name
+		if method.DeclaringClass != "" {
+			target = method.DeclaringClass + "::" + method.Name
 		}
-	}
-
-	var walk func(node ast.Node, class *ast.ClassNode)
-	walk = func(node ast.Node, class *ast.ClassNode) {
-		switch n := node.(type) {
-		case *ast.ClassNode:
-			for _, methodNode := range n.Methods {
-				walk(methodNode, n)
-			}
-		case *ast.FunctionNode:
-			fnScope := analysisFunctionScope(ctx, class, n, fileCtx)
-			walkStatementsForArgTypesUsing(n.Body, fnScope, ctx, filename, nil, observer)
-		case *ast.NamespaceNode:
-			for _, child := range n.Body {
-				walk(child, class)
-			}
+		ctx.deprecatedCallSeen[expr] = struct{}{}
+		*ctx.deprecatedCallSink = append(*ctx.deprecatedCallSink, deprecatedCallIssue(filename, call, "method", target, method.DeprecationMessage))
+	case *ast.FunctionCallNode:
+		name := functionCallName(call)
+		if name == "" || ctx.Resolver == nil {
+			return
 		}
+		fn, ok := ctx.Resolver.ResolveFunction(name)
+		if !ok || !fn.Deprecated {
+			return
+		}
+		ctx.deprecatedCallSeen[expr] = struct{}{}
+		*ctx.deprecatedCallSink = append(*ctx.deprecatedCallSink, deprecatedCallIssue(filename, call, "function", fn.Name, fn.DeprecationMessage))
 	}
-
-	for _, node := range nodes {
-		walk(node, nil)
-	}
-
-	return issues
 }
 
 func deprecatedCallIssue(filename string, call ast.Node, kind, target, deprecationMessage string) AnalysisIssue {

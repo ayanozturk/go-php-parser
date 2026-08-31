@@ -24,6 +24,8 @@ func ensureArgCallDiagnostics(filename string, nodes []ast.Node, ctx *AnalysisCo
 	}
 	var typeIssues []AnalysisIssue
 	ctx.argCountSink = &ctx.argCountIssues
+	ctx.deprecatedCallSink = &ctx.deprecatedCallIssues
+	ctx.deprecatedCallSeen = make(map[ast.Node]struct{})
 	fileCtx := analysisFileTypeContext(ctx, nodes)
 	var walk func(node ast.Node, class *ast.ClassNode, scope *functionScope)
 	walk = func(node ast.Node, class *ast.ClassNode, scope *functionScope) {
@@ -45,6 +47,8 @@ func ensureArgCallDiagnostics(filename string, nodes []ast.Node, ctx *AnalysisCo
 		walk(node, nil, nil)
 	}
 	ctx.argCountSink = nil
+	ctx.deprecatedCallSink = nil
+	ctx.deprecatedCallSeen = nil
 	ctx.argTypeIssues = typeIssues
 	ctx.hasArgCallDiagnostics = true
 	return ctx
@@ -498,12 +502,14 @@ func walkExprForArgTypesUsing(node ast.Node, scope *functionScope, ctx *Analysis
 			walkExprForArgTypesUsing(argumentValue(arg), scope, ctx, filename, issues, observe)
 		}
 		observeSemanticExpression(filename, n, scope, ctx, observe)
+		appendDeprecatedCallFromExpr(filename, n, scope, ctx)
 	case *ast.FunctionCallNode:
 		observeArgumentExpressions(n.Args, scope, ctx, filename, observe)
 		for _, arg := range n.Args {
 			walkExprForArgTypesUsing(argumentValue(arg), scope, ctx, filename, issues, observe)
 		}
 		observeSemanticExpression(filename, n, scope, ctx, observe)
+		appendDeprecatedCallFromExpr(filename, n, scope, ctx)
 	case *ast.AssignmentNode:
 		walkExprForArgTypesUsing(n.Right, scope, ctx, filename, issues, observe)
 		observeSemanticExpression(filename, n.Right, scope, ctx, observe)
@@ -511,6 +517,10 @@ func walkExprForArgTypesUsing(node ast.Node, scope *functionScope, ctx *Analysis
 			assignedScope := scope.clone()
 			applyAssignmentScope(assignedScope, n, ctx)
 			walkExprForArgTypesUsing(n.Left, assignedScope, ctx, filename, issues, observe)
+		} else if ctx != nil && ctx.deprecatedCallSink != nil {
+			assignedScope := scope.clone()
+			applyAssignmentScope(assignedScope, n, ctx)
+			walkExprForArgTypesUsing(n.Left, assignedScope, ctx, filename, nil, observe)
 		}
 	case *ast.PropertyFetchNode:
 		walkExprForArgTypesUsing(n.Object, scope, ctx, filename, issues, observe)
