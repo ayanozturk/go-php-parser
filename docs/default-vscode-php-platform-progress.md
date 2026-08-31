@@ -6,9 +6,9 @@ This file records reproducible evidence for the cooperating `go-php-parser` engi
 
 ## Current baseline
 
-- Engine revision validated and consumed by PHP Strom: pushed commit `ab99bf5`.
-- Extension checkout: `/Users/ayan/Projects/vscode-php-strom`, `main` at pushed commit `296d585`; the current package version is `0.1.30`.
-- Production extension builds pin `github.com/ayanozturk/go-php-parser` at pseudo-version `v0.0.0-20260831151502-ab99bf53c3f0`. `make test-server-dev` validates the same engine through the generated, ignored sibling-workspace path.
+- Engine revision validated and consumed by PHP Strom: pushed commit `a148d43`.
+- Extension checkout: `/Users/ayan/Projects/vscode-php-strom`, `main` at pushed commit `c19fd50`; the current package version is `0.1.31`.
+- Production extension builds pin `github.com/ayanozturk/go-php-parser` at pseudo-version `v0.0.0-20260831152801-a148d43be45e`. `make test-server-dev` validates the same engine through the generated, ignored sibling-workspace path.
 - Go toolchain observed: Go 1.26.2. Node toolchain observed: Node 22.20.0 and npm 11.7.0.
 - Representative corpora are fetched at exact revisions from `test_projects/manifest.json`; generated working copies remain uncommitted.
 - The latest recorded full-corpus pass has zero failures for Composer, Drupal, Magento, PHPUnit, and WordPress. Symfony's two remaining fixtures are intentionally invalid/corrupted inputs, and Laravel has two narrow interpolation/callable edge cases. These recorded results are compatibility evidence, not a current performance result.
@@ -325,6 +325,7 @@ Representative workload: 23,556 indexed PHP files, 3,678,678 LOC, 135.68 MB, 151
 ### 2026-08-31 — Expand the PHPStan level-0 pack to eighty cases
 
 - Seventeen reviewed fixtures expand level 0 from sixty-three to eighty cases for unknown parents, invalid implements/extends/trait-use combinations, non-public interface implementations, inherited parameter/return compatibility, enum case legality, static calls to instance methods, duplicate named arguments, unknown function imports, and unknown static methods, plus a covariant-return clean control. Complete 80-case level-0 and 65-case level-2 runs match pinned PHPStan `2.2.x-dev@e4ab62a`. Left out: inherited parameter-name changes (PHPStan silent), extra-required-parameter overrides, remaining enum constructor/backing/`Serializable` cases, and `(void)`/`(unset)` casts.
+- Parser commit `a148d43` lands the pack. Extension commit `c19fd50` pins pseudo-version `v0.0.0-20260831152801-a148d43be45e` and proves the default editor path reports implementing a class, extending an interface, unit-enum values, static calls to instance methods, and unknown static methods. Pinned and sibling tests, vet, race, all six server builds, TypeScript lint/compile/package, VS Code 1.89.1 host tests, the editor-latency gate, and `npm audit --audit-level=low` pass.
 
 ## Next ranked candidates
 
