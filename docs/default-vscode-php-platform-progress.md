@@ -6,9 +6,9 @@ This file records reproducible evidence for the cooperating `go-php-parser` engi
 
 ## Current baseline
 
-- Engine revision validated and consumed by PHP Strom: pushed commit `6df9189`.
-- Extension checkout: `/Users/ayan/Projects/vscode-php-strom`, `main` at pushed commit `8dacb2b`; the current package version is `0.1.29`.
-- Production extension builds pin `github.com/ayanozturk/go-php-parser` at pseudo-version `v0.0.0-20260831141306-6df9189dbf3d`. `make test-server-dev` validates the same engine through the generated, ignored sibling-workspace path.
+- Engine revision validated and consumed by PHP Strom: pushed commit `6372f1d`.
+- Extension checkout: `/Users/ayan/Projects/vscode-php-strom`, `main` at pushed commit `5462c74`; the current package version is `0.1.29`.
+- Production extension builds pin `github.com/ayanozturk/go-php-parser` at pseudo-version `v0.0.0-20260831144126-6372f1de78af`. `make test-server-dev` validates the same engine through the generated, ignored sibling-workspace path.
 - Go toolchain observed: Go 1.26.2. Node toolchain observed: Node 22.20.0 and npm 11.7.0.
 - Representative corpora are fetched at exact revisions from `test_projects/manifest.json`; generated working copies remain uncommitted.
 - The latest recorded full-corpus pass has zero failures for Composer, Drupal, Magento, PHPUnit, and WordPress. Symfony's two remaining fixtures are intentionally invalid/corrupted inputs, and Laravel has two narrow interpolation/callable edge cases. These recorded results are compatibility evidence, not a current performance result.
@@ -46,13 +46,13 @@ Representative workload: 23,556 indexed PHP files, 3,678,678 LOC, 135.68 MB, 151
 
 ## Maintainability and architecture risks
 
-- `FEATURES.md` still describes a TypeScript/tree-sitter server architecture, while production editor features now use the Go language server and `go-php-parser`. This makes feature/architecture claims hard to audit.
+- `FEATURES.md` still contains leftover TypeScript/tree-sitter feature prose, but the architecture overview now states that production is the Go language server and `go-php-parser`. A full specification rewrite remains a ranked maintenance item.
 - The obsolete `src/server` TypeScript implementation is excluded from both the production TypeScript build and ESLint; retaining dead server code remains an architecture/deletion decision requiring separate evidence.
 - Parser AST nodes and structured analysis issues expose complete spans, and PHP Strom now converts their one-based rune coordinates against the exact source text into half-open UTF-16 LSP ranges. Parser errors still expose an unstructured string API, and style-rule coordinates come from mixed legacy producers, so those diagnostics retain point ranges pending a separate coordinate-contract migration.
 
 ## Coverage gaps
 
-- PHPStan benchmark: level 0 remains partial but is now differential-gated by 63 reviewed fixtures (symbols, `$this` methods and properties, argument counts, constructors, named arguments, class-model legality, language checks, and clean level boundaries). Level 1 variable-flow behavior remains gated by 24 reviewed fixtures; the level-2 pack now gates fifty-seven protected/unknown-method/non-object/dynamic-index cases and the level-3 throw-type pack gates one case. Typed parameters, direct, assigned, concrete, and template-bounded `class-string<T>` dynamic construction, named function/method/callable-variable/callable-property/nested-list-array-shape/declared-callable/closure return chains, clone, null-coalesce, match, and nullsafe receivers, typed-property chains, class and nullable ternaries, nullable receivers, union/intersection/DNF receivers, scalar/array/callable/iterable plus class-or-scalar `method.nonObject` cases, and assigned/concat/class-constant plus typed unknown array-shape and list indexes now retain the pinned level-2 behavior. Higher-level per-alternative DNF availability remain partial alongside remaining expression forms, narrowing, generic inheritance, higher-level return/property/argument checks, PHPDoc validation, dynamic-call precision, and broader extension-dependent built-in signatures.
+- PHPStan benchmark: level 0 remains partial but is differential-gated by 63 reviewed fixtures. Level 1 is gated by 24 variable-flow fixtures; level 2 by 57 protected/unknown-method/non-object/dynamic-index fixtures; level 3 by one throw-type fixture. Pinned reference: `PHPStan 2.2.x-dev@e4ab62a`. Remaining analyser gaps: leftover expression-form receivers, ungated level-0 unit-tested surfaces, higher-level per-alternative DNF, narrowing, generic inheritance, higher-level return/property/argument checks, PHPDoc validation, dynamic-call precision, and extension-dependent built-in signatures.
 - PHPCS benchmark: the repository comparison records 16 style rules, far below the breadth of PHPCS standards. Security-oriented source rules such as eval/backtick/forbidden-function checks are not implemented.
 - The remaining recorded pure-parser corpus gaps are two narrow Laravel vendor-code cases; intentionally invalid or corrupted fixtures stay classified separately from parser failures.
 - PHP Strom now consumes shared `SemanticSnapshot` facts, flow graphs, and variable-flow state through dependency-scoped exported-semantic revisions, changed documents use immutable incremental project-index replacement, structured analysis diagnostics use UTF-16 spans, and a synthetic editor-path trace suite accounts for cache, dependency, cancellation, publication, and fallback behavior. Remaining extension integration gaps include stale architecture documentation, unstructured parser errors and mixed style-rule point ranges, conservative name-based dependency false positives/global overflow fallback, and no full VS Code extension-activation or representative-project latency trace.
@@ -313,10 +313,16 @@ Representative workload: 23,556 indexed PHP files, 3,678,678 LOC, 135.68 MB, 151
 - Eight fixtures expand level 2 from forty-one to forty-nine cases for `int`/`array`/`callable`/`iterable`, clean `object`, and class-or-scalar unions. Complete 63-case level-0 and 49-case level-2 runs match pinned PHPStan `2.2.x-dev@e4ab62a`.
 - Parser commit `6df9189` lands the rule. Extension commit `8dacb2b` pins pseudo-version `v0.0.0-20260831141306-6df9189dbf3d`, maps the diagnostic to type-error toggles, and proves the default editor path reports the six non-object findings while `object` and known class-or-string methods stay clean. Pinned and sibling tests, vet, race, all six server builds, TypeScript lint/compile/package, VS Code 1.89.1 host tests, the editor-latency gate, and `npm audit --audit-level=low` pass.
 
+### 2026-08-31 — Roadmap tidy
+
+- Living docs now treat M0 as the working baseline and M1 as in-progress. Ranked next work is leftover level-2 expression receivers, ungated level-0 unit-tested surfaces, then higher-level DNF. Performance stays measurement-only until an isolated-host interleaved run passes the 5% CV contract. `FEATURES.md` architecture now names the Go server; leftover TypeScript/tree-sitter prose is marked obsolete.
+
 ## Next ranked candidates
 
-1. **Correctness:** remaining expression-form receivers, then higher-level per-alternative DNF availability as a separate PHPStan level.
-2. **Maintenance and security:** correct `FEATURES.md`, decide the legacy TypeScript server's fate, and extend deterministic fuzzing into PHPDoc/type parsing and rule execution.
-3. **Dependency refinement:** replace conservative lexical matching only after generated reference facts cover the supported resolver paths completely; do not trade false positives for stale snapshots.
-4. **Latency expansion:** add opt-in extension-host/JSON-RPC traces on pinned representative projects before making perceived-editor-latency claims; retain synthetic PR gates for deterministic accounting and absolute budgets. Isolated-host interleaved full-analysis comparisons remain required before any speed claim.
-5. **Source-mapping expansion:** introduce structured parser errors and audit the mixed style-rule coordinate producers before upgrading those remaining point diagnostics to ranges.
+The analyser target in `docs/full-static-analyser-target.md` is the source of truth for ordering.
+
+1. **Correctness:** remaining level-2 expression-form receivers (probe PHPStan first), then ungated level-0 unit-tested surfaces, then higher-level per-alternative DNF as a separate PHPStan level.
+2. **Maintenance:** rewrite `FEATURES.md` for the Go language server and `go-php-parser`; decide the fate of `src/server`; extend fuzzing into PHPDoc/type parsing and rule execution.
+3. **Source mapping:** structured parser errors, then style-rule coordinate producers currently stuck at points.
+4. **Dependency matching:** replace conservative lexical invalidation only after generated reference facts cover supported resolver paths.
+5. **Performance:** isolated-host interleaved full-analysis vs contemporaneous Mago; keep the 5% CV contract. Synthetic editor-path gates stay; representative VS Code traces are later. Do not treat Mago 1.5× as the next implementation slice.

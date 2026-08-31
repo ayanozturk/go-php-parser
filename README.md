@@ -4,7 +4,7 @@ A PHP parser and code style checker written in Go that generates an Abstract Syn
 
 ## Project Target
 
-The long-term target is a production-grade, full PHP static analyser with cold full-project performance comparable to Mago, without sacrificing semantic coverage or diagnostic quality. See [Full Static Analyser and Mago-Class Performance Target](docs/full-static-analyser-target.md) for the benchmark contract, architecture, milestones, and acceptance gates.
+The long-term target is a production-grade, full PHP static analyser with cold full-project performance comparable to Mago, without sacrificing semantic coverage or diagnostic quality. See [Full Static Analyser and Mago-Class Performance Target](docs/full-static-analyser-target.md) for the current pin, M1 status, ranked next actions, benchmark contract, and acceptance gates. Remaining CLI adoption work is in [Near-term CLI and adoption plan](docs/next-feature-plan.md) and is not the main stream.
 
 ## Features
 

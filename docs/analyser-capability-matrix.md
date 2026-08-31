@@ -24,7 +24,7 @@ go run ./cmd/diagnostic-diff --fixtures testdata/diagnostic-differential-level2 
 go run ./cmd/diagnostic-diff --fixtures testdata/diagnostic-differential-level3 --phpstan-bin /absolute/path/to/phpstan --json
 ```
 
-The full report records the PHPStan version returned by the supplied executable. Results from different reference versions must not be merged without review. The 63-case level-0 pack, fifty-seven-case level-2 pack, and one-case level-3 pack were last fully verified against the pinned local reference `PHPStan 2.2.x-dev@e4ab62a`. The ordinary Go suite uses engine-only mode so it does not silently download or depend on an external analyser.
+The full report records the PHPStan version returned by the supplied executable. Results from different reference versions must not be merged without review. Current executable gates: **63 / 24 / 57 / 1** (levels 0–3). The 63-case level-0 pack, fifty-seven-case level-2 pack, and one-case level-3 pack were last fully verified against the pinned local reference `PHPStan 2.2.x-dev@e4ab62a`. The ordinary Go suite uses engine-only mode so it does not silently download or depend on an external analyser. Ranked next coverage work is in `docs/full-static-analyser-target.md`.
 
 ## Executable differential coverage
 
@@ -118,7 +118,7 @@ These areas have repository unit coverage but no checked-in PHPStan differential
 
 | Capability | Status | Dependency |
 | --- | --- | --- |
-| Complete arbitrary-expression unknown method checks | Partial | Extend facts to remaining expression forms; gate higher-level per-alternative DNF availability separately |
+| Complete arbitrary-expression unknown method checks | Partial | Remaining expression forms after dynamic array-shape/list indexes; gate higher-level per-alternative DNF separately |
 | PHPDoc validation parity | Not implemented | Complete PHPDoc type validation and source mapping |
 | Full level 0 parity | Not implemented | Expand the differential pack across the agreed corpus and close reviewed mismatches |
 | Quantified false-positive/false-negative thresholds | Not established | Larger reviewed differential corpus with pinned reference reports |

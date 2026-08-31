@@ -6,7 +6,7 @@ This document records the August 2026 review of `go-php-parser` as the parser an
 
 PHP Strom's production indexer, semantic cache, diagnostics, and several language providers import this module through its canonical `github.com/ayanozturk/go-php-parser` path. Its former duplicate `server/parser` implementation has been removed, and `cmd/parse-test` now exercises the production parser adapter.
 
-The review findings below are retained as historical context. The missing ESLint configuration and asynchronous diagnostic test-harness race found during that review have since been fixed. As of extension commit `8dacb2b`, pinned and sibling-development Go tests, vet, and race suites pass, as do TypeScript lint/compile/package, all six server builds, the VS Code extension-host suite, the synthetic editor latency trace gate, structured analysis range contracts, and the current PHPStan level-boundary, DNF/nullable, callable-return, declared-callable, nested/list array-shape, clone/coalesce/match/nullsafe, template class-string, and non-object receiver integration contracts.
+The review findings below are retained as historical context. The missing ESLint configuration and asynchronous diagnostic test-harness race found during that review have since been fixed. As of extension commit `5462c74` (parser `6372f1d`, pseudo-version `v0.0.0-20260831144126-6372f1de78af`), pinned and sibling-development Go tests, vet, and race suites pass, as do TypeScript lint/compile/package, all six server builds, the VS Code extension-host suite, the synthetic editor latency trace gate, structured analysis range contracts, and the current PHPStan level-boundary, DNF/nullable, callable, nested/list shape, dynamic-index, clone/coalesce/match/nullsafe, template class-string, and non-object receiver integration contracts.
 
 ## Recommended changes
 
@@ -64,17 +64,19 @@ Status: parser AST nodes and structured analysis issues carry complete spans. PH
 
 PHP Strom previously rebuilt an analysis context around its workspace resolver without consuming the parser's shared semantic facts, control-flow graphs, or variable-flow state. That duplicated semantic work across diagnostics and language providers and left the immutable snapshot boundary unused in the editor.
 
-Status: snapshot consumption was implemented in PHP Strom commit `15abf7a`; incremental project-index replacement followed in parser commit `f1e06b9` and extension commit `d6680f2`; parser commit `db625ca` and extension commit `70fcf25` scope exported-change invalidation by dependency name and transitive class lineage. Parser commit `e97afef` and extension commit `d973d68` add explicit full-fallback accounting plus a bounded synthetic editor-path latency gate. Extension commit `e4c4c7b` adds structured UTF-16 analysis ranges. Diagnostics, hover, definition, and declaration consume per-document `SemanticSnapshot` instances over the latest immutable workspace project view. Exact document text and document-specific semantic revision govern reuse. Matching remains conservatively lexical until generated reference facts cover every supported resolver path, with bounded histories falling back globally. Background scans use transient snapshots and `didClose` releases retained state. Full extension-host and representative-project latency traces remain a later expansion; PHPStan correctness work now continues with callable properties/arrays and dynamically produced callables, template-valued class strings, other non-object receiver forms, and separately gated higher-level DNF availability.
+Status: snapshot consumption was implemented in PHP Strom commit `15abf7a`; incremental project-index replacement followed in parser commit `f1e06b9` and extension commit `d6680f2`; parser commit `db625ca` and extension commit `70fcf25` scope exported-change invalidation by dependency name and transitive class lineage. Parser commit `e97afef` and extension commit `d973d68` add explicit full-fallback accounting plus a bounded synthetic editor-path latency gate. Extension commit `e4c4c7b` adds structured UTF-16 analysis ranges. Diagnostics, hover, definition, and declaration consume per-document `SemanticSnapshot` instances over the latest immutable workspace project view. Matching remains conservatively lexical until generated reference facts cover every supported resolver path. Ranked remaining work is PHPStan-gated correctness (leftover expression receivers, ungated level-0 surfaces, then higher-level DNF), then `FEATURES.md` architecture rewrite, structured parser errors, and isolated-host performance measurement.
 
 ## Suggested implementation order
 
-1. Always collect parser errors and add malformed-input integration tests.
-2. Correct lexer coordinates and add Unicode position contract tests.
-3. Add structured parser errors and source spans.
-4. Run a shared corpus through the actual PHP Strom parser adapter.
-5. Wire PHP Strom diagnostic settings to analysis categories.
-6. Remove its duplicate parser.
-7. Publish and pin a canonical Go module version.
+Historical review order; most items below are done. Current ranked work is in `docs/full-static-analyser-target.md`.
+
+1. Always collect parser errors and add malformed-input integration tests. Done.
+2. Correct lexer coordinates and add Unicode position contract tests. Done for analysis spans; parser-error strings and style-rule points remain.
+3. Add structured parser errors and source spans. Spans done; structured parser errors remain.
+4. Run a shared corpus through the actual PHP Strom parser adapter. Done.
+5. Wire PHP Strom diagnostic settings to analysis categories. Done for the shipped toggles.
+6. Remove its duplicate parser. Done.
+7. Publish and pin a canonical Go module version. Canonical path and exact pseudo-version pins exist; a semantic version tag remains a release follow-up.
 
 ## Cross-repository contract tests
 

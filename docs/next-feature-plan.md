@@ -1,71 +1,28 @@
-# Next Feature Plan For go-php-parser
+# Near-term CLI and adoption plan
 
-> The primary long-term project target is now [Full Static Analyser and Mago-Class Performance Target](full-static-analyser-target.md). This document remains the near-term CLI and adoption plan; implementations must align with the full-analyser correctness, benchmark, and architecture gates.
+The primary project target is [Full Static Analyser and Mago-Class Performance Target](full-static-analyser-target.md). Ranked next work lives there. This file is only the remaining CLI/adoption backlog; it must not pull implementation away from PHPStan-gated M1 coverage.
 
-## Summary
+## Already in place
 
-This roadmap focuses on the next practical features for `go-php-parser`: a fast PHP parser with style rules, early analysis rules, autofix support, config, reporting, and compatibility metrics.
+- `analyze` uses one immutable project snapshot, the same registered engine as PHP Strom, deterministic diagnostics, file accounting, and stable exit codes.
+- `style` remains the compatibility command.
+- `list-files` prints the files selected by config.
+- Config still accepts `path`, `extensions`, `ignore`, `rules`, and `overrides`.
+- Incremental project indexing and a disk analysis cache exist for `analyze`; they are not a substitute for PHP Strom's overlay/scheduling layer.
 
-The goal is to make the tool easier to adopt in real PHP codebases while preserving the current command behavior and configuration shape for existing users.
+## Still open (lower priority than analyser coverage)
 
-## Key Changes
+- Split remaining CLI verbs without breaking `style`: `lint` (style + lint), `format` (registered fixers only), `config` (effective resolved config), `guard` (namespace/`use` dependency rules).
+- Config discovery for `go-phpcs.yaml` / `go-phpcs.yml` in addition to `config.yaml`, plus `--config`.
+- Shared diagnostic model across parser errors, style, analysis, and guard output.
+- Baselines for incremental adoption (`--ignore-baseline`, stale-entry warnings).
+- Machine-readable `--format text|json|github|checkstyle` on one schema.
+- Conservative formatter: refuse parse errors, apply fixers in stable rule-code order.
 
-- Split the CLI into clearer tools while keeping the current `style` command supported:
-  - `style` remains available for backwards compatibility.
-  - `lint` runs style and lint rules.
-  - `analyze` runs analysis rules. Implemented with one immutable project snapshot, deterministic text diagnostics, complete file accounting, and stable exit codes.
-  - `format` applies deterministic autofixes only.
-  - `list-files` prints the exact files selected by config.
-  - `config` prints the effective resolved configuration.
-  - `guard` checks lightweight architectural dependency rules.
-- Extend configuration without breaking current `config.yaml` fields:
-  - Keep accepting `path`, `extensions`, `ignore`, `rules`, and `overrides`.
-  - Add source path, include, exclude, and extension settings.
-  - Add separate lint, analyze, format, and guard sections.
-  - Add config discovery for `go-phpcs.yaml`, `go-phpcs.yml`, then `config.yaml`.
-  - Add a `--config` flag to override discovery.
-- Add a shared diagnostic model for parser errors, style issues, analysis issues, and guard violations.
-- Add baseline support so teams can adopt checks incrementally:
-  - Generate lint and analysis baselines.
-  - Ignore known existing issues by default when a baseline is configured.
-  - Allow `--ignore-baseline` to report all issues.
-  - Warn when baseline entries become stale.
-- Add machine-readable reporting:
-  - Keep the current human-readable output as the default.
-  - Add `--format text|json|github|checkstyle`.
-  - Use one diagnostic schema for all non-text formats.
-- Add a conservative formatter workflow:
-  - Apply only existing registered fixers at first.
-  - Run fixes in stable rule-code order.
-  - Refuse to format files with parse errors.
-- Add a lightweight architectural guard:
-  - Read namespace and `use` statements from the existing AST.
-  - Support path glob and namespace prefix matching.
-  - Report denied dependencies as normal diagnostics.
+## Constraints
 
-## Implementation Notes
-
-- Refactor command execution so each file is parsed once and then passed to the selected tool.
-- Keep `style` as the default command until a later major cleanup.
-- Avoid changing compatibility metrics; `make compat-metrics` should continue to work unchanged.
-- Keep autofix behavior opt-in and conservative.
-- Make effective config output deterministic so it can be used in tests and debugging.
-- Treat current config fields as compatibility aliases for the new config model rather than removing them.
-
-## Test Plan
-
-- Add unit tests for config discovery and migration from current `config.yaml` fields into the new effective config.
-- Add output tests for text, JSON, GitHub, and Checkstyle diagnostics.
-- Add baseline tests for generation, matching, stale entries, and `--ignore-baseline`.
-- Add CLI tests proving `style` remains supported and matches the intended lint behavior.
-- Add guard tests with small PHP fixtures for allowed and denied namespace imports.
-- Run `go test ./...`.
-- Run `make compat-metrics` to confirm parser compatibility reporting still works.
-
-## Assumptions
-
-- The first implementation should prioritize adoption features over deeper type inference.
-- YAML remains the primary config format.
-- Existing users should not need to change their current `config.yaml` immediately.
-- Formatter support should initially reuse the current fixer registry instead of adding a separate formatting engine.
-- The architectural guard should start with namespace and import rules before adding deeper dependency analysis.
+- Do not change `make compat-metrics` reporting.
+- Treat current config fields as aliases rather than removing them.
+- Keep autofix opt-in.
+- YAML remains the config format.
+- Implementations that touch analysis semantics must follow the analyser target's correctness and benchmark gates, not this file's adoption order.
