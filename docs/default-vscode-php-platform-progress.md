@@ -6,9 +6,9 @@ This file records reproducible evidence for the cooperating `go-php-parser` engi
 
 ## Current baseline
 
-- Engine revision validated and consumed by PHP Strom: pushed commit `97c5e60`.
-- Extension checkout: `/Users/ayan/Projects/vscode-php-strom`, `main` at pushed commit `cef31c7`; the current package version is `0.1.29`.
-- Production extension builds pin `github.com/ayanozturk/go-php-parser` at pseudo-version `v0.0.0-20260831124355-97c5e60e1c3d`. `make test-server-dev` validates the same engine through the generated, ignored sibling-workspace path.
+- Engine revision validated and consumed by PHP Strom: pushed commit `badc81c`.
+- Extension checkout: `/Users/ayan/Projects/vscode-php-strom`, `main` at pushed commit `b40b003`; the current package version is `0.1.29`.
+- Production extension builds pin `github.com/ayanozturk/go-php-parser` at pseudo-version `v0.0.0-20260831132841-badc81c2a8e8`. `make test-server-dev` validates the same engine through the generated, ignored sibling-workspace path.
 - Go toolchain observed: Go 1.26.2. Node toolchain observed: Node 22.20.0 and npm 11.7.0.
 - Representative corpora are fetched at exact revisions from `test_projects/manifest.json`; generated working copies remain uncommitted.
 - The latest recorded full-corpus pass has zero failures for Composer, Drupal, Magento, PHPUnit, and WordPress. Symfony's two remaining fixtures are intentionally invalid/corrupted inputs, and Laravel has two narrow interpolation/callable edge cases. These recorded results are compatibility evidence, not a current performance result.
@@ -286,6 +286,8 @@ Representative workload: 23,556 indexed PHP files, 3,678,678 LOC, 135.68 MB, 151
 - Parser commit `fe4dd3d` retains callable-return metadata on indexed properties, methods, interface members, and global functions, and resolves `@template T of Class` bounds for `class-string<T>` construction.
 - This follow-up extracts literal PHPDoc `array{key: callable(): T}` fields into copy-on-write function scopes so assigned, copied, and directly invoked shape elements produce the same receiver facts. Unknown keys, non-callable fields, and dynamic indexes remain conservative.
 - Eight missing/known fixtures expand level 2 from twenty-five to thirty-three cases; the complete 63-case level-0 and 33-case level-2 runs match pinned PHPStan `2.2.x-dev@e4ab62a` with zero engine or reference mismatches.
+- Native property type hints keep precedence over non-callable `@var` generics, and imported generic PHPDoc names such as `Collection<string, Policy>` keep their use aliases.
+- Parser tests, vet, and the analyser race suite pass. Extension commit `b40b003` pins pseudo-version `v0.0.0-20260831132841-badc81c2a8e8` and proves the default editor path reports exactly the four declared-callable, array-shape, and template class-string findings while known controls and level-0 symbols remain clean. Pinned and sibling extension tests, vet, race, all six server builds, TypeScript lint/compile/package, VS Code 1.89.1 extension-host tests, the editor-latency gate, and `npm audit --audit-level=low` pass. Packaging retains the known `vscode-languageserver-types` warning and the audit reports 0 vulnerabilities.
 
 ## Next ranked candidates
 
