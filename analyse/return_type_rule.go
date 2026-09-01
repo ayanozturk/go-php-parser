@@ -101,29 +101,36 @@ func (l *scopeTypeLayer) set(name string, typ Type) {
 }
 
 type functionScope struct {
-	className               string
-	typeCtx                 FileTypeContext
-	propertyDecls           map[string]Type
-	variables               *scopeTypeLayer
-	properties              *scopeTypeLayer
-	variablesOwned          bool
-	propertiesOwned         bool
-	methods                 map[string]ResolvedMethod
-	methodReturns           map[string]Type
-	propertyCallableReturns map[string]Type
-	callableReturns         map[string]Type
-	callablesShared         bool
-	arrayShapeCallables     map[string]map[string]arrayShapeField
-	arrayShapesShared       bool
-	arrayIndexKeys          map[string][]string
-	arrayIndexKeysShared    bool
-	classConstantValues     map[string]string
-	propertyArrayShapes     map[string]map[string]arrayShapeField
-	methodArrayShapes       map[string]map[string]arrayShapeField
+	*functionScopeContext
+	variables            *scopeTypeLayer
+	properties           *scopeTypeLayer
+	variablesOwned       bool
+	propertiesOwned      bool
+	callableReturns      map[string]Type
+	callablesShared      bool
+	arrayShapeCallables  map[string]map[string]arrayShapeField
+	arrayShapesShared    bool
+	arrayIndexKeys       map[string][]string
+	arrayIndexKeysShared bool
 	// genericContext maps variable names to their generic class instantiations
 	// e.g., "$coll" → (className: "Collection", typeArguments: ["User"])
 	genericContext       map[string]GenericInstance
 	genericContextShared bool
+}
+
+// functionScopeContext is immutable after scope construction. Branch clones
+// share it instead of copying the class and file-context map headers into every
+// short-lived functionScope value.
+type functionScopeContext struct {
+	className               string
+	typeCtx                 FileTypeContext
+	propertyDecls           map[string]Type
+	methods                 map[string]ResolvedMethod
+	methodReturns           map[string]Type
+	propertyCallableReturns map[string]Type
+	classConstantValues     map[string]string
+	propertyArrayShapes     map[string]map[string]arrayShapeField
+	methodArrayShapes       map[string]map[string]arrayShapeField
 }
 
 type classScopeData struct {
@@ -627,15 +634,17 @@ func newFunctionScope(class *ast.ClassNode, fn *ast.FunctionNode, typeCtx FileTy
 
 func newFunctionScopeWithContext(ctx *AnalysisContext, class *ast.ClassNode, fn *ast.FunctionNode, typeCtx FileTypeContext) *functionScope {
 	scope := &functionScope{
-		typeCtx:                 typeCtx,
-		propertyDecls:           make(map[string]Type),
-		variables:               rootScopeTypeLayer(nil),
-		properties:              rootScopeTypeLayer(nil),
-		variablesOwned:          true,
-		propertiesOwned:         true,
-		methods:                 make(map[string]ResolvedMethod),
-		methodReturns:           make(map[string]Type),
-		propertyCallableReturns: make(map[string]Type),
+		functionScopeContext: &functionScopeContext{
+			typeCtx:                 typeCtx,
+			propertyDecls:           make(map[string]Type),
+			methods:                 make(map[string]ResolvedMethod),
+			methodReturns:           make(map[string]Type),
+			propertyCallableReturns: make(map[string]Type),
+		},
+		variables:       rootScopeTypeLayer(nil),
+		properties:      rootScopeTypeLayer(nil),
+		variablesOwned:  true,
+		propertiesOwned: true,
 	}
 
 	if class != nil {
@@ -773,16 +782,18 @@ func buildClassScopeDataWithSeen(class *ast.ClassNode, typeCtx FileTypeContext, 
 		}
 	}
 	scope := &functionScope{
-		className:               data.className,
-		typeCtx:                 typeCtx,
-		propertyDecls:           data.propertyDecls,
-		variables:               rootScopeTypeLayer(nil),
-		properties:              rootScopeTypeLayer(data.properties),
-		variablesOwned:          true,
-		propertiesOwned:         true,
-		methods:                 data.methods,
-		methodReturns:           data.methodReturns,
-		propertyCallableReturns: data.propertyCallableReturns,
+		functionScopeContext: &functionScopeContext{
+			className:               data.className,
+			typeCtx:                 typeCtx,
+			propertyDecls:           data.propertyDecls,
+			methods:                 data.methods,
+			methodReturns:           data.methodReturns,
+			propertyCallableReturns: data.propertyCallableReturns,
+		},
+		variables:       rootScopeTypeLayer(nil),
+		properties:      rootScopeTypeLayer(data.properties),
+		variablesOwned:  true,
+		propertiesOwned: true,
 	}
 
 	for _, propertyNode := range class.Properties {
@@ -1312,27 +1323,19 @@ func (s *functionScope) clone() *functionScope {
 	s.arrayIndexKeysShared = true
 	s.genericContextShared = true
 	clone := &functionScope{
-		className:               s.className,
-		typeCtx:                 s.typeCtx,
-		propertyDecls:           s.propertyDecls,
-		variables:               s.variables,
-		properties:              s.properties,
-		variablesOwned:          false,
-		propertiesOwned:         false,
-		methods:                 s.methods,
-		methodReturns:           s.methodReturns,
-		propertyCallableReturns: s.propertyCallableReturns,
-		callableReturns:         s.callableReturns,
-		callablesShared:         true,
-		arrayShapeCallables:     s.arrayShapeCallables,
-		arrayShapesShared:       true,
-		arrayIndexKeys:          s.arrayIndexKeys,
-		arrayIndexKeysShared:    true,
-		classConstantValues:     s.classConstantValues,
-		propertyArrayShapes:     s.propertyArrayShapes,
-		methodArrayShapes:       s.methodArrayShapes,
-		genericContext:          s.genericContext,
-		genericContextShared:    true,
+		functionScopeContext: s.functionScopeContext,
+		variables:            s.variables,
+		properties:           s.properties,
+		variablesOwned:       false,
+		propertiesOwned:      false,
+		callableReturns:      s.callableReturns,
+		callablesShared:      true,
+		arrayShapeCallables:  s.arrayShapeCallables,
+		arrayShapesShared:    true,
+		arrayIndexKeys:       s.arrayIndexKeys,
+		arrayIndexKeysShared: true,
+		genericContext:       s.genericContext,
+		genericContextShared: true,
 	}
 	return clone
 }

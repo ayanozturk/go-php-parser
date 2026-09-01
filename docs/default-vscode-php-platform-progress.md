@@ -397,11 +397,17 @@ Representative workload: 23,556 indexed PHP files, 3,678,678 LOC, 135.68 MB, 151
 - The twenty-round interleaved comparison is rejected: candidate/baseline CVs were 9.00%/23.44%. Accounting was identical. See `docs/benchmarks/2026-09-01-wordpress-semantic-fact-keys.md`; no cold-speed or RSS claim is made.
 - Parser commit `8f400be` lands the storage change. Extension commit `59eb0b0` pins pseudo-version `v0.0.0-20260901182711-8f400be53b88`. Pinned and sibling tests, vet, race, all six server builds, TypeScript lint/compile/package, VS Code 1.89.1 host tests, the editor-latency gate, and a zero-vulnerability npm audit pass.
 
+### 2026-09-01 — Shared immutable function-scope context
+
+- Function-scope clones now share immutable class and file-type context through one pointer while retaining copy-on-write isolation for every mutable state family. The shallow scope value fell from 208 to 96 bytes; read-only clone time across five focused samples fell from 43.74–44.52ns to 26.68–26.97ns.
+- A three-iteration WordPress profile retained 5,357/5,357 files and 22,387 diagnostics while allocated space fell from 3,516,256,187 bytes at exact baseline `8f400be` to 3,273,965,861 bytes, a 6.9% reduction. `functionScope.clone` fell 56.7%, from 401,159,880 to 173,555,216 bytes.
+- The twenty-round interleaved comparison is rejected: candidate/baseline CVs were 23.39%/18.04%. Accounting was identical. See `docs/benchmarks/2026-09-01-wordpress-function-scope-context.md`; no cold-speed or RSS claim is made.
+
 ## Next ranked candidates
 
 The analyser target in `docs/full-static-analyser-target.md` is the source of truth for ordering.
 
-1. **Performance:** optimize the new profile leaders—the remaining per-clone scope object cost and control-flow scope/reachability maps—then keep the 5% CV contract. Do not cut rules or `vendor` to win.
+1. **Performance:** optimize the remaining control-flow scope/reachability maps, then keep the 5% CV contract. Do not cut rules or `vendor` to win.
 2. **Maintenance:** rewrite `FEATURES.md` for the Go language server after the first accepted Mago comparison; decide the fate of `src/server`.
 3. **Source mapping:** structured parser errors, then style-rule coordinate producers currently stuck at points.
 4. **Dependency matching:** replace conservative lexical invalidation only after generated reference facts cover supported resolver paths.
