@@ -149,6 +149,121 @@ func TestResolveFunctionViewReducesPerCallAllocations(t *testing.T) {
 	}
 }
 
+func TestSemanticSnapshotResolveMethodsRemainDefensive(t *testing.T) {
+	snapshot := resolverAllocationSnapshot(t)
+
+	method, ok := snapshot.ResolveMethod("AllocationProbe", "middle")
+	if !ok {
+		t.Fatal("expected AllocationProbe::middle method")
+	}
+	if got, want := len(method.Params), 2; got != want {
+		t.Fatalf("middle parameter count = %d, want %d", got, want)
+	}
+	method.Params[0].Name = "callerOnly"
+	method.Params[0].Type = "mutated"
+	method.Params = append(method.Params, ResolvedParam{Name: "extra"})
+
+	resolved, ok := snapshot.ResolveMethod("allocationprobe", "MIDDLE")
+	if !ok {
+		t.Fatal("expected AllocationProbe::middle after caller mutation")
+	}
+	if got, want := len(resolved.Params), 2; got != want {
+		t.Fatalf("ResolveMethod parameter count leaked caller mutation: got %d, want %d", got, want)
+	}
+	if resolved.Params[0].Name != "enabled" || resolved.Params[0].Type != "bool" {
+		t.Fatalf("ResolveMethod parameter metadata leaked caller mutation: %#v", resolved.Params)
+	}
+
+	method, ok = snapshot.ResolveOwnMethod("AllocationProbe", "middle")
+	if !ok {
+		t.Fatal("expected own AllocationProbe::middle method")
+	}
+	method.Params[0].Name = "callerOnly"
+	method.Params[0].Type = "mutated"
+	method.Params = append(method.Params, ResolvedParam{Name: "extra"})
+
+	resolved, ok = snapshot.ResolveOwnMethod("allocationprobe", "MIDDLE")
+	if !ok {
+		t.Fatal("expected own AllocationProbe::middle after caller mutation")
+	}
+	if got, want := len(resolved.Params), 2; got != want {
+		t.Fatalf("ResolveOwnMethod parameter count leaked caller mutation: got %d, want %d", got, want)
+	}
+	if resolved.Params[0].Name != "enabled" || resolved.Params[0].Type != "bool" {
+		t.Fatalf("ResolveOwnMethod parameter metadata leaked caller mutation: %#v", resolved.Params)
+	}
+}
+
+func TestSemanticSnapshotResolveMethodAllocationsDoNotExceedProjectIndex(t *testing.T) {
+	snapshot := resolverAllocationSnapshot(t)
+
+	// Warm both paths before measuring. The setup allocations are intentionally
+	// outside the AllocsPerRun bodies.
+	if method, ok := snapshot.ResolveMethod("AllocationProbe", "middle"); !ok {
+		t.Fatal("expected AllocationProbe::middle method")
+	} else {
+		consumeResolvedMethodForAllocationTest(method)
+	}
+	if method, ok := snapshot.project.ResolveMethod("AllocationProbe", "middle"); !ok {
+		t.Fatal("expected project AllocationProbe::middle method")
+	} else {
+		consumeResolvedMethodForAllocationTest(method)
+	}
+
+	snapshotAllocs := testing.AllocsPerRun(100, func() {
+		method, ok := snapshot.ResolveMethod("AllocationProbe", "middle")
+		if !ok {
+			t.Fatal("snapshot method lookup unexpectedly failed")
+		}
+		consumeResolvedMethodForAllocationTest(method)
+	})
+	projectAllocs := testing.AllocsPerRun(100, func() {
+		method, ok := snapshot.project.ResolveMethod("AllocationProbe", "middle")
+		if !ok {
+			t.Fatal("project method lookup unexpectedly failed")
+		}
+		consumeResolvedMethodForAllocationTest(method)
+	})
+	if snapshotAllocs > projectAllocs {
+		t.Fatalf("snapshot ResolveMethod allocations = %v, project ResolveMethod allocations = %v; snapshot should not add a defensive Params copy", snapshotAllocs, projectAllocs)
+	}
+}
+
+func TestSemanticSnapshotResolveOwnMethodAllocationsDoNotExceedProjectIndex(t *testing.T) {
+	snapshot := resolverAllocationSnapshot(t)
+
+	// Warm both paths before measuring. The setup allocations are intentionally
+	// outside the AllocsPerRun bodies.
+	if method, ok := snapshot.ResolveOwnMethod("AllocationProbe", "middle"); !ok {
+		t.Fatal("expected own AllocationProbe::middle method")
+	} else {
+		consumeResolvedMethodForAllocationTest(method)
+	}
+	if method, ok := snapshot.project.ResolveOwnMethod("AllocationProbe", "middle"); !ok {
+		t.Fatal("expected project own AllocationProbe::middle method")
+	} else {
+		consumeResolvedMethodForAllocationTest(method)
+	}
+
+	snapshotAllocs := testing.AllocsPerRun(100, func() {
+		method, ok := snapshot.ResolveOwnMethod("AllocationProbe", "middle")
+		if !ok {
+			t.Fatal("snapshot own method lookup unexpectedly failed")
+		}
+		consumeResolvedMethodForAllocationTest(method)
+	})
+	projectAllocs := testing.AllocsPerRun(100, func() {
+		method, ok := snapshot.project.ResolveOwnMethod("AllocationProbe", "middle")
+		if !ok {
+			t.Fatal("project own method lookup unexpectedly failed")
+		}
+		consumeResolvedMethodForAllocationTest(method)
+	})
+	if snapshotAllocs > projectAllocs {
+		t.Fatalf("snapshot ResolveOwnMethod allocations = %v, project ResolveOwnMethod allocations = %v; snapshot should not add a defensive Params copy", snapshotAllocs, projectAllocs)
+	}
+}
+
 func TestRangeMethodsDeclaredByVisitsStableOrderedMethodsWithoutParamClones(t *testing.T) {
 	snapshot := resolverAllocationSnapshot(t)
 

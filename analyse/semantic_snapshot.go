@@ -429,7 +429,6 @@ func (s *SemanticSnapshot) ResolveMethod(className, methodName string) (Resolved
 	if method.ID == "" {
 		method.ID = stableSymbolID("method", method.DeclaringClass, method.Name)
 	}
-	method.Params = append([]ResolvedParam(nil), method.Params...)
 	return method, true
 }
 
@@ -451,7 +450,6 @@ func (s *SemanticSnapshot) ResolveOwnMethod(className, methodName string) (Resol
 	if method.ID == "" {
 		method.ID = stableSymbolID("method", method.DeclaringClass, method.Name)
 	}
-	method.Params = append([]ResolvedParam(nil), method.Params...)
 	return method, true
 }
 
