@@ -1724,7 +1724,7 @@ func resolveSameClassPropertyType(scope *functionScope, propertyName string) (Ty
 }
 
 func init() {
-	RegisterAnalysisRuleWithLevel("A.RETURN.TYPE", 10, "types", func(filename string, nodes []ast.Node, ctx *AnalysisContext) []AnalysisIssue {
+	RegisterAnalysisRuleWithLevel("A.RETURN.TYPE", 3, "level3", func(filename string, nodes []ast.Node, ctx *AnalysisContext) []AnalysisIssue {
 		rule := &ReturnTypeRule{}
 		return rule.CheckIssues(nodes, filename, ctx)
 	})

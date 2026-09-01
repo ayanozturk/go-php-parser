@@ -11,6 +11,62 @@
       "file": "invalid-throw.php",
       "engineCodes": ["Level3.ThrowType"],
       "phpstanIdentifiers": ["throw.notThrowable"]
+    },
+    {
+      "id": "function-return-type-mismatch",
+      "capability": "function return type mismatches",
+      "file": "function-return-type-mismatch.php",
+      "engineCodes": ["A.RETURN.TYPE"],
+      "phpstanIdentifiers": ["return.type"]
+    },
+    {
+      "id": "method-return-type-mismatch",
+      "capability": "method return type mismatches",
+      "file": "method-return-type-mismatch.php",
+      "engineCodes": ["A.RETURN.TYPE"],
+      "phpstanIdentifiers": ["return.type"]
+    },
+    {
+      "id": "missing-return",
+      "capability": "missing returns on non-exhaustive integer functions",
+      "file": "missing-return.php",
+      "engineCodes": ["A.RETURN.TYPE"],
+      "phpstanIdentifiers": ["return.missing"]
+    },
+    {
+      "id": "clean-int-return",
+      "capability": "clean integer returns",
+      "file": "clean-int-return.php",
+      "engineCodes": [],
+      "phpstanIdentifiers": []
+    },
+    {
+      "id": "clean-nullable-null-return",
+      "capability": "clean nullable null returns",
+      "file": "clean-nullable-null-return.php",
+      "engineCodes": [],
+      "phpstanIdentifiers": []
+    },
+    {
+      "id": "this-property-type-mismatch",
+      "capability": "$this typed-property assignment mismatches",
+      "file": "this-property-type-mismatch.php",
+      "engineCodes": ["A.PROP.TYPE"],
+      "phpstanIdentifiers": ["assign.propertyType"]
+    },
+    {
+      "id": "parameter-property-type-mismatch",
+      "capability": "typed-parameter receiver property assignment mismatches",
+      "file": "parameter-property-type-mismatch.php",
+      "engineCodes": ["A.PROP.TYPE"],
+      "phpstanIdentifiers": ["assign.propertyType"]
+    },
+    {
+      "id": "clean-this-property-assignment",
+      "capability": "clean typed-property assignments",
+      "file": "clean-this-property-assignment.php",
+      "engineCodes": [],
+      "phpstanIdentifiers": []
     }
   ]
 }
