@@ -6,16 +6,16 @@ This file records reproducible evidence for the cooperating `go-php-parser` engi
 
 ## Current baseline
 
-- Engine revision validated and consumed by PHP Strom: pushed commit `e629d42`.
-- Extension checkout: `/Users/ayan/Projects/vscode-php-strom`, `main` at pushed commit `8348748`; the current package version is `0.1.34`.
-- Production extension builds pin `github.com/ayanozturk/go-php-parser` at pseudo-version `v0.0.0-20260831163118-e629d4267f4c`. `make test-server-dev` validates the same engine through the generated, ignored sibling-workspace path.
-- Go toolchain observed: Go 1.26.2. Node toolchain observed: Node 22.20.0 and npm 11.7.0.
+- Engine revision validated and consumed by PHP Strom: pushed commit `8f400be`.
+- Extension checkout: `/Users/ayan/Projects/vscode-php-strom`, `main` at pushed commit `59eb0b0`; the current package version is `0.1.34`.
+- Production extension builds pin `github.com/ayanozturk/go-php-parser` at pseudo-version `v0.0.0-20260901182711-8f400be53b88`. `make test-server-dev` validates the same engine through the generated, ignored sibling-workspace path.
+- Go toolchain observed: Go 1.27.0. Node toolchain observed: Node 26.8.1 and npm 11.19.0.
 - Representative corpora are fetched at exact revisions from `test_projects/manifest.json`; generated working copies remain uncommitted.
 - The latest recorded full-corpus pass has zero failures for Composer, Drupal, Magento, PHPUnit, and WordPress. Symfony's two remaining fixtures are intentionally invalid/corrupted inputs, and Laravel has two narrow interpolation/callable edge cases. These recorded results are compatibility evidence, not a current performance result.
 
 ## Security and fuzzing
 
-- Clean `npm ci` plus `npm audit --audit-level=low`: 0 known vulnerabilities across 531 installed dependencies on 2026-08-22.
+- `npm audit --audit-level=low`: 0 known vulnerabilities across 531 installed packages on 2026-09-01. Extension commit `59eb0b0` refreshes `browserslist` from 4.28.2 to 4.28.8 and updates its lockfile-only metadata dependencies.
 - GitHub remote verification after push: 0 open Dependabot alerts, 33 fixed Dependabot alerts, and 0 open secret-scanning alerts. The push-time banner briefly reported 26 alerts while GitHub recalculated the default branch; the alerts API is the recorded final state.
 - `govulncheck`, `gosec`, `staticcheck`, and `golangci-lint` were not installed; no result is claimed for them.
 - Both Go repositories now have deterministic malformed-PHP fuzz targets. Pinned GitHub Actions smoke jobs run the parser panic/cancellation targets for 15s/10s and the production index/diagnostic wrapper for 20s, each with a 10-minute job timeout and read-only repository permissions.
@@ -395,6 +395,7 @@ Representative workload: 23,556 indexed PHP files, 3,678,678 LOC, 135.68 MB, 151
 - Built-in fact kinds use separate per-file maps with packed ordinary source spans, while generated inferred facts omit the external-value field. Custom kinds, caller-supplied values, large offsets, exact lookup, deterministic enumeration, and duplicate handling keep their existing contracts.
 - A three-iteration WordPress profile retained 5,357/5,357 files and 22,387 diagnostics while allocated space fell from 3,873,268,076 bytes at exact baseline `cfc1c50` to 3,516,256,187 bytes, a 9.2% reduction. Semantic-fact insertion fell 44.3%, from 783,376,032 to 435,973,845 bytes.
 - The twenty-round interleaved comparison is rejected: candidate/baseline CVs were 9.00%/23.44%. Accounting was identical. See `docs/benchmarks/2026-09-01-wordpress-semantic-fact-keys.md`; no cold-speed or RSS claim is made.
+- Parser commit `8f400be` lands the storage change. Extension commit `59eb0b0` pins pseudo-version `v0.0.0-20260901182711-8f400be53b88`. Pinned and sibling tests, vet, race, all six server builds, TypeScript lint/compile/package, VS Code 1.89.1 host tests, the editor-latency gate, and a zero-vulnerability npm audit pass.
 
 ## Next ranked candidates
 
