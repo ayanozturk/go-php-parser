@@ -655,3 +655,28 @@ function run(Service $service): void {
 		t.Fatal("later method-receiver rules must reuse the cached walk result")
 	}
 }
+
+func TestLevel2ResolvesTraitMethodsOnUsingClass(t *testing.T) {
+	issues := runAnalysisLevelOnFiles(t, map[string]string{
+		"created.php": `<?php
+namespace App\Entity\Traits;
+trait CreatedDateTrait {
+    public function getCreatedDate(): mixed { return null; }
+}
+`,
+		"entity.php": `<?php
+namespace App\Entity;
+use App\Entity\Traits\CreatedDateTrait;
+class InvitedUser {
+    use CreatedDateTrait;
+}
+function run(InvitedUser $user): mixed {
+    return $user->getCreatedDate();
+}
+`,
+	}, 2)
+
+	if hasIssueContaining(issues, level2MethodExistenceCode, "getCreatedDate") {
+		t.Fatalf("trait methods should resolve on the using class, got %#v", issues)
+	}
+}

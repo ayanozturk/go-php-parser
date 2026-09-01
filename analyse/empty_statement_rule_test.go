@@ -87,3 +87,19 @@ func TestNoFalsePositiveInStatements(t *testing.T) {
 		t.Fatalf("unexpected empty statement issue: %v", issues)
 	}
 }
+
+func TestDoWhileConditionSemicolonIsNotEmptyStatement(t *testing.T) {
+	php := "<?php\ndo {\n    $token = next_token();\n} while ($token !== null);\n"
+	issues := runEmptyStatementAnalysis(t, php)
+	if hasEmptyStatementIssue(issues) {
+		t.Fatalf("do-while terminator should not be an empty statement, got %v", issues)
+	}
+}
+
+func TestEmptyWhileAfterBlockStillReported(t *testing.T) {
+	php := "<?php\nif ($ready) {\n    work();\n}\nwhile ($drain) ;\n"
+	issues := runEmptyStatementAnalysis(t, php)
+	if !hasEmptyStatementIssue(issues) {
+		t.Fatalf("expected empty while body after a closed block, got %v", issues)
+	}
+}

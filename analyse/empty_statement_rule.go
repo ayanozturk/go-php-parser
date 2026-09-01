@@ -163,7 +163,11 @@ func (r *EmptyStatementRule) CheckIssuesWithSource(filename string, content []by
 							k++
 						}
 						if depth == 0 {
-							ctrl = pendingCtrl{keyword: "while", line: i + 1, colAfterParen: k + 1, active: true}
+							keyword := "while"
+							if isDoWhileHeader(line, j) {
+								keyword = "do-while"
+							}
+							ctrl = pendingCtrl{keyword: keyword, line: i + 1, colAfterParen: k + 1, active: true}
 							j = k
 							hasCodeSinceBoundary = true
 							continue
@@ -195,14 +199,16 @@ func (r *EmptyStatementRule) CheckIssuesWithSource(filename string, content []by
 				} else if ch == '{' {
 					ctrl.active = false // has body, not empty
 				} else if ch == ';' {
-					// Empty control statement
-					issues = append(issues, AnalysisIssue{
-						Filename: filename,
-						Line:     i + 1,
-						Column:   j + 1,
-						Code:     "Generic.CodeAnalysis.EmptyStatement",
-						Message:  "Empty statement detected",
-					})
+					if ctrl.keyword != "do-while" {
+						// Empty control statement
+						issues = append(issues, AnalysisIssue{
+							Filename: filename,
+							Line:     i + 1,
+							Column:   j + 1,
+							Code:     "Generic.CodeAnalysis.EmptyStatement",
+							Message:  "Empty statement detected",
+						})
+					}
 					ctrl.active = false
 				} else {
 					// Some code appears; cancel pending
@@ -274,6 +280,14 @@ func containsEmptyStatementControlCandidate(line string) bool {
 		}
 	}
 	return false
+}
+
+func isDoWhileHeader(line string, whilePos int) bool {
+	i := whilePos - 1
+	for i >= 0 && isASCIISpace(line[i]) {
+		i--
+	}
+	return i >= 0 && line[i] == '}'
 }
 
 func hasKeywordAtASCII(line string, start int, keyword string) bool {

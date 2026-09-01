@@ -179,6 +179,77 @@ final class Demo {
 	}
 }
 
+func TestLevel0RecognizesCoreDateTimeExceptionAndFilesystemBuiltins(t *testing.T) {
+	issues := runLevel0OnFiles(t, map[string]string{
+		"test.php": `<?php
+class AppError extends RuntimeException {}
+
+function run(DateTimeInterface $clock, Throwable $error): string
+{
+    $now = new DateTime('now');
+    $immutable = new DateTimeImmutable('tomorrow', new DateTimeZone('UTC'));
+    $now->modify('+1 day');
+    $now->setTime(1, 2, 3);
+    json_encode(['ok' => true]);
+    file_put_contents(tempnam(sys_get_temp_dir(), 'hr'), json_decode('{}'));
+    throw new InvalidArgumentException('missing');
+    return $clock->format('c') . $error->getMessage() . (new ReflectionClass(self::class))->getProperty('run')->getName();
+}
+
+function wrap(): AppError
+{
+    return new AppError('failed');
+}
+`,
+	})
+
+	for _, unexpected := range []string{
+		"Instantiated class RuntimeException not found",
+		"Instantiated class InvalidArgumentException not found",
+		"Function json_encode not found",
+		"Function json_decode not found",
+		"Function file_put_contents not found",
+		"Function tempnam not found",
+		"Class DateTime constructor invoked with 1 parameter, at most 0 allowed",
+		"Class DateTimeImmutable constructor invoked with 2 parameters, at most 0 allowed",
+		"Class AppError constructor invoked with 1 parameter, at most 0 allowed",
+		"extends unknown class RuntimeException",
+	} {
+		if hasIssueContaining(issues, level0SymbolsCode, unexpected) || hasIssueContaining(issues, level0InvocationCode, unexpected) || hasIssueContaining(issues, level0ClassModelCode, unexpected) {
+			t.Fatalf("unexpected builtin false positive %q, got %#v", unexpected, issues)
+		}
+	}
+}
+
+func TestLevel2RecognizesDateTimeAndReflectionMethods(t *testing.T) {
+	issues := runAnalysisLevelOnFiles(t, map[string]string{
+		"test.php": `<?php
+function run(DateTime $now, ReflectionClass $reflector, ReflectionProperty $property, ReflectionMethod $method): void
+{
+    $now->format('c');
+    $now->modify('+1 day');
+    $reflector->getProperty('name');
+    $reflector->hasMethod('run');
+    $property->setValue(null, 'x');
+    $method->invoke(null);
+}
+`,
+	}, 2)
+
+	for _, unexpected := range []string{
+		"Call to an undefined method DateTime::format()",
+		"Call to an undefined method DateTime::modify()",
+		"Call to an undefined method ReflectionClass::getProperty()",
+		"Call to an undefined method ReflectionClass::hasMethod()",
+		"Call to an undefined method ReflectionProperty::setValue()",
+		"Call to an undefined method ReflectionMethod::invoke()",
+	} {
+		if hasIssueContaining(issues, level2MethodExistenceCode, unexpected) {
+			t.Fatalf("unexpected method false positive %q, got %#v", unexpected, issues)
+		}
+	}
+}
+
 func TestLevel0ParentConstructorCallIsNotStaticInstanceCall(t *testing.T) {
 	issues := runLevel0OnFiles(t, map[string]string{
 		"test.php": `<?php
