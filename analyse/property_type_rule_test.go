@@ -15,6 +15,15 @@ func hasPropertyTypeIssue(issues []AnalysisIssue) bool {
 	return false
 }
 
+func hasAssignOpInvalidIssue(issues []AnalysisIssue) bool {
+	for _, issue := range issues {
+		if issue.Code == assignOpInvalidCode {
+			return true
+		}
+	}
+	return false
+}
+
 func TestPropertyAssignmentTypeMismatch(t *testing.T) {
 	php := `<?php
     class Example {
@@ -60,7 +69,7 @@ func TestStaticPropertyAssignmentTypeMismatch(t *testing.T) {
 	}
 }
 
-func TestCompoundPropertyAssignmentDoesNotTreatOperandAsResult(t *testing.T) {
+func TestInvalidCompoundPropertyAssignmentUsesOperationDiagnostic(t *testing.T) {
 	php := `<?php
     class Example {
         private int $count;
@@ -72,6 +81,38 @@ func TestCompoundPropertyAssignmentDoesNotTreatOperandAsResult(t *testing.T) {
 	issues := analysePHP(t, php)
 	if hasPropertyTypeIssue(issues) {
 		t.Fatalf("compound assignment requires operation-result analysis, got misleading property issue: %#v", issues)
+	}
+	if !hasAssignOpInvalidIssue(issues) {
+		t.Fatalf("expected %s for invalid compound assignment, got: %#v", assignOpInvalidCode, issues)
+	}
+}
+
+func TestCompoundAssignmentResultMatrix(t *testing.T) {
+	tests := []struct {
+		name     string
+		operator string
+		left     string
+		right    string
+		result   string
+		valid    bool
+		known    bool
+	}{
+		{name: "integer addition", operator: "+=", left: "int", right: "int", result: "int", valid: true, known: true},
+		{name: "float promotion", operator: "+=", left: "int", right: "float", result: "float", valid: true, known: true},
+		{name: "array union", operator: "+=", left: "array", right: "array", result: "array", valid: true, known: true},
+		{name: "invalid numeric string", operator: "+=", left: "int", right: "string", valid: false, known: true},
+		{name: "concatenation", operator: ".=", left: "int", right: "string", result: "string", valid: true, known: true},
+		{name: "unsupported boolean arithmetic", operator: "+=", left: "bool", right: "int", valid: false, known: false},
+		{name: "coalesce assignment handled elsewhere", operator: "??=", left: "int", right: "int", valid: false, known: false},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			result, valid, known := compoundAssignmentResult(test.operator, ParseType(test.left), ParseType(test.right))
+			if valid != test.valid || known != test.known || result.String() != test.result {
+				t.Fatalf("result = (%s, %t, %t), want (%s, %t, %t)", result.String(), valid, known, test.result, test.valid, test.known)
+			}
+		})
 	}
 }
 

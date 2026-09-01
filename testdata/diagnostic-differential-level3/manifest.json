@@ -109,6 +109,27 @@
       "file": "clean-never-throw.php",
       "engineCodes": [],
       "phpstanIdentifiers": []
+    },
+    {
+      "id": "assign-op-invalid-int-string",
+      "capability": "invalid integer property compound additions",
+      "file": "assign-op-invalid-int-string.php",
+      "engineCodes": ["A.ASSIGN.OP.INVALID"],
+      "phpstanIdentifiers": ["assignOp.invalid"]
+    },
+    {
+      "id": "property-concat-type-mismatch",
+      "capability": "string concatenation into integer properties",
+      "file": "property-concat-type-mismatch.php",
+      "engineCodes": ["A.PROP.TYPE"],
+      "phpstanIdentifiers": ["assign.propertyType"]
+    },
+    {
+      "id": "clean-string-property-concat",
+      "capability": "string property compound concatenation",
+      "file": "clean-string-property-concat.php",
+      "engineCodes": [],
+      "phpstanIdentifiers": []
     }
   ]
 }

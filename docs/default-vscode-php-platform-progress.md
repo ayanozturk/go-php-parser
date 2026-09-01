@@ -432,11 +432,18 @@ Representative workload: 23,556 indexed PHP files, 3,678,678 LOC, 135.68 MB, 151
 - Parser commit `335b8e5` lands the rules and gates. Extension commit `043e07d` pins pseudo-version `v0.0.0-20260901201526-335b8e5fae30`; parser and server tests, vet, race, six target builds, TypeScript lint/compile/package, VS Code host tests, and the zero-vulnerability audit pass.
 - This focused correctness batch deliberately skips the corpus benchmark. Performance comparisons are now periodic guardrails for representative batches and structural hot-path changes.
 
+### 2026-09-01 — PHPStan compound assignments at levels 2 and 3
+
+- New `A.ASSIGN.OP.INVALID` enters at PHPStan level 2 and matches `assignOp.invalid` for definitely invalid numeric/string and array/scalar compound additions, with integer and array clean controls.
+- At level 3, valid compound-operation results now flow into `A.PROP.TYPE`; concatenating into an integer property reports `assign.propertyType`, while string-property concatenation stays clean.
+- The two rules share one cached assignment traversal. Seven neutral fixtures bring the executable gates to 88/24/69/18/5/5 against PHPStan 2.2.5.
+- Refined numeric-string, bitwise, and object-conversion cases remain conservative. This focused correctness batch does not run the corpus benchmark.
+
 ## Next ranked candidates
 
 The analyser target in `docs/full-static-analyser-target.md` is the source of truth for ordering.
 
-1. **Correctness:** add exact compound-assignment result checking and PHPStan `assignOp.invalid`, then probe void-return purity and broader level-3 inference.
+1. **Correctness:** probe void-return purity and broader level-3 expression inference, then expand level-2 PHPDoc validation.
 2. **Performance:** retain the same-machine Mago resource envelope as a periodic guardrail for representative batches and structural hot-path changes.
 3. **Maintenance:** rewrite `FEATURES.md` for the Go language server and decide the fate of `src/server`.
 4. **Source mapping:** structured parser errors, then style-rule coordinate producers currently stuck at points.

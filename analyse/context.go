@@ -226,11 +226,13 @@ type AnalysisContext struct {
 	reflectionGuards    reflectionGuards
 	hasReflectionGuards bool
 
-	methodVisibilityIssues []AnalysisIssue
-	throwTypeIssues        []AnalysisIssue
-	returnTypeIssues       []AnalysisIssue
-	hasStructuralIssues    bool
-	hasReturnTypeIssues    bool
+	methodVisibilityIssues  []AnalysisIssue
+	throwTypeIssues         []AnalysisIssue
+	returnTypeIssues        []AnalysisIssue
+	hasStructuralIssues     bool
+	hasReturnTypeIssues     bool
+	assignmentTypeIssues    []AnalysisIssue
+	hasAssignmentTypeIssues bool
 }
 
 func analysisLevelAtLeast(ctx *AnalysisContext, level int) bool {

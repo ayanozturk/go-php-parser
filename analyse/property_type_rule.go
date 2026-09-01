@@ -8,7 +8,25 @@ import (
 
 type PropertyTypeRule struct{}
 
+const assignOpInvalidCode = "A.ASSIGN.OP.INVALID"
+
 func (r *PropertyTypeRule) CheckIssues(nodes []ast.Node, filename string, ctx *AnalysisContext) []AnalysisIssue {
+	return filterIssuesByCode(assignmentTypeIssuesForFile(filename, nodes, ctx), "A.PROP.TYPE")
+}
+
+func assignmentTypeIssuesForFile(filename string, nodes []ast.Node, ctx *AnalysisContext) []AnalysisIssue {
+	if ctx == nil {
+		ctx = &AnalysisContext{}
+	}
+	if ctx.hasAssignmentTypeIssues {
+		return ctx.assignmentTypeIssues
+	}
+	ctx.assignmentTypeIssues = collectAssignmentTypeIssues(nodes, filename, ctx)
+	ctx.hasAssignmentTypeIssues = true
+	return ctx.assignmentTypeIssues
+}
+
+func collectAssignmentTypeIssues(nodes []ast.Node, filename string, ctx *AnalysisContext) []AnalysisIssue {
 	var issues []AnalysisIssue
 	fileCtx := analysisFileTypeContext(ctx, nodes)
 	var walk func(node ast.Node, class *ast.ClassNode)
@@ -137,27 +155,31 @@ func walkAssignmentForPropertyTypes(assign *ast.AssignmentNode, scope *functionS
 	}
 
 	walkExprForPropertyTypes(assign.Right, scope, ctx, filename, issues)
+
+	actual := inferTypeWithFacts(filename, assign.Right, scope, ctx)
 	if assign.Operator != "=" {
-		// Compound assignments require checking the operation's result type and
-		// may instead produce PHPStan's assignOp.invalid diagnostic. Do not
-		// misclassify the right-hand operand as the assigned property value.
+		leftType := inferAssignmentTargetType(assign.Left, scope, ctx, filename)
+		result, valid, known := compoundAssignmentResult(assign.Operator, leftType, actual)
+		if known && !valid {
+			*issues = append(*issues, issueSpan(filename, assign, assignOpInvalidCode, fmt.Sprintf(
+				"Invalid compound assignment %s between %s and %s", assign.Operator, typeLabel(leftType), typeLabel(actual),
+			)))
+			return
+		}
+		if !known {
+			return
+		}
+		actual = result
+	}
+	if !analysisLevelAtLeast(ctx, 3) {
 		return
 	}
 
-	var expected Type
-	var propertyName string
-	var ok bool
-	switch left := assign.Left.(type) {
-	case *ast.PropertyFetchNode:
-		expected, propertyName, ok = resolvePropertyTypeForAssignment(left, scope, ctx, filename)
-	case *ast.ClassConstFetchNode:
-		expected, propertyName, ok = resolveStaticPropertyTypeForAssignment(left, scope, ctx)
-	}
+	expected, propertyName, ok := resolvePropertyAssignmentTarget(assign.Left, scope, ctx, filename)
 	if !ok || expected.IsEmpty() {
 		return
 	}
 
-	actual := inferTypeWithFacts(filename, assign.Right, scope, ctx)
 	if expected.AcceptsWithContext(actual, scope, ctx) {
 		return
 	}
@@ -174,6 +196,103 @@ func walkAssignmentForPropertyTypes(assign *ast.AssignmentNode, scope *functionS
 		Code:     "A.PROP.TYPE",
 		Message:  fmt.Sprintf("Property %s expects %s, got %s", propertyName, expected.String(), actualLabel),
 	})
+}
+
+func resolvePropertyAssignmentTarget(left ast.Node, scope *functionScope, ctx *AnalysisContext, filename string) (Type, string, bool) {
+	switch target := left.(type) {
+	case *ast.PropertyFetchNode:
+		return resolvePropertyTypeForAssignment(target, scope, ctx, filename)
+	case *ast.ClassConstFetchNode:
+		return resolveStaticPropertyTypeForAssignment(target, scope, ctx)
+	default:
+		return EmptyType(), "", false
+	}
+}
+
+func inferAssignmentTargetType(left ast.Node, scope *functionScope, ctx *AnalysisContext, filename string) Type {
+	if expected, _, ok := resolvePropertyAssignmentTarget(left, scope, ctx, filename); ok {
+		return expected
+	}
+	return inferTypeWithFacts(filename, left, scope, ctx)
+}
+
+func compoundAssignmentResult(operator string, left, right Type) (Type, bool, bool) {
+	leftName, leftOK := singleCompoundBuiltin(left)
+	rightName, rightOK := singleCompoundBuiltin(right)
+	if !leftOK || !rightOK {
+		return EmptyType(), false, false
+	}
+
+	switch operator {
+	case "+=":
+		if leftName == "array" || rightName == "array" {
+			if leftName == "array" && rightName == "array" {
+				return ParseType("array"), true, true
+			}
+			return EmptyType(), false, true
+		}
+		return numericCompoundResult(leftName, rightName)
+	case "-=", "*=", "/=", "**=":
+		return numericCompoundResult(leftName, rightName)
+	case "%=", "<<=", ">>=":
+		if isNumericCompoundType(leftName) && isNumericCompoundType(rightName) {
+			return ParseType("int"), true, true
+		}
+		return EmptyType(), false, true
+	case ".=":
+		if leftName == "array" || rightName == "array" {
+			return EmptyType(), false, true
+		}
+		return ParseType("string"), true, true
+	default:
+		return EmptyType(), false, false
+	}
+}
+
+func numericCompoundResult(left, right string) (Type, bool, bool) {
+	if !isNumericCompoundType(left) || !isNumericCompoundType(right) {
+		if !isKnownCompoundOperand(left) || !isKnownCompoundOperand(right) {
+			return EmptyType(), false, false
+		}
+		return EmptyType(), false, true
+	}
+	if left == "float" || right == "float" {
+		return ParseType("float"), true, true
+	}
+	return ParseType("int"), true, true
+}
+
+func isKnownCompoundOperand(name string) bool {
+	switch name {
+	case "array", "float", "int", "string":
+		return true
+	default:
+		return false
+	}
+}
+
+func isNumericCompoundType(name string) bool {
+	return name == "int" || name == "float"
+}
+
+func singleCompoundBuiltin(typ Type) (string, bool) {
+	if len(typ.atoms) != 1 {
+		return "", false
+	}
+	for _, atom := range typ.atoms {
+		if atom.kind != typeKindBuiltin || atom.key == "mixed" {
+			return "", false
+		}
+		return atom.key, true
+	}
+	return "", false
+}
+
+func typeLabel(typ Type) string {
+	if label := typ.String(); label != "" {
+		return label
+	}
+	return "mixed"
 }
 
 func resolveStaticPropertyTypeForAssignment(fetch *ast.ClassConstFetchNode, scope *functionScope, ctx *AnalysisContext) (Type, string, bool) {
@@ -250,8 +369,10 @@ func resolvePropertyTypeForAssignment(fetch *ast.PropertyFetchNode, scope *funct
 }
 
 func init() {
+	RegisterAnalysisRuleWithLevel(assignOpInvalidCode, 2, "level2", func(filename string, nodes []ast.Node, ctx *AnalysisContext) []AnalysisIssue {
+		return filterIssuesByCode(assignmentTypeIssuesForFile(filename, nodes, ctx), assignOpInvalidCode)
+	})
 	RegisterAnalysisRuleWithLevel("A.PROP.TYPE", 3, "level3", func(filename string, nodes []ast.Node, ctx *AnalysisContext) []AnalysisIssue {
-		rule := &PropertyTypeRule{}
-		return rule.CheckIssues(nodes, filename, ctx)
+		return filterIssuesByCode(assignmentTypeIssuesForFile(filename, nodes, ctx), "A.PROP.TYPE")
 	})
 }

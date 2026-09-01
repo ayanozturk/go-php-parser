@@ -459,6 +459,34 @@
       "file": "unknown-method-list-object-index.php",
       "engineCodes": ["Level2.MethodExistence"],
       "phpstanIdentifiers": ["method.notFound"]
+    },
+    {
+      "id": "assign-op-invalid-int-string",
+      "capability": "invalid integer property compound additions",
+      "file": "assign-op-invalid-int-string.php",
+      "engineCodes": ["A.ASSIGN.OP.INVALID"],
+      "phpstanIdentifiers": ["assignOp.invalid"]
+    },
+    {
+      "id": "assign-op-invalid-array-int",
+      "capability": "invalid array property compound additions",
+      "file": "assign-op-invalid-array-int.php",
+      "engineCodes": ["A.ASSIGN.OP.INVALID"],
+      "phpstanIdentifiers": ["assignOp.invalid"]
+    },
+    {
+      "id": "clean-int-property-add",
+      "capability": "valid integer property compound additions",
+      "file": "clean-int-property-add.php",
+      "engineCodes": [],
+      "phpstanIdentifiers": []
+    },
+    {
+      "id": "clean-array-property-add",
+      "capability": "valid array property compound additions",
+      "file": "clean-array-property-add.php",
+      "engineCodes": [],
+      "phpstanIdentifiers": []
     }
   ]
 }
