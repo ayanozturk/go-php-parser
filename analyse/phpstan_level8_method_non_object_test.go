@@ -44,7 +44,7 @@ function ternary(bool $flag): void {
 `,
 	}
 
-	level7Issues := runPHPStanLevelOnFiles(t, files, 7)
+	level7Issues := runAnalysisLevelOnFiles(t, files, 7)
 	if hasIssueContaining(level7Issues, level8MethodNonObjectCode, "Cannot call method") {
 		t.Fatalf("level seven should exclude level-eight nullable diagnostics, got %#v", level7Issues)
 	}
@@ -52,7 +52,7 @@ function ternary(bool $flag): void {
 		t.Fatalf("known nullable object methods should stay clean at level two, got %#v", level7Issues)
 	}
 
-	level8Issues := runPHPStanLevelOnFiles(t, files, 8)
+	level8Issues := runAnalysisLevelOnFiles(t, files, 8)
 	for _, expected := range []string{
 		"execute() on Service|null.",
 		"execute() on (Executable&Marker)|null.",

@@ -7,16 +7,16 @@ import (
 )
 
 const (
-	level0SymbolsCode    = "PHPStan.Level0.Symbols"
-	level0ClassModelCode = "PHPStan.Level0.ClassModel"
-	level0InvocationCode = "PHPStan.Level0.Invocation"
-	level1VariablesCode  = "PHPStan.Level1.Variables"
-	level0LanguageCode   = "PHPStan.Level0.Language"
+	level0SymbolsCode    = "Level0.Symbols"
+	level0ClassModelCode = "Level0.ClassModel"
+	level0InvocationCode = "Level0.Invocation"
+	level1VariablesCode  = "Level1.Variables"
+	level0LanguageCode   = "Level0.Language"
 )
 
-type PHPStanLevel0Rule struct{}
+type Level0Rule struct{}
 
-func (r *PHPStanLevel0Rule) CheckIssues(filename string, nodes []ast.Node, ctx *AnalysisContext) []AnalysisIssue {
+func (r *Level0Rule) CheckIssues(filename string, nodes []ast.Node, ctx *AnalysisContext) []AnalysisIssue {
 	ctx = ensureLevel0Context(filename, nodes, ctx)
 	fileCtx := analysisFileTypeContext(ctx, nodes)
 	guards := collectReflectionGuards(nodes, ctx, fileCtx)
@@ -52,8 +52,8 @@ func ensureLevel0Context(filename string, nodes []ast.Node, ctx *AnalysisContext
 }
 
 func init() {
-	RegisterAnalysisRuleWithLevel(level0SymbolsCode, 0, "phpstan.level0", func(filename string, nodes []ast.Node, ctx *AnalysisContext) []AnalysisIssue {
-		return (&PHPStanLevel0Rule{}).CheckIssues(filename, nodes, ctx)
+	RegisterAnalysisRuleWithLevel(level0SymbolsCode, 0, "level0", func(filename string, nodes []ast.Node, ctx *AnalysisContext) []AnalysisIssue {
+		return (&Level0Rule{}).CheckIssues(filename, nodes, ctx)
 	})
-	RegisterAnalysisRuleWithLevel(level1VariablesCode, 1, "phpstan.level1", checkUndefinedVariables)
+	RegisterAnalysisRuleWithLevel(level1VariablesCode, 1, "level1", checkUndefinedVariables)
 }

@@ -7,7 +7,7 @@ import (
 	"github.com/ayanozturk/go-php-parser/ast"
 )
 
-const level8MethodNonObjectCode = "PHPStan.Level8.MethodNonObject"
+const level8MethodNonObjectCode = "Level8.MethodNonObject"
 
 func checkLevel8MethodNonObject(filename string, nodes []ast.Node, ctx *AnalysisContext) []AnalysisIssue {
 	return filterIssuesByCode(methodReceiverIssuesForFile(filename, nodes, ctx), level8MethodNonObjectCode)
@@ -107,5 +107,5 @@ func dnfAlternativeProvidesMethodOrObject(receiverType Type, keys []string, meth
 }
 
 func init() {
-	RegisterAnalysisRuleWithLevel(level8MethodNonObjectCode, 8, "phpstan.level8", checkLevel8MethodNonObject)
+	RegisterAnalysisRuleWithLevel(level8MethodNonObjectCode, 8, "level8", checkLevel8MethodNonObject)
 }

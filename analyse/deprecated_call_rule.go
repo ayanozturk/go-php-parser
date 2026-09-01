@@ -7,7 +7,7 @@ import (
 )
 
 func init() {
-	RegisterAnalysisRuleWithLevel("A.DEPRECATED.CALL", 10, "phpstan.deprecated", func(filename string, nodes []ast.Node, ctx *AnalysisContext) []AnalysisIssue {
+	RegisterAnalysisRuleWithLevel("A.DEPRECATED.CALL", 10, "deprecated", func(filename string, nodes []ast.Node, ctx *AnalysisContext) []AnalysisIssue {
 		return checkDeprecatedCalls(nodes, filename, ctx)
 	})
 }

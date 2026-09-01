@@ -133,7 +133,7 @@ func isBuiltinTerminatorCall(call *ast.FunctionCallNode) bool {
 }
 
 func init() {
-	RegisterAnalysisRuleWithLevel("Generic.CodeAnalysis.UnreachableCode", 4, "phpstan.deadCode", func(filename string, nodes []ast.Node, ctx *AnalysisContext) []AnalysisIssue {
+	RegisterAnalysisRuleWithLevel("Generic.CodeAnalysis.UnreachableCode", 4, "deadCode", func(filename string, nodes []ast.Node, ctx *AnalysisContext) []AnalysisIssue {
 		rule := &UnreachableCodeRule{}
 		return rule.CheckIssuesWithContext(nodes, filename, ctx)
 	})

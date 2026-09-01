@@ -11,12 +11,12 @@ throw new MissingThrowable();
 `,
 	}
 
-	level2Issues := runPHPStanLevelOnFiles(t, files, 2)
+	level2Issues := runAnalysisLevelOnFiles(t, files, 2)
 	if hasIssueContaining(level2Issues, level3ThrowTypeCode, "to throw") {
 		t.Fatalf("level two should exclude level-three throw diagnostics, got %#v", level2Issues)
 	}
 
-	level3Issues := runPHPStanLevelOnFiles(t, files, 3)
+	level3Issues := runAnalysisLevelOnFiles(t, files, 3)
 	if hasIssueContaining(level3Issues, level3ThrowTypeCode, "Invalid type Exception to throw") {
 		t.Fatalf("Exception should be throwable, got %#v", level3Issues)
 	}

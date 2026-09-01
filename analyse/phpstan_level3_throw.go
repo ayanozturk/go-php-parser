@@ -6,7 +6,7 @@ import (
 	"github.com/ayanozturk/go-php-parser/ast"
 )
 
-const level3ThrowTypeCode = "PHPStan.Level3.ThrowType"
+const level3ThrowTypeCode = "Level3.ThrowType"
 
 func checkLevel3ThrowTypes(filename string, nodes []ast.Node, ctx *AnalysisContext) []AnalysisIssue {
 	return throwTypeIssuesForFile(filename, nodes, ctx)
@@ -36,5 +36,5 @@ func appendThrowTypeOnNode(filename string, node ast.Node, ft FileTypeContext, c
 }
 
 func init() {
-	RegisterAnalysisRuleWithLevel(level3ThrowTypeCode, 3, "phpstan.level3", checkLevel3ThrowTypes)
+	RegisterAnalysisRuleWithLevel(level3ThrowTypeCode, 3, "level3", checkLevel3ThrowTypes)
 }

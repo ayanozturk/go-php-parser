@@ -10,7 +10,7 @@
       "capability": "unknown classes",
       "file": "unknown-class.php",
       "engineCodes": [
-        "PHPStan.Level0.Symbols"
+        "Level0.Symbols"
       ],
       "phpstanIdentifiers": [
         "class.notFound"
@@ -21,7 +21,7 @@
       "capability": "unknown classes in static calls",
       "file": "static-call-unknown-class.php",
       "engineCodes": [
-        "PHPStan.Level0.Symbols"
+        "Level0.Symbols"
       ],
       "phpstanIdentifiers": [
         "class.notFound"
@@ -32,7 +32,7 @@
       "capability": "unknown catch types",
       "file": "unknown-catch-class.php",
       "engineCodes": [
-        "PHPStan.Level0.Symbols"
+        "Level0.Symbols"
       ],
       "phpstanIdentifiers": [
         "class.notFound"
@@ -43,7 +43,7 @@
       "capability": "unknown parameter type references",
       "file": "unknown-parameter-type.php",
       "engineCodes": [
-        "PHPStan.Level0.Symbols"
+        "Level0.Symbols"
       ],
       "phpstanIdentifiers": [
         "class.notFound"
@@ -54,7 +54,7 @@
       "capability": "unknown functions",
       "file": "unknown-function.php",
       "engineCodes": [
-        "PHPStan.Level0.Symbols"
+        "Level0.Symbols"
       ],
       "phpstanIdentifiers": [
         "function.notFound"
@@ -65,7 +65,7 @@
       "capability": "unknown methods called on $this",
       "file": "unknown-this-method.php",
       "engineCodes": [
-        "PHPStan.Level0.Symbols"
+        "Level0.Symbols"
       ],
       "phpstanIdentifiers": [
         "method.notFound"
@@ -83,7 +83,7 @@
       "capability": "unknown properties accessed on $this",
       "file": "unknown-this-property.php",
       "engineCodes": [
-        "PHPStan.Level0.Symbols"
+        "Level0.Symbols"
       ],
       "phpstanIdentifiers": [
         "property.notFound"
@@ -94,8 +94,8 @@
       "capability": "using $this in a static method",
       "file": "this-in-static.php",
       "engineCodes": [
-        "PHPStan.Level0.Symbols",
-        "PHPStan.Level0.Symbols"
+        "Level0.Symbols",
+        "Level0.Symbols"
       ],
       "phpstanIdentifiers": [
         "variable.undefined",
@@ -107,7 +107,7 @@
       "capability": "unknown class constants",
       "file": "unknown-class-constant.php",
       "engineCodes": [
-        "PHPStan.Level0.Symbols"
+        "Level0.Symbols"
       ],
       "phpstanIdentifiers": [
         "classConstant.notFound"
@@ -118,7 +118,7 @@
       "capability": "unknown attribute classes",
       "file": "unknown-attribute.php",
       "engineCodes": [
-        "PHPStan.Level0.Symbols"
+        "Level0.Symbols"
       ],
       "phpstanIdentifiers": [
         "attribute.notFound"
@@ -129,7 +129,7 @@
       "capability": "unknown imported constants",
       "file": "unknown-const-import.php",
       "engineCodes": [
-        "PHPStan.Level0.Symbols"
+        "Level0.Symbols"
       ],
       "phpstanIdentifiers": [
         "constant.notFound"
@@ -140,7 +140,7 @@
       "capability": "unknown property type references",
       "file": "unknown-property-type.php",
       "engineCodes": [
-        "PHPStan.Level0.Symbols"
+        "Level0.Symbols"
       ],
       "phpstanIdentifiers": [
         "class.notFound"
@@ -151,7 +151,7 @@
       "capability": "unknown return type references",
       "file": "unknown-return-type.php",
       "engineCodes": [
-        "PHPStan.Level0.Symbols"
+        "Level0.Symbols"
       ],
       "phpstanIdentifiers": [
         "class.notFound"
@@ -162,7 +162,7 @@
       "capability": "unknown static properties",
       "file": "unknown-static-property.php",
       "engineCodes": [
-        "PHPStan.Level0.Symbols"
+        "Level0.Symbols"
       ],
       "phpstanIdentifiers": [
         "staticProperty.notFound"
@@ -173,7 +173,7 @@
       "capability": "static access to an instance property",
       "file": "static-access-instance-property.php",
       "engineCodes": [
-        "PHPStan.Level0.Symbols"
+        "Level0.Symbols"
       ],
       "phpstanIdentifiers": [
         "property.staticAccess"
@@ -184,7 +184,7 @@
       "capability": "private class constant visibility",
       "file": "private-class-constant.php",
       "engineCodes": [
-        "PHPStan.Level0.Symbols"
+        "Level0.Symbols"
       ],
       "phpstanIdentifiers": [
         "classConstant.private"
@@ -195,7 +195,7 @@
       "capability": "protected class constant visibility",
       "file": "protected-class-constant.php",
       "engineCodes": [
-        "PHPStan.Level0.Symbols"
+        "Level0.Symbols"
       ],
       "phpstanIdentifiers": [
         "classConstant.protected"
@@ -206,7 +206,7 @@
       "capability": "constructor argument counts",
       "file": "constructor-argument-count.php",
       "engineCodes": [
-        "PHPStan.Level0.Invocation"
+        "Level0.Invocation"
       ],
       "phpstanIdentifiers": [
         "arguments.count"
@@ -217,7 +217,7 @@
       "capability": "instantiating a protected constructor",
       "file": "instantiate-protected-constructor.php",
       "engineCodes": [
-        "PHPStan.Level0.Invocation"
+        "Level0.Invocation"
       ],
       "phpstanIdentifiers": [
         "new.protectedConstructor"
@@ -228,7 +228,7 @@
       "capability": "positional arguments after named arguments",
       "file": "named-before-positional.php",
       "engineCodes": [
-        "PHPStan.Level0.Invocation"
+        "Level0.Invocation"
       ],
       "phpstanIdentifiers": [
         "argument.missing",
@@ -240,7 +240,7 @@
       "capability": "function argument counts",
       "file": "argument-count.php",
       "engineCodes": [
-        "PHPStan.Level0.Invocation"
+        "Level0.Invocation"
       ],
       "phpstanIdentifiers": [
         "arguments.count"
@@ -251,7 +251,7 @@
       "capability": "method argument counts on $this",
       "file": "this-method-argument-count.php",
       "engineCodes": [
-        "PHPStan.Level0.Invocation"
+        "Level0.Invocation"
       ],
       "phpstanIdentifiers": [
         "arguments.count"
@@ -262,7 +262,7 @@
       "capability": "private method visibility from a subclass",
       "file": "private-method-from-subclass.php",
       "engineCodes": [
-        "PHPStan.Level0.Invocation"
+        "Level0.Invocation"
       ],
       "phpstanIdentifiers": [
         "method.private"
@@ -273,7 +273,7 @@
       "capability": "instantiating a private constructor",
       "file": "instantiate-private-constructor.php",
       "engineCodes": [
-        "PHPStan.Level0.Invocation"
+        "Level0.Invocation"
       ],
       "phpstanIdentifiers": [
         "new.privateConstructor"
@@ -284,7 +284,7 @@
       "capability": "constructor arguments on a class without a constructor",
       "file": "extra-constructor-arguments.php",
       "engineCodes": [
-        "PHPStan.Level0.Invocation"
+        "Level0.Invocation"
       ],
       "phpstanIdentifiers": [
         "new.noConstructor"
@@ -295,7 +295,7 @@
       "capability": "unknown named arguments",
       "file": "unknown-named-parameter.php",
       "engineCodes": [
-        "PHPStan.Level0.Invocation"
+        "Level0.Invocation"
       ],
       "phpstanIdentifiers": [
         "argument.missing",
@@ -321,7 +321,7 @@
       "capability": "printf argument counts",
       "file": "printf-arguments.php",
       "engineCodes": [
-        "PHPStan.Level0.Invocation"
+        "Level0.Invocation"
       ],
       "phpstanIdentifiers": [
         "argument.printf"
@@ -332,8 +332,8 @@
       "capability": "consistent constructor child compatibility",
       "file": "consistent-child-constructor.php",
       "engineCodes": [
-        "PHPStan.Level0.ClassModel",
-        "PHPStan.Level0.ClassModel"
+        "Level0.ClassModel",
+        "Level0.ClassModel"
       ],
       "phpstanIdentifiers": [
         "method.visibility",
@@ -345,7 +345,7 @@
       "capability": "private constructors with consistent-constructor tags",
       "file": "consistent-private-constructor.php",
       "engineCodes": [
-        "PHPStan.Level0.ClassModel"
+        "Level0.ClassModel"
       ],
       "phpstanIdentifiers": [
         "consistentConstructor.private"
@@ -356,7 +356,7 @@
       "capability": "extending a final class",
       "file": "extends-final-class.php",
       "engineCodes": [
-        "PHPStan.Level0.ClassModel"
+        "Level0.ClassModel"
       ],
       "phpstanIdentifiers": [
         "class.extendsFinal"
@@ -367,7 +367,7 @@
       "capability": "unknown implemented interfaces",
       "file": "unknown-interface.php",
       "engineCodes": [
-        "PHPStan.Level0.ClassModel"
+        "Level0.ClassModel"
       ],
       "phpstanIdentifiers": [
         "interface.notFound"
@@ -378,7 +378,7 @@
       "capability": "unknown used traits",
       "file": "unknown-trait.php",
       "engineCodes": [
-        "PHPStan.Level0.ClassModel"
+        "Level0.ClassModel"
       ],
       "phpstanIdentifiers": [
         "trait.notFound"
@@ -389,7 +389,7 @@
       "capability": "instantiating an abstract class",
       "file": "instantiate-abstract-class.php",
       "engineCodes": [
-        "PHPStan.Level0.ClassModel"
+        "Level0.ClassModel"
       ],
       "phpstanIdentifiers": [
         "new.abstract"
@@ -400,7 +400,7 @@
       "capability": "instantiating an interface",
       "file": "instantiate-interface.php",
       "engineCodes": [
-        "PHPStan.Level0.ClassModel"
+        "Level0.ClassModel"
       ],
       "phpstanIdentifiers": [
         "new.interface"
@@ -411,7 +411,7 @@
       "capability": "instantiating an enum",
       "file": "instantiate-enum.php",
       "engineCodes": [
-        "PHPStan.Level0.ClassModel"
+        "Level0.ClassModel"
       ],
       "phpstanIdentifiers": [
         "new.enum"
@@ -422,7 +422,7 @@
       "capability": "overriding a final parent method",
       "file": "final-method-override.php",
       "engineCodes": [
-        "PHPStan.Level0.ClassModel"
+        "Level0.ClassModel"
       ],
       "phpstanIdentifiers": [
         "method.parentMethodFinal"
@@ -433,7 +433,7 @@
       "capability": "final abstract classes",
       "file": "final-abstract-class.php",
       "engineCodes": [
-        "PHPStan.Level0.ClassModel"
+        "Level0.ClassModel"
       ],
       "phpstanIdentifiers": [
         "phpstan.parse"
@@ -444,7 +444,7 @@
       "capability": "final abstract methods",
       "file": "final-abstract-method.php",
       "engineCodes": [
-        "PHPStan.Level0.ClassModel"
+        "Level0.ClassModel"
       ],
       "phpstanIdentifiers": [
         "phpstan.parse"
@@ -455,7 +455,7 @@
       "capability": "overriding a final class constant",
       "file": "final-constant-override.php",
       "engineCodes": [
-        "PHPStan.Level0.ClassModel"
+        "Level0.ClassModel"
       ],
       "phpstanIdentifiers": [
         "classConstant.final"
@@ -466,7 +466,7 @@
       "capability": "private final class constants",
       "file": "private-final-constant.php",
       "engineCodes": [
-        "PHPStan.Level0.ClassModel"
+        "Level0.ClassModel"
       ],
       "phpstanIdentifiers": [
         "classConstant.finalPrivate"
@@ -477,7 +477,7 @@
       "capability": "abstract methods in a non-abstract class",
       "file": "abstract-method-in-concrete-class.php",
       "engineCodes": [
-        "PHPStan.Level0.ClassModel"
+        "Level0.ClassModel"
       ],
       "phpstanIdentifiers": [
         "method.abstract",
@@ -489,7 +489,7 @@
       "capability": "missing interface method implementations",
       "file": "missing-interface-method.php",
       "engineCodes": [
-        "PHPStan.Level0.ClassModel"
+        "Level0.ClassModel"
       ],
       "phpstanIdentifiers": [
         "method.abstract"
@@ -500,7 +500,7 @@
       "capability": "constructor return types",
       "file": "constructor-return-type.php",
       "engineCodes": [
-        "PHPStan.Level0.ClassModel"
+        "Level0.ClassModel"
       ],
       "phpstanIdentifiers": [
         "constructor.returnType"
@@ -511,7 +511,7 @@
       "capability": "readonly class extending a non-readonly class",
       "file": "readonly-extends-non-readonly.php",
       "engineCodes": [
-        "PHPStan.Level0.ClassModel"
+        "Level0.ClassModel"
       ],
       "phpstanIdentifiers": [
         "class.readOnly"
@@ -522,7 +522,7 @@
       "capability": "non-readonly class extending a readonly class",
       "file": "mutable-extends-readonly.php",
       "engineCodes": [
-        "PHPStan.Level0.ClassModel"
+        "Level0.ClassModel"
       ],
       "phpstanIdentifiers": [
         "class.nonReadOnly"
@@ -533,7 +533,7 @@
       "capability": "instantiating a trait",
       "file": "instantiate-trait.php",
       "engineCodes": [
-        "PHPStan.Level0.ClassModel"
+        "Level0.ClassModel"
       ],
       "phpstanIdentifiers": [
         "new.trait"
@@ -544,7 +544,7 @@
       "capability": "private abstract methods",
       "file": "abstract-private-method.php",
       "engineCodes": [
-        "PHPStan.Level0.ClassModel"
+        "Level0.ClassModel"
       ],
       "phpstanIdentifiers": [
         "method.abstractPrivate"
@@ -555,7 +555,7 @@
       "capability": "missing abstract parent method implementations",
       "file": "missing-abstract-parent-method.php",
       "engineCodes": [
-        "PHPStan.Level0.ClassModel"
+        "Level0.ClassModel"
       ],
       "phpstanIdentifiers": [
         "method.abstract"
@@ -566,7 +566,7 @@
       "capability": "non-public interface methods",
       "file": "interface-private-method.php",
       "engineCodes": [
-        "PHPStan.Level0.ClassModel"
+        "Level0.ClassModel"
       ],
       "phpstanIdentifiers": [
         "method.visibility"
@@ -577,7 +577,7 @@
       "capability": "private interface constants",
       "file": "interface-private-constant.php",
       "engineCodes": [
-        "PHPStan.Level0.ClassModel"
+        "Level0.ClassModel"
       ],
       "phpstanIdentifiers": []
     },
@@ -586,7 +586,7 @@
       "capability": "protected interface constants",
       "file": "interface-protected-constant.php",
       "engineCodes": [
-        "PHPStan.Level0.ClassModel"
+        "Level0.ClassModel"
       ],
       "phpstanIdentifiers": []
     },
@@ -595,7 +595,7 @@
       "capability": "duplicate enum case values",
       "file": "enum-duplicate-value.php",
       "engineCodes": [
-        "PHPStan.Level0.ClassModel"
+        "Level0.ClassModel"
       ],
       "phpstanIdentifiers": [
         "enum.duplicateValue"
@@ -606,7 +606,7 @@
       "capability": "duplicate literal array keys",
       "file": "duplicate-array-key.php",
       "engineCodes": [
-        "PHPStan.Level0.Language"
+        "Level0.Language"
       ],
       "phpstanIdentifiers": [
         "array.duplicateKey"
@@ -617,7 +617,7 @@
       "capability": "undefined goto labels",
       "file": "unknown-goto.php",
       "engineCodes": [
-        "PHPStan.Level0.Language"
+        "Level0.Language"
       ],
       "phpstanIdentifiers": [
         "goto.labelUndefined"
@@ -628,7 +628,7 @@
       "capability": "incrementing a literal",
       "file": "increment-literal.php",
       "engineCodes": [
-        "PHPStan.Level0.Language"
+        "Level0.Language"
       ],
       "phpstanIdentifiers": [
         "phpstan.parse"
@@ -639,7 +639,7 @@
       "capability": "missing included files",
       "file": "missing-include.php",
       "engineCodes": [
-        "PHPStan.Level0.Language"
+        "Level0.Language"
       ],
       "phpstanIdentifiers": [
         "include.fileNotFound"
@@ -650,7 +650,7 @@
       "capability": "invalid regex patterns",
       "file": "invalid-regex.php",
       "engineCodes": [
-        "PHPStan.Level0.Language"
+        "Level0.Language"
       ],
       "phpstanIdentifiers": [
         "regexp.pattern"
@@ -682,7 +682,7 @@
       "capability": "extending an unknown class",
       "file": "extends-unknown-class.php",
       "engineCodes": [
-        "PHPStan.Level0.ClassModel"
+        "Level0.ClassModel"
       ],
       "phpstanIdentifiers": [
         "class.notFound"
@@ -693,7 +693,7 @@
       "capability": "implementing a class as an interface",
       "file": "implements-class.php",
       "engineCodes": [
-        "PHPStan.Level0.ClassModel"
+        "Level0.ClassModel"
       ],
       "phpstanIdentifiers": [
         "classImplements.class"
@@ -704,7 +704,7 @@
       "capability": "extending an interface as a class",
       "file": "extends-interface.php",
       "engineCodes": [
-        "PHPStan.Level0.ClassModel"
+        "Level0.ClassModel"
       ],
       "phpstanIdentifiers": [
         "class.extendsInterface"
@@ -715,7 +715,7 @@
       "capability": "interface extending an unknown interface",
       "file": "interface-extends-unknown.php",
       "engineCodes": [
-        "PHPStan.Level0.ClassModel"
+        "Level0.ClassModel"
       ],
       "phpstanIdentifiers": [
         "interface.notFound"
@@ -726,7 +726,7 @@
       "capability": "interface extending a class",
       "file": "interface-extends-class.php",
       "engineCodes": [
-        "PHPStan.Level0.ClassModel"
+        "Level0.ClassModel"
       ],
       "phpstanIdentifiers": [
         "interfaceExtends.class"
@@ -737,7 +737,7 @@
       "capability": "using a class as a trait",
       "file": "class-used-as-trait.php",
       "engineCodes": [
-        "PHPStan.Level0.ClassModel"
+        "Level0.ClassModel"
       ],
       "phpstanIdentifiers": [
         "traitUse.class"
@@ -748,7 +748,7 @@
       "capability": "non-public implementations of interface methods",
       "file": "interface-method-not-public.php",
       "engineCodes": [
-        "PHPStan.Level0.ClassModel"
+        "Level0.ClassModel"
       ],
       "phpstanIdentifiers": [
         "method.visibility"
@@ -759,7 +759,7 @@
       "capability": "overriding with fewer parameters than the parent",
       "file": "override-fewer-params.php",
       "engineCodes": [
-        "PHPStan.Level0.ClassModel"
+        "Level0.ClassModel"
       ],
       "phpstanIdentifiers": [
         "parameter.missing"
@@ -770,7 +770,7 @@
       "capability": "incompatible inherited return types",
       "file": "override-return-type.php",
       "engineCodes": [
-        "PHPStan.Level0.ClassModel"
+        "Level0.ClassModel"
       ],
       "phpstanIdentifiers": [
         "method.childReturnType"
@@ -788,7 +788,7 @@
       "capability": "unit enum cases with values",
       "file": "enum-unit-with-value.php",
       "engineCodes": [
-        "PHPStan.Level0.ClassModel"
+        "Level0.ClassModel"
       ],
       "phpstanIdentifiers": [
         "enum.caseWithValue"
@@ -799,7 +799,7 @@
       "capability": "backed enum cases without values",
       "file": "enum-missing-backed-value.php",
       "engineCodes": [
-        "PHPStan.Level0.ClassModel"
+        "Level0.ClassModel"
       ],
       "phpstanIdentifiers": [
         "enum.missingCase"
@@ -810,7 +810,7 @@
       "capability": "backed enum case value types",
       "file": "enum-case-type-mismatch.php",
       "engineCodes": [
-        "PHPStan.Level0.ClassModel"
+        "Level0.ClassModel"
       ],
       "phpstanIdentifiers": [
         "enum.caseType"
@@ -821,7 +821,7 @@
       "capability": "static calls to instance methods",
       "file": "static-call-instance-method.php",
       "engineCodes": [
-        "PHPStan.Level0.Invocation"
+        "Level0.Invocation"
       ],
       "phpstanIdentifiers": [
         "method.staticCall"
@@ -832,8 +832,8 @@
       "capability": "duplicate named arguments",
       "file": "duplicate-named-argument.php",
       "engineCodes": [
-        "PHPStan.Level0.Invocation",
-        "PHPStan.Level0.Invocation"
+        "Level0.Invocation",
+        "Level0.Invocation"
       ],
       "phpstanIdentifiers": [
         "argument.duplicate"
@@ -844,8 +844,8 @@
       "capability": "unknown imported functions",
       "file": "unknown-function-import.php",
       "engineCodes": [
-        "PHPStan.Level0.Symbols",
-        "PHPStan.Level0.Symbols"
+        "Level0.Symbols",
+        "Level0.Symbols"
       ],
       "phpstanIdentifiers": [
         "function.notFound",
@@ -857,7 +857,7 @@
       "capability": "unknown static methods on known classes",
       "file": "unknown-static-method.php",
       "engineCodes": [
-        "PHPStan.Level0.Symbols"
+        "Level0.Symbols"
       ],
       "phpstanIdentifiers": [
         "staticMethod.notFound"
@@ -868,7 +868,7 @@
       "capability": "overriding with extra required parameters",
       "file": "override-extra-required-params.php",
       "engineCodes": [
-        "PHPStan.Level0.ClassModel"
+        "Level0.ClassModel"
       ],
       "phpstanIdentifiers": [
         "parameter.notOptional",
@@ -880,7 +880,7 @@
       "capability": "enum constructors",
       "file": "enum-constructor.php",
       "engineCodes": [
-        "PHPStan.Level0.ClassModel"
+        "Level0.ClassModel"
       ],
       "phpstanIdentifiers": [
         "enum.constructor"
@@ -891,7 +891,7 @@
       "capability": "enum destructors",
       "file": "enum-destructor.php",
       "engineCodes": [
-        "PHPStan.Level0.ClassModel"
+        "Level0.ClassModel"
       ],
       "phpstanIdentifiers": [
         "enum.destructor"
@@ -902,7 +902,7 @@
       "capability": "disallowed enum magic methods",
       "file": "enum-magic-sleep.php",
       "engineCodes": [
-        "PHPStan.Level0.ClassModel"
+        "Level0.ClassModel"
       ],
       "phpstanIdentifiers": [
         "enum.magicMethod",
@@ -914,8 +914,8 @@
       "capability": "invalid enum backing types",
       "file": "enum-float-backing.php",
       "engineCodes": [
-        "PHPStan.Level0.ClassModel",
-        "PHPStan.Level0.ClassModel"
+        "Level0.ClassModel",
+        "Level0.ClassModel"
       ],
       "phpstanIdentifiers": [
         "enum.backingType",
@@ -927,7 +927,7 @@
       "capability": "enums implementing Serializable",
       "file": "enum-serializable.php",
       "engineCodes": [
-        "PHPStan.Level0.ClassModel"
+        "Level0.ClassModel"
       ],
       "phpstanIdentifiers": [
         "enum.serializable",
@@ -940,7 +940,7 @@
       "capability": "void casts",
       "file": "void-cast.php",
       "engineCodes": [
-        "PHPStan.Level0.Language"
+        "Level0.Language"
       ],
       "phpstanIdentifiers": [
         "cast.void"
@@ -951,7 +951,7 @@
       "capability": "unset casts",
       "file": "unset-cast.php",
       "engineCodes": [
-        "PHPStan.Level0.Language"
+        "Level0.Language"
       ],
       "phpstanIdentifiers": [
         "cast.unset"

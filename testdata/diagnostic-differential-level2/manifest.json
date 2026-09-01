@@ -9,35 +9,35 @@
       "id": "protected-method-known-receiver",
       "capability": "protected method calls on known receivers",
       "file": "protected-method-known-receiver.php",
-      "engineCodes": ["PHPStan.Level2.MethodVisibility"],
+      "engineCodes": ["Level2.MethodVisibility"],
       "phpstanIdentifiers": ["method.protected"]
     },
     {
       "id": "unknown-method-typed-parameter",
       "capability": "unknown methods on typed parameters",
       "file": "unknown-method-typed-parameter.php",
-      "engineCodes": ["PHPStan.Level2.MethodExistence"],
+      "engineCodes": ["Level2.MethodExistence"],
       "phpstanIdentifiers": ["method.notFound"]
     },
     {
       "id": "unknown-method-assigned-new",
       "capability": "unknown methods on variables assigned from new",
       "file": "unknown-method-assigned-new.php",
-      "engineCodes": ["PHPStan.Level2.MethodExistence"],
+      "engineCodes": ["Level2.MethodExistence"],
       "phpstanIdentifiers": ["method.notFound"]
     },
     {
       "id": "unknown-method-direct-new",
       "capability": "unknown methods on direct new receivers",
       "file": "unknown-method-direct-new.php",
-      "engineCodes": ["PHPStan.Level2.MethodExistence"],
+      "engineCodes": ["Level2.MethodExistence"],
       "phpstanIdentifiers": ["method.notFound"]
     },
     {
       "id": "unknown-method-return-chain",
       "capability": "unknown methods at the end of a method-return chain",
       "file": "unknown-method-return-chain.php",
-      "engineCodes": ["PHPStan.Level2.MethodExistence"],
+      "engineCodes": ["Level2.MethodExistence"],
       "phpstanIdentifiers": ["method.notFound"]
     },
     {
@@ -65,35 +65,35 @@
       "id": "unknown-method-typed-property",
       "capability": "unknown methods on typed property receivers",
       "file": "unknown-method-typed-property.php",
-      "engineCodes": ["PHPStan.Level2.MethodExistence"],
+      "engineCodes": ["Level2.MethodExistence"],
       "phpstanIdentifiers": ["method.notFound"]
     },
     {
       "id": "unknown-method-named-function-chain",
       "capability": "unknown methods on named function-return chains",
       "file": "unknown-method-named-function-chain.php",
-      "engineCodes": ["PHPStan.Level2.MethodExistence"],
+      "engineCodes": ["Level2.MethodExistence"],
       "phpstanIdentifiers": ["method.notFound"]
     },
     {
       "id": "unknown-method-ternary-receiver",
       "capability": "unknown methods on ternary receivers",
       "file": "unknown-method-ternary-receiver.php",
-      "engineCodes": ["PHPStan.Level2.MethodExistence"],
+      "engineCodes": ["Level2.MethodExistence"],
       "phpstanIdentifiers": ["method.notFound"]
     },
     {
       "id": "unknown-method-union-all-missing",
       "capability": "unknown methods on unions where all members lack the method",
       "file": "unknown-method-union-all-missing.php",
-      "engineCodes": ["PHPStan.Level2.MethodExistence"],
+      "engineCodes": ["Level2.MethodExistence"],
       "phpstanIdentifiers": ["method.notFound"]
     },
     {
       "id": "unknown-method-intersection-all-missing",
       "capability": "unknown methods on intersections where all members lack the method",
       "file": "unknown-method-intersection-all-missing.php",
-      "engineCodes": ["PHPStan.Level2.MethodExistence"],
+      "engineCodes": ["Level2.MethodExistence"],
       "phpstanIdentifiers": ["method.notFound"]
     },
     {
@@ -107,7 +107,7 @@
       "id": "unknown-method-dnf-all-missing",
       "capability": "unknown methods on all-missing DNF receivers",
       "file": "unknown-method-dnf-all-missing.php",
-      "engineCodes": ["PHPStan.Level2.MethodExistence"],
+      "engineCodes": ["Level2.MethodExistence"],
       "phpstanIdentifiers": ["method.notFound"]
     },
     {
@@ -121,7 +121,7 @@
       "id": "unknown-method-nullable-receiver",
       "capability": "unknown methods on nullable receivers",
       "file": "unknown-method-nullable-receiver.php",
-      "engineCodes": ["PHPStan.Level2.MethodExistence"],
+      "engineCodes": ["Level2.MethodExistence"],
       "phpstanIdentifiers": ["method.notFound"]
     },
     {
@@ -135,14 +135,14 @@
       "id": "unknown-method-ternary-null-receiver",
       "capability": "unknown methods on ternary receivers with a null branch",
       "file": "unknown-method-ternary-null-receiver.php",
-      "engineCodes": ["PHPStan.Level2.MethodExistence"],
+      "engineCodes": ["Level2.MethodExistence"],
       "phpstanIdentifiers": ["method.notFound"]
     },
     {
       "id": "unknown-method-callable-variable",
       "capability": "unknown methods after invoking a PHPDoc callable variable",
       "file": "unknown-method-callable-variable.php",
-      "engineCodes": ["PHPStan.Level2.MethodExistence"],
+      "engineCodes": ["Level2.MethodExistence"],
       "phpstanIdentifiers": ["method.notFound"]
     },
     {
@@ -156,7 +156,7 @@
       "id": "unknown-method-closure-variable",
       "capability": "unknown methods after invoking a closure variable with a native return type",
       "file": "unknown-method-closure-variable.php",
-      "engineCodes": ["PHPStan.Level2.MethodExistence"],
+      "engineCodes": ["Level2.MethodExistence"],
       "phpstanIdentifiers": ["method.notFound"]
     },
     {
@@ -170,7 +170,7 @@
       "id": "unknown-method-dynamic-class-string",
       "capability": "unknown methods after dynamic construction from class-string",
       "file": "unknown-method-dynamic-class-string.php",
-      "engineCodes": ["PHPStan.Level2.MethodExistence"],
+      "engineCodes": ["Level2.MethodExistence"],
       "phpstanIdentifiers": ["method.notFound"]
     },
     {
@@ -184,7 +184,7 @@
       "id": "unknown-method-callable-property",
       "capability": "unknown methods after invoking a PHPDoc callable property",
       "file": "unknown-method-callable-property.php",
-      "engineCodes": ["PHPStan.Level2.MethodExistence"],
+      "engineCodes": ["Level2.MethodExistence"],
       "phpstanIdentifiers": ["method.notFound"]
     },
     {
@@ -198,7 +198,7 @@
 			"id": "unknown-method-callable-array-shape",
       "capability": "unknown methods after invoking a callable array-shape element",
       "file": "unknown-method-callable-array-shape.php",
-      "engineCodes": ["PHPStan.Level2.MethodExistence"],
+      "engineCodes": ["Level2.MethodExistence"],
       "phpstanIdentifiers": ["method.notFound"]
     },
     {
@@ -212,7 +212,7 @@
       "id": "unknown-method-callable-method-return",
       "capability": "unknown methods after invoking a method PHPDoc callable return",
       "file": "unknown-method-callable-method-return.php",
-      "engineCodes": ["PHPStan.Level2.MethodExistence"],
+      "engineCodes": ["Level2.MethodExistence"],
       "phpstanIdentifiers": ["method.notFound"]
     },
     {
@@ -226,7 +226,7 @@
       "id": "unknown-method-template-class-string",
       "capability": "unknown methods after template-valued class-string construction",
       "file": "unknown-method-template-class-string.php",
-      "engineCodes": ["PHPStan.Level2.MethodExistence"],
+      "engineCodes": ["Level2.MethodExistence"],
       "phpstanIdentifiers": ["method.notFound"]
     },
     {
@@ -240,7 +240,7 @@
       "id": "unknown-method-nested-array-shape",
       "capability": "unknown methods after invoking a nested callable array-shape element",
       "file": "unknown-method-nested-array-shape.php",
-      "engineCodes": ["PHPStan.Level2.MethodExistence"],
+      "engineCodes": ["Level2.MethodExistence"],
       "phpstanIdentifiers": ["method.notFound"]
     },
     {
@@ -254,7 +254,7 @@
       "id": "unknown-method-list-callable",
       "capability": "unknown methods after invoking a list callable element",
       "file": "unknown-method-list-callable.php",
-      "engineCodes": ["PHPStan.Level2.MethodExistence"],
+      "engineCodes": ["Level2.MethodExistence"],
       "phpstanIdentifiers": ["method.notFound"]
     },
     {
@@ -268,56 +268,56 @@
       "id": "unknown-method-clone-receiver",
       "capability": "unknown methods on clone receivers",
       "file": "unknown-method-clone-receiver.php",
-      "engineCodes": ["PHPStan.Level2.MethodExistence"],
+      "engineCodes": ["Level2.MethodExistence"],
       "phpstanIdentifiers": ["method.notFound"]
     },
     {
       "id": "unknown-method-coalesce-receiver",
       "capability": "unknown methods on null-coalesce receivers",
       "file": "unknown-method-coalesce-receiver.php",
-      "engineCodes": ["PHPStan.Level2.MethodExistence"],
+      "engineCodes": ["Level2.MethodExistence"],
       "phpstanIdentifiers": ["method.notFound"]
     },
     {
       "id": "unknown-method-match-receiver",
       "capability": "unknown methods on match-expression receivers",
       "file": "unknown-method-match-receiver.php",
-      "engineCodes": ["PHPStan.Level2.MethodExistence"],
+      "engineCodes": ["Level2.MethodExistence"],
       "phpstanIdentifiers": ["method.notFound"]
     },
     {
       "id": "unknown-method-nullsafe-receiver",
       "capability": "unknown methods on nullsafe receivers",
       "file": "unknown-method-nullsafe-receiver.php",
-      "engineCodes": ["PHPStan.Level2.MethodExistence"],
+      "engineCodes": ["Level2.MethodExistence"],
       "phpstanIdentifiers": ["method.notFound"]
     },
     {
       "id": "unknown-method-int-receiver",
       "capability": "method calls on int receivers",
       "file": "unknown-method-int-receiver.php",
-      "engineCodes": ["PHPStan.Level2.MethodNonObject"],
+      "engineCodes": ["Level2.MethodNonObject"],
       "phpstanIdentifiers": ["method.nonObject"]
     },
     {
       "id": "unknown-method-array-receiver",
       "capability": "method calls on array receivers",
       "file": "unknown-method-array-receiver.php",
-      "engineCodes": ["PHPStan.Level2.MethodNonObject"],
+      "engineCodes": ["Level2.MethodNonObject"],
       "phpstanIdentifiers": ["method.nonObject"]
     },
     {
       "id": "unknown-method-callable-receiver",
       "capability": "method calls on callable receivers",
       "file": "unknown-method-callable-receiver.php",
-      "engineCodes": ["PHPStan.Level2.MethodNonObject"],
+      "engineCodes": ["Level2.MethodNonObject"],
       "phpstanIdentifiers": ["method.nonObject"]
     },
     {
       "id": "unknown-method-iterable-receiver",
       "capability": "method calls on iterable receivers",
       "file": "unknown-method-iterable-receiver.php",
-      "engineCodes": ["PHPStan.Level2.MethodNonObject"],
+      "engineCodes": ["Level2.MethodNonObject"],
       "phpstanIdentifiers": ["method.nonObject"]
     },
     {
@@ -331,7 +331,7 @@
       "id": "unknown-method-union-class-string",
       "capability": "unknown methods on class-or-string unions",
       "file": "unknown-method-union-class-string.php",
-      "engineCodes": ["PHPStan.Level2.MethodNonObject"],
+      "engineCodes": ["Level2.MethodNonObject"],
       "phpstanIdentifiers": ["method.nonObject"]
     },
     {
@@ -345,14 +345,14 @@
       "id": "unknown-method-union-int-class",
       "capability": "unknown methods on int-or-class unions",
       "file": "unknown-method-union-int-class.php",
-      "engineCodes": ["PHPStan.Level2.MethodNonObject"],
+      "engineCodes": ["Level2.MethodNonObject"],
       "phpstanIdentifiers": ["method.nonObject"]
     },
     {
       "id": "unknown-method-assigned-array-index",
       "capability": "unknown methods on assigned constant array-shape indexes",
       "file": "unknown-method-assigned-array-index.php",
-      "engineCodes": ["PHPStan.Level2.MethodExistence"],
+      "engineCodes": ["Level2.MethodExistence"],
       "phpstanIdentifiers": ["method.notFound"]
     },
     {
@@ -366,7 +366,7 @@
       "id": "unknown-method-string-array-index",
       "capability": "unknown methods on unknown string array-shape indexes",
       "file": "unknown-method-string-array-index.php",
-      "engineCodes": ["PHPStan.Level2.MethodExistence"],
+      "engineCodes": ["Level2.MethodExistence"],
       "phpstanIdentifiers": ["method.notFound"]
     },
     {
@@ -380,7 +380,7 @@
       "id": "unknown-method-int-list-index",
       "capability": "unknown methods on unknown int list indexes",
       "file": "unknown-method-int-list-index.php",
-      "engineCodes": ["PHPStan.Level2.MethodExistence"],
+      "engineCodes": ["Level2.MethodExistence"],
       "phpstanIdentifiers": ["method.notFound"]
     },
     {
@@ -394,35 +394,35 @@
       "id": "unknown-method-concat-array-index",
       "capability": "unknown methods on concatenated literal array-shape indexes",
       "file": "unknown-method-concat-array-index.php",
-      "engineCodes": ["PHPStan.Level2.MethodExistence"],
+      "engineCodes": ["Level2.MethodExistence"],
       "phpstanIdentifiers": ["method.notFound"]
     },
     {
       "id": "unknown-method-class-const-array-index",
       "capability": "unknown methods on class-constant array-shape indexes",
       "file": "unknown-method-class-const-array-index.php",
-      "engineCodes": ["PHPStan.Level2.MethodExistence"],
+      "engineCodes": ["Level2.MethodExistence"],
       "phpstanIdentifiers": ["method.notFound"]
     },
     {
       "id": "unknown-method-global-const-array-index",
       "capability": "unknown methods on global-constant array-shape indexes",
       "file": "unknown-method-global-const-array-index.php",
-      "engineCodes": ["PHPStan.Level2.MethodExistence"],
+      "engineCodes": ["Level2.MethodExistence"],
       "phpstanIdentifiers": ["method.notFound"]
     },
     {
       "id": "unknown-method-foreign-class-const-array-index",
       "capability": "unknown methods on other-class-constant array-shape indexes",
       "file": "unknown-method-foreign-class-const-array-index.php",
-      "engineCodes": ["PHPStan.Level2.MethodExistence"],
+      "engineCodes": ["Level2.MethodExistence"],
       "phpstanIdentifiers": ["method.notFound"]
     },
     {
       "id": "unknown-method-match-array-index",
       "capability": "unknown methods on match array-shape indexes",
       "file": "unknown-method-match-array-index.php",
-      "engineCodes": ["PHPStan.Level2.MethodExistence"],
+      "engineCodes": ["Level2.MethodExistence"],
       "phpstanIdentifiers": ["method.notFound"]
     },
     {
@@ -436,7 +436,7 @@
       "id": "unknown-method-property-array-shape",
       "capability": "unknown methods on property-held callable array shapes",
       "file": "unknown-method-property-array-shape.php",
-      "engineCodes": ["PHPStan.Level2.MethodExistence"],
+      "engineCodes": ["Level2.MethodExistence"],
       "phpstanIdentifiers": ["method.notFound"]
     },
     {
@@ -450,14 +450,14 @@
       "id": "unknown-method-returned-array-shape",
       "capability": "unknown methods on method-returned callable array shapes",
       "file": "unknown-method-returned-array-shape.php",
-      "engineCodes": ["PHPStan.Level2.MethodExistence"],
+      "engineCodes": ["Level2.MethodExistence"],
       "phpstanIdentifiers": ["method.notFound"]
     },
     {
       "id": "unknown-method-list-object-index",
       "capability": "unknown methods on list-of-object indexes",
       "file": "unknown-method-list-object-index.php",
-      "engineCodes": ["PHPStan.Level2.MethodExistence"],
+      "engineCodes": ["Level2.MethodExistence"],
       "phpstanIdentifiers": ["method.notFound"]
     }
   ]

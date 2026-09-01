@@ -44,7 +44,7 @@ function run(
 `,
 	}
 
-	level2Issues := runPHPStanLevelOnFiles(t, files, 2)
+	level2Issues := runAnalysisLevelOnFiles(t, files, 2)
 	for _, unexpected := range []string{"optional()", "execute()", "available()", "dynamic()", "unknown()"} {
 		if hasIssueContaining(level2Issues, level7MethodUnionCode, unexpected) {
 			t.Fatalf("level two should exclude level-seven union diagnostics containing %q, got %#v", unexpected, level2Issues)
@@ -59,7 +59,7 @@ function run(
 		t.Fatalf("all-missing intersections remain a level-two diagnostic, got %#v", level2Issues)
 	}
 
-	level7Issues := runPHPStanLevelOnFiles(t, files, 7)
+	level7Issues := runAnalysisLevelOnFiles(t, files, 7)
 	for _, expected := range []string{
 		"FirstChoice|SecondChoice::optional()",
 		"(AvailableContract&MarkerContract)|AlternativeChoice::execute()",

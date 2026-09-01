@@ -198,7 +198,7 @@ func resolvePropertyTypeForAssignment(fetch *ast.PropertyFetchNode, scope *funct
 }
 
 func init() {
-	RegisterAnalysisRuleWithLevel("A.PROP.TYPE", 10, "phpstan.types", func(filename string, nodes []ast.Node, ctx *AnalysisContext) []AnalysisIssue {
+	RegisterAnalysisRuleWithLevel("A.PROP.TYPE", 10, "types", func(filename string, nodes []ast.Node, ctx *AnalysisContext) []AnalysisIssue {
 		rule := &PropertyTypeRule{}
 		return rule.CheckIssues(nodes, filename, ctx)
 	})

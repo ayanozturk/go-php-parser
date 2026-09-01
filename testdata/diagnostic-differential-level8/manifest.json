@@ -9,28 +9,28 @@
       "id": "known-method-nullable-receiver",
       "capability": "known methods on nullable class receivers",
       "file": "known-method-nullable-receiver.php",
-      "engineCodes": ["PHPStan.Level8.MethodNonObject"],
+      "engineCodes": ["Level8.MethodNonObject"],
       "phpstanIdentifiers": ["method.nonObject"]
     },
     {
       "id": "known-method-ternary-null",
       "capability": "known methods on class-or-null ternaries",
       "file": "known-method-ternary-null.php",
-      "engineCodes": ["PHPStan.Level8.MethodNonObject"],
+      "engineCodes": ["Level8.MethodNonObject"],
       "phpstanIdentifiers": ["method.nonObject"]
     },
     {
       "id": "known-method-intersection-nullable",
       "capability": "known methods on nullable intersection receivers",
       "file": "known-method-intersection-nullable.php",
-      "engineCodes": ["PHPStan.Level8.MethodNonObject"],
+      "engineCodes": ["Level8.MethodNonObject"],
       "phpstanIdentifiers": ["method.nonObject"]
     },
     {
       "id": "known-method-object-nullable",
       "capability": "method calls on nullable object receivers",
       "file": "known-method-object-nullable.php",
-      "engineCodes": ["PHPStan.Level8.MethodNonObject"],
+      "engineCodes": ["Level8.MethodNonObject"],
       "phpstanIdentifiers": ["method.nonObject"]
     },
     {

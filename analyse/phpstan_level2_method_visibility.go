@@ -7,7 +7,7 @@ import (
 	"github.com/ayanozturk/go-php-parser/ast"
 )
 
-const level2MethodVisibilityCode = "PHPStan.Level2.MethodVisibility"
+const level2MethodVisibilityCode = "Level2.MethodVisibility"
 
 func checkLevel2MethodVisibility(filename string, nodes []ast.Node, ctx *AnalysisContext) []AnalysisIssue {
 	return methodVisibilityIssuesForFile(filename, nodes, ctx)
@@ -66,5 +66,5 @@ func appendProtectedMethodVisibilityIssue(filename string, pos ast.Position, met
 }
 
 func init() {
-	RegisterAnalysisRuleWithLevel(level2MethodVisibilityCode, 2, "phpstan.level2", checkLevel2MethodVisibility)
+	RegisterAnalysisRuleWithLevel(level2MethodVisibilityCode, 2, "level2", checkLevel2MethodVisibility)
 }

@@ -43,12 +43,12 @@ function run(
 `,
 	}
 
-	level1Issues := runPHPStanLevelOnFiles(t, files, 1)
+	level1Issues := runAnalysisLevelOnFiles(t, files, 1)
 	if hasIssueContaining(level1Issues, level2MethodNonObjectCode, "Cannot call method") {
 		t.Fatalf("level one should exclude level-two non-object diagnostics, got %#v", level1Issues)
 	}
 
-	issues := runPHPStanLevelOnFiles(t, files, 2)
+	issues := runAnalysisLevelOnFiles(t, files, 2)
 	for _, expected := range []string{
 		"on string.",
 		"on array.",

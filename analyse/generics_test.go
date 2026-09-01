@@ -29,7 +29,7 @@ func parseGenericsPHP(t *testing.T, source string) []AnalysisIssue {
 func filterArgTypeIssuesInGenerics(issues []AnalysisIssue) []AnalysisIssue {
 	var filtered []AnalysisIssue
 	for _, issue := range issues {
-		if issue.Code == "PHPStan.Level0.Invocation" {
+		if issue.Code == "Level0.Invocation" {
 			filtered = append(filtered, issue)
 		}
 	}

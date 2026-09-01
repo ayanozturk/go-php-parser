@@ -9,7 +9,7 @@
       "id": "branch-defined-variable",
       "capability": "possibly undefined variables after a non-exhaustive branch",
       "file": "branch-defined-variable.php",
-      "engineCodes": ["PHPStan.Level1.Variables"],
+      "engineCodes": ["Level1.Variables"],
       "phpstanIdentifiers": ["variable.undefined"]
     },
     {
@@ -23,7 +23,7 @@
       "id": "while-defined-variable",
       "capability": "possibly undefined variables after a while loop",
       "file": "while-defined-variable.php",
-      "engineCodes": ["PHPStan.Level1.Variables"],
+      "engineCodes": ["Level1.Variables"],
       "phpstanIdentifiers": ["variable.undefined"]
     },
     {
@@ -37,14 +37,14 @@
       "id": "undefined-variable",
       "capability": "always undefined variables",
       "file": "undefined-variable.php",
-      "engineCodes": ["PHPStan.Level1.Variables"],
+      "engineCodes": ["Level1.Variables"],
       "phpstanIdentifiers": ["variable.undefined"]
     },
     {
       "id": "closure-by-value-undefined-variable",
       "capability": "undefined variables captured by value and read in a closure",
       "file": "closure-by-value-undefined-variable.php",
-      "engineCodes": ["PHPStan.Level1.Variables"],
+      "engineCodes": ["Level1.Variables"],
       "phpstanIdentifiers": ["variable.undefined"]
     },
     {
@@ -66,7 +66,7 @@
       "capability": "variables defined through reference assignment",
       "file": "reference-assignment.php",
       "engineCodes": [
-        "PHPStan.Level1.Variables"
+        "Level1.Variables"
       ],
       "phpstanIdentifiers": ["variable.undefined"]
     },
@@ -95,7 +95,7 @@
       "id": "dynamic-receiver-by-reference",
       "capability": "undefined variables passed through a dynamic receiver",
       "file": "dynamic-receiver-by-reference.php",
-      "engineCodes": ["PHPStan.Level1.Variables"],
+      "engineCodes": ["Level1.Variables"],
       "phpstanIdentifiers": ["variable.undefined"]
     },
     {
@@ -109,28 +109,28 @@
       "id": "nested-continue-two-undefined-variable",
       "capability": "undefined variables after a nested continue two transfer",
       "file": "nested-continue-two-undefined-variable.php",
-      "engineCodes": ["PHPStan.Level1.Variables"],
+      "engineCodes": ["Level1.Variables"],
       "phpstanIdentifiers": ["variable.undefined"]
     },
     {
       "id": "switch-continue-two-undefined-variable",
       "capability": "undefined variables after continue two through a switch",
       "file": "switch-continue-two-undefined-variable.php",
-      "engineCodes": ["PHPStan.Level1.Variables"],
+      "engineCodes": ["Level1.Variables"],
       "phpstanIdentifiers": ["variable.undefined"]
     },
     {
       "id": "break-two-finally-undefined-variable",
       "capability": "undefined variables after break two through finally",
       "file": "break-two-finally-undefined-variable.php",
-      "engineCodes": ["PHPStan.Level1.Variables"],
+      "engineCodes": ["Level1.Variables"],
       "phpstanIdentifiers": ["variable.undefined"]
     },
     {
       "id": "known-dynamic-read",
       "capability": "undefined variables resolved by a known dynamic name",
       "file": "known-dynamic-read.php",
-      "engineCodes": ["PHPStan.Level1.Variables"],
+      "engineCodes": ["Level1.Variables"],
       "phpstanIdentifiers": ["variable.undefined"]
     },
     {
@@ -138,8 +138,8 @@
       "capability": "known-string and literal dynamic writes do not define targets",
       "file": "dynamic-writes-do-not-define.php",
       "engineCodes": [
-        "PHPStan.Level1.Variables",
-        "PHPStan.Level1.Variables"
+        "Level1.Variables",
+        "Level1.Variables"
       ],
       "phpstanIdentifiers": [
         "variable.undefined",
@@ -164,7 +164,7 @@
       "id": "unknown-array-extract",
       "capability": "possibly undefined variables after an unknown-array extract",
       "file": "unknown-array-extract.php",
-      "engineCodes": ["PHPStan.Level1.Variables"],
+      "engineCodes": ["Level1.Variables"],
       "phpstanIdentifiers": ["variable.undefined"]
     },
     {
@@ -179,9 +179,9 @@
       "capability": "undefined inputs passed through input/output built-in reference parameters",
       "file": "builtin-reference-input-output-parameters.php",
       "engineCodes": [
-        "PHPStan.Level1.Variables",
-        "PHPStan.Level1.Variables",
-        "PHPStan.Level1.Variables"
+        "Level1.Variables",
+        "Level1.Variables",
+        "Level1.Variables"
       ],
       "phpstanIdentifiers": [
         "variable.undefined",

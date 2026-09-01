@@ -7,7 +7,7 @@ import (
 	"github.com/ayanozturk/go-php-parser/ast"
 )
 
-const level7MethodUnionCode = "PHPStan.Level7.MethodUnion"
+const level7MethodUnionCode = "Level7.MethodUnion"
 
 func checkLevel7MethodUnion(filename string, nodes []ast.Node, ctx *AnalysisContext) []AnalysisIssue {
 	return filterIssuesByCode(methodReceiverIssuesForFile(filename, nodes, ctx), level7MethodUnionCode)
@@ -88,5 +88,5 @@ func dnfAlternativeProvidesMethod(receiverType Type, keys []string, method strin
 }
 
 func init() {
-	RegisterAnalysisRuleWithLevel(level7MethodUnionCode, 7, "phpstan.level7", checkLevel7MethodUnion)
+	RegisterAnalysisRuleWithLevel(level7MethodUnionCode, 7, "level7", checkLevel7MethodUnion)
 }

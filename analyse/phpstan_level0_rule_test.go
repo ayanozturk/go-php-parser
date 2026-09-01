@@ -20,14 +20,14 @@ func parsePHPForLevel0(t *testing.T, php string) []ast.Node {
 }
 
 func runLevel0OnFiles(t *testing.T, files map[string]string) []AnalysisIssue {
-	return runPHPStanLevelOnFiles(t, files, 0)
+	return runAnalysisLevelOnFiles(t, files, 0)
 }
 
 func runLevel1OnFiles(t *testing.T, files map[string]string) []AnalysisIssue {
-	return runPHPStanLevelOnFiles(t, files, 1)
+	return runAnalysisLevelOnFiles(t, files, 1)
 }
 
-func runPHPStanLevelOnFiles(t *testing.T, files map[string]string, level int) []AnalysisIssue {
+func runAnalysisLevelOnFiles(t *testing.T, files map[string]string, level int) []AnalysisIssue {
 	t.Helper()
 	parsed := make(map[string][]ast.Node, len(files))
 	for filename, php := range files {
@@ -43,7 +43,7 @@ func runPHPStanLevelOnFiles(t *testing.T, files map[string]string, level int) []
 }
 
 func TestLevel0DNFTypeReferencesResolveIndividualMembers(t *testing.T) {
-	issues := runPHPStanLevelOnFiles(t, map[string]string{
+	issues := runAnalysisLevelOnFiles(t, map[string]string{
 		"test.php": `<?php
 interface FirstContract {}
 interface SecondContract {}
@@ -602,7 +602,7 @@ class ChildModel extends BaseModel {
 		t.Fatalf("build snapshot: %v", err)
 	}
 	ctx := snapshot.NewAnalysisContext()
-	issues := (&PHPStanLevel0Rule{}).checkClassModel(filename, nodes, ctx, CollectFileTypeContext(nodes))
+	issues := (&Level0Rule{}).checkClassModel(filename, nodes, ctx, CollectFileTypeContext(nodes))
 	if !hasIssueContaining(issues, level0ClassModelCode, "Cannot override final method BaseModel::locked") {
 		t.Fatalf("expected resolver-backed final method diagnostic, got %#v", issues)
 	}
@@ -1112,7 +1112,7 @@ new Child();
 	}
 	ctx := snapshot.NewAnalysisContext()
 	fileCtx := analysisFileTypeContext(ctx, nodes)
-	issues := (&PHPStanLevel0Rule{}).checkSymbolsAndCalls(filename, nodes, ctx, fileCtx)
+	issues := (&Level0Rule{}).checkSymbolsAndCalls(filename, nodes, ctx, fileCtx)
 
 	for _, expected := range []struct {
 		code    string

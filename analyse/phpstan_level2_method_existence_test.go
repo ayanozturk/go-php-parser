@@ -38,12 +38,12 @@ function run(ParamService $param, PropertyHolder $holder, KnownService $known, M
 `,
 	}
 
-	level1Issues := runPHPStanLevelOnFiles(t, files, 1)
+	level1Issues := runAnalysisLevelOnFiles(t, files, 1)
 	if hasIssueContaining(level1Issues, level2MethodExistenceCode, "undefined method") {
 		t.Fatalf("level one should exclude level-two method diagnostics, got %#v", level1Issues)
 	}
 
-	level2Issues := runPHPStanLevelOnFiles(t, files, 2)
+	level2Issues := runAnalysisLevelOnFiles(t, files, 2)
 	for _, expected := range []string{
 		"ParamService::missing()",
 		"AssignedService::missing()",
@@ -63,7 +63,7 @@ function run(ParamService $param, PropertyHolder $holder, KnownService $known, M
 }
 
 func TestLevel2UnknownMethodsOnFunctionAndConditionalReceivers(t *testing.T) {
-	issues := runPHPStanLevelOnFiles(t, map[string]string{
+	issues := runAnalysisLevelOnFiles(t, map[string]string{
 		"test.php": `<?php
 class FunctionService {}
 class FirstBranch {}
@@ -99,7 +99,7 @@ function run(bool $flag): void {
 }
 
 func TestLevel2UnknownMethodsResolveNamespacedFunctionReturns(t *testing.T) {
-	issues := runPHPStanLevelOnFiles(t, map[string]string{
+	issues := runAnalysisLevelOnFiles(t, map[string]string{
 		"service.php": `<?php
 namespace Vendor;
 class Service {}
@@ -126,7 +126,7 @@ namespace Consumer;
 }
 
 func TestLevel2UnknownMethodsOnCallableClosureAndDynamicReceivers(t *testing.T) {
-	issues := runPHPStanLevelOnFiles(t, map[string]string{
+	issues := runAnalysisLevelOnFiles(t, map[string]string{
 		"vendor.php": `<?php
 namespace Vendor;
 
@@ -240,7 +240,7 @@ function reassignedDynamicReceiver(string $class): void {
 }
 
 func TestLevel2UnknownMethodsOnDirectCallableResultsAndTemplateClassString(t *testing.T) {
-	issues := runPHPStanLevelOnFiles(t, map[string]string{
+	issues := runAnalysisLevelOnFiles(t, map[string]string{
 		"services.php": `<?php
 class Service {}
 class KnownService { public function execute(): void {} }
@@ -314,7 +314,7 @@ function run(Holder $holder, KnownHolder $knownHolder, string $class): void {
 }
 
 func TestLevel2UnknownMethodsOnArrayShapeCallableResults(t *testing.T) {
-	issues := runPHPStanLevelOnFiles(t, map[string]string{
+	issues := runAnalysisLevelOnFiles(t, map[string]string{
 		"test.php": `<?php
 class ShapeService {}
 class KnownShapeService { public function execute(): void {} }
@@ -344,7 +344,7 @@ function run(array $factories): void {
 }
 
 func TestLevel2UnknownMethodsOnNestedShapesAndRemainingReceivers(t *testing.T) {
-	issues := runPHPStanLevelOnFiles(t, map[string]string{
+	issues := runAnalysisLevelOnFiles(t, map[string]string{
 		"test.php": `<?php
 class NestedService {}
 class KnownNestedService { public function execute(): void {} }
@@ -397,7 +397,7 @@ function run(array $nested, array $list, CloneService $clone, ?CoalesceService $
 }
 
 func TestLevel2UnknownMethodsOnDynamicArrayShapeIndexes(t *testing.T) {
-	issues := runPHPStanLevelOnFiles(t, map[string]string{
+	issues := runAnalysisLevelOnFiles(t, map[string]string{
 		"test.php": `<?php
 class AssignedService {}
 class KnownAssignedService { public function execute(): void {} }
@@ -447,12 +447,12 @@ function run(array $factories, array $nested, array $list, array $named, string 
 	}, 2)
 
 	want := map[string]int{
-		"Call to an undefined method AssignedService::missing().": 2,
-		"Call to an undefined method UnionLeft|UnionRight::missing().": 1,
+		"Call to an undefined method AssignedService::missing().":                                           2,
+		"Call to an undefined method UnionLeft|UnionRight::missing().":                                      1,
 		"Call to an undefined method AssignedService|KnownAssignedService|UnionLeft|UnionRight::missing().": 1,
-		"Call to an undefined method NestedDynamic::missing().": 1,
-		"Call to an undefined method KnownListItem|ListItem::missing().": 1,
-		"Call to an undefined method ConstService::missing().": 2,
+		"Call to an undefined method NestedDynamic::missing().":                                             1,
+		"Call to an undefined method KnownListItem|ListItem::missing().":                                    1,
+		"Call to an undefined method ConstService::missing().":                                              2,
 	}
 	got := map[string]int{}
 	for _, issue := range issues {
@@ -481,7 +481,7 @@ function run(array $factories, array $nested, array $list, array $named, string 
 }
 
 func TestLevel2UnknownMethodsOnRemainingExpressionReceivers(t *testing.T) {
-	issues := runPHPStanLevelOnFiles(t, map[string]string{
+	issues := runAnalysisLevelOnFiles(t, map[string]string{
 		"test.php": `<?php
 class ShapeService {}
 class KnownShapeService { public function execute(): void {} }
@@ -533,13 +533,13 @@ function run(array $factories, array $other, array $objects, Holder $holder, boo
 	}, 2)
 
 	want := map[string]int{
-		"Call to an undefined method ShapeService::missing().": 1,
-		"Call to an undefined method OtherConstService::missing().": 1,
+		"Call to an undefined method ShapeService::missing().":                   1,
+		"Call to an undefined method OtherConstService::missing().":              1,
 		"Call to an undefined method KnownShapeService|ShapeService::missing().": 1,
-		"Call to an undefined method PropService::missing().": 1,
-		"Call to an undefined method MethodShapeService::missing().": 1,
-		"Call to an undefined method StaticPropService::missing().": 1,
-		"Call to an undefined method ListItem::missing().": 1,
+		"Call to an undefined method PropService::missing().":                    1,
+		"Call to an undefined method MethodShapeService::missing().":             1,
+		"Call to an undefined method StaticPropService::missing().":              1,
+		"Call to an undefined method ListItem::missing().":                       1,
 	}
 	got := map[string]int{}
 	for _, issue := range issues {
@@ -558,7 +558,7 @@ function run(array $factories, array $other, array $objects, Holder $holder, boo
 }
 
 func TestLevel2UnknownMethodHandlesMultiClassReceiversConservatively(t *testing.T) {
-	issues := runPHPStanLevelOnFiles(t, map[string]string{
+	issues := runAnalysisLevelOnFiles(t, map[string]string{
 		"test.php": `<?php
 class FirstChoice {}
 class SecondChoice { public function optional(): void {} }
@@ -590,7 +590,7 @@ function run(FirstChoice|SecondChoice $choice, FirstMissing|SecondMissing $missi
 }
 
 func TestLevel2UnknownMethodHandlesDNFAndNullableReceivers(t *testing.T) {
-	issues := runPHPStanLevelOnFiles(t, map[string]string{
+	issues := runAnalysisLevelOnFiles(t, map[string]string{
 		"test.php": `<?php
 interface HasMethod { public function available(): void; }
 interface FirstTag {}

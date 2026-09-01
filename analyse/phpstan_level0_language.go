@@ -10,7 +10,7 @@ import (
 	"strings"
 )
 
-func (r *PHPStanLevel0Rule) checkLanguage(filename string, nodes []ast.Node, ctx *AnalysisContext, fileCtx FileTypeContext) []AnalysisIssue {
+func (r *Level0Rule) checkLanguage(filename string, nodes []ast.Node, ctx *AnalysisContext, fileCtx FileTypeContext) []AnalysisIssue {
 	var issues []AnalysisIssue
 	labels := map[string]struct{}{}
 	var gotos []*ast.GotoNode

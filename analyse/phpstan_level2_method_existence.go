@@ -7,7 +7,7 @@ import (
 	"github.com/ayanozturk/go-php-parser/ast"
 )
 
-const level2MethodExistenceCode = "PHPStan.Level2.MethodExistence"
+const level2MethodExistenceCode = "Level2.MethodExistence"
 
 func checkLevel2MethodExistence(filename string, nodes []ast.Node, ctx *AnalysisContext) []AnalysisIssue {
 	return filterIssuesByCode(methodReceiverIssuesForFile(filename, nodes, ctx), level2MethodExistenceCode)
@@ -182,5 +182,5 @@ func walkLevel2MethodExpressions(filename string, nodes []ast.Node, ctx *Analysi
 }
 
 func init() {
-	RegisterAnalysisRuleWithLevel(level2MethodExistenceCode, 2, "phpstan.level2", checkLevel2MethodExistence)
+	RegisterAnalysisRuleWithLevel(level2MethodExistenceCode, 2, "level2", checkLevel2MethodExistence)
 }

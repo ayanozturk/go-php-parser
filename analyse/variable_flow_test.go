@@ -503,7 +503,7 @@ function choose(bool $condition): void {
 	snapshot := variableFlowSnapshot(t, filename, nodes)
 
 	zeroContext := snapshot.NewAnalysisContext()
-	zeroIssues := (&PHPStanLevel0Rule{}).CheckIssues(filename, nodes, zeroContext)
+	zeroIssues := (&Level0Rule{}).CheckIssues(filename, nodes, zeroContext)
 	if hasIssueContaining(zeroIssues, level1VariablesCode, "might not be defined") {
 		t.Fatalf("level zero emitted undefined-variable diagnostics: %#v", zeroIssues)
 	}
