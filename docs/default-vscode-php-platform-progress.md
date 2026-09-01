@@ -404,11 +404,17 @@ Representative workload: 23,556 indexed PHP files, 3,678,678 LOC, 135.68 MB, 151
 - The twenty-round interleaved comparison is rejected: candidate/baseline CVs were 23.39%/18.04%. Accounting was identical. See `docs/benchmarks/2026-09-01-wordpress-function-scope-context.md`; no cold-speed or RSS claim is made.
 - Parser commit `f98411e` lands the shared context. Extension commit `ad89ed1` pins pseudo-version `v0.0.0-20260901185820-f98411ef2d87`. Pinned and sibling tests, vet, race, all six server builds, TypeScript lint/compile/package, VS Code 1.89.1 host tests, the editor-latency gate, and a zero-vulnerability npm audit pass.
 
+### 2026-09-01 — Compact control-flow storage
+
+- Flow graphs and reachability are partitioned by file with packed ordinary spans, compact built-in kinds, one reachability-state map, local block offsets, an inline first graph, and dense storage for additional graphs. Custom kinds, large offsets, ambiguity handling, parent resolution, and defensive public graph copies retain their contracts.
+- A three-iteration WordPress profile retained 5,357/5,357 files and 22,387 diagnostics while allocated space fell from 3,273,965,861 bytes at exact baseline `f98411e` to 3,046,140,014 bytes, a 7.0% reduction. The combined graph/reachability sites fell 50.2%, from 609,688,347 to 303,490,806 bytes.
+- The ten-round exact-baseline gate passed: candidate/baseline means were 2.017s/2.141s with CVs 3.11%/1.97%, medians 2.024s/2.147s, and maximum RSS 1.023GB/1.076GB. This supports a 5.8% mean, 5.7% median, and 4.9% maximum-RSS improvement. See `docs/benchmarks/2026-09-01-wordpress-compact-flow-storage.md`.
+
 ## Next ranked candidates
 
 The analyser target in `docs/full-static-analyser-target.md` is the source of truth for ordering.
 
-1. **Performance:** optimize the remaining control-flow scope/reachability maps, then keep the 5% CV contract. Do not cut rules or `vendor` to win.
+1. **Performance:** run the contemporaneous same-machine Mago comparison now that the queued profile-led storage reductions have landed. Keep the 5% CV and full-accounting gates; do not cut rules or `vendor` to win.
 2. **Maintenance:** rewrite `FEATURES.md` for the Go language server after the first accepted Mago comparison; decide the fate of `src/server`.
 3. **Source mapping:** structured parser errors, then style-rule coordinate producers currently stuck at points.
 4. **Dependency matching:** replace conservative lexical invalidation only after generated reference facts cover supported resolver paths.

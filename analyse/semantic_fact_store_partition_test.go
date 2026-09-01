@@ -103,7 +103,7 @@ func TestSemanticFactStorePreservesKindsAndReconstructsFacts(t *testing.T) {
 	}
 
 	if ^uint(0)>>63 == 1 {
-		largeOffset := maxCompactSemanticFactOffset + 1
+		largeOffset := maxCompactSourceOffset + 1
 		large := int(largeOffset)
 		largeKey := SemanticFactKey{File: filename, StartOffset: large, EndOffset: large + 1, Kind: FactKindInferredType}
 		if !store.putGeneratedInferred(largeKey, "function:large", "Large") {

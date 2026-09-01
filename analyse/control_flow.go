@@ -51,8 +51,15 @@ type ControlFlowGraph struct {
 // graph construction does not allocate a successor slice per statement.
 type storedFlowBlock struct {
 	id         FlowNodeID
-	statement  FlowStatementKey
+	statement  storedFlowStatementKey
 	successors compactSuccessors
+}
+
+// storedFlowStatementKey omits the filename because a graph belongs to one
+// file. The public FlowStatementKey is reconstructed at the reader boundary.
+type storedFlowStatementKey struct {
+	startOffset int
+	endOffset   int
 }
 
 type compactSuccessors struct {
@@ -68,9 +75,13 @@ func (g ControlFlowGraph) MayFallThrough() bool { return g.mayFallThrough }
 func (g ControlFlowGraph) Blocks() []FlowBlock {
 	blocks := make([]FlowBlock, len(g.blocks))
 	for i, block := range g.blocks {
+		statement := FlowStatementKey{}
+		if block.statement.endOffset > block.statement.startOffset {
+			statement = FlowStatementKey{File: g.scope.File, StartOffset: block.statement.startOffset, EndOffset: block.statement.endOffset}
+		}
 		blocks[i] = FlowBlock{
 			ID:         block.id,
-			Statement:  block.statement,
+			Statement:  statement,
 			Successors: block.successors.slice(),
 		}
 	}
@@ -179,7 +190,7 @@ func buildLinearControlFlowGraph(scope FlowScopeKey, statements []ast.Node) Cont
 	mayReachNext := true
 	for i, statement := range statements {
 		id := FlowNodeID(i + 1)
-		blocks[i+1] = storedFlowBlock{id: id, statement: flowStatementKey(scope.File, statement)}
+		blocks[i+1] = storedFlowBlock{id: id, statement: storedFlowStatementKeyForNode(statement)}
 		if !mayReachNext {
 			continue
 		}
@@ -262,7 +273,7 @@ func buildLoopControlFlowGraph(scope FlowScopeKey, owner ast.Node, statements []
 		if outcomes&flowBreak != 0 {
 			successors = appendUniqueCompact(successors, exitID)
 		}
-		blocks[i+1] = storedFlowBlock{id: id, statement: flowStatementKey(scope.File, statement), successors: successors}
+		blocks[i+1] = storedFlowBlock{id: id, statement: storedFlowStatementKeyForNode(statement), successors: successors}
 	}
 	blocks[exitID] = storedFlowBlock{id: exitID}
 	return newControlFlowGraph(scope, blocks, exitID)
@@ -394,6 +405,17 @@ func loopControlLevelOne(level ast.Node) bool {
 	}
 }
 
+func storedFlowStatementKeyForNode(node ast.Node) storedFlowStatementKey {
+	if node == nil {
+		return storedFlowStatementKey{}
+	}
+	start, end := node.GetPos(), node.GetEndPos()
+	if start.Offset < 0 || end.Offset <= start.Offset {
+		return storedFlowStatementKey{}
+	}
+	return storedFlowStatementKey{startOffset: start.Offset, endOffset: end.Offset}
+}
+
 func switchFlowOutcomes(n *ast.SwitchNode) flowOutcome {
 	if len(n.Cases) == 0 {
 		return flowNormal
@@ -500,11 +522,319 @@ func flowScopeKey(filename, kind string, owner ast.Node, statements []ast.Node) 
 	return FlowScopeKey{File: filename, StartOffset: start.Offset, EndOffset: end.Offset, Kind: kind}
 }
 
+type compactFlowSpan uint64
+
+func makeCompactFlowSpan(start, end int) (compactFlowSpan, bool) {
+	if start < 0 || end < 0 || uint64(start) > maxCompactSourceOffset || uint64(end) > maxCompactSourceOffset {
+		return 0, false
+	}
+	return compactFlowSpan(uint64(uint32(start))<<32 | uint64(uint32(end))), true
+}
+
+func (s compactFlowSpan) offsets() (int, int) {
+	return int(uint32(uint64(s) >> 32)), int(uint32(s))
+}
+
+type storedFlowScopeKind uint8
+
+const (
+	storedFlowScopeUnknown storedFlowScopeKind = iota
+	storedFlowScopeFile
+	storedFlowScopeFunction
+	storedFlowScopeBlock
+	storedFlowScopeIf
+	storedFlowScopeElseIf
+	storedFlowScopeElse
+	storedFlowScopeWhile
+	storedFlowScopeFor
+	storedFlowScopeForeach
+	storedFlowScopeDo
+	storedFlowScopeCase
+	storedFlowScopeTry
+	storedFlowScopeCatch
+	storedFlowScopeFinally
+	storedFlowScopeNamespace
+)
+
+func storeFlowScopeKind(kind string) (storedFlowScopeKind, bool) {
+	switch kind {
+	case "file":
+		return storedFlowScopeFile, true
+	case "function":
+		return storedFlowScopeFunction, true
+	case "block":
+		return storedFlowScopeBlock, true
+	case "if":
+		return storedFlowScopeIf, true
+	case "elseif":
+		return storedFlowScopeElseIf, true
+	case "else":
+		return storedFlowScopeElse, true
+	case "while":
+		return storedFlowScopeWhile, true
+	case "for":
+		return storedFlowScopeFor, true
+	case "foreach":
+		return storedFlowScopeForeach, true
+	case "do":
+		return storedFlowScopeDo, true
+	case "case":
+		return storedFlowScopeCase, true
+	case "try":
+		return storedFlowScopeTry, true
+	case "catch":
+		return storedFlowScopeCatch, true
+	case "finally":
+		return storedFlowScopeFinally, true
+	case "namespace":
+		return storedFlowScopeNamespace, true
+	default:
+		return storedFlowScopeUnknown, false
+	}
+}
+
+func (k storedFlowScopeKind) String() string {
+	switch k {
+	case storedFlowScopeFile:
+		return "file"
+	case storedFlowScopeFunction:
+		return "function"
+	case storedFlowScopeBlock:
+		return "block"
+	case storedFlowScopeIf:
+		return "if"
+	case storedFlowScopeElseIf:
+		return "elseif"
+	case storedFlowScopeElse:
+		return "else"
+	case storedFlowScopeWhile:
+		return "while"
+	case storedFlowScopeFor:
+		return "for"
+	case storedFlowScopeForeach:
+		return "foreach"
+	case storedFlowScopeDo:
+		return "do"
+	case storedFlowScopeCase:
+		return "case"
+	case storedFlowScopeTry:
+		return "try"
+	case storedFlowScopeCatch:
+		return "catch"
+	case storedFlowScopeFinally:
+		return "finally"
+	case storedFlowScopeNamespace:
+		return "namespace"
+	default:
+		return ""
+	}
+}
+
+type storedFlowScopeKey struct {
+	span compactFlowSpan
+	kind storedFlowScopeKind
+}
+
+type localFlowScopeKey struct {
+	startOffset int
+	endOffset   int
+	kind        string
+}
+
+type localFlowStatementKey struct {
+	startOffset int
+	endOffset   int
+}
+
+type statementReachabilityState uint8
+
+const (
+	statementReachabilityUnknown statementReachabilityState = iota
+	statementReachabilityFalse
+	statementReachabilityTrue
+	statementReachabilityAmbiguous
+)
+
+type flowFileStore struct {
+	firstGraph            ControlFlowGraph
+	firstGraphKey         storedFlowScopeKey
+	hasFirstGraph         bool
+	graphs                []ControlFlowGraph
+	graphIndex            map[storedFlowScopeKey]uint32
+	overflowGraphIndex    map[localFlowScopeKey]uint32
+	statementReachability map[compactFlowSpan]statementReachabilityState
+	overflowReachability  map[localFlowStatementKey]statementReachabilityState
+	nesting               map[storedFlowScopeKey]storedFlowScopeKey
+	overflowNesting       map[localFlowScopeKey]localFlowScopeKey
+	foreignNesting        map[localFlowScopeKey]FlowScopeKey
+}
+
+func compactStoredFlowScopeKey(key FlowScopeKey) (storedFlowScopeKey, bool) {
+	span, compact := makeCompactFlowSpan(key.StartOffset, key.EndOffset)
+	kind, known := storeFlowScopeKind(key.Kind)
+	return storedFlowScopeKey{span: span, kind: kind}, compact && known
+}
+
+func localStoredFlowScopeKey(key FlowScopeKey) localFlowScopeKey {
+	return localFlowScopeKey{startOffset: key.StartOffset, endOffset: key.EndOffset, kind: key.Kind}
+}
+
+func publicStoredFlowScopeKey(filename string, key storedFlowScopeKey) FlowScopeKey {
+	start, end := key.span.offsets()
+	return FlowScopeKey{File: filename, StartOffset: start, EndOffset: end, Kind: key.kind.String()}
+}
+
+func publicLocalFlowScopeKey(filename string, key localFlowScopeKey) FlowScopeKey {
+	return FlowScopeKey{File: filename, StartOffset: key.startOffset, EndOffset: key.endOffset, Kind: key.kind}
+}
+
+func (s *SemanticSnapshot) flowFile(filename string, create bool) *flowFileStore {
+	if s == nil || filename == "" {
+		return nil
+	}
+	file := s.flow[filename]
+	if file == nil && create {
+		file = &flowFileStore{}
+		s.flow[filename] = file
+	}
+	return file
+}
+
+func (f *flowFileStore) putGraph(key FlowScopeKey, graph ControlFlowGraph) bool {
+	if compact, ok := compactStoredFlowScopeKey(key); ok {
+		if f.hasFirstGraph {
+			if f.firstGraphKey == compact {
+				return false
+			}
+		} else {
+			f.firstGraphKey = compact
+			f.firstGraph = graph
+			f.hasFirstGraph = true
+			return true
+		}
+		if f.graphIndex == nil {
+			f.graphIndex = make(map[storedFlowScopeKey]uint32)
+		}
+		if _, duplicate := f.graphIndex[compact]; duplicate {
+			return false
+		}
+		f.graphIndex[compact] = uint32(len(f.graphs))
+		f.graphs = append(f.graphs, graph)
+		return true
+	}
+	local := localStoredFlowScopeKey(key)
+	if f.overflowGraphIndex == nil {
+		f.overflowGraphIndex = make(map[localFlowScopeKey]uint32)
+	}
+	if _, duplicate := f.overflowGraphIndex[local]; duplicate {
+		return false
+	}
+	f.overflowGraphIndex[local] = uint32(len(f.graphs))
+	f.graphs = append(f.graphs, graph)
+	return true
+}
+
+func (f *flowFileStore) graph(key FlowScopeKey) (ControlFlowGraph, bool) {
+	if compact, ok := compactStoredFlowScopeKey(key); ok {
+		if f.hasFirstGraph && f.firstGraphKey == compact {
+			return f.firstGraph, true
+		}
+		index, found := f.graphIndex[compact]
+		if !found || int(index) >= len(f.graphs) {
+			return ControlFlowGraph{}, false
+		}
+		return f.graphs[index], true
+	}
+	index, found := f.overflowGraphIndex[localStoredFlowScopeKey(key)]
+	if !found || int(index) >= len(f.graphs) {
+		return ControlFlowGraph{}, false
+	}
+	return f.graphs[index], true
+}
+
+func (f *flowFileStore) putNesting(scope, parent FlowScopeKey) {
+	if parent.File != scope.File {
+		if f.foreignNesting == nil {
+			f.foreignNesting = make(map[localFlowScopeKey]FlowScopeKey)
+		}
+		f.foreignNesting[localStoredFlowScopeKey(scope)] = parent
+		return
+	}
+	childCompact, childOK := compactStoredFlowScopeKey(scope)
+	parentCompact, parentOK := compactStoredFlowScopeKey(parent)
+	if childOK && parentOK {
+		if f.nesting == nil {
+			f.nesting = make(map[storedFlowScopeKey]storedFlowScopeKey)
+		}
+		f.nesting[childCompact] = parentCompact
+		return
+	}
+	if f.overflowNesting == nil {
+		f.overflowNesting = make(map[localFlowScopeKey]localFlowScopeKey)
+	}
+	f.overflowNesting[localStoredFlowScopeKey(scope)] = localStoredFlowScopeKey(parent)
+}
+
+func (f *flowFileStore) parent(filename string, scope FlowScopeKey) (FlowScopeKey, bool) {
+	if parent, found := f.foreignNesting[localStoredFlowScopeKey(scope)]; found {
+		return parent, true
+	}
+	if compact, ok := compactStoredFlowScopeKey(scope); ok {
+		parent, found := f.nesting[compact]
+		if found {
+			return publicStoredFlowScopeKey(filename, parent), true
+		}
+	}
+	parent, found := f.overflowNesting[localStoredFlowScopeKey(scope)]
+	return publicLocalFlowScopeKey(filename, parent), found
+}
+
+func (f *flowFileStore) recordStatement(key FlowStatementKey, reachable bool) {
+	state := statementReachabilityFalse
+	if reachable {
+		state = statementReachabilityTrue
+	}
+	if span, compact := makeCompactFlowSpan(key.StartOffset, key.EndOffset); compact {
+		if f.statementReachability == nil {
+			f.statementReachability = make(map[compactFlowSpan]statementReachabilityState)
+		}
+		if existing := f.statementReachability[span]; existing != statementReachabilityUnknown {
+			f.statementReachability[span] = statementReachabilityAmbiguous
+			return
+		}
+		f.statementReachability[span] = state
+		return
+	}
+	local := localFlowStatementKey{startOffset: key.StartOffset, endOffset: key.EndOffset}
+	if f.overflowReachability == nil {
+		f.overflowReachability = make(map[localFlowStatementKey]statementReachabilityState)
+	}
+	if existing := f.overflowReachability[local]; existing != statementReachabilityUnknown {
+		f.overflowReachability[local] = statementReachabilityAmbiguous
+		return
+	}
+	f.overflowReachability[local] = state
+}
+
+func (f *flowFileStore) statement(key FlowStatementKey) (bool, bool) {
+	state := statementReachabilityUnknown
+	if span, compact := makeCompactFlowSpan(key.StartOffset, key.EndOffset); compact {
+		state = f.statementReachability[span]
+	} else {
+		state = f.overflowReachability[localFlowStatementKey{startOffset: key.StartOffset, endOffset: key.EndOffset}]
+	}
+	switch state {
+	case statementReachabilityFalse:
+		return false, true
+	case statementReachabilityTrue:
+		return true, true
+	default:
+		return false, false
+	}
+}
+
 func (s *SemanticSnapshot) generateControlFlowGraphs(parsed map[string][]ast.Node) {
-	s.flowGraphs = make(map[FlowScopeKey]ControlFlowGraph)
-	s.statementReachability = make(map[FlowStatementKey]bool)
-	s.ambiguousFlowStatements = make(map[FlowStatementKey]struct{})
-	s.scopeNesting = make(map[FlowScopeKey]FlowScopeKey)
+	s.flow = make(map[string]*flowFileStore, len(s.filenames))
 
 	for _, filename := range s.filenames {
 		s.addFlowScope(filename, "file", nil, parsed[filename], FlowScopeKey{})
@@ -517,13 +847,12 @@ func (s *SemanticSnapshot) addFlowScope(filename, kind string, owner ast.Node, s
 		return
 	}
 	if parent.File != "" {
-		s.scopeNesting[scope] = parent
+		s.flowFile(filename, true).putNesting(scope, parent)
 	}
 	graph := buildControlFlowGraph(scope, owner, statements)
-	if _, duplicate := s.flowGraphs[scope]; duplicate {
+	if !s.flowFile(filename, true).putGraph(scope, graph) {
 		return
 	}
-	s.flowGraphs[scope] = graph
 
 	for i, statement := range statements {
 		reachable := graph.blockReachable(FlowNodeID(i + 1))
@@ -539,15 +868,9 @@ func (s *SemanticSnapshot) addFlowScope(filename, kind string, owner ast.Node, s
 }
 
 func (s *SemanticSnapshot) recordStatementReachability(key FlowStatementKey, reachable bool) {
-	if _, ambiguous := s.ambiguousFlowStatements[key]; ambiguous {
-		return
+	if file := s.flowFile(key.File, true); file != nil {
+		file.recordStatement(key, reachable)
 	}
-	if _, exists := s.statementReachability[key]; exists {
-		delete(s.statementReachability, key)
-		s.ambiguousFlowStatements[key] = struct{}{}
-		return
-	}
-	s.statementReachability[key] = reachable
 }
 
 func (s *SemanticSnapshot) addChildFlowScopes(filename string, node ast.Node, parent FlowScopeKey) {
@@ -595,7 +918,11 @@ func (s *SemanticSnapshot) addChildFlowScopes(filename string, node ast.Node, pa
 
 func (s *SemanticSnapshot) resolveScopeAtLevel(scope FlowScopeKey, level int) FlowScopeKey {
 	for i := 0; i < level; i++ {
-		parent, ok := s.scopeNesting[scope]
+		file := s.flowFile(scope.File, false)
+		if file == nil {
+			return FlowScopeKey{}
+		}
+		parent, ok := file.parent(scope.File, scope)
 		if !ok {
 			return FlowScopeKey{}
 		}
@@ -608,11 +935,11 @@ func (s *SemanticSnapshot) StatementReachable(key FlowStatementKey) (bool, bool)
 	if s == nil || key.File == "" {
 		return false, false
 	}
-	if _, ambiguous := s.ambiguousFlowStatements[key]; ambiguous {
+	file := s.flowFile(key.File, false)
+	if file == nil {
 		return false, false
 	}
-	reachable, ok := s.statementReachability[key]
-	return reachable, ok
+	return file.statement(key)
 }
 
 func (s *SemanticSnapshot) ScopeMayFallThrough(key FlowScopeKey) (bool, bool) {
@@ -627,6 +954,9 @@ func (s *SemanticSnapshot) ControlFlowGraph(key FlowScopeKey) (ControlFlowGraph,
 	if s == nil {
 		return ControlFlowGraph{}, false
 	}
-	graph, ok := s.flowGraphs[key]
-	return graph, ok
+	file := s.flowFile(key.File, false)
+	if file == nil {
+		return ControlFlowGraph{}, false
+	}
+	return file.graph(key)
 }

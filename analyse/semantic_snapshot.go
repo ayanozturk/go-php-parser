@@ -68,10 +68,10 @@ type semanticFactSpanKey struct {
 // back to the fully general custom map and keeps the public int-based contract.
 type semanticFactOffsetKey uint64
 
-const maxCompactSemanticFactOffset = uint64(^uint32(0))
+const maxCompactSourceOffset = uint64(^uint32(0))
 
 func compactSemanticFactOffset(start, end int) (semanticFactOffsetKey, bool) {
-	if start < 0 || end < 0 || uint64(start) > maxCompactSemanticFactOffset || uint64(end) > maxCompactSemanticFactOffset {
+	if start < 0 || end < 0 || uint64(start) > maxCompactSourceOffset || uint64(end) > maxCompactSourceOffset {
 		return 0, false
 	}
 	return semanticFactOffsetKey(uint64(uint32(start))<<32 | uint64(uint32(end))), true
@@ -243,15 +243,12 @@ type SemanticFactReader interface {
 // and its reusable semantic facts. Construction owns the mutable ProjectIndex;
 // callers can only query defensive value copies through this facade.
 type SemanticSnapshot struct {
-	project                 *ProjectIndex
-	facts                   semanticFactStore
-	flowGraphs              map[FlowScopeKey]ControlFlowGraph
-	statementReachability   map[FlowStatementKey]bool
-	ambiguousFlowStatements map[FlowStatementKey]struct{}
-	scopeNesting            map[FlowScopeKey]FlowScopeKey
-	variableReads           map[string][]variableReadFact
-	completeVariableReads   map[string]*lazyVariableReadFacts
-	filenames               []string
+	project               *ProjectIndex
+	facts                 semanticFactStore
+	flow                  map[string]*flowFileStore
+	variableReads         map[string][]variableReadFact
+	completeVariableReads map[string]*lazyVariableReadFacts
+	filenames             []string
 }
 
 type lazyVariableReadFacts struct {
