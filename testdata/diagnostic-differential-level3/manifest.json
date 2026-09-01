@@ -67,6 +67,48 @@
       "file": "clean-this-property-assignment.php",
       "engineCodes": [],
       "phpstanIdentifiers": []
+    },
+    {
+      "id": "static-property-type-mismatch",
+      "capability": "self static typed-property assignment mismatches",
+      "file": "static-property-type-mismatch.php",
+      "engineCodes": ["A.PROP.TYPE"],
+      "phpstanIdentifiers": ["assign.propertyType"]
+    },
+    {
+      "id": "clean-static-property-assignment",
+      "capability": "clean self static typed-property assignments",
+      "file": "clean-static-property-assignment.php",
+      "engineCodes": [],
+      "phpstanIdentifiers": []
+    },
+    {
+      "id": "static-access-instance-property",
+      "capability": "static writes do not type-check instance properties",
+      "file": "static-access-instance-property.php",
+      "engineCodes": ["Level0.Symbols"],
+      "phpstanIdentifiers": ["property.staticAccess"]
+    },
+    {
+      "id": "never-bare-return",
+      "capability": "bare returns from never functions",
+      "file": "never-bare-return.php",
+      "engineCodes": ["A.RETURN.NEVER"],
+      "phpstanIdentifiers": ["return.never"]
+    },
+    {
+      "id": "never-fallthrough",
+      "capability": "never functions that fall through",
+      "file": "never-fallthrough.php",
+      "engineCodes": ["A.RETURN.NEVER"],
+      "phpstanIdentifiers": ["return.never"]
+    },
+    {
+      "id": "clean-never-throw",
+      "capability": "never functions that throw",
+      "file": "clean-never-throw.php",
+      "engineCodes": [],
+      "phpstanIdentifiers": []
     }
   ]
 }

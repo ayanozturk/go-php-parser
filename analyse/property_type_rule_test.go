@@ -45,6 +45,36 @@ func TestPropertyAssignmentTypeCompatible(t *testing.T) {
 	}
 }
 
+func TestStaticPropertyAssignmentTypeMismatch(t *testing.T) {
+	php := `<?php
+    class Example {
+        private static int $count;
+
+        public static function run(): void {
+            self::$count = "bad";
+        }
+    }`
+	issues := analysePHP(t, php)
+	if !hasPropertyTypeIssue(issues) {
+		t.Fatalf("expected A.PROP.TYPE issue for string assigned to static int property, got: %#v", issues)
+	}
+}
+
+func TestCompoundPropertyAssignmentDoesNotTreatOperandAsResult(t *testing.T) {
+	php := `<?php
+    class Example {
+        private int $count;
+
+        public function run(): void {
+            $this->count += "bad";
+        }
+    }`
+	issues := analysePHP(t, php)
+	if hasPropertyTypeIssue(issues) {
+		t.Fatalf("compound assignment requires operation-result analysis, got misleading property issue: %#v", issues)
+	}
+}
+
 func TestPropertyAssignmentAcceptsImplementedInterface(t *testing.T) {
 	php := `<?php
 	namespace Doctrine\Common\Collections;

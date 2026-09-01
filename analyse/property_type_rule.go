@@ -137,13 +137,22 @@ func walkAssignmentForPropertyTypes(assign *ast.AssignmentNode, scope *functionS
 	}
 
 	walkExprForPropertyTypes(assign.Right, scope, ctx, filename, issues)
-
-	propertyFetch, ok := assign.Left.(*ast.PropertyFetchNode)
-	if !ok {
+	if assign.Operator != "=" {
+		// Compound assignments require checking the operation's result type and
+		// may instead produce PHPStan's assignOp.invalid diagnostic. Do not
+		// misclassify the right-hand operand as the assigned property value.
 		return
 	}
 
-	expected, propertyName, ok := resolvePropertyTypeForAssignment(propertyFetch, scope, ctx, filename)
+	var expected Type
+	var propertyName string
+	var ok bool
+	switch left := assign.Left.(type) {
+	case *ast.PropertyFetchNode:
+		expected, propertyName, ok = resolvePropertyTypeForAssignment(left, scope, ctx, filename)
+	case *ast.ClassConstFetchNode:
+		expected, propertyName, ok = resolveStaticPropertyTypeForAssignment(left, scope, ctx)
+	}
 	if !ok || expected.IsEmpty() {
 		return
 	}
@@ -165,6 +174,49 @@ func walkAssignmentForPropertyTypes(assign *ast.AssignmentNode, scope *functionS
 		Code:     "A.PROP.TYPE",
 		Message:  fmt.Sprintf("Property %s expects %s, got %s", propertyName, expected.String(), actualLabel),
 	})
+}
+
+func resolveStaticPropertyTypeForAssignment(fetch *ast.ClassConstFetchNode, scope *functionScope, ctx *AnalysisContext) (Type, string, bool) {
+	if fetch == nil || fetch.ConstExpr != nil || !strings.HasPrefix(fetch.Const, "$") {
+		return EmptyType(), "", false
+	}
+
+	propertyName := strings.TrimPrefix(fetch.Const, "$")
+	className := strings.TrimPrefix(strings.TrimSpace(fetch.Class), `\`)
+	if className == "" || propertyName == "" {
+		return EmptyType(), "", false
+	}
+
+	if scope != nil {
+		switch strings.ToLower(className) {
+		case "self", "static":
+			className = scope.className
+		case "parent":
+			if class, ok := scope.typeCtx.resolveClass(scope.className); ok && len(class.Extends) > 0 {
+				className = class.Extends[0]
+			} else {
+				return EmptyType(), "", false
+			}
+		default:
+			className = scope.typeCtx.resolveClassLike(className)
+		}
+	}
+
+	if ctx != nil && ctx.Resolver != nil {
+		if property, ok := ctx.Resolver.ResolveProperty(className, propertyName); ok {
+			if !property.IsStatic {
+				return EmptyType(), "", false
+			}
+			return ParseType(property.Type), className + "::$" + property.Name, true
+		}
+	}
+	if scope != nil && strings.EqualFold(className, scope.className) {
+		if propertyType, ok := resolveSameClassPropertyType(scope, propertyName); ok {
+			return propertyType, className + "::$" + propertyName, true
+		}
+	}
+
+	return EmptyType(), "", false
 }
 
 func resolvePropertyTypeForAssignment(fetch *ast.PropertyFetchNode, scope *functionScope, ctx *AnalysisContext, filename string) (Type, string, bool) {

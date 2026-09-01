@@ -424,11 +424,19 @@ Representative workload: 23,556 indexed PHP files, 3,678,678 LOC, 135.68 MB, 151
 - Parser commit `4692a16` lands the rule-level correction and fixtures. Extension commit `bc94e81` pins pseudo-version `v0.0.0-20260901195704-4692a1696ef1`. Parser and extension tests, vet, race, sibling integration, six server builds, editor latency, TypeScript lint/compile/package, VS Code host tests, and a zero-vulnerability audit pass.
 - The exact-baseline WordPress performance gate retained 5,357/5,357 files and 22,387 diagnostics but is rejected because candidate/baseline CVs were 13.85%/8.52%. No performance regression or improvement is claimed. See `docs/benchmarks/2026-09-01-phpstan-level3-type-coverage.md`.
 
+### 2026-09-01 — PHPStan level-3 static properties and never returns
+
+- Static `self::$property` writes now participate in `A.PROP.TYPE`, matching PHPStan `assign.propertyType`; direct simple assignments remain the boundary while compound-operation result analysis is developed separately.
+- New `A.RETURN.NEVER` matches PHPStan `return.never` for explicit returns and implicit fallthrough, with throwing functions as a clean control. It shares the cached return-analysis traversal rather than adding another full-file walk.
+- Six neutral fixtures expand level 3 from nine to fifteen cases, including the instance-property/static-syntax boundary. The complete 88/24/65/15/5/5 differential suite matches PHPStan 2.2.5 with zero engine or reference mismatches.
+- This focused correctness batch deliberately skips the corpus benchmark. Performance comparisons are now periodic guardrails for representative batches and structural hot-path changes.
+
 ## Next ranked candidates
 
 The analyser target in `docs/full-static-analyser-target.md` is the source of truth for ordering.
 
-1. **Performance:** capture a new production profile before any further optimization and only tune a new measured leader; the same-machine Mago resource envelope now passes.
-2. **Maintenance:** rewrite `FEATURES.md` for the Go language server and decide the fate of `src/server`.
-3. **Source mapping:** structured parser errors, then style-rule coordinate producers currently stuck at points.
-4. **Dependency matching:** replace conservative lexical invalidation only after generated reference facts cover supported resolver paths.
+1. **Correctness:** add exact compound-assignment result checking and PHPStan `assignOp.invalid`, then probe void-return purity and broader level-3 inference.
+2. **Performance:** retain the same-machine Mago resource envelope as a periodic guardrail for representative batches and structural hot-path changes.
+3. **Maintenance:** rewrite `FEATURES.md` for the Go language server and decide the fate of `src/server`.
+4. **Source mapping:** structured parser errors, then style-rule coordinate producers currently stuck at points.
+5. **Dependency matching:** replace conservative lexical invalidation only after generated reference facts cover supported resolver paths.

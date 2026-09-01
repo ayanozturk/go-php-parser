@@ -11,6 +11,8 @@ import (
 
 type ReturnTypeRule struct{}
 
+const returnNeverCode = "A.RETURN.NEVER"
+
 type observedReturn struct {
 	Type Type
 	Pos  ast.Position
@@ -164,6 +166,9 @@ func (r *ReturnTypeRule) checkFunctionReturnType(filename string, fn *ast.Functi
 	if declaredType.IsEmpty() {
 		return nil // no declared return type, nothing to check
 	}
+	if declaredType.String() == "never" {
+		return nil // explicit returns from never functions use returnNeverCode
+	}
 
 	// Collect all actual return types
 	returnTypes := map[string]int{}
@@ -261,6 +266,24 @@ func appendReturnTypeOnNode(filename string, node ast.Node, class *ast.ClassNode
 	if !ok {
 		return
 	}
+	declared := declaredFunctionReturnType(fn, fileCtx)
+	if declared.String() == "never" {
+		scope := analysisFunctionScope(ctx, class, fn, fileCtx)
+		for _, ret := range collectObservedReturns(filename, fn.Body, scope, ctx) {
+			name := fn.Name
+			if name == "" {
+				name = "closure"
+			}
+			*issues = append(*issues, issue(filename, ret.Pos, returnNeverCode, fmt.Sprintf("Function %s should never return", name)))
+		}
+		if !hasModifier(fn.Modifiers, "abstract") && !functionContainsYield(fn) && functionMayFallThrough(fn, filename, ctx) {
+			name := fn.Name
+			if name == "" {
+				name = "closure"
+			}
+			*issues = append(*issues, issueSpan(filename, fn, returnNeverCode, fmt.Sprintf("Function %s should always terminate", name)))
+		}
+	}
 	rule := ReturnTypeRule{}
 	for _, err := range rule.checkFunctionReturnType(filename, fn, class, fileCtx, ctx) {
 		pos := fn.GetPos()
@@ -289,10 +312,16 @@ func appendReturnTypeOnNode(filename string, node ast.Node, class *ast.ClassNode
 
 func missingReturnValue(fn *ast.FunctionNode, filename string, typeCtx FileTypeContext, ctx *AnalysisContext) bool {
 	declared := declaredFunctionReturnType(fn, typeCtx)
-	if fn == nil || declared.IsEmpty() || declared.String() == "void" || hasModifier(fn.Modifiers, "abstract") || functionContainsYield(fn) {
+	if fn == nil || declared.IsEmpty() || declared.String() == "void" || declared.String() == "never" || hasModifier(fn.Modifiers, "abstract") || functionContainsYield(fn) {
 		return false
 	}
+	return functionMayFallThrough(fn, filename, ctx)
+}
 
+func functionMayFallThrough(fn *ast.FunctionNode, filename string, ctx *AnalysisContext) bool {
+	if fn == nil {
+		return false
+	}
 	if ctx != nil && ctx.Flow != nil {
 		if scope, ok := FlowScopeKeyForNode(filename, "function", fn, fn.Body); ok {
 			if mayFallThrough, found := ctx.Flow.ScopeMayFallThrough(scope); found {
@@ -1724,8 +1753,11 @@ func resolveSameClassPropertyType(scope *functionScope, propertyName string) (Ty
 }
 
 func init() {
+	RegisterAnalysisRuleWithLevel(returnNeverCode, 3, "level3", func(filename string, nodes []ast.Node, ctx *AnalysisContext) []AnalysisIssue {
+		return filterIssuesByCode(returnTypeIssuesForFile(filename, nodes, ctx), returnNeverCode)
+	})
 	RegisterAnalysisRuleWithLevel("A.RETURN.TYPE", 3, "level3", func(filename string, nodes []ast.Node, ctx *AnalysisContext) []AnalysisIssue {
 		rule := &ReturnTypeRule{}
-		return rule.CheckIssues(nodes, filename, ctx)
+		return filterIssuesByCode(rule.CheckIssues(nodes, filename, ctx), "A.RETURN.TYPE")
 	})
 }

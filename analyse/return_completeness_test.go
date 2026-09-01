@@ -80,14 +80,13 @@ function mixedResult(): mixed {}
 function neverResult(): never {}
 `, nil)
 
-	if len(issues) != 4 {
+	if len(issues) != 3 {
 		t.Fatalf("completeness issues = %#v; want one for each non-void declaration", issues)
 	}
 	for _, want := range []string{
 		"Function integerResult: declared return type int but not all paths return a value",
 		"Function nullableResult: declared return type int|null but not all paths return a value",
 		"Function mixedResult: declared return type mixed but not all paths return a value",
-		"Function neverResult: declared return type never but not all paths return a value",
 	} {
 		found := false
 		for _, issue := range issues {
@@ -99,6 +98,16 @@ function neverResult(): never {}
 		if !found {
 			t.Errorf("missing issue %q in %#v", want, issues)
 		}
+	}
+}
+
+func TestNeverFallthroughUsesDedicatedDiagnostic(t *testing.T) {
+	nodes := parseReturnCompletenessPHP(t, `<?php
+function neverResult(): never {}
+`)
+	issues := (&ReturnTypeRule{}).CheckIssues(nodes, "returns.php", &AnalysisContext{})
+	if len(issues) != 1 || issues[0].Code != returnNeverCode {
+		t.Fatalf("never fallthrough issues = %#v; want one %s issue", issues, returnNeverCode)
 	}
 }
 
