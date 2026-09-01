@@ -6,9 +6,9 @@ This file records reproducible evidence for the cooperating `go-php-parser` engi
 
 ## Current baseline
 
-- Engine revision validated and consumed by PHP Strom: pushed commit `8f400be`.
-- Extension checkout: `/Users/ayan/Projects/vscode-php-strom`, `main` at pushed commit `59eb0b0`; the current package version is `0.1.34`.
-- Production extension builds pin `github.com/ayanozturk/go-php-parser` at pseudo-version `v0.0.0-20260901182711-8f400be53b88`. `make test-server-dev` validates the same engine through the generated, ignored sibling-workspace path.
+- Engine revision validated and consumed by PHP Strom: pushed commit `f98411e`.
+- Extension checkout: `/Users/ayan/Projects/vscode-php-strom`, `main` at pushed commit `ad89ed1`; the current package version is `0.1.34`.
+- Production extension builds pin `github.com/ayanozturk/go-php-parser` at pseudo-version `v0.0.0-20260901185820-f98411ef2d87`. `make test-server-dev` validates the same engine through the generated, ignored sibling-workspace path.
 - Go toolchain observed: Go 1.27.0. Node toolchain observed: Node 26.8.1 and npm 11.19.0.
 - Representative corpora are fetched at exact revisions from `test_projects/manifest.json`; generated working copies remain uncommitted.
 - The latest recorded full-corpus pass has zero failures for Composer, Drupal, Magento, PHPUnit, and WordPress. Symfony's two remaining fixtures are intentionally invalid/corrupted inputs, and Laravel has two narrow interpolation/callable edge cases. These recorded results are compatibility evidence, not a current performance result.
@@ -402,6 +402,7 @@ Representative workload: 23,556 indexed PHP files, 3,678,678 LOC, 135.68 MB, 151
 - Function-scope clones now share immutable class and file-type context through one pointer while retaining copy-on-write isolation for every mutable state family. The shallow scope value fell from 208 to 96 bytes; read-only clone time across five focused samples fell from 43.74–44.52ns to 26.68–26.97ns.
 - A three-iteration WordPress profile retained 5,357/5,357 files and 22,387 diagnostics while allocated space fell from 3,516,256,187 bytes at exact baseline `8f400be` to 3,273,965,861 bytes, a 6.9% reduction. `functionScope.clone` fell 56.7%, from 401,159,880 to 173,555,216 bytes.
 - The twenty-round interleaved comparison is rejected: candidate/baseline CVs were 23.39%/18.04%. Accounting was identical. See `docs/benchmarks/2026-09-01-wordpress-function-scope-context.md`; no cold-speed or RSS claim is made.
+- Parser commit `f98411e` lands the shared context. Extension commit `ad89ed1` pins pseudo-version `v0.0.0-20260901185820-f98411ef2d87`. Pinned and sibling tests, vet, race, all six server builds, TypeScript lint/compile/package, VS Code 1.89.1 host tests, the editor-latency gate, and a zero-vulnerability npm audit pass.
 
 ## Next ranked candidates
 
