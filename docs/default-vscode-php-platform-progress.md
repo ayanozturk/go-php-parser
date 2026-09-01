@@ -1,6 +1,6 @@
 # Default VS Code PHP Platform Progress
 
-Last updated: 2026-08-31 (Europe/London)
+Last updated: 2026-09-01 (Europe/London)
 
 This file records reproducible evidence for the cooperating `go-php-parser` engine and `vscode-php-strom` extension. PHPStan, PHPCS, and Mago are benchmark references only; no parity claim is made.
 
@@ -378,11 +378,23 @@ Representative workload: 23,556 indexed PHP files, 3,678,678 LOC, 135.68 MB, 151
 - A three-iteration WordPress profile retained 5,357/5,357 files and 26,321 diagnostics while allocated space fell from 4.93 GB at exact baseline `1696897` to 4.75 GB, a 3.7% reduction. Eager generic-context copying disappeared; array-index copying now occurs only on actual first writes.
 - The ten-round exact-baseline gate passed: candidate/baseline means were 2.667s/2.773s with CVs 3.17%/4.08%, medians 2.628s/2.738s, and maximum RSS 1.291GB/1.295GB. This supports a 3.8% mean, 4.0% median, and 0.3% maximum-RSS improvement, not a Mago-parity claim. See `docs/benchmarks/2026-09-01-wordpress-scope-metadata-cow.md`.
 
+### 2026-09-01 — Allocation-light method resolver views
+
+- Internal existence, visibility, argument-count, and snapshot symbol-ID lookups now borrow immutable index-owned method metadata. Public `ResolveMethod` still clones parameters and rewrites inherited generic bindings. Type inference is unchanged.
+- A three-iteration WordPress profile retained 5,357/5,357 files and 22,387 diagnostics while allocated space fell from 4.77 GB at exact baseline `9a4f4a4` to 4.50 GB, a 5.7% reduction. The previous approximately 0.79 GB public `ResolveMethod` path shrank to 0.23 GB.
+- The twenty-round interleaved comparison is rejected: candidate/baseline CVs were 26.9%/9.0%. Accounting was identical. See `docs/benchmarks/2026-09-01-wordpress-method-resolver-view.md`.
+
+### 2026-09-01 — Snapshot insertion, compact CFG, identifier intern
+
+- Narrowing facts write straight into the per-file store. Linear and loop graphs keep one- and two-successor edges inline, store reachability once, and share parsed statement slices with variable-flow construction. Remaining identifier `ToLower` paths use `asciiLowerIdent`, and mixed-case ASCII results are interned.
+- A three-iteration WordPress profile retained 5,357/5,357 files and 22,387 diagnostics while allocated space fell from 4.49 GB on the method-view working tree to 3.67 GB, an 18.3% reduction. The previous 0.87 GB identifier-fold site left the hot list.
+- The fourteen-sample interleaved comparison against `9a4f4a4` passed: candidate/baseline means were 2.392s/2.601s with CVs 4.97%/3.04%, medians 2.354s/2.568s, and maximum RSS 1.206GB/1.321GB. That 8.0% mean improvement includes the uncommitted method-resolver views. See `docs/benchmarks/2026-09-01-wordpress-snapshot-intern.md`.
+
 ## Next ranked candidates
 
 The analyser target in `docs/full-static-analyser-target.md` is the source of truth for ordering.
 
-1. **Performance:** optimize the new profile leaders—semantic-fact insertion, ASCII identifier folding, required project-index method resolution, control-flow graph storage, and remaining per-clone scope object cost—then rerun the exact-baseline gate. Keep the 5% CV contract and do not cut rules or `vendor` to win.
+1. **Performance:** optimize the new profile leaders—semantic-fact insertion, remaining per-clone scope object cost, and leftover control-flow reachability maps—then keep the 5% CV contract. Do not cut rules or `vendor` to win.
 2. **Maintenance:** rewrite `FEATURES.md` for the Go language server after the first accepted Mago comparison; decide the fate of `src/server`.
 3. **Source mapping:** structured parser errors, then style-rule coordinate producers currently stuck at points.
 4. **Dependency matching:** replace conservative lexical invalidation only after generated reference facts cover supported resolver paths.

@@ -260,7 +260,7 @@ func builtinTypePredicate(call *ast.FunctionCallNode) (string, Type, bool) {
 		name = name[idx+1:]
 	}
 
-	switch strings.ToLower(name) {
+	switch asciiLowerIdent(name) {
 	case "is_string":
 		return variable.Name, ParseType("string"), true
 	case "is_int", "is_integer", "is_long":
@@ -348,7 +348,7 @@ func exitsCurrentBlock(node ast.Node) bool {
 	case *ast.ExpressionStmt:
 		return exitsCurrentBlock(n.Expr)
 	case *ast.IdentifierNode:
-		keyword := strings.ToLower(n.Value)
+		keyword := asciiLowerIdent(n.Value)
 		return keyword == "break" || keyword == "continue"
 	case *ast.IfNode:
 		if n.Else == nil {
@@ -632,7 +632,7 @@ func checkResolvedCallArgTypes(target string, method ResolvedMethod, args []ast.
 	nameToIndex := make(map[string]int, len(method.Params))
 	variadicIndex := -1
 	for idx, param := range method.Params {
-		nameToIndex[strings.ToLower(param.Name)] = idx
+		nameToIndex[asciiLowerIdent(param.Name)] = idx
 		if param.IsVariadic {
 			variadicIndex = idx
 		}
@@ -656,7 +656,7 @@ func checkResolvedCallArgTypes(target string, method ResolvedMethod, args []ast.
 		argLabel := ""
 
 		if namedArg, ok := argNode.(*ast.NamedArgumentNode); ok {
-			idx, ok := nameToIndex[strings.ToLower(namedArg.Name)]
+			idx, ok := nameToIndex[asciiLowerIdent(namedArg.Name)]
 			if !ok {
 				continue
 			}
@@ -761,7 +761,7 @@ func resolveMethodForCall(call *ast.MethodCallNode, scope *functionScope, ctx *A
 	}
 	if scope != nil {
 		if classData, ok := analysisClassScopeDataByName(ctx, className, scope.typeCtx); ok {
-			if method, ok := classData.methods[strings.ToLower(call.Method)]; ok {
+			if method, ok := classData.methods[asciiLowerIdent(call.Method)]; ok {
 				return method, true
 			}
 		}

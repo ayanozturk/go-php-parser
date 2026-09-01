@@ -60,7 +60,7 @@ func checkSymbolOnNode(filename string, node ast.Node, class *ast.ClassNode, cur
 				*issues = append(*issues, issueSpan(filename, n, level0SymbolsCode, fmt.Sprintf("Call to static method %s() on an unknown class %s.", methodName, resolvedClass)))
 				return
 			}
-			method, ok := ctx.Resolver.ResolveMethod(resolvedClass, methodName)
+			method, ok := resolveMethodView(ctx.Resolver, resolvedClass, methodName)
 			if !ok {
 				if guards.hasMethod(resolvedClass, methodName) {
 					return
@@ -97,7 +97,7 @@ func checkSymbolOnNode(filename string, node ast.Node, class *ast.ClassNode, cur
 			if className == "" {
 				return
 			}
-			method, ok := ctx.Resolver.ResolveMethod(className, n.Method)
+			method, ok := resolveMethodView(ctx.Resolver, className, n.Method)
 			if !ok {
 				if resolvedClass, classOK := ctx.Resolver.ResolveClass(className); classOK && resolvedClass.Kind == "trait" {
 					return
@@ -116,7 +116,7 @@ func checkSymbolOnNode(filename string, node ast.Node, class *ast.ClassNode, cur
 		if className == "" {
 			return
 		}
-		method, ok := ctx.Resolver.ResolveMethod(className, n.Method)
+		method, ok := resolveMethodView(ctx.Resolver, className, n.Method)
 		if !ok {
 			return
 		}

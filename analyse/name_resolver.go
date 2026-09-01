@@ -48,7 +48,7 @@ func collectFileTypeContextFromNodes(nodes []ast.Node, currentNS string, ctx *Fi
 			if alias == "" {
 				alias = unqualifiedTypeName(n.Path)
 			}
-			ctx.Aliases[strings.ToLower(alias)] = strings.TrimPrefix(n.Path, `\`)
+			ctx.Aliases[asciiLowerIdent(alias)] = strings.TrimPrefix(n.Path, `\`)
 		case *ast.ConstantNode:
 			if key, ok := literalArrayKey(n.Value); ok {
 				ctx.Constants[n.Name] = key
@@ -67,7 +67,7 @@ func collectFileTypeContextFromNodes(nodes []ast.Node, currentNS string, ctx *Fi
 					resolved.Implements = append(resolved.Implements, resolveClassLikeInContext(namespace, ctx.Aliases, implemented))
 				}
 			}
-			key := strings.ToLower(strings.TrimPrefix(className, `\`))
+			key := asciiLowerIdent(strings.TrimPrefix(className, `\`))
 			ctx.Classes[key] = resolved
 			ctx.ClassNodes[key] = n
 		case *ast.InterfaceNode:
@@ -79,7 +79,7 @@ func collectFileTypeContextFromNodes(nodes []ast.Node, currentNS string, ctx *Fi
 					resolved.Extends = append(resolved.Extends, resolveClassLikeInContext(namespace, ctx.Aliases, parent))
 				}
 			}
-			ctx.Classes[strings.ToLower(strings.TrimPrefix(interfaceName, `\`))] = resolved
+			ctx.Classes[asciiLowerIdent(strings.TrimPrefix(interfaceName, `\`))] = resolved
 		}
 	}
 	if ctx.Namespace == "" {
@@ -97,7 +97,7 @@ func resolveClassLikeInContext(namespace string, aliases map[string]string, name
 		return ""
 	}
 
-	lower := strings.ToLower(name)
+	lower := asciiLowerIdent(name)
 	if lower == "self" || lower == "static" || lower == "parent" {
 		return name
 	}
@@ -111,7 +111,7 @@ func resolveClassLikeInContext(namespace string, aliases map[string]string, name
 		firstSegment = name[:idx]
 		remainder = name[idx+1:]
 	}
-	if target, ok := aliases[strings.ToLower(firstSegment)]; ok {
+	if target, ok := aliases[asciiLowerIdent(firstSegment)]; ok {
 		if remainder != "" {
 			return target + `\` + remainder
 		}
@@ -128,11 +128,11 @@ func (ctx FileTypeContext) resolveClass(name string) (ResolvedClass, bool) {
 		return ResolvedClass{}, false
 	}
 	trimmed := strings.TrimPrefix(strings.TrimSpace(name), `\`)
-	if class, ok := ctx.Classes[strings.ToLower(trimmed)]; ok {
+	if class, ok := ctx.Classes[asciiLowerIdent(trimmed)]; ok {
 		return class, true
 	}
 	resolved := ctx.resolveClassLike(trimmed)
-	class, ok := ctx.Classes[strings.ToLower(strings.TrimPrefix(resolved, `\`))]
+	class, ok := ctx.Classes[asciiLowerIdent(strings.TrimPrefix(resolved, `\`))]
 	return class, ok
 }
 

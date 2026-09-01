@@ -119,10 +119,10 @@ func resolveMethodReceiverClass(className string, ctx *AnalysisContext) (Resolve
 }
 
 func receiverClassProvidesMethod(className, method string, ctx *AnalysisContext) bool {
-	if _, ok := ctx.Resolver.ResolveMethod(className, method); ok {
+	if _, ok := resolveMethodView(ctx.Resolver, className, method); ok {
 		return true
 	}
-	_, magic := ctx.Resolver.ResolveMethod(className, "__call")
+	_, magic := resolveMethodView(ctx.Resolver, className, "__call")
 	return magic
 }
 

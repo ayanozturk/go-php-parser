@@ -302,6 +302,148 @@ func consumeResolvedMethodForAllocationTest(method ResolvedMethod) bool {
 	return true
 }
 
+func TestResolveMethodViewReusesImmutableParams(t *testing.T) {
+	snapshot := resolverAllocationSnapshot(t)
+
+	first, ok := resolveMethodView(snapshot, "AllocationProbe", "middle")
+	if !ok {
+		t.Fatal("expected AllocationProbe::middle method view")
+	}
+	second, ok := resolveMethodView(snapshot, "allocationprobe", "MIDDLE")
+	if !ok {
+		t.Fatal("expected AllocationProbe::middle method view on repeated lookup")
+	}
+	if got, want := len(first.Params), 2; got != want {
+		t.Fatalf("method view parameter count = %d, want %d", got, want)
+	}
+	if &first.Params[0] != &second.Params[0] {
+		t.Fatal("method view cloned immutable parameter storage between calls")
+	}
+	if first.DeclaringClass != "AllocationProbe" || first.Params[0].Name != "enabled" || first.Params[1].Name != "values" {
+		t.Fatalf("unexpected method view metadata: %#v", first)
+	}
+}
+
+func TestResolveOwnMethodViewReusesImmutableParams(t *testing.T) {
+	snapshot := resolverAllocationSnapshot(t)
+
+	first, ok := resolveOwnMethodView(snapshot, "AllocationProbe", "middle")
+	if !ok {
+		t.Fatal("expected own AllocationProbe::middle method view")
+	}
+	second, ok := resolveOwnMethodView(snapshot, "allocationprobe", "MIDDLE")
+	if !ok {
+		t.Fatal("expected own AllocationProbe::middle method view on repeated lookup")
+	}
+	if &first.Params[0] != &second.Params[0] {
+		t.Fatal("own-method view cloned immutable parameter storage between calls")
+	}
+}
+
+func TestResolveMethodViewFindsInheritedMethodsWithoutParamClones(t *testing.T) {
+	nodes := parsePHPForProjectIndex(t, `<?php
+class AllocationBase {
+    public function inherited(int $count): string {}
+}
+class AllocationChild extends AllocationBase {}
+`)
+	snapshot, err := NewSemanticSnapshot(map[string][]ast.Node{"src/AllocationChild.php": nodes}, nil)
+	if err != nil {
+		t.Fatalf("build inherited allocation fixture snapshot: %v", err)
+	}
+
+	first, ok := resolveMethodView(snapshot, "AllocationChild", "inherited")
+	if !ok {
+		t.Fatal("expected inherited AllocationChild::inherited method view")
+	}
+	if first.DeclaringClass != "AllocationBase" {
+		t.Fatalf("inherited method declaring class = %q, want AllocationBase", first.DeclaringClass)
+	}
+	second, ok := resolveMethodView(snapshot, "allocationchild", "INHERITED")
+	if !ok {
+		t.Fatal("expected inherited method view on repeated lookup")
+	}
+	if &first.Params[0] != &second.Params[0] {
+		t.Fatal("inherited method view cloned immutable parameter storage between calls")
+	}
+	if _, ok := resolveOwnMethodView(snapshot, "AllocationChild", "inherited"); ok {
+		t.Fatal("own-method view unexpectedly resolved an inherited method")
+	}
+}
+
+func consumeResolvedMethodViewForAllocationTest(method ResolvedMethod) {
+	resolverAllocationSink = method.Name
+	if len(method.Params) > 0 {
+		resolverAllocationSink = method.Params[len(method.Params)-1].Name
+	}
+}
+
+func TestResolveMethodViewReducesPerCallAllocations(t *testing.T) {
+	snapshot := resolverAllocationSnapshot(t)
+
+	public, ok := snapshot.ResolveMethod("AllocationProbe", "middle")
+	if !ok {
+		t.Fatal("expected AllocationProbe::middle method")
+	}
+	consumeResolvedMethodViewForAllocationTest(public)
+	view, ok := resolveMethodView(snapshot, "AllocationProbe", "middle")
+	if !ok {
+		t.Fatal("expected AllocationProbe::middle method view")
+	}
+	consumeResolvedMethodViewForAllocationTest(view)
+
+	publicAllocs := testing.AllocsPerRun(100, func() {
+		method, ok := snapshot.ResolveMethod("AllocationProbe", "middle")
+		if !ok {
+			t.Fatal("public method lookup unexpectedly failed")
+		}
+		consumeResolvedMethodViewForAllocationTest(method)
+	})
+	viewAllocs := testing.AllocsPerRun(100, func() {
+		method, ok := resolveMethodView(snapshot, "AllocationProbe", "middle")
+		if !ok {
+			t.Fatal("method view lookup unexpectedly failed")
+		}
+		consumeResolvedMethodViewForAllocationTest(method)
+	})
+	if viewAllocs >= publicAllocs {
+		t.Fatalf("method view allocations = %v, public lookup allocations = %v; view should reuse immutable parameter storage", viewAllocs, publicAllocs)
+	}
+}
+
+func TestResolveOwnMethodViewReducesPerCallAllocations(t *testing.T) {
+	snapshot := resolverAllocationSnapshot(t)
+
+	public, ok := snapshot.ResolveOwnMethod("AllocationProbe", "middle")
+	if !ok {
+		t.Fatal("expected own AllocationProbe::middle method")
+	}
+	consumeResolvedMethodViewForAllocationTest(public)
+	view, ok := resolveOwnMethodView(snapshot, "AllocationProbe", "middle")
+	if !ok {
+		t.Fatal("expected own AllocationProbe::middle method view")
+	}
+	consumeResolvedMethodViewForAllocationTest(view)
+
+	publicAllocs := testing.AllocsPerRun(100, func() {
+		method, ok := snapshot.ResolveOwnMethod("AllocationProbe", "middle")
+		if !ok {
+			t.Fatal("public own-method lookup unexpectedly failed")
+		}
+		consumeResolvedMethodViewForAllocationTest(method)
+	})
+	viewAllocs := testing.AllocsPerRun(100, func() {
+		method, ok := resolveOwnMethodView(snapshot, "AllocationProbe", "middle")
+		if !ok {
+			t.Fatal("own-method view lookup unexpectedly failed")
+		}
+		consumeResolvedMethodViewForAllocationTest(method)
+	})
+	if viewAllocs >= publicAllocs {
+		t.Fatalf("own-method view allocations = %v, public lookup allocations = %v; view should reuse immutable parameter storage", viewAllocs, publicAllocs)
+	}
+}
+
 func TestRangeMethodsDeclaredByReducesPerCallAllocations(t *testing.T) {
 	snapshot := resolverAllocationSnapshot(t)
 

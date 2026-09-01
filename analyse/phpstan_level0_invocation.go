@@ -94,7 +94,7 @@ func constructorForSeen(className string, resolver SymbolResolver, seen map[stri
 		return ResolvedMethod{Name: "__construct"}
 	}
 	seen[key] = struct{}{}
-	if method, found := resolver.ResolveOwnMethod(class.Name, "__construct"); found {
+	if method, found := resolveOwnMethodView(resolver, class.Name, "__construct"); found {
 		return method
 	}
 	parents := append(append(append([]string(nil), class.Extends...), class.Implements...), class.Traits...)

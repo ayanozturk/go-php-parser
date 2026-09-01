@@ -215,7 +215,7 @@ func finalMethodInAncestorsSeen(resolver SymbolResolver, className, methodName s
 		return ResolvedMethod{}, false
 	}
 	for _, parent := range class.Extends {
-		if method, ok := resolver.ResolveOwnMethod(parent, methodName); ok && method.Final {
+		if method, ok := resolveOwnMethodView(resolver, parent, methodName); ok && method.Final {
 			return method, true
 		}
 		if method, ok := finalMethodInAncestorsSeen(resolver, parent, methodName, seen); ok {
@@ -272,7 +272,7 @@ func consistentConstructorInAncestorsSeen(resolver SymbolResolver, className str
 	}
 	for _, parent := range class.Extends {
 		if parentClass, ok := resolver.ResolveClass(parent); ok && parentClass.ConsistentConstructor {
-			constructor, ok := resolver.ResolveOwnMethod(parent, "__construct")
+			constructor, ok := resolveOwnMethodView(resolver, parent, "__construct")
 			if !ok {
 				constructor = ResolvedMethod{Name: "__construct", DeclaringClass: parent, Visibility: "public"}
 			}
@@ -303,7 +303,7 @@ func ownConstructor(resolver SymbolResolver, className string) (ResolvedMethod, 
 	if resolver == nil {
 		return ResolvedMethod{}, false
 	}
-	return resolver.ResolveOwnMethod(className, "__construct")
+	return resolveOwnMethodView(resolver, className, "__construct")
 }
 
 func hasPrivateConstructor(resolver SymbolResolver, className string) bool {
@@ -419,7 +419,7 @@ func collectAbstractMethodsSeen(resolver SymbolResolver, className string, out m
 	}
 	rangeMethodsDeclaredBy(resolver, className, func(method ResolvedMethod) bool {
 		if method.Abstract {
-			out[strings.ToLower(method.Name)] = method
+			out[asciiLowerIdent(method.Name)] = method
 		}
 		return true
 	})
@@ -443,7 +443,7 @@ func collectUnimplementedParentAbstractMethodsSeen(resolver SymbolResolver, clas
 		collectUnimplementedParentAbstractMethodsSeen(resolver, parent, out, seen)
 	}
 	rangeMethodsDeclaredBy(resolver, className, func(method ResolvedMethod) bool {
-		key := strings.ToLower(method.Name)
+		key := asciiLowerIdent(method.Name)
 		if method.Abstract {
 			out[key] = method
 		} else {
@@ -461,7 +461,7 @@ func findConcreteClassMethod(resolver SymbolResolver, className, methodName stri
 			return ResolvedMethod{}, false
 		}
 		seen[key] = struct{}{}
-		if method, ok := resolver.ResolveOwnMethod(className, methodName); ok && !method.Abstract {
+		if method, ok := resolveOwnMethodView(resolver, className, methodName); ok && !method.Abstract {
 			return method, true
 		}
 		class, ok := resolver.ResolveClass(className)

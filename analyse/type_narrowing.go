@@ -54,82 +54,75 @@ func extractClassNameFromNode(node ast.Node) string {
 	return ""
 }
 
-// collectNarrowingFacts generates narrowing facts for a file's statements.
-func collectNarrowingFacts(filename string, statements []ast.Node) []SemanticFact {
-	var facts []SemanticFact
-	walkStatementsForNarrowing(filename, statements, &facts)
-	if len(facts) > 0 {
-		// Debug: facts were generated
-	}
-	return facts
+// insertNarrowingFacts writes instanceof narrowing facts for a file directly
+// into the snapshot store. Duplicate spans keep the first fact.
+func insertNarrowingFacts(store semanticFactStore, filename string, statements []ast.Node) {
+	walkStatementsForNarrowing(store, filename, statements)
 }
 
-func walkStatementsForNarrowing(filename string, statements []ast.Node, facts *[]SemanticFact) {
+func walkStatementsForNarrowing(store semanticFactStore, filename string, statements []ast.Node) {
 	for _, stmt := range statements {
-		walkNodeForNarrowing(filename, stmt, facts)
+		walkNodeForNarrowing(store, filename, stmt)
 	}
 }
 
-func walkNodeForNarrowing(filename string, node ast.Node, facts *[]SemanticFact) {
+func walkNodeForNarrowing(store semanticFactStore, filename string, node ast.Node) {
 	if node == nil {
 		return
 	}
 
-	// Debug: print node types encountered
-	_ = node.NodeType()
-
 	switch n := node.(type) {
 	case *ast.IfNode:
 		if varName, className, ok := detectInstanceofNarrowing(n.Condition); ok {
-			addNarrowingToBody(filename, varName, className, n.Body, facts)
+			addNarrowingToBody(store, filename, varName, className, n.Body)
 		}
-		walkStatementsForNarrowing(filename, n.Body, facts)
+		walkStatementsForNarrowing(store, filename, n.Body)
 		for _, elseif := range n.ElseIfs {
 			if varName, className, ok := detectInstanceofNarrowing(elseif.Condition); ok {
-				addNarrowingToBody(filename, varName, className, elseif.Body, facts)
+				addNarrowingToBody(store, filename, varName, className, elseif.Body)
 			}
-			walkStatementsForNarrowing(filename, elseif.Body, facts)
+			walkStatementsForNarrowing(store, filename, elseif.Body)
 		}
 		if n.Else != nil {
-			walkStatementsForNarrowing(filename, n.Else.Body, facts)
+			walkStatementsForNarrowing(store, filename, n.Else.Body)
 		}
 
 	case *ast.BlockNode:
-		walkStatementsForNarrowing(filename, n.Statements, facts)
+		walkStatementsForNarrowing(store, filename, n.Statements)
 	case *ast.WhileNode:
-		walkStatementsForNarrowing(filename, n.Body, facts)
+		walkStatementsForNarrowing(store, filename, n.Body)
 	case *ast.ForNode:
-		walkStatementsForNarrowing(filename, n.Body, facts)
+		walkStatementsForNarrowing(store, filename, n.Body)
 	case *ast.ForeachNode:
-		walkStatementsForNarrowing(filename, n.Body, facts)
+		walkStatementsForNarrowing(store, filename, n.Body)
 	case *ast.DoWhileNode:
-		walkStatementsForNarrowing(filename, n.Body, facts)
+		walkStatementsForNarrowing(store, filename, n.Body)
 	case *ast.SwitchNode:
 		for _, caseNode := range n.Cases {
-			walkStatementsForNarrowing(filename, caseNode.Body, facts)
+			walkStatementsForNarrowing(store, filename, caseNode.Body)
 		}
 	case *ast.TryNode:
-		walkStatementsForNarrowing(filename, n.Body, facts)
+		walkStatementsForNarrowing(store, filename, n.Body)
 		for _, catchNode := range n.Catches {
-			walkStatementsForNarrowing(filename, catchNode.Body, facts)
+			walkStatementsForNarrowing(store, filename, catchNode.Body)
 		}
-		walkStatementsForNarrowing(filename, n.Finally, facts)
+		walkStatementsForNarrowing(store, filename, n.Finally)
 	case *ast.FunctionNode:
-		walkStatementsForNarrowing(filename, n.Body, facts)
+		walkStatementsForNarrowing(store, filename, n.Body)
 	case *ast.ClassNode:
 		for _, method := range n.Methods {
-			walkNodeForNarrowing(filename, method, facts)
+			walkNodeForNarrowing(store, filename, method)
 		}
 	}
 }
 
-func addNarrowingToBody(filename, varName, className string, body []ast.Node, facts *[]SemanticFact) {
+func addNarrowingToBody(store semanticFactStore, filename, varName, className string, body []ast.Node) {
 	for _, stmt := range body {
-		walkNodeAndAddNarrowing(filename, varName, className, stmt, facts)
+		walkNodeAndAddNarrowing(store, filename, varName, className, stmt)
 	}
 }
 
-func walkNodeAndAddNarrowing(filename, varName, className string, node ast.Node, facts *[]SemanticFact) {
+func walkNodeAndAddNarrowing(store semanticFactStore, filename, varName, className string, node ast.Node) {
 	if node == nil {
 		return
 	}
@@ -137,52 +130,50 @@ func walkNodeAndAddNarrowing(filename, varName, className string, node ast.Node,
 	switch n := node.(type) {
 	case *ast.VariableNode:
 		if n.Name == varName {
-			fact := SemanticFact{
-				Key: SemanticFactKey{
-					File:        filename,
-					StartOffset: n.GetPos().Offset,
-					EndOffset:   n.GetEndPos().Offset,
-					Kind:        FactKindNarrowed,
-				},
-				Subject: SymbolID(className),
-				Type:    className,
-				Value:   "instanceof",
+			start, end := n.GetPos(), n.GetEndPos()
+			if end.Offset <= start.Offset {
+				return
 			}
-			*facts = append(*facts, fact)
+			store.putParts(SemanticFactKey{
+				File:        filename,
+				StartOffset: start.Offset,
+				EndOffset:   end.Offset,
+				Kind:        FactKindNarrowed,
+			}, SymbolID(className), className, "instanceof")
 		}
 
 	case *ast.BlockNode:
 		for _, stmt := range n.Statements {
-			walkNodeAndAddNarrowing(filename, varName, className, stmt, facts)
+			walkNodeAndAddNarrowing(store, filename, varName, className, stmt)
 		}
 	case *ast.ExpressionStmt:
-		walkNodeAndAddNarrowing(filename, varName, className, n.Expr, facts)
+		walkNodeAndAddNarrowing(store, filename, varName, className, n.Expr)
 	case *ast.BinaryExpr:
-		walkNodeAndAddNarrowing(filename, varName, className, n.Left, facts)
-		walkNodeAndAddNarrowing(filename, varName, className, n.Right, facts)
+		walkNodeAndAddNarrowing(store, filename, varName, className, n.Left)
+		walkNodeAndAddNarrowing(store, filename, varName, className, n.Right)
 	case *ast.UnaryExpr:
-		walkNodeAndAddNarrowing(filename, varName, className, n.Operand, facts)
+		walkNodeAndAddNarrowing(store, filename, varName, className, n.Operand)
 	case *ast.FunctionCallNode:
-		walkNodeAndAddNarrowing(filename, varName, className, n.Name, facts)
+		walkNodeAndAddNarrowing(store, filename, varName, className, n.Name)
 		for _, arg := range n.Args {
-			walkNodeAndAddNarrowing(filename, varName, className, arg, facts)
+			walkNodeAndAddNarrowing(store, filename, varName, className, arg)
 		}
 	case *ast.MethodCallNode:
-		walkNodeAndAddNarrowing(filename, varName, className, n.Object, facts)
+		walkNodeAndAddNarrowing(store, filename, varName, className, n.Object)
 		for _, arg := range n.Args {
-			walkNodeAndAddNarrowing(filename, varName, className, arg, facts)
+			walkNodeAndAddNarrowing(store, filename, varName, className, arg)
 		}
 	case *ast.PropertyFetchNode:
-		walkNodeAndAddNarrowing(filename, varName, className, n.Object, facts)
+		walkNodeAndAddNarrowing(store, filename, varName, className, n.Object)
 	case *ast.ArrayAccessNode:
-		walkNodeAndAddNarrowing(filename, varName, className, n.Var, facts)
+		walkNodeAndAddNarrowing(store, filename, varName, className, n.Var)
 		if n.Index != nil {
-			walkNodeAndAddNarrowing(filename, varName, className, n.Index, facts)
+			walkNodeAndAddNarrowing(store, filename, varName, className, n.Index)
 		}
 	case *ast.AssignmentNode:
-		walkNodeAndAddNarrowing(filename, varName, className, n.Left, facts)
-		walkNodeAndAddNarrowing(filename, varName, className, n.Right, facts)
+		walkNodeAndAddNarrowing(store, filename, varName, className, n.Left)
+		walkNodeAndAddNarrowing(store, filename, varName, className, n.Right)
 	case *ast.IfNode:
-		walkStatementsForNarrowing(filename, n.Body, facts)
+		walkStatementsForNarrowing(store, filename, n.Body)
 	}
 }

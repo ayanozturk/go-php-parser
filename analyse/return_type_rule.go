@@ -483,7 +483,7 @@ func inferFunctionCallType(n *ast.FunctionCallNode, scope *functionScope, ctx *A
 		if idx := strings.LastIndex(name, "\\"); idx != -1 {
 			name = name[idx+1:]
 		}
-		name = strings.ToLower(name)
+		name = asciiLowerIdent(name)
 		switch name {
 		case "implode", "join", "sprintf", "json_encode", "strval":
 			return ParseType("string")
@@ -683,7 +683,7 @@ func newFunctionScopeWithContext(ctx *AnalysisContext, class *ast.ClassNode, fn 
 			if instance, ok := parseExactGenericTypeFromString(documentedType); ok && strings.EqualFold(instance.ClassName, "class-string") && len(instance.TypeArguments) == 1 {
 				targetName := instance.TypeArguments[0]
 				target := ""
-				if bound, ok := templateBounds[strings.ToLower(strings.TrimSpace(targetName))]; ok {
+				if bound, ok := templateBounds[asciiLowerIdent(strings.TrimSpace(targetName))]; ok {
 					target = bound
 				} else {
 					target = normalizeTypeWithContext(targetName, typeCtx)
@@ -729,9 +729,9 @@ func localTemplateBounds(class *ast.ClassNode, fn *ast.FunctionNode, typeCtx Fil
 		for _, template := range doc.Templates {
 			bound := normalizeTypeWithContext(template.Bound, typeCtx)
 			if _, ok := ParseType(bound).SingleClassName(); ok {
-				bounds[strings.ToLower(template.Name)] = bound
+				bounds[asciiLowerIdent(template.Name)] = bound
 			} else {
-				bounds[strings.ToLower(template.Name)] = ""
+				bounds[asciiLowerIdent(template.Name)] = ""
 			}
 		}
 	}
@@ -759,7 +759,7 @@ func buildClassScopeDataWithSeen(class *ast.ClassNode, typeCtx FileTypeContext, 
 		propertyArrayShapes:     make(map[string]map[string]arrayShapeField),
 		methodArrayShapes:       make(map[string]map[string]arrayShapeField),
 	}
-	key := strings.ToLower(strings.TrimPrefix(data.className, `\`))
+	key := asciiLowerIdent(strings.TrimPrefix(data.className, `\`))
 	if _, ok := seen[key]; ok {
 		return data
 	}
@@ -767,7 +767,7 @@ func buildClassScopeDataWithSeen(class *ast.ClassNode, typeCtx FileTypeContext, 
 
 	if class.Extends != "" {
 		parentName := typeCtx.resolveClassLike(class.Extends)
-		if parent, ok := typeCtx.ClassNodes[strings.ToLower(strings.TrimPrefix(parentName, `\`))]; ok {
+		if parent, ok := typeCtx.ClassNodes[asciiLowerIdent(strings.TrimPrefix(parentName, `\`))]; ok {
 			parentData := buildClassScopeDataWithSeen(parent, typeCtx, seen)
 			mergeClassScopeData(&data, parentData)
 		}
@@ -847,12 +847,12 @@ func buildClassScopeDataWithSeen(class *ast.ClassNode, typeCtx FileTypeContext, 
 				IsOut:      param.IsByRef,
 			})
 		}
-		data.methods[strings.ToLower(method.Name)] = resolved
+		data.methods[asciiLowerIdent(method.Name)] = resolved
 		if !methodType.IsEmpty() {
-			data.methodReturns[strings.ToLower(method.Name)] = methodType
+			data.methodReturns[asciiLowerIdent(method.Name)] = methodType
 		}
 		if fields := parseArrayShapeFields(methodReturnTypeAnnotation(method), typeCtx); len(fields) > 0 {
-			data.methodArrayShapes[strings.ToLower(method.Name)] = fields
+			data.methodArrayShapes[asciiLowerIdent(method.Name)] = fields
 		}
 	}
 	return data
@@ -965,7 +965,7 @@ func methodArrayShapesOf(node *ast.MethodCallNode, scope *functionScope, ctx *An
 	if node == nil || scope == nil {
 		return nil
 	}
-	key := strings.ToLower(node.Method)
+	key := asciiLowerIdent(node.Method)
 	if object, ok := node.Object.(*ast.VariableNode); ok && object.Name == "this" {
 		return scope.methodArrayShapes[key]
 	}
@@ -1180,7 +1180,7 @@ func classConstantValuesFor(className string, scope *functionScope) map[string]s
 	if className == "" || strings.EqualFold(className, "self") || strings.EqualFold(className, "static") || (scope.className != "" && strings.EqualFold(className, scope.className)) {
 		return scope.classConstantValues
 	}
-	class, ok := scope.typeCtx.ClassNodes[strings.ToLower(className)]
+	class, ok := scope.typeCtx.ClassNodes[asciiLowerIdent(className)]
 	if !ok {
 		return nil
 	}
@@ -1696,7 +1696,7 @@ func inferMethodCallType(node *ast.MethodCallNode, scope *functionScope, ctx *An
 	}
 	if scope != nil {
 		if classData, ok := analysisClassScopeDataByName(ctx, className, scope.typeCtx); ok {
-			if method, ok := classData.methods[strings.ToLower(node.Method)]; ok {
+			if method, ok := classData.methods[asciiLowerIdent(node.Method)]; ok {
 				return ParseType(method.ReturnType)
 			}
 		}
@@ -1708,7 +1708,7 @@ func resolveSameClassMethod(scope *functionScope, methodName string) (ResolvedMe
 	if scope == nil {
 		return ResolvedMethod{}, false
 	}
-	method, ok := scope.methods[strings.ToLower(methodName)]
+	method, ok := scope.methods[asciiLowerIdent(methodName)]
 	return method, ok
 }
 

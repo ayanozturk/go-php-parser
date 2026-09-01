@@ -25,7 +25,7 @@ func appendMethodVisibilityOnNode(filename string, node ast.Node, class *ast.Cla
 		if isSpecialClassName(resolvedClass) {
 			return
 		}
-		method, ok := ctx.Resolver.ResolveMethod(resolvedClass, methodName)
+		method, ok := resolveMethodView(ctx.Resolver, resolvedClass, methodName)
 		if !ok {
 			return
 		}
@@ -43,7 +43,7 @@ func appendMethodVisibilityOnNode(filename string, node ast.Node, class *ast.Cla
 		if className == "" {
 			return
 		}
-		method, ok := ctx.Resolver.ResolveMethod(className, n.Method)
+		method, ok := resolveMethodView(ctx.Resolver, className, n.Method)
 		if !ok {
 			return
 		}

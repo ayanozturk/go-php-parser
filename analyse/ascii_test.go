@@ -41,11 +41,17 @@ func TestASCIILowerIdentAllocations(t *testing.T) {
 	upperAllocs := testing.AllocsPerRun(100, func() {
 		got = asciiLowerIdent("FooBar")
 	})
-	if upperAllocs != 1 {
-		t.Fatalf("uppercase ASCII allocation count = %.2f, want 1", upperAllocs)
+	if upperAllocs != 0 {
+		t.Fatalf("cached mixed-case ASCII allocation count = %.2f, want 0", upperAllocs)
 	}
 	if got != "foobar" {
 		t.Fatalf("uppercase ASCII result = %q", got)
+	}
+
+	first := asciiLowerIdent("Vendor\\Service")
+	second := asciiLowerIdent("Vendor\\Service")
+	if first != "vendor\\service" || second != first {
+		t.Fatalf("interned mixed-case results diverged: %q vs %q", first, second)
 	}
 
 	for _, input := range []string{"ä", "Straße"} {

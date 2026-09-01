@@ -99,7 +99,7 @@ func resolveConstructorForNew(node *ast.NewNode, scope *functionScope, ctx *Anal
 		resolvedClassName = scope.typeCtx.resolveClassLike(className)
 	}
 
-	switch strings.ToLower(className) {
+	switch asciiLowerIdent(className) {
 	case "self", "static":
 		if method, ok := resolveSameClassMethod(scope, "__construct"); ok {
 			return strings.TrimPrefix(scope.className, `\`), method, true
@@ -121,7 +121,7 @@ func resolveConstructorForNew(node *ast.NewNode, scope *functionScope, ctx *Anal
 	}
 
 	if ctx != nil && ctx.Resolver != nil {
-		method, ok := ctx.Resolver.ResolveMethod(resolvedClassName, "__construct")
+		method, ok := resolveMethodView(ctx.Resolver, resolvedClassName, "__construct")
 		if ok {
 			return strings.TrimPrefix(resolvedClassName, `\`), method, true
 		}
@@ -144,7 +144,7 @@ func resolveInheritedConstructor(className string, scope *functionScope, ctx *An
 	for len(queue) > 0 {
 		current := strings.TrimPrefix(queue[0], `\`)
 		queue = queue[1:]
-		key := strings.ToLower(current)
+		key := asciiLowerIdent(current)
 		if _, ok := seen[key]; ok {
 			continue
 		}
@@ -160,7 +160,7 @@ func resolveInheritedConstructor(className string, scope *functionScope, ctx *An
 				continue
 			}
 			if ctx != nil && ctx.Resolver != nil {
-				if method, ok := ctx.Resolver.ResolveMethod(parent, "__construct"); ok {
+				if method, ok := resolveMethodView(ctx.Resolver, parent, "__construct"); ok {
 					return method, true
 				}
 			}

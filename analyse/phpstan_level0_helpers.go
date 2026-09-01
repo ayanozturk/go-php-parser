@@ -40,7 +40,7 @@ func resolveNewClassName(node *ast.NewNode, ft FileTypeContext) string {
 }
 
 func resolveClassLikeForCall(name string, current *ast.ClassNode, ft FileTypeContext, ctx *AnalysisContext) string {
-	switch strings.ToLower(strings.TrimPrefix(name, `\`)) {
+	switch asciiLowerIdent(strings.TrimPrefix(name, `\`)) {
 	case "self", "static":
 		if current != nil {
 			return ft.resolveClassLike(current.Name)
@@ -84,7 +84,7 @@ func currentClassName(class *ast.ClassNode, ft FileTypeContext) string {
 }
 
 func isSpecialClassName(name string) bool {
-	switch strings.ToLower(strings.TrimPrefix(name, `\`)) {
+	switch asciiLowerIdent(strings.TrimPrefix(name, `\`)) {
 	case "", "self", "static", "parent":
 		return true
 	default:

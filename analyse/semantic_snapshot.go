@@ -70,9 +70,13 @@ type storedSemanticFact struct {
 
 type semanticFactStore map[string]map[semanticFactSpanKey]storedSemanticFact
 
+func (s semanticFactStore) has(key SemanticFactKey) bool {
+	_, ok := s[key.File][semanticFactSpanKey{StartOffset: key.StartOffset, EndOffset: key.EndOffset, Kind: key.Kind}]
+	return ok
+}
+
 func (s semanticFactStore) fact(key SemanticFactKey) (SemanticFact, bool) {
-	fileFacts := s[key.File]
-	stored, ok := fileFacts[semanticFactSpanKey{StartOffset: key.StartOffset, EndOffset: key.EndOffset, Kind: key.Kind}]
+	stored, ok := s[key.File][semanticFactSpanKey{StartOffset: key.StartOffset, EndOffset: key.EndOffset, Kind: key.Kind}]
 	if !ok {
 		return SemanticFact{}, false
 	}
@@ -80,16 +84,20 @@ func (s semanticFactStore) fact(key SemanticFactKey) (SemanticFact, bool) {
 }
 
 func (s semanticFactStore) put(fact SemanticFact) bool {
-	span := semanticFactSpanKey{StartOffset: fact.Key.StartOffset, EndOffset: fact.Key.EndOffset, Kind: fact.Key.Kind}
-	fileFacts := s[fact.Key.File]
+	return s.putParts(fact.Key, fact.Subject, fact.Type, fact.Value)
+}
+
+func (s semanticFactStore) putParts(key SemanticFactKey, subject SymbolID, typ, value string) bool {
+	span := semanticFactSpanKey{StartOffset: key.StartOffset, EndOffset: key.EndOffset, Kind: key.Kind}
+	fileFacts := s[key.File]
 	if fileFacts == nil {
 		fileFacts = make(map[semanticFactSpanKey]storedSemanticFact)
-		s[fact.Key.File] = fileFacts
+		s[key.File] = fileFacts
 	}
 	if _, exists := fileFacts[span]; exists {
 		return false
 	}
-	fileFacts[span] = storedSemanticFact{Subject: fact.Subject, Type: fact.Type, Value: fact.Value}
+	fileFacts[span] = storedSemanticFact{Subject: subject, Type: typ, Value: value}
 	return true
 }
 
@@ -169,19 +177,6 @@ func NewSemanticSnapshotWithIndex(idx *ProjectIndex, parsed map[string][]ast.Nod
 }
 
 func newSemanticSnapshot(idx *ProjectIndex, parsed map[string][]ast.Node, facts []SemanticFact, targets []string) (*SemanticSnapshot, error) {
-	store := make(semanticFactStore)
-
-	// Explicit facts (currently unused by any caller, but kept strict for
-	// future callers) must not collide with one another.
-	for _, fact := range facts {
-		if err := validateSemanticFactKey(fact.Key); err != nil {
-			return nil, err
-		}
-		if !store.put(fact) {
-			return nil, fmt.Errorf("duplicate semantic fact key: %s:%d-%d:%s", fact.Key.File, fact.Key.StartOffset, fact.Key.EndOffset, fact.Key.Kind)
-		}
-	}
-
 	scoped := parsed
 	filenames := make([]string, 0, len(parsed))
 	if len(targets) > 0 {
@@ -199,17 +194,25 @@ func newSemanticSnapshot(idx *ProjectIndex, parsed map[string][]ast.Node, facts 
 	}
 	sort.Strings(filenames)
 
+	store := make(semanticFactStore, len(filenames))
+
+	// Explicit facts (currently unused by any caller, but kept strict for
+	// future callers) must not collide with one another.
+	for _, fact := range facts {
+		if err := validateSemanticFactKey(fact.Key); err != nil {
+			return nil, err
+		}
+		if !store.put(fact) {
+			return nil, fmt.Errorf("duplicate semantic fact key: %s:%d-%d:%s", fact.Key.File, fact.Key.StartOffset, fact.Key.EndOffset, fact.Key.Kind)
+		}
+	}
+
 	// Generate narrowing facts from control flow. Overlapping conditions
 	// (e.g. an elseif re-testing the same expression) can legitimately
 	// produce two narrowing facts for the exact same source span; keep the
 	// first rather than aborting analysis of the entire project over it.
 	for filename, nodes := range scoped {
-		for _, fact := range collectNarrowingFacts(filename, nodes) {
-			if err := validateSemanticFactKey(fact.Key); err != nil {
-				return nil, err
-			}
-			store.put(fact)
-		}
+		insertNarrowingFacts(store, filename, nodes)
 	}
 
 	snapshot := &SemanticSnapshot{
@@ -265,14 +268,14 @@ func (s *SemanticSnapshot) addGeneratedInferredTypeFact(filename string, expr as
 		return
 	}
 	key := SemanticFactKey{File: filename, StartOffset: start.Offset, EndOffset: end.Offset, Kind: FactKindInferredType}
-	if _, explicitOrGenerated := s.facts.fact(key); explicitOrGenerated {
+	if s.facts.has(key) {
 		return
 	}
 	inferred := infer()
 	if inferred.IsEmpty() {
 		return
 	}
-	s.facts.put(SemanticFact{Key: key, Subject: s.functionSymbolID(fileCtx, class, function), Type: inferred.dnfString()})
+	s.facts.putParts(key, s.functionSymbolID(fileCtx, class, function), inferred.dnfString(), "")
 }
 
 func (s *SemanticSnapshot) functionSymbolID(fileCtx FileTypeContext, class *ast.ClassNode, function *ast.FunctionNode) SymbolID {
@@ -281,7 +284,7 @@ func (s *SemanticSnapshot) functionSymbolID(fileCtx FileTypeContext, class *ast.
 	}
 	if class != nil {
 		className := fileCtx.resolveClassLike(class.Name)
-		if method, ok := s.ResolveMethod(className, function.Name); ok {
+		if method, ok := s.resolveMethodView(className, function.Name); ok {
 			return method.ID
 		}
 		return stableSymbolID("method", className, function.Name)
@@ -327,7 +330,7 @@ func (s *SemanticSnapshot) generateVariableFlowFacts(parsed map[string][]ast.Nod
 	s.variableReads = make(map[string][]variableReadFact, len(s.filenames))
 	s.completeVariableReads = make(map[string]*lazyVariableReadFacts, len(s.filenames))
 	for _, filename := range s.filenames {
-		nodes := append([]ast.Node(nil), parsed[filename]...)
+		nodes := parsed[filename]
 		s.variableReads[filename] = buildVariableFlowFacts(filename, nodes, false, s)
 		s.completeVariableReads[filename] = &lazyVariableReadFacts{filename: filename, nodes: nodes, resolver: s}
 	}
@@ -439,11 +442,39 @@ func (s *SemanticSnapshot) methodReferenceParams(className, methodName string) (
 	return s.project.methodReferenceParams(className, methodName)
 }
 
+func (s *SemanticSnapshot) resolveMethodView(className, methodName string) (ResolvedMethod, bool) {
+	if s == nil || s.project == nil {
+		return ResolvedMethod{}, false
+	}
+	method, ok := s.project.resolveMethodView(className, methodName)
+	if !ok {
+		return ResolvedMethod{}, false
+	}
+	if method.ID == "" {
+		method.ID = stableSymbolID("method", method.DeclaringClass, method.Name)
+	}
+	return method, true
+}
+
 func (s *SemanticSnapshot) ResolveOwnMethod(className, methodName string) (ResolvedMethod, bool) {
 	if s == nil {
 		return ResolvedMethod{}, false
 	}
 	method, ok := s.project.ResolveOwnMethod(className, methodName)
+	if !ok {
+		return ResolvedMethod{}, false
+	}
+	if method.ID == "" {
+		method.ID = stableSymbolID("method", method.DeclaringClass, method.Name)
+	}
+	return method, true
+}
+
+func (s *SemanticSnapshot) resolveOwnMethodView(className, methodName string) (ResolvedMethod, bool) {
+	if s == nil || s.project == nil {
+		return ResolvedMethod{}, false
+	}
+	method, ok := s.project.resolveOwnMethodView(className, methodName)
 	if !ok {
 		return ResolvedMethod{}, false
 	}
@@ -553,7 +584,7 @@ func (s *SemanticSnapshot) DuplicateClasses(filename string) []DuplicateSymbol {
 }
 
 func stableSymbolID(kind, owner, name string) SymbolID {
-	parts := []string{strings.ToLower(kind)}
+	parts := []string{asciiLowerIdent(kind)}
 	if owner != "" {
 		parts = append(parts, indexKey(owner))
 	}
@@ -572,7 +603,7 @@ func cloneGenericParents(parents []ResolvedGenericParent) []ResolvedGenericParen
 
 func resolvedPropertyOwner(project *ProjectIndex, className, propertyName string) string {
 	for _, candidate := range project.classLineage(className) {
-		if _, ok := project.Properties[indexKey(candidate)][strings.ToLower(strings.TrimPrefix(propertyName, "$"))]; ok {
+		if _, ok := project.Properties[indexKey(candidate)][asciiLowerIdent(strings.TrimPrefix(propertyName, "$"))]; ok {
 			if class, found := project.ResolveClass(candidate); found {
 				return class.Name
 			}

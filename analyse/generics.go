@@ -242,7 +242,7 @@ func parseArrayShapeFields(raw string, typeCtx FileTypeContext) map[string]array
 func arrayShapeBody(raw string) (string, bool) {
 	raw = strings.TrimSpace(raw)
 	raw = strings.TrimPrefix(raw, "?")
-	lower := strings.ToLower(raw)
+	lower := asciiLowerIdent(raw)
 	start := -1
 	for _, prefix := range []string{"non-empty-array{", "non-empty-list{", "array{", "list{"} {
 		if idx := strings.Index(lower, prefix); idx >= 0 {

@@ -488,7 +488,7 @@ func atomsCompatibleWithContext(declared, actual typeAtom, scope *functionScope,
 }
 
 func canonicalizeDocType(raw string) string {
-	lower := strings.ToLower(strings.TrimSpace(raw))
+	lower := asciiLowerIdent(strings.TrimSpace(raw))
 	if strings.HasPrefix(lower, "[") && strings.HasSuffix(lower, "]") {
 		return "array"
 	}
@@ -583,7 +583,7 @@ func classHierarchyCompatible(declaredName, actualName string, scope *functionSc
 	for len(queue) > 0 {
 		current := queue[0]
 		queue = queue[1:]
-		key := strings.ToLower(strings.TrimPrefix(current, `\`))
+		key := asciiLowerIdent(strings.TrimPrefix(current, `\`))
 		if _, ok := seen[key]; ok {
 			continue
 		}
@@ -631,7 +631,7 @@ func canonicalClassName(name string, scope *functionScope, ctx *AnalysisContext)
 	if scope == nil {
 		return name
 	}
-	switch strings.ToLower(name) {
+	switch asciiLowerIdent(name) {
 	case "self", "static":
 		return strings.TrimPrefix(scope.className, `\`)
 	case "parent":

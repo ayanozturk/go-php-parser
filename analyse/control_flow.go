@@ -42,8 +42,23 @@ type FlowBlock struct {
 // Blocks returns defensive copies.
 type ControlFlowGraph struct {
 	scope          FlowScopeKey
-	blocks         []FlowBlock
+	blocks         []storedFlowBlock
+	reachable      []bool
 	mayFallThrough bool
+}
+
+// storedFlowBlock keeps the common one- and two-successor cases inline so
+// graph construction does not allocate a successor slice per statement.
+type storedFlowBlock struct {
+	id         FlowNodeID
+	statement  FlowStatementKey
+	successors compactSuccessors
+}
+
+type compactSuccessors struct {
+	a, b FlowNodeID
+	n    uint8
+	more []FlowNodeID
 }
 
 func (g ControlFlowGraph) Scope() FlowScopeKey { return g.scope }
@@ -53,10 +68,81 @@ func (g ControlFlowGraph) MayFallThrough() bool { return g.mayFallThrough }
 func (g ControlFlowGraph) Blocks() []FlowBlock {
 	blocks := make([]FlowBlock, len(g.blocks))
 	for i, block := range g.blocks {
-		blocks[i] = block
-		blocks[i].Successors = append([]FlowNodeID(nil), block.Successors...)
+		blocks[i] = FlowBlock{
+			ID:         block.id,
+			Statement:  block.statement,
+			Successors: block.successors.slice(),
+		}
 	}
 	return blocks
+}
+
+func (g ControlFlowGraph) blockReachable(id FlowNodeID) bool {
+	idx := int(id)
+	return idx >= 0 && idx < len(g.reachable) && g.reachable[idx]
+}
+
+func oneSuccessor(id FlowNodeID) compactSuccessors {
+	return compactSuccessors{a: id, n: 1}
+}
+
+func (s compactSuccessors) slice() []FlowNodeID {
+	switch s.n {
+	case 0:
+		return nil
+	case 1:
+		return []FlowNodeID{s.a}
+	case 2:
+		return []FlowNodeID{s.a, s.b}
+	default:
+		out := make([]FlowNodeID, int(s.n))
+		out[0], out[1] = s.a, s.b
+		copy(out[2:], s.more)
+		return out
+	}
+}
+
+func (s compactSuccessors) appendTo(dst []FlowNodeID) []FlowNodeID {
+	switch s.n {
+	case 0:
+		return dst
+	case 1:
+		return append(dst, s.a)
+	case 2:
+		return append(dst, s.a, s.b)
+	default:
+		dst = append(dst, s.a, s.b)
+		return append(dst, s.more...)
+	}
+}
+
+func appendUniqueCompact(s compactSuccessors, node FlowNodeID) compactSuccessors {
+	switch s.n {
+	case 0:
+		return compactSuccessors{a: node, n: 1}
+	case 1:
+		if s.a == node {
+			return s
+		}
+		return compactSuccessors{a: s.a, b: node, n: 2}
+	case 2:
+		if s.a == node || s.b == node {
+			return s
+		}
+		return compactSuccessors{a: s.a, b: s.b, n: 3, more: []FlowNodeID{node}}
+	default:
+		if s.a == node || s.b == node {
+			return s
+		}
+		for _, existing := range s.more {
+			if existing == node {
+				return s
+			}
+		}
+		s.more = append(append([]FlowNodeID(nil), s.more...), node)
+		s.n++
+		return s
+	}
 }
 
 type flowOutcome uint8
@@ -77,23 +163,27 @@ func buildControlFlowGraph(scope FlowScopeKey, owner ast.Node, statements []ast.
 }
 
 func buildLinearControlFlowGraph(scope FlowScopeKey, statements []ast.Node) ControlFlowGraph {
-	blocks := make([]FlowBlock, len(statements)+2)
+	blocks := make([]storedFlowBlock, len(statements)+2)
 	exitID := FlowNodeID(len(statements) + 1)
-	blocks[0] = FlowBlock{ID: 0}
+	reachable := make([]bool, len(blocks))
+	reachable[0] = true
+	blocks[0] = storedFlowBlock{id: 0}
 	if len(statements) == 0 {
-		blocks[0].Successors = []FlowNodeID{exitID}
+		blocks[0].successors = oneSuccessor(exitID)
+		reachable[exitID] = true
+		blocks[exitID] = storedFlowBlock{id: exitID}
+		return ControlFlowGraph{scope: scope, blocks: blocks, reachable: reachable, mayFallThrough: true}
 	}
 
+	blocks[0].successors = oneSuccessor(1)
 	mayReachNext := true
 	for i, statement := range statements {
 		id := FlowNodeID(i + 1)
-		blocks[i+1] = FlowBlock{ID: id, Statement: flowStatementKey(scope.File, statement)}
-		if i == 0 {
-			blocks[0].Successors = []FlowNodeID{id}
-		}
+		blocks[i+1] = storedFlowBlock{id: id, statement: flowStatementKey(scope.File, statement)}
 		if !mayReachNext {
 			continue
 		}
+		reachable[id] = true
 		if statementFlowOutcomes(statement)&flowNormal == 0 {
 			mayReachNext = false
 			continue
@@ -102,10 +192,13 @@ func buildLinearControlFlowGraph(scope FlowScopeKey, statements []ast.Node) Cont
 		if i+1 < len(statements) {
 			next = FlowNodeID(i + 2)
 		}
-		blocks[i+1].Successors = []FlowNodeID{next}
+		blocks[i+1].successors = oneSuccessor(next)
 	}
-	blocks[len(blocks)-1] = FlowBlock{ID: exitID}
-	return ControlFlowGraph{scope: scope, blocks: blocks, mayFallThrough: mayReachNext}
+	blocks[exitID] = storedFlowBlock{id: exitID}
+	if mayReachNext {
+		reachable[exitID] = true
+	}
+	return ControlFlowGraph{scope: scope, blocks: blocks, reachable: reachable, mayFallThrough: mayReachNext}
 }
 
 func buildLoopControlFlowGraph(scope FlowScopeKey, owner ast.Node, statements []ast.Node) ControlFlowGraph {
@@ -114,7 +207,7 @@ func buildLoopControlFlowGraph(scope FlowScopeKey, owner ast.Node, statements []
 	if isDo {
 		extraBlocks = 3
 	}
-	blocks := make([]FlowBlock, len(statements)+extraBlocks)
+	blocks := make([]storedFlowBlock, len(statements)+extraBlocks)
 	conditionID := FlowNodeID(0)
 	exitID := FlowNodeID(len(statements) + 1)
 	if isDo {
@@ -128,24 +221,24 @@ func buildLoopControlFlowGraph(scope FlowScopeKey, owner ast.Node, statements []
 	}
 	mayIterate, mayExit := loopConditionPaths(owner)
 	if isDo {
-		blocks[0] = FlowBlock{ID: 0, Successors: []FlowNodeID{firstBodyID}}
-		conditionSuccessors := make([]FlowNodeID, 0, 2)
+		blocks[0] = storedFlowBlock{id: 0, successors: oneSuccessor(firstBodyID)}
+		var conditionSuccessors compactSuccessors
 		if mayIterate {
-			conditionSuccessors = appendUniqueFlowNode(conditionSuccessors, firstBodyID)
+			conditionSuccessors = appendUniqueCompact(conditionSuccessors, firstBodyID)
 		}
 		if mayExit {
-			conditionSuccessors = appendUniqueFlowNode(conditionSuccessors, exitID)
+			conditionSuccessors = appendUniqueCompact(conditionSuccessors, exitID)
 		}
-		blocks[conditionID] = FlowBlock{ID: conditionID, Successors: conditionSuccessors}
+		blocks[conditionID] = storedFlowBlock{id: conditionID, successors: conditionSuccessors}
 	} else {
-		headerSuccessors := make([]FlowNodeID, 0, 2)
+		var headerSuccessors compactSuccessors
 		if mayIterate {
-			headerSuccessors = appendUniqueFlowNode(headerSuccessors, firstBodyID)
+			headerSuccessors = appendUniqueCompact(headerSuccessors, firstBodyID)
 		}
 		if mayExit {
-			headerSuccessors = appendUniqueFlowNode(headerSuccessors, exitID)
+			headerSuccessors = appendUniqueCompact(headerSuccessors, exitID)
 		}
-		blocks[0] = FlowBlock{ID: 0, Successors: headerSuccessors}
+		blocks[0] = storedFlowBlock{id: 0, successors: headerSuccessors}
 	}
 
 	continueTarget := FlowNodeID(0)
@@ -155,56 +248,50 @@ func buildLoopControlFlowGraph(scope FlowScopeKey, owner ast.Node, statements []
 	for i, statement := range statements {
 		id := FlowNodeID(i + 1)
 		outcomes := statementFlowOutcomes(statement)
-		successors := make([]FlowNodeID, 0, 3)
+		var successors compactSuccessors
 		if outcomes&flowNormal != 0 {
 			next := continueTarget
 			if i+1 < len(statements) {
 				next = FlowNodeID(i + 2)
 			}
-			successors = appendUniqueFlowNode(successors, next)
+			successors = appendUniqueCompact(successors, next)
 		}
 		if outcomes&flowContinue != 0 {
-			successors = appendUniqueFlowNode(successors, continueTarget)
+			successors = appendUniqueCompact(successors, continueTarget)
 		}
 		if outcomes&flowBreak != 0 {
-			successors = appendUniqueFlowNode(successors, exitID)
+			successors = appendUniqueCompact(successors, exitID)
 		}
-		blocks[i+1] = FlowBlock{ID: id, Statement: flowStatementKey(scope.File, statement), Successors: successors}
+		blocks[i+1] = storedFlowBlock{id: id, statement: flowStatementKey(scope.File, statement), successors: successors}
 	}
-	blocks[exitID] = FlowBlock{ID: exitID}
+	blocks[exitID] = storedFlowBlock{id: exitID}
 	return newControlFlowGraph(scope, blocks, exitID)
 }
 
-func newControlFlowGraph(scope FlowScopeKey, blocks []FlowBlock, exitID FlowNodeID) ControlFlowGraph {
-	reachable := reachableFlowNodes(blocks)
-	return ControlFlowGraph{scope: scope, blocks: blocks, mayFallThrough: reachable[exitID]}
+func newControlFlowGraph(scope FlowScopeKey, blocks []storedFlowBlock, exitID FlowNodeID) ControlFlowGraph {
+	reachable := reachableStoredBlocks(blocks)
+	mayFallThrough := int(exitID) < len(reachable) && reachable[exitID]
+	return ControlFlowGraph{scope: scope, blocks: blocks, reachable: reachable, mayFallThrough: mayFallThrough}
 }
 
-func reachableFlowNodes(blocks []FlowBlock) map[FlowNodeID]bool {
-	reachable := make(map[FlowNodeID]bool, len(blocks))
+func reachableStoredBlocks(blocks []storedFlowBlock) []bool {
+	reachable := make([]bool, len(blocks))
 	if len(blocks) == 0 {
 		return reachable
 	}
-	queue := []FlowNodeID{0}
-	for len(queue) > 0 {
-		id := queue[0]
-		queue = queue[1:]
-		if reachable[id] || int(id) >= len(blocks) {
+	stack := make([]FlowNodeID, 0, len(blocks))
+	stack = append(stack, 0)
+	for len(stack) > 0 {
+		id := stack[len(stack)-1]
+		stack = stack[:len(stack)-1]
+		idx := int(id)
+		if idx >= len(blocks) || reachable[idx] {
 			continue
 		}
-		reachable[id] = true
-		queue = append(queue, blocks[id].Successors...)
+		reachable[idx] = true
+		stack = blocks[idx].successors.appendTo(stack)
 	}
 	return reachable
-}
-
-func appendUniqueFlowNode(nodes []FlowNodeID, node FlowNodeID) []FlowNodeID {
-	for _, existing := range nodes {
-		if existing == node {
-			return nodes
-		}
-	}
-	return append(nodes, node)
 }
 
 func isLoopFlowScope(kind string) bool {
@@ -438,9 +525,8 @@ func (s *SemanticSnapshot) addFlowScope(filename, kind string, owner ast.Node, s
 	}
 	s.flowGraphs[scope] = graph
 
-	reachableBlocks := reachableFlowNodes(graph.blocks)
 	for i, statement := range statements {
-		reachable := reachableBlocks[FlowNodeID(i+1)]
+		reachable := graph.blockReachable(FlowNodeID(i + 1))
 		key := flowStatementKey(filename, statement)
 		if key.File != "" {
 			s.recordStatementReachability(key, reachable)

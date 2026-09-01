@@ -128,7 +128,7 @@ func isBuiltinTerminatorCall(call *ast.FunctionCallNode) bool {
 	if !ok {
 		return false
 	}
-	name := strings.TrimLeft(strings.ToLower(identifier.Value), `\`)
+	name := strings.TrimLeft(asciiLowerIdent(identifier.Value), `\`)
 	return name == "exit" || name == "die"
 }
 

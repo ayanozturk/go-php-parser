@@ -45,6 +45,16 @@ type functionViewResolver interface {
 	resolveFunctionView(name string) (ResolvedFunction, bool)
 }
 
+// methodViewResolver is an internal allocation-light query for analyses that
+// only read method metadata. Implementations return immutable index-owned
+// parameter storage and skip generic template rewriting; callers must not
+// retain or mutate the result, and type-sensitive inference must keep using
+// ResolveMethod / ResolveMethodWithGenerics.
+type methodViewResolver interface {
+	resolveMethodView(className, methodName string) (ResolvedMethod, bool)
+	resolveOwnMethodView(className, methodName string) (ResolvedMethod, bool)
+}
+
 func resolveFunctionView(resolver SymbolResolver, name string) (ResolvedFunction, bool) {
 	if resolver == nil {
 		return ResolvedFunction{}, false
@@ -53,6 +63,26 @@ func resolveFunctionView(resolver SymbolResolver, name string) (ResolvedFunction
 		return viewResolver.resolveFunctionView(name)
 	}
 	return resolver.ResolveFunction(name)
+}
+
+func resolveMethodView(resolver SymbolResolver, className, methodName string) (ResolvedMethod, bool) {
+	if resolver == nil {
+		return ResolvedMethod{}, false
+	}
+	if viewResolver, ok := resolver.(methodViewResolver); ok {
+		return viewResolver.resolveMethodView(className, methodName)
+	}
+	return resolver.ResolveMethod(className, methodName)
+}
+
+func resolveOwnMethodView(resolver SymbolResolver, className, methodName string) (ResolvedMethod, bool) {
+	if resolver == nil {
+		return ResolvedMethod{}, false
+	}
+	if viewResolver, ok := resolver.(methodViewResolver); ok {
+		return viewResolver.resolveOwnMethodView(className, methodName)
+	}
+	return resolver.ResolveOwnMethod(className, methodName)
 }
 
 func resolveMethodReferenceParams(resolver SymbolResolver, className, methodName string) ([]ResolvedParam, bool) {
@@ -259,10 +289,10 @@ func analysisClassScopeDataByName(ctx *AnalysisContext, className string, typeCt
 	if className == "" {
 		return classScopeData{}, false
 	}
-	class, ok := typeCtx.ClassNodes[strings.ToLower(className)]
+	class, ok := typeCtx.ClassNodes[asciiLowerIdent(className)]
 	if !ok {
 		resolved := typeCtx.resolveClassLike(className)
-		class, ok = typeCtx.ClassNodes[strings.ToLower(strings.TrimPrefix(resolved, `\`))]
+		class, ok = typeCtx.ClassNodes[asciiLowerIdent(strings.TrimPrefix(resolved, `\`))]
 		if !ok {
 			return classScopeData{}, false
 		}

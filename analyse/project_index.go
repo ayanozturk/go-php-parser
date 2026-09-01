@@ -372,7 +372,7 @@ func (idx *ProjectIndex) definitionExists(key string) bool {
 func classDefinitionKey(name string) string    { return "class\x00" + indexKey(name) }
 func functionDefinitionKey(name string) string { return "function\x00" + indexKey(name) }
 func memberDefinitionKey(kind, className, memberName string) string {
-	return kind + "\x00" + indexKey(className) + "\x00" + strings.ToLower(memberName)
+	return kind + "\x00" + indexKey(className) + "\x00" + asciiLowerIdent(memberName)
 }
 func globalConstantDefinitionKey(name string) string { return "global-constant\x00" + indexKey(name) }
 
@@ -507,7 +507,7 @@ func finalizeProjectIndexChanges(previous, current *ProjectIndex, changes Projec
 	dependencyNames := make(map[string]string)
 	classRoots := make(map[string]struct{})
 	for _, change := range changes.Symbols {
-		key := change.Kind + "\x00" + strings.ToLower(change.Owner) + "\x00" + strings.ToLower(change.Name)
+		key := change.Kind + "\x00" + asciiLowerIdent(change.Owner) + "\x00" + asciiLowerIdent(change.Name)
 		deduplicated[key] = change
 		addDependencyName(dependencyNames, change.Name)
 		addDependencyName(dependencyNames, change.Owner)
@@ -528,9 +528,9 @@ func finalizeProjectIndexChanges(previous, current *ProjectIndex, changes Projec
 			return left.Kind < right.Kind
 		}
 		if !strings.EqualFold(left.Owner, right.Owner) {
-			return strings.ToLower(left.Owner) < strings.ToLower(right.Owner)
+			return asciiLowerIdent(left.Owner) < asciiLowerIdent(right.Owner)
 		}
-		return strings.ToLower(left.Name) < strings.ToLower(right.Name)
+		return asciiLowerIdent(left.Name) < asciiLowerIdent(right.Name)
 	})
 	addDescendantDependencyNames(previous, classRoots, dependencyNames)
 	addDescendantDependencyNames(current, classRoots, dependencyNames)
@@ -539,7 +539,7 @@ func finalizeProjectIndexChanges(previous, current *ProjectIndex, changes Projec
 		changes.DependencyNames = append(changes.DependencyNames, name)
 	}
 	sort.Slice(changes.DependencyNames, func(i, j int) bool {
-		return strings.ToLower(changes.DependencyNames[i]) < strings.ToLower(changes.DependencyNames[j])
+		return asciiLowerIdent(changes.DependencyNames[i]) < asciiLowerIdent(changes.DependencyNames[j])
 	})
 	return changes
 }
@@ -563,11 +563,11 @@ func addDependencyName(names map[string]string, name string) {
 	if name == "" {
 		return
 	}
-	key := strings.ToLower(name)
+	key := asciiLowerIdent(name)
 	names[key] = name
 	if index := strings.LastIndex(name, "\\"); index >= 0 && index+1 < len(name) {
 		short := name[index+1:]
-		names[strings.ToLower(short)] = short
+		names[asciiLowerIdent(short)] = short
 	}
 }
 
@@ -867,7 +867,7 @@ func (idx *ProjectIndex) methodReferenceParamsSeen(className, methodName string,
 		return nil, false
 	}
 	if len(seen) == cap(seen) {
-		method, ok := idx.ResolveMethod(className, methodName)
+		method, ok := idx.resolveMethodView(className, methodName)
 		return method.Params, ok
 	}
 	class, ok := idx.ResolveClass(className)
@@ -903,6 +903,15 @@ func (idx *ProjectIndex) methodReferenceParamsSeen(className, methodName string,
 }
 
 func (idx *ProjectIndex) ResolveOwnMethod(className, methodName string) (ResolvedMethod, bool) {
+	method, ok := idx.resolveOwnMethodView(className, methodName)
+	if !ok {
+		return ResolvedMethod{}, false
+	}
+	method.Params = append([]ResolvedParam(nil), method.Params...)
+	return method, true
+}
+
+func (idx *ProjectIndex) resolveOwnMethodView(className, methodName string) (ResolvedMethod, bool) {
 	if idx == nil {
 		return ResolvedMethod{}, false
 	}
@@ -915,8 +924,88 @@ func (idx *ProjectIndex) ResolveOwnMethod(className, methodName string) (Resolve
 		return ResolvedMethod{}, false
 	}
 	method.DeclaringClass = class.Name
-	method.Params = append([]ResolvedParam(nil), method.Params...)
 	return method, true
+}
+
+func (idx *ProjectIndex) resolveMethodView(className, methodName string) (ResolvedMethod, bool) {
+	if idx == nil {
+		return ResolvedMethod{}, false
+	}
+	var seen [32]string
+	return idx.resolveMethodViewSeen(className, asciiLowerIdent(methodName), seen[:0])
+}
+
+func (idx *ProjectIndex) resolveMethodViewSeen(className, lowerMethodName string, seen []string) (ResolvedMethod, bool) {
+	if len(seen) == cap(seen) {
+		visited := make(map[string]struct{}, len(seen)+8)
+		for _, key := range seen {
+			visited[key] = struct{}{}
+		}
+		return idx.resolveMethodViewMapped(className, lowerMethodName, visited)
+	}
+	class, ok := idx.ResolveClass(className)
+	if !ok {
+		return ResolvedMethod{}, false
+	}
+	key := indexKey(class.Name)
+	for _, visited := range seen {
+		if visited == key {
+			return ResolvedMethod{}, false
+		}
+	}
+	seen = append(seen, key)
+	if method, found := idx.Methods[key][lowerMethodName]; found {
+		method.DeclaringClass = class.Name
+		return method, true
+	}
+	for _, parentName := range class.Extends {
+		if method, found := idx.resolveMethodViewSeen(parentName, lowerMethodName, seen); found {
+			return method, true
+		}
+	}
+	for _, parentName := range class.Implements {
+		if method, found := idx.resolveMethodViewSeen(parentName, lowerMethodName, seen); found {
+			return method, true
+		}
+	}
+	for _, parentName := range class.Traits {
+		if method, found := idx.resolveMethodViewSeen(parentName, lowerMethodName, seen); found {
+			return method, true
+		}
+	}
+	return ResolvedMethod{}, false
+}
+
+func (idx *ProjectIndex) resolveMethodViewMapped(className, lowerMethodName string, seen map[string]struct{}) (ResolvedMethod, bool) {
+	class, ok := idx.ResolveClass(className)
+	if !ok {
+		return ResolvedMethod{}, false
+	}
+	key := indexKey(class.Name)
+	if _, exists := seen[key]; exists {
+		return ResolvedMethod{}, false
+	}
+	seen[key] = struct{}{}
+	if method, found := idx.Methods[key][lowerMethodName]; found {
+		method.DeclaringClass = class.Name
+		return method, true
+	}
+	for _, parentName := range class.Extends {
+		if method, found := idx.resolveMethodViewMapped(parentName, lowerMethodName, seen); found {
+			return method, true
+		}
+	}
+	for _, parentName := range class.Implements {
+		if method, found := idx.resolveMethodViewMapped(parentName, lowerMethodName, seen); found {
+			return method, true
+		}
+	}
+	for _, parentName := range class.Traits {
+		if method, found := idx.resolveMethodViewMapped(parentName, lowerMethodName, seen); found {
+			return method, true
+		}
+	}
+	return ResolvedMethod{}, false
 }
 
 func (idx *ProjectIndex) MethodsDeclaredBy(className string) []ResolvedMethod {
@@ -1009,7 +1098,7 @@ func (idx *ProjectIndex) ResolveProperty(className, propertyName string) (Resolv
 		if properties == nil {
 			continue
 		}
-		if property, ok := properties[strings.ToLower(strings.TrimPrefix(propertyName, "$"))]; ok {
+		if property, ok := properties[asciiLowerIdent(strings.TrimPrefix(propertyName, "$"))]; ok {
 			return property, true
 		}
 	}
@@ -1022,7 +1111,7 @@ func (idx *ProjectIndex) ResolveConstant(className, constantName string) (Resolv
 		if constants == nil {
 			continue
 		}
-		if constant, ok := constants[strings.ToLower(constantName)]; ok {
+		if constant, ok := constants[asciiLowerIdent(constantName)]; ok {
 			constant.DeclaringClass = candidate
 			return constant, true
 		}
@@ -1038,7 +1127,7 @@ func (idx *ProjectIndex) ResolveOwnConstant(className, constantName string) (Res
 	if !ok {
 		return ResolvedConstant{}, false
 	}
-	constant, ok := idx.ClassConsts[indexKey(class.Name)][strings.ToLower(constantName)]
+	constant, ok := idx.ClassConsts[indexKey(class.Name)][asciiLowerIdent(constantName)]
 	if !ok {
 		return ResolvedConstant{}, false
 	}
@@ -1355,7 +1444,7 @@ func (idx *ProjectIndex) addMethod(className string, method ResolvedMethod) {
 	if idx.Methods[key] == nil {
 		idx.Methods[key] = make(map[string]ResolvedMethod)
 	}
-	methodKey := strings.ToLower(method.Name)
+	methodKey := asciiLowerIdent(method.Name)
 	_, exists := idx.Methods[key][methodKey]
 	if exists {
 		idx.collidingDefinitions[memberDefinitionKey("method", key, methodKey)] = struct{}{}
@@ -1402,7 +1491,7 @@ func (idx *ProjectIndex) addProperty(className string, property ResolvedProperty
 	if idx.Properties[key] == nil {
 		idx.Properties[key] = make(map[string]ResolvedProperty)
 	}
-	propertyKey := strings.ToLower(property.Name)
+	propertyKey := asciiLowerIdent(property.Name)
 	_, exists := idx.Properties[key][propertyKey]
 	if exists {
 		idx.collidingDefinitions[memberDefinitionKey("property", key, propertyKey)] = struct{}{}
@@ -1417,7 +1506,7 @@ func (idx *ProjectIndex) addClassConstant(className string, constant ResolvedCon
 	if idx.ClassConsts[key] == nil {
 		idx.ClassConsts[key] = make(map[string]ResolvedConstant)
 	}
-	constantKey := strings.ToLower(constant.Name)
+	constantKey := asciiLowerIdent(constant.Name)
 	_, exists := idx.ClassConsts[key][constantKey]
 	if exists {
 		idx.collidingDefinitions[memberDefinitionKey("class-constant", key, constantKey)] = struct{}{}

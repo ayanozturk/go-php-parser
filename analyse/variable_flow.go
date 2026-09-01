@@ -1096,7 +1096,7 @@ func (a *variableFlowAnalyzer) functionCallParams(call *ast.FunctionCallNode) []
 }
 
 func (a *variableFlowAnalyzer) resolveCallClassName(name string) string {
-	switch strings.ToLower(strings.TrimPrefix(name, `\`)) {
+	switch asciiLowerIdent(strings.TrimPrefix(name, `\`)) {
 	case "self", "static":
 		return a.currentClassName
 	case "parent":
@@ -1199,7 +1199,7 @@ func (a *variableFlowAnalyzer) expression(node ast.Node, state *variableFlowStat
 	case *ast.AssignmentNode:
 		a.assignment(n, state)
 	case *ast.FunctionCallNode:
-		name := strings.ToLower(functionCallName(n))
+		name := asciiLowerIdent(functionCallName(n))
 		if name == "isset" || name == "empty" {
 			return
 		}

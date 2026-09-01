@@ -53,7 +53,7 @@ func checkEnumLegality(filename, enumName string, enum *ast.EnumNode, issues *[]
 				enumName,
 				enumCase.Name,
 				describeEnumCaseValue(enumCase.Value),
-				strings.ToLower(enum.BackedBy),
+				asciiLowerIdent(enum.BackedBy),
 			)))
 			continue
 		}
@@ -80,7 +80,7 @@ func checkEnumLegality(filename, enumName string, enum *ast.EnumNode, issues *[]
 		if !ok {
 			continue
 		}
-		lowerName := strings.ToLower(method.Name)
+		lowerName := asciiLowerIdent(method.Name)
 		if isMagicMethodName(method.Name) {
 			switch lowerName {
 			case "__construct":
@@ -100,7 +100,7 @@ func checkEnumLegality(filename, enumName string, enum *ast.EnumNode, issues *[]
 }
 
 func isValidEnumBackingType(backing string) bool {
-	switch strings.ToLower(strings.TrimSpace(backing)) {
+	switch asciiLowerIdent(strings.TrimSpace(backing)) {
 	case "int", "string":
 		return true
 	default:
@@ -131,7 +131,7 @@ func enumCaseValueMatchesBacking(backing string, node ast.Node) bool {
 	if !ok {
 		return false
 	}
-	switch strings.ToLower(strings.TrimSpace(backing)) {
+	switch asciiLowerIdent(strings.TrimSpace(backing)) {
 	case "int":
 		_, ok := value.(int64)
 		return ok
