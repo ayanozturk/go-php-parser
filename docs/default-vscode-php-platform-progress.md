@@ -411,11 +411,17 @@ Representative workload: 23,556 indexed PHP files, 3,678,678 LOC, 135.68 MB, 151
 - The ten-round exact-baseline gate passed: candidate/baseline means were 2.017s/2.141s with CVs 3.11%/1.97%, medians 2.024s/2.147s, and maximum RSS 1.023GB/1.076GB. This supports a 5.8% mean, 5.7% median, and 4.9% maximum-RSS improvement. See `docs/benchmarks/2026-09-01-wordpress-compact-flow-storage.md`.
 - Parser commit `41dfb55` lands the compact store. Extension commit `fa2ce9a` pins pseudo-version `v0.0.0-20260901192221-41dfb5580c97`. Pinned and sibling tests, vet, race, all six server builds, TypeScript lint/compile/package, VS Code 1.89.1 host tests, the editor-latency gate, and a zero-vulnerability npm audit pass.
 
+### 2026-09-01 — Stable same-machine Mago resource comparison
+
+- Ten process-cold rounds alternated the production Go pipeline with verified-current Mago 1.47.4 on the same Apple M1 host. Both full-sample CVs passed: Go 2.61%, Mago 3.64%.
+- Go mean time was 2.059s versus Mago's 3.620s (0.569x); maximum peak RSS was 1.061GB versus 1.081GB (0.982x). This passes the 1.5x mean / 1.25x RSS envelope and the equal-or-faster time stretch target.
+- Go retained exact 5,357/5,357-file and 22,387-diagnostic accounting. Mago listed 3,183 primary files, used 2,174 vendor PHP files as configured dependency includes, and emitted a stable 218,741 findings. The resource comparison is accepted for these explicitly different current rule sets; semantic parity is not claimed. See `docs/benchmarks/2026-09-01-wordpress-mago-1.47.4-comparison.md`.
+
 ## Next ranked candidates
 
 The analyser target in `docs/full-static-analyser-target.md` is the source of truth for ordering.
 
-1. **Performance:** run the contemporaneous same-machine Mago comparison now that the queued profile-led storage reductions have landed. Keep the 5% CV and full-accounting gates; do not cut rules or `vendor` to win.
-2. **Maintenance:** rewrite `FEATURES.md` for the Go language server after the first accepted Mago comparison; decide the fate of `src/server`.
+1. **Performance:** capture a new production profile before any further optimization and only tune a new measured leader; the same-machine Mago resource envelope now passes.
+2. **Maintenance:** rewrite `FEATURES.md` for the Go language server and decide the fate of `src/server`.
 3. **Source mapping:** structured parser errors, then style-rule coordinate producers currently stuck at points.
 4. **Dependency matching:** replace conservative lexical invalidation only after generated reference facts cover supported resolver paths.
