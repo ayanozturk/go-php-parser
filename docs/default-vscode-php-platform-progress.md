@@ -429,6 +429,7 @@ Representative workload: 23,556 indexed PHP files, 3,678,678 LOC, 135.68 MB, 151
 - Static `self::$property` writes now participate in `A.PROP.TYPE`, matching PHPStan `assign.propertyType`; direct simple assignments remain the boundary while compound-operation result analysis is developed separately.
 - New `A.RETURN.NEVER` matches PHPStan `return.never` for explicit returns and implicit fallthrough, with throwing functions as a clean control. It shares the cached return-analysis traversal rather than adding another full-file walk.
 - Six neutral fixtures expand level 3 from nine to fifteen cases, including the instance-property/static-syntax boundary. The complete 88/24/65/15/5/5 differential suite matches PHPStan 2.2.5 with zero engine or reference mismatches.
+- Parser commit `335b8e5` lands the rules and gates. Extension commit `043e07d` pins pseudo-version `v0.0.0-20260901201526-335b8e5fae30`; parser and server tests, vet, race, six target builds, TypeScript lint/compile/package, VS Code host tests, and the zero-vulnerability audit pass.
 - This focused correctness batch deliberately skips the corpus benchmark. Performance comparisons are now periodic guardrails for representative batches and structural hot-path changes.
 
 ## Next ranked candidates
