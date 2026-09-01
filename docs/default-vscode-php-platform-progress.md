@@ -6,9 +6,9 @@ This file records reproducible evidence for the cooperating `go-php-parser` engi
 
 ## Current baseline
 
-- Engine revision validated and consumed by PHP Strom: pushed commit `41dfb55`.
-- Extension checkout: `/Users/ayan/Projects/vscode-php-strom`, `main` at pushed commit `fa2ce9a`; the current package version is `0.1.34`.
-- Production extension builds pin `github.com/ayanozturk/go-php-parser` at pseudo-version `v0.0.0-20260901192221-41dfb5580c97`. `make test-server-dev` validates the same engine through the generated, ignored sibling-workspace path.
+- Engine revision validated and consumed by PHP Strom: pushed commit `4692a16`.
+- Extension checkout: `/Users/ayan/Projects/vscode-php-strom`, `main` at pushed commit `bc94e81`; the current package version is `0.1.34`.
+- Production extension builds pin `github.com/ayanozturk/go-php-parser` at pseudo-version `v0.0.0-20260901195704-4692a1696ef1`. `make test-server-dev` validates the same engine through the generated, ignored sibling-workspace path.
 - Go toolchain observed: Go 1.27.0. Node toolchain observed: Node 26.8.1 and npm 11.19.0.
 - Representative corpora are fetched at exact revisions from `test_projects/manifest.json`; generated working copies remain uncommitted.
 - The latest recorded full-corpus pass has zero failures for Composer, Drupal, Magento, PHPUnit, and WordPress. Symfony's two remaining fixtures are intentionally invalid/corrupted inputs, and Laravel has two narrow interpolation/callable edge cases. These recorded results are compatibility evidence, not a current performance result.
@@ -339,7 +339,7 @@ Representative workload: 23,556 indexed PHP files, 3,678,678 LOC, 135.68 MB, 151
 
 ### 2026-08-31 — Detect known methods on nullable object receivers at level 8
 
-- `Level8.MethodNonObject` reports when every remaining object-like alternative provides the method and `null` is also possible, matching PHPStan `method.nonObject`. Scalar `int|null` and unknown nullable methods stay on level 2. Nullsafe `?->` stays clean. Five fixtures bring the executable gates to 88/24/65/1/5/5 and match pinned PHPStan `2.2.x-dev@e4ab62a`.
+- `Level8.MethodNonObject` reports when every remaining object-like alternative provides the method and `null` is also possible, matching PHPStan `method.nonObject`. Scalar `int|null` and unknown nullable methods stay on level 2. Nullsafe `?->` stays clean. Five fixtures originally brought the executable gates to 88/24/65/1/5/5; the later level-3 expansion brings the current gates to 88/24/65/9/5/5.
 - Parser commit `e629d42` lands the pack and records nullsafe operators on `MethodCallNode`. Extension commit `8348748` pins pseudo-version `v0.0.0-20260831163118-e629d4267f4c` and proves the default editor path reports known nullable methods through the type-error setting. Pinned and sibling tests, vet, race, all six server builds, TypeScript lint/compile/package, VS Code 1.89.1 host tests, the editor-latency gate, and `npm audit --audit-level=low` pass.
 
 ### 2026-08-31 — Snapshot-backed full analysis and profile-driven speed work
@@ -416,6 +416,13 @@ Representative workload: 23,556 indexed PHP files, 3,678,678 LOC, 135.68 MB, 151
 - Ten process-cold rounds alternated the production Go pipeline with verified-current Mago 1.47.4 on the same Apple M1 host. Both full-sample CVs passed: Go 2.61%, Mago 3.64%.
 - Go mean time was 2.059s versus Mago's 3.620s (0.569x); maximum peak RSS was 1.061GB versus 1.081GB (0.982x). This passes the 1.5x mean / 1.25x RSS envelope and the equal-or-faster time stretch target.
 - Go retained exact 5,357/5,357-file and 22,387-diagnostic accounting. Mago listed 3,183 primary files, used 2,174 vendor PHP files as configured dependency includes, and emitted a stable 218,741 findings. The resource comparison is accepted for these explicitly different current rule sets; semantic parity is not claimed. See `docs/benchmarks/2026-09-01-wordpress-mago-1.47.4-comparison.md`.
+
+### 2026-09-01 — PHPStan level-3 return and property types
+
+- Existing `A.RETURN.TYPE` and `A.PROP.TYPE` passes now enter the cumulative ruleset at level 3. Level 2 suppresses them; default production analysis already ran both passes, so no production traversal was added.
+- Eight neutral fixtures expand level 3 from one to nine cases and match PHPStan 2.2.5 identifiers `return.type`, `return.missing`, and `assign.propertyType`, with failing and clean controls. The complete 88/24/65/9/5/5 suite has zero engine or reference mismatches.
+- Parser commit `4692a16` lands the rule-level correction and fixtures. Extension commit `bc94e81` pins pseudo-version `v0.0.0-20260901195704-4692a1696ef1`. Parser and extension tests, vet, race, sibling integration, six server builds, editor latency, TypeScript lint/compile/package, VS Code host tests, and a zero-vulnerability audit pass.
+- The exact-baseline WordPress performance gate retained 5,357/5,357 files and 22,387 diagnostics but is rejected because candidate/baseline CVs were 13.85%/8.52%. No performance regression or improvement is claimed. See `docs/benchmarks/2026-09-01-phpstan-level3-type-coverage.md`.
 
 ## Next ranked candidates
 

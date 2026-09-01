@@ -8,7 +8,7 @@ Source for PHPStan level descriptions: [PHPStan Rule Levels](https://phpstan.org
 
 This comparison is limited to analysis behavior. The project also implements PSR/formatting style rules, but those do not directly correspond to PHPStan's rule levels.
 
-Executable parity evidence is tracked separately in [the analyser capability matrix](analyser-capability-matrix.md). The level-0 differential pack currently gates thirty reviewed PHPStan 2.2.5 cases. Descriptive rows in this document are not parity claims unless backed by a checked-in differential fixture there.
+Executable parity evidence is tracked separately in [the analyser capability matrix](analyser-capability-matrix.md). Current differential packs gate 88 / 24 / 65 / 9 cases at levels 0–3 against PHPStan 2.2.5. Descriptive rows in this document are not parity claims unless backed by a checked-in differential fixture there.
 
 ## Coverage Summary
 
@@ -16,8 +16,8 @@ Executable parity evidence is tracked separately in [the analyser capability mat
 | --- | --- | --- |
 | 0 | Basic checks, unknown classes, unknown functions, unknown methods called on `$this`, and wrong numbers of arguments passed to those methods and functions | Partial, with active compatibility implementation behind `analysis_level: 0` |
 | 1 | Undefined and possibly undefined variables, plus unknown magic methods and properties on classes with `__call` and `__get` | Partial variable-flow coverage |
-| 2 | Unknown methods checked on all expressions, PHPDoc validation | Not covered |
-| 3 | Return types, types assigned to properties | Partial |
+| 2 | Unknown methods checked on all expressions, PHPDoc validation | Partial method-receiver coverage; PHPDoc validation remains open |
+| 3 | Return types, types assigned to properties | Partial, with nine differential cases |
 
 `analysis_level: 0` now runs a level-aware PHPStan compatibility rule set and suppresses current higher-level checks such as return type, property assignment type, argument type, and unreachable-code diagnostics. The implementation is grouped by behavior, not by PHPStan's individual rule classes.
 
@@ -35,10 +35,10 @@ Executable parity evidence is tracked separately in [the analyser capability mat
 | 1 | Undefined and possibly undefined variables | Partial | `Level1.Variables` | Exact-span immutable facts distinguish undefined, possibly defined, and definitely defined reads. Joined analysis covers conditionals, short-circuit expressions, ternaries, bounded loop convergence, `switch`, `try`/`catch`/`finally`, globals/statics, destructuring, explicit by-value/by-reference closure captures, direct reference assignments, resolved by-reference function outputs, resolved `$this`, static, known-receiver, and constructor outputs, core/standard built-in output versus input/output parameters, numeric multi-level `break`/`continue`, known-string dynamic reads, conservative dynamic writes, constant-array and unknown-array `extract()` effects, `compact`, and `isset`/`empty` suppression. Twenty-four PHPStan 2.2.5 differential fixtures gate positive and clean controls. Dynamic calls, dynamic transfer levels, complex dynamic-name expressions, and extension-dependent built-in signatures remain incomplete. |
 | 1 | Unknown magic methods on classes with `__call` | No | - | No rule models `__call` as a PHPStan level 1 diagnostic. |
 | 1 | Unknown magic properties on classes with `__get` | No | - | No rule models `__get` as a PHPStan level 1 diagnostic. |
-| 2 | Unknown methods checked on all expressions | No | - | The current resolver supports some method lookup for other rules, but there is no diagnostic for unknown methods on arbitrary expression types. |
+| 2 | Unknown methods checked on all expressions | Partial | `Level2.MethodExistence`, `Level2.MethodNonObject`, `Level2.MethodVisibility` | Sixty-five differential cases cover typed and inferred receivers, callable returns, array shapes, unions, intersections, DNF, nullable/non-object branches, and protected methods. Dynamic and unsupported receiver inference remains conservative. |
 | 2 | PHPDoc validation | No | - | PHPDoc nodes/types exist in the AST layer, but there is no PHPDoc validation rule comparable to PHPStan level 2. |
-| 3 | Return types | Partial | `A.RETURN.TYPE` | Checks declared return types against inferred return expression types for functions and methods. Coverage is narrower than PHPStan because inference and symbol knowledge are limited. |
-| 3 | Types assigned to properties | Partial | `A.PROP.TYPE` | Checks assignments to typed properties when the property type can be resolved. Coverage is narrower than PHPStan because inference and cross-file symbol knowledge are limited. |
+| 3 | Return types | Partial, differential-gated | `A.RETURN.TYPE` | Level-3 fixtures cover function/method mismatches, missing returns, and clean scalar/nullable controls. Coverage remains narrower than PHPStan because inference and symbol knowledge are limited. |
+| 3 | Types assigned to properties | Partial, differential-gated | `A.PROP.TYPE` | Level-3 fixtures cover mismatches through `$this` and typed parameters plus a clean control. Static/compound assignments and broader inference remain incomplete. |
 
 ## Currently Implemented Analysis Rules
 

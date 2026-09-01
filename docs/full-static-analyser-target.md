@@ -6,8 +6,8 @@
 - Target repositories: `go-php-parser` and `vscode-php-strom`
 - Baseline date: 2026-08-23 (Europe/London)
 - Last roadmap tidy: 2026-09-01 (Europe/London)
-- Current production pin: parser `41dfb55` (`v0.0.0-20260901192221-41dfb5580c97`), extension `fa2ce9a`, package `0.1.34`
-- Executable differential gates: 88 / 24 / 65 / 1 / 5 / 5 (levels 0–3, 7, and 8) vs `2.2.x-dev@e4ab62a`
+- Current production pin: parser `4692a16` (`v0.0.0-20260901195704-4692a1696ef1`), extension `bc94e81`, package `0.1.34`
+- Executable differential gates: 88 / 24 / 65 / 9 / 5 / 5 (levels 0–3, 7, and 8) vs PHPStan 2.2.5
 - Benchmark references: Mago for performance and modern PHP type analysis, PHPStan and Psalm for diagnostic depth, and PHPCS for source-style breadth
 - Working milestone: **M0 done as a baseline; M1 in progress.** The current-production WordPress resource comparison is accepted; full level-0 and broader semantic parity remain open.
 
@@ -361,7 +361,7 @@ Exit criteria:
 - Full PHPStan level 0 behavior for the agreed corpus and documented progress through levels 1–3.
 - Cold WordPress analysis completes reliably in at most 60 seconds and 2 GB peak RSS on the reference machine.
 
-Progress: spans, immutable snapshots, allocation-light resolver views, copy-on-write function-scope maps, CFG slices, incremental indexing, and PHPStan-gated packs through levels 0–3, 7, and 8 are in place. Level 0 is **partial** (88 reviewed fixtures, not corpus parity). Levels 1–3, 7, and 8 are gated but thin (24 / 65 / 1 / 5 / 5). The stable same-machine WordPress comparison now passes both 5% CV gates and the 1.5x mean / 1.25x RSS resource envelope against Mago 1.47.4. Remaining M1 work is semantic breadth: the accepted resource result does not establish parity with Mago's broader strict configuration.
+Progress: spans, immutable snapshots, allocation-light resolver views, copy-on-write function-scope maps, CFG slices, incremental indexing, and PHPStan-gated packs through levels 0–3, 7, and 8 are in place. Level 0 is **partial** (88 reviewed fixtures, not corpus parity). Levels 1–3, 7, and 8 are gated but thin (24 / 65 / 9 / 5 / 5). The stable same-machine WordPress comparison now passes both 5% CV gates and the 1.5x mean / 1.25x RSS resource envelope against Mago 1.47.4. Remaining M1 work is semantic breadth: the accepted resource result does not establish parity with Mago's broader strict configuration.
 
 ### M2 — Broad type-analysis capability
 
@@ -435,13 +435,13 @@ A release must not advance the parser version pinned by PHP Strom until the engi
 
 ## Ranked next actions
 
-Performance is now the primary stream. Diagnostic packs stay frozen unless a change would regress the checked-in gates. Match Mago on the same-machine WordPress cold protocol: no more than 1.5× mean time and 1.25× peak RSS, with CV at most 5% and 100% file accounting. The stretch target is equal or faster.
+Correctness and PHPStan rule-level alignment are now the primary stream. Expand executable rule coverage at the level where PHPStan introduces it, with both failing and clean controls. Preserve the accepted Mago resource envelope as a guardrail: no more than 1.5× mean time and 1.25× peak RSS, CV at most 5%, and complete file/diagnostic accounting.
 
-1. **Continue from the post-comparison profile.** The same-machine WordPress resource comparison now passes both CV gates and the 1.5x mean / 1.25x RSS envelope. Only tune a new measured leader after preserving the complete diagnostic packs and corpus accounting.
-2. **Maintenance after the first accepted resource comparison:** rewrite `vscode-php-strom/FEATURES.md`; structured parser errors and style-rule range migration.
-3. **Semantic breadth:** keep the accepted resource envelope while closing mutually supported diagnostic gaps. The stable timing result does not establish semantic parity with Mago's broader strict configuration.
+1. **Expand PHPStan correctness by level.** Continue level 3 from exact reference probes for void/never returns, static and compound property assignments, and broader inferred expressions; add only behaviors that match the pinned reference exactly. Then address level-2 PHPDoc validation and the explicit level-0/1 gaps.
+2. **Protect performance while rules grow.** Default production analysis must not gain duplicate walks. Keep exact accounting and the accepted Mago envelope; reject timing claims whenever either CV exceeds 5%.
+3. **Maintenance:** rewrite `vscode-php-strom/FEATURES.md`; structured parser errors and style-rule range migration.
 
-Completed deliveries 1–41 are archived below and are not the current queue.
+Completed deliveries 1–42 are archived below and are not the current queue.
 
 ## Completed action log
 
@@ -486,6 +486,7 @@ Completed deliveries 1–41 are archived below and are not the current queue.
 39. **Done — share immutable function-scope context across branch clones.** Parser commit `f98411e` moves class metadata and `FileTypeContext` map headers behind one immutable context pointer; variable/property layers and callable/shape/index/generic maps retain their existing copy-on-write ownership. The shallow scope value fell from 208 to 96 bytes. Against exact `8f400be`, three-pass WordPress allocated space fell 6.9% and `functionScope.clone` fell 56.7%, with exact 5,357-file/22,387-diagnostic accounting. The twenty-round cold comparison is rejected because candidate/baseline CVs were 23.39%/18.04%. Extension commit `ad89ed1` pins the exact pseudo-version. Pinned and sibling tests, vet, race, all six server builds, TypeScript lint/compile/package, VS Code 1.89.1 host tests, the editor-latency gate, and a zero-vulnerability npm audit pass. See `docs/benchmarks/2026-09-01-wordpress-function-scope-context.md`.
 40. **Done — compact control-flow graph and reachability storage.** Parser commit `41dfb55` partitions flow data by filename; ordinary spans and built-in kinds use compact keys; reachable/unreachable/ambiguous state shares one map; graph blocks retain local offsets; and graphs use an inline first value plus a dense per-file slice. Custom kinds, large offsets, duplicate behavior, parent resolution, and defensive public copies remain intact. Against exact `f98411e`, three-pass WordPress allocated space fell 7.0% and the combined flow sites fell 50.2%, with exact 5,357-file/22,387-diagnostic accounting. The ten-round cold gate passed and supports a 5.8% mean and 4.9% maximum-RSS improvement. Extension commit `fa2ce9a` pins the exact pseudo-version; pinned and sibling tests, vet, race, all six server builds, TypeScript lint/compile/package, VS Code 1.89.1 host tests, the editor-latency gate, and a zero-vulnerability npm audit pass. See `docs/benchmarks/2026-09-01-wordpress-compact-flow-storage.md`.
 41. **Done — run the stable same-machine Mago resource comparison.** Ten alternating process-cold WordPress rounds compared production parser `41dfb55` with verified-current Mago 1.47.4 using eight workers/threads, `src`, `tests`, and `vendor`, excluding only `src/js`. Go/Mago CVs were 2.61%/3.64%; Go used 0.569x the mean time and 0.982x the maximum peak RSS, passing the 1.5x / 1.25x envelope and the equal-or-faster time stretch target. Go retained exact 5,357/5,357-file and 22,387-diagnostic accounting; Mago emitted 218,741 findings and reports primary files separately from dependency includes. The resource result is accepted for the recorded current rule sets, but semantic parity is not claimed. See `docs/benchmarks/2026-09-01-wordpress-mago-1.47.4-comparison.md`.
+42. **Done — align return and property type analysis with PHPStan level 3.** Parser commit `4692a16` moves existing `A.RETURN.TYPE` and `A.PROP.TYPE` passes from the catch-all level 10 to cumulative level 3 without adding a production-default traversal. Eight new failing and clean controls expand the level-3 pack from one to nine cases and match PHPStan 2.2.5 `return.type`, `return.missing`, and `assign.propertyType`; the complete gates are 88/24/65/9/5/5 with zero mismatches. Extension commit `bc94e81` pins the exact parser. Full parser/extension validation passes. An exact-baseline WordPress comparison retained 5,357 files and 22,387 diagnostics but is rejected because candidate/baseline CVs were 13.85%/8.52%; no speed or regression claim follows. See `docs/benchmarks/2026-09-01-phpstan-level3-type-coverage.md`.
 
 Note: a benchmark run on `test_projects/symfony` also showed the diagnostic count vary slightly between cold runs on an otherwise-identical corpus (e.g. 82,722 vs 82,883 in one sample). **Fixed:** `BuildProjectIndex` iterated its `map[string][]ast.Node` input in Go's randomized map-iteration order, so which file's declaration won duplicate-symbol resolution (`addClass`'s "first file wins", and "last file processed wins" for methods/properties/constants registered per file) varied between runs. It now processes files in sorted filename order, making both the class-metadata winner and the member winner deterministic; `TestBuildProjectIndexDuplicateClassResolutionIsDeterministic` in `analyse/project_index_test.go` guards this, and a 5-run benchmark on `test_projects/symfony` now reports a stable 82,722 diagnostics on every cold run.
 
