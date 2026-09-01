@@ -62,42 +62,172 @@ type semanticFactSpanKey struct {
 	Kind        FactKind
 }
 
+// semanticFactOffsetKey is the compact key used by the three built-in fact
+// kinds. Generated facts always address ordinary source files, so their two
+// uint32 offsets fit in one map word. The uncommon larger-offset case falls
+// back to the fully general custom map and keeps the public int-based contract.
+type semanticFactOffsetKey uint64
+
+const maxCompactSemanticFactOffset = uint64(^uint32(0))
+
+func compactSemanticFactOffset(start, end int) (semanticFactOffsetKey, bool) {
+	if start < 0 || end < 0 || uint64(start) > maxCompactSemanticFactOffset || uint64(end) > maxCompactSemanticFactOffset {
+		return 0, false
+	}
+	return semanticFactOffsetKey(uint64(uint32(start))<<32 | uint64(uint32(end))), true
+}
+
+func (k semanticFactOffsetKey) offsets() (int, int) {
+	return int(uint32(uint64(k) >> 32)), int(uint32(k))
+}
+
 type storedSemanticFact struct {
 	Subject SymbolID
 	Type    string
 	Value   string
 }
 
-type semanticFactStore map[string]map[semanticFactSpanKey]storedSemanticFact
+type storedGeneratedInferredFact struct {
+	Subject SymbolID
+	Type    string
+}
+
+type semanticFactFileStore struct {
+	inferred          map[semanticFactOffsetKey]storedSemanticFact
+	generatedInferred map[semanticFactOffsetKey]storedGeneratedInferredFact
+	reference         map[semanticFactOffsetKey]storedSemanticFact
+	narrowed          map[semanticFactOffsetKey]storedSemanticFact
+	custom            map[semanticFactSpanKey]storedSemanticFact
+}
+
+type semanticFactStore map[string]*semanticFactFileStore
 
 func (s semanticFactStore) has(key SemanticFactKey) bool {
-	_, ok := s[key.File][semanticFactSpanKey{StartOffset: key.StartOffset, EndOffset: key.EndOffset, Kind: key.Kind}]
+	_, ok := s.stored(key)
 	return ok
 }
 
 func (s semanticFactStore) fact(key SemanticFactKey) (SemanticFact, bool) {
-	stored, ok := s[key.File][semanticFactSpanKey{StartOffset: key.StartOffset, EndOffset: key.EndOffset, Kind: key.Kind}]
+	stored, ok := s.stored(key)
 	if !ok {
 		return SemanticFact{}, false
 	}
 	return SemanticFact{Key: key, Subject: stored.Subject, Type: stored.Type, Value: stored.Value}, true
 }
 
+func (s semanticFactStore) stored(key SemanticFactKey) (storedSemanticFact, bool) {
+	fileFacts := s[key.File]
+	if fileFacts == nil {
+		return storedSemanticFact{}, false
+	}
+	offset, compact := compactSemanticFactOffset(key.StartOffset, key.EndOffset)
+	if !compact {
+		fact, ok := fileFacts.custom[semanticFactSpanKey{StartOffset: key.StartOffset, EndOffset: key.EndOffset, Kind: key.Kind}]
+		return fact, ok
+	}
+	switch key.Kind {
+	case FactKindInferredType:
+		if fact, ok := fileFacts.inferred[offset]; ok {
+			return fact, true
+		}
+		fact, ok := fileFacts.generatedInferred[offset]
+		return storedSemanticFact{Subject: fact.Subject, Type: fact.Type}, ok
+	case FactKindReference:
+		fact, ok := fileFacts.reference[offset]
+		return fact, ok
+	case FactKindNarrowed:
+		fact, ok := fileFacts.narrowed[offset]
+		return fact, ok
+	default:
+		fact, ok := fileFacts.custom[semanticFactSpanKey{StartOffset: key.StartOffset, EndOffset: key.EndOffset, Kind: key.Kind}]
+		return fact, ok
+	}
+}
+
 func (s semanticFactStore) put(fact SemanticFact) bool {
 	return s.putParts(fact.Key, fact.Subject, fact.Type, fact.Value)
 }
 
-func (s semanticFactStore) putParts(key SemanticFactKey, subject SymbolID, typ, value string) bool {
-	span := semanticFactSpanKey{StartOffset: key.StartOffset, EndOffset: key.EndOffset, Kind: key.Kind}
+func (s semanticFactStore) putGeneratedInferred(key SemanticFactKey, subject SymbolID, typ string) bool {
 	fileFacts := s[key.File]
 	if fileFacts == nil {
-		fileFacts = make(map[semanticFactSpanKey]storedSemanticFact)
+		fileFacts = &semanticFactFileStore{}
 		s[key.File] = fileFacts
 	}
-	if _, exists := fileFacts[span]; exists {
+	offset, compact := compactSemanticFactOffset(key.StartOffset, key.EndOffset)
+	if !compact {
+		return s.putParts(key, subject, typ, "")
+	}
+	if _, exists := fileFacts.inferred[offset]; exists {
 		return false
 	}
-	fileFacts[span] = storedSemanticFact{Subject: subject, Type: typ, Value: value}
+	if fileFacts.generatedInferred == nil {
+		fileFacts.generatedInferred = make(map[semanticFactOffsetKey]storedGeneratedInferredFact)
+	}
+	if _, exists := fileFacts.generatedInferred[offset]; exists {
+		return false
+	}
+	fileFacts.generatedInferred[offset] = storedGeneratedInferredFact{Subject: subject, Type: typ}
+	return true
+}
+
+func (s semanticFactStore) putParts(key SemanticFactKey, subject SymbolID, typ, value string) bool {
+	fileFacts := s[key.File]
+	if fileFacts == nil {
+		fileFacts = &semanticFactFileStore{}
+		s[key.File] = fileFacts
+	}
+	stored := storedSemanticFact{Subject: subject, Type: typ, Value: value}
+	offset, compact := compactSemanticFactOffset(key.StartOffset, key.EndOffset)
+	if !compact {
+		if fileFacts.custom == nil {
+			fileFacts.custom = make(map[semanticFactSpanKey]storedSemanticFact)
+		}
+		span := semanticFactSpanKey{StartOffset: key.StartOffset, EndOffset: key.EndOffset, Kind: key.Kind}
+		if _, exists := fileFacts.custom[span]; exists {
+			return false
+		}
+		fileFacts.custom[span] = stored
+		return true
+	}
+	switch key.Kind {
+	case FactKindInferredType:
+		if _, exists := fileFacts.generatedInferred[offset]; exists {
+			return false
+		}
+		if fileFacts.inferred == nil {
+			fileFacts.inferred = make(map[semanticFactOffsetKey]storedSemanticFact)
+		}
+		if _, exists := fileFacts.inferred[offset]; exists {
+			return false
+		}
+		fileFacts.inferred[offset] = stored
+	case FactKindReference:
+		if fileFacts.reference == nil {
+			fileFacts.reference = make(map[semanticFactOffsetKey]storedSemanticFact)
+		}
+		if _, exists := fileFacts.reference[offset]; exists {
+			return false
+		}
+		fileFacts.reference[offset] = stored
+	case FactKindNarrowed:
+		if fileFacts.narrowed == nil {
+			fileFacts.narrowed = make(map[semanticFactOffsetKey]storedSemanticFact)
+		}
+		if _, exists := fileFacts.narrowed[offset]; exists {
+			return false
+		}
+		fileFacts.narrowed[offset] = stored
+	default:
+		if fileFacts.custom == nil {
+			fileFacts.custom = make(map[semanticFactSpanKey]storedSemanticFact)
+		}
+		span := semanticFactSpanKey{StartOffset: key.StartOffset, EndOffset: key.EndOffset, Kind: key.Kind}
+		if _, exists := fileFacts.custom[span]; exists {
+			return false
+		}
+		fileFacts.custom[span] = stored
+	}
 	return true
 }
 
@@ -275,7 +405,7 @@ func (s *SemanticSnapshot) addGeneratedInferredTypeFact(filename string, expr as
 	if inferred.IsEmpty() {
 		return
 	}
-	s.facts.putParts(key, s.functionSymbolID(fileCtx, class, function), inferred.dnfString(), "")
+	s.facts.putGeneratedInferred(key, s.functionSymbolID(fileCtx, class, function), inferred.dnfString())
 }
 
 func (s *SemanticSnapshot) functionSymbolID(fileCtx FileTypeContext, class *ast.ClassNode, function *ast.FunctionNode) SymbolID {
@@ -372,7 +502,26 @@ func (s *SemanticSnapshot) FactsForFile(filename string) []SemanticFact {
 		return nil
 	}
 	facts := make([]SemanticFact, 0)
-	for span, stored := range s.facts[filename] {
+	fileFacts := s.facts[filename]
+	if fileFacts == nil {
+		return facts
+	}
+	appendBuiltIn := func(kind FactKind, entries map[semanticFactOffsetKey]storedSemanticFact) {
+		for span, stored := range entries {
+			start, end := span.offsets()
+			key := SemanticFactKey{File: filename, StartOffset: start, EndOffset: end, Kind: kind}
+			facts = append(facts, SemanticFact{Key: key, Subject: stored.Subject, Type: stored.Type, Value: stored.Value})
+		}
+	}
+	appendBuiltIn(FactKindInferredType, fileFacts.inferred)
+	for span, stored := range fileFacts.generatedInferred {
+		start, end := span.offsets()
+		key := SemanticFactKey{File: filename, StartOffset: start, EndOffset: end, Kind: FactKindInferredType}
+		facts = append(facts, SemanticFact{Key: key, Subject: stored.Subject, Type: stored.Type})
+	}
+	appendBuiltIn(FactKindReference, fileFacts.reference)
+	appendBuiltIn(FactKindNarrowed, fileFacts.narrowed)
+	for span, stored := range fileFacts.custom {
 		key := SemanticFactKey{File: filename, StartOffset: span.StartOffset, EndOffset: span.EndOffset, Kind: span.Kind}
 		facts = append(facts, SemanticFact{Key: key, Subject: stored.Subject, Type: stored.Type, Value: stored.Value})
 	}

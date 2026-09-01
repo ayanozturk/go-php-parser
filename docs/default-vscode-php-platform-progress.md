@@ -390,11 +390,17 @@ Representative workload: 23,556 indexed PHP files, 3,678,678 LOC, 135.68 MB, 151
 - A three-iteration WordPress profile retained 5,357/5,357 files and 22,387 diagnostics while allocated space fell from 4.49 GB on the method-view working tree to 3.67 GB, an 18.3% reduction. The previous 0.87 GB identifier-fold site left the hot list.
 - The fourteen-sample interleaved comparison against `9a4f4a4` passed: candidate/baseline means were 2.392s/2.601s with CVs 4.97%/3.04%, medians 2.354s/2.568s, and maximum RSS 1.206GB/1.321GB. That 8.0% mean improvement includes the uncommitted method-resolver views. See `docs/benchmarks/2026-09-01-wordpress-snapshot-intern.md`.
 
+### 2026-09-01 — Compact semantic-fact keys
+
+- Built-in fact kinds use separate per-file maps with packed ordinary source spans, while generated inferred facts omit the external-value field. Custom kinds, caller-supplied values, large offsets, exact lookup, deterministic enumeration, and duplicate handling keep their existing contracts.
+- A three-iteration WordPress profile retained 5,357/5,357 files and 22,387 diagnostics while allocated space fell from 3,873,268,076 bytes at exact baseline `cfc1c50` to 3,516,256,187 bytes, a 9.2% reduction. Semantic-fact insertion fell 44.3%, from 783,376,032 to 435,973,845 bytes.
+- The twenty-round interleaved comparison is rejected: candidate/baseline CVs were 9.00%/23.44%. Accounting was identical. See `docs/benchmarks/2026-09-01-wordpress-semantic-fact-keys.md`; no cold-speed or RSS claim is made.
+
 ## Next ranked candidates
 
 The analyser target in `docs/full-static-analyser-target.md` is the source of truth for ordering.
 
-1. **Performance:** optimize the new profile leaders—semantic-fact insertion, remaining per-clone scope object cost, and leftover control-flow reachability maps—then keep the 5% CV contract. Do not cut rules or `vendor` to win.
+1. **Performance:** optimize the new profile leaders—the remaining per-clone scope object cost and control-flow scope/reachability maps—then keep the 5% CV contract. Do not cut rules or `vendor` to win.
 2. **Maintenance:** rewrite `FEATURES.md` for the Go language server after the first accepted Mago comparison; decide the fate of `src/server`.
 3. **Source mapping:** structured parser errors, then style-rule coordinate producers currently stuck at points.
 4. **Dependency matching:** replace conservative lexical invalidation only after generated reference facts cover supported resolver paths.
