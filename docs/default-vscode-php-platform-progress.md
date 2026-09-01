@@ -372,11 +372,17 @@ Representative workload: 23,556 indexed PHP files, 3,678,678 LOC, 135.68 MB, 151
 - A three-iteration WordPress profile retained 5,357/5,357 files and 26,321 diagnostics while allocated space fell from 5.11 GB at exact baseline `cbb469b` to 4.93 GB, a 3.5% reduction. The prior approximately 0.21 GB `SemanticSnapshot.ResolveMethod` hot site disappeared.
 - The ten-round cold comparison is rejected because baseline CV was 5.33%. The raw candidate/baseline means of 2.703s/2.797s and RSS samples are not accepted performance evidence. See `docs/benchmarks/2026-09-01-wordpress-method-param-copy.md`.
 
+### 2026-09-01 — Function-scope metadata copy-on-write
+
+- Branch clones now share array-index and generic-instance maps until the first real write. Ingress and lookup boundaries retain slice isolation, missing-key clears preserve sharing, and generic maps are allocated lazily.
+- A three-iteration WordPress profile retained 5,357/5,357 files and 26,321 diagnostics while allocated space fell from 4.93 GB at exact baseline `1696897` to 4.75 GB, a 3.7% reduction. Eager generic-context copying disappeared; array-index copying now occurs only on actual first writes.
+- The ten-round exact-baseline gate passed: candidate/baseline means were 2.667s/2.773s with CVs 3.17%/4.08%, medians 2.628s/2.738s, and maximum RSS 1.291GB/1.295GB. This supports a 3.8% mean, 4.0% median, and 0.3% maximum-RSS improvement, not a Mago-parity claim. See `docs/benchmarks/2026-09-01-wordpress-scope-metadata-cow.md`.
+
 ## Next ranked candidates
 
 The analyser target in `docs/full-static-analyser-target.md` is the source of truth for ordering.
 
-1. **Performance:** optimize the new profile leaders—semantic-fact insertion, ASCII identifier folding, required project-index method resolution, function-scope clone metadata, and control-flow graph storage—then rerun the exact-baseline gate. Keep the 5% CV contract and do not cut rules or `vendor` to win.
+1. **Performance:** optimize the new profile leaders—semantic-fact insertion, ASCII identifier folding, required project-index method resolution, control-flow graph storage, and remaining per-clone scope object cost—then rerun the exact-baseline gate. Keep the 5% CV contract and do not cut rules or `vendor` to win.
 2. **Maintenance:** rewrite `FEATURES.md` for the Go language server after the first accepted Mago comparison; decide the fate of `src/server`.
 3. **Source mapping:** structured parser errors, then style-rule coordinate producers currently stuck at points.
 4. **Dependency matching:** replace conservative lexical invalidation only after generated reference facts cover supported resolver paths.

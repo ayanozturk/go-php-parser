@@ -116,12 +116,14 @@ type functionScope struct {
 	arrayShapeCallables     map[string]map[string]arrayShapeField
 	arrayShapesShared       bool
 	arrayIndexKeys          map[string][]string
+	arrayIndexKeysShared    bool
 	classConstantValues     map[string]string
 	propertyArrayShapes     map[string]map[string]arrayShapeField
 	methodArrayShapes       map[string]map[string]arrayShapeField
 	// genericContext maps variable names to their generic class instantiations
 	// e.g., "$coll" → (className: "Collection", typeArguments: ["User"])
-	genericContext map[string]GenericInstance
+	genericContext       map[string]GenericInstance
+	genericContextShared bool
 }
 
 type classScopeData struct {
@@ -634,7 +636,6 @@ func newFunctionScopeWithContext(ctx *AnalysisContext, class *ast.ClassNode, fn 
 		methods:                 make(map[string]ResolvedMethod),
 		methodReturns:           make(map[string]Type),
 		propertyCallableReturns: make(map[string]Type),
-		genericContext:          make(map[string]GenericInstance),
 	}
 
 	if class != nil {
@@ -688,13 +689,13 @@ func newFunctionScopeWithContext(ctx *AnalysisContext, class *ast.ClassNode, fn 
 					target = normalizeTypeWithContext(targetName, typeCtx)
 				}
 				if className, single := ParseType(target).SingleClassName(); single {
-					scope.genericContext[param.Name] = GenericInstance{ClassName: "class-string", TypeArguments: []string{className}}
+					scope.setGenericContext(param.Name, GenericInstance{ClassName: "class-string", TypeArguments: []string{className}})
 				}
 			}
 
 			// Check if param type is a generic class with declared type arguments
 			if genInst, ok := parseGenericTypeFromString(paramType.String()); ok {
-				scope.genericContext[param.Name] = genInst
+				scope.setGenericContext(param.Name, genInst)
 			} else {
 				// Also check if the param type itself is a class that has generic parents
 				if className, ok := paramType.SingleClassName(); ok && ctx != nil && ctx.Resolver != nil {
@@ -704,10 +705,10 @@ func newFunctionScopeWithContext(ctx *AnalysisContext, class *ast.ClassNode, fn 
 						if len(resolvedClass.GenericParents) > 0 {
 							gparen := resolvedClass.GenericParents[0]
 							if len(gparen.TypeArguments) > 0 {
-								scope.genericContext[param.Name] = GenericInstance{
+								scope.setGenericContext(param.Name, GenericInstance{
 									ClassName:     gparen.Name,
 									TypeArguments: gparen.TypeArguments,
-								}
+								})
 							}
 						}
 					}
@@ -890,8 +891,8 @@ func copyTypeMap(src map[string]Type) map[string]Type {
 }
 
 func copyGenericContext(src map[string]GenericInstance) map[string]GenericInstance {
-	if src == nil || len(src) == 0 {
-		return make(map[string]GenericInstance)
+	if len(src) == 0 {
+		return nil
 	}
 	dst := make(map[string]GenericInstance, len(src))
 	for name, inst := range src {
@@ -1240,7 +1241,7 @@ func copyArrayIndexKeys(src map[string][]string) map[string][]string {
 	}
 	dst := make(map[string][]string, len(src))
 	for name, keys := range src {
-		dst[name] = append([]string(nil), keys...)
+		dst[name] = keys
 	}
 	return dst
 }
@@ -1308,6 +1309,8 @@ func (s *functionScope) clone() *functionScope {
 	s.propertiesOwned = false
 	s.callablesShared = true
 	s.arrayShapesShared = true
+	s.arrayIndexKeysShared = true
+	s.genericContextShared = true
 	clone := &functionScope{
 		className:               s.className,
 		typeCtx:                 s.typeCtx,
@@ -1323,11 +1326,13 @@ func (s *functionScope) clone() *functionScope {
 		callablesShared:         true,
 		arrayShapeCallables:     s.arrayShapeCallables,
 		arrayShapesShared:       true,
-		arrayIndexKeys:          copyArrayIndexKeys(s.arrayIndexKeys),
+		arrayIndexKeys:          s.arrayIndexKeys,
+		arrayIndexKeysShared:    true,
 		classConstantValues:     s.classConstantValues,
 		propertyArrayShapes:     s.propertyArrayShapes,
 		methodArrayShapes:       s.methodArrayShapes,
-		genericContext:          copyGenericContext(s.genericContext),
+		genericContext:          s.genericContext,
+		genericContextShared:    true,
 	}
 	return clone
 }
@@ -1392,6 +1397,10 @@ func (s *functionScope) setArrayIndexKeys(name string, keys []string) {
 	if s == nil || name == "" || len(keys) == 0 {
 		return
 	}
+	if s.arrayIndexKeysShared {
+		s.arrayIndexKeys = copyArrayIndexKeys(s.arrayIndexKeys)
+		s.arrayIndexKeysShared = false
+	}
 	if s.arrayIndexKeys == nil {
 		s.arrayIndexKeys = make(map[string][]string)
 	}
@@ -1402,7 +1411,43 @@ func (s *functionScope) clearArrayIndexKeys(name string) {
 	if s == nil || s.arrayIndexKeys == nil {
 		return
 	}
+	if _, exists := s.arrayIndexKeys[name]; !exists {
+		return
+	}
+	if s.arrayIndexKeysShared {
+		s.arrayIndexKeys = copyArrayIndexKeys(s.arrayIndexKeys)
+		s.arrayIndexKeysShared = false
+	}
 	delete(s.arrayIndexKeys, name)
+}
+
+func (s *functionScope) setGenericContext(name string, instance GenericInstance) {
+	if s == nil || name == "" {
+		return
+	}
+	if s.genericContextShared {
+		s.genericContext = copyGenericContext(s.genericContext)
+		s.genericContextShared = false
+	}
+	if s.genericContext == nil {
+		s.genericContext = make(map[string]GenericInstance)
+	}
+	instance.TypeArguments = append([]string(nil), instance.TypeArguments...)
+	s.genericContext[name] = instance
+}
+
+func (s *functionScope) clearGenericContext(name string) {
+	if s == nil || s.genericContext == nil {
+		return
+	}
+	if _, exists := s.genericContext[name]; !exists {
+		return
+	}
+	if s.genericContextShared {
+		s.genericContext = copyGenericContext(s.genericContext)
+		s.genericContextShared = false
+	}
+	delete(s.genericContext, name)
 }
 
 func definiteArrayIndexKeys(expr ast.Node, scope *functionScope) []string {
@@ -1497,7 +1542,7 @@ func applyAssignmentScope(scope *functionScope, assignment *ast.AssignmentNode, 
 		scope.clearCallableReturn(left.Name)
 		scope.clearArrayShapeCallables(left.Name)
 		scope.clearArrayIndexKeys(left.Name)
-		delete(scope.genericContext, left.Name)
+		scope.clearGenericContext(left.Name)
 		scope.setVariable(left.Name, assignedType)
 		if keys := definiteArrayIndexKeys(assignment.Right, scope); len(keys) > 0 {
 			scope.setArrayIndexKeys(left.Name, keys)
@@ -1515,10 +1560,7 @@ func applyAssignmentScope(scope *functionScope, assignment *ast.AssignmentNode, 
 		}
 		// If the assigned type contains generic arguments, track it
 		if genInst, ok := parseGenericTypeFromString(assignedType.String()); ok {
-			if scope.genericContext == nil {
-				scope.genericContext = make(map[string]GenericInstance)
-			}
-			scope.genericContext[left.Name] = genInst
+			scope.setGenericContext(left.Name, genInst)
 		}
 	case *ast.PropertyFetchNode:
 		if object, ok := left.Object.(*ast.VariableNode); ok && object.Name == "this" {

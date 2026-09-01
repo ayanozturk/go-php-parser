@@ -200,9 +200,23 @@ func TestFunctionScopeClassStringMetadataClonesRemainIndependent(t *testing.T) {
 	}}
 	left := root.clone()
 	right := root.clone()
+	shared := functionScopeMapPointer(root.genericContext)
 
-	delete(left.genericContext, "class")
-	left.genericContext["left"] = GenericInstance{ClassName: "class-string", TypeArguments: []string{"LeftService"}}
+	if !root.genericContextShared || !left.genericContextShared || !right.genericContextShared {
+		t.Fatalf("generic context maps are not marked shared after clone: root=%v left=%v right=%v", root.genericContextShared, left.genericContextShared, right.genericContextShared)
+	}
+	if functionScopeMapPointer(root.genericContext) != functionScopeMapPointer(left.genericContext) || functionScopeMapPointer(root.genericContext) != functionScopeMapPointer(right.genericContext) {
+		t.Fatal("read-only generic context clones did not share their backing map")
+	}
+
+	right.clearGenericContext("missing")
+	if got := functionScopeMapPointer(right.genericContext); got != shared || !right.genericContextShared {
+		t.Fatalf("missing generic context clear detached shared map: got=%x want=%x shared=%v", got, shared, right.genericContextShared)
+	}
+
+	root.setGenericContext("rootOnly", GenericInstance{ClassName: "class-string", TypeArguments: []string{"RootService"}})
+	left.clearGenericContext("class")
+	left.setGenericContext("left", GenericInstance{ClassName: "class-string", TypeArguments: []string{"LeftService"}})
 
 	if target, ok := classStringTarget(root, "class"); !ok || target.String() != "InitialService" {
 		t.Fatalf("root class-string target changed through clone: %q, %v", target.String(), ok)
@@ -212,6 +226,29 @@ func TestFunctionScopeClassStringMetadataClonesRemainIndependent(t *testing.T) {
 	}
 	if _, ok := left.genericContext["class"]; ok {
 		t.Fatal("left clone retained deleted class-string metadata")
+	}
+	if _, ok := left.genericContext["rootOnly"]; ok {
+		t.Fatal("root generic context write leaked into left clone")
+	}
+	if _, ok := right.genericContext["rootOnly"]; ok {
+		t.Fatal("root generic context write leaked into right sibling")
+	}
+	if functionScopeMapPointer(left.genericContext) == shared || functionScopeMapPointer(root.genericContext) == shared {
+		t.Fatal("generic context write or delete did not detach the modified scope")
+	}
+	if functionScopeMapPointer(right.genericContext) != shared {
+		t.Fatal("read-only sibling detached from the original generic context map")
+	}
+}
+
+func TestFunctionScopeGenericContextCopiesInputTypeArguments(t *testing.T) {
+	scope := &functionScope{}
+	typeArguments := []string{"InitialService"}
+	scope.setGenericContext("class", GenericInstance{ClassName: "class-string", TypeArguments: typeArguments})
+
+	typeArguments[0] = "MutatedService"
+	if target, ok := classStringTarget(scope, "class"); !ok || target.String() != "InitialService" {
+		t.Fatalf("generic context retained caller-owned type arguments: %q, %v", target.String(), ok)
 	}
 }
 
@@ -273,6 +310,18 @@ func TestFunctionScopeArrayIndexKeysCloneIndependently(t *testing.T) {
 	parent := root.clone()
 	left := parent.clone()
 	right := parent.clone()
+	shared := functionScopeMapPointer(root.arrayIndexKeys)
+
+	if !root.arrayIndexKeysShared || !parent.arrayIndexKeysShared || !left.arrayIndexKeysShared || !right.arrayIndexKeysShared {
+		t.Fatal("array-index key maps are not marked shared after clone")
+	}
+	if functionScopeMapPointer(parent.arrayIndexKeys) != shared || functionScopeMapPointer(left.arrayIndexKeys) != shared || functionScopeMapPointer(right.arrayIndexKeys) != shared {
+		t.Fatal("read-only array-index clones did not share their backing map")
+	}
+	right.clearArrayIndexKeys("missing")
+	if got := functionScopeMapPointer(right.arrayIndexKeys); got != shared || !right.arrayIndexKeysShared {
+		t.Fatalf("missing array-index clear detached shared map: got=%x want=%x shared=%v", got, shared, right.arrayIndexKeysShared)
+	}
 
 	left.setArrayIndexKeys("key", []string{"left"})
 	left.setArrayIndexKeys("leftOnly", []string{"inner"})
@@ -296,6 +345,50 @@ func TestFunctionScopeArrayIndexKeysCloneIndependently(t *testing.T) {
 	}
 	if _, ok := right.arrayIndexKeys["leftOnly"]; ok {
 		t.Fatal("left sibling array-index leaked into right sibling")
+	}
+	if functionScopeMapPointer(root.arrayIndexKeys) != shared {
+		t.Fatal("root array-index map detached without a write")
+	}
+	for name, scope := range map[string]*functionScope{"parent": parent, "left": left, "right": right} {
+		if functionScopeMapPointer(scope.arrayIndexKeys) == shared {
+			t.Fatalf("%s array-index mutation did not detach its map", name)
+		}
+	}
+}
+
+func TestFunctionScopeArrayIndexKeysCopyInputAndLookupResult(t *testing.T) {
+	scope := &functionScope{}
+	keys := []string{"service"}
+	scope.setArrayIndexKeys("key", keys)
+	keys[0] = "mutated"
+
+	lookup := resolveArrayIndex(&ast.VariableNode{Name: "key"}, scope)
+	if got := strings.Join(lookup.keys, ","); got != "service" {
+		t.Fatalf("array-index keys retained caller mutation: %q", got)
+	}
+	lookup.keys[0] = "changed"
+	if got := strings.Join(scope.arrayIndexKeys["key"], ","); got != "service" {
+		t.Fatalf("array-index lookup exposed stored slice: %q", got)
+	}
+}
+
+func TestFunctionScopeReadOnlyCloneDoesNotCopyMetadataMaps(t *testing.T) {
+	root := &functionScope{
+		arrayIndexKeys: map[string][]string{"key": {"service"}},
+		genericContext: map[string]GenericInstance{"class": {ClassName: "class-string", TypeArguments: []string{"Service"}}},
+	}
+	arrayIndexKeys := functionScopeMapPointer(root.arrayIndexKeys)
+	genericContext := functionScopeMapPointer(root.genericContext)
+
+	allocs := testing.AllocsPerRun(100, func() {
+		clone := root.clone()
+		benchmarkFunctionScopeSink = clone
+		if functionScopeMapPointer(clone.arrayIndexKeys) != arrayIndexKeys || functionScopeMapPointer(clone.genericContext) != genericContext {
+			t.Fatal("read-only clone copied metadata maps")
+		}
+	})
+	if allocs > 1 {
+		t.Fatalf("read-only metadata clone allocations/run = %.2f, want at most the scope allocation", allocs)
 	}
 }
 

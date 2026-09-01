@@ -166,6 +166,10 @@ Internal analyser lookups now borrow immutable function parameter metadata throu
 
 Snapshot method and own-method resolution now retains the fresh defensive parameter copy already returned by `ProjectIndex`, eliminating a redundant second copy without exposing index-owned storage. Against exact baseline `cbb469b`, three-pass WordPress allocated space fell from 5.11GB to 4.93GB, a 3.5% reduction, and the previous approximately 0.21GB snapshot-level `ResolveMethod` allocation site disappeared. The ten-round cold comparison is rejected because baseline CV was 5.33%; its raw candidate/baseline means of 2.703s/2.797s and RSS samples are not accepted evidence. Durable details are in `docs/benchmarks/2026-09-01-wordpress-method-param-copy.md`; generated evidence remains local.
 
+### Function-scope metadata copy-on-write, 2026-09-01
+
+Array-index and generic-instance metadata now shares immutable maps across branch clones, detaches shallowly on the first real write, and retains defensive slice ownership at ingress and lookup boundaries. Generic maps are lazy and missing-key clears do not detach. Against exact baseline `1696897`, three-pass WordPress allocated space fell from 4.93GB to 4.75GB, a 3.7% reduction. The ten-round cold gate passed: candidate/baseline means were 2.667s/2.773s with CVs 3.17%/4.08%, medians 2.628s/2.738s, and maximum RSS 1.291GB/1.295GB. This accepts a 3.8% mean, 4.0% median, and 0.3% maximum-RSS improvement against the exact previous engine only. No Mago comparison follows. Durable details are in `docs/benchmarks/2026-09-01-wordpress-scope-metadata-cow.md`; generated evidence remains local.
+
 ## Comparable-performance contract
 
 All performance claims must use a checked-in, reproducible harness and record:
@@ -429,7 +433,7 @@ A release must not advance the parser version pinned by PHP Strom until the engi
 
 Performance is now the primary stream. Diagnostic packs stay frozen unless a change would regress the checked-in gates. Match Mago on the same-machine WordPress cold protocol: no more than 1.5× mean time and 1.25× peak RSS, with CV at most 5% and 100% file accounting. The stretch target is equal or faster.
 
-1. **Optimize from profiles, not from diagnostic cuts.** Persistent scope layers removed `copyTypeMap`; private function views removed public function-result copying; and the snapshot facade no longer duplicates method parameter copies. Next: reduce semantic-fact insertion, ASCII identifier folding, required project-index method resolution, function-scope clone metadata, and control-flow graph storage. Do not disable rules or skip `vendor` to win the comparison.
+1. **Optimize from profiles, not from diagnostic cuts.** Persistent scope layers removed `copyTypeMap`; private function views removed public function-result copying; the snapshot facade no longer duplicates method parameter copies; and remaining scope metadata is copy-on-write. Next: reduce semantic-fact insertion, ASCII identifier folding, required project-index method resolution, control-flow graph storage, and remaining per-clone scope object cost. Do not disable rules or skip `vendor` to win the comparison.
 2. **Rerun the production pipeline against exact baseline and contemporaneous Mago on an isolated host.** Keep the 5% CV contract, stable accounting, and the 1.5x mean / 1.25x RSS gates. Generated profiles stay local.
 3. **Maintenance after the first accepted Mago comparison:** rewrite `vscode-php-strom/FEATURES.md`; structured parser errors and style-rule range migration.
 
