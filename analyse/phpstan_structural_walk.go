@@ -16,7 +16,10 @@ func ensureStructuralIssues(filename string, nodes []ast.Node, ctx *AnalysisCont
 		return ctx
 	}
 	fileCtx := analysisFileTypeContext(ctx, nodes)
-	collectReturn := analysisLevelAtLeast(ctx, 10)
+	// Level 2 introduces void.pure. Collect all return-family diagnostics in
+	// this existing structural walk from that level onward; individual rule
+	// callbacks filter the shared cache by code.
+	collectReturn := analysisLevelAtLeast(ctx, 2)
 	walkAllWithFileContext(nodes, fileCtx, ctx, func(node ast.Node, class *ast.ClassNode, currentFn *ast.FunctionNode, ft FileTypeContext) {
 		appendMethodVisibilityOnNode(filename, node, class, currentFn, ft, ctx, &ctx.methodVisibilityIssues)
 		appendThrowTypeOnNode(filename, node, ft, ctx, &ctx.throwTypeIssues)

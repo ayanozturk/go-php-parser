@@ -487,6 +487,27 @@
       "file": "clean-array-property-add.php",
       "engineCodes": [],
       "phpstanIdentifiers": []
+    },
+    {
+      "id": "void-pure-bare-return",
+      "capability": "pure named void functions with bare returns",
+      "file": "void-pure-bare-return.php",
+      "engineCodes": ["A.VOID.PURE"],
+      "phpstanIdentifiers": ["void.pure"]
+    },
+    {
+      "id": "clean-void-effectful-return",
+      "capability": "effectful named void functions with bare returns",
+      "file": "clean-void-effectful-return.php",
+      "engineCodes": [],
+      "phpstanIdentifiers": []
+    },
+    {
+      "id": "clean-void-empty-function",
+      "capability": "empty named void functions",
+      "file": "clean-void-empty-function.php",
+      "engineCodes": [],
+      "phpstanIdentifiers": []
     }
   ]
 }

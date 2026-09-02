@@ -1,10 +1,10 @@
-# Go PHP Parser
+# go-php-parser
 
-A PHP parser and code style checker written in Go that generates an Abstract Syntax Tree (AST) from PHP source code and applies style rules to generate a report.
+A PHP parser, code-style checker, and project-aware static analyzer written in Go.
 
-## Project Target
+`go-php-parser` turns PHP source into a detailed Abstract Syntax Tree, checks it against a registered set of style rules (PSR-12 and friends), and runs a project-aware analyzer that resolves symbols, types, and control flow across the configured files. Diagnostics are emitted in deterministic source order with stable exit codes, and the same engine backs the `analyze` command and the [PHP Strom](docs/full-static-analyser-target.md) language server.
 
-The long-term target is a production-grade, full PHP static analyser with cold full-project performance comparable to Mago, without sacrificing semantic coverage or diagnostic quality. See [Full Static Analyser and Mago-Class Performance Target](docs/full-static-analyser-target.md) for the current pin, M1 status, ranked next actions, benchmark contract, and acceptance gates. Remaining CLI adoption work is in [Near-term CLI and adoption plan](docs/next-feature-plan.md) and is not the main stream.
+The long-term target is a production-grade, full PHP static analyzer with cold full-project performance comparable to [Mago](https://github.com/carthage-software/mago), without trading semantic coverage or diagnostic quality for speed. See [Full Static Analyzer and Mago-Class Performance Target](docs/full-static-analyser-target.md) for the current pin, M1 status, ranked next actions, benchmark contract, and acceptance gates. Remaining CLI adoption work is in [Near-term CLI and adoption plan](docs/next-feature-plan.md) and is not the main stream.
 
 ## Features
 
@@ -48,23 +48,50 @@ go mod download
 
 ### Option 1
 
-To use the style checker against your codebase, first build a the project
+Build the binary once:
 
 ```bash
 make build
 ```
 
-This will generate a binary named `go-phpcs`
+This produces a binary named `go-phpcs`.
 
-- Copy this binary, together with `config.yaml` file in this repository into your project.
-- Modify `config.yaml` file to target the directory you need PHP style checks.
-- Run the style checker
+#### Pointing go-phpcs at your project
+
+The binary auto-discovers a config in the current working directory, in this order:
+
+1. `tusk.yaml`
+2. `go-phpcs.yaml`
+3. `go-phpcs.yml`
+4. `config.yaml`
+
+To bootstrap a fresh project, generate a default `config.yaml` and edit it:
+
+```bash
+./go-phpcs init
+```
+
+You can also place the binary alongside an existing `config.yaml` from this repo and edit it to target the directory you want to check. The binary will pick up the nearest config automatically.
+
+To inspect which config, path, extensions, ignore list, rules, and analysis level are actually in effect, run:
+
+```bash
+./go-phpcs config
+```
+
+To print exactly which files the resolved config will scan:
+
+```bash
+./go-phpcs list-files
+```
+
+#### Running the style checker
 
 ```bash
 ./go-phpcs
 ```
 
-Optionally export the report into a file
+Optionally export the report into a file:
 
 ```bash
 ./go-phpcs -o report.log
@@ -72,7 +99,7 @@ Optionally export the report into a file
 
 ### Option 2
 
-Clone your project into a folder within this project.
+Clone your project into a folder within this project (for example `demo_project/`).
 
 Update `config.yaml` with your folder name.
 
@@ -106,6 +133,29 @@ analysis_level: 0
 ```
 
 The analyzer parses each selected file once, builds one immutable project snapshot, and emits diagnostics in deterministic source order. Exit code `0` means clean, `1` means analysis or parser findings, and `2` means an invocation, configuration, discovery, or file-read failure.
+
+#### Analysis rules by PHPStan level
+
+The counts below are registered engine rules, not PHPStan error-identifier counts. A single engine rule can cover several PHPStan identifiers through one shared traversal. “Cumulative” reflects the rules enabled when `analysis_level` is set to that level. Unlevelled rules run only when `analysis_level` is omitted.
+
+<!-- analysis-rule-level-table:start -->
+| PHPStan level | Rules introduced | Cumulative levelled rules | Detail |
+| ---: | ---: | ---: | --- |
+| 0 | 1 | 1 | [Level 0 rules](docs/rules/level-0.md) |
+| 1 | 1 | 2 | [Level 1 rules](docs/rules/level-1.md) |
+| 2 | 5 | 7 | [Level 2 rules](docs/rules/level-2.md) |
+| 3 | 5 | 12 | [Level 3 rules](docs/rules/level-3.md) |
+| 4 | 1 | 13 | [Level 4 rules](docs/rules/level-4.md) |
+| 5 | 0 | 13 | [Level 5 rules](docs/rules/level-5.md) |
+| 6 | 0 | 13 | [Level 6 rules](docs/rules/level-6.md) |
+| 7 | 1 | 14 | [Level 7 rules](docs/rules/level-7.md) |
+| 8 | 1 | 15 | [Level 8 rules](docs/rules/level-8.md) |
+| 9 | 0 | 15 | [Level 9 rules](docs/rules/level-9.md) |
+| 10 | 2 | 17 | [Level 10 rules](docs/rules/level-10.md) |
+| Unlevelled | 4 | 21 total registered | [Unlevelled rules](docs/rules/unlevelled.md) |
+<!-- analysis-rule-level-table:end -->
+
+Run `go run ./cmd/rule-inventory` after adding or moving an analysis rule. The Go test suite compares this table and each detail page's inventory metadata with the live registry, so a rule-count change cannot land without updating both. The linked level documents describe current coverage and known boundaries; update that prose in the same change as its rule or level.
 
 ### Listing All Style Rules
 
@@ -147,7 +197,7 @@ This parser implements several PSR-12 style checks, including:
 - **Class opening brace on its own line** (`PSR12.Classes.OpenBraceOnOwnLine`): Requires that the opening brace for a class, interface, trait, or enum must appear on its own line, with no leading or trailing whitespace.
 - **Method visibility must be declared** (`PSR12.Methods.VisibilityDeclared`): Requires that every class method explicitly declares its visibility (`public`, `protected`, or `private`).
 
-Style issues are reported per file and line, and can be extended by adding new checkers in the `style/psr12` package.
+Style issues are reported per file and line, and can be extended by adding new checkers in the `style/` package.
 
 
 ## Available Style Rules
@@ -198,10 +248,14 @@ Add or remove rule codes under `rules:` to control which checks are performed. I
 ### Basic Usage
 
 ```bash
-go run main.go examples/test.php
+go run main.go demo_project
 ```
 
-This will parse the PHP file and output the AST in a tree-like structure.
+This will parse the PHP files under the target directory and output the AST in a tree-like structure. You can also point it at a single file:
+
+```bash
+go run main.go demo_constants.php
+```
 
 ### Directory Scanning & Parallelism
 

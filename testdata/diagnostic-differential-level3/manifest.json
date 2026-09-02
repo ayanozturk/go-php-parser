@@ -130,6 +130,34 @@
       "file": "clean-string-property-concat.php",
       "engineCodes": [],
       "phpstanIdentifiers": []
+    },
+    {
+      "id": "void-pure-return-value",
+      "capability": "pure named void functions returning values",
+      "file": "void-pure-return-value.php",
+      "engineCodes": ["A.RETURN.VOID", "A.VOID.PURE"],
+      "phpstanIdentifiers": ["return.void", "void.pure"]
+    },
+    {
+      "id": "void-effectful-return-value",
+      "capability": "effectful named void functions returning values",
+      "file": "void-effectful-return-value.php",
+      "engineCodes": ["A.RETURN.VOID"],
+      "phpstanIdentifiers": ["return.void"]
+    },
+    {
+      "id": "void-method-return-value",
+      "capability": "void methods returning values",
+      "file": "void-method-return-value.php",
+      "engineCodes": ["A.RETURN.VOID"],
+      "phpstanIdentifiers": ["return.void"]
+    },
+    {
+      "id": "clean-void-effectful-method",
+      "capability": "effectful void methods with property writes",
+      "file": "clean-void-effectful-method.php",
+      "engineCodes": [],
+      "phpstanIdentifiers": []
     }
   ]
 }

@@ -437,13 +437,21 @@ Representative workload: 23,556 indexed PHP files, 3,678,678 LOC, 135.68 MB, 151
 - New `A.ASSIGN.OP.INVALID` enters at PHPStan level 2 and matches `assignOp.invalid` for definitely invalid numeric/string and array/scalar compound additions, with integer and array clean controls.
 - At level 3, valid compound-operation results now flow into `A.PROP.TYPE`; concatenating into an integer property reports `assign.propertyType`, while string-property concatenation stays clean.
 - The two rules share one cached assignment traversal. Seven neutral fixtures bring the executable gates to 88/24/69/18/5/5 against PHPStan 2.2.5.
+- Parser commit `7642b8e` lands the rule and fixtures. Extension commit `b5a57b9` pins pseudo-version `v0.0.0-20260901203500-7642b8e87df1`.
 - Refined numeric-string, bitwise, and object-conversion cases remain conservative. This focused correctness batch does not run the corpus benchmark.
+
+### 2026-09-02 — Rule inventory and void diagnostics
+
+- The README now lists introduced and cumulative registered-rule counts for levels 0–10, with each level linked to its own `docs/rules/level-N.md` coverage page. Unlevelled compatibility rules have a separate page.
+- `cmd/rule-inventory` derives the table from live registry metadata, and its test fails when the README count is stale. The affected level page must still be updated with each rule change.
+- New level-2 `A.VOID.PURE` and level-3 `A.RETURN.VOID` match PHPStan `void.pure` and `return.void` while sharing the structural return traversal. Seven fixtures bring the complete gates to 88/24/72/22/5/5.
+- This focused correctness batch does not run the corpus benchmark.
 
 ## Next ranked candidates
 
 The analyser target in `docs/full-static-analyser-target.md` is the source of truth for ordering.
 
-1. **Correctness:** probe void-return purity and broader level-3 expression inference, then expand level-2 PHPDoc validation.
+1. **Correctness:** expand broader level-3 expression inference, then level-2 PHPDoc validation.
 2. **Performance:** retain the same-machine Mago resource envelope as a periodic guardrail for representative batches and structural hot-path changes.
 3. **Maintenance:** rewrite `FEATURES.md` for the Go language server and decide the fate of `src/server`.
 4. **Source mapping:** structured parser errors, then style-rule coordinate producers currently stuck at points.

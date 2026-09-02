@@ -102,6 +102,21 @@ func ListRegisteredAnalysisRuleCodes() []string {
 	return append([]string(nil), sortedRuleCodesCache...)
 }
 
+// ListRegisteredAnalysisRuleMetadata returns a sorted snapshot of the analysis
+// rule registry. Callers can use it to keep user-facing rule inventories in
+// sync without gaining access to executable rule functions.
+func ListRegisteredAnalysisRuleMetadata() []AnalysisRuleMeta {
+	codes := ListRegisteredAnalysisRuleCodes()
+	metadata := make([]AnalysisRuleMeta, 0, len(codes))
+
+	analysisRuleRegistryLock.RLock()
+	defer analysisRuleRegistryLock.RUnlock()
+	for _, code := range codes {
+		metadata = append(metadata, analysisRuleRegistry[code].meta)
+	}
+	return metadata
+}
+
 // ClearAnalysisRules removes all registered analysis rules. Useful for test isolation.
 func ClearAnalysisRules() {
 	analysisRuleRegistryLock.Lock()

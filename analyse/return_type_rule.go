@@ -13,6 +13,11 @@ type ReturnTypeRule struct{}
 
 const returnNeverCode = "A.RETURN.NEVER"
 
+const (
+	returnVoidCode = "A.RETURN.VOID"
+	voidPureCode   = "A.VOID.PURE"
+)
+
 type observedReturn struct {
 	Type Type
 	Pos  ast.Position
@@ -169,6 +174,9 @@ func (r *ReturnTypeRule) checkFunctionReturnType(filename string, fn *ast.Functi
 	if declaredType.String() == "never" {
 		return nil // explicit returns from never functions use returnNeverCode
 	}
+	if declaredType.String() == "void" {
+		return nil // value returns from void functions use returnVoidCode
+	}
 
 	// Collect all actual return types
 	returnTypes := map[string]int{}
@@ -267,6 +275,25 @@ func appendReturnTypeOnNode(filename string, node ast.Node, class *ast.ClassNode
 		return
 	}
 	declared := declaredFunctionReturnType(fn, fileCtx)
+	if class == nil && fn.Name != "" && declared.String() == "void" && triviallyPureVoidFunction(fn) {
+		*issues = append(*issues, issueSpan(filename, fn, voidPureCode, fmt.Sprintf("Function %s returns void without side effects", fn.Name)))
+	}
+	if !analysisLevelAtLeast(ctx, 3) {
+		return
+	}
+	if declared.String() == "void" {
+		scope := analysisFunctionScope(ctx, class, fn, fileCtx)
+		for _, ret := range collectObservedReturns(filename, fn.Body, scope, ctx) {
+			if ret.Expr == nil {
+				continue
+			}
+			name := fn.Name
+			if name == "" {
+				name = "closure"
+			}
+			*issues = append(*issues, issue(filename, ret.Pos, returnVoidCode, fmt.Sprintf("Function %s with return type void should not return a value", name)))
+		}
+	}
 	if declared.String() == "never" {
 		scope := analysisFunctionScope(ctx, class, fn, fileCtx)
 		for _, ret := range collectObservedReturns(filename, fn.Body, scope, ctx) {
@@ -308,6 +335,20 @@ func appendReturnTypeOnNode(filename string, node ast.Node, class *ast.ClassNode
 			"Function %s: declared return type %s but not all paths return a value", name, declared,
 		)))
 	}
+}
+
+func triviallyPureVoidFunction(fn *ast.FunctionNode) bool {
+	if fn == nil || len(fn.Body) == 0 {
+		return false
+	}
+	hasReturn := false
+	for _, node := range fn.Body {
+		if _, ok := node.(*ast.ReturnNode); !ok {
+			return false
+		}
+		hasReturn = true
+	}
+	return hasReturn
 }
 
 func missingReturnValue(fn *ast.FunctionNode, filename string, typeCtx FileTypeContext, ctx *AnalysisContext) bool {
@@ -1753,6 +1794,12 @@ func resolveSameClassPropertyType(scope *functionScope, propertyName string) (Ty
 }
 
 func init() {
+	RegisterAnalysisRuleWithLevel(voidPureCode, 2, "level2", func(filename string, nodes []ast.Node, ctx *AnalysisContext) []AnalysisIssue {
+		return filterIssuesByCode(returnTypeIssuesForFile(filename, nodes, ctx), voidPureCode)
+	})
+	RegisterAnalysisRuleWithLevel(returnVoidCode, 3, "level3", func(filename string, nodes []ast.Node, ctx *AnalysisContext) []AnalysisIssue {
+		return filterIssuesByCode(returnTypeIssuesForFile(filename, nodes, ctx), returnVoidCode)
+	})
 	RegisterAnalysisRuleWithLevel(returnNeverCode, 3, "level3", func(filename string, nodes []ast.Node, ctx *AnalysisContext) []AnalysisIssue {
 		return filterIssuesByCode(returnTypeIssuesForFile(filename, nodes, ctx), returnNeverCode)
 	})
