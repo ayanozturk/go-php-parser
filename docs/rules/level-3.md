@@ -1,13 +1,13 @@
 # PHPStan-compatible rules: level 3
 
-<!-- rule-inventory: level=3 introduced=5 cumulative=13 -->
+<!-- rule-inventory: level=3 introduced=5 cumulative=18 -->
 
 [Back to the README static-analysis section](../../README.md#static-analysis) · [Open the analyser capability matrix](../analyser-capability-matrix.md)
 
 ## Rule inventory
 
 - **Introduced at this level:** 5 registered levelled rules: `A.PROP.TYPE`, `A.RETURN.NEVER`, `A.RETURN.TYPE`, `A.RETURN.VOID`, and `Level3.ThrowType`.
-- **Cumulative registered levelled rules:** 13. `A.ASSIGN.OP.INVALID`, `A.BINARY.OP.INVALID`, and `A.VOID.PURE` are cumulative from level 2 and are not introduced here.
+- **Cumulative registered levelled rules:** 18. The assignment, binary-operation, void-purity, method, and PHPDoc rules from level 2 are cumulative and are not introduced here.
 - **Checked-in differential pack:** 30 cases in `testdata/diagnostic-differential-level3`.
 
 ## Coverage and boundaries

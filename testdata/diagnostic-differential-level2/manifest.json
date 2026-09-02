@@ -536,6 +536,62 @@
       "file": "clean-binary-op-array-array.php",
       "engineCodes": [],
       "phpstanIdentifiers": []
+    },
+    {
+      "id": "phpdoc-unknown-param-class",
+      "capability": "unknown simple classes in PHPDoc parameters",
+      "file": "phpdoc-unknown-param-class.php",
+      "engineCodes": ["Level2.PHPDocClass"],
+      "phpstanIdentifiers": ["class.notFound"]
+    },
+    {
+      "id": "phpdoc-unknown-return-class",
+      "capability": "unknown simple classes in PHPDoc returns",
+      "file": "phpdoc-unknown-return-class.php",
+      "engineCodes": ["Level2.PHPDocClass"],
+      "phpstanIdentifiers": ["class.notFound"]
+    },
+    {
+      "id": "phpdoc-unknown-property-class",
+      "capability": "unknown simple classes in property PHPDoc",
+      "file": "phpdoc-unknown-property-class.php",
+      "engineCodes": ["Level2.PHPDocClass"],
+      "phpstanIdentifiers": ["class.notFound"]
+    },
+    {
+      "id": "phpdoc-param-type-mismatch",
+      "capability": "PHPDoc parameter types incompatible with native types",
+      "file": "phpdoc-param-type-mismatch.php",
+      "engineCodes": ["Level2.PHPDocParamType"],
+      "phpstanIdentifiers": ["parameter.phpDocType"]
+    },
+    {
+      "id": "phpdoc-return-type-mismatch",
+      "capability": "PHPDoc return types incompatible with native types",
+      "file": "phpdoc-return-type-mismatch.php",
+      "engineCodes": ["Level2.PHPDocReturnType"],
+      "phpstanIdentifiers": ["return.phpDocType"]
+    },
+    {
+      "id": "phpdoc-param-unknown-name",
+      "capability": "PHPDoc parameters that do not exist natively",
+      "file": "phpdoc-param-unknown-name.php",
+      "engineCodes": ["Level2.PHPDocParamName"],
+      "phpstanIdentifiers": ["parameter.notFound"]
+    },
+    {
+      "id": "phpdoc-property-type-mismatch",
+      "capability": "property PHPDoc types incompatible with native types",
+      "file": "phpdoc-property-type-mismatch.php",
+      "engineCodes": ["Level2.PHPDocPropertyType"],
+      "phpstanIdentifiers": ["property.phpDocType"]
+    },
+    {
+      "id": "phpdoc-known-class-control",
+      "capability": "known PHPDoc parameter and return classes",
+      "file": "phpdoc-known-class-control.php",
+      "engineCodes": [],
+      "phpstanIdentifiers": []
     }
   ]
 }

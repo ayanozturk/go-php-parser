@@ -527,6 +527,9 @@ func canonicalizeDocType(raw string) string {
 	case "scalar":
 		return "bool|float|int|string"
 	}
+	if _, ok := builtinTypeNames[base]; ok {
+		return base
+	}
 
 	return raw
 }

@@ -1,13 +1,13 @@
 # PHPStan-compatible rules: level 4
 
-<!-- rule-inventory: level=4 introduced=1 cumulative=14 -->
+<!-- rule-inventory: level=4 introduced=1 cumulative=19 -->
 
 [Back to the README static-analysis section](../../README.md#static-analysis) · [Open the analyser capability matrix](../analyser-capability-matrix.md)
 
 ## Rule inventory
 
 - **Introduced at this level:** 1 registered levelled rule, `Generic.CodeAnalysis.UnreachableCode`.
-- **Cumulative registered levelled rules:** 14.
+- **Cumulative registered levelled rules:** 19.
 - **Checked-in differential pack:** None currently checked in.
 
 ## Coverage and boundaries

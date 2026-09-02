@@ -229,6 +229,7 @@ type AnalysisContext struct {
 	methodVisibilityIssues  []AnalysisIssue
 	throwTypeIssues         []AnalysisIssue
 	returnTypeIssues        []AnalysisIssue
+	phpDocIssues            []AnalysisIssue
 	hasStructuralIssues     bool
 	hasReturnTypeIssues     bool
 	assignmentTypeIssues    []AnalysisIssue

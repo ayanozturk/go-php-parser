@@ -1,13 +1,13 @@
 # PHPStan-compatible rules: level 9
 
-<!-- rule-inventory: level=9 introduced=0 cumulative=16 -->
+<!-- rule-inventory: level=9 introduced=0 cumulative=21 -->
 
 [Back to the README static-analysis section](../../README.md#static-analysis) · [Open the analyser capability matrix](../analyser-capability-matrix.md)
 
 ## Rule inventory
 
 - **Introduced at this level:** None.
-- **Cumulative registered levelled rules:** 16.
+- **Cumulative registered levelled rules:** 21.
 - **Checked-in differential pack:** None currently checked in.
 
 ## Coverage and boundaries

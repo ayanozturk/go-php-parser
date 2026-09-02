@@ -23,6 +23,7 @@ func ensureStructuralIssues(filename string, nodes []ast.Node, ctx *AnalysisCont
 	walkAllWithFileContext(nodes, fileCtx, ctx, func(node ast.Node, class *ast.ClassNode, currentFn *ast.FunctionNode, ft FileTypeContext) {
 		appendMethodVisibilityOnNode(filename, node, class, currentFn, ft, ctx, &ctx.methodVisibilityIssues)
 		appendThrowTypeOnNode(filename, node, ft, ctx, &ctx.throwTypeIssues)
+		appendPHPDocIssuesOnNode(filename, node, class, ft, ctx, &ctx.phpDocIssues)
 		if collectReturn {
 			appendReturnTypeOnNode(filename, node, class, ft, ctx, &ctx.returnTypeIssues)
 		}
