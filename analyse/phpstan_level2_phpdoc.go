@@ -9,6 +9,9 @@ import (
 
 const (
 	level2PHPDocClassCode        = "Level2.PHPDocClass"
+	level2PHPDocGenericLessCode  = "Level2.PHPDocGenericLessTypes"
+	level2PHPDocGenericMoreCode  = "Level2.PHPDocGenericMoreTypes"
+	level2PHPDocNotGenericCode   = "Level2.PHPDocNotGeneric"
 	level2PHPDocParamNameCode    = "Level2.PHPDocParamName"
 	level2PHPDocParamTypeCode    = "Level2.PHPDocParamType"
 	level2PHPDocPropertyTypeCode = "Level2.PHPDocPropertyType"
@@ -48,7 +51,7 @@ func appendCallablePHPDocIssues(filename string, declaration ast.Node, params []
 	templates := phpDocTemplateNames(class, doc)
 
 	for _, documented := range doc.Params {
-		appendUnknownPHPDocClasses(filename, declaration, documented.Type, templates, ft, ctx, issues)
+		appendPHPDocTypeIssues(filename, declaration, documented.Type, templates, ft, ctx, issues)
 		param, ok := phpDocParameter(params, documented.Name)
 		if !ok {
 			*issues = append(*issues, issueSpan(filename, declaration, level2PHPDocParamNameCode, fmt.Sprintf(
@@ -70,7 +73,7 @@ func appendCallablePHPDocIssues(filename string, declaration ast.Node, params []
 	if doc.ReturnType == "" {
 		return
 	}
-	appendUnknownPHPDocClasses(filename, declaration, doc.ReturnType, templates, ft, ctx, issues)
+	appendPHPDocTypeIssues(filename, declaration, doc.ReturnType, templates, ft, ctx, issues)
 	if nativeReturn != "" && !phpDocUsesTemplate(doc.ReturnType, templates) && !phpDocTypeFitsNative(doc.ReturnType, nativeReturn, ft, ctx) {
 		*issues = append(*issues, issueSpan(filename, declaration, level2PHPDocReturnTypeCode, fmt.Sprintf(
 			"PHPDoc return type %s is not compatible with native return type %s.", doc.ReturnType, nativeReturn,
@@ -93,7 +96,7 @@ func appendPropertyPHPDocIssues(filename string, property *ast.PropertyNode, cla
 	}
 	templates := phpDocTemplateNames(class, property.PHPDoc)
 	documented := property.PHPDoc.VarType
-	appendUnknownPHPDocClasses(filename, property, documented, templates, ft, ctx, issues)
+	appendPHPDocTypeIssues(filename, property, documented, templates, ft, ctx, issues)
 	if property.TypeHint == "" || phpDocUsesTemplate(documented, templates) || phpDocTypeFitsNative(documented, property.TypeHint, ft, ctx) {
 		return
 	}
@@ -102,31 +105,111 @@ func appendPropertyPHPDocIssues(filename string, property *ast.PropertyNode, cla
 	)))
 }
 
-func appendUnknownPHPDocClasses(filename string, declaration ast.Node, raw string, templates map[string]struct{}, ft FileTypeContext, ctx *AnalysisContext, issues *[]AnalysisIssue) {
+func appendPHPDocTypeIssues(filename string, declaration ast.Node, raw string, templates map[string]struct{}, ft FileTypeContext, ctx *AnalysisContext, issues *[]AnalysisIssue) {
 	if ctx == nil || ctx.Resolver == nil {
 		return
 	}
+	raw = stripBalancedOuterTypeParens(strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(raw), "?")))
+	if raw == "" {
+		return
+	}
+	if parts := splitTopLevelTypes(raw, '|'); len(parts) > 1 {
+		for _, part := range parts {
+			appendPHPDocTypeIssues(filename, declaration, part, templates, ft, ctx, issues)
+		}
+		return
+	}
+	if parts := splitTopLevelTypes(raw, '&'); len(parts) > 1 {
+		for _, part := range parts {
+			appendPHPDocTypeIssues(filename, declaration, part, templates, ft, ctx, issues)
+		}
+		return
+	}
+	if instance, ok := parseExactGenericTypeFromString(raw); ok {
+		appendPHPDocGenericBaseIssues(filename, declaration, instance, templates, ft, ctx, issues)
+		for _, argument := range instance.TypeArguments {
+			appendPHPDocTypeIssues(filename, declaration, argument, templates, ft, ctx, issues)
+		}
+		return
+	}
 	for _, name := range referencedClassTypes(raw, ft) {
-		if isSpecialClassName(name) {
-			continue
-		}
-		if _, template := templates[asciiLowerIdent(strings.TrimPrefix(name, `\`))]; template {
-			continue
-		}
-		if _, ok := ctx.Resolver.ResolveClass(name); ok {
-			continue
-		}
-		*issues = append(*issues, issueSpan(filename, declaration, level2PHPDocClassCode, fmt.Sprintf("PHPDoc references unknown class %s.", name)))
+		appendUnknownPHPDocClass(filename, declaration, name, templates, ctx, issues)
 	}
 }
 
+func appendPHPDocGenericBaseIssues(filename string, declaration ast.Node, instance GenericInstance, templates map[string]struct{}, ft FileTypeContext, ctx *AnalysisContext, issues *[]AnalysisIssue) {
+	baseType := ParseType(instance.ClassName)
+	if baseType.IsEmpty() || !baseType.hasClassAtom() {
+		return
+	}
+	name := ft.resolveClassLike(instance.ClassName)
+	if !appendUnknownPHPDocClass(filename, declaration, name, templates, ctx, issues) {
+		return
+	}
+	resolved, ok := ctx.Resolver.ResolveClass(name)
+	if !ok {
+		return
+	}
+	want, got := len(resolved.TemplateParams), len(instance.TypeArguments)
+	switch {
+	case want == 0:
+		*issues = append(*issues, issueSpan(filename, declaration, level2PHPDocNotGenericCode, fmt.Sprintf("Class %s is not generic.", name)))
+	case got < want:
+		*issues = append(*issues, issueSpan(filename, declaration, level2PHPDocGenericLessCode, fmt.Sprintf("Generic class %s requires %d type arguments, %d given.", name, want, got)))
+	case got > want:
+		*issues = append(*issues, issueSpan(filename, declaration, level2PHPDocGenericMoreCode, fmt.Sprintf("Generic class %s requires %d type arguments, %d given.", name, want, got)))
+	}
+}
+
+// appendUnknownPHPDocClass returns true when the class is known (or is a
+// special/template name), allowing callers to perform additional checks.
+func appendUnknownPHPDocClass(filename string, declaration ast.Node, name string, templates map[string]struct{}, ctx *AnalysisContext, issues *[]AnalysisIssue) bool {
+	if isSpecialClassName(name) {
+		return true
+	}
+	if _, template := templates[asciiLowerIdent(strings.TrimPrefix(name, `\`))]; template {
+		return true
+	}
+	if _, ok := ctx.Resolver.ResolveClass(name); ok {
+		return true
+	}
+	*issues = append(*issues, issueSpan(filename, declaration, level2PHPDocClassCode, fmt.Sprintf("PHPDoc references unknown class %s.", name)))
+	return false
+}
+
 func phpDocTypeFitsNative(documented, native string, ft FileTypeContext, ctx *AnalysisContext) bool {
-	documentedType := ParseType(normalizeTypeWithContext(documented, ft))
+	documentedType := ParseType(normalizeTypeWithContext(erasePHPDocGenericArguments(documented), ft))
 	nativeType := ParseType(normalizeTypeWithContext(native, ft))
 	if documentedType.IsEmpty() || nativeType.IsEmpty() {
 		return true
 	}
 	return nativeType.AcceptsWithContext(documentedType, nil, ctx)
+}
+
+func erasePHPDocGenericArguments(raw string) string {
+	raw = stripBalancedOuterTypeParens(strings.TrimSpace(raw))
+	if raw == "" {
+		return ""
+	}
+	if strings.HasPrefix(raw, "?") {
+		return "?" + erasePHPDocGenericArguments(strings.TrimSpace(strings.TrimPrefix(raw, "?")))
+	}
+	if parts := splitTopLevelTypes(raw, '|'); len(parts) > 1 {
+		for index, part := range parts {
+			parts[index] = erasePHPDocGenericArguments(part)
+		}
+		return strings.Join(parts, "|")
+	}
+	if parts := splitTopLevelTypes(raw, '&'); len(parts) > 1 {
+		for index, part := range parts {
+			parts[index] = erasePHPDocGenericArguments(part)
+		}
+		return strings.Join(parts, "&")
+	}
+	if instance, ok := parseExactGenericTypeFromString(raw); ok {
+		return instance.ClassName
+	}
+	return raw
 }
 
 func phpDocTemplateNames(class *ast.ClassNode, doc *ast.PHPDocNode) map[string]struct{} {
@@ -180,6 +263,9 @@ func init() {
 		code string
 	}{
 		{level2PHPDocClassCode},
+		{level2PHPDocGenericLessCode},
+		{level2PHPDocGenericMoreCode},
+		{level2PHPDocNotGenericCode},
 		{level2PHPDocParamNameCode},
 		{level2PHPDocParamTypeCode},
 		{level2PHPDocPropertyTypeCode},

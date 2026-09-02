@@ -105,3 +105,56 @@ class Holder {
 		}
 	}
 }
+
+func TestLevel2PHPDocValidationChecksNestedAndGenericTypes(t *testing.T) {
+	const source = `<?php
+/** @template T */
+class Box {}
+
+/**
+ * @template T
+ * @template U
+ */
+class Pair {}
+
+class Plain {}
+class KnownItem {}
+
+/** @param Box<int, string> $box */
+function tooMany(Box $box): void { echo get_class($box); }
+
+/** @param Pair<int> $pair */
+function tooFew(Pair $pair): void { echo get_class($pair); }
+
+/** @param Plain<int> $plain */
+function notGeneric(Plain $plain): void { echo get_class($plain); }
+
+/** @param array<int, MissingNested> $items */
+function nestedUnknown(array $items): void { echo count($items); }
+
+/** @param Box<MissingGeneric> $box */
+function genericUnknown(Box $box): void { echo get_class($box); }
+
+/** @param Box<KnownItem> $box */
+function clean(Box $box): void { echo get_class($box); }
+`
+	issues := runAnalysisLevelOnFiles(t, map[string]string{"test.php": source}, 2)
+	want := map[string]int{
+		level2PHPDocClassCode:       2,
+		level2PHPDocGenericLessCode: 1,
+		level2PHPDocGenericMoreCode: 1,
+		level2PHPDocNotGenericCode:  1,
+	}
+	got := make(map[string]int)
+	for _, issue := range issues {
+		got[issue.Code]++
+	}
+	for code, count := range want {
+		if got[code] != count {
+			t.Fatalf("%s count = %d, want %d; issues: %#v", code, got[code], count, issues)
+		}
+	}
+	if len(issues) != 5 {
+		t.Fatalf("expected five nested/generic PHPDoc issues, got %#v", issues)
+	}
+}

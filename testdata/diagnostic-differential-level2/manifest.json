@@ -592,6 +592,48 @@
       "file": "phpdoc-known-class-control.php",
       "engineCodes": [],
       "phpstanIdentifiers": []
+    },
+    {
+      "id": "phpdoc-generic-more-types",
+      "capability": "generic classes used with too many type arguments",
+      "file": "phpdoc-generic-more-types.php",
+      "engineCodes": ["Level2.PHPDocGenericMoreTypes"],
+      "phpstanIdentifiers": ["generics.moreTypes"]
+    },
+    {
+      "id": "phpdoc-generic-less-types",
+      "capability": "generic classes used with too few type arguments",
+      "file": "phpdoc-generic-less-types.php",
+      "engineCodes": ["Level2.PHPDocGenericLessTypes"],
+      "phpstanIdentifiers": ["generics.lessTypes"]
+    },
+    {
+      "id": "phpdoc-not-generic",
+      "capability": "non-generic classes used with type arguments",
+      "file": "phpdoc-not-generic.php",
+      "engineCodes": ["Level2.PHPDocNotGeneric"],
+      "phpstanIdentifiers": ["generics.notGeneric"]
+    },
+    {
+      "id": "phpdoc-array-unknown-class",
+      "capability": "unknown classes nested in array PHPDoc types",
+      "file": "phpdoc-array-unknown-class.php",
+      "engineCodes": ["Level2.PHPDocClass"],
+      "phpstanIdentifiers": ["class.notFound"]
+    },
+    {
+      "id": "phpdoc-generic-unknown-argument",
+      "capability": "unknown classes nested in generic PHPDoc types",
+      "file": "phpdoc-generic-unknown-argument.php",
+      "engineCodes": ["Level2.PHPDocClass"],
+      "phpstanIdentifiers": ["class.notFound"]
+    },
+    {
+      "id": "phpdoc-generic-known-control",
+      "capability": "known classes nested in generic PHPDoc types",
+      "file": "phpdoc-generic-known-control.php",
+      "engineCodes": [],
+      "phpstanIdentifiers": []
     }
   ]
 }
