@@ -443,8 +443,9 @@ Representative workload: 23,556 indexed PHP files, 3,678,678 LOC, 135.68 MB, 151
 ### 2026-09-02 — Rule inventory and void diagnostics
 
 - The README now lists introduced and cumulative registered-rule counts for levels 0–10, with each level linked to its own `docs/rules/level-N.md` coverage page. Unlevelled compatibility rules have a separate page.
-- `cmd/rule-inventory` derives the table from live registry metadata, and its test fails when the README count is stale. The affected level page must still be updated with each rule change.
+- `cmd/rule-inventory` derives the table from live registry metadata, and its tests reject stale README or detail-page counts. The affected page's coverage prose must still be updated with each rule change.
 - New level-2 `A.VOID.PURE` and level-3 `A.RETURN.VOID` match PHPStan `void.pure` and `return.void` while sharing the structural return traversal. Seven fixtures bring the complete gates to 88/24/72/22/5/5.
+- Parser commit `6298601` lands the inventory and rules. Extension commit `0164698` pins pseudo-version `v0.0.0-20260902073039-6298601ac882`; parser and server tests, vet, race, six target builds, the complete differential suite, and the zero-vulnerability audit pass.
 - This focused correctness batch does not run the corpus benchmark.
 
 ## Next ranked candidates
