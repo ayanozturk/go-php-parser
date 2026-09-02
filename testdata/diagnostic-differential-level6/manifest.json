@@ -60,6 +60,62 @@
       "file": "known-array-shape.php",
       "engineCodes": [],
       "phpstanIdentifiers": []
+    },
+    {
+      "id": "missing-function-parameter",
+      "capability": "missing named-function parameter types",
+      "file": "missing-function-parameter.php",
+      "engineCodes": ["Level6.MissingParameterType"],
+      "phpstanIdentifiers": ["missingType.parameter"]
+    },
+    {
+      "id": "missing-method-parameter",
+      "capability": "missing method parameter types",
+      "file": "missing-method-parameter.php",
+      "engineCodes": ["Level6.MissingParameterType"],
+      "phpstanIdentifiers": ["missingType.parameter"]
+    },
+    {
+      "id": "missing-function-return",
+      "capability": "missing named-function return types",
+      "file": "missing-function-return.php",
+      "engineCodes": ["Level6.MissingReturnType"],
+      "phpstanIdentifiers": ["missingType.return"]
+    },
+    {
+      "id": "missing-method-return",
+      "capability": "missing method return types",
+      "file": "missing-method-return.php",
+      "engineCodes": ["Level6.MissingReturnType"],
+      "phpstanIdentifiers": ["missingType.return"]
+    },
+    {
+      "id": "missing-property-type",
+      "capability": "missing property types",
+      "file": "missing-property-type.php",
+      "engineCodes": ["Level6.MissingPropertyType"],
+      "phpstanIdentifiers": ["missingType.property"]
+    },
+    {
+      "id": "known-mixed-void",
+      "capability": "explicit mixed parameter and void return control",
+      "file": "known-mixed-void.php",
+      "engineCodes": [],
+      "phpstanIdentifiers": []
+    },
+    {
+      "id": "known-phpdoc-callable",
+      "capability": "PHPDoc parameter and return declaration control",
+      "file": "known-phpdoc-callable.php",
+      "engineCodes": [],
+      "phpstanIdentifiers": []
+    },
+    {
+      "id": "known-phpdoc-property-constructor",
+      "capability": "PHPDoc property and typed constructor control",
+      "file": "known-phpdoc-property-constructor.php",
+      "engineCodes": [],
+      "phpstanIdentifiers": []
     }
   ]
 }

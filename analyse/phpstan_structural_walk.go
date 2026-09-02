@@ -26,7 +26,7 @@ func ensureStructuralIssues(filename string, nodes []ast.Node, ctx *AnalysisCont
 		appendThrowTypeOnNode(filename, node, ft, ctx, &ctx.throwTypeIssues)
 		appendPHPDocIssuesOnNode(filename, node, class, ft, ctx, &ctx.phpDocIssues)
 		if collectMissingTypes {
-			appendMissingTypeIssuesOnNode(filename, node, ft, ctx, &ctx.missingTypeIssues)
+			appendMissingTypeIssuesOnNode(filename, node, class, ft, ctx, &ctx.missingTypeIssues)
 		}
 		if collectReturn {
 			appendReturnTypeOnNode(filename, node, class, ft, ctx, &ctx.returnTypeIssues)

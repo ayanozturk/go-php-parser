@@ -56,3 +56,41 @@ function inspect(Container $container, array $items): iterable { return []; }
 		}
 	}
 }
+
+func TestLevel6MissingDeclarationTypesRespectPHPDocAndSpecialMethods(t *testing.T) {
+	const source = `<?php
+final class State {
+    public $missing;
+    /** @var string */
+    public $documented;
+
+    public function __construct($value) { $this->documented = $value; }
+    public function missing($value) { return $value; }
+    /**
+     * @param string $value
+     * @return string
+     */
+    public function documented($value) { return $value; }
+}
+
+function missing($value) { return $value; }
+function clean(mixed $value): void {}
+
+$closure = function ($value) { return $value; };
+`
+	issues := runAnalysisLevelOnFiles(t, map[string]string{"test.php": source}, 6)
+	want := map[string]int{
+		level6MissingParameterCode: 3,
+		level6MissingPropertyCode:  1,
+		level6MissingReturnCode:    2,
+	}
+	got := make(map[string]int)
+	for _, issue := range issues {
+		got[issue.Code]++
+	}
+	for code, count := range want {
+		if got[code] != count {
+			t.Fatalf("%s count = %d, want %d; issues: %#v", code, got[code], count, issues)
+		}
+	}
+}
