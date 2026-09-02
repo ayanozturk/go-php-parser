@@ -1,6 +1,6 @@
 # Unlevelled analysis rules
 
-<!-- rule-inventory: unlevelled=4 levelled=27 total=31 -->
+<!-- rule-inventory: unlevelled=4 levelled=29 total=33 -->
 
 [Back to the README static-analysis section](../../README.md#static-analysis) · [Open the analyser capability matrix](../analyser-capability-matrix.md)
 
@@ -14,8 +14,8 @@ These rules are registered without a PHPStan-compatible analysis level:
 - `PSR1.Files.SideEffects`
 
 - **Introduced outside an exact level:** 4 registered unlevelled rules.
-- **Cumulative registered levelled rules:** 27 (unchanged; these rules are not part of that total).
-- **Total registered analysis rules:** 31, consisting of 27 levelled rules and these 4 unlevelled rules.
+- **Cumulative registered levelled rules:** 29 (unchanged; these rules are not part of that total).
+- **Total registered analysis rules:** 33, consisting of 29 levelled rules and these 4 unlevelled rules.
 - **Checked-in differential pack:** None currently checked in.
 
 The four unlevelled rules run only when `analysis_level` is unset. When an explicit analysis level is selected, only registered rules at or below that level are enabled.

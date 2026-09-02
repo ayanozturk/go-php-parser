@@ -20,10 +20,14 @@ func ensureStructuralIssues(filename string, nodes []ast.Node, ctx *AnalysisCont
 	// this existing structural walk from that level onward; individual rule
 	// callbacks filter the shared cache by code.
 	collectReturn := analysisLevelAtLeast(ctx, 2)
+	collectMissingTypes := analysisLevelAtLeast(ctx, 6)
 	walkAllWithFileContext(nodes, fileCtx, ctx, func(node ast.Node, class *ast.ClassNode, currentFn *ast.FunctionNode, ft FileTypeContext) {
 		appendMethodVisibilityOnNode(filename, node, class, currentFn, ft, ctx, &ctx.methodVisibilityIssues)
 		appendThrowTypeOnNode(filename, node, ft, ctx, &ctx.throwTypeIssues)
 		appendPHPDocIssuesOnNode(filename, node, class, ft, ctx, &ctx.phpDocIssues)
+		if collectMissingTypes {
+			appendMissingTypeIssuesOnNode(filename, node, ft, ctx, &ctx.missingTypeIssues)
+		}
 		if collectReturn {
 			appendReturnTypeOnNode(filename, node, class, ft, ctx, &ctx.returnTypeIssues)
 		}

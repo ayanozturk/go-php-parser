@@ -1,0 +1,65 @@
+{
+  "schemaVersion": 1,
+  "reference": {
+    "tool": "PHPStan",
+    "level": 6
+  },
+  "cases": [
+    {
+      "id": "missing-generic-parameter",
+      "capability": "missing generic type arguments in parameters",
+      "file": "missing-generic-parameter.php",
+      "engineCodes": ["Level6.MissingGenericType"],
+      "phpstanIdentifiers": ["missingType.generics"]
+    },
+    {
+      "id": "missing-generic-return",
+      "capability": "missing generic type arguments in returns",
+      "file": "missing-generic-return.php",
+      "engineCodes": ["Level6.MissingGenericType"],
+      "phpstanIdentifiers": ["missingType.generics"]
+    },
+    {
+      "id": "known-generic-argument",
+      "capability": "generic arguments supplied in PHPDoc",
+      "file": "known-generic-argument.php",
+      "engineCodes": [],
+      "phpstanIdentifiers": []
+    },
+    {
+      "id": "missing-native-array-value",
+      "capability": "missing iterable value types in native array parameters",
+      "file": "missing-native-array-value.php",
+      "engineCodes": ["Level6.MissingIterableValueType"],
+      "phpstanIdentifiers": ["missingType.iterableValue"]
+    },
+    {
+      "id": "missing-phpdoc-array-value",
+      "capability": "missing iterable value types in PHPDoc array parameters",
+      "file": "missing-phpdoc-array-value.php",
+      "engineCodes": ["Level6.MissingIterableValueType"],
+      "phpstanIdentifiers": ["missingType.iterableValue"]
+    },
+    {
+      "id": "missing-iterable-return-value",
+      "capability": "missing iterable value types in returns",
+      "file": "missing-iterable-return-value.php",
+      "engineCodes": ["Level6.MissingIterableValueType"],
+      "phpstanIdentifiers": ["missingType.iterableValue"]
+    },
+    {
+      "id": "known-array-value",
+      "capability": "array parameters with documented key and value types",
+      "file": "known-array-value.php",
+      "engineCodes": [],
+      "phpstanIdentifiers": []
+    },
+    {
+      "id": "known-array-shape",
+      "capability": "array-shape parameters with documented value types",
+      "file": "known-array-shape.php",
+      "engineCodes": [],
+      "phpstanIdentifiers": []
+    }
+  ]
+}
