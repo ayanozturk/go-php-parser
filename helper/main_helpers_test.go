@@ -164,6 +164,153 @@ func TestRunAnalyzeExitCodes(t *testing.T) {
 	}
 }
 
+func TestRunAnalyzeFolderScopesReport(t *testing.T) {
+	dir := t.TempDir()
+	insideDir := filepath.Join(dir, "inside")
+	outsideDir := filepath.Join(dir, "outside")
+	if err := os.MkdirAll(insideDir, 0755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	if err := os.MkdirAll(outsideDir, 0755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	insideFile := filepath.Join(insideDir, "Inside.php")
+	outsideFile := filepath.Join(outsideDir, "Outside.php")
+	ignoredFile := filepath.Join(insideDir, "Skip.php.txt")
+	if err := os.WriteFile(insideFile, []byte("<?php\nnew MissingType();\n"), 0644); err != nil {
+		t.Fatalf("write inside: %v", err)
+	}
+	if err := os.WriteFile(outsideFile, []byte("<?php\nnew MissingType();\n"), 0644); err != nil {
+		t.Fatalf("write outside: %v", err)
+	}
+	if err := os.WriteFile(ignoredFile, []byte("ignored"), 0644); err != nil {
+		t.Fatalf("write ignored: %v", err)
+	}
+
+	level := 0
+	cfg := &config.Config{
+		Path:          dir,
+		Extensions:    []string{"php"},
+		Ignore:        []string{},
+		AnalysisLevel: &level,
+	}
+
+	var output bytes.Buffer
+	outcome := RunScanOrCommand(
+		CliArgs{CommandName: "analyze", filePath: insideDir, parallelism: 1},
+		cfg,
+		[]string{insideFile, outsideFile},
+		&output,
+		&MemStats{},
+	)
+
+	if outcome.ExitCode != 1 {
+		t.Fatalf("expected exit 1 (diagnostic), got %d; output:\n%s", outcome.ExitCode, output.String())
+	}
+	if !strings.Contains(output.String(), insideFile) {
+		t.Fatalf("expected diagnostic for inside file %q; output:\n%s", insideFile, output.String())
+	}
+	if strings.Contains(output.String(), outsideFile) {
+		t.Fatalf("outside file %q should not appear in report when targeting %q; output:\n%s", outsideFile, insideDir, output.String())
+	}
+}
+
+func TestRunAnalyzeFolderRespectsIgnore(t *testing.T) {
+	dir := t.TempDir()
+	target := filepath.Join(dir, "scoped")
+	ignoredDir := filepath.Join(target, "vendor")
+	if err := os.MkdirAll(ignoredDir, 0755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	keepFile := filepath.Join(target, "Keep.php")
+	skipFile := filepath.Join(ignoredDir, "Skip.php")
+	if err := os.WriteFile(keepFile, []byte("<?php\nclass Keep {}\n"), 0644); err != nil {
+		t.Fatalf("write keep: %v", err)
+	}
+	if err := os.WriteFile(skipFile, []byte("<?php\nclass Skip {}\n"), 0644); err != nil {
+		t.Fatalf("write skip: %v", err)
+	}
+
+	level := 0
+	cfg := &config.Config{
+		Path:          dir,
+		Extensions:    []string{"php"},
+		Ignore:        []string{"vendor"},
+		AnalysisLevel: &level,
+	}
+
+	var output bytes.Buffer
+	outcome := RunScanOrCommand(
+		CliArgs{CommandName: "analyze", filePath: target, parallelism: 1},
+		cfg,
+		[]string{keepFile, skipFile},
+		&output,
+		&MemStats{},
+	)
+
+	if outcome.ExitCode != 0 {
+		t.Fatalf("expected exit 0 (clean), got %d; output:\n%s", outcome.ExitCode, output.String())
+	}
+	if strings.Contains(output.String(), skipFile) {
+		t.Fatalf("ignored file %q should not appear in report; output:\n%s", skipFile, output.String())
+	}
+}
+
+func TestRunAnalyzeFolderMissingPathErrors(t *testing.T) {
+	level := 0
+	cfg := &config.Config{
+		Path:          t.TempDir(),
+		Extensions:    []string{"php"},
+		AnalysisLevel: &level,
+	}
+	var output bytes.Buffer
+	outcome := RunScanOrCommand(
+		CliArgs{CommandName: "analyze", filePath: filepath.Join(t.TempDir(), "does-not-exist"), parallelism: 1},
+		cfg,
+		nil,
+		&output,
+		&MemStats{},
+	)
+	if outcome.ExitCode != 2 {
+		t.Fatalf("expected exit 2 for missing path, got %d; output:\n%s", outcome.ExitCode, output.String())
+	}
+	if !strings.Contains(output.String(), "could not stat") {
+		t.Fatalf("expected stat error in output, got:\n%s", output.String())
+	}
+}
+
+func TestRunAnalyzeFolderNoMatchingFiles(t *testing.T) {
+	dir := t.TempDir()
+	target := filepath.Join(dir, "empty")
+	if err := os.MkdirAll(target, 0755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(target, "readme.md"), []byte("# nothing"), 0644); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+
+	level := 0
+	cfg := &config.Config{
+		Path:          dir,
+		Extensions:    []string{"php"},
+		AnalysisLevel: &level,
+	}
+	var output bytes.Buffer
+	outcome := RunScanOrCommand(
+		CliArgs{CommandName: "analyze", filePath: target, parallelism: 1},
+		cfg,
+		nil,
+		&output,
+		&MemStats{},
+	)
+	if outcome.ExitCode != 0 {
+		t.Fatalf("expected exit 0 for empty folder, got %d; output:\n%s", outcome.ExitCode, output.String())
+	}
+	if !strings.Contains(output.String(), "No analyzable files") {
+		t.Fatalf("expected helpful message, got:\n%s", output.String())
+	}
+}
+
 func removeProfileFiles() {
 	_ = os.Remove("cpu.prof")
 	_ = os.Remove("mem.prof")

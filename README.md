@@ -123,6 +123,14 @@ Or analyze one file using the same project pipeline:
 ./go-phpcs analyze src/Example.php
 ```
 
+Or scope the analysis to a subfolder (the whole project is still indexed for cross-file symbol resolution, but only files under `src/Module` are reported on):
+
+```bash
+./go-phpcs analyze src/Module
+```
+
+The folder walk respects the configured `extensions` and `ignore` lists, so `./go-phpcs analyze src` and a config pointed at `src` produce the same file set.
+
 Set `analysis_level` to zero or greater to run rules up to that level. Leaving it unset runs every registered analysis rule.
 
 ```yaml

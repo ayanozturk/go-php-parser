@@ -76,9 +76,9 @@ var Commands = map[string]Command{
 	},
 	"analyze": {
 		Name:        "analyze",
-		Description: "Run project-aware static analysis",
+		Description: "Run project-aware static analysis (optional: file or folder to scope reports)",
 		Execute: func(_ []ast.Node, _ string, w io.Writer) {
-			fmt.Fprintln(w, "Use analyze with a file argument or configured project path.")
+			fmt.Fprintln(w, "Use analyze with a file, folder, or no argument to analyze the whole configured project.")
 		},
 	},
 	"list-style-rules": {
@@ -125,7 +125,7 @@ func PrintUsage() {
 }
 
 func PrintUsageTo(w io.Writer) {
-	fmt.Fprintln(w, "Usage: go-phpcs <command> [php-file]")
+	fmt.Fprintln(w, "Usage: go-phpcs <command> [file-or-folder]")
 	fmt.Fprintln(w, "Commands:")
 	names := make([]string, 0, len(Commands))
 	for name := range Commands {

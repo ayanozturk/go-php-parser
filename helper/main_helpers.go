@@ -168,11 +168,24 @@ func RunScanOrCommand(args CliArgs, c *config.Config, filesToScan []string, outW
 	}
 	command.ConfigureAnalysis(c.AnalysisLevel)
 	if args.CommandName == "analyze" {
-		// Index the whole project so cross-file symbol resolution works even
-		// when a single target file is requested.
+		// Resolve the user's analyze target. A bare `analyze` reports on the
+		// whole configured project; `analyze <file>` reports on a single
+		// file; `analyze <folder>` reports on every PHP file under that
+		// folder (respecting config.Extensions and config.Ignore). In all
+		// three cases the whole project is still indexed for cross-file
+		// symbol resolution.
+		targets, err := resolveAnalyzeTargets(args.filePath, c, outWriter)
+		if err != nil {
+			fmt.Fprintf(outWriter, "Error resolving analyze target: %v\n", err)
+			outcome.ExitCode = 2
+			return outcome
+		}
+
 		reportable := filesToScan
-		if args.filePath != "" && !slices.Contains(reportable, args.filePath) {
-			reportable = append(reportable, args.filePath)
+		for _, t := range targets {
+			if !slices.Contains(reportable, t) {
+				reportable = append(reportable, t)
+			}
 		}
 
 		// config.Includes adds extra directories (e.g. vendor) that are
@@ -196,11 +209,11 @@ func RunScanOrCommand(args CliArgs, c *config.Config, filesToScan []string, outW
 
 		// Only run the expensive per-file analysis (CFGs, type inference,
 		// narrowing, rule execution) against what we'll actually report:
-		// the single requested file, or every path-scanned file when
-		// running whole-project (config.Includes files stay index-only).
-		targets := reportable
-		if args.filePath != "" {
-			targets = []string{args.filePath}
+		// the requested file(s), or every path-scanned file when running
+		// whole-project (config.Includes files stay index-only).
+		analysisTargets := targets
+		if len(analysisTargets) == 0 {
+			analysisTargets = reportable
 		}
 
 		// Use incremental analysis with cache in user's home directory
@@ -209,9 +222,13 @@ func RunScanOrCommand(args CliArgs, c *config.Config, filesToScan []string, outW
 		if err == nil {
 			cacheDir = filepath.Join(homeDir, ".cache", "go-phpcs")
 		}
-		result := command.AnalyzeFilesIncrementalScoped(files, targets, c.AnalysisLevel, matcher, args.parallelism, cacheDir)
-		if args.filePath != "" {
-			result = command.FilterAnalyzeResultToFile(result, args.filePath)
+		result := command.AnalyzeFilesIncrementalScoped(files, analysisTargets, c.AnalysisLevel, matcher, args.parallelism, cacheDir)
+		if len(targets) > 0 {
+			targetSet := make(map[string]struct{}, len(targets))
+			for _, t := range targets {
+				targetSet[t] = struct{}{}
+			}
+			result = command.FilterAnalyzeResultToFiles(result, targetSet)
 		} else if len(includeFiles) > 0 {
 			result = command.FilterAnalyzeResultToFiles(result, reportableSet)
 		}
@@ -299,6 +316,63 @@ func RunScanOrCommand(args CliArgs, c *config.Config, filesToScan []string, outW
 		}
 	}
 	return outcome
+}
+
+// resolveAnalyzeTargets turns the positional argument passed to the
+// `analyze` command into a concrete list of PHP files to report on.
+//
+//   - An empty arg means "analyze the whole configured project" and
+//     returns an empty slice (caller treats that as "no override").
+//   - A file path returns a one-element slice.
+//   - A directory path is walked with the same extension and ignore
+//     rules used by config.GetFilesToScan so behavior matches a
+//     hand-written config pointing at the same folder.
+//
+// A non-existent path returns an error so the caller can surface a
+// useful message instead of producing a silently empty result.
+func resolveAnalyzeTargets(path string, c *config.Config, outWriter io.Writer) ([]string, error) {
+	if path == "" {
+		return nil, nil
+	}
+	info, err := os.Stat(path)
+	if err != nil {
+		return nil, fmt.Errorf("could not stat %q: %w", path, err)
+	}
+	if !info.IsDir() {
+		return []string{path}, nil
+	}
+	ignoreDirs := make(map[string]struct{}, len(c.Ignore))
+	for _, d := range c.Ignore {
+		ignoreDirs[d] = struct{}{}
+	}
+	allowedExts := make(map[string]struct{}, len(c.Extensions))
+	for _, ext := range c.Extensions {
+		allowedExts["."+ext] = struct{}{}
+	}
+	var files []string
+	walkErr := filepath.WalkDir(path, func(p string, d os.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.IsDir() {
+			if _, ignored := ignoreDirs[d.Name()]; ignored {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		if _, allowed := allowedExts[filepath.Ext(p)]; allowed {
+			files = append(files, p)
+		}
+		return nil
+	})
+	if walkErr != nil {
+		return nil, fmt.Errorf("walking %q: %w", path, walkErr)
+	}
+	sort.Strings(files)
+	if len(files) == 0 {
+		fmt.Fprintf(outWriter, "No analyzable files found under %q (extensions=%v, ignore=%v).\n", path, c.Extensions, c.Ignore)
+	}
+	return files, nil
 }
 
 func countCommandParseErrors(details []command.ParseErrorDetail) int {
