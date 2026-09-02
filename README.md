@@ -143,16 +143,16 @@ The counts below are registered engine rules, not PHPStan error-identifier count
 | ---: | ---: | ---: | --- |
 | 0 | 1 | 1 | [Level 0 rules](docs/rules/level-0.md) |
 | 1 | 1 | 2 | [Level 1 rules](docs/rules/level-1.md) |
-| 2 | 5 | 7 | [Level 2 rules](docs/rules/level-2.md) |
-| 3 | 5 | 12 | [Level 3 rules](docs/rules/level-3.md) |
-| 4 | 1 | 13 | [Level 4 rules](docs/rules/level-4.md) |
-| 5 | 0 | 13 | [Level 5 rules](docs/rules/level-5.md) |
-| 6 | 0 | 13 | [Level 6 rules](docs/rules/level-6.md) |
-| 7 | 1 | 14 | [Level 7 rules](docs/rules/level-7.md) |
-| 8 | 1 | 15 | [Level 8 rules](docs/rules/level-8.md) |
-| 9 | 0 | 15 | [Level 9 rules](docs/rules/level-9.md) |
-| 10 | 2 | 17 | [Level 10 rules](docs/rules/level-10.md) |
-| Unlevelled | 4 | 21 total registered | [Unlevelled rules](docs/rules/unlevelled.md) |
+| 2 | 6 | 8 | [Level 2 rules](docs/rules/level-2.md) |
+| 3 | 5 | 13 | [Level 3 rules](docs/rules/level-3.md) |
+| 4 | 1 | 14 | [Level 4 rules](docs/rules/level-4.md) |
+| 5 | 0 | 14 | [Level 5 rules](docs/rules/level-5.md) |
+| 6 | 0 | 14 | [Level 6 rules](docs/rules/level-6.md) |
+| 7 | 1 | 15 | [Level 7 rules](docs/rules/level-7.md) |
+| 8 | 1 | 16 | [Level 8 rules](docs/rules/level-8.md) |
+| 9 | 0 | 16 | [Level 9 rules](docs/rules/level-9.md) |
+| 10 | 2 | 18 | [Level 10 rules](docs/rules/level-10.md) |
+| Unlevelled | 4 | 22 total registered | [Unlevelled rules](docs/rules/unlevelled.md) |
 <!-- analysis-rule-level-table:end -->
 
 Run `go run ./cmd/rule-inventory` after adding or moving an analysis rule. The Go test suite compares this table and each detail page's inventory metadata with the live registry, so a rule-count change cannot land without updating both. The linked level documents describe current coverage and known boundaries; update that prose in the same change as its rule or level.

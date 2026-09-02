@@ -51,6 +51,35 @@ func TestShortArrayLiteralReturnMatchesArrayType(t *testing.T) {
 	}
 }
 
+func TestBinaryAndUnaryExpressionReturnTypes(t *testing.T) {
+	tests := []struct {
+		name       string
+		returnType string
+		expression string
+		wantIssue  bool
+	}{
+		{name: "integer arithmetic", returnType: "int", expression: "1 + 2"},
+		{name: "arithmetic mismatch", returnType: "string", expression: "1 + 2", wantIssue: true},
+		{name: "comparison", returnType: "bool", expression: "1 < 2"},
+		{name: "comparison mismatch", returnType: "string", expression: "1 < 2", wantIssue: true},
+		{name: "logical", returnType: "bool", expression: "true && false"},
+		{name: "logical mismatch", returnType: "string", expression: "true && false", wantIssue: true},
+		{name: "unary not", returnType: "bool", expression: "!1"},
+		{name: "unary numeric", returnType: "int", expression: "-1"},
+		{name: "spaceship", returnType: "int", expression: "1 <=> 2"},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			php := "<?php function value(): " + test.returnType + " { return " + test.expression + "; }"
+			issues := analysePHP(t, php)
+			if got := hasReturnTypeIssue(issues); got != test.wantIssue {
+				t.Fatalf("has A.RETURN.TYPE = %t, want %t; issues: %#v", got, test.wantIssue, issues)
+			}
+		})
+	}
+}
+
 func TestMultipleCompatibleTypesNoError(t *testing.T) {
 	php := `<?php
     function bar(): bool {

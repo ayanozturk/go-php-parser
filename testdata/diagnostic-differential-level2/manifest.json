@@ -508,6 +508,34 @@
       "file": "clean-void-empty-function.php",
       "engineCodes": [],
       "phpstanIdentifiers": []
+    },
+    {
+      "id": "binary-op-invalid-int-string",
+      "capability": "invalid integer and string binary additions",
+      "file": "binary-op-invalid-int-string.php",
+      "engineCodes": ["A.BINARY.OP.INVALID"],
+      "phpstanIdentifiers": ["binaryOp.invalid"]
+    },
+    {
+      "id": "binary-op-invalid-array-int",
+      "capability": "invalid array and integer binary additions",
+      "file": "binary-op-invalid-array-int.php",
+      "engineCodes": ["A.BINARY.OP.INVALID"],
+      "phpstanIdentifiers": ["binaryOp.invalid"]
+    },
+    {
+      "id": "clean-binary-op-int-int",
+      "capability": "valid integer and integer binary additions",
+      "file": "clean-binary-op-int-int.php",
+      "engineCodes": [],
+      "phpstanIdentifiers": []
+    },
+    {
+      "id": "clean-binary-op-array-array",
+      "capability": "valid array and array binary additions",
+      "file": "clean-binary-op-array-array.php",
+      "engineCodes": [],
+      "phpstanIdentifiers": []
     }
   ]
 }

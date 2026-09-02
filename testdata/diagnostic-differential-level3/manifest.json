@@ -158,6 +158,62 @@
       "file": "clean-void-effectful-method.php",
       "engineCodes": [],
       "phpstanIdentifiers": []
+    },
+    {
+      "id": "return-arithmetic-as-string",
+      "capability": "arithmetic results returned from string functions",
+      "file": "return-arithmetic-as-string.php",
+      "engineCodes": ["A.RETURN.TYPE"],
+      "phpstanIdentifiers": ["return.type"]
+    },
+    {
+      "id": "return-comparison-as-string",
+      "capability": "comparison results returned from string functions",
+      "file": "return-comparison-as-string.php",
+      "engineCodes": ["A.RETURN.TYPE"],
+      "phpstanIdentifiers": ["return.type"]
+    },
+    {
+      "id": "return-logical-as-string",
+      "capability": "logical results returned from string functions",
+      "file": "return-logical-as-string.php",
+      "engineCodes": ["A.RETURN.TYPE"],
+      "phpstanIdentifiers": ["return.type"]
+    },
+    {
+      "id": "return-not-as-string",
+      "capability": "logical negation results returned from string functions",
+      "file": "return-not-as-string.php",
+      "engineCodes": ["A.RETURN.TYPE"],
+      "phpstanIdentifiers": ["return.type"]
+    },
+    {
+      "id": "return-negative-as-string",
+      "capability": "unary negative results returned from string functions",
+      "file": "return-negative-as-string.php",
+      "engineCodes": ["A.RETURN.TYPE"],
+      "phpstanIdentifiers": ["return.type"]
+    },
+    {
+      "id": "return-spaceship-as-string",
+      "capability": "spaceship results returned from string functions",
+      "file": "return-spaceship-as-string.php",
+      "engineCodes": ["A.RETURN.TYPE"],
+      "phpstanIdentifiers": ["return.type"]
+    },
+    {
+      "id": "clean-return-int-arithmetic",
+      "capability": "integer arithmetic results returned from integer functions",
+      "file": "clean-return-int-arithmetic.php",
+      "engineCodes": [],
+      "phpstanIdentifiers": []
+    },
+    {
+      "id": "clean-return-bool-comparison",
+      "capability": "boolean comparison results returned from boolean functions",
+      "file": "clean-return-bool-comparison.php",
+      "engineCodes": [],
+      "phpstanIdentifiers": []
     }
   ]
 }

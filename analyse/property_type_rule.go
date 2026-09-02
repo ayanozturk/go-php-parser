@@ -8,7 +8,10 @@ import (
 
 type PropertyTypeRule struct{}
 
-const assignOpInvalidCode = "A.ASSIGN.OP.INVALID"
+const (
+	assignOpInvalidCode = "A.ASSIGN.OP.INVALID"
+	binaryOpInvalidCode = "A.BINARY.OP.INVALID"
+)
 
 func (r *PropertyTypeRule) CheckIssues(nodes []ast.Node, filename string, ctx *AnalysisContext) []AnalysisIssue {
 	return filterIssuesByCode(assignmentTypeIssuesForFile(filename, nodes, ctx), "A.PROP.TYPE")
@@ -130,6 +133,16 @@ func walkExprForPropertyTypes(node ast.Node, scope *functionScope, ctx *Analysis
 	case *ast.BinaryExpr:
 		walkExprForPropertyTypes(n.Left, scope, ctx, filename, issues)
 		walkExprForPropertyTypes(n.Right, scope, ctx, filename, issues)
+		leftType := inferTypeWithFacts(filename, n.Left, scope, ctx)
+		rightType := inferTypeWithFacts(filename, n.Right, scope, ctx)
+		_, valid, known := binaryOperationResult(n.Operator, leftType, rightType)
+		if known && !valid {
+			*issues = append(*issues, issueSpan(filename, n, binaryOpInvalidCode, fmt.Sprintf(
+				"Invalid binary operation %s between %s and %s", n.Operator, typeLabel(leftType), typeLabel(rightType),
+			)))
+		}
+	case *ast.UnaryExpr:
+		walkExprForPropertyTypes(n.Operand, scope, ctx, filename, issues)
 	case *ast.ConcatNode:
 		for _, part := range n.Parts {
 			walkExprForPropertyTypes(part, scope, ctx, filename, issues)
@@ -244,6 +257,34 @@ func compoundAssignmentResult(operator string, left, right Type) (Type, bool, bo
 			return EmptyType(), false, true
 		}
 		return ParseType("string"), true, true
+	default:
+		return EmptyType(), false, false
+	}
+}
+
+// binaryOperationResult returns the result type for operators whose result is
+// independent of runtime values. Invalid known operand pairs are reported by
+// the same expression walk used for property and compound-assignment checks.
+func binaryOperationResult(operator string, left, right Type) (Type, bool, bool) {
+	switch operator {
+	case "+":
+		return compoundAssignmentResult("+=", left, right)
+	case "-":
+		return compoundAssignmentResult("-=", left, right)
+	case "*":
+		return compoundAssignmentResult("*=", left, right)
+	case "%":
+		return compoundAssignmentResult("%=", left, right)
+	case "<<":
+		return compoundAssignmentResult("<<=", left, right)
+	case ">>":
+		return compoundAssignmentResult(">>=", left, right)
+	case "==", "!=", "===", "!==", "<", ">", "<=", ">=":
+		return ParseType("bool"), true, true
+	case "<=>":
+		return ParseType("int"), true, true
+	case "&&", "||", "and", "or", "xor":
+		return ParseType("bool"), true, true
 	default:
 		return EmptyType(), false, false
 	}
@@ -371,6 +412,9 @@ func resolvePropertyTypeForAssignment(fetch *ast.PropertyFetchNode, scope *funct
 func init() {
 	RegisterAnalysisRuleWithLevel(assignOpInvalidCode, 2, "level2", func(filename string, nodes []ast.Node, ctx *AnalysisContext) []AnalysisIssue {
 		return filterIssuesByCode(assignmentTypeIssuesForFile(filename, nodes, ctx), assignOpInvalidCode)
+	})
+	RegisterAnalysisRuleWithLevel(binaryOpInvalidCode, 2, "level2", func(filename string, nodes []ast.Node, ctx *AnalysisContext) []AnalysisIssue {
+		return filterIssuesByCode(assignmentTypeIssuesForFile(filename, nodes, ctx), binaryOpInvalidCode)
 	})
 	RegisterAnalysisRuleWithLevel("A.PROP.TYPE", 3, "level3", func(filename string, nodes []ast.Node, ctx *AnalysisContext) []AnalysisIssue {
 		return filterIssuesByCode(assignmentTypeIssuesForFile(filename, nodes, ctx), "A.PROP.TYPE")

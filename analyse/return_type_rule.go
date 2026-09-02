@@ -498,8 +498,17 @@ func inferType(expr ast.Node, scope *functionScope, ctx *AnalysisContext) Type {
 		}
 		return unionInferredTypes(ifTrue, inferType(n.IfFalse, scope, ctx))
 	case *ast.UnaryExpr:
-		if n.Operator == "clone" {
+		switch n.Operator {
+		case "clone":
 			return inferType(n.Operand, scope, ctx)
+		case "!":
+			return ParseType("bool")
+		case "+", "-":
+			operandType := inferType(n.Operand, scope, ctx)
+			if name, ok := singleCompoundBuiltin(operandType); ok && isNumericCompoundType(name) {
+				return operandType
+			}
+			return MixedType()
 		}
 		if t := inferNodeKindType(n); t != "" {
 			return ParseType(t)
@@ -508,6 +517,12 @@ func inferType(expr ast.Node, scope *functionScope, ctx *AnalysisContext) Type {
 	case *ast.BinaryExpr:
 		if n.Operator == "??" {
 			return unionInferredTypes(inferType(n.Left, scope, ctx).withoutBuiltin("null"), inferType(n.Right, scope, ctx))
+		}
+		if result, valid, known := binaryOperationResult(n.Operator, inferType(n.Left, scope, ctx), inferType(n.Right, scope, ctx)); known {
+			if valid {
+				return result
+			}
+			return MixedType()
 		}
 		if t := inferNodeKindType(n); t != "" {
 			return ParseType(t)

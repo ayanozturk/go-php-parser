@@ -24,6 +24,15 @@ func hasAssignOpInvalidIssue(issues []AnalysisIssue) bool {
 	return false
 }
 
+func hasBinaryOpInvalidIssue(issues []AnalysisIssue) bool {
+	for _, issue := range issues {
+		if issue.Code == binaryOpInvalidCode {
+			return true
+		}
+	}
+	return false
+}
+
 func TestPropertyAssignmentTypeMismatch(t *testing.T) {
 	php := `<?php
     class Example {
@@ -113,6 +122,47 @@ func TestCompoundAssignmentResultMatrix(t *testing.T) {
 				t.Fatalf("result = (%s, %t, %t), want (%s, %t, %t)", result.String(), valid, known, test.result, test.valid, test.known)
 			}
 		})
+	}
+}
+
+func TestBinaryOperationResultMatrix(t *testing.T) {
+	tests := []struct {
+		name     string
+		operator string
+		left     string
+		right    string
+		result   string
+		valid    bool
+		known    bool
+	}{
+		{name: "integer addition", operator: "+", left: "int", right: "int", result: "int", valid: true, known: true},
+		{name: "float multiplication", operator: "*", left: "int", right: "float", result: "float", valid: true, known: true},
+		{name: "array union", operator: "+", left: "array", right: "array", result: "array", valid: true, known: true},
+		{name: "invalid string addition", operator: "+", left: "int", right: "string", valid: false, known: true},
+		{name: "comparison", operator: "<", left: "int", right: "string", result: "bool", valid: true, known: true},
+		{name: "spaceship", operator: "<=>", left: "int", right: "int", result: "int", valid: true, known: true},
+		{name: "logical", operator: "&&", left: "mixed", right: "mixed", result: "bool", valid: true, known: true},
+		{name: "unsupported bitwise", operator: "&", left: "int", right: "int", valid: false, known: false},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			result, valid, known := binaryOperationResult(test.operator, ParseType(test.left), ParseType(test.right))
+			if valid != test.valid || known != test.known || result.String() != test.result {
+				t.Fatalf("result = (%s, %t, %t), want (%s, %t, %t)", result.String(), valid, known, test.result, test.valid, test.known)
+			}
+		})
+	}
+}
+
+func TestInvalidBinaryOperationUsesSharedExpressionWalk(t *testing.T) {
+	php := `<?php
+function run(): void {
+    echo 1 + "bad";
+}`
+	issues := analysePHP(t, php)
+	if !hasBinaryOpInvalidIssue(issues) {
+		t.Fatalf("expected %s for invalid binary operation, got: %#v", binaryOpInvalidCode, issues)
 	}
 }
 
