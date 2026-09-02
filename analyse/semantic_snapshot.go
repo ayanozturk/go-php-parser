@@ -562,6 +562,7 @@ func (s *SemanticSnapshot) ResolveClass(name string) (ResolvedClass, bool) {
 	class.Extends = append([]string(nil), class.Extends...)
 	class.Implements = append([]string(nil), class.Implements...)
 	class.TemplateParams = append([]string(nil), class.TemplateParams...)
+	class.TemplateBounds = append([]string(nil), class.TemplateBounds...)
 	class.Traits = append([]string(nil), class.Traits...)
 	class.GenericParents = cloneGenericParents(class.GenericParents)
 	return class, true

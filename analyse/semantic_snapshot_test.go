@@ -13,7 +13,7 @@ func TestSemanticSnapshotIsolatedFromInputsAndResolvedValueMutation(t *testing.T
 		"src/Repository.php": parsePHPForProjectIndex(t, `<?php
 namespace App;
 
-/** @template T */
+/** @template T of object */
 class Repository {
     /** @return T */
     public function find(int $id): object {}
@@ -40,9 +40,13 @@ class Repository {
 	}
 
 	class.TemplateParams[0] = "Mutated"
+	class.TemplateBounds[0] = "Mutated"
 	classAgain, _ := snapshot.ResolveClass(`APP\REPOSITORY`)
 	if !reflect.DeepEqual(classAgain.TemplateParams, []string{"T"}) {
 		t.Fatalf("class metadata leaked caller mutation: %#v", classAgain.TemplateParams)
+	}
+	if !reflect.DeepEqual(classAgain.TemplateBounds, []string{"object"}) {
+		t.Fatalf("class template bounds leaked caller mutation: %#v", classAgain.TemplateBounds)
 	}
 	if classAgain.ID != class.ID {
 		t.Fatalf("class ID changed across case-insensitive lookup: %q != %q", classAgain.ID, class.ID)

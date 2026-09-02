@@ -38,7 +38,7 @@ type SerializedProjectIndex struct {
 }
 
 const (
-	cacheVersion = 1
+	cacheVersion = 2
 	cacheFile    = "go-phpcs-index.json"
 )
 

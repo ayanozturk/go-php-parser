@@ -158,3 +158,48 @@ function clean(Box $box): void { echo get_class($box); }
 		t.Fatalf("expected five nested/generic PHPDoc issues, got %#v", issues)
 	}
 }
+
+func TestLevel2PHPDocValidationChecksShapesCallablesAndTemplateBounds(t *testing.T) {
+	const source = `<?php
+class Animal {}
+class Dog extends Animal {}
+class Vehicle {}
+class KnownInput {}
+class KnownResult {}
+
+/** @template TValue of Animal */
+class Crate {}
+
+/** @param array{service: MissingShapeService} $value */
+function inspectShape(array $value): void {}
+
+/** @param callable(MissingCallableInput): MissingCallableResult $callback */
+function inspectCallable(callable $callback): void {}
+
+/** @param Crate<Vehicle> $crate */
+function inspectInvalidBound(Crate $crate): void {}
+
+/** @param Crate<Dog> $crate */
+function inspectValidBound(Crate $crate): void {}
+
+/** @param array{callback: callable(KnownInput): KnownResult} $value */
+function inspectKnownNested(array $value): void {}
+`
+	issues := runAnalysisLevelOnFiles(t, map[string]string{"test.php": source}, 2)
+	want := map[string]int{
+		level2PHPDocClassCode:        3,
+		level2PHPDocGenericBoundCode: 1,
+	}
+	got := make(map[string]int)
+	for _, issue := range issues {
+		got[issue.Code]++
+	}
+	for code, count := range want {
+		if got[code] != count {
+			t.Fatalf("%s count = %d, want %d; issues: %#v", code, got[code], count, issues)
+		}
+	}
+	if len(issues) != 4 {
+		t.Fatalf("expected four nested/bound PHPDoc issues, got %#v", issues)
+	}
+}

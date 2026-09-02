@@ -121,6 +121,7 @@ type ResolvedClass struct {
 	Extends               []string
 	Implements            []string
 	TemplateParams        []string
+	TemplateBounds        []string
 	GenericParents        []ResolvedGenericParent
 	Traits                []string
 	Kind                  string

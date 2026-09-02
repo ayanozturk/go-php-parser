@@ -634,6 +634,48 @@
       "file": "phpdoc-generic-known-control.php",
       "engineCodes": [],
       "phpstanIdentifiers": []
+    },
+    {
+      "id": "phpdoc-array-shape-unknown-class",
+      "capability": "unknown classes nested in array-shape PHPDoc types",
+      "file": "phpdoc-array-shape-unknown-class.php",
+      "engineCodes": ["Level2.PHPDocClass"],
+      "phpstanIdentifiers": ["class.notFound"]
+    },
+    {
+      "id": "phpdoc-callable-unknown-param-class",
+      "capability": "unknown classes nested in callable parameter PHPDoc types",
+      "file": "phpdoc-callable-unknown-param-class.php",
+      "engineCodes": ["Level2.PHPDocClass"],
+      "phpstanIdentifiers": ["class.notFound"]
+    },
+    {
+      "id": "phpdoc-callable-unknown-return-class",
+      "capability": "unknown classes nested in callable return PHPDoc types",
+      "file": "phpdoc-callable-unknown-return-class.php",
+      "engineCodes": ["Level2.PHPDocClass"],
+      "phpstanIdentifiers": ["class.notFound"]
+    },
+    {
+      "id": "phpdoc-generic-bound-violation",
+      "capability": "generic PHPDoc arguments that violate a class template bound",
+      "file": "phpdoc-generic-bound-violation.php",
+      "engineCodes": ["Level2.PHPDocGenericNotSubtype"],
+      "phpstanIdentifiers": ["generics.notSubtype"]
+    },
+    {
+      "id": "phpdoc-generic-bound-subtype",
+      "capability": "generic PHPDoc arguments that satisfy a class template bound",
+      "file": "phpdoc-generic-bound-subtype.php",
+      "engineCodes": [],
+      "phpstanIdentifiers": []
+    },
+    {
+      "id": "phpdoc-array-shape-callable-known-control",
+      "capability": "known classes in combined array-shape and callable PHPDoc types",
+      "file": "phpdoc-array-shape-callable-known-control.php",
+      "engineCodes": [],
+      "phpstanIdentifiers": []
     }
   ]
 }

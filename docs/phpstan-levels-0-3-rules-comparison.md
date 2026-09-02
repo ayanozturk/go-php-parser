@@ -8,7 +8,7 @@ Source for PHPStan level descriptions: [PHPStan Rule Levels](https://phpstan.org
 
 This comparison is limited to analysis behavior. The project also implements PSR/formatting style rules, but those do not directly correspond to PHPStan's rule levels.
 
-Executable parity evidence is tracked separately in [the analyser capability matrix](analyser-capability-matrix.md). Current differential packs gate 88 / 24 / 90 / 30 cases at levels 0–3 against PHPStan 2.2.5. Descriptive rows in this document are not parity claims unless backed by a checked-in differential fixture there.
+Executable parity evidence is tracked separately in [the analyser capability matrix](analyser-capability-matrix.md). Current differential packs gate 88 / 24 / 96 / 30 cases at levels 0–3 against PHPStan 2.2.5. Descriptive rows in this document are not parity claims unless backed by a checked-in differential fixture there.
 
 ## Coverage Summary
 
@@ -16,7 +16,7 @@ Executable parity evidence is tracked separately in [the analyser capability mat
 | --- | --- | --- |
 | 0 | Basic checks, unknown classes, unknown functions, unknown methods called on `$this`, and wrong numbers of arguments passed to those methods and functions | Partial, with active compatibility implementation behind `analysis_level: 0` |
 | 1 | Undefined and possibly undefined variables, plus unknown magic methods and properties on classes with `__call` and `__get` | Partial variable-flow coverage |
-| 2 | Unknown methods checked on all expressions, PHPDoc validation | Partial method-receiver, invalid-operation, and PHPDoc declaration coverage |
+| 2 | Unknown methods checked on all expressions, PHPDoc validation | Partial method-receiver, invalid-operation, and PHPDoc declaration coverage, including nested array-shape/callable class references and a class-template-bound slice |
 | 3 | Return types, types assigned to properties | Partial, with thirty differential cases |
 
 `analysis_level: 0` now runs a level-aware PHPStan compatibility rule set and suppresses current higher-level checks such as return type, property assignment type, argument type, and unreachable-code diagnostics. The implementation is grouped by behavior, not by PHPStan's individual rule classes.
@@ -37,7 +37,7 @@ Executable parity evidence is tracked separately in [the analyser capability mat
 | 1 | Unknown magic properties on classes with `__get` | No | - | No rule models `__get` as a PHPStan level 1 diagnostic. |
 | 2 | Unknown methods checked on all expressions | Partial | `Level2.MethodExistence`, `Level2.MethodNonObject`, `Level2.MethodVisibility` | The level-2 pack covers typed and inferred receivers, callable returns, array shapes, unions, intersections, DNF, nullable/non-object branches, and protected methods. Dynamic and unsupported receiver inference remains conservative. |
 | 2 | Invalid binary and compound operations | Partial, differential-gated | `A.BINARY.OP.INVALID`, `A.ASSIGN.OP.INVALID` | Covers definitely invalid numeric/string and array/scalar additions with valid integer and array controls. Broader operator and conversion semantics remain conservative. |
-| 2 | PHPDoc validation | Partial, differential-gated | `Level2.PHPDocClass`, `Level2.PHPDocGenericLessTypes`, `Level2.PHPDocGenericMoreTypes`, `Level2.PHPDocNotGeneric`, `Level2.PHPDocParamName`, `Level2.PHPDocParamType`, `Level2.PHPDocPropertyType`, `Level2.PHPDocReturnType` | Fourteen fixtures cover simple and nested generic class references, too few or too many generic arguments, arguments on non-generic classes, tags for missing parameters, native/PHPDoc compatibility for parameters, returns, and properties, and clean controls. Shapes, callable-signature internals, variance, bounds, and full tag legality remain incomplete. |
+| 2 | PHPDoc validation | Partial, differential-gated | `Level2.PHPDocClass`, `Level2.PHPDocGenericLessTypes`, `Level2.PHPDocGenericMoreTypes`, `Level2.PHPDocNotGeneric`, `Level2.PHPDocGenericNotSubtype`, `Level2.PHPDocParamName`, `Level2.PHPDocParamType`, `Level2.PHPDocPropertyType`, `Level2.PHPDocReturnType` | Twenty fixtures cover simple and nested generic class references, unknown classes in array-shape and callable signatures, too few or too many generic arguments, arguments on non-generic classes, class-template bound failures and clean controls, tags for missing parameters, and native/PHPDoc compatibility for parameters, returns, and properties. `Level2.PHPDocGenericNotSubtype` maps to PHPStan `generics.notSubtype`; broader shape and callable-signature semantics, variance, aliases, and full tag legality remain incomplete. |
 | 3 | Return types | Partial, differential-gated | `A.RETURN.TYPE`, `A.RETURN.VOID`, `A.RETURN.NEVER` | Level-3 fixtures cover function/method mismatches, missing returns, `void` and `never` contracts, inferred arithmetic/comparison/logical/unary/spaceship results, and clean scalar/nullable controls. Coverage remains narrower than PHPStan because inference and symbol knowledge are limited. |
 | 3 | Types assigned to properties | Partial, differential-gated | `A.PROP.TYPE` | Level-3 fixtures cover mismatches through `$this` and typed parameters plus a clean control. Static/compound assignments and broader inference remain incomplete. |
 

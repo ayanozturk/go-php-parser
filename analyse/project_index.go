@@ -1228,12 +1228,13 @@ func (idx *ProjectIndex) indexNodes(filename string, nodes []ast.Node, ft FileTy
 			idx.indexNodes(filename, n.Body, nft, currentClass)
 		case *ast.ClassNode:
 			name := ft.resolveClassLike(n.Name)
-			templates, genericParents := resolvedGenericMetadata(n.PHPDoc, ft)
+			templates, templateBounds, genericParents := resolvedGenericMetadata(n.PHPDoc, ft)
 			class := ResolvedClass{
 				Name:                  name,
 				Extends:               resolvedList(ft, optionalList(n.Extends)),
 				Implements:            resolvedList(ft, n.Implements),
 				TemplateParams:        templates,
+				TemplateBounds:        templateBounds,
 				GenericParents:        genericParents,
 				Traits:                traitUsesFromMembers(n.Properties, ft),
 				Kind:                  "class",
@@ -1246,8 +1247,8 @@ func (idx *ProjectIndex) indexNodes(filename string, nodes []ast.Node, ft FileTy
 			idx.indexClassMembers(filename, name, n.Properties, n.Methods, n.Constants, ft, templates)
 		case *ast.InterfaceNode:
 			name := ft.resolveClassLike(n.Name)
-			templates, genericParents := resolvedGenericMetadata(n.PHPDoc, ft)
-			idx.addClass(filename, ResolvedClass{Name: name, Extends: resolvedList(ft, n.Extends), TemplateParams: templates, GenericParents: genericParents, Kind: "interface"}, n)
+			templates, templateBounds, genericParents := resolvedGenericMetadata(n.PHPDoc, ft)
+			idx.addClass(filename, ResolvedClass{Name: name, Extends: resolvedList(ft, n.Extends), TemplateParams: templates, TemplateBounds: templateBounds, GenericParents: genericParents, Kind: "interface"}, n)
 			idx.indexInterfaceMembers(filename, name, n.Members, ft, templates)
 		case *ast.TraitNode:
 			if n.Name != nil {
@@ -1555,15 +1556,19 @@ func methodFromFunction(filename, className string, fn *ast.FunctionNode, ft Fil
 	return method
 }
 
-func resolvedGenericMetadata(doc *ast.PHPDocNode, ft FileTypeContext) ([]string, []ResolvedGenericParent) {
+func resolvedGenericMetadata(doc *ast.PHPDocNode, ft FileTypeContext) ([]string, []string, []ResolvedGenericParent) {
 	if doc == nil {
-		return nil, nil
+		return nil, nil, nil
 	}
 	templates := make([]string, 0, len(doc.Templates))
 	for _, template := range doc.Templates {
 		templates = append(templates, template.Name)
 	}
 	templateSet := templateNames(templates)
+	templateBounds := make([]string, 0, len(doc.Templates))
+	for _, template := range doc.Templates {
+		templateBounds = append(templateBounds, normalizeTemplateAwareType(template.Bound, ft, templateSet))
+	}
 	references := append(append([]ast.PHPDocTypeReference(nil), doc.Extends...), doc.Implements...)
 	parents := make([]ResolvedGenericParent, 0, len(references))
 	for _, ref := range references {
@@ -1573,7 +1578,7 @@ func resolvedGenericMetadata(doc *ast.PHPDocNode, ft FileTypeContext) ([]string,
 		}
 		parents = append(parents, parent)
 	}
-	return templates, parents
+	return templates, templateBounds, parents
 }
 
 func constantFromNode(filename, className string, c *ast.ConstantNode, ft FileTypeContext) ResolvedConstant {

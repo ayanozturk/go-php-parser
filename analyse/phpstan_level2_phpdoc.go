@@ -11,6 +11,7 @@ const (
 	level2PHPDocClassCode        = "Level2.PHPDocClass"
 	level2PHPDocGenericLessCode  = "Level2.PHPDocGenericLessTypes"
 	level2PHPDocGenericMoreCode  = "Level2.PHPDocGenericMoreTypes"
+	level2PHPDocGenericBoundCode = "Level2.PHPDocGenericNotSubtype"
 	level2PHPDocNotGenericCode   = "Level2.PHPDocNotGeneric"
 	level2PHPDocParamNameCode    = "Level2.PHPDocParamName"
 	level2PHPDocParamTypeCode    = "Level2.PHPDocParamType"
@@ -132,6 +133,22 @@ func appendPHPDocTypeIssues(filename string, declaration ast.Node, raw string, t
 		}
 		return
 	}
+	if params, returnType, ok := phpDocCallableSignature(raw); ok {
+		for _, param := range params {
+			appendPHPDocTypeIssues(filename, declaration, param, templates, ft, ctx, issues)
+		}
+		appendPHPDocTypeIssues(filename, declaration, returnType, templates, ft, ctx, issues)
+		return
+	}
+	if body, ok := arrayShapeBody(raw); ok {
+		for _, entry := range splitTopLevelTypes(body, ',') {
+			_, value, valid := splitArrayShapeEntry(entry)
+			if valid {
+				appendPHPDocTypeIssues(filename, declaration, value, templates, ft, ctx, issues)
+			}
+		}
+		return
+	}
 	for _, name := range referencedClassTypes(raw, ft) {
 		appendUnknownPHPDocClass(filename, declaration, name, templates, ctx, issues)
 	}
@@ -158,7 +175,75 @@ func appendPHPDocGenericBaseIssues(filename string, declaration ast.Node, instan
 		*issues = append(*issues, issueSpan(filename, declaration, level2PHPDocGenericLessCode, fmt.Sprintf("Generic class %s requires %d type arguments, %d given.", name, want, got)))
 	case got > want:
 		*issues = append(*issues, issueSpan(filename, declaration, level2PHPDocGenericMoreCode, fmt.Sprintf("Generic class %s requires %d type arguments, %d given.", name, want, got)))
+	default:
+		for index, argument := range instance.TypeArguments {
+			if index >= len(resolved.TemplateBounds) || resolved.TemplateBounds[index] == "" || phpDocUsesTemplate(argument, templates) {
+				continue
+			}
+			bound := ParseType(resolved.TemplateBounds[index])
+			actual := ParseType(normalizeTypeWithContext(erasePHPDocGenericArguments(argument), ft))
+			if !bound.IsEmpty() && !actual.IsEmpty() && !bound.AcceptsWithContext(actual, nil, ctx) {
+				*issues = append(*issues, issueSpan(filename, declaration, level2PHPDocGenericBoundCode, fmt.Sprintf(
+					"Type argument %s is not a subtype of template bound %s for %s.", argument, resolved.TemplateBounds[index], name,
+				)))
+			}
+		}
 	}
+}
+
+func phpDocCallableSignature(raw string) ([]string, string, bool) {
+	raw = strings.TrimSpace(raw)
+	open := strings.Index(raw, "(")
+	if open < 0 || !strings.EqualFold(strings.TrimSpace(raw[:open]), "callable") {
+		return nil, "", false
+	}
+	depth, closeIndex := 0, -1
+	for index, char := range raw[open:] {
+		switch char {
+		case '(':
+			depth++
+		case ')':
+			depth--
+			if depth == 0 {
+				closeIndex = open + index
+			}
+		}
+		if closeIndex >= 0 {
+			break
+		}
+	}
+	if closeIndex < 0 {
+		return nil, "", false
+	}
+	suffix := strings.TrimSpace(raw[closeIndex+1:])
+	if !strings.HasPrefix(suffix, ":") {
+		return nil, "", false
+	}
+	returnType := strings.TrimSpace(strings.TrimPrefix(suffix, ":"))
+	if returnType == "" {
+		return nil, "", false
+	}
+	body := strings.TrimSpace(raw[open+1 : closeIndex])
+	if body == "" {
+		return nil, returnType, true
+	}
+	parts := splitTopLevelTypes(body, ',')
+	params := make([]string, 0, len(parts))
+	for _, part := range parts {
+		part = strings.TrimSpace(part)
+		part = strings.TrimPrefix(part, "...")
+		part = strings.TrimPrefix(part, "&")
+		if variable := strings.Index(part, "$"); variable >= 0 {
+			part = strings.TrimSpace(part[:variable])
+		}
+		part = strings.TrimSpace(strings.TrimSuffix(part, "..."))
+		part = strings.TrimSpace(strings.TrimSuffix(part, "&"))
+		part = strings.TrimSpace(strings.TrimSuffix(part, "="))
+		if part != "" {
+			params = append(params, part)
+		}
+	}
+	return params, returnType, true
 }
 
 // appendUnknownPHPDocClass returns true when the class is known (or is a
@@ -265,6 +350,7 @@ func init() {
 		{level2PHPDocClassCode},
 		{level2PHPDocGenericLessCode},
 		{level2PHPDocGenericMoreCode},
+		{level2PHPDocGenericBoundCode},
 		{level2PHPDocNotGenericCode},
 		{level2PHPDocParamNameCode},
 		{level2PHPDocParamTypeCode},
