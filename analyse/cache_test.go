@@ -19,6 +19,12 @@ func TestCacheStoreAndLoad(t *testing.T) {
 		Name: "MyClass",
 		Kind: "class",
 	}
+	idx.ClassConsts["myclass"] = map[string]ResolvedConstant{
+		"status": {Name: "STATUS", DeclaringClass: "MyClass"},
+	}
+	idx.Constants["myclass::status"] = struct{}{}
+	idx.Constants["global_status"] = struct{}{}
+	idx.globalConstantFiles["global_status"] = "file1.php"
 
 	// File checksums
 	checksums := map[string]string{
@@ -49,6 +55,12 @@ func TestCacheStoreAndLoad(t *testing.T) {
 	if loadedIdx.Classes["myclass"].Name != "MyClass" {
 		t.Fatalf("class not preserved in cache")
 	}
+	if _, ok := loadedIdx.ResolveConstant("MyClass", "STATUS"); !ok {
+		t.Fatal("class constant not preserved in cache")
+	}
+	if !loadedIdx.ConstantExists("global_status") {
+		t.Fatal("global constant not preserved in cache")
+	}
 
 	// Load with different checksums (cache miss)
 	differentChecksums := map[string]string{
@@ -61,6 +73,11 @@ func TestCacheStoreAndLoad(t *testing.T) {
 	}
 	if loadedIdx2 != nil {
 		t.Fatalf("should not load when checksums differ")
+	}
+
+	// A subset must not reuse an index built for a larger project.
+	if subset, valid := cm.Load(map[string]string{"file1.php": "abc123"}); valid || subset != nil {
+		t.Fatal("cache should be invalid when the file manifest shrinks")
 	}
 }
 

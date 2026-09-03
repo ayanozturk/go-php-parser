@@ -1617,6 +1617,15 @@ func paramsFromNodes(nodes []ast.Node, ft FileTypeContext) []ResolvedParam {
 }
 
 func paramsFromNodesWithPHPDoc(nodes []ast.Node, doc *ast.PHPDocNode, ft FileTypeContext, templates map[string]struct{}) []ResolvedParam {
+	var callableTemplates map[string]struct{}
+	if doc != nil {
+		for _, template := range doc.Templates {
+			if callableTemplates == nil {
+				callableTemplates = make(map[string]struct{}, len(doc.Templates))
+			}
+			callableTemplates[asciiLowerIdent(template.Name)] = struct{}{}
+		}
+	}
 	params := make([]ResolvedParam, 0, len(nodes))
 	for _, node := range nodes {
 		param, ok := node.(*ast.ParamNode)
@@ -1631,6 +1640,12 @@ func paramsFromNodesWithPHPDoc(nodes []ast.Node, doc *ast.PHPDocNode, ft FileTyp
 			if documented := doc.GetParamTypeFromPHPDoc(param.Name); documented != "" {
 				typ = documented
 			}
+		}
+		// Call-site template inference is not represented in ResolvedParam yet.
+		// Treat method/function-local templates conservatively as mixed instead
+		// of resolving namespaced T-like identifiers as concrete classes.
+		if phpDocUsesTemplate(typ, callableTemplates) {
+			typ = "mixed"
 		}
 		params = append(params, ResolvedParam{
 			Name:       param.Name,

@@ -1,6 +1,10 @@
 package analyse
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/ayanozturk/go-php-parser/ast"
+)
 
 func TestLevel2PHPDocValidationMatchesSupportedFamilies(t *testing.T) {
 	const source = `<?php
@@ -78,6 +82,47 @@ function identity(Item $value): Item { return $value; }
 		switch issue.Code {
 		case level2PHPDocClassCode, level2PHPDocParamTypeCode, level2PHPDocReturnTypeCode:
 			t.Fatalf("expected bounded templates to remain conservative, got %#v", issues)
+		}
+	}
+}
+
+func TestLevel2PHPDocValidationRecognizesClassTemplatesTypeAliasesAndLiteralTypes(t *testing.T) {
+	const source = `<?php
+class Item {}
+
+/**
+ * @template TValue of object
+ */
+abstract class Bag {
+    /** @var list<TValue> */
+    private array $items = [];
+
+    /** @return TValue|null */
+    public function first(): ?object { return $this->items[0] ?? null; }
+}
+
+/** @phpstan-type ItemList list<Item> */
+final class Summary {
+    /** @param ItemList $items */
+    public function __construct(public array $items) {}
+}
+
+/** @return array{array{'low'}, array{'high'}} */
+function priorities(): array { return [['low'], ['high']]; }
+
+/** @return int<0, max> */
+function nonNegative(): int { return 0; }
+`
+	parsed := parsePHPForLevel0(t, source)
+	summary, ok := parsed[2].(*ast.ClassNode)
+	if !ok || summary.PHPDoc == nil {
+		t.Fatalf("expected local type alias PHPDoc on class, got %#v", parsed[2])
+	}
+
+	issues := runAnalysisLevelOnFiles(t, map[string]string{"test.php": source}, 2)
+	for _, issue := range issues {
+		if issue.Code == level2PHPDocClassCode {
+			t.Fatalf("expected templates, local aliases, literals, and integer range bounds not to be classes, got %#v", issues)
 		}
 	}
 }

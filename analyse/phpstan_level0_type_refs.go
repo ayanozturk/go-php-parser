@@ -112,9 +112,30 @@ func referencedClassTypes(raw string, ft FileTypeContext) []string {
 		if atom.kind != typeKindClass || strings.ContainsAny(atom.display, "$[]{}") {
 			continue
 		}
-		refs = append(refs, ft.resolveClassLike(atom.display))
+		name := strings.TrimSpace(atom.display)
+		if isSpecialClassName(name) || isPHPDocLiteralOrRangeBound(name) {
+			continue
+		}
+		refs = append(refs, ft.resolveClassLike(name))
 	}
 	return refs
+}
+
+func isPHPDocLiteralOrRangeBound(name string) bool {
+	if name == "min" || name == "max" {
+		return true
+	}
+	if len(name) >= 2 && ((name[0] == '\'' && name[len(name)-1] == '\'') || (name[0] == '"' && name[len(name)-1] == '"')) {
+		return true
+	}
+	if name == "" {
+		return false
+	}
+	first := name[0]
+	if first >= '0' && first <= '9' {
+		return true
+	}
+	return len(name) > 1 && (first == '-' || first == '+') && name[1] >= '0' && name[1] <= '9'
 }
 
 func paramTypeName(param *ast.ParamNode) string {

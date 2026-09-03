@@ -1,7 +1,6 @@
 package command
 
 import (
-	"encoding/json"
 	"fmt"
 	"io"
 	"os"
@@ -83,27 +82,11 @@ func AnalyzeFilesIncrementalScoped(files []string, targets []string, level *int,
 
 	if cacheDir != "" {
 		cm := analyse.NewCacheManager(cacheDir)
-		cachePath := cacheDir + "/go-phpcs-index.json"
-		data, err := os.ReadFile(cachePath)
-		if err == nil {
-			var entry analyse.CacheEntry
-			if json.Unmarshal(data, &entry) == nil {
-				// Have cached entry: detect which files changed
-				changed := cm.GetChangedFiles(&entry, checksums)
-				if len(changed) == 0 {
-					// No changes: skip parsing entirely, reuse cached index + analysis
-					cachedIdx = analyse.NewProjectIndex()
-					cachedIdx.Classes = entry.Index.Classes
-					cachedIdx.Methods = entry.Index.Methods
-					cachedIdx.Properties = entry.Index.Properties
-					cachedIdx.Functions = entry.Index.Functions
-					return analyzeWithCachedIndex(files, targets, level, matcher, parallelism, cachedIdx)
-				}
-				// Some files changed: load index for merge
-				if idx, valid := cm.Load(checksums); valid {
-					cachedIdx = idx
-				}
-			}
+		if idx, valid := cm.Load(checksums); valid {
+			// A disk-backed index is reused only when its complete file manifest
+			// matches. Source ownership is intentionally not serialized, so any
+			// addition, removal, or edit takes the deterministic full-build path.
+			return analyzeWithCachedIndex(files, targets, level, matcher, parallelism, idx)
 		}
 	}
 

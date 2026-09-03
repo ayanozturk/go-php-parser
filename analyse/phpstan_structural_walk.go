@@ -16,6 +16,9 @@ func ensureStructuralIssues(filename string, nodes []ast.Node, ctx *AnalysisCont
 		return ctx
 	}
 	fileCtx := analysisFileTypeContext(ctx, nodes)
+	if ctx.phpDocTypeAliases == nil {
+		ctx.phpDocTypeAliases = collectPHPDocTypeAliases(nodes)
+	}
 	// Level 2 introduces void.pure. Collect all return-family diagnostics in
 	// this existing structural walk from that level onward; individual rule
 	// callbacks filter the shared cache by code.

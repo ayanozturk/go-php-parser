@@ -180,6 +180,10 @@ func RunScanOrCommand(args CliArgs, c *config.Config, filesToScan []string, outW
 			outcome.ExitCode = 2
 			return outcome
 		}
+		if args.HasExplicitFile() && len(targets) == 0 {
+			command.PrintAnalyzeResult(outWriter, command.AnalyzeResult{})
+			return outcome
+		}
 
 		reportable := filesToScan
 		for _, t := range targets {

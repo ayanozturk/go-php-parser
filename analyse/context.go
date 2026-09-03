@@ -207,6 +207,7 @@ type AnalysisContext struct {
 
 	FileTypeContext     FileTypeContext
 	hasFileTypeContext  bool
+	phpDocTypeAliases   map[string]struct{}
 	functionScopeByNode map[*ast.FunctionNode]*functionScope
 	classScopeByNode    map[*ast.ClassNode]classScopeData
 

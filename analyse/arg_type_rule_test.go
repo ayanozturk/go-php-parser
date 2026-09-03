@@ -124,6 +124,29 @@ func TestMethodArgumentTypeNormalizesPhpDocAliasesAndGenerics(t *testing.T) {
 	}
 }
 
+func TestMethodArgumentTypeTreatsCallableLocalTemplateAsConservative(t *testing.T) {
+	const source = `<?php
+class Options {
+    /**
+     * @template TDefault
+     * @param TDefault $default
+     * @return TDefault
+     */
+    public function get(mixed $default): mixed { return $default; }
+}
+
+function useOptions(Options $options): void {
+    $options->get('fallback');
+}
+`
+	issues := runAnalysisLevelOnFiles(t, map[string]string{"test.php": source}, 5)
+	for _, issue := range issues {
+		if issue.Code == "A.ARG.TYPE" {
+			t.Fatalf("callable-local template should stay conservative until call-site binding is available, got %#v", issues)
+		}
+	}
+}
+
 func TestMethodArgumentTypeAllowsAliasedPhpunitMockIntersection(t *testing.T) {
 	php := `<?php
 namespace App\Tests;

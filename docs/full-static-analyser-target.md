@@ -437,11 +437,22 @@ A release must not advance the parser version pinned by PHP Strom until the engi
 
 Correctness and PHPStan rule-level alignment are now the primary stream. Expand executable rule coverage at the level where PHPStan introduces it, with both failing and clean controls. Preserve the accepted Mago resource envelope as a periodic guardrail: run the corpus comparison for structural hot-path changes and representative rule batches, not every small rule addition. Accepted measurements still require no more than 1.5× mean time and 1.25× peak RSS, CV at most 5%, and complete file/diagnostic accounting.
 
-1. **Expand PHPStan correctness by level.** Continue from exact reference probes for broader level-3 inferred expressions, then address level-2 PHPDoc validation and the explicit level-0/1 gaps. Add only behaviors that match the pinned reference exactly.
-2. **Protect performance while rules grow.** Default production analysis must not gain duplicate walks. Re-run exact accounting and the accepted Mago envelope periodically or when a change affects a structural hot path; reject timing claims whenever either CV exceeds 5%.
-3. **Maintenance:** rewrite `vscode-php-strom/FEATURES.md`; structured parser errors and style-rule range migration.
+1. **Converge false-positive behavior on the shared private-corpus gate.** Add a PHPStan-compatible `treatPhpDocTypesAsCertain` setting first, then probe and correct level-6 missing-iterable eligibility and remaining return/property/argument mismatches. Preserve both PHPStan-default and project-configured reference results so configuration effects are not mistaken for engine parity.
+2. **Add framework-aware symbol/type metadata.** Replace the current Symfony/Doctrine/PHPUnit magic-method and dynamic-return gaps with explicit extension/stub metadata. Do not suppress unresolved calls globally: every correction needs a neutral failing/clean differential control.
+3. **Expand missing PHPStan families by level.** Prioritize the reference corpus's uncovered cast, offset-access, callable, increment, foreach, string-interpolation, and condition-narrowing identifiers at their exact PHPStan levels. Update the README rule table and linked level inventory whenever registration counts change.
+4. **Make parity measurable.** Add a reusable corpus-differential report over an identical first-party manifest, with parse/read accounting, diagnostic crosswalk, and exact file/line/identifier matching. Counts alone are not parity; framework-dependent identifiers must be labelled separately from core behavior.
+5. **Protect performance while rules grow.** Default production analysis must not gain duplicate walks. Re-run exact accounting and the accepted Mago envelope periodically or when a change affects a structural hot path; reject timing claims whenever either CV exceeds 5%.
+6. **Maintenance:** rewrite `vscode-php-strom/FEATURES.md`; structured parser errors and style-rule range migration.
 
-Completed deliveries 1–50 are archived below and are not the current queue.
+Completed deliveries 1–53 are archived below and are not the current queue.
+
+## Private-corpus correctness gate (2026-09-03)
+
+An internal 1,930-file PHP 8.4 Symfony application now acts as a non-committed correctness probe. Both analysers report only the identical first-party `src`/`tests` manifest; dependencies are available for symbol resolution but never included in diagnostic counts. Raw paths, messages, and source remain local and are not committed.
+
+PHPStan 2.1.44 at `max`, using the application's configuration (including `treatPhpDocTypesAsCertain: false`), reports 335 diagnostics across 95 files. The parser's 33 levelled rules report 1,191 diagnostics across 399 files after the first correction batch; running all 37 registered rules reports 1,202 diagnostics across 400 files. Only three unique file/line locations currently overlap, so similar headline totals would not be acceptable evidence of parity. A second PHPStan run with default PHPDoc certainty reports 965 diagnostics, 594 of them already/impossible narrowing checks; this confirms configuration semantics must be represented explicitly in future comparisons.
+
+The first correction batch removed 84 levelled false positives: namespaced class templates, local PHPDoc aliases, literal/range atoms, and callable-local templates no longer become concrete-class/type mismatches. It also found and fixed two comparison-invalidating CLI/cache defects: an explicitly empty target could fall back to unrelated configured files, and disk-cache deserialization omitted constants and other semantic tables. The corrected source run emits exactly 737 all-rule diagnostics in both cold and warm modes. Remaining high-volume differences are tracked in the ranked actions above rather than being labelled as confirmed bugs before reference probes.
 
 ## Completed action log
 

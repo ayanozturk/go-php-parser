@@ -311,6 +311,35 @@ func TestRunAnalyzeFolderNoMatchingFiles(t *testing.T) {
 	}
 }
 
+func TestRunAnalyzeExplicitEmptyFolderDoesNotFallBackToConfiguredProject(t *testing.T) {
+	dir := t.TempDir()
+	target := filepath.Join(dir, "empty")
+	if err := os.MkdirAll(target, 0755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	outsideFile := filepath.Join(dir, "Outside.php")
+	if err := os.WriteFile(outsideFile, []byte("<?php\nnew MissingType();\n"), 0644); err != nil {
+		t.Fatalf("write outside: %v", err)
+	}
+
+	level := 0
+	cfg := &config.Config{Path: dir, Extensions: []string{"php"}, AnalysisLevel: &level}
+	var output bytes.Buffer
+	outcome := RunScanOrCommand(
+		CliArgs{CommandName: "analyze", filePath: target, parallelism: 1},
+		cfg,
+		[]string{outsideFile},
+		&output,
+		&MemStats{},
+	)
+	if outcome.ExitCode != 0 {
+		t.Fatalf("expected an explicit empty target to stay empty, got exit %d; output:\n%s", outcome.ExitCode, output.String())
+	}
+	if strings.Contains(output.String(), outsideFile) {
+		t.Fatalf("configured project diagnostic leaked into explicit empty target; output:\n%s", output.String())
+	}
+}
+
 func removeProfileFiles() {
 	_ = os.Remove("cpu.prof")
 	_ = os.Remove("mem.prof")

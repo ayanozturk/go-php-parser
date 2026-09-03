@@ -50,6 +50,7 @@ func appendCallablePHPDocIssues(filename string, declaration ast.Node, params []
 		return
 	}
 	templates := phpDocTemplateNames(class, doc)
+	templates = mergePHPDocNames(templates, ctx.phpDocTypeAliases)
 
 	for _, documented := range doc.Params {
 		appendPHPDocTypeIssues(filename, declaration, documented.Type, templates, ft, ctx, issues)
@@ -96,6 +97,7 @@ func appendPropertyPHPDocIssues(filename string, property *ast.PropertyNode, cla
 		return
 	}
 	templates := phpDocTemplateNames(class, property.PHPDoc)
+	templates = mergePHPDocNames(templates, ctx.phpDocTypeAliases)
 	documented := property.PHPDoc.VarType
 	appendPHPDocTypeIssues(filename, property, documented, templates, ft, ctx, issues)
 	if property.TypeHint == "" || phpDocUsesTemplate(documented, templates) || phpDocTypeFitsNative(documented, property.TypeHint, ft, ctx) {
@@ -252,7 +254,11 @@ func appendUnknownPHPDocClass(filename string, declaration ast.Node, name string
 	if isSpecialClassName(name) {
 		return true
 	}
-	if _, template := templates[asciiLowerIdent(strings.TrimPrefix(name, `\`))]; template {
+	templateName := strings.TrimPrefix(name, `\`)
+	if separator := strings.LastIndex(templateName, `\`); separator >= 0 {
+		templateName = templateName[separator+1:]
+	}
+	if _, template := templates[asciiLowerIdent(templateName)]; template {
 		return true
 	}
 	if _, ok := ctx.Resolver.ResolveClass(name); ok {
@@ -309,12 +315,66 @@ func phpDocTemplateNames(class *ast.ClassNode, doc *ast.PHPDocNode) map[string]s
 			}
 			templates[asciiLowerIdent(template.Name)] = struct{}{}
 		}
+		addPHPDocAliasNames(candidate, &templates)
 	}
 	if class != nil {
 		add(class.PHPDoc)
 	}
 	add(doc)
 	return templates
+}
+
+func addPHPDocAliasNames(doc *ast.PHPDocNode, names *map[string]struct{}) {
+	if doc == nil {
+		return
+	}
+	content := strings.TrimSpace(doc.RawContent)
+	content = strings.TrimSpace(strings.TrimSuffix(strings.TrimPrefix(content, "/**"), "*/"))
+	for _, line := range strings.Split(content, "\n") {
+		line = strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(line), "*"))
+		for _, tag := range []string{"@phpstan-type", "@psalm-type"} {
+			if !strings.HasPrefix(line, tag+" ") && !strings.HasPrefix(line, tag+"\t") {
+				continue
+			}
+			fields := strings.Fields(strings.TrimSpace(strings.TrimPrefix(line, tag)))
+			if len(fields) == 0 {
+				continue
+			}
+			if *names == nil {
+				*names = make(map[string]struct{})
+			}
+			(*names)[asciiLowerIdent(fields[0])] = struct{}{}
+		}
+	}
+}
+
+func collectPHPDocTypeAliases(nodes []ast.Node) map[string]struct{} {
+	var aliases map[string]struct{}
+	walkAllWithoutTypeContext(nodes, func(node ast.Node) {
+		switch n := node.(type) {
+		case *ast.ClassNode:
+			addPHPDocAliasNames(n.PHPDoc, &aliases)
+		case *ast.FunctionNode:
+			addPHPDocAliasNames(n.PHPDoc, &aliases)
+		case *ast.PropertyNode:
+			addPHPDocAliasNames(n.PHPDoc, &aliases)
+		}
+	})
+	return aliases
+}
+
+func mergePHPDocNames(left, right map[string]struct{}) map[string]struct{} {
+	if len(right) == 0 {
+		return left
+	}
+	merged := make(map[string]struct{}, len(left)+len(right))
+	for name := range left {
+		merged[name] = struct{}{}
+	}
+	for name := range right {
+		merged[name] = struct{}{}
+	}
+	return merged
 }
 
 func phpDocUsesTemplate(raw string, templates map[string]struct{}) bool {

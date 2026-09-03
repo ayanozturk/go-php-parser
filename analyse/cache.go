@@ -31,14 +31,20 @@ type CacheEntry struct {
 // SerializedProjectIndex is a serializable view of ProjectIndex.
 // Omits caches/derivations; only keeps essential symbol tables.
 type SerializedProjectIndex struct {
-	Classes    map[string]ResolvedClass               `json:"classes"`
-	Methods    map[string]map[string]ResolvedMethod   `json:"methods"`
-	Properties map[string]map[string]ResolvedProperty `json:"properties"`
-	Functions  map[string]ResolvedFunction            `json:"functions"`
+	Classes             map[string]ResolvedClass               `json:"classes"`
+	Methods             map[string]map[string]ResolvedMethod   `json:"methods"`
+	Properties          map[string]map[string]ResolvedProperty `json:"properties"`
+	ClassConsts         map[string]map[string]ResolvedConstant `json:"classConstants"`
+	Functions           map[string]ResolvedFunction            `json:"functions"`
+	Constants           map[string]struct{}                    `json:"constants"`
+	Duplicates          []DuplicateSymbol                      `json:"duplicates"`
+	GlobalConstantFiles map[string]string                      `json:"globalConstantFiles"`
 }
 
 const (
-	cacheVersion = 2
+	// Bump whenever serialized fields or symbol-index construction semantics
+	// change; otherwise a new binary can reuse semantically stale signatures.
+	cacheVersion = 4
 	cacheFile    = "go-phpcs-index.json"
 )
 
@@ -69,6 +75,10 @@ func (cm *CacheManager) Load(fileChecksums map[string]string) (*ProjectIndex, bo
 		return nil, false
 	}
 
+	// Validate the complete file manifest, not only the caller's subset.
+	if len(entry.FileChecksums) != len(fileChecksums) {
+		return nil, false
+	}
 	// Validate file checksums: if any file changed, cache is invalid
 	for path, expectedHash := range fileChecksums {
 		cachedHash, ok := entry.FileChecksums[path]
@@ -82,7 +92,13 @@ func (cm *CacheManager) Load(fileChecksums map[string]string) (*ProjectIndex, bo
 	idx.Classes = entry.Index.Classes
 	idx.Methods = entry.Index.Methods
 	idx.Properties = entry.Index.Properties
+	idx.ClassConsts = entry.Index.ClassConsts
 	idx.Functions = entry.Index.Functions
+	idx.Constants = entry.Index.Constants
+	idx.Duplicates = entry.Index.Duplicates
+	idx.globalConstantFiles = entry.Index.GlobalConstantFiles
+	idx.methodsDeclared = buildMethodsDeclaredViews(idx)
+	idx.classLineages = buildClassLineageViews(idx)
 
 	return idx, true
 }
@@ -121,10 +137,14 @@ func (cm *CacheManager) Store(index *ProjectIndex, fileChecksums map[string]stri
 		FileChecksums: fileChecksums,
 		OldChecksums:  fileChecksums, // Store for next diff
 		Index: SerializedProjectIndex{
-			Classes:    index.Classes,
-			Methods:    index.Methods,
-			Properties: index.Properties,
-			Functions:  index.Functions,
+			Classes:             index.Classes,
+			Methods:             index.Methods,
+			Properties:          index.Properties,
+			ClassConsts:         index.ClassConsts,
+			Functions:           index.Functions,
+			Constants:           index.Constants,
+			Duplicates:          index.Duplicates,
+			GlobalConstantFiles: index.globalConstantFiles,
 		},
 	}
 
