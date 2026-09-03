@@ -18,6 +18,9 @@ type Level0Rule struct{}
 
 func (r *Level0Rule) CheckIssues(filename string, nodes []ast.Node, ctx *AnalysisContext) []AnalysisIssue {
 	ctx = ensureLevel0Context(filename, nodes, ctx)
+	if ctx.hasLevel0Issues {
+		return ctx.level0Issues
+	}
 	fileCtx := analysisFileTypeContext(ctx, nodes)
 	guards := collectReflectionGuards(nodes, ctx, fileCtx)
 	issues := r.checkClassModel(filename, nodes, ctx, fileCtx)
@@ -29,6 +32,7 @@ func (r *Level0Rule) CheckIssues(filename string, nodes []ast.Node, ctx *Analysi
 		checkTypeReferenceOnNode(filename, node, ft, ctx, guards, &typeIssues)
 		checkSymbolOnNode(filename, node, class, currentFn, ft, ctx, guards, &symbolIssues)
 		checkLanguageOnNode(filename, node, ft, labels, &gotos, &languageIssues)
+		appendPropertyCallableTypeIssue(filename, node, &ctx.level0PropertyCallableIssues)
 	})
 	issues = append(issues, typeIssues...)
 	issues = append(issues, symbolIssues...)
@@ -38,7 +42,9 @@ func (r *Level0Rule) CheckIssues(filename string, nodes []ast.Node, ctx *Analysi
 		}
 	}
 	issues = append(issues, languageIssues...)
-	return issues
+	ctx.level0Issues = issues
+	ctx.hasLevel0Issues = true
+	return ctx.level0Issues
 }
 
 func ensureLevel0Context(filename string, nodes []ast.Node, ctx *AnalysisContext) *AnalysisContext {
@@ -54,6 +60,11 @@ func ensureLevel0Context(filename string, nodes []ast.Node, ctx *AnalysisContext
 func init() {
 	RegisterAnalysisRuleWithLevel(level0SymbolsCode, 0, "level0", func(filename string, nodes []ast.Node, ctx *AnalysisContext) []AnalysisIssue {
 		return (&Level0Rule{}).CheckIssues(filename, nodes, ctx)
+	})
+	RegisterAnalysisRuleWithLevel(level0PropertyCallableTypeCode, 0, "level0", func(filename string, nodes []ast.Node, ctx *AnalysisContext) []AnalysisIssue {
+		ctx = ensureLevel0Context(filename, nodes, ctx)
+		_ = (&Level0Rule{}).CheckIssues(filename, nodes, ctx)
+		return ctx.level0PropertyCallableIssues
 	})
 	RegisterAnalysisRuleWithLevel(level1VariablesCode, 1, "level1", checkUndefinedVariables)
 }

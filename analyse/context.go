@@ -224,8 +224,11 @@ type AnalysisContext struct {
 	deprecatedCallSeen    map[ast.Node]struct{}
 	hasArgCallDiagnostics bool
 
-	reflectionGuards    reflectionGuards
-	hasReflectionGuards bool
+	reflectionGuards             reflectionGuards
+	hasReflectionGuards          bool
+	level0Issues                 []AnalysisIssue
+	level0PropertyCallableIssues []AnalysisIssue
+	hasLevel0Issues              bool
 
 	methodVisibilityIssues  []AnalysisIssue
 	throwTypeIssues         []AnalysisIssue

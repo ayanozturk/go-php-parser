@@ -1,13 +1,13 @@
 # PHPStan-compatible rules: level 1
 
-<!-- rule-inventory: level=1 introduced=1 cumulative=2 -->
+<!-- rule-inventory: level=1 introduced=1 cumulative=3 -->
 
 [Back to the README static-analysis section](../../README.md#static-analysis) · [Open the analyser capability matrix](../analyser-capability-matrix.md)
 
 ## Rule inventory
 
 - **Introduced at this level:** 1 registered levelled rule, `Level1.Variables`.
-- **Cumulative registered levelled rules:** 2.
+- **Cumulative registered levelled rules:** 3.
 - **Checked-in differential pack:** 24 cases in `testdata/diagnostic-differential-level1`.
 
 ## Coverage and boundaries

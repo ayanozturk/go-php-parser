@@ -1,13 +1,13 @@
 # PHPStan-compatible rules: level 6
 
-<!-- rule-inventory: level=6 introduced=5 cumulative=29 -->
+<!-- rule-inventory: level=6 introduced=5 cumulative=30 -->
 
 [Back to the README static-analysis section](../../README.md#static-analysis) · [Open the analyser capability matrix](../analyser-capability-matrix.md)
 
 ## Rule inventory
 
 - **Introduced at this level:** 5 registered levelled rules: `Level6.MissingGenericType`, `Level6.MissingIterableValueType`, `Level6.MissingParameterType`, `Level6.MissingReturnType`, and `Level6.MissingPropertyType`.
-- **Cumulative registered levelled rules:** 29.
+- **Cumulative registered levelled rules:** 30.
 - **Checked-in differential pack:** 16 cases in `testdata/diagnostic-differential-level6`.
 
 ## Coverage and boundaries

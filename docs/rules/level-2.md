@@ -1,13 +1,13 @@
 # PHPStan-compatible rules: level 2
 
-<!-- rule-inventory: level=2 introduced=15 cumulative=17 -->
+<!-- rule-inventory: level=2 introduced=15 cumulative=18 -->
 
 [Back to the README static-analysis section](../../README.md#static-analysis) · [Open the analyser capability matrix](../analyser-capability-matrix.md)
 
 ## Rule inventory
 
 - **Introduced at this level:** 15 registered levelled rules: `A.ASSIGN.OP.INVALID`, `A.BINARY.OP.INVALID`, `A.VOID.PURE`, `Level2.MethodExistence`, `Level2.MethodNonObject`, `Level2.MethodVisibility`, `Level2.PHPDocClass`, `Level2.PHPDocGenericLessTypes`, `Level2.PHPDocGenericMoreTypes`, `Level2.PHPDocNotGeneric`, `Level2.PHPDocGenericNotSubtype`, `Level2.PHPDocParamName`, `Level2.PHPDocParamType`, `Level2.PHPDocPropertyType`, and `Level2.PHPDocReturnType`.
-- **Cumulative registered levelled rules:** 17.
+- **Cumulative registered levelled rules:** 18.
 - **Checked-in differential pack:** 96 cases in `testdata/diagnostic-differential-level2`.
 
 ## Coverage and boundaries

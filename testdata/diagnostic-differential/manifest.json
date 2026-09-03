@@ -956,6 +956,48 @@
       "phpstanIdentifiers": [
         "cast.unset"
       ]
+    },
+    {
+      "id": "property-native-callable",
+      "capability": "native callable property types",
+      "file": "property-native-callable.php",
+      "engineCodes": ["Level0.PropertyCallableType"],
+      "phpstanIdentifiers": ["property.callableType"]
+    },
+    {
+      "id": "property-nullable-callable",
+      "capability": "nullable callable property types",
+      "file": "property-nullable-callable.php",
+      "engineCodes": ["Level0.PropertyCallableType"],
+      "phpstanIdentifiers": ["property.callableType"]
+    },
+    {
+      "id": "property-union-callable",
+      "capability": "union callable property types",
+      "file": "property-union-callable.php",
+      "engineCodes": ["Level0.PropertyCallableType"],
+      "phpstanIdentifiers": ["property.callableType"]
+    },
+    {
+      "id": "property-promoted-callable",
+      "capability": "promoted callable property types",
+      "file": "property-promoted-callable.php",
+      "engineCodes": ["Level0.PropertyCallableType"],
+      "phpstanIdentifiers": ["property.callableType"]
+    },
+    {
+      "id": "property-documented-callable",
+      "capability": "PHPDoc callable on an untyped property",
+      "file": "property-documented-callable.php",
+      "engineCodes": [],
+      "phpstanIdentifiers": []
+    },
+    {
+      "id": "property-closure-type",
+      "capability": "Closure property type",
+      "file": "property-closure-type.php",
+      "engineCodes": [],
+      "phpstanIdentifiers": []
     }
   ]
 }
