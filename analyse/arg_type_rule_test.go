@@ -16,6 +16,19 @@ func hasArgTypeIssue(issues []AnalysisIssue) bool {
 	return false
 }
 
+func TestArgumentTypeRuleStartsAtPHPStanLevel5(t *testing.T) {
+	const source = `<?php
+function acceptInt(int $value): void {}
+function run(): void { acceptInt('wrong'); }
+`
+	if issues := runAnalysisLevelOnFiles(t, map[string]string{"test.php": source}, 4); hasArgTypeIssue(issues) {
+		t.Fatalf("expected argument type mismatch to remain silent at level 4, got %#v", issues)
+	}
+	if issues := runAnalysisLevelOnFiles(t, map[string]string{"test.php": source}, 5); !hasArgTypeIssue(issues) {
+		t.Fatalf("expected argument type mismatch at level 5, got %#v", issues)
+	}
+}
+
 func analysePHPArgTypesWithProject(t *testing.T, code string) []AnalysisIssue {
 	t.Helper()
 	l := lexer.New(code)

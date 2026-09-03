@@ -154,12 +154,12 @@ The counts below are registered engine rules, not PHPStan error-identifier count
 | 2 | 15 | 17 | [Level 2 rules](docs/rules/level-2.md) |
 | 3 | 5 | 22 | [Level 3 rules](docs/rules/level-3.md) |
 | 4 | 1 | 23 | [Level 4 rules](docs/rules/level-4.md) |
-| 5 | 0 | 23 | [Level 5 rules](docs/rules/level-5.md) |
-| 6 | 5 | 28 | [Level 6 rules](docs/rules/level-6.md) |
-| 7 | 1 | 29 | [Level 7 rules](docs/rules/level-7.md) |
-| 8 | 1 | 30 | [Level 8 rules](docs/rules/level-8.md) |
-| 9 | 0 | 30 | [Level 9 rules](docs/rules/level-9.md) |
-| 10 | 2 | 32 | [Level 10 rules](docs/rules/level-10.md) |
+| 5 | 1 | 24 | [Level 5 rules](docs/rules/level-5.md) |
+| 6 | 5 | 29 | [Level 6 rules](docs/rules/level-6.md) |
+| 7 | 1 | 30 | [Level 7 rules](docs/rules/level-7.md) |
+| 8 | 1 | 31 | [Level 8 rules](docs/rules/level-8.md) |
+| 9 | 0 | 31 | [Level 9 rules](docs/rules/level-9.md) |
+| 10 | 1 | 32 | [Level 10 rules](docs/rules/level-10.md) |
 | Unlevelled | 4 | 36 total registered | [Unlevelled rules](docs/rules/unlevelled.md) |
 <!-- analysis-rule-level-table:end -->
 

@@ -1,17 +1,17 @@
 # PHPStan-compatible rules: level 10
 
-<!-- rule-inventory: level=10 introduced=2 cumulative=32 -->
+<!-- rule-inventory: level=10 introduced=1 cumulative=32 -->
 
 [Back to the README static-analysis section](../../README.md#static-analysis) · [Open the analyser capability matrix](../analyser-capability-matrix.md)
 
 ## Rule inventory
 
-- **Introduced at this level:** 2 registered levelled rules: `A.ARG.TYPE` and `A.DEPRECATED.CALL`.
+- **Introduced at this level:** 1 registered levelled rule, `A.DEPRECATED.CALL`.
 - **Cumulative registered levelled rules:** 32.
 - **Checked-in differential pack:** None currently checked in.
 
 ## Coverage and boundaries
 
-Level 10 adds argument-type compatibility checks and warning diagnostics for selected deprecated calls. Argument checking covers inferred expressions, selected union and null refinements, inherited signatures, named arguments, and known built-ins. Deprecation checking uses available declaration metadata and reports warnings rather than errors.
+Level 10 adds warning diagnostics for selected deprecated calls. Deprecation checking uses available declaration metadata and reports warnings rather than errors. Argument-type compatibility is introduced cumulatively at level 5.
 
-Both rules are partial compared with PHPStan's complete type system, signature database, and deprecation metadata. Dynamic calls, extension-dependent signatures, PHPDoc-only declarations, and unresolved expressions remain outside the covered subset. All lower levels are cumulative.
+The rule is partial compared with PHPStan's complete signature and deprecation metadata. Dynamic calls and extension-dependent metadata remain outside the covered subset. All lower levels are cumulative.

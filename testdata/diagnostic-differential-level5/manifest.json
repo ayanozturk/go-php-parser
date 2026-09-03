@@ -1,0 +1,51 @@
+{
+  "schemaVersion": 1,
+  "reference": {
+    "tool": "PHPStan",
+    "level": 5
+  },
+  "cases": [
+    {
+      "id": "argument-function-mismatch",
+      "capability": "named-function argument type mismatch",
+      "file": "argument-function-mismatch.php",
+      "engineCodes": ["A.ARG.TYPE"],
+      "phpstanIdentifiers": ["argument.type"]
+    },
+    {
+      "id": "argument-method-mismatch",
+      "capability": "method argument type mismatch",
+      "file": "argument-method-mismatch.php",
+      "engineCodes": ["A.ARG.TYPE"],
+      "phpstanIdentifiers": ["argument.type"]
+    },
+    {
+      "id": "argument-constructor-mismatch",
+      "capability": "constructor argument type mismatch",
+      "file": "argument-constructor-mismatch.php",
+      "engineCodes": ["A.ARG.TYPE"],
+      "phpstanIdentifiers": ["argument.type"]
+    },
+    {
+      "id": "argument-named-mismatch",
+      "capability": "named argument type mismatch",
+      "file": "argument-named-mismatch.php",
+      "engineCodes": ["A.ARG.TYPE"],
+      "phpstanIdentifiers": ["argument.type"]
+    },
+    {
+      "id": "argument-clean",
+      "capability": "compatible function method and constructor arguments",
+      "file": "argument-clean.php",
+      "engineCodes": [],
+      "phpstanIdentifiers": []
+    },
+    {
+      "id": "argument-subtype-clean",
+      "capability": "subtype accepted for parent parameter",
+      "file": "argument-subtype-clean.php",
+      "engineCodes": [],
+      "phpstanIdentifiers": []
+    }
+  ]
+}

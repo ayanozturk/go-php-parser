@@ -23,6 +23,10 @@ func ensureArgCallDiagnostics(filename string, nodes []ast.Node, ctx *AnalysisCo
 		return ctx
 	}
 	var typeIssues []AnalysisIssue
+	var typeIssueSink *[]AnalysisIssue
+	if analysisLevelAtLeast(ctx, 5) {
+		typeIssueSink = &typeIssues
+	}
 	ctx.argCountSink = &ctx.argCountIssues
 	ctx.deprecatedCallSink = &ctx.deprecatedCallIssues
 	ctx.deprecatedCallSeen = make(map[ast.Node]struct{})
@@ -49,7 +53,7 @@ func ensureArgCallDiagnostics(filename string, nodes []ast.Node, ctx *AnalysisCo
 			}
 		case *ast.FunctionNode:
 			fnScope := analysisFunctionScope(ctx, class, n, fileCtx)
-			walkStatementsForArgTypesUsing(n.Body, fnScope, ctx, filename, &typeIssues, observe)
+			walkStatementsForArgTypesUsing(n.Body, fnScope, ctx, filename, typeIssueSink, observe)
 		case *ast.NamespaceNode:
 			for _, child := range n.Body {
 				walk(child, class, scope)
@@ -536,6 +540,9 @@ func walkExprForArgTypesUsing(node ast.Node, scope *functionScope, ctx *Analysis
 		observeSemanticExpression(filename, n, scope, ctx, observe)
 		appendDeprecatedCallFromExpr(filename, n, scope, ctx)
 	case *ast.FunctionCallNode:
+		if issues != nil {
+			checkFunctionCallArgTypes(n, scope, ctx, filename, issues)
+		}
 		observeArgumentExpressions(n.Args, scope, ctx, filename, observe)
 		for _, arg := range n.Args {
 			walkExprForArgTypesUsing(argumentValue(arg), scope, ctx, filename, issues, observe)
@@ -614,6 +621,26 @@ func checkMethodCallArgTypes(call *ast.MethodCallNode, scope *functionScope, ctx
 		return
 	}
 	checkResolvedCallArgTypes(fmt.Sprintf("Method %s", method.Name), method, call.Args, scope, ctx, filename, issues)
+}
+
+func checkFunctionCallArgTypes(call *ast.FunctionCallNode, scope *functionScope, ctx *AnalysisContext, filename string, issues *[]AnalysisIssue) {
+	if call == nil || ctx == nil || ctx.Resolver == nil {
+		return
+	}
+	name := functionCallName(call)
+	if name == "" {
+		return
+	}
+	var typeCtx FileTypeContext
+	if scope != nil {
+		typeCtx = scope.typeCtx
+	}
+	resolvedName := resolveFunctionNameForCall(name, typeCtx, ctx)
+	function, ok := resolveFunctionView(ctx.Resolver, resolvedName)
+	if !ok || len(function.Params) == 0 {
+		return
+	}
+	checkResolvedCallArgTypes("Function "+function.Name, ResolvedMethod{Name: function.Name, Params: function.Params}, call.Args, scope, ctx, filename, issues)
 }
 
 func checkNewArgTypes(node *ast.NewNode, scope *functionScope, ctx *AnalysisContext, filename string, issues *[]AnalysisIssue) {
@@ -781,7 +808,7 @@ func argumentValue(node ast.Node) ast.Node {
 }
 
 func init() {
-	RegisterAnalysisRuleWithLevel("A.ARG.TYPE", 10, "types", func(filename string, nodes []ast.Node, ctx *AnalysisContext) []AnalysisIssue {
+	RegisterAnalysisRuleWithLevel("A.ARG.TYPE", 5, "level5", func(filename string, nodes []ast.Node, ctx *AnalysisContext) []AnalysisIssue {
 		rule := &ArgumentTypeRule{}
 		return rule.CheckIssues(nodes, filename, ctx)
 	})
