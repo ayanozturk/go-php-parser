@@ -62,6 +62,20 @@
       "phpstanIdentifiers": []
     },
     {
+      "id": "known-inherited-iterable-contract",
+      "capability": "inherited PHPDoc iterable value types",
+      "file": "known-inherited-iterable-contract.php",
+      "engineCodes": [],
+      "phpstanIdentifiers": []
+    },
+    {
+      "id": "missing-explicit-weak-iterable-override",
+      "capability": "explicit weak PHPDoc overrides inherited iterable value types",
+      "file": "missing-explicit-weak-iterable-override.php",
+      "engineCodes": ["Level6.MissingIterableValueType", "Level6.MissingIterableValueType"],
+      "phpstanIdentifiers": ["missingType.iterableValue", "missingType.iterableValue"]
+    },
+    {
       "id": "missing-function-parameter",
       "capability": "missing named-function parameter types",
       "file": "missing-function-parameter.php",

@@ -94,3 +94,50 @@ $closure = function ($value) { return $value; };
 		}
 	}
 }
+
+func TestLevel6MissingIterableTypesUseInheritedContractOnlyWithoutLocalPHPDoc(t *testing.T) {
+	const source = `<?php
+interface TypedContract {
+    /** @return array<string, int> */
+    public function items(): array;
+
+    /** @param array<string, int> $items */
+    public function accept(array $items): void;
+}
+
+class InheritedContract implements TypedContract {
+    public function items(): array { return []; }
+    public function accept(array $items): void {}
+}
+
+class ExplicitWeakContract implements TypedContract {
+    /** @return array */
+    public function items(): array { return []; }
+
+    /** @param array $items */
+    public function accept(array $items): void {}
+}
+
+interface ScalarContract {
+    public function accept(int $value): void;
+}
+
+class UntypedScalarContract implements ScalarContract {
+    public function accept($value): void {}
+}
+`
+	issues := runAnalysisLevelOnFiles(t, map[string]string{"test.php": source}, 6)
+	missing := filterIssuesByCode(issues, level6MissingIterableTypeCode)
+	if len(missing) != 2 {
+		t.Fatalf("expected only explicit weak PHPDoc declarations to remain missing, got %#v", missing)
+	}
+	for _, issue := range missing {
+		if issue.Line < 15 {
+			t.Fatalf("inherited iterable contract should satisfy the child declaration, got %#v", missing)
+		}
+	}
+	missingParameters := filterIssuesByCode(issues, level6MissingParameterCode)
+	if len(missingParameters) != 1 {
+		t.Fatalf("a scalar contract must not hide an untyped child parameter, got %#v", missingParameters)
+	}
+}

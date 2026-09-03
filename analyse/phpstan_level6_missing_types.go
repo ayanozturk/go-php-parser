@@ -24,14 +24,14 @@ func appendMissingTypeIssuesOnNode(filename string, node ast.Node, class *ast.Cl
 	case *ast.FunctionNode:
 		if n.Name != "" {
 			isMethod := class != nil || n.Visibility != "" || len(n.Modifiers) > 0
-			appendCallableMissingTypeIssues(filename, n, n.Name, isMethod, n.Params, n.ReturnType, n.PHPDoc, ft, ctx, issues)
+			appendCallableMissingTypeIssues(filename, n, n.Name, isMethod, n.Params, n.ReturnType, n.PHPDoc, class, ft, ctx, issues)
 		}
 	case *ast.InterfaceMethodNode:
 		returnType := ""
 		if n.ReturnType != nil {
 			returnType = n.ReturnType.TokenLiteral()
 		}
-		appendCallableMissingTypeIssues(filename, n, n.Name, true, n.Params, returnType, n.PHPDoc, ft, ctx, issues)
+		appendCallableMissingTypeIssues(filename, n, n.Name, true, n.Params, returnType, n.PHPDoc, class, ft, ctx, issues)
 	case *ast.PropertyNode:
 		raw := n.TypeHint
 		if n.PHPDoc != nil && n.PHPDoc.VarType != "" {
@@ -45,16 +45,35 @@ func appendMissingTypeIssuesOnNode(filename string, node ast.Node, class *ast.Cl
 	}
 }
 
-func appendCallableMissingTypeIssues(filename string, declaration ast.Node, name string, isMethod bool, params []ast.Node, nativeReturn string, doc *ast.PHPDocNode, ft FileTypeContext, ctx *AnalysisContext, issues *[]AnalysisIssue) {
-	for _, paramNode := range params {
+func appendCallableMissingTypeIssues(filename string, declaration ast.Node, name string, isMethod bool, params []ast.Node, nativeReturn string, doc *ast.PHPDocNode, class *ast.ClassNode, ft FileTypeContext, ctx *AnalysisContext, issues *[]AnalysisIssue) {
+	var inherited []ResolvedMethod
+	inheritedLoaded := false
+	loadInherited := func() []ResolvedMethod {
+		if !inheritedLoaded {
+			inherited = inheritedMethodContracts(class, name, ft, ctx)
+			inheritedLoaded = true
+		}
+		return inherited
+	}
+	for paramIndex, paramNode := range params {
 		param, ok := paramNode.(*ast.ParamNode)
 		if !ok {
 			continue
 		}
 		raw := paramTypeName(param)
+		hasDocumentedType := false
 		if doc != nil {
 			if documented, found := phpDocDocumentedParameter(doc, param.Name); found {
 				raw = documented.Type
+				hasDocumentedType = true
+			}
+		}
+		if !hasDocumentedType && typeHasMissingDeclaration(raw, ft, ctx) {
+			for _, contract := range loadInherited() {
+				if paramIndex < len(contract.Params) && typeSuppliesMissingDeclarationDetail(contract.Params[paramIndex].Type) {
+					raw = contract.Params[paramIndex].Type
+					break
+				}
 			}
 		}
 		if raw == "" {
@@ -64,14 +83,136 @@ func appendCallableMissingTypeIssues(filename string, declaration ast.Node, name
 		appendMissingTypeIssues(filename, param, raw, ft, ctx, issues)
 	}
 	rawReturn := nativeReturn
-	if doc != nil && doc.ReturnType != "" {
+	hasDocumentedReturn := doc != nil && doc.ReturnType != ""
+	if hasDocumentedReturn {
 		rawReturn = doc.ReturnType
+	} else if typeHasMissingDeclaration(rawReturn, ft, ctx) && !(rawReturn == "" && isMethod && isReturnTypeExemptMethod(name)) {
+		for _, contract := range loadInherited() {
+			if typeSuppliesMissingDeclarationDetail(contract.ReturnType) {
+				rawReturn = contract.ReturnType
+				break
+			}
+		}
 	}
 	if rawReturn == "" && !(isMethod && isReturnTypeExemptMethod(name)) {
 		*issues = append(*issues, issueSpan(filename, declaration, level6MissingReturnCode, fmt.Sprintf("Function or method %s has no return type specified.", name)))
 		return
 	}
 	appendMissingTypeIssues(filename, declaration, rawReturn, ft, ctx, issues)
+}
+
+func inheritedMethodContracts(class *ast.ClassNode, methodName string, ft FileTypeContext, ctx *AnalysisContext) []ResolvedMethod {
+	if class == nil || ctx == nil || ctx.Resolver == nil || methodName == "" {
+		return nil
+	}
+	resolved, ok := ctx.Resolver.ResolveClass(ft.resolveClassLike(class.Name))
+	if !ok {
+		return nil
+	}
+	queue := append(append([]string(nil), resolved.Extends...), resolved.Implements...)
+	seen := make(map[string]struct{}, len(queue))
+	var contracts []ResolvedMethod
+	for len(queue) > 0 {
+		name := queue[0]
+		queue = queue[1:]
+		key := indexKey(name)
+		if _, exists := seen[key]; exists {
+			continue
+		}
+		seen[key] = struct{}{}
+		if method, found := ctx.Resolver.ResolveMethod(name, methodName); found {
+			contracts = append(contracts, method)
+		}
+		if parent, found := ctx.Resolver.ResolveClass(name); found {
+			queue = append(queue, parent.Extends...)
+			queue = append(queue, parent.Implements...)
+		}
+	}
+	return contracts
+}
+
+func typeSuppliesMissingDeclarationDetail(raw string) bool {
+	raw = stripBalancedOuterTypeParens(strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(raw), "?")))
+	if raw == "" {
+		return false
+	}
+	if parts := splitTopLevelTypes(raw, '|'); len(parts) > 1 {
+		for _, part := range parts {
+			if typeSuppliesMissingDeclarationDetail(part) {
+				return true
+			}
+		}
+		return false
+	}
+	if parts := splitTopLevelTypes(raw, '&'); len(parts) > 1 {
+		for _, part := range parts {
+			if typeSuppliesMissingDeclarationDetail(part) {
+				return true
+			}
+		}
+		return false
+	}
+	if _, ok := parseExactGenericTypeFromString(raw); ok {
+		return true
+	}
+	if _, ok := arrayShapeBody(raw); ok {
+		return true
+	}
+	return strings.HasSuffix(raw, "[]")
+}
+
+func typeHasMissingDeclaration(raw string, ft FileTypeContext, ctx *AnalysisContext) bool {
+	raw = stripBalancedOuterTypeParens(strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(raw), "?")))
+	if raw == "" {
+		return true
+	}
+	for _, delimiter := range []rune{'|', '&'} {
+		if parts := splitTopLevelTypes(raw, delimiter); len(parts) > 1 {
+			for _, part := range parts {
+				if typeHasMissingDeclaration(part, ft, ctx) {
+					return true
+				}
+			}
+			return false
+		}
+	}
+	if instance, ok := parseExactGenericTypeFromString(raw); ok {
+		for _, argument := range instance.TypeArguments {
+			if typeHasMissingDeclaration(argument, ft, ctx) {
+				return true
+			}
+		}
+		return false
+	}
+	if params, returnType, ok := phpDocCallableSignature(raw); ok {
+		for _, param := range params {
+			if typeHasMissingDeclaration(param, ft, ctx) {
+				return true
+			}
+		}
+		return typeHasMissingDeclaration(returnType, ft, ctx)
+	}
+	if body, ok := arrayShapeBody(raw); ok {
+		for _, entry := range splitTopLevelTypes(body, ',') {
+			_, value, valid := splitArrayShapeEntry(entry)
+			if valid && typeHasMissingDeclaration(value, ft, ctx) {
+				return true
+			}
+		}
+		return false
+	}
+	if strings.HasSuffix(raw, "[]") {
+		return typeHasMissingDeclaration(strings.TrimSpace(strings.TrimSuffix(raw, "[]")), ft, ctx)
+	}
+	switch asciiLowerIdent(raw) {
+	case "array", "iterable", "list", "non-empty-array", "non-empty-list":
+		return true
+	}
+	if ctx == nil || ctx.Resolver == nil {
+		return false
+	}
+	resolved, ok := ctx.Resolver.ResolveClass(ft.resolveClassLike(raw))
+	return ok && len(resolved.TemplateParams) > 0
 }
 
 func isReturnTypeExemptMethod(name string) bool {
