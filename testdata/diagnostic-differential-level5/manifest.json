@@ -46,6 +46,13 @@
       "file": "argument-subtype-clean.php",
       "engineCodes": [],
       "phpstanIdentifiers": []
+    },
+    {
+      "id": "argument-datetime-modify-clean",
+      "capability": "PHP 8.3 DateTime modify return types",
+      "file": "argument-datetime-modify-clean.php",
+      "engineCodes": [],
+      "phpstanIdentifiers": []
     }
   ]
 }

@@ -262,6 +262,19 @@ func TestProjectIndexAssignsStableIDsToBuiltinsWithoutFakeLocations(t *testing.T
 	}
 }
 
+func TestProjectIndexDateTimeModifyUsesPHP83ReturnContract(t *testing.T) {
+	idx := NewProjectIndex()
+	for _, className := range []string{"DateTime", "DateTimeImmutable"} {
+		method, ok := idx.ResolveMethod(className, "modify")
+		if !ok {
+			t.Fatalf("expected built-in %s::modify() metadata", className)
+		}
+		if method.ReturnType != className {
+			t.Fatalf("%s::modify() return type = %q, want %q", className, method.ReturnType, className)
+		}
+	}
+}
+
 func TestProjectIndexClassifiesBuiltinReferenceParameters(t *testing.T) {
 	idx := NewProjectIndex()
 	outputOnly := map[string][]string{

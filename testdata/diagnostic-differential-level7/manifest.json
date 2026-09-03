@@ -39,6 +39,13 @@
       "file": "known-method-intersection-receiver.php",
       "engineCodes": [],
       "phpstanIdentifiers": []
+    },
+    {
+      "id": "argument-strict-return-union",
+      "capability": "strict argument checking for a false return union",
+      "file": "argument-strict-return-union.php",
+      "engineCodes": ["A.ARG.TYPE"],
+      "phpstanIdentifiers": ["argument.type"]
     }
   ]
 }

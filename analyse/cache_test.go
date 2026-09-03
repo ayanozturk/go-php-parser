@@ -1,6 +1,7 @@
 package analyse
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"testing"
@@ -78,6 +79,26 @@ func TestCacheStoreAndLoad(t *testing.T) {
 	// A subset must not reuse an index built for a larger project.
 	if subset, valid := cm.Load(map[string]string{"file1.php": "abc123"}); valid || subset != nil {
 		t.Fatal("cache should be invalid when the file manifest shrinks")
+	}
+
+	data, err := os.ReadFile(cachePath)
+	if err != nil {
+		t.Fatalf("read stored cache: %v", err)
+	}
+	var stale CacheEntry
+	if err := json.Unmarshal(data, &stale); err != nil {
+		t.Fatalf("decode stored cache: %v", err)
+	}
+	stale.Version--
+	data, err = json.Marshal(stale)
+	if err != nil {
+		t.Fatalf("encode stale cache: %v", err)
+	}
+	if err := os.WriteFile(cachePath, data, 0600); err != nil {
+		t.Fatalf("write stale cache: %v", err)
+	}
+	if loaded, valid := cm.Load(checksums); valid || loaded != nil {
+		t.Fatal("cache should be invalid when symbol-index semantics change")
 	}
 }
 

@@ -1859,7 +1859,7 @@ func (idx *ProjectIndex) seedBuiltins() {
 	}
 	for _, className := range []string{"DateTime", "DateTimeImmutable"} {
 		for _, method := range []ResolvedMethod{
-			{Name: "modify", ReturnType: className + "|false", Params: []ResolvedParam{{Name: "modifier"}}, Visibility: "public"},
+			{Name: "modify", ReturnType: className, Params: []ResolvedParam{{Name: "modifier"}}, Visibility: "public"},
 			{Name: "add", ReturnType: className, Params: []ResolvedParam{{Name: "interval"}}, Visibility: "public"},
 			{Name: "sub", ReturnType: className, Params: []ResolvedParam{{Name: "interval"}}, Visibility: "public"},
 			{Name: "setDate", ReturnType: className, Params: []ResolvedParam{{Name: "year"}, {Name: "month"}, {Name: "day"}}, Visibility: "public"},
