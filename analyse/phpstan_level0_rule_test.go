@@ -585,6 +585,32 @@ class VariadicImplementation implements SignatureContract {
 	}
 }
 
+func TestLevel0ClassModelIgnoresPHPDocOnlyAncestorReturnType(t *testing.T) {
+	issues := runLevel0OnFiles(t, map[string]string{
+		"test.php": `<?php
+interface BootableServiceProviderInterface {
+    /**
+     * @return ServiceDefinition[]
+     */
+    public function boot(ContainerInterface $container);
+}
+
+class AccessControlModule implements BootableServiceProviderInterface {
+    /**
+     * @return ServiceDefinition[]|void
+     */
+    public function boot(ContainerInterface $container)
+    {
+    }
+}
+`,
+	})
+
+	if hasIssueContaining(issues, level0ClassModelCode, "AccessControlModule::boot") {
+		t.Fatalf("PHPDoc-only ancestor return type must not be enforced as a native contract, got %#v", issues)
+	}
+}
+
 func TestLevel0ClassModelReturnTypeCovariance(t *testing.T) {
 	issues := runLevel0OnFiles(t, map[string]string{
 		"test.php": `<?php

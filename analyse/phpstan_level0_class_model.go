@@ -385,8 +385,13 @@ func checkRequiredMethodSignature(filename string, pos ast.Position, className s
 			*issues = append(*issues, issue(filename, pos, level0ClassModelCode, fmt.Sprintf("Parameter %d of method %s::%s() is named $%s, expected $%s.", idx+1, className, implemented.Name, implementedParam.Name, requiredParam.Name)))
 		}
 	}
-	if required.ReturnType != "" && implemented.ReturnType != "" && !returnTypeCompatible(required.ReturnType, implemented.ReturnType, ctx) {
-		*issues = append(*issues, issue(filename, pos, level0ClassModelCode, fmt.Sprintf("Return type %s of method %s::%s() is not compatible with inherited return type %s.", implemented.ReturnType, className, implemented.Name, required.ReturnType)))
+	// Native return-type covariance is a PHP engine (fatal-error) rule, not a
+	// PHPDoc one: PHP only enforces it when both the ancestor and the
+	// implementation declare a native return type. Comparing PHPDoc-derived
+	// types here would flag implementations that PHP itself accepts, e.g. an
+	// ancestor with only a PHPDoc `@return X[]` imposes no native contract.
+	if required.NativeReturnType != "" && implemented.NativeReturnType != "" && !returnTypeCompatible(required.NativeReturnType, implemented.NativeReturnType, ctx) {
+		*issues = append(*issues, issue(filename, pos, level0ClassModelCode, fmt.Sprintf("Return type %s of method %s::%s() is not compatible with inherited return type %s.", implemented.NativeReturnType, className, implemented.Name, required.NativeReturnType)))
 	}
 }
 

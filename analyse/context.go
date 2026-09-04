@@ -144,6 +144,12 @@ type ResolvedMethod struct {
 	Name               string
 	DeclaringClass     string
 	ReturnType         string
+	// NativeReturnType holds only the PHP-declared return type (empty when
+	// the method has no native return type, even if PHPDoc declares one).
+	// PHP's return-type covariance rules apply solely to native
+	// declarations, so LSP compatibility checks must use this field rather
+	// than ReturnType, which PHPDoc can override for inference purposes.
+	NativeReturnType   string
 	CallableReturnType string
 	Params             []ResolvedParam
 	Visibility         string

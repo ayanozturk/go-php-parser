@@ -1371,10 +1371,11 @@ func (idx *ProjectIndex) indexInterfaceMembers(filename, className string, membe
 	for _, member := range members {
 		switch m := member.(type) {
 		case *ast.InterfaceMethodNode:
-			returnType := ""
+			nativeReturn := ""
 			if m.ReturnType != nil {
-				returnType = m.ReturnType.TokenLiteral()
+				nativeReturn = m.ReturnType.TokenLiteral()
 			}
+			returnType := nativeReturn
 			if m.PHPDoc != nil && m.PHPDoc.ReturnType != "" {
 				returnType = m.PHPDoc.ReturnType
 			}
@@ -1383,7 +1384,11 @@ func (idx *ProjectIndex) indexInterfaceMembers(filename, className string, membe
 			if !callableReturn.IsEmpty() {
 				normalizedReturn = "callable"
 			}
-			idx.addMethod(className, ResolvedMethod{Name: m.Name, DeclaringClass: className, Declaration: sourceLocation(filename, m), ReturnType: normalizedReturn, CallableReturnType: callableReturn.dnfString(), Params: paramsFromNodesWithPHPDoc(m.Params, m.PHPDoc, ft, templates), Visibility: "public", Abstract: true})
+			nativeReturnType := ""
+			if nativeReturn != "" {
+				nativeReturnType = normalizeTemplateAwareType(nativeReturn, ft, templates)
+			}
+			idx.addMethod(className, ResolvedMethod{Name: m.Name, DeclaringClass: className, Declaration: sourceLocation(filename, m), ReturnType: normalizedReturn, NativeReturnType: nativeReturnType, CallableReturnType: callableReturn.dnfString(), Params: paramsFromNodesWithPHPDoc(m.Params, m.PHPDoc, ft, templates), Visibility: "public", Abstract: true})
 		case *ast.PropertyNode:
 			rawType := m.TypeHint
 			docType := ""
@@ -1537,11 +1542,16 @@ func methodFromFunction(filename, className string, fn *ast.FunctionNode, ft Fil
 	if !callableReturn.IsEmpty() {
 		normalizedReturn = "callable"
 	}
+	nativeReturnType := ""
+	if fn.ReturnType != "" {
+		nativeReturnType = normalizeTemplateAwareType(fn.ReturnType, ft, templates)
+	}
 	method := ResolvedMethod{
 		Name:               fn.Name,
 		DeclaringClass:     className,
 		Declaration:        sourceLocation(filename, fn),
 		ReturnType:         normalizedReturn,
+		NativeReturnType:   nativeReturnType,
 		CallableReturnType: callableReturn.dnfString(),
 		Params:             paramsFromNodesWithPHPDoc(fn.Params, fn.PHPDoc, ft, templates),
 		Visibility:         functionVisibility(fn),
