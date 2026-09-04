@@ -1,9 +1,10 @@
 package parser
 
 import (
+	"strings"
+
 	"github.com/ayanozturk/go-php-parser/ast"
 	"github.com/ayanozturk/go-php-parser/token"
-	"strings"
 )
 
 // parseFunction parses a PHP function declaration
@@ -124,6 +125,14 @@ func (p *Parser) parseFunction(modifiers []string) (ast.Node, error) {
 		}
 	}
 
+	// The header (signature) ends here, right after the return type (or the
+	// closing ')' of the parameter list if there is none), before any
+	// trailing whitespace/comments and the body's '{'. Declaration-level
+	// diagnostics (missing types, invalid modifiers, etc.) should end their
+	// span here instead of at the body's end so they don't underline the
+	// whole function/method.
+	headerEnd := ast.Position(p.prevTokEnd)
+
 	// Skip whitespace, comments, and attributes before function body
 	for p.tok.Type == token.T_WHITESPACE || p.tok.Type == token.T_COMMENT || p.tok.Type == token.T_DOC_COMMENT || p.tok.Type == token.T_ATTRIBUTE {
 		p.nextToken()
@@ -133,15 +142,16 @@ func (p *Parser) parseFunction(modifiers []string) (ast.Node, error) {
 		if modifier == "abstract" && p.tok.Type == token.T_SEMICOLON {
 			p.nextToken() // consume ;
 			return &ast.FunctionNode{
-				Name:       name,
-				Params:     params,
-				Uses:       closureUses,
-				ReturnType: returnType,
-				Modifiers:  savedModifiers,
-				Body:       nil,
-				PHPDoc:     phpdoc,
-				Pos:        ast.Position(pos),
-				EndPos:     ast.Position(p.prevTokEnd),
+				Name:         name,
+				Params:       params,
+				Uses:         closureUses,
+				ReturnType:   returnType,
+				Modifiers:    savedModifiers,
+				Body:         nil,
+				PHPDoc:       phpdoc,
+				Pos:          ast.Position(pos),
+				EndPos:       ast.Position(p.prevTokEnd),
+				HeaderEndPos: headerEnd,
 			}, nil
 		}
 	}
@@ -160,15 +170,16 @@ func (p *Parser) parseFunction(modifiers []string) (ast.Node, error) {
 		}
 		p.nextToken()
 		return &ast.FunctionNode{
-			Name:       name,
-			Params:     params,
-			Uses:       closureUses,
-			ReturnType: returnType,
-			Modifiers:  savedModifiers,
-			Body:       nil,
-			PHPDoc:     phpdoc,
-			Pos:        ast.Position(pos),
-			EndPos:     ast.Position(endPos),
+			Name:         name,
+			Params:       params,
+			Uses:         closureUses,
+			ReturnType:   returnType,
+			Modifiers:    savedModifiers,
+			Body:         nil,
+			PHPDoc:       phpdoc,
+			Pos:          ast.Position(pos),
+			EndPos:       ast.Position(endPos),
+			HeaderEndPos: headerEnd,
 		}, nil
 	}
 	p.nextToken() // consume {
@@ -220,14 +231,15 @@ func (p *Parser) parseFunction(modifiers []string) (ast.Node, error) {
 	}
 
 	return &ast.FunctionNode{
-		Name:       name,
-		Params:     params,
-		Uses:       closureUses,
-		ReturnType: returnType,
-		Modifiers:  savedModifiers,
-		Body:       body,
-		PHPDoc:     phpdoc,
-		Pos:        ast.Position(pos),
-		EndPos:     ast.Position(p.prevTokEnd),
+		Name:         name,
+		Params:       params,
+		Uses:         closureUses,
+		ReturnType:   returnType,
+		Modifiers:    savedModifiers,
+		Body:         body,
+		PHPDoc:       phpdoc,
+		Pos:          ast.Position(pos),
+		EndPos:       ast.Position(p.prevTokEnd),
+		HeaderEndPos: headerEnd,
 	}, nil
 }

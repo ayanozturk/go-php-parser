@@ -17,6 +17,13 @@ type FunctionNode struct {
 	PHPDoc     *PHPDocNode // Associated PHPDoc comment
 	Pos        Position
 	EndPos     Position
+	// HeaderEndPos marks the end of the declaration's signature/header
+	// (i.e. right after the return type, or after the closing ')' of the
+	// parameter list when there is no return type), before the body's '{'.
+	// Diagnostics about the declaration itself (missing types, invalid
+	// modifiers, etc.) should end here rather than at EndPos so they don't
+	// underline the entire method/function body.
+	HeaderEndPos Position
 }
 
 // ClosureUse preserves one explicit anonymous-function capture. By-reference
@@ -34,6 +41,16 @@ func (f *FunctionNode) GetPos() Position       { return f.Pos }
 func (f *FunctionNode) SetPos(pos Position)    { f.Pos = pos }
 func (f *FunctionNode) GetEndPos() Position    { return f.EndPos }
 func (f *FunctionNode) SetEndPos(pos Position) { f.EndPos = pos }
+
+// GetHeaderEndPos returns the end of the function/method's signature
+// (before its body), falling back to EndPos if HeaderEndPos was never set
+// (e.g. nodes constructed outside the parser).
+func (f *FunctionNode) GetHeaderEndPos() Position {
+	if f.HeaderEndPos == (Position{}) {
+		return f.EndPos
+	}
+	return f.HeaderEndPos
+}
 func (f *FunctionNode) String() string {
 	var parts []string
 	if len(f.Modifiers) > 0 {

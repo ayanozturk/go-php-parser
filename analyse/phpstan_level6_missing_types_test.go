@@ -141,3 +141,32 @@ class UntypedScalarContract implements ScalarContract {
 		t.Fatalf("a scalar contract must not hide an untyped child parameter, got %#v", missingParameters)
 	}
 }
+
+// TestLevel6MissingReturnTypeSpanIsSignatureOnly guards against regressing
+// to underlining the entire method body: the diagnostic's span should end
+// on the declaration line (after the closing ')' of the parameter list),
+// not on the closing '}' several lines later.
+func TestLevel6MissingReturnTypeSpanIsSignatureOnly(t *testing.T) {
+	const source = `<?php
+class Widget {
+    public function bootstrap($value)
+    {
+        $a = 1;
+        $b = 2;
+        return $a + $b;
+    }
+}
+`
+	issues := runAnalysisLevelOnFiles(t, map[string]string{"test.php": source}, 6)
+	missing := filterIssuesByCode(issues, level6MissingReturnCode)
+	if len(missing) != 1 {
+		t.Fatalf("expected exactly one missing-return-type issue, got %#v", missing)
+	}
+	issue := missing[0]
+	if issue.Line != 3 {
+		t.Fatalf("expected diagnostic to start on the declaration line 3, got line %d: %#v", issue.Line, issue)
+	}
+	if issue.EndLine != 3 {
+		t.Fatalf("expected diagnostic span to stay on the signature line (3), got EndLine %d spanning into the body: %#v", issue.EndLine, issue)
+	}
+}

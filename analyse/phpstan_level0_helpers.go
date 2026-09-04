@@ -1,8 +1,9 @@
 package analyse
 
 import (
-	"github.com/ayanozturk/go-php-parser/ast"
 	"strings"
+
+	"github.com/ayanozturk/go-php-parser/ast"
 )
 
 func functionCallName(call *ast.FunctionCallNode) string {
@@ -130,6 +131,16 @@ func issue(filename string, pos ast.Position, code, message string) AnalysisIssu
 	return AnalysisIssue{Filename: filename, Line: pos.Line, Column: pos.Column, Code: code, Message: message}
 }
 
+// headerEndPositioner is implemented by declaration nodes (currently
+// *ast.FunctionNode) that can point diagnostics at the end of their
+// signature/header rather than the end of their full body. Without this,
+// a diagnostic about a function/method declaration itself (e.g. a missing
+// return type) would span the entire body, underlining the whole
+// method/function instead of just its declaration.
+type headerEndPositioner interface {
+	GetHeaderEndPos() ast.Position
+}
+
 // issueSpan is like issue but also records the node's end position, giving
 // the diagnostic a full [start, end) source span instead of a single
 // point. Prefer this over issue() wherever a concrete offending ast.Node
@@ -137,6 +148,9 @@ func issue(filename string, pos ast.Position, code, message string) AnalysisIssu
 func issueSpan(filename string, n ast.Node, code, message string) AnalysisIssue {
 	start := n.GetPos()
 	end := n.GetEndPos()
+	if h, ok := n.(headerEndPositioner); ok {
+		end = h.GetHeaderEndPos()
+	}
 	return AnalysisIssue{
 		Filename:  filename,
 		Line:      start.Line,
