@@ -13,6 +13,9 @@ type InterfaceNode struct {
 	PHPDoc  *PHPDocNode // Associated PHPDoc comment
 	Pos     Position
 	EndPos  Position
+	// HeaderEndPos marks the end of the declaration's header (name plus
+	// extends), before the body's '{'. See FunctionNode.HeaderEndPos.
+	HeaderEndPos Position
 }
 
 func (i *InterfaceNode) NodeType() string       { return "Interface" }
@@ -20,6 +23,15 @@ func (i *InterfaceNode) GetPos() Position       { return i.Pos }
 func (i *InterfaceNode) SetPos(pos Position)    { i.Pos = pos }
 func (i *InterfaceNode) GetEndPos() Position    { return i.EndPos }
 func (i *InterfaceNode) SetEndPos(pos Position) { i.EndPos = pos }
+
+// GetHeaderEndPos returns the end of the interface's header (before its
+// body), falling back to EndPos if HeaderEndPos was never set.
+func (i *InterfaceNode) GetHeaderEndPos() Position {
+	if i.HeaderEndPos == (Position{}) {
+		return i.EndPos
+	}
+	return i.HeaderEndPos
+}
 func (i *InterfaceNode) String() string {
 	var parts []string
 	parts = append(parts, fmt.Sprintf("Interface(%s)", i.Name))

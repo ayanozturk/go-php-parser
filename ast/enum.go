@@ -14,6 +14,10 @@ type EnumNode struct {
 	Methods    []Node
 	Pos        Position
 	EndPos     Position
+	// HeaderEndPos marks the end of the declaration's header (name plus
+	// backing type/implements), before the body's '{'. See
+	// FunctionNode.HeaderEndPos.
+	HeaderEndPos Position
 }
 
 func (e *EnumNode) NodeType() string       { return "Enum" }
@@ -21,6 +25,15 @@ func (e *EnumNode) GetPos() Position       { return e.Pos }
 func (e *EnumNode) SetPos(pos Position)    { e.Pos = pos }
 func (e *EnumNode) GetEndPos() Position    { return e.EndPos }
 func (e *EnumNode) SetEndPos(pos Position) { e.EndPos = pos }
+
+// GetHeaderEndPos returns the end of the enum's header (before its body),
+// falling back to EndPos if HeaderEndPos was never set.
+func (e *EnumNode) GetHeaderEndPos() Position {
+	if e.HeaderEndPos == (Position{}) {
+		return e.EndPos
+	}
+	return e.HeaderEndPos
+}
 func (e *EnumNode) String() string {
 	var parts []string
 	parts = append(parts, fmt.Sprintf("Enum(%s)", e.Name))

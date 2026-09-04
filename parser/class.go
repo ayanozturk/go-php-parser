@@ -90,6 +90,10 @@ func (p *Parser) parseClassDeclaration() (ast.Node, error) {
 		}
 	}
 
+	// The header (name plus extends/implements) ends here, before any
+	// trailing whitespace/comments and the body's '{'.
+	headerEnd := ast.Position(p.prevTokEnd)
+
 	// Skip trailing comments/whitespace before opening brace
 	p.skipCommentsAndWhitespace()
 
@@ -171,14 +175,15 @@ func (p *Parser) parseClassDeclaration() (ast.Node, error) {
 	}
 
 	return &ast.ClassNode{
-		Name:       name,
-		Extends:    extends,
-		Implements: implements,
-		Properties: classProperties,
-		Methods:    methods,
-		Constants:  constants,
-		Pos:        ast.Position(pos),
-		PHPDoc:     phpdoc,
+		Name:         name,
+		Extends:      extends,
+		Implements:   implements,
+		Properties:   classProperties,
+		Methods:      methods,
+		Constants:    constants,
+		Pos:          ast.Position(pos),
+		PHPDoc:       phpdoc,
+		HeaderEndPos: headerEnd,
 	}, nil
 }
 
@@ -231,6 +236,10 @@ func (p *Parser) parseAnonymousClassExpression(modifier string) (ast.Node, []ast
 			p.nextToken() // consume comma
 		}
 	}
+
+	// The header (extends/implements) ends here, before any trailing
+	// whitespace/comments and the body's '{'.
+	headerEnd := ast.Position(p.prevTokEnd)
 
 	// Skip trailing comments/whitespace before opening brace
 	p.skipCommentsAndWhitespace()
@@ -311,13 +320,14 @@ func (p *Parser) parseAnonymousClassExpression(modifier string) (ast.Node, []ast
 	}
 
 	return &ast.ClassNode{
-		Extends:    extends,
-		Implements: implements,
-		Properties: classProperties,
-		Methods:    methods,
-		Constants:  constants,
-		Pos:        ast.Position(pos),
-		Modifier:   modifier,
+		Extends:      extends,
+		Implements:   implements,
+		Properties:   classProperties,
+		Methods:      methods,
+		Constants:    constants,
+		Pos:          ast.Position(pos),
+		Modifier:     modifier,
+		HeaderEndPos: headerEnd,
 	}, args
 }
 

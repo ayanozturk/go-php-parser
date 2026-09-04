@@ -17,6 +17,9 @@ type ClassNode struct {
 	EndPos     Position
 	Modifier   string      // final, abstract, or ""
 	PHPDoc     *PHPDocNode // Associated PHPDoc comment
+	// HeaderEndPos marks the end of the declaration's header (name plus
+	// extends/implements), before the body's '{'. See FunctionNode.HeaderEndPos.
+	HeaderEndPos Position
 }
 
 func (c *ClassNode) NodeType() string       { return "Class" }
@@ -24,6 +27,15 @@ func (c *ClassNode) GetPos() Position       { return c.Pos }
 func (c *ClassNode) SetPos(pos Position)    { c.Pos = pos }
 func (c *ClassNode) GetEndPos() Position    { return c.EndPos }
 func (c *ClassNode) SetEndPos(pos Position) { c.EndPos = pos }
+
+// GetHeaderEndPos returns the end of the class's header (before its body),
+// falling back to EndPos if HeaderEndPos was never set.
+func (c *ClassNode) GetHeaderEndPos() Position {
+	if c.HeaderEndPos == (Position{}) {
+		return c.EndPos
+	}
+	return c.HeaderEndPos
+}
 func (c *ClassNode) String() string {
 	var parts []string
 	parts = append(parts, fmt.Sprintf("Class(%s)", c.Name))

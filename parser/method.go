@@ -51,6 +51,10 @@ func (p *Parser) parseInterfaceDeclaration() ast.Node {
 		}
 	}
 
+	// The header (name plus extends) ends here, before any trailing
+	// whitespace/comments and the body's '{'.
+	headerEnd := ast.Position(p.prevTokEnd)
+
 	// Skip comments and whitespace before opening brace
 	for p.tok.Type == token.T_COMMENT || p.tok.Type == token.T_DOC_COMMENT || p.tok.Type == token.T_WHITESPACE {
 		p.nextToken()
@@ -92,11 +96,12 @@ func (p *Parser) parseInterfaceDeclaration() ast.Node {
 	p.nextToken() // consume }
 
 	return &ast.InterfaceNode{
-		Name:    name,
-		Extends: extends,
-		Members: members,
-		PHPDoc:  phpdoc,
-		Pos:     ast.Position(pos),
+		Name:         name,
+		Extends:      extends,
+		Members:      members,
+		PHPDoc:       phpdoc,
+		Pos:          ast.Position(pos),
+		HeaderEndPos: headerEnd,
 	}
 }
 

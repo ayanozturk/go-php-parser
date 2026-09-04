@@ -55,6 +55,10 @@ func (p *Parser) parseEnum() (*ast.EnumNode, error) {
 	// Skip trailing comments/whitespace before opening brace
 	p.skipCommentsAndWhitespace()
 
+	// The header (name plus backing type/implements) ends here, before the
+	// body's '{'.
+	headerEnd := ast.Position(p.prevTokEnd)
+
 	// Expect opening brace
 	if p.tok.Type != token.T_LBRACE {
 		return nil, fmt.Errorf("expected {, got %s", p.tok.Type)
@@ -96,13 +100,14 @@ func (p *Parser) parseEnum() (*ast.EnumNode, error) {
 	p.nextToken()
 
 	return &ast.EnumNode{
-		Name:       name,
-		BackedBy:   backedBy,
-		Implements: implements,
-		Cases:      cases,
-		Methods:    methods,
-		Pos:        ast.Position(pos),
-		EndPos:     ast.Position(p.prevTokEnd),
+		Name:         name,
+		BackedBy:     backedBy,
+		Implements:   implements,
+		Cases:        cases,
+		Methods:      methods,
+		Pos:          ast.Position(pos),
+		EndPos:       ast.Position(p.prevTokEnd),
+		HeaderEndPos: headerEnd,
 	}, nil
 }
 

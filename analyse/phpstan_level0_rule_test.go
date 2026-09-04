@@ -403,6 +403,106 @@ class Calls {
 	}
 }
 
+// TestLevel0ClassModelSpanIsHeaderOnly guards against regressing to
+// underlining the entire class body: the diagnostic's span should end on
+// the declaration line (after the extends clause), not on the closing '}'
+// several lines later.
+func TestLevel0ClassModelSpanIsHeaderOnly(t *testing.T) {
+	issues := runLevel0OnFiles(t, map[string]string{
+		"test.php": `<?php
+final class Base {}
+class Child extends Base
+{
+    public function run()
+    {
+        return 1;
+    }
+}
+`,
+	})
+
+	var found *AnalysisIssue
+	for i := range issues {
+		if issues[i].Code == level0ClassModelCode && strings.Contains(issues[i].Message, "extends final class Base") {
+			found = &issues[i]
+			break
+		}
+	}
+	if found == nil {
+		t.Fatalf("expected final class extension issue, got %#v", issues)
+	}
+	if found.Line != 3 {
+		t.Fatalf("expected diagnostic to start on the declaration line 3, got line %d: %#v", found.Line, found)
+	}
+	if found.EndLine != 3 {
+		t.Fatalf("expected diagnostic span to stay on the header line (3), got EndLine %d spanning into the body: %#v", found.EndLine, found)
+	}
+}
+
+// TestLevel0InterfaceModelSpanIsHeaderOnly guards against underlining an
+// entire interface body for a header-level diagnostic.
+func TestLevel0InterfaceModelSpanIsHeaderOnly(t *testing.T) {
+	issues := runLevel0OnFiles(t, map[string]string{
+		"test.php": `<?php
+interface Child extends Missing
+{
+    public function run(): void;
+
+    public function stop(): void;
+}
+`,
+	})
+
+	var found *AnalysisIssue
+	for i := range issues {
+		if issues[i].Code == level0ClassModelCode && strings.Contains(issues[i].Message, "extends unknown interface Missing") {
+			found = &issues[i]
+			break
+		}
+	}
+	if found == nil {
+		t.Fatalf("expected unknown interface extension issue, got %#v", issues)
+	}
+	if found.Line != 2 {
+		t.Fatalf("expected diagnostic to start on the declaration line 2, got line %d: %#v", found.Line, found)
+	}
+	if found.EndLine != 2 {
+		t.Fatalf("expected diagnostic span to stay on the header line (2), got EndLine %d spanning into the body: %#v", found.EndLine, found)
+	}
+}
+
+// TestLevel0EnumModelSpanIsHeaderOnly guards against underlining an entire
+// enum body for a header-level diagnostic.
+func TestLevel0EnumModelSpanIsHeaderOnly(t *testing.T) {
+	issues := runLevel0OnFiles(t, map[string]string{
+		"test.php": `<?php
+enum BadBacking: float
+{
+    case A;
+
+    case B;
+}
+`,
+	})
+
+	var found *AnalysisIssue
+	for i := range issues {
+		if issues[i].Code == level0ClassModelCode && strings.Contains(issues[i].Message, "Backed enum BadBacking can have only") {
+			found = &issues[i]
+			break
+		}
+	}
+	if found == nil {
+		t.Fatalf("expected backed enum type issue, got %#v", issues)
+	}
+	if found.Line != 2 {
+		t.Fatalf("expected diagnostic to start on the declaration line 2, got line %d: %#v", found.Line, found)
+	}
+	if found.EndLine != 2 {
+		t.Fatalf("expected diagnostic span to stay on the header line (2), got EndLine %d spanning into the body: %#v", found.EndLine, found)
+	}
+}
+
 func TestLevel0ClassModelModifierLegality(t *testing.T) {
 	issues := runLevel0OnFiles(t, map[string]string{
 		"test.php": `<?php
