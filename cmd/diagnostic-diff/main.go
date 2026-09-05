@@ -203,7 +203,7 @@ func runEngine(path string, level int) ([]string, error) {
 	if err != nil {
 		return nil, fmt.Errorf("read fixture: %w", err)
 	}
-	phpParser := parser.New(lexer.NewFile(string(content)), false)
+	phpParser := parser.New(lexer.NewFileBytes(content), false)
 	nodes := phpParser.Parse()
 	if parseErrors := phpParser.Errors(); len(parseErrors) > 0 {
 		return nil, fmt.Errorf("parse fixture: %s", strings.Join(parseErrors, "; "))

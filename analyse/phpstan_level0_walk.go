@@ -14,6 +14,9 @@ func walkAll(nodes []ast.Node, fn func(ast.Node, *ast.ClassNode, *ast.FunctionNo
 }
 
 func walkAllWithoutTypeContext(nodes []ast.Node, fn func(ast.Node)) {
+	// Alias collection and similar one-off indexers may use this. Production
+	// analysis rules must not add another full-tree pass; fuse into
+	// ensureArgCallDiagnostics / the snapshot builders instead.
 	walkAllConfigured(nodes, func(node ast.Node, _ *ast.ClassNode, _ *ast.FunctionNode, _ FileTypeContext) {
 		fn(node)
 	}, walkAllConfig{})

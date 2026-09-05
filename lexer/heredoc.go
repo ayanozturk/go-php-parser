@@ -1,9 +1,11 @@
 package lexer
 
 import (
-	"github.com/ayanozturk/go-php-parser/token"
+	"bytes"
 	"strings"
 	"unicode/utf8"
+
+	"github.com/ayanozturk/go-php-parser/token"
 )
 
 func (l *Lexer) queueHeredocTokens(pos token.Position) {
@@ -15,6 +17,7 @@ func (l *Lexer) queueHeredocTokens(pos token.Position) {
 	identifier, isNowdoc := l.readHeredocIdentifier()
 	if identifier == "" {
 		l.heredocTokens = []token.Token{{Type: token.T_ILLEGAL, Literal: "Missing heredoc/nowdoc identifier", Pos: pos}}
+		l.heredocTokens[0].End = l.heredocTokens[0].EndPos()
 		return
 	}
 
@@ -23,17 +26,20 @@ func (l *Lexer) queueHeredocTokens(pos token.Position) {
 		startType = token.T_START_NOWDOC
 	}
 	startToken := token.Token{Type: startType, Literal: identifier, Pos: pos}
+	startToken.End = startToken.EndPos()
 
 	l.skipToNextLine()
 
 	body := l.readHeredocBody(identifier)
 	bodyToken := token.Token{Type: token.T_ENCAPSED_AND_WHITESPACE, Literal: body, Pos: pos}
+	bodyToken.End = bodyToken.EndPos()
 
 	endType := token.T_END_HEREDOC
 	if isNowdoc {
 		endType = token.T_END_NOWDOC
 	}
 	endToken := token.Token{Type: endType, Literal: identifier, Pos: pos}
+	endToken.End = endToken.EndPos()
 
 	l.heredocTokens = []token.Token{startToken, bodyToken, endToken}
 }
@@ -46,7 +52,7 @@ func (l *Lexer) readHeredocIdentifier() (string, bool) {
 		for l.char != quote && !l.atEOF() {
 			l.readChar()
 		}
-		identifier := l.input[start:l.pos]
+		identifier := l.text(start, l.pos)
 		isNowdoc := (quote == '\'')
 		if l.char == quote {
 			l.readChar() // consume closing quote
@@ -57,7 +63,7 @@ func (l *Lexer) readHeredocIdentifier() (string, bool) {
 	for isLetter(l.char) || isDigit(l.char) || l.char == '_' {
 		l.readChar()
 	}
-	identifier := l.input[start:l.pos]
+	identifier := l.text(start, l.pos)
 	return identifier, false
 }
 
@@ -94,7 +100,7 @@ func (l *Lexer) readHeredocBody(identifier string) string {
 	if bodyEnd == -1 {
 		bodyEnd = l.pos
 	}
-	body := l.input[bodyStart:bodyEnd]
+	body := l.text(bodyStart, bodyEnd)
 	if terminatorIndent != "" {
 		body = dedentHeredocBody(body, terminatorIndent)
 	}
@@ -109,20 +115,20 @@ func (l *Lexer) heredocTerminatorIndent(identifier string) (string, bool) {
 	for identifierPos < len(l.input) && (l.input[identifierPos] == ' ' || l.input[identifierPos] == '\t') {
 		identifierPos++
 	}
-	if !strings.HasPrefix(l.input[identifierPos:], identifier) {
+	if identifierPos+len(identifier) > len(l.input) || !bytes.Equal(l.input[identifierPos:identifierPos+len(identifier)], []byte(identifier)) {
 		return "", false
 	}
 	var nextChar rune
 	nextPos := identifierPos + len(identifier)
 	if nextPos < len(l.input) {
-		nextChar, _ = utf8.DecodeRuneInString(l.input[nextPos:])
+		nextChar, _ = utf8.DecodeRune(l.input[nextPos:])
 	} else {
 		nextChar = 0
 	}
 	if isLetter(nextChar) || isDigit(nextChar) || nextChar == '_' {
 		return "", false
 	}
-	return l.input[l.pos:identifierPos], true
+	return l.text(l.pos, identifierPos), true
 }
 
 func dedentHeredocBody(body, indent string) string {

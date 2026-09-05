@@ -164,7 +164,7 @@ func ProcessSingleFileWithWriter(filePath, commandName string, debug bool, rules
 		fmt.Fprintf(w, "Could not read file %s: %v\n", filePath, err)
 		return 1, 0
 	}
-	lex := lexer.NewFile(string(input))
+	lex := lexer.NewFileBytes(input)
 	p := parser.New(lex, false)
 	nodes := p.Parse()
 	if commandName == "style" {

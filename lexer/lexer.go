@@ -1,9 +1,16 @@
 package lexer
 
 import (
-	"github.com/ayanozturk/go-php-parser/token"
+	"bytes"
 	"strings"
 	"unicode/utf8"
+
+	"github.com/ayanozturk/go-php-parser/token"
+)
+
+var (
+	openTagPHP  = []byte("<?php")
+	openTagEcho = []byte("<?=")
 )
 
 var asciiStrings [128]string
@@ -22,7 +29,8 @@ func asciiString(c rune) string {
 }
 
 type Lexer struct {
-	input    string
+	input    []byte
+	lines    token.LineTable
 	pos      int
 	readPos  int
 	char     rune // Unicode-aware current character
@@ -52,15 +60,15 @@ func (l *Lexer) inStringMode() bool {
 // peeked token isn't enough to disambiguate a construct (e.g. distinguishing
 // "public(set)" from a property type that happens to start with "(").
 type State struct {
-	pos, readPos   int
-	char           rune
-	size           int
-	line, column   int
-	inString       bool
-	heredocTokens  []token.Token
-	hasPeeked      bool
-	peekedToken    token.Token
-	inHTML         bool
+	pos, readPos  int
+	char          rune
+	size          int
+	line, column  int
+	inString      bool
+	heredocTokens []token.Token
+	hasPeeked     bool
+	peekedToken   token.Token
+	inHTML        bool
 }
 
 // Snapshot captures the current lexer position so it can be restored later.
@@ -96,8 +104,13 @@ func (l *Lexer) Restore(s State) {
 }
 
 func New(input string) *Lexer {
+	return NewBytes([]byte(input))
+}
+
+func NewBytes(input []byte) *Lexer {
 	l := &Lexer{
 		input:  input,
+		lines:  token.NewLineTable(input),
 		line:   1,
 		column: 0,
 	}
@@ -113,11 +126,44 @@ func New(input string) *Lexer {
 // many callers construct bare snippets (operators, expressions) with no
 // leading open tag and expect immediate PHP tokenization.
 func NewFile(input string) *Lexer {
-	l := New(input)
+	return NewFileBytes([]byte(input))
+}
+
+func NewFileBytes(input []byte) *Lexer {
+	l := NewBytes(input)
 	if !l.atOpenTag() {
 		l.inHTML = true
 	}
 	return l
+}
+
+func (l *Lexer) Source() []byte {
+	return l.input
+}
+
+func (l *Lexer) LineTable() token.LineTable {
+	return l.lines
+}
+
+func (l *Lexer) text(start, end int) string {
+	if start < 0 {
+		start = 0
+	}
+	if end > len(l.input) {
+		end = len(l.input)
+	}
+	if start >= end {
+		return ""
+	}
+	return string(l.input[start:end])
+}
+
+func (l *Lexer) finishToken(tok token.Token) token.Token {
+	if tok.End.Line != 0 || tok.End.Column != 0 || tok.End.Offset != 0 {
+		return tok
+	}
+	tok.End = token.Position{Line: l.line, Column: l.column, Offset: l.pos}
+	return tok
 }
 
 // readChar reads the next rune from input and advances position, supporting Unicode.
@@ -143,7 +189,7 @@ func (l *Lexer) readChar() {
 			l.char = rune(c)
 			l.size = 1
 		} else {
-			l.char, l.size = utf8.DecodeRuneInString(l.input[l.readPos:])
+			l.char, l.size = utf8.DecodeRune(l.input[l.readPos:])
 		}
 	}
 	l.pos = l.readPos
@@ -167,7 +213,7 @@ func (l *Lexer) peekChar() rune {
 	if c < utf8.RuneSelf {
 		return rune(c)
 	}
-	r, _ := utf8.DecodeRuneInString(l.input[l.readPos:])
+	r, _ := utf8.DecodeRune(l.input[l.readPos:])
 	return r
 }
 
@@ -278,7 +324,7 @@ func (l *Lexer) readString(quote byte) string {
 	}
 
 	if !hasEscapesOrNewlines && end < len(l.input) && l.input[end] == quote {
-		str := l.input[l.pos:end]
+		str := l.text(l.pos, end)
 		l.column += utf8.RuneCountInString(str)
 		l.pos = end
 		l.readPos = end + 1
@@ -331,7 +377,7 @@ func (l *Lexer) readOctalNumber() (string, bool) {
 	for (l.char >= '0' && l.char <= '7') || l.char == '_' {
 		l.readChar()
 	}
-	return "0o" + stripUnderscores(l.input[start:l.pos]), false
+	return "0o" + stripUnderscores(l.text(start, l.pos)), false
 }
 
 func (l *Lexer) readNumber() (string, bool) {
@@ -351,7 +397,7 @@ func (l *Lexer) readNumber() (string, bool) {
 			for l.char == '0' || l.char == '1' || l.char == '_' {
 				l.readChar()
 			}
-			return "0b" + stripUnderscores(l.input[start:l.pos]), false
+			return "0b" + stripUnderscores(l.text(start, l.pos)), false
 		case 'x', 'X':
 			// Hexadecimal literal
 			l.readChar() // consume '0'
@@ -360,7 +406,7 @@ func (l *Lexer) readNumber() (string, bool) {
 			for (l.char >= '0' && l.char <= '9') || (l.char >= 'a' && l.char <= 'f') || (l.char >= 'A' && l.char <= 'F') || l.char == '_' {
 				l.readChar()
 			}
-			return "0x" + stripUnderscores(l.input[start:l.pos]), false
+			return "0x" + stripUnderscores(l.text(start, l.pos)), false
 		}
 	}
 
@@ -397,7 +443,7 @@ func (l *Lexer) readNumber() (string, bool) {
 		}
 	}
 
-	return stripUnderscores(l.input[position:l.pos]), isFloat
+	return stripUnderscores(l.text(position, l.pos)), isFloat
 }
 
 // readIdentifier reads a PHP identifier (supports Unicode)
@@ -406,7 +452,7 @@ func (l *Lexer) readIdentifier() string {
 	for isLetter(l.char) || isDigit(l.char) {
 		l.readChar()
 	}
-	return l.input[start:l.pos]
+	return l.text(start, l.pos)
 }
 
 func (l *Lexer) NextToken() token.Token {
@@ -415,7 +461,7 @@ func (l *Lexer) NextToken() token.Token {
 		l.hasPeeked = false
 		return tok
 	}
-	return l.scanToken()
+	return l.finishToken(l.scanToken())
 }
 
 func (l *Lexer) scanToken() token.Token {
@@ -465,10 +511,10 @@ func (l *Lexer) scanToken() token.Token {
 // declarations like "<?xml version=\"1.0\"?>") inside inline HTML.
 func (l *Lexer) atOpenTag() bool {
 	rest := l.input[l.pos:]
-	if len(rest) >= 5 && strings.EqualFold(rest[:5], "<?php") {
+	if len(rest) >= 5 && bytes.EqualFold(rest[:5], openTagPHP) {
 		return true
 	}
-	return strings.HasPrefix(rest, "<?=")
+	return bytes.HasPrefix(rest, openTagEcho)
 }
 
 // lexInlineHTML scans literal (non-PHP) content until the next recognized
@@ -487,7 +533,7 @@ func (l *Lexer) lexInlineHTML() token.Token {
 		l.readChar()
 	}
 	if l.pos > start {
-		return token.Token{Type: token.T_INLINE_HTML, Literal: l.input[start:l.pos], Pos: pos}
+		return token.Token{Type: token.T_INLINE_HTML, Literal: l.text(start, l.pos), Pos: pos}
 	}
 	return l.lexOpenTag(pos)
 }
@@ -499,13 +545,13 @@ func (l *Lexer) lexInlineHTML() token.Token {
 func (l *Lexer) lexOpenTag(pos token.Position) token.Token {
 	rest := l.input[l.pos:]
 	switch {
-	case len(rest) >= 5 && strings.EqualFold(rest[:5], "<?php"):
+	case len(rest) >= 5 && bytes.EqualFold(rest[:5], openTagPHP):
 		for i := 0; i < 5; i++ {
 			l.readChar()
 		}
 		l.inHTML = false
 		return token.Token{Type: token.T_OPEN_TAG, Literal: "<?php", Pos: pos}
-	case strings.HasPrefix(rest, "<?="):
+	case bytes.HasPrefix(rest, openTagEcho):
 		for i := 0; i < 3; i++ {
 			l.readChar()
 		}
@@ -554,7 +600,7 @@ func (l *Lexer) lexAttribute(pos token.Position) token.Token {
 		l.readChar()
 	}
 	endPos := l.pos
-	attrLiteral := l.input[startPos:endPos]
+	attrLiteral := l.text(startPos, endPos)
 	return token.Token{Type: token.T_ATTRIBUTE, Literal: attrLiteral, Pos: token.Position{Line: startLine, Column: startCol, Offset: startPos}}
 }
 

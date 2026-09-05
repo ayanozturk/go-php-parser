@@ -30,64 +30,79 @@ func ensureArgCallDiagnostics(filename string, nodes []ast.Node, ctx *AnalysisCo
 	ctx.argCountSink = &ctx.argCountIssues
 	ctx.deprecatedCallSink = &ctx.deprecatedCallIssues
 	ctx.deprecatedCallSeen = make(map[ast.Node]struct{})
-	var methodReceiverSeen map[*ast.MethodCallNode]struct{}
+	if !ctx.hasAssignmentTypeIssues {
+		ctx.assignmentTypeSink = &ctx.assignmentTypeIssues
+	}
 	var observe semanticExpressionObserver
 	if ctx.Resolver != nil && analysisLevelAtLeast(ctx, 2) {
-		methodReceiverSeen = make(map[*ast.MethodCallNode]struct{})
 		observe = func(filename string, expr ast.Node, scope *functionScope, ctx *AnalysisContext) {
 			call, ok := expr.(*ast.MethodCallNode)
 			if !ok {
 				return
 			}
-			methodReceiverSeen[call] = struct{}{}
 			appendMethodReceiverIssuesForCall(filename, call, scope, ctx, &ctx.methodReceiverIssues)
 		}
 	}
 	fileCtx := analysisFileTypeContext(ctx, nodes)
-	var walk func(node ast.Node, class *ast.ClassNode, scope *functionScope)
-	walk = func(node ast.Node, class *ast.ClassNode, scope *functionScope) {
-		switch n := node.(type) {
-		case *ast.ClassNode:
-			for _, methodNode := range n.Methods {
-				walk(methodNode, n, nil)
-			}
-		case *ast.FunctionNode:
-			fnScope := analysisFunctionScope(ctx, class, n, fileCtx)
-			walkStatementsForArgTypesUsing(n.Body, fnScope, ctx, filename, typeIssueSink, observe)
-		case *ast.NamespaceNode:
-			for _, child := range n.Body {
-				walk(child, class, scope)
-			}
-		}
-	}
-	for _, node := range nodes {
-		walk(node, nil, nil)
-	}
+	walkArgCallDeclarations(nodes, nil, ctx, filename, fileCtx, typeIssueSink, observe)
 	ctx.argCountSink = nil
 	ctx.deprecatedCallSink = nil
 	ctx.deprecatedCallSeen = nil
+	ctx.assignmentTypeSink = nil
 	if observe != nil {
-		// Argument diagnostics intentionally cover function bodies only. Reuse
-		// the same walker for receiver checks at file scope without enabling the
-		// argument/deprecation sinks, then conservatively handle calls in AST
-		// shapes the flow-sensitive walker does not support yet.
+		// Argument diagnostics cover function bodies above. Reuse the same
+		// walker for receiver checks at file scope without argument sinks.
 		fileScope := newFunctionScopeWithContext(ctx, nil, &ast.FunctionNode{}, fileCtx)
 		walkStatementsForArgTypesUsing(nodes, fileScope, ctx, filename, nil, observe)
-		walkAllWithoutTypeContext(nodes, func(node ast.Node) {
-			call, ok := node.(*ast.MethodCallNode)
-			if !ok {
-				return
-			}
-			if _, alreadyChecked := methodReceiverSeen[call]; alreadyChecked {
-				return
-			}
-			appendMethodReceiverIssuesForCall(filename, call, nil, ctx, &ctx.methodReceiverIssues)
-		})
 		ctx.hasMethodReceiverIssues = true
 	}
 	ctx.argTypeIssues = typeIssues
 	ctx.hasArgCallDiagnostics = true
+	ctx.hasAssignmentTypeIssues = true
 	return ctx
+}
+
+func walkArgCallDeclarations(nodes []ast.Node, class *ast.ClassNode, ctx *AnalysisContext, filename string, fileCtx FileTypeContext, typeIssueSink *[]AnalysisIssue, observe semanticExpressionObserver) {
+	for _, node := range nodes {
+		switch n := node.(type) {
+		case *ast.NamespaceNode:
+			walkArgCallDeclarations(n.Body, class, ctx, filename, fileCtx, typeIssueSink, observe)
+		case *ast.ClassNode:
+			for _, property := range n.Properties {
+				walkArgCallProperty(property, n, ctx, filename, fileCtx, typeIssueSink, observe)
+			}
+			walkArgCallDeclarations(n.Methods, n, ctx, filename, fileCtx, typeIssueSink, observe)
+		case *ast.InterfaceNode:
+			walkArgCallDeclarations(n.Members, class, ctx, filename, fileCtx, typeIssueSink, observe)
+		case *ast.TraitNode:
+			traitClass := class
+			if n.Name != nil {
+				traitClass = &ast.ClassNode{Name: n.Name.Name}
+			}
+			walkArgCallDeclarations(n.Body, traitClass, ctx, filename, fileCtx, typeIssueSink, observe)
+		case *ast.EnumNode:
+			enumClass := &ast.ClassNode{Name: n.Name}
+			walkArgCallDeclarations(n.Methods, enumClass, ctx, filename, fileCtx, typeIssueSink, observe)
+		case *ast.FunctionNode:
+			fnScope := analysisFunctionScope(ctx, class, n, fileCtx)
+			walkStatementsForArgTypesUsing(n.Body, fnScope, ctx, filename, typeIssueSink, observe)
+		case *ast.PropertyNode:
+			walkArgCallProperty(n, class, ctx, filename, fileCtx, typeIssueSink, observe)
+		}
+	}
+}
+
+func walkArgCallProperty(property ast.Node, class *ast.ClassNode, ctx *AnalysisContext, filename string, fileCtx FileTypeContext, typeIssueSink *[]AnalysisIssue, observe semanticExpressionObserver) {
+	prop, ok := property.(*ast.PropertyNode)
+	if !ok {
+		return
+	}
+	scope := newFunctionScopeWithContext(ctx, class, &ast.FunctionNode{}, fileCtx)
+	walkExprForArgTypesUsing(prop.DefaultValue, scope, ctx, filename, typeIssueSink, observe)
+	for _, hook := range prop.Hooks {
+		walkExprForArgTypesUsing(hook.Expr, scope, ctx, filename, typeIssueSink, observe)
+		walkStatementsForArgTypesUsing(hook.Body, scope, ctx, filename, typeIssueSink, observe)
+	}
 }
 
 func walkStatementsForArgTypes(nodes []ast.Node, scope *functionScope, ctx *AnalysisContext, filename string, issues *[]AnalysisIssue) {
@@ -100,6 +115,8 @@ func walkStatementsForArgTypesUsing(nodes []ast.Node, scope *functionScope, ctx 
 		case *ast.ExpressionStmt:
 			walkExprForArgTypesUsing(n.Expr, scope, ctx, filename, issues, observe)
 			applyExpressionScope(scope, n.Expr, ctx)
+		case *ast.NamespaceNode:
+			walkStatementsForArgTypesUsing(n.Body, scope, ctx, filename, issues, observe)
 		case *ast.AssignmentNode:
 			walkExprForArgTypesUsing(n.Right, scope, ctx, filename, issues, observe)
 			observeSemanticExpression(filename, n.Right, scope, ctx, observe)
@@ -108,6 +125,7 @@ func walkStatementsForArgTypesUsing(nodes []ast.Node, scope *functionScope, ctx 
 				applyAssignmentScope(assignedScope, n, ctx)
 				walkExprForArgTypesUsing(n.Left, assignedScope, ctx, filename, issues, observe)
 			}
+			recordAssignmentTypeIssues(n, scope, ctx, filename)
 			applyAssignmentScope(scope, n, ctx)
 		case *ast.ReturnNode:
 			walkExprForArgTypesUsing(n.Expr, scope, ctx, filename, issues, observe)
@@ -153,6 +171,20 @@ func walkStatementsForArgTypesUsing(nodes []ast.Node, scope *functionScope, ctx 
 		case *ast.ForeachNode:
 			walkExprForArgTypesUsing(n.Expr, scope, ctx, filename, issues, observe)
 			walkStatementsForArgTypesUsing(n.Body, scope.clone(), ctx, filename, issues, observe)
+		case *ast.ThrowNode:
+			walkExprForArgTypesUsing(n.Expr, scope, ctx, filename, issues, observe)
+		case *ast.TryNode:
+			walkStatementsForArgTypesUsing(n.Body, scope.clone(), ctx, filename, issues, observe)
+			for _, catchNode := range n.Catches {
+				walkStatementsForArgTypesUsing(catchNode.Body, scope.clone(), ctx, filename, issues, observe)
+			}
+			walkStatementsForArgTypesUsing(n.Finally, scope.clone(), ctx, filename, issues, observe)
+		case *ast.SwitchNode:
+			walkExprForArgTypesUsing(n.Expr, scope, ctx, filename, issues, observe)
+			for _, switchCase := range n.Cases {
+				walkExprForArgTypesUsing(switchCase.Expr, scope, ctx, filename, issues, observe)
+				walkStatementsForArgTypesUsing(switchCase.Body, scope.clone(), ctx, filename, issues, observe)
+			}
 		}
 	}
 }
@@ -565,6 +597,7 @@ func walkExprForArgTypesUsing(node ast.Node, scope *functionScope, ctx *Analysis
 			checkFunctionCallArgTypes(n, scope, ctx, filename, issues)
 		}
 		observeArgumentExpressions(n.Args, scope, ctx, filename, observe)
+		walkExprForArgTypesUsing(n.Name, scope, ctx, filename, issues, observe)
 		for _, arg := range n.Args {
 			walkExprForArgTypesUsing(argumentValue(arg), scope, ctx, filename, issues, observe)
 		}
@@ -582,6 +615,7 @@ func walkExprForArgTypesUsing(node ast.Node, scope *functionScope, ctx *Analysis
 			applyAssignmentScope(assignedScope, n, ctx)
 			walkExprForArgTypesUsing(n.Left, assignedScope, ctx, filename, nil, observe)
 		}
+		recordAssignmentTypeIssues(n, scope, ctx, filename)
 	case *ast.PropertyFetchNode:
 		walkExprForArgTypesUsing(n.Object, scope, ctx, filename, issues, observe)
 		observeSemanticExpression(filename, n.Object, scope, ctx, observe)
@@ -595,6 +629,7 @@ func walkExprForArgTypesUsing(node ast.Node, scope *functionScope, ctx *Analysis
 			walkExprForArgTypesUsing(n.Right, scope, ctx, filename, issues, observe)
 		}
 		observeSemanticExpression(filename, n, scope, ctx, observe)
+		recordBinaryOpIssue(n, scope, ctx, filename)
 	case *ast.ConcatNode:
 		for _, part := range n.Parts {
 			walkExprForArgTypesUsing(part, scope, ctx, filename, issues, observe)
@@ -613,6 +648,7 @@ func walkExprForArgTypesUsing(node ast.Node, scope *functionScope, ctx *Analysis
 			checkNewArgCount(n, scope, ctx, filename, ctx.argCountSink)
 		}
 		observeArgumentExpressions(n.Args, scope, ctx, filename, observe)
+		walkExprForArgTypesUsing(n.ClassExpr, scope, ctx, filename, issues, observe)
 		for _, arg := range n.Args {
 			walkExprForArgTypesUsing(argumentValue(arg), scope, ctx, filename, issues, observe)
 		}
@@ -621,6 +657,33 @@ func walkExprForArgTypesUsing(node ast.Node, scope *functionScope, ctx *Analysis
 		walkExprForArgTypesUsing(n.Value, scope, ctx, filename, issues, observe)
 	case *ast.UnpackedArgumentNode:
 		walkExprForArgTypesUsing(n.Expr, scope, ctx, filename, issues, observe)
+	case *ast.UnaryExpr:
+		walkExprForArgTypesUsing(n.Operand, scope, ctx, filename, issues, observe)
+		observeSemanticExpression(filename, n, scope, ctx, observe)
+	case *ast.ArrayNode:
+		for _, child := range n.Elements {
+			walkExprForArgTypesUsing(child, scope, ctx, filename, issues, observe)
+		}
+		observeSemanticExpression(filename, n, scope, ctx, observe)
+	case *ast.ArrayItemNode:
+		walkExprForArgTypesUsing(n.Key, scope, ctx, filename, issues, observe)
+		walkExprForArgTypesUsing(n.Value, scope, ctx, filename, issues, observe)
+	case *ast.ArrayAccessNode:
+		walkExprForArgTypesUsing(n.Var, scope, ctx, filename, issues, observe)
+		walkExprForArgTypesUsing(n.Index, scope, ctx, filename, issues, observe)
+		observeSemanticExpression(filename, n, scope, ctx, observe)
+	case *ast.MatchNode:
+		walkExprForArgTypesUsing(n.Condition, scope, ctx, filename, issues, observe)
+		for _, arm := range n.Arms {
+			for _, condition := range arm.Conditions {
+				walkExprForArgTypesUsing(condition, scope, ctx, filename, issues, observe)
+			}
+			walkExprForArgTypesUsing(arm.Body, scope, ctx, filename, issues, observe)
+		}
+		observeSemanticExpression(filename, n, scope, ctx, observe)
+	case *ast.ArrowFunctionNode:
+		walkExprForArgTypesUsing(n.Expr, scope, ctx, filename, issues, observe)
+		observeSemanticExpression(filename, n, scope, ctx, observe)
 	}
 }
 

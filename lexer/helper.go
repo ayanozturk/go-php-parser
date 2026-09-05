@@ -29,7 +29,7 @@ func isIdentifierStart(ch rune) bool {
 // Uses a single-token lookahead cache — no state save/restore or slice copy.
 func (l *Lexer) PeekToken() token.Token {
 	if !l.hasPeeked {
-		l.peekedToken = l.scanToken()
+		l.peekedToken = l.finishToken(l.scanToken())
 		l.hasPeeked = true
 	}
 	return l.peekedToken

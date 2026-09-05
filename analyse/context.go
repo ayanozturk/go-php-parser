@@ -139,11 +139,11 @@ type ResolvedGenericParent struct {
 }
 
 type ResolvedMethod struct {
-	ID                 SymbolID
-	Declaration        SourceLocation
-	Name               string
-	DeclaringClass     string
-	ReturnType         string
+	ID             SymbolID
+	Declaration    SourceLocation
+	Name           string
+	DeclaringClass string
+	ReturnType     string
 	// NativeReturnType holds only the PHP-declared return type (empty when
 	// the method has no native return type, even if PHPDoc declares one).
 	// PHP's return-type covariance rules apply solely to native
@@ -245,6 +245,7 @@ type AnalysisContext struct {
 	hasStructuralIssues     bool
 	hasReturnTypeIssues     bool
 	assignmentTypeIssues    []AnalysisIssue
+	assignmentTypeSink      *[]AnalysisIssue
 	hasAssignmentTypeIssues bool
 }
 

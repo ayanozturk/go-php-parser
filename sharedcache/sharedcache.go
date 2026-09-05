@@ -2,10 +2,11 @@ package sharedcache
 
 import (
 	"os"
-	"strings"
 	"sync"
 	"sync/atomic"
 	"unsafe"
+
+	"github.com/ayanozturk/go-php-parser/token"
 )
 
 var fileContentCache sync.Map
@@ -76,7 +77,11 @@ func SplitLinesCached(content []byte) []string {
 		ClearLinesCache()
 	}
 
-	lines := strings.Split(string(content), "\n")
+	table := token.NewLineTable(content)
+	lines := make([]string, len(table))
+	for i := range table {
+		lines[i] = string(table.LineBytes(content, i+1))
+	}
 	linesCache.Store(key, linesCacheEntry{
 		length:    len(content),
 		firstByte: first,

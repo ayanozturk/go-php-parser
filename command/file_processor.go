@@ -9,6 +9,7 @@ import (
 	"github.com/ayanozturk/go-php-parser/parser"
 	"github.com/ayanozturk/go-php-parser/sharedcache"
 	"github.com/ayanozturk/go-php-parser/style"
+	"github.com/ayanozturk/go-php-parser/token"
 	"io"
 	"os"
 	"sync"
@@ -56,10 +57,10 @@ func handleParsingErrors(p *parser.Parser, filePath string, w io.Writer, lineCou
 }
 
 func handleTokensCommand(input []byte, w io.Writer) {
-	l := lexer.NewFile(string(input))
+	l := lexer.NewFileBytes(input)
 	for {
 		tok := l.NextToken()
-		if tok.Type == "T_EOF" {
+		if tok.Type == token.T_EOF {
 			break
 		}
 		fmt.Fprintf(w, "%s: %s @ %d:%d\n", tok.Type, tok.Literal, tok.Pos.Line, tok.Pos.Column)
@@ -73,7 +74,7 @@ func ProcessFile(filePath, commandName string, debug bool, w io.Writer) int {
 		return 0
 	}
 	lineCount := CountLines(input)
-	l := lexer.NewFile(string(input))
+	l := lexer.NewFileBytes(input)
 	p := parser.New(l, debug)
 	nodes := p.Parse()
 	if len(p.Errors()) > 0 {
@@ -99,7 +100,7 @@ func ProcessFileWithErrors(filePath, commandName string, debug bool, rules []str
 		return nil, 0
 	}
 	lineCount := CountLines(input)
-	l := lexer.NewFile(string(input))
+	l := lexer.NewFileBytes(input)
 	p := parser.New(l, debug)
 	nodes := p.Parse()
 	errList := p.Errors()
@@ -194,7 +195,7 @@ func processFileForStyle(file string, rules []string, matcher *overrides.Compile
 		return
 	}
 	lines := CountLines(input)
-	lex := lexer.NewFile(string(input))
+	lex := lexer.NewFileBytes(input)
 	p := parser.New(lex, false)
 	nodes := p.Parse()
 	if len(p.Errors()) > 0 {
@@ -228,7 +229,7 @@ func processFileForStyle(file string, rules []string, matcher *overrides.Compile
 }
 
 func parseAndAnalyzeStyleFile(path string, content []byte, rules []string, matcher *overrides.Compiled, project *analyse.ProjectIndex) parseAnalysisResult {
-	lex := lexer.NewFile(string(content))
+	lex := lexer.NewFileBytes(content)
 	p := parser.New(lex, false)
 	nodes := p.Parse()
 	if len(p.Errors()) > 0 {
@@ -434,7 +435,7 @@ func buildProjectIndexForFiles(files []string) *analyse.ProjectIndex {
 			continue
 		}
 		sharedcache.StoreCachedFileContent(file, content)
-		lex := lexer.NewFile(string(content))
+		lex := lexer.NewFileBytes(content)
 		p := parser.New(lex, false)
 		nodes := p.Parse()
 		if len(p.Errors()) > 0 {

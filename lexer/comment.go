@@ -14,7 +14,7 @@ func (l *Lexer) readLineComment(commentStart int) string {
 		}
 		l.readChar()
 	}
-	return l.input[commentStart:l.pos]
+	return l.text(commentStart, l.pos)
 }
 
 // readHashComment slices the hash comment directly from input (zero allocation).
@@ -29,7 +29,7 @@ func (l *Lexer) readHashComment() string {
 		}
 		l.readChar()
 	}
-	return l.input[commentStart:l.pos]
+	return l.text(commentStart, l.pos)
 }
 
 // readBlockComment slices the block comment directly from input (zero allocation).
@@ -48,5 +48,5 @@ func (l *Lexer) readBlockComment(commentStart int) string {
 		}
 		l.readChar()
 	}
-	return l.input[commentStart:l.pos]
+	return l.text(commentStart, l.pos)
 }

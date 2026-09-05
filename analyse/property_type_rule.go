@@ -24,158 +24,20 @@ func assignmentTypeIssuesForFile(filename string, nodes []ast.Node, ctx *Analysi
 	if ctx.hasAssignmentTypeIssues {
 		return ctx.assignmentTypeIssues
 	}
-	ctx.assignmentTypeIssues = collectAssignmentTypeIssues(nodes, filename, ctx)
-	ctx.hasAssignmentTypeIssues = true
+	ctx = ensureArgCallDiagnostics(filename, nodes, ctx)
 	return ctx.assignmentTypeIssues
 }
 
-func collectAssignmentTypeIssues(nodes []ast.Node, filename string, ctx *AnalysisContext) []AnalysisIssue {
-	var issues []AnalysisIssue
-	fileCtx := analysisFileTypeContext(ctx, nodes)
-	var walk func(node ast.Node, class *ast.ClassNode)
-
-	walk = func(node ast.Node, class *ast.ClassNode) {
-		switch n := node.(type) {
-		case *ast.ClassNode:
-			for _, methodNode := range n.Methods {
-				walk(methodNode, n)
-			}
-		case *ast.FunctionNode:
-			scope := analysisFunctionScope(ctx, class, n, fileCtx)
-			walkStatementsForPropertyTypes(n.Body, scope, ctx, filename, &issues)
-		case *ast.NamespaceNode:
-			for _, child := range n.Body {
-				walk(child, class)
-			}
-		}
-	}
-
-	for _, node := range nodes {
-		walk(node, nil)
-	}
-
-	return issues
-}
-
-func walkStatementsForPropertyTypes(nodes []ast.Node, scope *functionScope, ctx *AnalysisContext, filename string, issues *[]AnalysisIssue) {
-	for _, node := range nodes {
-		switch n := node.(type) {
-		case *ast.ExpressionStmt:
-			walkExprForPropertyTypes(n.Expr, scope, ctx, filename, issues)
-			applyExpressionScope(scope, n.Expr, ctx)
-		case *ast.AssignmentNode:
-			walkAssignmentForPropertyTypes(n, scope, ctx, filename, issues)
-			applyAssignmentScope(scope, n, ctx)
-		case *ast.ReturnNode:
-			walkExprForPropertyTypes(n.Expr, scope, ctx, filename, issues)
-		case *ast.BreakNode:
-			walkExprForPropertyTypes(n.Level, scope, ctx, filename, issues)
-		case *ast.ContinueNode:
-			walkExprForPropertyTypes(n.Level, scope, ctx, filename, issues)
-		case *ast.IfNode:
-			walkExprForPropertyTypes(n.Condition, scope, ctx, filename, issues)
-			walkStatementsForPropertyTypes(n.Body, scopeForConditionTrue(scope, n.Condition), ctx, filename, issues)
-			for _, elseif := range n.ElseIfs {
-				walkExprForPropertyTypes(elseif.Condition, scope, ctx, filename, issues)
-				walkStatementsForPropertyTypes(elseif.Body, scopeForConditionTrue(scope, elseif.Condition), ctx, filename, issues)
-			}
-			if n.Else != nil {
-				walkStatementsForPropertyTypes(n.Else.Body, scopeForConditionFalse(scope, n.Condition), ctx, filename, issues)
-			}
-			applyTerminatingIfFalseScope(scope, n)
-		case *ast.BlockNode:
-			walkStatementsForPropertyTypes(n.Statements, scope.clone(), ctx, filename, issues)
-		case *ast.WhileNode:
-			walkExprForPropertyTypes(n.Condition, scope, ctx, filename, issues)
-			walkStatementsForPropertyTypes(n.Body, scope.clone(), ctx, filename, issues)
-		case *ast.DoWhileNode:
-			loopScope := scope.clone()
-			walkStatementsForPropertyTypes(n.Body, loopScope, ctx, filename, issues)
-			walkExprForPropertyTypes(n.Condition, loopScope, ctx, filename, issues)
-		case *ast.ForNode:
-			for _, expression := range n.Init {
-				walkExprForPropertyTypes(expression, scope, ctx, filename, issues)
-				applyExpressionScope(scope, expression, ctx)
-			}
-			loopScope := scope.clone()
-			for _, condition := range n.Conditions {
-				walkExprForPropertyTypes(condition, loopScope, ctx, filename, issues)
-			}
-			walkStatementsForPropertyTypes(n.Body, loopScope, ctx, filename, issues)
-			for _, update := range n.Updates {
-				walkExprForPropertyTypes(update, loopScope, ctx, filename, issues)
-			}
-		case *ast.ForeachNode:
-			walkExprForPropertyTypes(n.Expr, scope, ctx, filename, issues)
-			walkStatementsForPropertyTypes(n.Body, scope.clone(), ctx, filename, issues)
-		}
-	}
-}
-
-func walkExprForPropertyTypes(node ast.Node, scope *functionScope, ctx *AnalysisContext, filename string, issues *[]AnalysisIssue) {
-	if node == nil {
+func recordAssignmentTypeIssues(assign *ast.AssignmentNode, scope *functionScope, ctx *AnalysisContext, filename string) {
+	if assign == nil || ctx == nil || ctx.assignmentTypeSink == nil {
 		return
 	}
-
-	switch n := node.(type) {
-	case *ast.AssignmentNode:
-		walkAssignmentForPropertyTypes(n, scope, ctx, filename, issues)
-	case *ast.MethodCallNode:
-		walkExprForPropertyTypes(n.Object, scope, ctx, filename, issues)
-		for _, arg := range n.Args {
-			walkExprForPropertyTypes(argumentValue(arg), scope, ctx, filename, issues)
-		}
-	case *ast.FunctionCallNode:
-		for _, arg := range n.Args {
-			walkExprForPropertyTypes(argumentValue(arg), scope, ctx, filename, issues)
-		}
-	case *ast.PropertyFetchNode:
-		walkExprForPropertyTypes(n.Object, scope, ctx, filename, issues)
-	case *ast.BinaryExpr:
-		walkExprForPropertyTypes(n.Left, scope, ctx, filename, issues)
-		walkExprForPropertyTypes(n.Right, scope, ctx, filename, issues)
-		leftType := inferTypeWithFacts(filename, n.Left, scope, ctx)
-		rightType := inferTypeWithFacts(filename, n.Right, scope, ctx)
-		_, valid, known := binaryOperationResult(n.Operator, leftType, rightType)
-		if known && !valid {
-			*issues = append(*issues, issueSpan(filename, n, binaryOpInvalidCode, fmt.Sprintf(
-				"Invalid binary operation %s between %s and %s", n.Operator, typeLabel(leftType), typeLabel(rightType),
-			)))
-		}
-	case *ast.UnaryExpr:
-		walkExprForPropertyTypes(n.Operand, scope, ctx, filename, issues)
-	case *ast.ConcatNode:
-		for _, part := range n.Parts {
-			walkExprForPropertyTypes(part, scope, ctx, filename, issues)
-		}
-	case *ast.TernaryExpr:
-		walkExprForPropertyTypes(n.Condition, scope, ctx, filename, issues)
-		walkExprForPropertyTypes(n.IfTrue, scope, ctx, filename, issues)
-		walkExprForPropertyTypes(n.IfFalse, scope, ctx, filename, issues)
-	case *ast.NewNode:
-		for _, arg := range n.Args {
-			walkExprForPropertyTypes(argumentValue(arg), scope, ctx, filename, issues)
-		}
-	case *ast.NamedArgumentNode:
-		walkExprForPropertyTypes(n.Value, scope, ctx, filename, issues)
-	case *ast.UnpackedArgumentNode:
-		walkExprForPropertyTypes(n.Expr, scope, ctx, filename, issues)
-	}
-}
-
-func walkAssignmentForPropertyTypes(assign *ast.AssignmentNode, scope *functionScope, ctx *AnalysisContext, filename string, issues *[]AnalysisIssue) {
-	if assign == nil {
-		return
-	}
-
-	walkExprForPropertyTypes(assign.Right, scope, ctx, filename, issues)
-
 	actual := inferTypeWithFacts(filename, assign.Right, scope, ctx)
 	if assign.Operator != "=" {
 		leftType := inferAssignmentTargetType(assign.Left, scope, ctx, filename)
 		result, valid, known := compoundAssignmentResult(assign.Operator, leftType, actual)
 		if known && !valid {
-			*issues = append(*issues, issueSpan(filename, assign, assignOpInvalidCode, fmt.Sprintf(
+			*ctx.assignmentTypeSink = append(*ctx.assignmentTypeSink, issueSpan(filename, assign, assignOpInvalidCode, fmt.Sprintf(
 				"Invalid compound assignment %s between %s and %s", assign.Operator, typeLabel(leftType), typeLabel(actual),
 			)))
 			return
@@ -203,13 +65,27 @@ func walkAssignmentForPropertyTypes(assign *ast.AssignmentNode, scope *functionS
 		actualLabel = "mixed"
 	}
 	pos := assign.Right.GetPos()
-	*issues = append(*issues, AnalysisIssue{
+	*ctx.assignmentTypeSink = append(*ctx.assignmentTypeSink, AnalysisIssue{
 		Filename: filename,
 		Line:     pos.Line,
 		Column:   pos.Column,
 		Code:     "A.PROP.TYPE",
 		Message:  fmt.Sprintf("Property %s expects %s, got %s", propertyName, expected.String(), actualLabel),
 	})
+}
+
+func recordBinaryOpIssue(expr *ast.BinaryExpr, scope *functionScope, ctx *AnalysisContext, filename string) {
+	if expr == nil || ctx == nil || ctx.assignmentTypeSink == nil {
+		return
+	}
+	leftType := inferTypeWithFacts(filename, expr.Left, scope, ctx)
+	rightType := inferTypeWithFacts(filename, expr.Right, scope, ctx)
+	_, valid, known := binaryOperationResult(expr.Operator, leftType, rightType)
+	if known && !valid {
+		*ctx.assignmentTypeSink = append(*ctx.assignmentTypeSink, issueSpan(filename, expr, binaryOpInvalidCode, fmt.Sprintf(
+			"Invalid binary operation %s between %s and %s", expr.Operator, typeLabel(leftType), typeLabel(rightType),
+		)))
+	}
 }
 
 func resolvePropertyAssignmentTarget(left ast.Node, scope *functionScope, ctx *AnalysisContext, filename string) (Type, string, bool) {

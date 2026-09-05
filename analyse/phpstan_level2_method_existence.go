@@ -26,26 +26,14 @@ func methodReceiverIssuesForFile(filename string, nodes []ast.Node, ctx *Analysi
 
 func collectMethodReceiverIssues(filename string, nodes []ast.Node, ctx *AnalysisContext) []AnalysisIssue {
 	var issues []AnalysisIssue
-	seen := make(map[*ast.MethodCallNode]struct{})
 	observe := func(filename string, expr ast.Node, scope *functionScope, ctx *AnalysisContext) {
 		call, ok := expr.(*ast.MethodCallNode)
 		if !ok {
 			return
 		}
-		seen[call] = struct{}{}
 		appendMethodReceiverIssuesForCall(filename, call, scope, ctx, &issues)
 	}
 	walkLevel2MethodExpressions(filename, nodes, ctx, observe)
-	walkAllWithoutTypeContext(nodes, func(node ast.Node) {
-		call, ok := node.(*ast.MethodCallNode)
-		if !ok {
-			return
-		}
-		if _, alreadyChecked := seen[call]; alreadyChecked {
-			return
-		}
-		appendMethodReceiverIssuesForCall(filename, call, nil, ctx, &issues)
-	})
 	return issues
 }
 
@@ -167,6 +155,16 @@ func walkLevel2MethodExpressions(filename string, nodes []ast.Node, ctx *Analysi
 						walkDeclarations([]ast.Node{function}, n)
 					}
 				}
+			case *ast.TraitNode:
+				traitClass := class
+				if n.Name != nil {
+					traitClass = &ast.ClassNode{Name: n.Name.Name}
+				}
+				walkDeclarations(n.Body, traitClass)
+			case *ast.EnumNode:
+				walkDeclarations(n.Methods, &ast.ClassNode{Name: n.Name})
+			case *ast.InterfaceNode:
+				walkDeclarations(n.Members, class)
 			case *ast.FunctionNode:
 				scope := analysisFunctionScope(ctx, class, n, fileCtx)
 				walkStatementsForArgTypesUsing(n.Body, scope, ctx, filename, nil, observe)

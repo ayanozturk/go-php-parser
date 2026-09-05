@@ -14,6 +14,7 @@ import (
 	"github.com/ayanozturk/go-php-parser/overrides"
 	"github.com/ayanozturk/go-php-parser/parser"
 	"github.com/ayanozturk/go-php-parser/sharedcache"
+	"github.com/ayanozturk/go-php-parser/token"
 )
 
 // AnalyzeResult accounts for every file selected by the standalone analyzer.
@@ -333,7 +334,7 @@ func parseAnalysisFile(path string) parsedAnalysisFile {
 	if err != nil {
 		return parsedAnalysisFile{path: path, readError: err.Error()}
 	}
-	p := parser.New(lexer.NewFile(string(content)), false)
+	p := parser.New(lexer.NewFileBytes(content), false)
 	nodes := p.Parse()
 	return parsedAnalysisFile{
 		path:        path,
@@ -412,7 +413,7 @@ func PrintAnalyzeResult(w io.Writer, result AnalyzeResult) {
 
 	warnings := 0
 	errors := 0
-	sourceCache := make(map[string][]string)
+	sourceCache := make(map[string]fileLineSource)
 	for _, issue := range result.Issues {
 		if issue.Severity == "warning" {
 			warnings++
@@ -451,7 +452,7 @@ func PrintAnalyzeResult(w io.Writer, result AnalyzeResult) {
 // printIssueSnippet renders a single diagnostic mago-style: a colored
 // severity/code header, a source line with a caret underline spanning the
 // offending node, and the message repeated as a trailing note.
-func printIssueSnippet(w io.Writer, issue analyse.AnalysisIssue, sourceCache map[string][]string) {
+func printIssueSnippet(w io.Writer, issue analyse.AnalysisIssue, sourceCache map[string]fileLineSource) {
 	severity := "error"
 	color := ansiRed
 	if issue.Severity == "warning" {
@@ -487,24 +488,33 @@ func printIssueSnippet(w io.Writer, issue analyse.AnalysisIssue, sourceCache map
 	fmt.Fprintln(w)
 }
 
+type fileLineSource struct {
+	src   []byte
+	lines token.LineTable
+}
+
 // sourceLineFor returns the 1-indexed line's text from file, caching the
-// file's lines across calls so repeated diagnostics in the same file only
-// read it once.
-func sourceLineFor(file string, line int, cache map[string][]string) (string, bool) {
-	lines, ok := cache[file]
+// file's line-offset table across calls so repeated diagnostics in the same
+// file only read it once.
+func sourceLineFor(file string, line int, cache map[string]fileLineSource) (string, bool) {
+	entry, ok := cache[file]
 	if !ok {
 		content, err := os.ReadFile(file)
 		if err != nil {
-			cache[file] = nil
+			cache[file] = fileLineSource{}
 			return "", false
 		}
-		lines = strings.Split(string(content), "\n")
-		cache[file] = lines
+		entry = fileLineSource{src: content, lines: token.NewLineTable(content)}
+		cache[file] = entry
 	}
-	if line < 1 || line > len(lines) {
+	if entry.src == nil && entry.lines == nil {
 		return "", false
 	}
-	return lines[line-1], true
+	text := entry.lines.LineBytes(entry.src, line)
+	if text == nil {
+		return "", false
+	}
+	return string(text), true
 }
 
 // FilterAnalyzeResultToFile narrows a project-wide AnalyzeResult down to a

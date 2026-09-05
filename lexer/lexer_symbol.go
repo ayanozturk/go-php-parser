@@ -132,7 +132,7 @@ func (l *Lexer) lexDollar(pos token.Position) token.Token {
 		for isLetter(l.char) || isDigit(l.char) {
 			l.readChar()
 		}
-		return token.Token{Type: token.T_VARIABLE, Literal: l.input[pos.Offset:l.pos], Pos: pos}
+		return token.Token{Type: token.T_VARIABLE, Literal: l.text(pos.Offset, l.pos), Pos: pos}
 	}
 	if l.char == '{' {
 		// "${" introduces a variable-variable / dynamic property name,

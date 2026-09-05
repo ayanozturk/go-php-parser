@@ -850,7 +850,7 @@ func parseFiles(files []string, workers int) (map[string][]ast.Node, runMetrics)
 					resultCh <- parseOutcome{path: path, failed: true, nodeErr: err}
 					continue
 				}
-				l := lexer.NewFile(string(content))
+				l := lexer.NewFileBytes(content)
 				p := parser.New(l, false)
 				nodes := p.Parse()
 				if len(p.Errors()) > 0 {
