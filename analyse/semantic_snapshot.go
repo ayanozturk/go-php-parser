@@ -2,9 +2,11 @@ package analyse
 
 import (
 	"fmt"
+	"runtime"
 	"sort"
 	"strings"
 	"sync"
+	"sync/atomic"
 
 	"github.com/ayanozturk/go-php-parser/ast"
 )
@@ -286,8 +288,8 @@ func NewSemanticSnapshot(parsed map[string][]ast.Node, facts []SemanticFact) (*S
 // project indexed only so a single file's class references resolve) keeps
 // working — only the O(project size) fact/CFG generation and rule execution
 // gets scoped down to what the caller actually wants diagnostics for. A nil
-// or empty targets behaves exactly like NewSemanticSnapshot (all parsed
-// files are in scope).
+// or empty targets analyses every non-vendored parsed file. Paths under a
+// `vendor` directory are never type-checked, matching Mago's vendored files.
 func NewSemanticSnapshotScoped(parsed map[string][]ast.Node, facts []SemanticFact, targets []string) (*SemanticSnapshot, error) {
 	return newSemanticSnapshot(BuildProjectIndex(parsed), parsed, facts, targets)
 }
@@ -304,22 +306,12 @@ func NewSemanticSnapshotWithIndex(idx *ProjectIndex, parsed map[string][]ast.Nod
 }
 
 func newSemanticSnapshot(idx *ProjectIndex, parsed map[string][]ast.Node, facts []SemanticFact, targets []string) (*SemanticSnapshot, error) {
-	scoped := parsed
-	filenames := make([]string, 0, len(parsed))
-	if len(targets) > 0 {
-		scoped = make(map[string][]ast.Node, len(targets))
-		for _, target := range targets {
-			if nodes, ok := parsed[target]; ok {
-				scoped[target] = nodes
-				filenames = append(filenames, target)
-			}
-		}
-	} else {
-		for filename := range parsed {
-			filenames = append(filenames, filename)
-		}
-	}
+	filenames := hostSnapshotTargets(parsed, targets)
 	sort.Strings(filenames)
+	scoped := make(map[string][]ast.Node, len(filenames))
+	for _, filename := range filenames {
+		scoped[filename] = parsed[filename]
+	}
 
 	store := make(semanticFactStore, len(filenames))
 
@@ -334,55 +326,188 @@ func newSemanticSnapshot(idx *ProjectIndex, parsed map[string][]ast.Node, facts 
 		}
 	}
 
-	// Generate narrowing facts from control flow. Overlapping conditions
-	// (e.g. an elseif re-testing the same expression) can legitimately
-	// produce two narrowing facts for the exact same source span; keep the
-	// first rather than aborting analysis of the entire project over it.
-	for filename, nodes := range scoped {
-		insertNarrowingFacts(store, filename, nodes)
-	}
-
 	snapshot := &SemanticSnapshot{
 		project:   idx,
 		facts:     store,
 		filenames: filenames,
 	}
-	snapshot.generateControlFlowGraphs(scoped)
-	snapshot.generateVariableFlowFacts(scoped)
-	snapshot.generateInferredTypeFacts(scoped)
+	snapshot.generateScopedSemantics(scoped)
 	return snapshot, nil
 }
 
-func (s *SemanticSnapshot) generateInferredTypeFacts(parsed map[string][]ast.Node) {
-	for _, filename := range s.filenames {
-		nodes := parsed[filename]
-		ctx := s.NewAnalysisContext()
-		fileCtx := analysisFileTypeContext(ctx, nodes)
+type snapshotFileSemantics struct {
+	facts    *semanticFactFileStore
+	flow     *flowFileStore
+	reads    []variableReadFact
+	complete *lazyVariableReadFacts
+}
 
-		var walk func(ast.Node, *ast.ClassNode)
-		walk = func(node ast.Node, class *ast.ClassNode) {
-			switch n := node.(type) {
-			case *ast.NamespaceNode:
-				for _, child := range n.Body {
-					walk(child, class)
+func snapshotSemanticsWorkers(fileCount int) int {
+	if fileCount <= 1 {
+		return 1
+	}
+	workers := runtime.GOMAXPROCS(0)
+	if workers < 1 {
+		workers = 1
+	}
+	if workers > fileCount {
+		return fileCount
+	}
+	return workers
+}
+
+func (s *SemanticSnapshot) generateScopedSemantics(parsed map[string][]ast.Node) {
+	n := len(s.filenames)
+	s.flow = make(map[string]*flowFileStore, n)
+	s.variableReads = make(map[string][]variableReadFact, n)
+	s.completeVariableReads = make(map[string]*lazyVariableReadFacts, n)
+	if n == 0 {
+		return
+	}
+
+	results := make([]snapshotFileSemantics, n)
+	workers := snapshotSemanticsWorkers(n)
+	if workers == 1 {
+		for i, filename := range s.filenames {
+			results[i] = s.buildFileSemantics(filename, parsed[filename])
+		}
+	} else {
+		var next atomic.Int64
+		var wg sync.WaitGroup
+		wg.Add(workers)
+		for i := 0; i < workers; i++ {
+			go func() {
+				defer wg.Done()
+				for {
+					index := int(next.Add(1) - 1)
+					if index >= n {
+						return
+					}
+					filename := s.filenames[index]
+					results[index] = s.buildFileSemantics(filename, parsed[filename])
 				}
-			case *ast.ClassNode:
-				for _, method := range n.Methods {
-					walk(method, n)
+			}()
+		}
+		wg.Wait()
+	}
+
+	for i, filename := range s.filenames {
+		sem := results[i]
+		overlayGeneratedFileFacts(s.facts, filename, sem.facts)
+		s.flow[filename] = sem.flow
+		s.variableReads[filename] = sem.reads
+		s.completeVariableReads[filename] = sem.complete
+	}
+}
+
+func overlayGeneratedFileFacts(dst semanticFactStore, filename string, generated *semanticFactFileStore) {
+	if generated == nil {
+		return
+	}
+	existing := dst[filename]
+	if existing == nil {
+		dst[filename] = generated
+		return
+	}
+	existing.narrowed = overlayStoredFacts(existing.narrowed, generated.narrowed)
+	existing.reference = overlayStoredFacts(existing.reference, generated.reference)
+	existing.inferred = overlayStoredFacts(existing.inferred, generated.inferred)
+	if len(generated.generatedInferred) > 0 {
+		if existing.generatedInferred == nil {
+			existing.generatedInferred = generated.generatedInferred
+		} else {
+			for key, fact := range generated.generatedInferred {
+				if _, exists := existing.inferred[key]; exists {
+					continue
 				}
-			case *ast.FunctionNode:
-				scope := analysisFunctionScope(ctx, class, n, fileCtx)
-				walkStatementsForArgTypesUsing(n.Body, scope, ctx, filename, nil, func(filename string, expr ast.Node, scope *functionScope, ctx *AnalysisContext) {
-					s.addGeneratedInferredTypeFact(filename, expr, fileCtx, class, n, func() Type {
-						return inferType(expr, scope, ctx)
-					})
-				})
+				if _, exists := existing.generatedInferred[key]; exists {
+					continue
+				}
+				existing.generatedInferred[key] = fact
 			}
 		}
-
-		for _, node := range nodes {
-			walk(node, nil)
+	}
+	if len(generated.custom) == 0 {
+		return
+	}
+	if existing.custom == nil {
+		existing.custom = generated.custom
+		return
+	}
+	for key, fact := range generated.custom {
+		if _, exists := existing.custom[key]; exists {
+			continue
 		}
+		existing.custom[key] = fact
+	}
+}
+
+func overlayStoredFacts(dst, src map[semanticFactOffsetKey]storedSemanticFact) map[semanticFactOffsetKey]storedSemanticFact {
+	if len(src) == 0 {
+		return dst
+	}
+	if dst == nil {
+		return src
+	}
+	for key, fact := range src {
+		if _, exists := dst[key]; exists {
+			continue
+		}
+		dst[key] = fact
+	}
+	return dst
+}
+
+func (s *SemanticSnapshot) buildFileSemantics(filename string, nodes []ast.Node) snapshotFileSemantics {
+	local := &SemanticSnapshot{
+		project:   s.project,
+		facts:     make(semanticFactStore, 1),
+		filenames: []string{filename},
+	}
+	insertNarrowingFacts(local.facts, filename, nodes)
+	local.flow = make(map[string]*flowFileStore, 1)
+	local.addFlowScope(filename, "file", nil, nodes, FlowScopeKey{})
+	local.generateVariableFlowFactsForFile(filename, nodes)
+	local.generateInferredTypeFactsForFile(filename, nodes)
+	complete := local.completeVariableReads[filename]
+	if complete != nil {
+		complete.resolver = s
+	}
+	return snapshotFileSemantics{
+		facts:    local.facts[filename],
+		flow:     local.flow[filename],
+		reads:    local.variableReads[filename],
+		complete: complete,
+	}
+}
+
+func (s *SemanticSnapshot) generateInferredTypeFactsForFile(filename string, nodes []ast.Node) {
+	ctx := s.NewAnalysisContext()
+	fileCtx := analysisFileTypeContext(ctx, nodes)
+
+	var walk func(ast.Node, *ast.ClassNode)
+	walk = func(node ast.Node, class *ast.ClassNode) {
+		switch n := node.(type) {
+		case *ast.NamespaceNode:
+			for _, child := range n.Body {
+				walk(child, class)
+			}
+		case *ast.ClassNode:
+			for _, method := range n.Methods {
+				walk(method, n)
+			}
+		case *ast.FunctionNode:
+			scope := analysisFunctionScope(ctx, class, n, fileCtx)
+			walkStatementsForArgTypesUsing(n.Body, scope, ctx, filename, nil, func(filename string, expr ast.Node, scope *functionScope, ctx *AnalysisContext) {
+				s.addGeneratedInferredTypeFact(filename, expr, fileCtx, class, n, func() Type {
+					return inferType(expr, scope, ctx)
+				})
+			})
+		}
+	}
+
+	for _, node := range nodes {
+		walk(node, nil)
 	}
 }
 
@@ -453,14 +578,15 @@ func (s *SemanticSnapshot) NewAnalysisContext() *AnalysisContext {
 	return &AnalysisContext{Resolver: s, Facts: s, Flow: s, VariableFlow: s}
 }
 
-func (s *SemanticSnapshot) generateVariableFlowFacts(parsed map[string][]ast.Node) {
-	s.variableReads = make(map[string][]variableReadFact, len(s.filenames))
-	s.completeVariableReads = make(map[string]*lazyVariableReadFacts, len(s.filenames))
-	for _, filename := range s.filenames {
-		nodes := parsed[filename]
-		s.variableReads[filename] = buildVariableFlowFacts(filename, nodes, false, s)
-		s.completeVariableReads[filename] = &lazyVariableReadFacts{filename: filename, nodes: nodes, resolver: s}
+func (s *SemanticSnapshot) generateVariableFlowFactsForFile(filename string, nodes []ast.Node) {
+	if s.variableReads == nil {
+		s.variableReads = make(map[string][]variableReadFact, 1)
 	}
+	if s.completeVariableReads == nil {
+		s.completeVariableReads = make(map[string]*lazyVariableReadFacts, 1)
+	}
+	s.variableReads[filename] = buildVariableFlowFacts(filename, nodes, false, s)
+	s.completeVariableReads[filename] = &lazyVariableReadFacts{filename: filename, nodes: nodes, resolver: s}
 }
 
 // VariableReadsForFile returns variable reads in deterministic source order.

@@ -57,6 +57,7 @@ func AnalyzeFilesIncremental(files []string, level *int, matcher *overrides.Comp
 // config.Includes) purely for symbol resolution but only wants diagnostics
 // for the one file requested — previously it ran every analysis rule and
 // generated CFGs/facts for every indexed file just to discard the results.
+// Paths under a `vendor` directory are indexed and never type-checked.
 func AnalyzeFilesIncrementalScoped(files []string, targets []string, level *int, matcher *overrides.Compiled, parallelism int, cacheDir string) AnalyzeResult {
 	files = sortedUniquePaths(files)
 	result := AnalyzeResult{FilesDiscovered: len(files)}
@@ -106,9 +107,9 @@ func AnalyzeFiles(files []string, level *int, matcher *overrides.Compiled, paral
 // come straight from cachedIdx, so a single-file `analyze` against a huge
 // project doesn't have to reparse and reindex everything on every run.
 func analyzeWithCachedIndex(files []string, targets []string, level *int, matcher *overrides.Compiled, parallelism int, cachedIdx *analyse.ProjectIndex) AnalyzeResult {
-	parseSet := targets
+	parseSet := analyse.HostFiles(targets)
 	if len(parseSet) == 0 {
-		parseSet = files
+		parseSet = analyse.HostFiles(files)
 	}
 	result := AnalyzeResult{FilesDiscovered: len(files), FilesAnalyzed: len(parseSet)}
 
@@ -158,7 +159,7 @@ func analyzeWithCachedIndex(files []string, targets []string, level *int, matche
 
 	// Reuse the cached project index directly instead of rebuilding it from
 	// a full reparse; only the target files' ASTs are needed here.
-	snapshot, err := analyse.NewSemanticSnapshotWithIndex(cachedIdx, parsed, nil, targets)
+	snapshot, err := analyse.NewSemanticSnapshotWithIndex(cachedIdx, parsed, nil, parseSet)
 	if err != nil {
 		result.ReadErrors = append(result.ReadErrors, FileReadError{File: "<project>", Message: err.Error()})
 		return sortedAnalyzeResult(result)
@@ -323,7 +324,7 @@ func analyzeFilesWithCache(files []string, targets []string, level *int, matcher
 	for issues := range issueResults {
 		result.Issues = append(result.Issues, issues...)
 	}
-	result.FilesAnalyzed = len(parsed)
+	result.FilesAnalyzed = len(snapshot.Files())
 	return sortedAnalyzeResult(result)
 }
 

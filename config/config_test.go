@@ -243,6 +243,60 @@ func sorted(s []string) []string {
 	return copyS
 }
 
+func TestGetIncludeFilesIndexesIgnoredVendorRoot(t *testing.T) {
+	root := t.TempDir()
+	vendorFile := filepath.Join(root, "vendor", "pkg", "Lib.php")
+	if err := os.MkdirAll(filepath.Dir(vendorFile), 0755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	if err := os.WriteFile(vendorFile, []byte("<?php\nclass Lib {}\n"), 0644); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+	nestedIgnored := filepath.Join(root, "vendor", "node_modules", "skip.php")
+	if err := os.MkdirAll(filepath.Dir(nestedIgnored), 0755); err != nil {
+		t.Fatalf("mkdir nested: %v", err)
+	}
+	if err := os.WriteFile(nestedIgnored, []byte("<?php\n"), 0644); err != nil {
+		t.Fatalf("write nested: %v", err)
+	}
+
+	cfg := &Config{
+		Path:       root,
+		Includes:   []string{filepath.Join(root, "vendor")},
+		Extensions: []string{"php"},
+		Ignore:     []string{"vendor", "node_modules"},
+	}
+	host, err := GetFilesToScan(cfg)
+	if err != nil {
+		t.Fatalf("host scan: %v", err)
+	}
+	if len(host) != 0 {
+		t.Fatalf("host scan should ignore vendor, got %#v", host)
+	}
+	includes, err := GetIncludeFiles(cfg)
+	if err != nil {
+		t.Fatalf("include scan: %v", err)
+	}
+	if len(includes) != 1 || includes[0] != vendorFile {
+		t.Fatalf("expected vendor include %q, got %#v", vendorFile, includes)
+	}
+}
+
+func TestGetIncludeFilesSkipsMissingDirectory(t *testing.T) {
+	cfg := &Config{
+		Includes:   []string{filepath.Join(t.TempDir(), "vendor")},
+		Extensions: []string{"php"},
+		Ignore:     []string{"vendor"},
+	}
+	files, err := GetIncludeFiles(cfg)
+	if err != nil {
+		t.Fatalf("missing include dir should be skipped, got %v", err)
+	}
+	if len(files) != 0 {
+		t.Fatalf("expected no include files, got %#v", files)
+	}
+}
+
 func TestGetFilesToScan_Error(t *testing.T) {
 	cfg := &Config{
 		Path:       "/nonexistent/path/for/coverage",

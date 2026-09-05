@@ -59,6 +59,40 @@ func writeBenchmarkFixture(t *testing.T, root, relative string) {
 	}
 }
 
+func TestRunAnalysisSkipsVendoredFiles(t *testing.T) {
+	hostPHP := `<?php
+function use_lib(): VendorLib {
+    return new VendorLib();
+}
+`
+	vendorPHP := `<?php
+class VendorLib {
+    public function broken(): int {
+        return "nope";
+    }
+}
+`
+	host := parser.New(lexer.New(hostPHP), false)
+	hostNodes := host.Parse()
+	if errs := host.Errors(); len(errs) > 0 {
+		t.Fatalf("parse host: %v", errs)
+	}
+	vendored := parser.New(lexer.New(vendorPHP), false)
+	vendorNodes := vendored.Parse()
+	if errs := vendored.Errors(); len(errs) > 0 {
+		t.Fatalf("parse vendor: %v", errs)
+	}
+	parsed := map[string][]ast.Node{
+		filepath.Join("src", "app.php"):           hostNodes,
+		filepath.Join("vendor", "pkg", "Lib.php"): vendorNodes,
+	}
+	project := analyse.BuildProjectIndex(parsed)
+	level := 10
+	if got := runAnalysis(parsed, project, &level, 2); got != 0 {
+		t.Fatalf("vendored type errors should not be counted, got %d diagnostics", got)
+	}
+}
+
 func TestRunAnalysisUsesSharedSemanticSnapshot(t *testing.T) {
 	php := `<?php
 function identifier(): string {
@@ -78,4 +112,3 @@ function identifier(): string {
 		t.Fatal("expected snapshot-backed return-type diagnostics")
 	}
 }
-

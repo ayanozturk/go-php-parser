@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"flag"
 	"fmt"
+	"github.com/ayanozturk/go-php-parser/analyse"
 	"github.com/ayanozturk/go-php-parser/command"
 	"github.com/ayanozturk/go-php-parser/config"
 	"github.com/ayanozturk/go-php-parser/overrides"
@@ -185,15 +186,17 @@ func RunScanOrCommand(args CliArgs, c *config.Config, filesToScan []string, outW
 			return outcome
 		}
 
-		reportable := filesToScan
-		for _, t := range targets {
+		reportable := analyse.HostFiles(filesToScan)
+		for _, t := range analyse.HostFiles(targets) {
 			if !slices.Contains(reportable, t) {
 				reportable = append(reportable, t)
 			}
 		}
 
 		// config.Includes adds extra directories (e.g. vendor) that are
-		// indexed for symbol resolution but never reported on.
+		// indexed for symbol resolution but never reported on. Vendored
+		// files that already appeared on the host scan path are still
+		// indexed; they are stripped from reportable/analysisTargets above.
 		includeFiles, err := config.GetIncludeFiles(c)
 		if err != nil {
 			fmt.Fprintf(outWriter, "Error scanning includes: %v\n", err)
@@ -204,9 +207,14 @@ func RunScanOrCommand(args CliArgs, c *config.Config, filesToScan []string, outW
 		for _, f := range reportable {
 			reportableSet[f] = struct{}{}
 		}
-		files := reportable
+		files := append([]string{}, filesToScan...)
+		for _, t := range targets {
+			if !slices.Contains(files, t) {
+				files = append(files, t)
+			}
+		}
 		for _, f := range includeFiles {
-			if _, ok := reportableSet[f]; !ok {
+			if !slices.Contains(files, f) {
 				files = append(files, f)
 			}
 		}
@@ -215,9 +223,9 @@ func RunScanOrCommand(args CliArgs, c *config.Config, filesToScan []string, outW
 		// narrowing, rule execution) against what we'll actually report:
 		// the requested file(s), or every path-scanned file when running
 		// whole-project (config.Includes files stay index-only).
-		analysisTargets := targets
+		analysisTargets := analyse.HostFiles(targets)
 		if len(analysisTargets) == 0 {
-			analysisTargets = reportable
+			analysisTargets = analyse.HostFiles(reportable)
 		}
 
 		// Use incremental analysis with cache in user's home directory
@@ -229,7 +237,7 @@ func RunScanOrCommand(args CliArgs, c *config.Config, filesToScan []string, outW
 		result := command.AnalyzeFilesIncrementalScoped(files, analysisTargets, c.AnalysisLevel, matcher, args.parallelism, cacheDir)
 		if len(targets) > 0 {
 			targetSet := make(map[string]struct{}, len(targets))
-			for _, t := range targets {
+			for _, t := range analyse.HostFiles(targets) {
 				targetSet[t] = struct{}{}
 			}
 			result = command.FilterAnalyzeResultToFiles(result, targetSet)

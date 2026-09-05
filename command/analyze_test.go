@@ -93,6 +93,44 @@ function identifier(): string {
 	}
 }
 
+func TestAnalyzeFilesDoesNotTypeCheckVendor(t *testing.T) {
+	dir := t.TempDir()
+	host := filepath.Join(dir, "App.php")
+	vendored := filepath.Join(dir, "vendor", "pkg", "Lib.php")
+	if err := os.MkdirAll(filepath.Dir(vendored), 0755); err != nil {
+		t.Fatalf("mkdir vendor: %v", err)
+	}
+	writeAnalyzeFixture(t, host, `<?php
+function use_lib(): VendorLib {
+    return new VendorLib();
+}
+`)
+	writeAnalyzeFixture(t, vendored, `<?php
+class VendorLib {
+    public function broken(): int {
+        return "nope";
+    }
+}
+function missing_vendor_call() {
+    unknown_vendor_fn();
+}
+`)
+
+	level := 10
+	result := AnalyzeFiles([]string{host, vendored}, &level, nil, 2)
+	if result.FilesDiscovered != 2 || result.FilesAnalyzed != 1 {
+		t.Fatalf("unexpected file accounting: discovered=%d analyzed=%d", result.FilesDiscovered, result.FilesAnalyzed)
+	}
+	for _, issue := range result.Issues {
+		if issue.Filename == vendored {
+			t.Fatalf("vendored file was type-checked: %#v", issue)
+		}
+	}
+	if hasAnalysisMessage(result, "VendorLib not found") {
+		t.Fatalf("host file should resolve the vendored class, got %#v", result.Issues)
+	}
+}
+
 func writeAnalyzeFixture(t *testing.T, path, source string) {
 	t.Helper()
 	if err := os.WriteFile(path, []byte(source), 0644); err != nil {

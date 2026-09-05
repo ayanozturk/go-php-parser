@@ -22,8 +22,10 @@ var DefaultConfigFilenames = []string{
 
 const DefaultConfigContent = `path: .
 # Extra directories indexed for cross-file symbol resolution (e.g. vendor)
-# but never scanned for diagnostics themselves.
-includes: []
+# but never type-checked. Host scans still honour ignore, so listing vendor
+# here is how Composer dependencies are indexed the way Mago uses includes.
+includes:
+  - vendor
 extensions:
   - php
 ignore:
@@ -175,21 +177,22 @@ func extSet(extensions []string) map[string]struct{} {
 }
 
 func walkForFiles(root string, ignoreDirs, allowedExts map[string]struct{}) ([]string, error) {
+	root = filepath.Clean(root)
 	var files []string
 	err := filepath.WalkDir(root, func(path string, d os.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
 
-		// Skip ignored directories
 		if d.IsDir() {
-			if _, ignored := ignoreDirs[d.Name()]; ignored {
-				return filepath.SkipDir
+			if filepath.Clean(path) != root {
+				if _, ignored := ignoreDirs[d.Name()]; ignored {
+					return filepath.SkipDir
+				}
 			}
 			return nil
 		}
 
-		// Check file extensions
 		if _, allowed := allowedExts[filepath.Ext(path)]; allowed {
 			files = append(files, path)
 		}
@@ -214,6 +217,22 @@ func GetIncludeFiles(config *Config) ([]string, error) {
 
 	var files []string
 	for _, dir := range config.Includes {
+		if dir == "" {
+			continue
+		}
+		info, err := os.Stat(dir)
+		if err != nil {
+			if os.IsNotExist(err) {
+				continue
+			}
+			return nil, err
+		}
+		if !info.IsDir() {
+			if _, allowed := allowedExts[filepath.Ext(dir)]; allowed {
+				files = append(files, dir)
+			}
+			continue
+		}
 		found, err := walkForFiles(dir, ignoreDirs, allowedExts)
 		if err != nil {
 			return nil, err

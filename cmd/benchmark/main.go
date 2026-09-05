@@ -908,7 +908,8 @@ func countLines(content []byte) int {
 }
 
 // runAnalysis builds one shared semantic snapshot from the project index,
-// then runs the registered analysis rules over every parsed file concurrently.
+// then runs the registered analysis rules over every host file concurrently.
+// Vendored paths are indexed and skipped, matching Mago's FileType::Vendored.
 // This is the same snapshot-backed path as command.AnalyzeFiles and PHP Strom,
 // so benchmark timings include fact, CFG, and variable-flow construction.
 func releaseBenchmarkSourceCache(parsed map[string][]ast.Node) {
@@ -947,8 +948,8 @@ func runAnalysis(parsed map[string][]ast.Node, project *analyse.ProjectIndex, le
 			}
 		}()
 	}
-	for path, nodes := range parsed {
-		jobCh <- job{path: path, nodes: nodes}
+	for _, path := range snapshot.Files() {
+		jobCh <- job{path: path, nodes: parsed[path]}
 	}
 	close(jobCh)
 	wg.Wait()

@@ -256,6 +256,48 @@ func TestRunAnalyzeFolderRespectsIgnore(t *testing.T) {
 	}
 }
 
+func TestRunAnalyzeDoesNotTypeCheckVendorOnScanPath(t *testing.T) {
+	dir := t.TempDir()
+	hostFile := filepath.Join(dir, "App.php")
+	vendorFile := filepath.Join(dir, "vendor", "pkg", "Lib.php")
+	if err := os.MkdirAll(filepath.Dir(vendorFile), 0755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	if err := os.WriteFile(hostFile, []byte("<?php\nfunction use_lib(): VendorLib { return new VendorLib(); }\n"), 0644); err != nil {
+		t.Fatalf("write host: %v", err)
+	}
+	if err := os.WriteFile(vendorFile, []byte("<?php\nclass VendorLib { public function broken(): int { return \"nope\"; } }\n"), 0644); err != nil {
+		t.Fatalf("write vendor: %v", err)
+	}
+
+	level := 10
+	cfg := &config.Config{
+		Path:          dir,
+		Includes:      []string{filepath.Join(dir, "vendor")},
+		Extensions:    []string{"php"},
+		Ignore:        []string{"vendor"},
+		AnalysisLevel: &level,
+	}
+
+	var output bytes.Buffer
+	outcome := RunScanOrCommand(
+		CliArgs{CommandName: "analyze", parallelism: 1},
+		cfg,
+		[]string{hostFile, vendorFile},
+		&output,
+		&MemStats{},
+	)
+	if strings.Contains(output.String(), vendorFile) {
+		t.Fatalf("vendor file should not be type-checked; output:\n%s", output.String())
+	}
+	if strings.Contains(output.String(), "VendorLib not found") {
+		t.Fatalf("host file should resolve vendored symbols; output:\n%s", output.String())
+	}
+	if outcome.ExitCode != 0 && strings.Contains(output.String(), vendorFile) {
+		t.Fatalf("unexpected vendor diagnostic exit %d; output:\n%s", outcome.ExitCode, output.String())
+	}
+}
+
 func TestRunAnalyzeFolderMissingPathErrors(t *testing.T) {
 	level := 0
 	cfg := &config.Config{

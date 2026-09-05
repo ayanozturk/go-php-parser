@@ -2,6 +2,7 @@ package analyse
 
 import (
 	"reflect"
+	"runtime"
 	"sync"
 	"testing"
 
@@ -528,5 +529,54 @@ func TestSemanticSnapshotFiltersAndCopiesDuplicateClasses(t *testing.T) {
 	duplicates[0].Name = "mutated"
 	if again := snapshot.DuplicateClasses("b.php"); len(again) != 1 || again[0].Name != "Duplicate" {
 		t.Fatalf("duplicate metadata leaked caller mutation: %#v", again)
+	}
+}
+
+func TestSemanticSnapshotParallelFileSemanticsIsDeterministic(t *testing.T) {
+	previous := runtime.GOMAXPROCS(4)
+	t.Cleanup(func() { runtime.GOMAXPROCS(previous) })
+
+	parsed := map[string][]ast.Node{
+		"src/a.php": parsePHPForProjectIndex(t, `<?php
+function alpha(int $value): int {
+    if ($value instanceof stdClass) {
+        return $value;
+    }
+    return $value + 1;
+}
+`),
+		"src/b.php": parsePHPForProjectIndex(t, `<?php
+function beta($value) {
+    $copy = $value;
+    return $copy;
+}
+`),
+		"src/c.php": parsePHPForProjectIndex(t, `<?php
+class Holder {
+    public function gamma($value) {
+        return $value;
+    }
+}
+`),
+	}
+
+	first, err := NewSemanticSnapshot(parsed, nil)
+	if err != nil {
+		t.Fatalf("first snapshot: %v", err)
+	}
+	second, err := NewSemanticSnapshot(parsed, nil)
+	if err != nil {
+		t.Fatalf("second snapshot: %v", err)
+	}
+	if !reflect.DeepEqual(first.Files(), second.Files()) {
+		t.Fatalf("file lists differ: %#v vs %#v", first.Files(), second.Files())
+	}
+	for _, filename := range first.Files() {
+		if !reflect.DeepEqual(first.FactsForFile(filename), second.FactsForFile(filename)) {
+			t.Fatalf("%s facts differ:\n got %#v\nwant %#v", filename, second.FactsForFile(filename), first.FactsForFile(filename))
+		}
+		if !reflect.DeepEqual(first.VariableReadsForFile(filename), second.VariableReadsForFile(filename)) {
+			t.Fatalf("%s variable reads differ:\n got %#v\nwant %#v", filename, second.VariableReadsForFile(filename), first.VariableReadsForFile(filename))
+		}
 	}
 }
