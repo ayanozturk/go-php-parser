@@ -680,3 +680,38 @@ function run(InvitedUser $user): mixed {
 		t.Fatalf("trait methods should resolve on the using class, got %#v", issues)
 	}
 }
+
+func TestLevel2InstanceofEarlyReturnNarrowsMethodReceiver(t *testing.T) {
+	files := map[string]string{
+		"test.php": `<?php
+interface UserInterface {}
+class User implements UserInterface {
+    public function getCompany(): object { return new \stdClass(); }
+}
+class Controller {
+    public function getUser(): ?UserInterface { return null; }
+
+    public function me(): void {
+        $user = $this->getUser();
+        if (!$user instanceof User) {
+            return;
+        }
+        $user->getCompany();
+    }
+
+    public function meParenthesized(): void {
+        $user = $this->getUser();
+        if (!($user instanceof User)) {
+            return;
+        }
+        $user->getCompany();
+    }
+}
+`,
+	}
+
+	issues := runAnalysisLevelOnFiles(t, files, 2)
+	if hasIssueContaining(issues, level2MethodExistenceCode, "getCompany") {
+		t.Fatalf("instanceof early-return should narrow $user to User, got %#v", issues)
+	}
+}

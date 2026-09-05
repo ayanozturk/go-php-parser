@@ -77,3 +77,16 @@ function process($obj) {
 		t.Fatalf("expected narrowing facts for both User and Admin, got User:%d Admin:%d", len(facts["User"]), len(facts["Admin"]))
 	}
 }
+
+func TestTypeNarrowingAfterUnparenthesizedNegatedInstanceofReturn(t *testing.T) {
+	facts := parseTypeNarrowingPHP(t, `<?php
+function process($obj) {
+    if (!$obj instanceof User) {
+        return;
+    }
+    $name = $obj->name;
+}`)
+	if len(facts["User"]) == 0 {
+		t.Fatal("expected narrowing facts after unparenthesized negated instanceof return")
+	}
+}

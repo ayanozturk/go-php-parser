@@ -724,6 +724,26 @@ class Example {
 	}
 }
 
+func TestNoFalsePositiveAfterUnparenthesizedNegatedInstanceofGuard(t *testing.T) {
+	php := `<?php
+class Token {}
+class Example {
+    public function takesToken(Token $t): void {}
+
+    public function run(?Token $token): void {
+        if (!$token instanceof Token) {
+            return;
+        }
+        $this->takesToken($token);
+    }
+}
+`
+	issues := analysePHP(t, php)
+	if hasArgTypeIssue(issues) {
+		t.Fatalf("expected no A.ARG.TYPE issue after unparenthesized negated instanceof guard, got: %#v", issues)
+	}
+}
+
 func TestArgumentTypeRuleUsesSemanticInferredTypeFact(t *testing.T) {
 	const filename = "src/Example.php"
 	nodes, argument := parseMethodArgumentFactFixture(t)

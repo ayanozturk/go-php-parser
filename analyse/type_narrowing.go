@@ -6,28 +6,68 @@ import (
 	"github.com/ayanozturk/go-php-parser/ast"
 )
 
+type instanceofCondition struct {
+	variable string
+	target   ast.Node
+	negated  bool
+}
+
+// parseInstanceofCondition recognizes `$x instanceof T`, `!($x instanceof T)`,
+// and PHP's unparenthesized `!$x instanceof T` (parsed as `(!$x) instanceof T`).
+func parseInstanceofCondition(condition ast.Node) (instanceofCondition, bool) {
+	if condition == nil {
+		return instanceofCondition{}, false
+	}
+	switch cond := condition.(type) {
+	case *ast.UnaryExpr:
+		if cond.Operator != "!" {
+			return instanceofCondition{}, false
+		}
+		inner, ok := parseInstanceofCondition(cond.Operand)
+		if !ok {
+			return instanceofCondition{}, false
+		}
+		inner.negated = !inner.negated
+		return inner, true
+	case *ast.BinaryExpr:
+		if cond.Operator != "instanceof" {
+			return instanceofCondition{}, false
+		}
+		variable, negatedLeft, ok := instanceofSubject(cond.Left)
+		if !ok {
+			return instanceofCondition{}, false
+		}
+		return instanceofCondition{variable: variable, target: cond.Right, negated: negatedLeft}, true
+	}
+	return instanceofCondition{}, false
+}
+
+func instanceofSubject(node ast.Node) (string, bool, bool) {
+	switch n := node.(type) {
+	case *ast.VariableNode:
+		return n.Name, false, true
+	case *ast.UnaryExpr:
+		if n.Operator == "!" {
+			if variable, _, ok := instanceofSubject(n.Operand); ok {
+				return variable, true, true
+			}
+		}
+	}
+	return "", false, false
+}
+
 // detectInstanceofNarrowing walks an if condition to find instanceof checks.
 // Returns the variable and narrowed type on true branch.
 func detectInstanceofNarrowing(condition ast.Node) (variable string, narrowedType string, ok bool) {
-	if condition == nil {
+	cond, parsed := parseInstanceofCondition(condition)
+	if !parsed || cond.negated {
 		return "", "", false
 	}
-
-	switch cond := condition.(type) {
-	case *ast.BinaryExpr:
-		if cond.Operator == "instanceof" {
-			varName := extractVariable(cond.Left)
-			className := extractClassNameFromNode(cond.Right)
-			if varName != "" && className != "" {
-				return varName, className, true
-			}
-		}
-	case *ast.UnaryExpr:
-		if cond.Operator == "!" {
-			return detectInstanceofNarrowing(cond.Operand)
-		}
+	className := extractClassNameFromNode(cond.target)
+	if cond.variable == "" || className == "" {
+		return "", "", false
 	}
-	return "", "", false
+	return cond.variable, className, true
 }
 
 func extractVariable(node ast.Node) string {
@@ -61,8 +101,23 @@ func insertNarrowingFacts(store semanticFactStore, filename string, statements [
 }
 
 func walkStatementsForNarrowing(store semanticFactStore, filename string, statements []ast.Node) {
-	for _, stmt := range statements {
+	for i, stmt := range statements {
 		walkNodeForNarrowing(store, filename, stmt)
+		ifNode, ok := stmt.(*ast.IfNode)
+		if !ok {
+			continue
+		}
+		cond, parsed := parseInstanceofCondition(ifNode.Condition)
+		if !parsed || !cond.negated || !statementsExitCurrentBlock(ifNode.Body) {
+			continue
+		}
+		className := extractClassNameFromNode(cond.target)
+		if className == "" {
+			continue
+		}
+		for _, later := range statements[i+1:] {
+			walkNodeAndAddNarrowing(store, filename, cond.variable, className, later)
+		}
 	}
 }
 

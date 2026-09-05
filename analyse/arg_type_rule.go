@@ -368,10 +368,14 @@ func applyTerminatingIfFalseScope(scope *functionScope, node *ast.IfNode) {
 			scope.setVariable(variableName, refined)
 		}
 	}
-	// When the condition is `!<expr>` and the body terminates, execution
-	// continues only when <expr> is true. Apply the positive type narrowing
-	// of the inner expression (e.g. `if (!($x instanceof Foo)) { return; }`
-	// → after the if, $x is narrowed to Foo).
+	// When a negated instanceof guard terminates (return/throw), later
+	// statements see the asserted class. This covers both `!($x instanceof T)`
+	// and PHP's unparenthesized `!$x instanceof T`.
+	if cond, ok := parseInstanceofCondition(node.Condition); ok && cond.negated {
+		if typ := typeFromInstanceofTarget(cond.target, scope); !typ.IsEmpty() {
+			scope.setVariable(cond.variable, typ)
+		}
+	}
 	if unary, ok := node.Condition.(*ast.UnaryExpr); ok && unary.Operator == "!" {
 		for variableName, typ := range variablesTypedWhenTrue(unary.Operand, scope) {
 			if typ.IsEmpty() {
