@@ -481,6 +481,8 @@ func inferType(expr ast.Node, scope *functionScope, ctx *AnalysisContext) Type {
 		return ParseType("callable")
 	case *ast.PropertyFetchNode:
 		return inferPropertyFetchType(n, scope, ctx)
+	case *ast.ClassConstFetchNode:
+		return inferClassConstFetchType(n, scope, ctx)
 	case *ast.ArrayAccessNode:
 		if field := lookupArrayShapeField(arrayShapeFieldsOf(n.Var, scope, ctx), n.Index, scope); !field.typ.IsEmpty() {
 			return field.typ
@@ -1718,6 +1720,38 @@ func declaredCallableExpressionReturnType(expr ast.Node, typeCtx FileTypeContext
 	}
 }
 
+func inferClassConstFetchType(node *ast.ClassConstFetchNode, scope *functionScope, ctx *AnalysisContext) Type {
+	if node == nil {
+		return MixedType()
+	}
+	if node.Const == "class" {
+		return ParseType("string")
+	}
+	var typeCtx FileTypeContext
+	currentName := ""
+	if scope != nil {
+		typeCtx = scope.typeCtx
+		currentName = scope.className
+	}
+	className := typeCtx.resolveClassLike(node.Class)
+	switch asciiLowerIdent(strings.TrimPrefix(node.Class, `\`)) {
+	case "self", "static":
+		className = currentName
+	}
+	if ctx == nil || ctx.Resolver == nil || className == "" || isSpecialClassName(className) {
+		return MixedType()
+	}
+	if class, ok := ctx.Resolver.ResolveClass(className); ok && class.Kind == "enum" {
+		if _, ok := ctx.Resolver.ResolveConstant(class.Name, node.Const); ok {
+			return ParseType(class.Name)
+		}
+	}
+	if constant, ok := ctx.Resolver.ResolveConstant(className, node.Const); ok && strings.TrimSpace(constant.Type) != "" {
+		return ParseType(constant.Type)
+	}
+	return MixedType()
+}
+
 func inferPropertyFetchType(node *ast.PropertyFetchNode, scope *functionScope, ctx *AnalysisContext) Type {
 	if node == nil {
 		return MixedType()
@@ -1730,6 +1764,11 @@ func inferPropertyFetchType(node *ast.PropertyFetchNode, scope *functionScope, c
 		}
 		if propertyType, ok := resolveSameClassPropertyType(scope, node.Property); ok {
 			return propertyType
+		}
+		if ctx != nil && ctx.Resolver != nil && scope.className != "" {
+			if property, ok := ctx.Resolver.ResolveProperty(scope.className, node.Property); ok {
+				return ParseType(property.Type)
+			}
 		}
 	}
 

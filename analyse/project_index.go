@@ -1090,9 +1090,6 @@ func (idx *ProjectIndex) resolveMethodWithTemplates(className, methodName string
 }
 
 func (idx *ProjectIndex) ResolveProperty(className, propertyName string) (ResolvedProperty, bool) {
-	if class, ok := idx.ResolveClass(className); ok && class.Kind == "enum" && strings.EqualFold(strings.TrimPrefix(propertyName, "$"), "value") {
-		return ResolvedProperty{ID: stableSymbolID("property", class.Name, "value"), DeclaringClass: class.Name, Name: "value", Visibility: "public", Readonly: true}, true
-	}
 	for _, candidate := range idx.classLineage(className) {
 		properties := idx.Properties[indexKey(candidate)]
 		if properties == nil {
@@ -1263,10 +1260,7 @@ func (idx *ProjectIndex) indexNodes(filename string, nodes []ast.Node, ft FileTy
 			for _, enumCase := range n.Cases {
 				idx.addClassConstant(name, ResolvedConstant{Name: enumCase.Name, DeclaringClass: name, Declaration: sourceLocation(filename, enumCase), Visibility: "public"})
 			}
-			declaration := sourceLocation(filename, n)
-			idx.addMethod(name, ResolvedMethod{Name: "cases", DeclaringClass: name, Declaration: declaration, ReturnType: "array", Visibility: "public", IsStatic: true})
-			idx.addMethod(name, ResolvedMethod{Name: "from", DeclaringClass: name, Declaration: declaration, ReturnType: name, Params: []ResolvedParam{{Name: "value"}}, Visibility: "public", IsStatic: true})
-			idx.addMethod(name, ResolvedMethod{Name: "tryFrom", DeclaringClass: name, Declaration: declaration, ReturnType: "?" + name, Params: []ResolvedParam{{Name: "value"}}, Visibility: "public", IsStatic: true})
+			idx.addEnumNativeMembers(filename, name, n)
 		case *ast.FunctionNode:
 			if currentClass != "" {
 				idx.addMethod(currentClass, methodFromFunction(filename, currentClass, n, ft, nil))
@@ -1488,6 +1482,67 @@ func buildMethodsDeclaredView(project *ProjectIndex, classKey, className string)
 		methods = append(methods, method)
 	}
 	return methods
+}
+
+func (idx *ProjectIndex) addEnumNativeMembers(filename, enumName string, enum *ast.EnumNode) {
+	declaration := sourceLocation(filename, enum)
+	idx.addProperty(enumName, ResolvedProperty{
+		Name:           "name",
+		DeclaringClass: enumName,
+		Declaration:    declaration,
+		Type:           "string",
+		Visibility:     "public",
+		Readonly:       true,
+	})
+	idx.addMethod(enumName, ResolvedMethod{
+		Name:           "cases",
+		DeclaringClass: enumName,
+		Declaration:    declaration,
+		ReturnType:     "array",
+		Visibility:     "public",
+		IsStatic:       true,
+	})
+	backing := enumBackingType(enum.BackedBy)
+	if backing == "" {
+		return
+	}
+	idx.addProperty(enumName, ResolvedProperty{
+		Name:           "value",
+		DeclaringClass: enumName,
+		Declaration:    declaration,
+		Type:           backing,
+		Visibility:     "public",
+		Readonly:       true,
+	})
+	idx.addMethod(enumName, ResolvedMethod{
+		Name:           "from",
+		DeclaringClass: enumName,
+		Declaration:    declaration,
+		ReturnType:     enumName,
+		Params:         []ResolvedParam{{Name: "value"}},
+		Visibility:     "public",
+		IsStatic:       true,
+	})
+	idx.addMethod(enumName, ResolvedMethod{
+		Name:           "tryFrom",
+		DeclaringClass: enumName,
+		Declaration:    declaration,
+		ReturnType:     "?" + enumName,
+		Params:         []ResolvedParam{{Name: "value"}},
+		Visibility:     "public",
+		IsStatic:       true,
+	})
+}
+
+func enumBackingType(backedBy string) string {
+	switch asciiLowerIdent(strings.TrimSpace(backedBy)) {
+	case "int":
+		return "int"
+	case "string":
+		return "string"
+	default:
+		return ""
+	}
 }
 
 func (idx *ProjectIndex) addProperty(className string, property ResolvedProperty) {

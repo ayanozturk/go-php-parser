@@ -88,6 +88,11 @@ func findHoverTypeMatch(nodes []ast.Node, query hoverTypeQuery, ctx *AnalysisCon
 			for _, methodNode := range n.Methods {
 				walk(methodNode, n)
 			}
+		case *ast.EnumNode:
+			enumClass := &ast.ClassNode{Name: n.Name}
+			for _, methodNode := range n.Methods {
+				walk(methodNode, enumClass)
+			}
 		case *ast.FunctionNode:
 			scope := analysisFunctionScope(ctx, class, n, fileCtx)
 			walkStatementsForHoverTypes(n.Body, scope, ctx, query, &best)

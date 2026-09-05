@@ -150,6 +150,16 @@ enum Status {
 	}
 	assertIndexedSymbol(t, source, enumCase.ID, `constant:app\status:ready`, enumCase.Declaration, filename)
 
+	enumName, ok := idx.ResolveProperty(`App\Status`, "name")
+	if !ok || enumName.Type != "string" {
+		t.Fatalf("expected synthetic Status::$name, got %#v, %v", enumName, ok)
+	}
+	assertIndexedSymbol(t, source, enumName.ID, `property:app\status:name`, enumName.Declaration, filename)
+
+	if _, ok := idx.ResolveProperty(`App\Status`, "value"); ok {
+		t.Fatal("did not expect unit enum Status to expose $value")
+	}
+
 	enumMethod, ok := idx.ResolveMethod(`App\Status`, "cases")
 	if !ok {
 		t.Fatal("expected synthetic Status::cases method")

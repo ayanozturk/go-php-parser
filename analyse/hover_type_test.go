@@ -1,6 +1,7 @@
 package analyse
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/ayanozturk/go-php-parser/ast"
@@ -124,6 +125,46 @@ function run(): void {
 	legacy, ok := InferHoverTargetAtPosition(nodes, pos.Line, pos.Column, variable.Name, ctx)
 	if !ok || legacy.Type != "string" {
 		t.Fatalf("expected legacy hover API to retain string fallback inference, got %#v, %v", legacy, ok)
+	}
+}
+
+func TestInferHoverTypeResolvesBackedEnumNativeProperties(t *testing.T) {
+	php := `<?php
+namespace App\Module\Subscription\Enum;
+
+enum InvoiceStatus: int {
+    case PENDING = 1;
+    case PAID = 2;
+
+    public function isPending(): bool {
+        return $this->value === self::PENDING->value;
+    }
+}`
+	nodes := parseHoverFixture(t, php)
+	project := BuildProjectIndex(map[string][]ast.Node{"invoice.php": nodes})
+	ctx := &AnalysisContext{Resolver: project}
+
+	lines := strings.Split(php, "\n")
+	line := 0
+	for i, text := range lines {
+		if strings.Contains(text, "$this->value") {
+			line = i + 1
+			break
+		}
+	}
+	if line == 0 {
+		t.Fatal("expected $this->value in fixture")
+	}
+	thisValueCol := strings.Index(lines[line-1], "value") + 1
+	caseValueCol := strings.LastIndex(lines[line-1], "value") + 1
+
+	thisValue, ok := InferHoverTargetAtPosition(nodes, line, thisValueCol, "value", ctx)
+	if !ok || thisValue.Kind != HoverTargetProperty || thisValue.Type != "int" || thisValue.ReceiverClass != `App\Module\Subscription\Enum\InvoiceStatus` {
+		t.Fatalf("expected $this->value hover as int on InvoiceStatus, got %#v, %v", thisValue, ok)
+	}
+	caseValue, ok := InferHoverTargetAtPosition(nodes, line, caseValueCol, "value", ctx)
+	if !ok || caseValue.Kind != HoverTargetProperty || caseValue.Type != "int" || caseValue.ReceiverClass != `App\Module\Subscription\Enum\InvoiceStatus` {
+		t.Fatalf("expected enum-case ->value hover as int on InvoiceStatus, got %#v, %v", caseValue, ok)
 	}
 }
 

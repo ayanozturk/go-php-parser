@@ -151,6 +151,49 @@ function run(): void
 	}
 }
 
+func TestLevel0RecognizesEnumNativeProperties(t *testing.T) {
+	issues := runLevel0OnFiles(t, map[string]string{
+		"test.php": `<?php
+enum InvoiceStatus: int {
+    case PENDING = 1;
+    case PAID = 2;
+
+    public function isPending(): bool
+    {
+        return $this->value === self::PENDING->value;
+    }
+
+    public function label(): string
+    {
+        return $this->name;
+    }
+}
+
+enum UnitStatus {
+    case Ready;
+
+    public function describe(): string
+    {
+        return $this->name . $this->value;
+    }
+}
+`,
+	})
+
+	for _, unexpected := range []string{
+		"Access to an undefined property InvoiceStatus::$value",
+		"Access to an undefined property InvoiceStatus::$name",
+		"Access to an undefined property UnitStatus::$name",
+	} {
+		if hasIssueContaining(issues, level0SymbolsCode, unexpected) {
+			t.Fatalf("expected native enum property %q to be recognized, got %#v", unexpected, issues)
+		}
+	}
+	if !hasIssueContaining(issues, level0SymbolsCode, "Access to an undefined property UnitStatus::$value") {
+		t.Fatalf("expected unit enum $value to remain undefined, got %#v", issues)
+	}
+}
+
 func TestLevel0BuiltinMethodsHaveUsableInvocationBounds(t *testing.T) {
 	issues := runLevel0OnFiles(t, map[string]string{
 		"test.php": `<?php

@@ -168,19 +168,18 @@ func checkSymbolOnNode(filename string, node ast.Node, class *ast.ClassNode, cur
 			}
 		}
 	case *ast.PropertyFetchNode:
-		receiver, ok := n.Object.(*ast.VariableNode)
-		if !ok || receiver.Name != "this" {
+		className := propertyFetchClassName(n, class, currentFn, ft, ctx)
+		if className == "" {
 			return
 		}
-		if isStaticMethod(currentFn) {
+		if receiver, ok := n.Object.(*ast.VariableNode); ok && receiver.Name == "this" && isStaticMethod(currentFn) {
 			methodName := "method"
 			if currentFn != nil && currentFn.Name != "" {
 				methodName = currentFn.Name
 			}
-			*issues = append(*issues, issueSpan(filename, n, level0SymbolsCode, fmt.Sprintf("Using $this inside static method %s::%s().", currentClassName(class, ft), methodName)))
+			*issues = append(*issues, issueSpan(filename, n, level0SymbolsCode, fmt.Sprintf("Using $this inside static method %s::%s().", className, methodName)))
 			return
 		}
-		className := currentClassName(class, ft)
 		if className == "" {
 			return
 		}
@@ -191,6 +190,38 @@ func checkSymbolOnNode(filename string, node ast.Node, class *ast.ClassNode, cur
 			*issues = append(*issues, issueSpan(filename, n, level0SymbolsCode, fmt.Sprintf("Access to an undefined property %s::$%s.", className, n.Property)))
 		}
 	}
+}
+
+func propertyFetchClassName(n *ast.PropertyFetchNode, class *ast.ClassNode, currentFn *ast.FunctionNode, ft FileTypeContext, ctx *AnalysisContext) string {
+	if n == nil {
+		return ""
+	}
+	if receiver, ok := n.Object.(*ast.VariableNode); ok && receiver.Name == "this" {
+		return currentClassName(class, ft)
+	}
+	return enumCaseReceiverClassName(n.Object, class, ft, ctx)
+}
+
+func enumCaseReceiverClassName(object ast.Node, class *ast.ClassNode, ft FileTypeContext, ctx *AnalysisContext) string {
+	fetch, ok := object.(*ast.ClassConstFetchNode)
+	if !ok || fetch.Const == "class" || strings.HasPrefix(fetch.Const, "$") {
+		return ""
+	}
+	if ctx == nil || ctx.Resolver == nil {
+		return ""
+	}
+	className := resolveClassLikeForCall(fetch.Class, class, ft, ctx)
+	if isSpecialClassName(className) || strings.HasPrefix(className, "$") {
+		return ""
+	}
+	resolved, ok := ctx.Resolver.ResolveClass(className)
+	if !ok || resolved.Kind != "enum" {
+		return ""
+	}
+	if _, ok := ctx.Resolver.ResolveConstant(resolved.Name, fetch.Const); !ok {
+		return ""
+	}
+	return resolved.Name
 }
 
 func checkConstantVisibility(filename string, pos ast.Position, constant ResolvedConstant, className string, currentClass *ast.ClassNode, ft FileTypeContext, resolver SymbolResolver, issues *[]AnalysisIssue) {
