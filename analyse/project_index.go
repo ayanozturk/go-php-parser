@@ -1271,7 +1271,7 @@ func (idx *ProjectIndex) indexNodes(filename string, nodes []ast.Node, ft FileTy
 		case *ast.TraitNode:
 			if n.Name != nil {
 				name := ft.resolveClassLike(n.Name.Name)
-				idx.addClass(filename, ResolvedClass{Name: name, Kind: "trait"}, n)
+				idx.addClass(filename, ResolvedClass{Name: name, Kind: "trait", Traits: traitUsesFromMembers(n.Body, ft)}, n)
 				idx.indexClassMembers(filename, name, n.Body, nil, nil, ft, nil)
 			}
 		case *ast.EnumNode:

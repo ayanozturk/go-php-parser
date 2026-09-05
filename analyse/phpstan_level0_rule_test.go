@@ -375,6 +375,34 @@ class User {}
 	}
 }
 
+func TestLevel0ResolvesNestedAndInheritedTraitMethods(t *testing.T) {
+	issues := runLevel0OnFiles(t, map[string]string{
+		"test.php": `<?php
+trait BrowserKitAssertionsTrait {
+    public static function assertResponseIsSuccessful(): void {}
+}
+
+trait WebTestAssertionsTrait {
+    use BrowserKitAssertionsTrait;
+}
+
+class WebTestCase {
+    use WebTestAssertionsTrait;
+}
+
+final class ShiftAssignmentWorkspaceRoutesTest extends WebTestCase {
+    public function testIndexRouteRendersWithSharedWorkspaceNavigation(): void {
+        $this->assertResponseIsSuccessful();
+    }
+}
+`,
+	})
+
+	if hasIssueContaining(issues, level0SymbolsCode, "Call to an undefined method ShiftAssignmentWorkspaceRoutesTest::assertResponseIsSuccessful") {
+		t.Fatalf("inherited nested trait methods should resolve, got %#v", issues)
+	}
+}
+
 func TestLevel0AllowsThisInsideTraitMethods(t *testing.T) {
 	issues := runLevel0OnFiles(t, map[string]string{
 		"test.php": `<?php

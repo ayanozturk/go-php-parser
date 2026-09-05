@@ -449,6 +449,34 @@ class Child extends Parent {}
 	}
 }
 
+func TestProjectIndexResolvesNestedTraitMethods(t *testing.T) {
+	idx := BuildProjectIndex(map[string][]ast.Node{
+		"test.php": parsePHPForProjectIndex(t, `<?php
+trait BrowserKitAssertionsTrait {
+    public static function assertResponseIsSuccessful(): void {}
+}
+
+trait WebTestAssertionsTrait {
+    use BrowserKitAssertionsTrait;
+}
+
+class WebTestCase {
+    use WebTestAssertionsTrait;
+}
+
+final class ChildTest extends WebTestCase {}
+`),
+	})
+
+	if _, ok := idx.ResolveMethod("ChildTest", "assertResponseIsSuccessful"); !ok {
+		t.Fatal("expected nested trait method to resolve through the parent class")
+	}
+	trait, ok := idx.ResolveClass("WebTestAssertionsTrait")
+	if !ok || len(trait.Traits) != 1 || trait.Traits[0] != "BrowserKitAssertionsTrait" {
+		t.Fatalf("expected composed trait uses to be indexed, got %#v, %v", trait, ok)
+	}
+}
+
 func assertIndexedSymbol(t *testing.T, source string, gotID, wantID SymbolID, location SourceLocation, filename string) {
 	t.Helper()
 	if gotID != wantID {
