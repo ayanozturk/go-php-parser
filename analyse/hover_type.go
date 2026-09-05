@@ -129,7 +129,7 @@ func walkStatementsForHoverTypes(nodes []ast.Node, scope *functionScope, ctx *An
 				walkStatementsForHoverTypes(elseif.Body, scopeForConditionTrue(scope, elseif.Condition), ctx, query, best)
 			}
 			if n.Else != nil {
-				walkStatementsForHoverTypes(n.Else.Body, scope.clone(), ctx, query, best)
+				walkStatementsForHoverTypes(n.Else.Body, scopeForConditionFalse(scope, n.Condition), ctx, query, best)
 			}
 			applyTerminatingIfFalseScope(scope, n)
 			applyLazyInitPropertyScope(scope, n, ctx)

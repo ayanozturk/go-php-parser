@@ -398,13 +398,14 @@ func collectObservedReturnsUsing(filename string, nodes []ast.Node, scope *funct
 		case *ast.AssignmentNode:
 			applyAssignmentScope(scope, n, ctx)
 		case *ast.IfNode:
-			returns = append(returns, collectObservedReturnsUsing(filename, n.Body, scope.clone(), ctx, infer)...)
+			returns = append(returns, collectObservedReturnsUsing(filename, n.Body, scopeForConditionTrue(scope, n.Condition), ctx, infer)...)
 			for _, elseif := range n.ElseIfs {
-				returns = append(returns, collectObservedReturnsUsing(filename, elseif.Body, scope.clone(), ctx, infer)...)
+				returns = append(returns, collectObservedReturnsUsing(filename, elseif.Body, scopeForConditionTrue(scope, elseif.Condition), ctx, infer)...)
 			}
 			if n.Else != nil {
-				returns = append(returns, collectObservedReturnsUsing(filename, n.Else.Body, scope.clone(), ctx, infer)...)
+				returns = append(returns, collectObservedReturnsUsing(filename, n.Else.Body, scopeForConditionFalse(scope, n.Condition), ctx, infer)...)
 			}
+			applyTerminatingIfFalseScope(scope, n)
 			applyLazyInitPropertyScope(scope, n, ctx)
 		case *ast.BlockNode:
 			returns = append(returns, collectObservedReturnsUsing(filename, n.Statements, scope.clone(), ctx, infer)...)
@@ -1738,9 +1739,7 @@ func inferPropertyFetchType(node *ast.PropertyFetchNode, scope *functionScope, c
 		return MixedType()
 	}
 	if scope != nil && strings.EqualFold(className, scope.className) {
-		if propertyType, ok := scope.property(node.Property); ok {
-			return propertyType
-		}
+		// The receiver is not $this: its declaration is shared, its value is not.
 		if propertyType, ok := resolveSameClassPropertyType(scope, node.Property); ok {
 			return propertyType
 		}

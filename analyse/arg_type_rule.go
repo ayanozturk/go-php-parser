@@ -124,7 +124,7 @@ func walkStatementsForArgTypesUsing(nodes []ast.Node, scope *functionScope, ctx 
 				walkStatementsForArgTypesUsing(elseif.Body, scopeForConditionTrue(scope, elseif.Condition), ctx, filename, issues, observe)
 			}
 			if n.Else != nil {
-				walkStatementsForArgTypesUsing(n.Else.Body, scope.clone(), ctx, filename, issues, observe)
+				walkStatementsForArgTypesUsing(n.Else.Body, scopeForConditionFalse(scope, n.Condition), ctx, filename, issues, observe)
 			}
 			applyTerminatingIfFalseScope(scope, n)
 			applyLazyInitPropertyScope(scope, n, ctx)
@@ -176,6 +176,7 @@ func scopeForConditionFalse(scope *functionScope, condition ast.Node) *functionS
 	if refined == nil {
 		return nil
 	}
+	applyThisPropertyConditionScope(refined, condition, false)
 	for _, name := range variablesNonNullWhenFalse(condition) {
 		if typ, ok := nonNullVariableType(refined, name); ok {
 			refined.setVariable(name, typ)
@@ -188,6 +189,7 @@ func applyConditionTrueScope(scope *functionScope, condition ast.Node) {
 	if scope == nil {
 		return
 	}
+	applyThisPropertyConditionScope(scope, condition, true)
 	for variableName, typ := range variablesTypedWhenTrue(condition, scope) {
 		if !typ.IsEmpty() {
 			scope.setVariable(variableName, typ)
@@ -321,6 +323,7 @@ func applyTerminatingIfFalseScope(scope *functionScope, node *ast.IfNode) {
 	if !statementsExitCurrentBlock(node.Body) {
 		return
 	}
+	applyThisPropertyConditionScope(scope, node.Condition, false)
 	// Strip null from variables that are non-null when the condition is false
 	// (e.g. `if ($x === null) { return; }` → $x is non-null after).
 	for _, variableName := range variablesNonNullWhenFalse(node.Condition) {

@@ -74,14 +74,15 @@ func walkStatementsForPropertyTypes(nodes []ast.Node, scope *functionScope, ctx 
 			walkExprForPropertyTypes(n.Level, scope, ctx, filename, issues)
 		case *ast.IfNode:
 			walkExprForPropertyTypes(n.Condition, scope, ctx, filename, issues)
-			walkStatementsForPropertyTypes(n.Body, scope.clone(), ctx, filename, issues)
+			walkStatementsForPropertyTypes(n.Body, scopeForConditionTrue(scope, n.Condition), ctx, filename, issues)
 			for _, elseif := range n.ElseIfs {
 				walkExprForPropertyTypes(elseif.Condition, scope, ctx, filename, issues)
-				walkStatementsForPropertyTypes(elseif.Body, scope.clone(), ctx, filename, issues)
+				walkStatementsForPropertyTypes(elseif.Body, scopeForConditionTrue(scope, elseif.Condition), ctx, filename, issues)
 			}
 			if n.Else != nil {
-				walkStatementsForPropertyTypes(n.Else.Body, scope.clone(), ctx, filename, issues)
+				walkStatementsForPropertyTypes(n.Else.Body, scopeForConditionFalse(scope, n.Condition), ctx, filename, issues)
 			}
+			applyTerminatingIfFalseScope(scope, n)
 		case *ast.BlockNode:
 			walkStatementsForPropertyTypes(n.Statements, scope.clone(), ctx, filename, issues)
 		case *ast.WhileNode:

@@ -137,6 +137,110 @@
       "phpstanIdentifiers": [
         "method.nonObject"
       ]
+    },
+    {
+      "id": "property-guard-nonnull",
+      "capability": "direct property non-null branch",
+      "file": "property-guard-nonnull.php",
+      "engineCodes": [],
+      "phpstanIdentifiers": []
+    },
+    {
+      "id": "property-guard-early-return",
+      "capability": "terminating property null guard",
+      "file": "property-guard-early-return.php",
+      "engineCodes": [],
+      "phpstanIdentifiers": []
+    },
+    {
+      "id": "property-guard-truthy",
+      "capability": "truthy property branch",
+      "file": "property-guard-truthy.php",
+      "engineCodes": [],
+      "phpstanIdentifiers": []
+    },
+    {
+      "id": "property-guard-else",
+      "capability": "property false branch",
+      "file": "property-guard-else.php",
+      "engineCodes": [],
+      "phpstanIdentifiers": []
+    },
+    {
+      "id": "property-guard-ternary",
+      "capability": "negated property ternary",
+      "file": "property-guard-ternary.php",
+      "engineCodes": [],
+      "phpstanIdentifiers": []
+    },
+    {
+      "id": "property-guard-result",
+      "capability": "property guard result inference",
+      "file": "property-guard-result.php",
+      "engineCodes": [],
+      "phpstanIdentifiers": []
+    },
+    {
+      "id": "property-guard-assignment",
+      "capability": "guarded property assignment type",
+      "file": "property-guard-assignment.php",
+      "engineCodes": [],
+      "phpstanIdentifiers": []
+    },
+    {
+      "id": "property-guard-other-receiver",
+      "capability": "receiver identity isolates property narrowing",
+      "file": "property-guard-other-receiver.php",
+      "engineCodes": [
+        "A.ARG.TYPE"
+      ],
+      "phpstanIdentifiers": [
+        "argument.type"
+      ]
+    },
+    {
+      "id": "property-guard-reassignment",
+      "capability": "property reassignment replaces narrowing",
+      "file": "property-guard-reassignment.php",
+      "engineCodes": [
+        "A.ARG.TYPE"
+      ],
+      "phpstanIdentifiers": [
+        "argument.type"
+      ]
+    },
+    {
+      "id": "property-guard-isolation",
+      "capability": "property narrowing stays branch local",
+      "file": "property-guard-isolation.php",
+      "engineCodes": [
+        "A.ARG.TYPE"
+      ],
+      "phpstanIdentifiers": [
+        "argument.type"
+      ]
+    },
+    {
+      "id": "property-guard-or-condition",
+      "capability": "disjunction does not prove individual property non-null",
+      "file": "property-guard-or-condition.php",
+      "engineCodes": [
+        "A.ARG.TYPE"
+      ],
+      "phpstanIdentifiers": [
+        "argument.type"
+      ]
+    },
+    {
+      "id": "property-guard-null-branch",
+      "capability": "known null branch remains invalid",
+      "file": "property-guard-null-branch.php",
+      "engineCodes": [
+        "A.ARG.TYPE"
+      ],
+      "phpstanIdentifiers": [
+        "argument.type"
+      ]
     }
   ]
 }

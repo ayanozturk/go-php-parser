@@ -24,3 +24,6 @@ cpu.out
 /docs/benchmarks/*wordpress*.json
 php-parser
 tusk
+
+# Local research clones and generated design reports. Not part of the product.
+.scratch/
