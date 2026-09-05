@@ -761,3 +761,52 @@ class ExampleTest {
 		t.Fatalf("negated instanceof || $this->fail() should narrow DateTime receivers, got %#v", issues)
 	}
 }
+
+func TestLevel2AssertInstanceOfNarrowsNullableReceiver(t *testing.T) {
+	files := map[string]string{
+		"test.php": `<?php
+class PolicyUser {
+    public function getRemainingAmount(): int { return 0; }
+}
+class ExampleTest {
+    public function assertInstanceOf(string $expected, mixed $actual): void {}
+    public function assertNotNull(mixed $actual): void {}
+    public function assertTrue(mixed $condition): void {}
+
+    public function testCaptured(): void {
+        $capturedPolicyUser = null;
+        $this->assertInstanceOf(PolicyUser::class, $capturedPolicyUser);
+        $capturedPolicyUser->getRemainingAmount();
+    }
+
+    public function testNamed(): void {
+        $capturedPolicyUser = null;
+        $this->assertInstanceOf(actual: $capturedPolicyUser, expected: PolicyUser::class);
+        $capturedPolicyUser->getRemainingAmount();
+    }
+
+    public function testStatic(): void {
+        $capturedPolicyUser = null;
+        self::assertInstanceOf(PolicyUser::class, $capturedPolicyUser);
+        $capturedPolicyUser->getRemainingAmount();
+    }
+
+    public function testNotNull(?PolicyUser $user): void {
+        $this->assertNotNull($user);
+        $user->getRemainingAmount();
+    }
+
+    public function testAssertTrueInstanceof(): void {
+        $capturedPolicyUser = null;
+        $this->assertTrue($capturedPolicyUser instanceof PolicyUser);
+        $capturedPolicyUser->getRemainingAmount();
+    }
+}
+`,
+	}
+
+	issues := runAnalysisLevelOnFiles(t, files, 2)
+	if hasIssueContaining(issues, level2MethodNonObjectCode, "getRemainingAmount") {
+		t.Fatalf("PHPUnit assertInstanceOf should narrow the captured variable, got %#v", issues)
+	}
+}

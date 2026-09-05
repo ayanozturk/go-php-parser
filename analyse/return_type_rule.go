@@ -1597,6 +1597,7 @@ func applyExpressionScope(scope *functionScope, expr ast.Node, ctx *AnalysisCont
 		applyConditionTrueScope(scope, condition)
 		return
 	}
+	applyPHPUnitAssertionScope(scope, expr)
 	assignment, ok := expr.(*ast.AssignmentNode)
 	if !ok {
 		return
