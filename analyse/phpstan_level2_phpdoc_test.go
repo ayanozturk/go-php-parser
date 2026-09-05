@@ -204,6 +204,24 @@ function clean(Box $box): void { echo get_class($box); }
 	}
 }
 
+func TestLevel2PHPDocAllowsGenericTraversable(t *testing.T) {
+	issues := runAnalysisLevelOnFiles(t, map[string]string{
+		"collection.php": `<?php
+class DocModule {}
+
+/**
+ * @return Traversable<string, DocModule>
+ */
+function iterate(): Traversable {
+    return new ArrayIterator([]);
+}
+`,
+	}, 2)
+	if hasIssueContaining(issues, level2PHPDocNotGenericCode, "Traversable is not generic") {
+		t.Fatalf("Traversable should be a generic stub type, got %#v", issues)
+	}
+}
+
 func TestLevel2PHPDocValidationChecksShapesCallablesAndTemplateBounds(t *testing.T) {
 	const source = `<?php
 class Animal {}

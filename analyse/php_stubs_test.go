@@ -16,6 +16,10 @@ func TestProjectIndexLoadsBundledPHPStubs(t *testing.T) {
 	if _, ok := idx.ResolveMethod("DateTime", "createFromFormat"); !ok {
 		t.Fatal("expected DateTime::createFromFormat")
 	}
+	traversable, ok := idx.ResolveClass("Traversable")
+	if !ok || len(traversable.TemplateParams) != 2 {
+		t.Fatalf("expected Traversable to be generic over TKey, TValue, got %#v, %v", traversable, ok)
+	}
 }
 
 func TestPHPStubCatalogFollowsLanguageVersion(t *testing.T) {

@@ -2,6 +2,9 @@
 
 /**
  * Interface to detect if a class is traversable using foreach.
+ *
+ * @template TKey
+ * @template TValue
  */
 interface Traversable
 {
