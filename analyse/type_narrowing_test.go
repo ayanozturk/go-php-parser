@@ -90,3 +90,25 @@ function process($obj) {
 		t.Fatal("expected narrowing facts after unparenthesized negated instanceof return")
 	}
 }
+
+func TestTypeNarrowingAfterOrNegatedInstanceofFail(t *testing.T) {
+	facts := parseTypeNarrowingPHP(t, `<?php
+class DateTime {
+    public function getTimestamp(): int { return 0; }
+}
+class ExampleTest {
+    public function testWindow(): void {
+        $from = null;
+        $to = null;
+        if (!$from instanceof DateTime || !$to instanceof DateTime) {
+            $this->fail('missing');
+        }
+        $diff = $to->getTimestamp() - $from->getTimestamp();
+    }
+    public function fail(string $message): void {}
+}
+`)
+	if len(facts["DateTime"]) < 2 {
+		t.Fatalf("expected narrowing facts for both DateTime variables after || fail guard, got %#v", facts)
+	}
+}

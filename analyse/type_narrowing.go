@@ -56,6 +56,31 @@ func instanceofSubject(node ast.Node) (string, bool, bool) {
 	return "", false, false
 }
 
+// negatedInstanceofGuardsWhenFalse collects `$x instanceof T` facts that hold
+// when a condition is false. `A || B` being false means both sides are false,
+// so `if (!$a instanceof Foo || !$b instanceof Bar) { return; }` narrows both
+// variables afterwards. `&&` is ignored because a false conjunction does not
+// prove both operands.
+func negatedInstanceofGuardsWhenFalse(condition ast.Node) []instanceofCondition {
+	var guards []instanceofCondition
+	collectNegatedInstanceofGuardsWhenFalse(condition, &guards)
+	return guards
+}
+
+func collectNegatedInstanceofGuardsWhenFalse(node ast.Node, guards *[]instanceofCondition) {
+	if node == nil {
+		return
+	}
+	if bin, ok := node.(*ast.BinaryExpr); ok && (bin.Operator == "||" || bin.Operator == "or") {
+		collectNegatedInstanceofGuardsWhenFalse(bin.Left, guards)
+		collectNegatedInstanceofGuardsWhenFalse(bin.Right, guards)
+		return
+	}
+	if cond, ok := parseInstanceofCondition(node); ok && cond.negated {
+		*guards = append(*guards, cond)
+	}
+}
+
 // detectInstanceofNarrowing walks an if condition to find instanceof checks.
 // Returns the variable and narrowed type on true branch.
 func detectInstanceofNarrowing(condition ast.Node) (variable string, narrowedType string, ok bool) {
@@ -107,16 +132,17 @@ func walkStatementsForNarrowing(store semanticFactStore, filename string, statem
 		if !ok {
 			continue
 		}
-		cond, parsed := parseInstanceofCondition(ifNode.Condition)
-		if !parsed || !cond.negated || !statementsExitCurrentBlock(ifNode.Body) {
+		if !statementsExitCurrentBlock(ifNode.Body) {
 			continue
 		}
-		className := extractClassNameFromNode(cond.target)
-		if className == "" {
-			continue
-		}
-		for _, later := range statements[i+1:] {
-			walkNodeAndAddNarrowing(store, filename, cond.variable, className, later)
+		for _, cond := range negatedInstanceofGuardsWhenFalse(ifNode.Condition) {
+			className := extractClassNameFromNode(cond.target)
+			if className == "" {
+				continue
+			}
+			for _, later := range statements[i+1:] {
+				walkNodeAndAddNarrowing(store, filename, cond.variable, className, later)
+			}
 		}
 	}
 }

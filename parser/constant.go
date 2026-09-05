@@ -22,6 +22,7 @@ func (p *Parser) parseConstantWithModifiers(modifiers []string) []*ast.ConstantN
 		p.addError("expected 'const' after visibility, got %s", p.tok.Literal)
 		return nil
 	}
+	phpdoc := p.consumeCurrentDoc(p.tok.Pos)
 	p.nextToken() // consume 'const'
 	typeStr := ""
 	if isConstTypeToken(p.tok.Type) {
@@ -71,6 +72,7 @@ func (p *Parser) parseConstantWithModifiers(modifiers []string) []*ast.ConstantN
 			Visibility: visibility,
 			Modifiers:  append([]string(nil), modifiers...),
 			Value:      value,
+			PHPDoc:     phpdoc,
 			Pos:        ast.Position(pos),
 		})
 		if p.tok.Type == token.T_COMMA {

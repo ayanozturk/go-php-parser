@@ -368,10 +368,11 @@ func applyTerminatingIfFalseScope(scope *functionScope, node *ast.IfNode) {
 			scope.setVariable(variableName, refined)
 		}
 	}
-	// When a negated instanceof guard terminates (return/throw), later
-	// statements see the asserted class. This covers both `!($x instanceof T)`
-	// and PHP's unparenthesized `!$x instanceof T`.
-	if cond, ok := parseInstanceofCondition(node.Condition); ok && cond.negated {
+	// When a negated instanceof guard terminates (return/throw/fail), later
+	// statements see the asserted class. This covers `!($x instanceof T)`,
+	// PHP's unparenthesized `!$x instanceof T`, and `||` combinations of those
+	// checks (false means every operand is false).
+	for _, cond := range negatedInstanceofGuardsWhenFalse(node.Condition) {
 		if typ := typeFromInstanceofTarget(cond.target, scope); !typ.IsEmpty() {
 			scope.setVariable(cond.variable, typ)
 		}

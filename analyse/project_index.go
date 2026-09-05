@@ -1815,11 +1815,15 @@ func resolvedGenericMetadata(doc *ast.PHPDocNode, ft FileTypeContext) ([]string,
 }
 
 func constantFromNode(filename, className string, c *ast.ConstantNode, ft FileTypeContext) ResolvedConstant {
+	typ := c.Type
+	if typ == "" && c.PHPDoc != nil && c.PHPDoc.VarType != "" {
+		typ = c.PHPDoc.VarType
+	}
 	return ResolvedConstant{
 		Name:           c.Name,
 		DeclaringClass: className,
 		Declaration:    sourceLocation(filename, c),
-		Type:           normalizeTypeWithContext(c.Type, ft),
+		Type:           normalizeTypeWithContext(typ, ft),
 		Visibility:     defaultVisibility(c.Visibility),
 		Final:          hasModifier(c.Modifiers, "final"),
 	}

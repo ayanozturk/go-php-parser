@@ -715,3 +715,49 @@ class Controller {
 		t.Fatalf("instanceof early-return should narrow $user to User, got %#v", issues)
 	}
 }
+
+func TestLevel2NegatedInstanceofOrFailNarrowsNullableReceivers(t *testing.T) {
+	files := map[string]string{
+		"test.php": `<?php
+class DateTime {
+    public function getTimestamp(): int { return 0; }
+}
+class ExampleTest {
+    public function fail(string $message): void {}
+
+    public function testWindow(): void {
+        $capturedFrom = null;
+        $capturedTo = null;
+        if (!$capturedFrom instanceof DateTime || !$capturedTo instanceof DateTime) {
+            $this->fail('Expected reminder window boundaries to be captured.');
+        }
+        $diffSeconds = $capturedTo->getTimestamp() - $capturedFrom->getTimestamp();
+        echo $diffSeconds;
+    }
+
+    public function testWindowReturn(): void {
+        $capturedFrom = null;
+        $capturedTo = null;
+        if (!$capturedFrom instanceof DateTime || !$capturedTo instanceof DateTime) {
+            return;
+        }
+        $capturedTo->getTimestamp();
+        $capturedFrom->getTimestamp();
+    }
+
+    public function testSingleFail(): void {
+        $capturedFrom = null;
+        if (!$capturedFrom instanceof DateTime) {
+            $this->fail('missing from');
+        }
+        $capturedFrom->getTimestamp();
+    }
+}
+`,
+	}
+
+	issues := runAnalysisLevelOnFiles(t, files, 2)
+	if hasIssueContaining(issues, level2MethodNonObjectCode, "getTimestamp") {
+		t.Fatalf("negated instanceof || $this->fail() should narrow DateTime receivers, got %#v", issues)
+	}
+}

@@ -90,7 +90,9 @@ func isTerminatingStatement(node ast.Node) bool {
 	case *ast.ExpressionStmt:
 		return isTerminatingStatement(n.Expr)
 	case *ast.FunctionCallNode:
-		return isBuiltinTerminatorCall(n)
+		return isNeverReturningCall(n)
+	case *ast.MethodCallNode:
+		return isNeverReturningCall(n)
 	case *ast.IfNode:
 		if n.Else == nil {
 			return false
@@ -120,6 +122,25 @@ func statementsTerminate(stmts []ast.Node) bool {
 	return false
 }
 
+func isNeverReturningCall(node ast.Node) bool {
+	switch n := node.(type) {
+	case *ast.FunctionCallNode:
+		if isBuiltinTerminatorCall(n) {
+			return true
+		}
+		identifier, ok := n.Name.(*ast.IdentifierNode)
+		if !ok {
+			return false
+		}
+		return isPHPUnitNeverMethod(staticCallMethodName(identifier.Value))
+	case *ast.MethodCallNode:
+		receiver, ok := n.Object.(*ast.VariableNode)
+		return ok && receiver.Name == "this" && isPHPUnitNeverMethod(n.Method)
+	default:
+		return false
+	}
+}
+
 func isBuiltinTerminatorCall(call *ast.FunctionCallNode) bool {
 	if call == nil || call.Name == nil {
 		return false
@@ -130,6 +151,22 @@ func isBuiltinTerminatorCall(call *ast.FunctionCallNode) bool {
 	}
 	name := strings.TrimLeft(asciiLowerIdent(identifier.Value), `\`)
 	return name == "exit" || name == "die"
+}
+
+func staticCallMethodName(name string) string {
+	if index := strings.LastIndex(name, "::"); index >= 0 {
+		return name[index+2:]
+	}
+	return name
+}
+
+func isPHPUnitNeverMethod(name string) bool {
+	switch asciiLowerIdent(name) {
+	case "fail", "marktestskipped", "marktestincomplete":
+		return true
+	default:
+		return false
+	}
 }
 
 func init() {

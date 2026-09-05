@@ -10,6 +10,7 @@ type ConstantNode struct {
 	Visibility string // "public", "protected", "private", or ""
 	Modifiers  []string
 	Value      Node
+	PHPDoc     *PHPDocNode // Associated PHPDoc comment
 	Pos        Position
 	EndPos     Position
 }

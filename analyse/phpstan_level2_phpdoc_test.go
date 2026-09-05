@@ -266,3 +266,26 @@ function inspectKnownNested(array $value): void {}
 		t.Fatalf("expected four nested/bound PHPDoc issues, got %#v", issues)
 	}
 }
+
+func TestLevel2PHPDocPropertyTypeDoesNotUsePrecedingConstantPHPDoc(t *testing.T) {
+	const source = `<?php
+class ShiftAssignment {
+    /** @var list<string> */
+    public const VALID_STATUSES = ['assigned'];
+
+    #[Column]
+    private ?string $assignmentId = null;
+
+    /** @var list<string> */
+    public const VALID_OUTCOMES = ['resolved'];
+
+    public function __construct() {}
+}
+`
+	issues := runAnalysisLevelOnFiles(t, map[string]string{"test.php": source}, 2)
+	for _, issue := range issues {
+		if issue.Code == level2PHPDocPropertyTypeCode {
+			t.Fatalf("constant @var leaked onto following property: %#v", issues)
+		}
+	}
+}

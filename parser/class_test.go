@@ -489,3 +489,54 @@ interface PropertyContract {
 		t.Fatalf("property PHPDoc leaked to following interface method: %#v", method)
 	}
 }
+
+func TestParseConstantPHPDocDoesNotLeakToFollowingProperty(t *testing.T) {
+	php := `<?php
+class ShiftAssignment {
+    /** @var list<string> */
+    public const VALID_STATUSES = ['assigned'];
+
+    #[Column]
+    private ?string $assignmentId = null;
+
+    /** @var list<string> */
+    public const VALID_OUTCOMES = ['resolved'];
+
+    public function __construct() {}
+}
+`
+	p := New(lexer.New(php), false)
+	nodes := p.Parse()
+	if errs := p.Errors(); len(errs) > 0 {
+		t.Fatalf("Parser errors: %v", errs)
+	}
+	classNode, ok := nodes[0].(*ast.ClassNode)
+	if !ok {
+		t.Fatalf("expected ClassNode, got %T", nodes[0])
+	}
+	if len(classNode.Constants) != 2 {
+		t.Fatalf("expected two constants, got %d", len(classNode.Constants))
+	}
+	for _, constantNode := range classNode.Constants {
+		constant, ok := constantNode.(*ast.ConstantNode)
+		if !ok || constant.PHPDoc == nil || constant.PHPDoc.VarType != "list<string>" {
+			t.Fatalf("expected constant list<string> PHPDoc, got %#v", constantNode)
+		}
+	}
+	if len(classNode.Properties) != 1 {
+		t.Fatalf("expected one property, got %d", len(classNode.Properties))
+	}
+	property, ok := classNode.Properties[0].(*ast.PropertyNode)
+	if !ok || property.Name != "assignmentId" {
+		t.Fatalf("expected $assignmentId, got %#v", classNode.Properties[0])
+	}
+	if property.PHPDoc != nil {
+		t.Fatalf("constant PHPDoc leaked to following property: %#v", property.PHPDoc)
+	}
+	if len(classNode.Methods) != 1 {
+		t.Fatalf("expected constructor, got %d methods", len(classNode.Methods))
+	}
+	if method, ok := classNode.Methods[0].(*ast.FunctionNode); !ok || method.PHPDoc != nil {
+		t.Fatalf("constant PHPDoc leaked to following method: %#v", classNode.Methods[0])
+	}
+}
