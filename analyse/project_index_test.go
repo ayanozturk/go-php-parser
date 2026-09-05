@@ -477,6 +477,50 @@ final class ChildTest extends WebTestCase {}
 	}
 }
 
+func TestProjectIndexKeepsDroppedVendorSymbolsAcrossRebuilds(t *testing.T) {
+	parsed := parseProjectSources(t, map[string]string{
+		"src/App.php": `<?php
+class App {
+    public function run(): void {}
+}
+`,
+		"vendor/symfony/Test.php": `<?php
+class WebTestCase {
+    public static function assertResponseIsSuccessful(): void {}
+}
+`,
+	})
+	idx := BuildProjectIndex(parsed)
+	idx.DropRetainedTrees(func(filename string) bool {
+		return strings.Contains(filename, "vendor/")
+	})
+	if _, ok := idx.sourceFiles["vendor/symfony/Test.php"]; ok {
+		t.Fatal("expected vendor AST to be released")
+	}
+	if _, ok := idx.ResolveMethod("WebTestCase", "assertResponseIsSuccessful"); !ok {
+		t.Fatal("expected vendor symbols to remain after releasing ASTs")
+	}
+
+	appOnly := map[string][]ast.Node{"src/App.php": parsed["src/App.php"]}
+	appOnly["src/App.php"] = parsePHPForProjectIndex(t, `<?php
+class App {
+    public function run(): void { echo "updated"; }
+}
+`)
+	got, semanticChanged := BuildProjectIndexIncremental(idx, appOnly, []string{"src/App.php"})
+	if semanticChanged {
+		t.Fatal("expected body-only app edit to stay non-semantic")
+	}
+	if _, ok := got.ResolveMethod("WebTestCase", "assertResponseIsSuccessful"); !ok {
+		t.Fatal("expected vendor method to survive incremental update after AST release")
+	}
+
+	rebuilt := rebuildProjectIndex(got, appOnly)
+	if _, ok := rebuilt.ResolveMethod("WebTestCase", "assertResponseIsSuccessful"); !ok {
+		t.Fatal("expected vendor method to be reimported on full rebuild")
+	}
+}
+
 func assertIndexedSymbol(t *testing.T, source string, gotID, wantID SymbolID, location SourceLocation, filename string) {
 	t.Helper()
 	if gotID != wantID {

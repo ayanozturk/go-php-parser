@@ -144,7 +144,13 @@ func rebuildProjectIndex(previous *ProjectIndex, parsed map[string][]ast.Node) *
 	if previous != nil && previous.phpVersion != "" {
 		version = previous.phpVersion
 	}
-	return BuildProjectIndexForVersion(parsed, version)
+	idx := BuildProjectIndexForVersion(parsed, version)
+	if previous != nil {
+		idx.importSymbolsFromUnparsedFiles(previous, parsed)
+		idx.methodsDeclared = buildMethodsDeclaredViews(idx)
+		idx.classLineages = buildClassLineageViews(idx)
+	}
+	return idx
 }
 
 // BuildProjectIndexIncrementalWithChanges is BuildProjectIndexIncremental with
@@ -199,7 +205,7 @@ func BuildProjectIndexIncrementalWithChanges(previous *ProjectIndex, parsed map[
 		return idx, finalizeProjectIndexChanges(previous, idx, changes)
 	}
 
-	idx := cloneProjectIndex(previous)
+	idx := cloneProjectIndexForFiles(previous, filenames)
 	for _, filename := range filenames {
 		idx.removeProjectFile(filename)
 	}
@@ -234,11 +240,12 @@ func buildProjectFileIndex(filename string, nodes []ast.Node) *ProjectIndex {
 }
 
 func cloneProjectIndex(previous *ProjectIndex) *ProjectIndex {
+	return cloneProjectIndexForFiles(previous, nil)
+}
+
+func cloneProjectIndexForFiles(previous *ProjectIndex, exclusiveFiles []string) *ProjectIndex {
 	idx := newProjectIndex()
 	idx.Classes = mapsClone(previous.Classes)
-	idx.Methods = cloneNestedMap(previous.Methods)
-	idx.Properties = cloneNestedMap(previous.Properties)
-	idx.ClassConsts = cloneNestedMap(previous.ClassConsts)
 	idx.Functions = mapsClone(previous.Functions)
 	idx.Constants = mapsClone(previous.Constants)
 	idx.FileTypes = mapsClone(previous.FileTypes)
@@ -248,7 +255,63 @@ func cloneProjectIndex(previous *ProjectIndex) *ProjectIndex {
 	idx.collidingDefinitions = mapsClone(previous.collidingDefinitions)
 	idx.globalConstantFiles = mapsClone(previous.globalConstantFiles)
 	idx.phpVersion = previous.phpVersion
+	exclusive := exclusiveNestedKeys(previous, exclusiveFiles)
+	idx.Methods = cloneNestedMapExclusive(previous.Methods, exclusive)
+	idx.Properties = cloneNestedMapExclusive(previous.Properties, exclusive)
+	idx.ClassConsts = cloneNestedMapExclusive(previous.ClassConsts, exclusive)
 	return idx
+}
+
+func exclusiveNestedKeys(previous *ProjectIndex, files []string) map[string]struct{} {
+	if previous == nil || len(files) == 0 {
+		return nil
+	}
+	keys := make(map[string]struct{})
+	owned := make(map[string]struct{}, len(files))
+	for _, filename := range files {
+		owned[filename] = struct{}{}
+		for className := range previous.fileClasses[filename] {
+			keys[indexKey(className)] = struct{}{}
+		}
+	}
+	for key, class := range previous.Classes {
+		if _, ok := owned[class.Declaration.File]; ok {
+			keys[key] = struct{}{}
+		}
+	}
+	addNestedKeysOwnedByFiles(keys, previous.Methods, owned, func(value ResolvedMethod) string { return value.Declaration.File })
+	addNestedKeysOwnedByFiles(keys, previous.Properties, owned, func(value ResolvedProperty) string { return value.Declaration.File })
+	addNestedKeysOwnedByFiles(keys, previous.ClassConsts, owned, func(value ResolvedConstant) string { return value.Declaration.File })
+	return keys
+}
+
+func addNestedKeysOwnedByFiles[V any](keys map[string]struct{}, values map[string]map[string]V, files map[string]struct{}, fileOf func(V) string) {
+	for outerKey, entries := range values {
+		if _, already := keys[outerKey]; already {
+			continue
+		}
+		for _, value := range entries {
+			if _, ok := files[fileOf(value)]; ok {
+				keys[outerKey] = struct{}{}
+				break
+			}
+		}
+	}
+}
+
+func cloneNestedMapExclusive[V any](source map[string]map[string]V, exclusive map[string]struct{}) map[string]map[string]V {
+	if exclusive == nil {
+		return cloneNestedMap(source)
+	}
+	cloned := make(map[string]map[string]V, len(source))
+	for outerKey, values := range source {
+		if _, copyInner := exclusive[outerKey]; copyInner {
+			cloned[outerKey] = mapsClone(values)
+			continue
+		}
+		cloned[outerKey] = values
+	}
+	return cloned
 }
 
 func mapsClone[K comparable, V any](source map[K]V) map[K]V {
@@ -269,6 +332,68 @@ func cloneNestedMap[V any](source map[string]map[string]V) map[string]map[string
 
 func cloneNestedSet(source map[string]map[string]struct{}) map[string]map[string]struct{} {
 	return cloneNestedMap(source)
+}
+
+// DropRetainedTrees releases parsed ASTs for selected files while keeping their
+// extracted symbols. Incremental updates must not list those files as changed
+// unless they are reparsed; full rebuilds reimport the dropped files from the
+// previous index.
+func (idx *ProjectIndex) DropRetainedTrees(drop func(filename string) bool) {
+	if idx == nil || drop == nil {
+		return
+	}
+	for filename := range idx.sourceFiles {
+		if !drop(filename) {
+			if ft, ok := idx.FileTypes[filename]; ok {
+				ft.ClassNodes = nil
+				idx.FileTypes[filename] = ft
+			}
+			continue
+		}
+		delete(idx.sourceFiles, filename)
+		delete(idx.FileTypes, filename)
+	}
+}
+
+func (idx *ProjectIndex) importSymbolsFromUnparsedFiles(previous *ProjectIndex, parsed map[string][]ast.Node) {
+	if idx == nil || previous == nil {
+		return
+	}
+	for key, class := range previous.Classes {
+		if _, exists := idx.Classes[key]; exists {
+			continue
+		}
+		if _, parsedFile := parsed[class.Declaration.File]; parsedFile && class.Declaration.File != "" {
+			continue
+		}
+		idx.Classes[key] = class
+		if methods := previous.Methods[key]; methods != nil {
+			idx.Methods[key] = methods
+		}
+		if properties := previous.Properties[key]; properties != nil {
+			idx.Properties[key] = properties
+		}
+		if constants := previous.ClassConsts[key]; constants != nil {
+			idx.ClassConsts[key] = constants
+			for _, constant := range constants {
+				idx.Constants[indexKey(constant.DeclaringClass+"::"+constant.Name)] = struct{}{}
+			}
+		}
+		if owners := previous.fileClasses[class.Declaration.File]; owners != nil && class.Declaration.File != "" {
+			if idx.fileClasses[class.Declaration.File] == nil {
+				idx.fileClasses[class.Declaration.File] = mapsClone(owners)
+			}
+		}
+	}
+	for key, fn := range previous.Functions {
+		if _, exists := idx.Functions[key]; exists {
+			continue
+		}
+		if _, parsedFile := parsed[fn.Declaration.File]; parsedFile && fn.Declaration.File != "" {
+			continue
+		}
+		idx.Functions[key] = fn
+	}
 }
 
 func (idx *ProjectIndex) removeProjectFile(filename string) {
