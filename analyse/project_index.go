@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/ayanozturk/go-php-parser/ast"
+	"github.com/ayanozturk/go-php-parser/phpstubs"
 )
 
 type ProjectIndex struct {
@@ -20,6 +21,7 @@ type ProjectIndex struct {
 	Duplicates      []DuplicateSymbol
 	methodsDeclared map[string][]ResolvedMethod
 	classLineages   map[string][]string
+	phpVersion      string
 	// fileClasses maps file path → class names defined in that file
 	fileClasses map[string]map[string]struct{}
 	// sourceFiles retains the immutable parsed inputs used to build this view.
@@ -66,7 +68,13 @@ func (changes ProjectIndexChanges) SemanticChanged() bool {
 }
 
 func NewProjectIndex() *ProjectIndex {
+	return NewProjectIndexForVersion(phpstubs.DefaultPHPVersion)
+}
+
+func NewProjectIndexForVersion(phpVersion string) *ProjectIndex {
 	idx := newProjectIndex()
+	idx.phpVersion = phpstubs.NormalizePHPVersion(phpVersion)
+	idx.indexPHPStubs(idx.phpVersion)
 	idx.seedBuiltins()
 	return idx
 }
@@ -97,7 +105,11 @@ func newProjectIndex() *ProjectIndex {
 // and therefore some diagnostics computed relative to it - vary between
 // otherwise-identical runs over the same corpus.
 func BuildProjectIndex(parsed map[string][]ast.Node) *ProjectIndex {
-	idx := NewProjectIndex()
+	return BuildProjectIndexForVersion(parsed, phpstubs.DefaultPHPVersion)
+}
+
+func BuildProjectIndexForVersion(parsed map[string][]ast.Node, phpVersion string) *ProjectIndex {
+	idx := NewProjectIndexForVersion(phpVersion)
 	idx.sourceFiles = make(map[string][]ast.Node, len(parsed))
 	filenames := make([]string, 0, len(parsed))
 	for filename, nodes := range parsed {
@@ -127,11 +139,19 @@ func BuildProjectIndexIncremental(previous *ProjectIndex, parsed map[string][]as
 	return idx, changes.SemanticChanged()
 }
 
+func rebuildProjectIndex(previous *ProjectIndex, parsed map[string][]ast.Node) *ProjectIndex {
+	version := phpstubs.DefaultPHPVersion
+	if previous != nil && previous.phpVersion != "" {
+		version = previous.phpVersion
+	}
+	return BuildProjectIndexForVersion(parsed, version)
+}
+
 // BuildProjectIndexIncrementalWithChanges is BuildProjectIndexIncremental with
 // deterministic exported-symbol change details for dependency-scoped caches.
 func BuildProjectIndexIncrementalWithChanges(previous *ProjectIndex, parsed map[string][]ast.Node, changedFiles []string) (*ProjectIndex, ProjectIndexChanges) {
 	if previous == nil || previous.sourceFiles == nil {
-		return BuildProjectIndex(parsed), ProjectIndexChanges{Complete: false, FullRebuild: true}
+		return rebuildProjectIndex(previous, parsed), ProjectIndexChanges{Complete: false, FullRebuild: true}
 	}
 
 	changed := make(map[string]struct{}, len(changedFiles))
@@ -144,14 +164,14 @@ func BuildProjectIndexIncrementalWithChanges(previous *ProjectIndex, parsed map[
 	for filename := range parsed {
 		if _, exists := previous.sourceFiles[filename]; !exists {
 			if _, listed := changed[filename]; !listed {
-				return BuildProjectIndex(parsed), ProjectIndexChanges{Complete: false, FullRebuild: true}
+				return rebuildProjectIndex(previous, parsed), ProjectIndexChanges{Complete: false, FullRebuild: true}
 			}
 		}
 	}
 	for filename := range previous.sourceFiles {
 		if _, exists := parsed[filename]; !exists {
 			if _, listed := changed[filename]; !listed {
-				return BuildProjectIndex(parsed), ProjectIndexChanges{Complete: false, FullRebuild: true}
+				return rebuildProjectIndex(previous, parsed), ProjectIndexChanges{Complete: false, FullRebuild: true}
 			}
 		}
 	}
@@ -174,7 +194,7 @@ func BuildProjectIndexIncrementalWithChanges(previous *ProjectIndex, parsed map[
 		}
 	}
 	if requiresFullBuild {
-		idx := BuildProjectIndex(parsed)
+		idx := rebuildProjectIndex(previous, parsed)
 		changes.FullRebuild = true
 		return idx, finalizeProjectIndexChanges(previous, idx, changes)
 	}
@@ -186,7 +206,7 @@ func BuildProjectIndexIncrementalWithChanges(previous *ProjectIndex, parsed map[
 	for _, filename := range filenames {
 		contribution := newContributions[filename]
 		if projectFileCollidesWithIndex(idx, contribution) {
-			fresh := BuildProjectIndex(parsed)
+			fresh := rebuildProjectIndex(previous, parsed)
 			changes.FullRebuild = true
 			return fresh, finalizeProjectIndexChanges(previous, fresh, changes)
 		}
@@ -227,6 +247,7 @@ func cloneProjectIndex(previous *ProjectIndex) *ProjectIndex {
 	idx.sourceFiles = mapsClone(previous.sourceFiles)
 	idx.collidingDefinitions = mapsClone(previous.collidingDefinitions)
 	idx.globalConstantFiles = mapsClone(previous.globalConstantFiles)
+	idx.phpVersion = previous.phpVersion
 	return idx
 }
 
@@ -1438,6 +1459,14 @@ func (idx *ProjectIndex) addFunction(fn ResolvedFunction) {
 }
 
 func (idx *ProjectIndex) addMethod(className string, method ResolvedMethod) {
+	idx.addMethodMaybe(className, method, true)
+}
+
+func (idx *ProjectIndex) addMethodIfMissing(className string, method ResolvedMethod) {
+	idx.addMethodMaybe(className, method, false)
+}
+
+func (idx *ProjectIndex) addMethodMaybe(className string, method ResolvedMethod, overwrite bool) {
 	key := indexKey(className)
 	method.DeclaringClass = className
 	method.ID = stableSymbolID("method", className, method.Name)
@@ -1446,6 +1475,9 @@ func (idx *ProjectIndex) addMethod(className string, method ResolvedMethod) {
 	}
 	methodKey := asciiLowerIdent(method.Name)
 	_, exists := idx.Methods[key][methodKey]
+	if exists && !overwrite {
+		return
+	}
 	if exists {
 		idx.collidingDefinitions[memberDefinitionKey("method", key, methodKey)] = struct{}{}
 	}
@@ -1561,6 +1593,14 @@ func (idx *ProjectIndex) addProperty(className string, property ResolvedProperty
 }
 
 func (idx *ProjectIndex) addClassConstant(className string, constant ResolvedConstant) {
+	idx.addClassConstantMaybe(className, constant, true)
+}
+
+func (idx *ProjectIndex) addClassConstantIfMissing(className string, constant ResolvedConstant) {
+	idx.addClassConstantMaybe(className, constant, false)
+}
+
+func (idx *ProjectIndex) addClassConstantMaybe(className string, constant ResolvedConstant, overwrite bool) {
 	key := indexKey(className)
 	constant.DeclaringClass = className
 	constant.ID = stableSymbolID("constant", className, constant.Name)
@@ -1569,6 +1609,9 @@ func (idx *ProjectIndex) addClassConstant(className string, constant ResolvedCon
 	}
 	constantKey := asciiLowerIdent(constant.Name)
 	_, exists := idx.ClassConsts[key][constantKey]
+	if exists && !overwrite {
+		return
+	}
 	if exists {
 		idx.collidingDefinitions[memberDefinitionKey("class-constant", key, constantKey)] = struct{}{}
 	}
@@ -1831,6 +1874,8 @@ var builtinClassNames = map[string]struct{}{
 	"traversable":              {},
 	"underflowexception":       {},
 	"unexpectedvalueexception": {},
+	"unitenum":                 {},
+	"backedenum":               {},
 	"valueerror":               {},
 }
 
@@ -1900,19 +1945,22 @@ func (idx *ProjectIndex) seedBuiltins() {
 		{Name: "Traversable", Kind: "interface"},
 		{Name: "ValueError", Kind: "class", Extends: []string{"Error"}},
 	} {
+		if _, exists := idx.Classes[indexKey(class.Name)]; exists {
+			continue
+		}
 		class.ID = stableSymbolID("class", "", class.Name)
 		idx.Classes[indexKey(class.Name)] = class
 	}
 	for _, className := range []string{"DateTime", "DateTimeImmutable"} {
-		idx.addMethod(className, ResolvedMethod{Name: "createFromFormat", DeclaringClass: className, ReturnType: className + "|false", Params: []ResolvedParam{{Name: "format"}, {Name: "datetime"}, {Name: "timezone", HasDefault: true}}, Visibility: "public", IsStatic: true})
-		idx.addMethod(className, ResolvedMethod{Name: "createFromInterface", DeclaringClass: className, ReturnType: className, Params: []ResolvedParam{{Name: "object"}}, Visibility: "public", IsStatic: true})
-		idx.addMethod(className, ResolvedMethod{Name: "getLastErrors", DeclaringClass: className, ReturnType: "array|false", Visibility: "public", IsStatic: true})
+		idx.addMethodIfMissing(className, ResolvedMethod{Name: "createFromFormat", DeclaringClass: className, ReturnType: className + "|false", Params: []ResolvedParam{{Name: "format"}, {Name: "datetime"}, {Name: "timezone", HasDefault: true}}, Visibility: "public", IsStatic: true})
+		idx.addMethodIfMissing(className, ResolvedMethod{Name: "createFromInterface", DeclaringClass: className, ReturnType: className, Params: []ResolvedParam{{Name: "object"}}, Visibility: "public", IsStatic: true})
+		idx.addMethodIfMissing(className, ResolvedMethod{Name: "getLastErrors", DeclaringClass: className, ReturnType: "array|false", Visibility: "public", IsStatic: true})
 	}
-	idx.addMethod("DateTime", ResolvedMethod{Name: "createFromImmutable", DeclaringClass: "DateTime", ReturnType: "DateTime", Params: []ResolvedParam{{Name: "object"}}, Visibility: "public", IsStatic: true})
-	idx.addMethod("DateTimeImmutable", ResolvedMethod{Name: "createFromMutable", DeclaringClass: "DateTimeImmutable", ReturnType: "DateTimeImmutable", Params: []ResolvedParam{{Name: "object"}}, Visibility: "public", IsStatic: true})
+	idx.addMethodIfMissing("DateTime", ResolvedMethod{Name: "createFromImmutable", DeclaringClass: "DateTime", ReturnType: "DateTime", Params: []ResolvedParam{{Name: "object"}}, Visibility: "public", IsStatic: true})
+	idx.addMethodIfMissing("DateTimeImmutable", ResolvedMethod{Name: "createFromMutable", DeclaringClass: "DateTimeImmutable", ReturnType: "DateTimeImmutable", Params: []ResolvedParam{{Name: "object"}}, Visibility: "public", IsStatic: true})
 	dateTimeConstruct := []ResolvedParam{{Name: "datetime", HasDefault: true}, {Name: "timezone", HasDefault: true}}
-	idx.addMethod("DateTime", ResolvedMethod{Name: "__construct", DeclaringClass: "DateTime", Params: dateTimeConstruct, Visibility: "public"})
-	idx.addMethod("DateTimeImmutable", ResolvedMethod{Name: "__construct", DeclaringClass: "DateTimeImmutable", Params: dateTimeConstruct, Visibility: "public"})
+	idx.addMethodIfMissing("DateTime", ResolvedMethod{Name: "__construct", DeclaringClass: "DateTime", Params: dateTimeConstruct, Visibility: "public"})
+	idx.addMethodIfMissing("DateTimeImmutable", ResolvedMethod{Name: "__construct", DeclaringClass: "DateTimeImmutable", Params: dateTimeConstruct, Visibility: "public"})
 	for _, method := range []ResolvedMethod{
 		{Name: "format", ReturnType: "string", Params: []ResolvedParam{{Name: "format"}}, Visibility: "public"},
 		{Name: "getTimestamp", ReturnType: "int", Visibility: "public"},
@@ -1920,7 +1968,7 @@ func (idx *ProjectIndex) seedBuiltins() {
 		{Name: "getOffset", ReturnType: "int", Visibility: "public"},
 		{Name: "getTimezone", ReturnType: "DateTimeZone|false", Visibility: "public"},
 	} {
-		idx.addMethod("DateTimeInterface", method)
+		idx.addMethodIfMissing("DateTimeInterface", method)
 	}
 	for _, className := range []string{"DateTime", "DateTimeImmutable"} {
 		for _, method := range []ResolvedMethod{
@@ -1932,7 +1980,7 @@ func (idx *ProjectIndex) seedBuiltins() {
 			{Name: "setTimestamp", ReturnType: className, Params: []ResolvedParam{{Name: "timestamp"}}, Visibility: "public"},
 			{Name: "setTimezone", ReturnType: className, Params: []ResolvedParam{{Name: "timezone"}}, Visibility: "public"},
 		} {
-			idx.addMethod(className, method)
+			idx.addMethodIfMissing(className, method)
 		}
 	}
 	for _, method := range []ResolvedMethod{
@@ -1944,7 +1992,7 @@ func (idx *ProjectIndex) seedBuiltins() {
 		{Name: "getTrace", ReturnType: "array", Visibility: "public"},
 		{Name: "getTraceAsString", ReturnType: "string", Visibility: "public"},
 	} {
-		idx.addMethod("Throwable", method)
+		idx.addMethodIfMissing("Throwable", method)
 	}
 	for _, method := range []ResolvedMethod{
 		{Name: "getAttributes", ReturnType: "array", Params: []ResolvedParam{{Name: "name", HasDefault: true}, {Name: "flags", HasDefault: true}}, Visibility: "public"},
@@ -1958,7 +2006,7 @@ func (idx *ProjectIndex) seedBuiltins() {
 		{Name: "isReadOnly", ReturnType: "bool", Visibility: "public"},
 		{Name: "isSubclassOf", ReturnType: "bool", Params: []ResolvedParam{{Name: "class"}}, Visibility: "public"},
 	} {
-		idx.addMethod("ReflectionClass", method)
+		idx.addMethodIfMissing("ReflectionClass", method)
 	}
 	for _, method := range []ResolvedMethod{
 		{Name: "getAttributes", ReturnType: "array", Params: []ResolvedParam{{Name: "name", HasDefault: true}, {Name: "flags", HasDefault: true}}, Visibility: "public"},
@@ -1966,26 +2014,26 @@ func (idx *ProjectIndex) seedBuiltins() {
 		{Name: "setValue", Params: []ResolvedParam{{Name: "objectOrValue"}, {Name: "value", HasDefault: true}}, Visibility: "public"},
 		{Name: "isReadOnly", ReturnType: "bool", Visibility: "public"},
 	} {
-		idx.addMethod("ReflectionProperty", method)
+		idx.addMethodIfMissing("ReflectionProperty", method)
 	}
-	idx.addMethod("ReflectionMethod", ResolvedMethod{Name: "invoke", ReturnType: "mixed", Params: []ResolvedParam{{Name: "object"}, {Name: "args", IsVariadic: true}}, Visibility: "public"})
-	idx.addMethod("Closure", ResolvedMethod{Name: "fromCallable", DeclaringClass: "Closure", ReturnType: "Closure", Params: []ResolvedParam{{Name: "callback"}}, Visibility: "public", IsStatic: true})
-	idx.addMethod("DateTimeZone", ResolvedMethod{Name: "__construct", DeclaringClass: "DateTimeZone", Params: []ResolvedParam{{Name: "timezone"}}, Visibility: "public"})
-	idx.addMethod("DateInterval", ResolvedMethod{Name: "__construct", DeclaringClass: "DateInterval", Params: []ResolvedParam{{Name: "duration"}}, Visibility: "public"})
-	idx.addMethod("ArrayObject", ResolvedMethod{Name: "__construct", DeclaringClass: "ArrayObject", Params: []ResolvedParam{{Name: "array", HasDefault: true}, {Name: "flags", HasDefault: true}, {Name: "iteratorClass", HasDefault: true}}, Visibility: "public"})
-	idx.addMethod("ArrayIterator", ResolvedMethod{Name: "__construct", DeclaringClass: "ArrayIterator", Params: []ResolvedParam{{Name: "array", HasDefault: true}, {Name: "flags", HasDefault: true}}, Visibility: "public"})
-	idx.addMethod("SplFixedArray", ResolvedMethod{Name: "__construct", DeclaringClass: "SplFixedArray", Params: []ResolvedParam{{Name: "size", HasDefault: true}}, Visibility: "public"})
-	idx.addMethod("ErrorException", ResolvedMethod{Name: "__construct", DeclaringClass: "ErrorException", Params: []ResolvedParam{{Name: "message", HasDefault: true}, {Name: "code", HasDefault: true}, {Name: "severity", HasDefault: true}, {Name: "filename", HasDefault: true}, {Name: "line", HasDefault: true}, {Name: "previous", HasDefault: true}}, Visibility: "public"})
-	idx.addMethod("Error", ResolvedMethod{Name: "__construct", DeclaringClass: "Error", Params: []ResolvedParam{{Name: "message", HasDefault: true}, {Name: "code", HasDefault: true}, {Name: "previous", HasDefault: true}}, Visibility: "public"})
-	idx.addMethod("Exception", ResolvedMethod{Name: "__construct", DeclaringClass: "Exception", Params: []ResolvedParam{{Name: "message", HasDefault: true}, {Name: "code", HasDefault: true}, {Name: "previous", HasDefault: true}}, Visibility: "public"})
-	idx.addMethod("ReflectionClass", ResolvedMethod{Name: "__construct", DeclaringClass: "ReflectionClass", Params: []ResolvedParam{{Name: "objectOrClass"}}, Visibility: "public"})
-	idx.addMethod("ReflectionMethod", ResolvedMethod{Name: "__construct", DeclaringClass: "ReflectionMethod", Params: []ResolvedParam{{Name: "objectOrMethod"}, {Name: "method", HasDefault: true}}, Visibility: "public"})
-	idx.addMethod("ReflectionProperty", ResolvedMethod{Name: "__construct", DeclaringClass: "ReflectionProperty", Params: []ResolvedParam{{Name: "class"}, {Name: "property"}}, Visibility: "public"})
-	idx.addMethod("ReflectionObject", ResolvedMethod{Name: "__construct", DeclaringClass: "ReflectionObject", Params: []ResolvedParam{{Name: "object"}}, Visibility: "public"})
+	idx.addMethodIfMissing("ReflectionMethod", ResolvedMethod{Name: "invoke", ReturnType: "mixed", Params: []ResolvedParam{{Name: "object"}, {Name: "args", IsVariadic: true}}, Visibility: "public"})
+	idx.addMethodIfMissing("Closure", ResolvedMethod{Name: "fromCallable", DeclaringClass: "Closure", ReturnType: "Closure", Params: []ResolvedParam{{Name: "callback"}}, Visibility: "public", IsStatic: true})
+	idx.addMethodIfMissing("DateTimeZone", ResolvedMethod{Name: "__construct", DeclaringClass: "DateTimeZone", Params: []ResolvedParam{{Name: "timezone"}}, Visibility: "public"})
+	idx.addMethodIfMissing("DateInterval", ResolvedMethod{Name: "__construct", DeclaringClass: "DateInterval", Params: []ResolvedParam{{Name: "duration"}}, Visibility: "public"})
+	idx.addMethodIfMissing("ArrayObject", ResolvedMethod{Name: "__construct", DeclaringClass: "ArrayObject", Params: []ResolvedParam{{Name: "array", HasDefault: true}, {Name: "flags", HasDefault: true}, {Name: "iteratorClass", HasDefault: true}}, Visibility: "public"})
+	idx.addMethodIfMissing("ArrayIterator", ResolvedMethod{Name: "__construct", DeclaringClass: "ArrayIterator", Params: []ResolvedParam{{Name: "array", HasDefault: true}, {Name: "flags", HasDefault: true}}, Visibility: "public"})
+	idx.addMethodIfMissing("SplFixedArray", ResolvedMethod{Name: "__construct", DeclaringClass: "SplFixedArray", Params: []ResolvedParam{{Name: "size", HasDefault: true}}, Visibility: "public"})
+	idx.addMethodIfMissing("ErrorException", ResolvedMethod{Name: "__construct", DeclaringClass: "ErrorException", Params: []ResolvedParam{{Name: "message", HasDefault: true}, {Name: "code", HasDefault: true}, {Name: "severity", HasDefault: true}, {Name: "filename", HasDefault: true}, {Name: "line", HasDefault: true}, {Name: "previous", HasDefault: true}}, Visibility: "public"})
+	idx.addMethodIfMissing("Error", ResolvedMethod{Name: "__construct", DeclaringClass: "Error", Params: []ResolvedParam{{Name: "message", HasDefault: true}, {Name: "code", HasDefault: true}, {Name: "previous", HasDefault: true}}, Visibility: "public"})
+	idx.addMethodIfMissing("Exception", ResolvedMethod{Name: "__construct", DeclaringClass: "Exception", Params: []ResolvedParam{{Name: "message", HasDefault: true}, {Name: "code", HasDefault: true}, {Name: "previous", HasDefault: true}}, Visibility: "public"})
+	idx.addMethodIfMissing("ReflectionClass", ResolvedMethod{Name: "__construct", DeclaringClass: "ReflectionClass", Params: []ResolvedParam{{Name: "objectOrClass"}}, Visibility: "public"})
+	idx.addMethodIfMissing("ReflectionMethod", ResolvedMethod{Name: "__construct", DeclaringClass: "ReflectionMethod", Params: []ResolvedParam{{Name: "objectOrMethod"}, {Name: "method", HasDefault: true}}, Visibility: "public"})
+	idx.addMethodIfMissing("ReflectionProperty", ResolvedMethod{Name: "__construct", DeclaringClass: "ReflectionProperty", Params: []ResolvedParam{{Name: "class"}, {Name: "property"}}, Visibility: "public"})
+	idx.addMethodIfMissing("ReflectionObject", ResolvedMethod{Name: "__construct", DeclaringClass: "ReflectionObject", Params: []ResolvedParam{{Name: "object"}}, Visibility: "public"})
 	for _, constant := range []string{"ATOM", "COOKIE", "ISO8601", "RFC822", "RFC850", "RFC1036", "RFC1123", "RFC7231", "RFC2822", "RFC3339", "RFC3339_EXTENDED", "RSS", "W3C"} {
-		idx.addClassConstant("DateTime", ResolvedConstant{Name: constant, DeclaringClass: "DateTime", Visibility: "public"})
-		idx.addClassConstant("DateTimeImmutable", ResolvedConstant{Name: constant, DeclaringClass: "DateTimeImmutable", Visibility: "public"})
-		idx.addClassConstant("DateTimeInterface", ResolvedConstant{Name: constant, DeclaringClass: "DateTimeInterface", Visibility: "public"})
+		idx.addClassConstantIfMissing("DateTime", ResolvedConstant{Name: constant, DeclaringClass: "DateTime", Visibility: "public"})
+		idx.addClassConstantIfMissing("DateTimeImmutable", ResolvedConstant{Name: constant, DeclaringClass: "DateTimeImmutable", Visibility: "public"})
+		idx.addClassConstantIfMissing("DateTimeInterface", ResolvedConstant{Name: constant, DeclaringClass: "DateTimeInterface", Visibility: "public"})
 	}
 	for _, fn := range []ResolvedFunction{
 		{Name: "abs", Params: []ResolvedParam{{Name: "num"}}},

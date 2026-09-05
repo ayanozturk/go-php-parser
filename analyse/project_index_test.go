@@ -244,23 +244,20 @@ class Entity {
 	}
 }
 
-func TestProjectIndexAssignsStableIDsToBuiltinsWithoutFakeLocations(t *testing.T) {
+func TestProjectIndexAssignsStableIDsToBuiltins(t *testing.T) {
 	idx := NewProjectIndex()
 
 	class, ok := idx.ResolveClass("DateTimeImmutable")
 	if !ok || class.ID != "class:datetimeimmutable" {
 		t.Fatalf("unexpected built-in class metadata: %#v, %v", class, ok)
 	}
-	if class.Declaration != (SourceLocation{}) {
-		t.Fatalf("built-in class should not have a fake declaration: %#v", class.Declaration)
+	if class.Declaration.File == "" {
+		t.Fatal("bundled PHP stubs should give built-in classes a declaration file")
 	}
 
 	method, ok := idx.ResolveMethod("DateTimeImmutable", "createFromFormat")
 	if !ok || method.ID != "method:datetimeimmutable:createfromformat" {
 		t.Fatalf("unexpected built-in method metadata: %#v, %v", method, ok)
-	}
-	if method.Declaration != (SourceLocation{}) {
-		t.Fatalf("built-in method should not have a fake declaration: %#v", method.Declaration)
 	}
 
 	function, ok := idx.ResolveFunction("strlen")
