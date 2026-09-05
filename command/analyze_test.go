@@ -7,6 +7,8 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+
+	"github.com/ayanozturk/go-php-parser/analyse"
 )
 
 func TestAnalyzeFilesUsesOneProjectSnapshotDeterministically(t *testing.T) {
@@ -74,6 +76,102 @@ func TestAnalyzeFilesAccountsForParseAndReadFailures(t *testing.T) {
 	for _, fragment := range []string{"ANALYSIS RESULTS", "parser errors", "read error", "files=3 analyzed=1"} {
 		if !strings.Contains(output.String(), fragment) {
 			t.Fatalf("analysis output missing %q:\n%s", fragment, output.String())
+		}
+	}
+}
+
+func TestAnalyzeFilesRespectsAnalysisLevel(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "Levels.php")
+	writeAnalyzeFixture(t, path, `<?php
+class Visible {
+    protected function hidden(): void {}
+}
+class Available {
+    public function ping(): void {}
+}
+class MissingPing {}
+
+function usesMissing(): void {
+    unknown_function();
+    echo $undefined;
+    (new Visible())->hidden();
+    throw new DateTime();
+}
+
+function dead(): void {
+    return;
+    echo 1;
+}
+
+function takesInt(int $n): void {}
+
+function badArg(): void {
+    takesInt("nope");
+}
+
+function untyped($value) {
+    return $value;
+}
+
+function unionCall(Available|MissingPing $value): void {
+    $value->ping();
+}
+
+function nullableCall(?Available $value): void {
+    $value->ping();
+}
+
+function badReturn(): int {
+    return "x";
+}
+`)
+	expectations := []struct {
+		code     string
+		minLevel int
+	}{
+		{code: "Level0.Symbols", minLevel: 0},
+		{code: "Level1.Variables", minLevel: 1},
+		{code: "Level2.MethodVisibility", minLevel: 2},
+		{code: "Level3.ThrowType", minLevel: 3},
+		{code: "A.RETURN.TYPE", minLevel: 3},
+		{code: "Generic.CodeAnalysis.UnreachableCode", minLevel: 4},
+		{code: "A.ARG.TYPE", minLevel: 5},
+		{code: "Level6.MissingParameterType", minLevel: 6},
+		{code: "Level7.MethodUnion", minLevel: 7},
+		{code: "Level8.MethodNonObject", minLevel: 8},
+	}
+
+	metaByCode := map[string]int{}
+	for _, meta := range analyse.ListRegisteredAnalysisRuleMetadata() {
+		metaByCode[meta.Code] = meta.Level
+	}
+
+	for _, level := range []int{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10} {
+		level := level
+		result := AnalyzeFiles([]string{path}, &level, nil, 1)
+		for _, expectation := range expectations {
+			has := hasAnalysisCode(result, expectation.code)
+			if level < expectation.minLevel {
+				if has {
+					t.Fatalf("analysis_level %d ran %s, registered at %d: %#v", level, expectation.code, expectation.minLevel, result.Issues)
+				}
+				continue
+			}
+			if !has {
+				t.Fatalf("analysis_level %d missing %s: %#v", level, expectation.code, result.Issues)
+			}
+		}
+		for _, issue := range result.Issues {
+			registered, ok := metaByCode[issue.Code]
+			if !ok {
+				t.Fatalf("unknown issue code %s at analysis_level %d", issue.Code, level)
+			}
+			if registered < 0 {
+				t.Fatalf("unlevelled rule %s ran at analysis_level %d: %#v", issue.Code, level, result.Issues)
+			}
+			if registered > level {
+				t.Fatalf("rule %s (level %d) ran at analysis_level %d: %#v", issue.Code, registered, level, result.Issues)
+			}
 		}
 	}
 }
