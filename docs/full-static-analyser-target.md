@@ -5,9 +5,9 @@
 - Project target: approved
 - Target repositories: `go-php-parser` and `vscode-php-strom`
 - Baseline date: 2026-08-23 (Europe/London)
-- Last roadmap tidy: 2026-09-03 (Europe/London)
-- Current production pin: parser `c06607c` (`v0.0.0-20260903164208-c06607cf949b`), extension `d6547e3`, package `0.1.34`
-- Executable differential gates: 94 / 24 / 96 / 30 / 6 / 16 / 5 / 5 (levels 0–3, 5–8) vs PHPStan 2.2.5
+- Last roadmap tidy: 2026-09-05 (Europe/London)
+- Extension package version: `0.1.35`; the exact parser integration pin is tracked in `vscode-php-strom/server/go.mod`
+- Executable differential gates: 94 / 24 / 96 / 30 / 7 / 18 / 6 / 15 (levels 0–3, 5–8) vs PHPStan 2.2.5
 - Benchmark references: Mago for performance and modern PHP type analysis, PHPStan and Psalm for diagnostic depth, and PHPCS for source-style breadth
 - Working milestone: **M0 done as a baseline; M1 in progress.** The current-production WordPress resource comparison is accepted; full level-0 and broader semantic parity remain open.
 
@@ -444,7 +444,7 @@ Correctness and PHPStan rule-level alignment are now the primary stream. Expand 
 5. **Protect performance while rules grow.** Default production analysis must not gain duplicate walks. Re-run exact accounting and the accepted Mago envelope periodically or when a change affects a structural hot path; reject timing claims whenever either CV exceeds 5%.
 6. **Maintenance:** rewrite `vscode-php-strom/FEATURES.md`; structured parser errors and style-rule range migration.
 
-Completed deliveries 1–56 are archived below and are not the current queue.
+Completed deliveries 1–57 are archived below and are not the current queue.
 
 ## Private-corpus correctness gate (2026-09-03)
 
@@ -453,6 +453,10 @@ An internal 1,930-file PHP 8.4 Symfony application now acts as a non-committed c
 PHPStan 2.1.44 at `max`, using the application's configuration (including `treatPhpDocTypesAsCertain: false`), reports 335 diagnostics across 95 files. After inherited iterable-contract and PHP 8.3+ date-time return alignment, the parser's 33 levelled rules report 1,030 diagnostics across 315 files; running all 37 registered rules reports 1,041 diagnostics across 320 files. This is 161 fewer diagnostics than the original corrected 1,191/1,202 gate and 38 fewer than the preceding 1,068/1,079 gate. Only three unique file/line locations currently overlap, so the lower totals are a false-positive correction rather than evidence of parity. A second PHPStan run with default PHPDoc certainty reports 965 diagnostics, 594 of them already/impossible narrowing checks; this confirms configuration semantics must be represented explicitly when that diagnostic family is implemented.
 
 The first correction batch removed 84 levelled false positives: namespaced class templates, local PHPDoc aliases, literal/range atoms, and callable-local templates no longer become concrete-class/type mismatches. It also found and fixed two comparison-invalidating CLI/cache defects: an explicitly empty target could fall back to unrelated configured files, and disk-cache deserialization omitted constants and other semantic tables. The next reference-probed correction makes methods without local PHPDoc inherit precise iterable/generic parameter and return contracts while preserving diagnostics for explicit weak local PHPDoc. It removes 119 missing-iterable, three missing-generic, and one missing-return diagnostic from the gate. The following built-in metadata correction reflects PHP 8.3+'s non-false `DateTime::modify()` and `DateTimeImmutable::modify()` returns, removing 36 argument and two property false positives while preserving strict `DateTime|false` return-union coverage. Its cache-version bump prevents serialized pre-correction signatures from surviving an engine upgrade. Remaining high-volume differences are tracked in the ranked actions above rather than being labelled as confirmed bugs before reference probes.
+
+### Ternary branch correction, 2026-09-05
+
+Against exact parser baseline `264a964`, the unchanged 1,930-file first-party manifest produces 1,037 all-rule diagnostics before this correction and 1,015 after it (599 to 577 in source; 438 in tests on both sides), with zero parser/read failures. Dependencies are indexed and excluded from reporting. The 22 removed diagnostics comprise twelve argument, three nullable-method, two unknown-method, two partial-union-method, two return, and one property diagnostic; no diagnostic family gains reports. These current-baseline totals supersede comparisons with the older 1,041 total above, which predates intervening parser commits. This is a correction indicator, not a fresh PHPStan whole-corpus parity result. Private source and raw reports remain local.
 
 ## Completed action log
 
@@ -569,6 +573,8 @@ Note: implemented PHP's alternative/colon control-structure syntax and several o
 - **M1 progress (return completeness):** `A.RETURN.TYPE` now uses the snapshot's function-scope fallthrough result to report declared non-`void` functions, methods, and closures that can complete without returning a value. Nullable, `mixed`, and `never` declarations retain PHP's explicit-return requirement; abstract declarations and generators are excluded, while `throw`, `exit`, `die`, and exhaustive `if`/`elseif`/`else` paths count as termination. The rule keeps its deterministic legacy termination fallback when a graph scope is unavailable and now discovers functions consistently inside namespaces, traits, enums, and nested expressions. Adversarial tests cover graph authority, missing-scope fallback, nested-generator ownership, runtime-sensitive return types, methods, closures, and terminating branches. Broader `try`/`switch`/loop precision remains coupled to the next CFG expansion.
 - **M1 progress (first-class `for` loops):** the parser no longer discards `for` control clauses or disguises the loop body as a generic `BlockNode`. `ast.ForNode` preserves ordered initializer, condition, and update expression lists (including empty clauses), the body, and the complete source span. Analysis, hover, diagnostic, fact, printing, and reachability walkers now traverse the node explicitly; initializers update the enclosing scope while body/update state remains loop-local and conservative. The semantic snapshot creates a distinct `for` body scope; the parent graph remains conservatively atomic while the child graph now models loop back-edges and direct control transfers.
 - **M1 progress (loop CFG edges):** `break` and `continue` now have first-class AST nodes with optional preserved levels and complete spans instead of lossy expression wrappers. Loop child graphs model conditional header exits and body back-edges for `for`, `while`, and `foreach`; `do` graphs use a distinct post-body condition block. Direct and numeric level-one `break`/`continue` target the loop exit or continuation point, exhaustive conditional transfers expose both targets, constant boolean conditions refine loop exits, and `for (;;)` falls through only when a reachable break exists. Numeric transfers above level one are retained in the AST but deliberately have no incorrect inner-loop edge until cross-scope targets are represented. All analysis and fact walkers now traverse loop-control levels and `do` bodies/conditions explicitly. Joined variable-flow facts and the 24-case level-1 pack later landed in action 10; levels 2–3 packs continue in actions 20–30.
+
+57. **Done — narrow ternary branch types.** The shared expression traversal, ternary result inference, and hover traversal now use branch-local variable guard scopes for truthy checks, null comparisons, predicates, and negation. Nullable-object `?:` fallbacks preserve their non-null result, while unknown methods and unguarded arguments continue to report. Ten neutral clean/failing controls expand level 8 from five to fifteen fixtures; all 290 cases across levels 0–3 and 5–8 match PHPStan 2.2.5. Focused tests cover nested branches, property assignments, fallback returns, hover, and isolation. The private-corpus indicator removes 22 diagnostics with unchanged file accounting. See `docs/benchmarks/2026-09-05-wordpress-ternary-narrowing.md` for the allocation and interleaved resource guardrail. General falsy-value subtraction, property guards, and arbitrary condition side effects remain partial.
 
 ## Decision log
 

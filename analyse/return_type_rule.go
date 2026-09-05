@@ -492,11 +492,12 @@ func inferType(expr ast.Node, scope *functionScope, ctx *AnalysisContext) Type {
 	case *ast.TypeCastNode:
 		return ParseType(n.Type)
 	case *ast.TernaryExpr:
-		ifTrue := inferType(n.IfTrue, scope, ctx)
+		trueScope := scopeForConditionTrue(scope, n.Condition)
+		ifTrue := inferType(n.IfTrue, trueScope, ctx)
 		if n.IfTrue == nil {
-			ifTrue = inferType(n.Condition, scope, ctx)
+			ifTrue = inferType(n.Condition, trueScope, ctx)
 		}
-		return unionInferredTypes(ifTrue, inferType(n.IfFalse, scope, ctx))
+		return unionInferredTypes(ifTrue, inferType(n.IfFalse, scopeForConditionFalse(scope, n.Condition), ctx))
 	case *ast.UnaryExpr:
 		switch n.Operator {
 		case "clone":

@@ -9,29 +9,45 @@
       "id": "known-method-nullable-receiver",
       "capability": "known methods on nullable class receivers",
       "file": "known-method-nullable-receiver.php",
-      "engineCodes": ["Level8.MethodNonObject"],
-      "phpstanIdentifiers": ["method.nonObject"]
+      "engineCodes": [
+        "Level8.MethodNonObject"
+      ],
+      "phpstanIdentifiers": [
+        "method.nonObject"
+      ]
     },
     {
       "id": "known-method-ternary-null",
       "capability": "known methods on class-or-null ternaries",
       "file": "known-method-ternary-null.php",
-      "engineCodes": ["Level8.MethodNonObject"],
-      "phpstanIdentifiers": ["method.nonObject"]
+      "engineCodes": [
+        "Level8.MethodNonObject"
+      ],
+      "phpstanIdentifiers": [
+        "method.nonObject"
+      ]
     },
     {
       "id": "known-method-intersection-nullable",
       "capability": "known methods on nullable intersection receivers",
       "file": "known-method-intersection-nullable.php",
-      "engineCodes": ["Level8.MethodNonObject"],
-      "phpstanIdentifiers": ["method.nonObject"]
+      "engineCodes": [
+        "Level8.MethodNonObject"
+      ],
+      "phpstanIdentifiers": [
+        "method.nonObject"
+      ]
     },
     {
       "id": "known-method-object-nullable",
       "capability": "method calls on nullable object receivers",
       "file": "known-method-object-nullable.php",
-      "engineCodes": ["Level8.MethodNonObject"],
-      "phpstanIdentifiers": ["method.nonObject"]
+      "engineCodes": [
+        "Level8.MethodNonObject"
+      ],
+      "phpstanIdentifiers": [
+        "method.nonObject"
+      ]
     },
     {
       "id": "known-method-nullsafe-receiver",
@@ -39,6 +55,88 @@
       "file": "known-method-nullsafe-receiver.php",
       "engineCodes": [],
       "phpstanIdentifiers": []
+    },
+    {
+      "id": "ternary-truthy-receiver",
+      "capability": "truthy ternary receiver narrowing",
+      "file": "ternary-truthy-receiver.php",
+      "engineCodes": [],
+      "phpstanIdentifiers": []
+    },
+    {
+      "id": "ternary-null-false-branch",
+      "capability": "strict null check narrows false branch",
+      "file": "ternary-null-false-branch.php",
+      "engineCodes": [],
+      "phpstanIdentifiers": []
+    },
+    {
+      "id": "ternary-negated-receiver",
+      "capability": "negation narrows false branch",
+      "file": "ternary-negated-receiver.php",
+      "engineCodes": [],
+      "phpstanIdentifiers": []
+    },
+    {
+      "id": "ternary-null-predicate",
+      "capability": "null predicate narrows false branch",
+      "file": "ternary-null-predicate.php",
+      "engineCodes": [],
+      "phpstanIdentifiers": []
+    },
+    {
+      "id": "ternary-narrowed-arguments",
+      "capability": "argument types use branch-local narrowing",
+      "file": "ternary-narrowed-arguments.php",
+      "engineCodes": [],
+      "phpstanIdentifiers": []
+    },
+    {
+      "id": "ternary-narrowed-returns",
+      "capability": "return values use branch-local narrowing",
+      "file": "ternary-narrowed-returns.php",
+      "engineCodes": [],
+      "phpstanIdentifiers": []
+    },
+    {
+      "id": "ternary-object-fallback",
+      "capability": "short ternary removes nullable object alternative",
+      "file": "ternary-object-fallback.php",
+      "engineCodes": [],
+      "phpstanIdentifiers": []
+    },
+    {
+      "id": "ternary-branch-isolation",
+      "capability": "narrowing must not escape ternary branches",
+      "file": "ternary-branch-isolation.php",
+      "engineCodes": [
+        "A.ARG.TYPE"
+      ],
+      "phpstanIdentifiers": [
+        "argument.type"
+      ]
+    },
+    {
+      "id": "ternary-invalid-method",
+      "capability": "guarded class retains unknown method diagnostics",
+      "file": "ternary-invalid-method.php",
+      "engineCodes": [
+        "Level2.MethodExistence"
+      ],
+      "phpstanIdentifiers": [
+        "method.notFound"
+      ]
+    },
+    {
+      "id": "ternary-opposite-branch",
+      "capability": "truthy guard does not validate the false branch",
+      "file": "ternary-opposite-branch.php",
+      "engineCodes": [
+        "Level8.MethodNonObject"
+      ],
+      "phpstanIdentifiers": [
+        "method.nonObject"
+      ]
     }
   ]
 }

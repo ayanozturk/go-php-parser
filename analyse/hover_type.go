@@ -219,8 +219,8 @@ func walkExprForHoverTypes(node ast.Node, scope *functionScope, ctx *AnalysisCon
 		}
 	case *ast.TernaryExpr:
 		walkExprForHoverTypes(n.Condition, scope, ctx, query, best)
-		walkExprForHoverTypes(n.IfTrue, scope, ctx, query, best)
-		walkExprForHoverTypes(n.IfFalse, scope, ctx, query, best)
+		walkExprForHoverTypes(n.IfTrue, scopeForConditionTrue(scope, n.Condition), ctx, query, best)
+		walkExprForHoverTypes(n.IfFalse, scopeForConditionFalse(scope, n.Condition), ctx, query, best)
 	case *ast.NamedArgumentNode:
 		walkExprForHoverTypes(n.Value, scope, ctx, query, best)
 	case *ast.UnpackedArgumentNode:

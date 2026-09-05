@@ -166,6 +166,24 @@ func scopeForConditionTrue(scope *functionScope, condition ast.Node) *functionSc
 	return refined
 }
 
+// scopeForConditionFalse keeps branch refinements local to the expression.
+// Reuse the existing guard rules rather than treating every falsy value as null.
+func scopeForConditionFalse(scope *functionScope, condition ast.Node) *functionScope {
+	if unary, ok := condition.(*ast.UnaryExpr); ok && unary.Operator == "!" {
+		return scopeForConditionTrue(scope, unary.Operand)
+	}
+	refined := scope.clone()
+	if refined == nil {
+		return nil
+	}
+	for _, name := range variablesNonNullWhenFalse(condition) {
+		if typ, ok := nonNullVariableType(refined, name); ok {
+			refined.setVariable(name, typ)
+		}
+	}
+	return refined
+}
+
 func applyConditionTrueScope(scope *functionScope, condition ast.Node) {
 	if scope == nil {
 		return
@@ -581,8 +599,8 @@ func walkExprForArgTypesUsing(node ast.Node, scope *functionScope, ctx *Analysis
 		observeSemanticExpression(filename, n, scope, ctx, observe)
 	case *ast.TernaryExpr:
 		walkExprForArgTypesUsing(n.Condition, scope, ctx, filename, issues, observe)
-		walkExprForArgTypesUsing(n.IfTrue, scope, ctx, filename, issues, observe)
-		walkExprForArgTypesUsing(n.IfFalse, scope, ctx, filename, issues, observe)
+		walkExprForArgTypesUsing(n.IfTrue, scopeForConditionTrue(scope, n.Condition), ctx, filename, issues, observe)
+		walkExprForArgTypesUsing(n.IfFalse, scopeForConditionFalse(scope, n.Condition), ctx, filename, issues, observe)
 		observeSemanticExpression(filename, n, scope, ctx, observe)
 	case *ast.NewNode:
 		if issues != nil {
