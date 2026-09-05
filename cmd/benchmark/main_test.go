@@ -34,6 +34,22 @@ func TestDiscoverPHPFilesUsesConfiguredPathsAndExcludes(t *testing.T) {
 	}
 }
 
+func TestDiscoverPHPFilesHonorsGlobExcludes(t *testing.T) {
+	root := t.TempDir()
+	writeBenchmarkFixture(t, root, "packages/keep/src/File.php")
+	writeBenchmarkFixture(t, root, "nested/packages/foo/vendor/autoload.php")
+	writeBenchmarkFixture(t, root, "splitter/vendor/autoload.php")
+
+	files, err := discoverPHPFiles(root, []string{"packages", "nested", "splitter"}, []string{"splitter/vendor", "*/packages/**/vendor/*"})
+	if err != nil {
+		t.Fatalf("discover PHP files: %v", err)
+	}
+	want := []string{filepath.Join(root, "packages", "keep", "src", "File.php")}
+	if !reflect.DeepEqual(files, want) {
+		t.Fatalf("unexpected discovered files:\nwant: %#v\n got: %#v", want, files)
+	}
+}
+
 func TestParseBenchmarkPathsRejectsRootEscape(t *testing.T) {
 	for _, input := range []string{"../outside", "src/../../outside", "/absolute"} {
 		if _, err := parseBenchmarkPaths(input, false); err == nil {

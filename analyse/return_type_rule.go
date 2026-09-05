@@ -419,7 +419,10 @@ func collectObservedReturnsUsing(filename string, nodes []ast.Node, scope *funct
 			}
 			returns = append(returns, collectObservedReturnsUsing(filename, n.Body, scope.clone(), ctx, infer)...)
 		case *ast.ForeachNode:
-			returns = append(returns, collectObservedReturnsUsing(filename, n.Body, scope.clone(), ctx, infer)...)
+			loopScope := scope.clone()
+			applyForeachIterationTypes(loopScope, n, ctx, filename)
+			returns = append(returns, collectObservedReturnsUsing(filename, n.Body, loopScope, ctx, infer)...)
+			joinLoopAssignedVariables(scope, loopScope)
 		}
 	}
 	return returns

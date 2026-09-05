@@ -13,6 +13,8 @@
 // Usage:
 //
 //	go run ./cmd/benchmark --root test_projects/symfony --json
+//	go run ./cmd/benchmark --root test_projects/psl --paths docs,examples,packages,splitter,vendor/revolt \
+//	  --excludes splitter/vendor --mago-binary mago --mago-config benchmark-configs/mago/psl.toml --skip-warm
 //
 // Index-only and cold-full-analysis measurements each re-exec this binary
 // as a fresh subprocess per measured run, so every measured run starts with
@@ -58,6 +60,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/ayanozturk/go-php-parser/analyse"
@@ -141,6 +144,7 @@ type benchmarkReport struct {
 	Excludes      []string            `json:"excludes,omitempty"`
 	ValidationRun runMetrics          `json:"validationRun"`
 	Baseline      *baselineReport     `json:"baseline,omitempty"`
+	Mago          *magoReport         `json:"mago,omitempty"`
 	Validation    benchmarkValidation `json:"validation"`
 
 	IndexOnly        phaseReport       `json:"indexOnly"`
@@ -160,7 +164,10 @@ func main() {
 	jsonOutput := flag.Bool("json", false, "emit JSON instead of a text summary")
 	outputPath := flag.String("output", "", "optional file to write the report to")
 	skipCold := flag.Bool("skip-cold", false, "skip the process-cold subprocess runs (index-only and warm-loop still run)")
+	skipWarm := flag.Bool("skip-warm", false, "skip the in-process warm-loop phase")
 	baselineBinary := flag.String("baseline-binary", "", "optional previous-engine benchmark binary to interleave with candidate cold runs")
+	magoBinary := flag.String("mago-binary", "", "optional mago binary to interleave with candidate cold runs")
+	magoConfig := flag.String("mago-config", "", "mago.toml used with --mago-binary")
 	maxCV := flag.Float64("max-cv", 0.05, "maximum accepted cold-run coefficient of variation (0 disables the gate)")
 	settleMs := flag.Int("settle-ms", 250, "pause between process-cold subprocesses so frequency scaling and background load can settle")
 	coldWarmups := flag.Int("cold-warmups", 1, "unmeasured process-cold full-analysis subprocesses per engine after validation and before measured runs")
@@ -209,6 +216,14 @@ func main() {
 	}
 	if *warmIterations < 2 {
 		*warmIterations = 2
+	}
+	if *baselineBinary != "" && *magoBinary != "" {
+		fmt.Fprintln(os.Stderr, "benchmark: --baseline-binary and --mago-binary cannot be used together")
+		os.Exit(1)
+	}
+	if *magoBinary != "" && *magoConfig == "" {
+		fmt.Fprintln(os.Stderr, "benchmark: --mago-config is required with --mago-binary")
+		os.Exit(1)
 	}
 
 	var levelPtr *int
@@ -273,6 +288,10 @@ func main() {
 		report.Validation.Accepted = false
 		report.Validation.Reasons = append(report.Validation.Reasons, "candidate validation: "+err.Error())
 	}
+	if validationRun.FilesFailed > 0 {
+		report.Validation.Accepted = false
+		report.Validation.Reasons = append(report.Validation.Reasons, fmt.Sprintf("candidate validation parsed %d/%d files (%d failed)", validationRun.FilesParsed, validationRun.FilesDiscovered, validationRun.FilesFailed))
+	}
 
 	var baselineValidation runMetrics
 	if *baselineBinary != "" {
@@ -298,6 +317,51 @@ func main() {
 			report.Validation.Reasons = append(report.Validation.Reasons, "baseline validation: "+err.Error())
 		}
 	}
+	if *magoBinary != "" {
+		resolvedMago, resolveErr := filepath.Abs(*magoBinary)
+		if resolveErr != nil {
+			fmt.Fprintf(os.Stderr, "benchmark: resolve mago binary: %v\n", resolveErr)
+			os.Exit(1)
+		}
+		resolvedConfig, resolveErr := filepath.Abs(*magoConfig)
+		if resolveErr != nil {
+			fmt.Fprintf(os.Stderr, "benchmark: resolve mago config: %v\n", resolveErr)
+			os.Exit(1)
+		}
+		resolvedRoot, resolveErr := filepath.Abs(*root)
+		if resolveErr != nil {
+			fmt.Fprintf(os.Stderr, "benchmark: resolve mago workspace: %v\n", resolveErr)
+			os.Exit(1)
+		}
+		fmt.Fprintln(os.Stderr, "benchmark: enumerating mago source and analyzer files")
+		sourceFiles, err := magoListFileCount(resolvedMago, resolvedRoot, resolvedConfig, "")
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "benchmark: %v\n", err)
+			os.Exit(1)
+		}
+		analyzerFiles, err := magoListFileCount(resolvedMago, resolvedRoot, resolvedConfig, "analyzer")
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "benchmark: %v\n", err)
+			os.Exit(1)
+		}
+		fmt.Fprintf(os.Stderr, "benchmark: running unmeasured mago validation (%d source files, %d analyzer files)\n", sourceFiles, analyzerFiles)
+		magoValidation, err := execMagoAnalyze(resolvedMago, resolvedRoot, resolvedConfig, *workers, sourceFiles, analyzerFiles)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "benchmark: mago validation run failed: %v\n", err)
+			os.Exit(1)
+		}
+		report.Mago = &magoReport{
+			Binary:             resolvedMago,
+			Version:            magoVersion(resolvedMago),
+			Config:             resolvedConfig,
+			Workspace:          resolvedRoot,
+			Threads:            *workers,
+			SourceFiles:        sourceFiles,
+			AnalyzerFiles:      analyzerFiles,
+			ValidationRun:      magoValidation,
+			SemanticComparable: false,
+		}
+	}
 
 	if !*skipCold {
 		fmt.Fprintf(os.Stderr, "benchmark: running %d unmeasured process-cold warmup(s) per engine\n", *coldWarmups)
@@ -314,27 +378,44 @@ func main() {
 				}
 				settle(*settleMs)
 			}
+			if report.Mago != nil {
+				if _, err := execMagoAnalyze(report.Mago.Binary, report.Mago.Workspace, report.Mago.Config, report.Mago.Threads, report.Mago.SourceFiles, report.Mago.AnalyzerFiles); err != nil {
+					fmt.Fprintf(os.Stderr, "benchmark: mago warmup failed: %v\n", err)
+					os.Exit(1)
+				}
+				settle(*settleMs)
+			}
 		}
 
 		fmt.Fprintf(os.Stderr, "benchmark: running %d process-cold full-analysis runs\n", *coldRuns)
 		coldRunsResults := make([]runMetrics, 0, *coldRuns+*extraColdRuns)
-		baselineRunsResults := make([]runMetrics, 0, *coldRuns+*extraColdRuns)
+		peerRunsResults := make([]runMetrics, 0, *coldRuns+*extraColdRuns)
 		runCold := func(target benchmarkRunTarget) error {
-			binary := ""
 			if target == benchmarkBaseline {
-				binary = report.Baseline.Binary
+				var run runMetrics
+				if report.Mago != nil {
+					run, err = execMagoAnalyze(report.Mago.Binary, report.Mago.Workspace, report.Mago.Config, report.Mago.Threads, report.Mago.SourceFiles, report.Mago.AnalyzerFiles)
+				} else {
+					run, err = execWorkerBinary(report.Baseline.Binary, *root, paths, excludes, *level, *workers, "full", 1)
+				}
+				if err != nil {
+					return fmt.Errorf("%s cold run: %w", target, err)
+				}
+				peerRunsResults = append(peerRunsResults, run)
+				label := "baseline"
+				if report.Mago != nil {
+					label = "mago"
+				}
+				fmt.Fprintf(os.Stderr, "  %s cold run %d: %dms, %d diagnostics\n", label, len(peerRunsResults), run.DurationMs, run.DiagnosticsEmitted)
+				settle(*settleMs)
+				return nil
 			}
-			run, err := execWorkerBinary(binary, *root, paths, excludes, *level, *workers, "full", 1)
+			run, err := execWorkerBinary("", *root, paths, excludes, *level, *workers, "full", 1)
 			if err != nil {
 				return fmt.Errorf("%s cold run: %w", target, err)
 			}
-			if target == benchmarkBaseline {
-				baselineRunsResults = append(baselineRunsResults, run)
-				fmt.Fprintf(os.Stderr, "  baseline cold run %d: %dms, %d diagnostics\n", len(baselineRunsResults), run.DurationMs, run.DiagnosticsEmitted)
-			} else {
-				coldRunsResults = append(coldRunsResults, run)
-				fmt.Fprintf(os.Stderr, "  candidate cold run %d: %dms, %d diagnostics\n", len(coldRunsResults), run.DurationMs, run.DiagnosticsEmitted)
-			}
+			coldRunsResults = append(coldRunsResults, run)
+			fmt.Fprintf(os.Stderr, "  candidate cold run %d: %dms, %d diagnostics\n", len(coldRunsResults), run.DurationMs, run.DiagnosticsEmitted)
 			settle(*settleMs)
 			return nil
 		}
@@ -343,7 +424,7 @@ func main() {
 		for i := range orders {
 			orders[i] = benchmarkCandidate
 		}
-		if report.Baseline != nil {
+		if report.Baseline != nil || report.Mago != nil {
 			orders = interleavedRunOrder(*coldRuns)
 		}
 		for _, target := range orders {
@@ -355,17 +436,22 @@ func main() {
 
 		for extraUsed := 0; extraUsed < *extraColdRuns; extraUsed++ {
 			report.ColdFullAnalysis = summarize(coldRunsResults)
-			var baselinePhase *phaseReport
-			if report.Baseline != nil {
-				summarized := summarize(baselineRunsResults)
-				report.Baseline.ColdFullAnalysis = summarized
-				baselinePhase = &summarized
+			var peerPhase *phaseReport
+			if report.Baseline != nil || report.Mago != nil {
+				summarized := summarize(peerRunsResults)
+				if report.Baseline != nil {
+					report.Baseline.ColdFullAnalysis = summarized
+				}
+				if report.Mago != nil {
+					report.Mago.ColdFullAnalysis = summarized
+				}
+				peerPhase = &summarized
 			}
-			if !shouldExtendColdRuns(report.ColdFullAnalysis, baselinePhase, *maxCV, *extraColdRuns-extraUsed) {
+			if !shouldExtendColdRuns(report.ColdFullAnalysis, peerPhase, *maxCV, *extraColdRuns-extraUsed) {
 				break
 			}
 			fmt.Fprintf(os.Stderr, "benchmark: extending measured cold runs (%d/%d extra)\n", extraUsed+1, *extraColdRuns)
-			if report.Baseline != nil {
+			if report.Baseline != nil || report.Mago != nil {
 				for _, target := range extraInterleavedPair(len(coldRunsResults)) {
 					if err := runCold(target); err != nil {
 						fmt.Fprintf(os.Stderr, "benchmark: %v\n", err)
@@ -389,8 +475,8 @@ func main() {
 			report.Validation.Reasons = append(report.Validation.Reasons, reason)
 		}
 		if report.Baseline != nil {
-			report.Baseline.ColdFullAnalysis = summarize(baselineRunsResults)
-			if err := validatePhaseAccounting(baselineValidation, baselineRunsResults, true); err != nil {
+			report.Baseline.ColdFullAnalysis = summarize(peerRunsResults)
+			if err := validatePhaseAccounting(baselineValidation, peerRunsResults, true); err != nil {
 				report.Validation.Accepted = false
 				report.Validation.Reasons = append(report.Validation.Reasons, "baseline cold runs: "+err.Error())
 			}
@@ -399,16 +485,29 @@ func main() {
 				report.Validation.Reasons = append(report.Validation.Reasons, reason)
 			}
 		}
+		if report.Mago != nil {
+			report.Mago.ColdFullAnalysis = summarize(peerRunsResults)
+			if err := validatePhaseAccounting(report.Mago.ValidationRun, peerRunsResults, true); err != nil {
+				report.Validation.Accepted = false
+				report.Validation.Reasons = append(report.Validation.Reasons, "mago cold runs: "+err.Error())
+			}
+			if reason := validatePhaseCV("mago", report.Mago.ColdFullAnalysis, *maxCV); reason != "" {
+				report.Validation.Accepted = false
+				report.Validation.Reasons = append(report.Validation.Reasons, reason)
+			}
+		}
 	}
 
-	fmt.Fprintf(os.Stderr, "benchmark: running warm-loop full-analysis (%d iterations, 1 unmeasured warmup)\n", *warmIterations)
-	warmRuns, err := execWorkerRepeat(*root, paths, excludes, *level, *workers, *warmIterations)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "benchmark: warm-loop run failed: %v\n", err)
-		os.Exit(1)
+	if !*skipWarm {
+		fmt.Fprintf(os.Stderr, "benchmark: running warm-loop full-analysis (%d iterations, 1 unmeasured warmup)\n", *warmIterations)
+		warmRuns, err := execWorkerRepeat(*root, paths, excludes, *level, *workers, *warmIterations)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "benchmark: warm-loop run failed: %v\n", err)
+			os.Exit(1)
+		}
+		// Drop the first (warmup) iteration from the measured set.
+		report.WarmFullAnalysis = summarize(warmRuns[1:])
 	}
-	// Drop the first (warmup) iteration from the measured set.
-	report.WarmFullAnalysis = summarize(warmRuns[1:])
 
 	out := io.Writer(os.Stdout)
 	if *outputPath != "" {
@@ -705,50 +804,6 @@ func printResultLine(m runMetrics) {
 	}
 }
 
-// startMemSampler launches a background goroutine that samples
-// runtime.MemStats.Sys (Go's total memory obtained from the OS) at a short
-// interval and tracks its peak. The returned function stops the sampler and
-// returns the observed peak. This is an in-process fallback/supplement to
-// OS rusage, useful on the warm-loop path where there is no child process
-// boundary to read rusage from, and as a cross-check on subprocess runs.
-func startMemSampler() func() int64 {
-	stop := make(chan struct{})
-	var peak int64
-	var mu sync.Mutex
-	done := make(chan struct{})
-	go func() {
-		defer close(done)
-		ticker := time.NewTicker(20 * time.Millisecond)
-		defer ticker.Stop()
-		sample := func() {
-			var ms runtime.MemStats
-			runtime.ReadMemStats(&ms)
-			mu.Lock()
-			if int64(ms.Sys) > peak {
-				peak = int64(ms.Sys)
-			}
-			mu.Unlock()
-		}
-		sample()
-		for {
-			select {
-			case <-stop:
-				sample()
-				return
-			case <-ticker.C:
-				sample()
-			}
-		}
-	}()
-	return func() int64 {
-		close(stop)
-		<-done
-		mu.Lock()
-		defer mu.Unlock()
-		return peak
-	}
-}
-
 func discoverPHPFiles(root string, paths, excludes []string) ([]string, error) {
 	filesByPath := make(map[string]struct{})
 	for _, relativeRoot := range paths {
@@ -765,7 +820,7 @@ func discoverPHPFiles(root string, paths, excludes []string) ([]string, error) {
 				return err
 			}
 			relative = filepath.ToSlash(relative)
-			if benchmarkPathExcluded(relative, excludes) {
+			if benchmarkPathExcludedDir(relative, excludes, d.IsDir()) {
 				if d.IsDir() {
 					return filepath.SkipDir
 				}
@@ -812,14 +867,7 @@ func parseBenchmarkPaths(value string, allowEmpty bool) ([]string, error) {
 	return paths, nil
 }
 
-func benchmarkPathExcluded(path string, excludes []string) bool {
-	for _, excluded := range excludes {
-		if path == excluded || strings.HasPrefix(path, excluded+"/") {
-			return true
-		}
-	}
-	return false
-}
+const maxReportedParseFailures = 20
 
 // parseFiles reads and parses every discovered file concurrently, returning
 // the successfully parsed ASTs keyed by path plus file-accounting metrics.
@@ -829,36 +877,47 @@ func benchmarkPathExcluded(path string, excludes []string) bool {
 // contract's "account for every discovered file" requirement.
 func parseFiles(files []string, workers int) (map[string][]ast.Node, runMetrics) {
 	type parseOutcome struct {
-		path    string
-		nodes   []ast.Node
-		loc     int
-		bytes   int64
-		failed  bool
-		nodeErr error
+		path   string
+		nodes  []ast.Node
+		loc    int
+		bytes  int64
+		failed bool
 	}
 
-	pathCh := make(chan string, workers*2)
-	resultCh := make(chan parseOutcome, workers*2)
+	n := len(files)
+	outcomes := make([]parseOutcome, n)
+	if workers < 1 {
+		workers = 1
+	}
+	if n > 0 && workers > n {
+		workers = n
+	}
+	var next atomic.Int64
 	var wg sync.WaitGroup
+	wg.Add(workers)
 	for i := 0; i < workers; i++ {
-		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			for path := range pathCh {
+			for {
+				idx := int(next.Add(1) - 1)
+				if idx >= n {
+					return
+				}
+				path := files[idx]
 				content, err := os.ReadFile(path)
 				if err != nil {
-					resultCh <- parseOutcome{path: path, failed: true, nodeErr: err}
+					outcomes[idx] = parseOutcome{path: path, failed: true}
 					continue
 				}
 				l := lexer.NewFileBytes(content)
 				p := parser.New(l, false)
 				nodes := p.Parse()
 				if len(p.Errors()) > 0 {
-					resultCh <- parseOutcome{path: path, failed: true, bytes: int64(len(content))}
+					outcomes[idx] = parseOutcome{path: path, failed: true, bytes: int64(len(content))}
 					continue
 				}
 				sharedcache.StoreCachedFileContent(path, content)
-				resultCh <- parseOutcome{
+				outcomes[idx] = parseOutcome{
 					path:  path,
 					nodes: nodes,
 					loc:   countLines(content),
@@ -867,29 +926,30 @@ func parseFiles(files []string, workers int) (map[string][]ast.Node, runMetrics)
 			}
 		}()
 	}
-	go func() {
-		for _, f := range files {
-			pathCh <- f
-		}
-		close(pathCh)
-	}()
-	go func() {
-		wg.Wait()
-		close(resultCh)
-	}()
+	wg.Wait()
 
-	parsed := make(map[string][]ast.Node, len(files))
-	metrics := runMetrics{FilesDiscovered: len(files)}
-	for outcome := range resultCh {
+	parsed := make(map[string][]ast.Node, n)
+	metrics := runMetrics{FilesDiscovered: n}
+	failed := make([]string, 0)
+	for _, outcome := range outcomes {
 		if outcome.failed {
 			metrics.FilesFailed++
 			metrics.TotalBytes += outcome.bytes
+			if len(failed) < maxReportedParseFailures {
+				failed = append(failed, outcome.path)
+			}
 			continue
 		}
 		parsed[outcome.path] = outcome.nodes
 		metrics.FilesParsed++
 		metrics.TotalLOC += outcome.loc
 		metrics.TotalBytes += outcome.bytes
+	}
+	if len(failed) > 0 {
+		fmt.Fprintf(os.Stderr, "benchmark worker: %d parse failure(s); sample:\n", metrics.FilesFailed)
+		for _, path := range failed {
+			fmt.Fprintf(os.Stderr, "  %s\n", path)
+		}
 	}
 	return parsed, metrics
 }
@@ -934,7 +994,7 @@ func runAnalysis(parsed map[string][]ast.Node, project *analyse.ProjectIndex, le
 		nodes []ast.Node
 	}
 	jobCh := make(chan job, workers*2)
-	var total int64Counter
+	var total atomic.Int64
 	var wg sync.WaitGroup
 	for i := 0; i < workers; i++ {
 		wg.Add(1)
@@ -944,7 +1004,7 @@ func runAnalysis(parsed map[string][]ast.Node, project *analyse.ProjectIndex, le
 				ctx := snapshot.NewAnalysisContext()
 				ctx.AnalysisLevel = level
 				issues := analyse.RunAnalysisRulesWithContext(j.path, j.nodes, ctx)
-				total.add(int64(len(issues)))
+				total.Add(int64(len(issues)))
 			}
 		}()
 	}
@@ -953,26 +1013,7 @@ func runAnalysis(parsed map[string][]ast.Node, project *analyse.ProjectIndex, le
 	}
 	close(jobCh)
 	wg.Wait()
-	return int(total.get())
-}
-
-// int64Counter is a tiny mutex-guarded counter; avoids pulling in
-// sync/atomic call-site noise for a single accumulated total.
-type int64Counter struct {
-	mu    sync.Mutex
-	value int64
-}
-
-func (c *int64Counter) add(n int64) {
-	c.mu.Lock()
-	c.value += n
-	c.mu.Unlock()
-}
-
-func (c *int64Counter) get() int64 {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	return c.value
+	return int(total.Load())
 }
 
 func summarize(runs []runMetrics) phaseReport {
@@ -1082,6 +1123,10 @@ func printTextReport(w io.Writer, r benchmarkReport) {
 	if r.Baseline != nil {
 		fmt.Fprintf(w, "Baseline binary: %s\n", r.Baseline.Binary)
 		printPhase("Baseline cold full analysis (interleaved)", r.Baseline.ColdFullAnalysis)
+	}
+	if r.Mago != nil {
+		fmt.Fprintf(w, "Mago: %s (%s) threads=%d sourceFiles=%d analyzerFiles=%d semanticComparable=%v\n", r.Mago.Version, r.Mago.Binary, r.Mago.Threads, r.Mago.SourceFiles, r.Mago.AnalyzerFiles, r.Mago.SemanticComparable)
+		printPhase("Mago cold full analysis (interleaved)", r.Mago.ColdFullAnalysis)
 	}
 	printPhase("Warm full analysis (in-process loop, 1 unmeasured warmup)", r.WarmFullAnalysis)
 	fmt.Fprintf(w, "Validation: accepted=%v maxCV=%.3f", r.Validation.Accepted, r.Validation.MaxCV)

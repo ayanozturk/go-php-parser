@@ -810,3 +810,86 @@ class ExampleTest {
 		t.Fatalf("PHPUnit assertInstanceOf should narrow the captured variable, got %#v", issues)
 	}
 }
+
+func TestLevel2OrShortCircuitNarrowsNullableReceiver(t *testing.T) {
+	files := map[string]string{
+		"test.php": `<?php
+class Manager {
+    public function getId(): string { return ""; }
+}
+class User {
+    public function getManager(): ?Manager { return null; }
+}
+class Controller {
+    public function review(User $manager): void {
+        $employee = null;
+        if (!$employee || $employee->getManager()?->getId() !== $manager->getId()) {
+            return;
+        }
+    }
+
+    public function nullCompare(?User $employee, User $manager): void {
+        if ($employee === null || $employee->getManager()?->getId() !== $manager->getId()) {
+            return;
+        }
+    }
+}
+`,
+	}
+
+	issues := runAnalysisLevelOnFiles(t, files, 2)
+	if hasIssueContaining(issues, level2MethodNonObjectCode, "getManager") {
+		t.Fatalf("|| short-circuit should treat $employee as non-null, got %#v", issues)
+	}
+}
+
+func TestLevel2ForeachCollectionValueAndLoopAssignment(t *testing.T) {
+	files := map[string]string{
+		"test.php": `<?php
+/**
+ * @template TKey
+ * @template TValue
+ */
+class Collection {}
+class Manager {
+    public function getId(): string { return ""; }
+}
+class User {
+    public function getId(): string { return ""; }
+    public function getManager(): ?Manager { return null; }
+}
+
+/** @return Collection<string, User> */
+function reports(): Collection { return new Collection(); }
+
+/** @return Collection<int, int> */
+function ints(): Collection { return new Collection(); }
+
+function assign(User $manager): void {
+    $employee = null;
+    foreach (reports() as $u) {
+        $u->getId();
+        $employee = $u;
+        break;
+    }
+    if (!$employee || $employee->getManager()?->getId() !== $manager->getId()) {
+        return;
+    }
+}
+
+function numbers(): void {
+    foreach (ints() as $n) {
+        $n->getId();
+    }
+}
+`,
+	}
+
+	issues := runAnalysisLevelOnFiles(t, files, 2)
+	if hasIssueContaining(issues, level2MethodNonObjectCode, "getManager") {
+		t.Fatalf("foreach over Collection<User> should type $u and join $employee, got %#v", issues)
+	}
+	if !hasIssueContaining(issues, level2MethodNonObjectCode, "getId() on int") {
+		t.Fatalf("foreach over Collection<int> should keep int values, got %#v", issues)
+	}
+}

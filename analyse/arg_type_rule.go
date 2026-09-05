@@ -170,7 +170,10 @@ func walkStatementsForArgTypesUsing(nodes []ast.Node, scope *functionScope, ctx 
 			}
 		case *ast.ForeachNode:
 			walkExprForArgTypesUsing(n.Expr, scope, ctx, filename, issues, observe)
-			walkStatementsForArgTypesUsing(n.Body, scope.clone(), ctx, filename, issues, observe)
+			loopScope := scope.clone()
+			applyForeachIterationTypes(loopScope, n, ctx, filename)
+			walkStatementsForArgTypesUsing(n.Body, loopScope, ctx, filename, issues, observe)
+			joinLoopAssignedVariables(scope, loopScope)
 		case *ast.ThrowNode:
 			walkExprForArgTypesUsing(n.Expr, scope, ctx, filename, issues, observe)
 		case *ast.TryNode:
@@ -630,6 +633,8 @@ func walkExprForArgTypesUsing(node ast.Node, scope *functionScope, ctx *Analysis
 		switch n.Operator {
 		case "&&", "and":
 			walkExprForArgTypesUsing(n.Right, scopeForConditionTrue(scope, n.Left), ctx, filename, issues, observe)
+		case "||", "or":
+			walkExprForArgTypesUsing(n.Right, scopeForConditionFalse(scope, n.Left), ctx, filename, issues, observe)
 		default:
 			walkExprForArgTypesUsing(n.Right, scope, ctx, filename, issues, observe)
 		}

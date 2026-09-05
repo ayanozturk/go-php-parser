@@ -162,7 +162,10 @@ func walkStatementsForHoverTypes(nodes []ast.Node, scope *functionScope, ctx *An
 			}
 		case *ast.ForeachNode:
 			walkExprForHoverTypes(n.Expr, scope, ctx, query, best)
-			walkStatementsForHoverTypes(n.Body, scope.clone(), ctx, query, best)
+			loopScope := scope.clone()
+			applyForeachIterationTypes(loopScope, n, ctx, query.filename)
+			walkStatementsForHoverTypes(n.Body, loopScope, ctx, query, best)
+			joinLoopAssignedVariables(scope, loopScope)
 		}
 	}
 }
@@ -217,7 +220,14 @@ func walkExprForHoverTypes(node ast.Node, scope *functionScope, ctx *AnalysisCon
 		walkExprForHoverTypes(n.Left, assignedScope, ctx, query, best)
 	case *ast.BinaryExpr:
 		walkExprForHoverTypes(n.Left, scope, ctx, query, best)
-		walkExprForHoverTypes(n.Right, scope, ctx, query, best)
+		switch n.Operator {
+		case "&&", "and":
+			walkExprForHoverTypes(n.Right, scopeForConditionTrue(scope, n.Left), ctx, query, best)
+		case "||", "or":
+			walkExprForHoverTypes(n.Right, scopeForConditionFalse(scope, n.Left), ctx, query, best)
+		default:
+			walkExprForHoverTypes(n.Right, scope, ctx, query, best)
+		}
 	case *ast.ConcatNode:
 		for _, part := range n.Parts {
 			walkExprForHoverTypes(part, scope, ctx, query, best)
