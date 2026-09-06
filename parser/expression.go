@@ -1003,6 +1003,13 @@ func (p *Parser) parseSimpleObjectOrMethod(expr ast.Node) ast.Node {
 		}
 	}
 	if !isMemberIdentifierToken(p.tok.Type) && !isValidMethodNameToken(p.tok.Type) {
+		if isIncompleteMemberAccessToken(p.tok.Type) {
+			return &ast.PropertyFetchNode{
+				Object:   expr,
+				Property: "",
+				Pos:      ast.Position(objOpPos),
+			}
+		}
 		p.addError("line %d:%d: expected property/method name after %s, got %s", p.tok.Pos.Line, p.tok.Pos.Column, operator, p.tok.Literal)
 		return nil
 	}
@@ -1466,6 +1473,20 @@ func isMemberIdentifierToken(tokType token.TokenType) bool {
 	default:
 		return false
 	}
+}
+
+func isIncompleteMemberAccessToken(tokType token.TokenType) bool {
+	switch tokType {
+	case token.T_RBRACE, token.T_SEMICOLON, token.T_EOF, token.T_CLOSE_TAG, token.T_RPAREN, token.T_COMMA, token.T_RBRACKET:
+		return true
+	default:
+		return false
+	}
+}
+
+func isIncompletePropertyFetch(node ast.Node) bool {
+	fetch, ok := node.(*ast.PropertyFetchNode)
+	return ok && fetch.Property == ""
 }
 
 func (p *Parser) parseSimpleArrayAccess(expr ast.Node) ast.Node {

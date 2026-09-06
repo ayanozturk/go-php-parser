@@ -164,3 +164,55 @@ class Factory {
 		t.Fatal("expected parsed nodes")
 	}
 }
+
+func TestParseIncompleteObjectOperatorForCompletion(t *testing.T) {
+	php := `<?php
+class Logger {
+    public function info(string $message): void {}
+}
+class User {
+    public Logger $logger;
+    public function getUser(): self { return $this; }
+    public function run(): void {
+        $this->
+    }
+}
+`
+	p := New(lexer.New(php), false)
+	nodes := p.Parse()
+	if errors := p.Errors(); len(errors) > 0 {
+		t.Fatalf("incomplete $this-> should recover without parse errors, got %v", errors)
+	}
+	class, ok := nodes[1].(*ast.ClassNode)
+	if !ok || class.Name != "User" {
+		t.Fatalf("expected User class, got %#v", nodes)
+	}
+	if len(class.Methods) != 2 {
+		t.Fatalf("expected User methods to parse, got %d", len(class.Methods))
+	}
+	foundEmptyFetch := false
+	var walk func(ast.Node)
+	walk = func(node ast.Node) {
+		if node == nil {
+			return
+		}
+		if fetch, ok := node.(*ast.PropertyFetchNode); ok && fetch.Property == "" {
+			foundEmptyFetch = true
+		}
+		switch n := node.(type) {
+		case *ast.FunctionNode:
+			for _, child := range n.Body {
+				walk(child)
+			}
+		case *ast.ExpressionStmt:
+			walk(n.Expr)
+		}
+	}
+	for _, method := range class.Methods {
+		walk(method)
+	}
+	if !foundEmptyFetch {
+		t.Fatal("expected empty PropertyFetchNode for incomplete $this->")
+	}
+}
+

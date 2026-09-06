@@ -378,8 +378,13 @@ retry:
 	default:
 		// Try parsing as expression statement
 		if expr := p.parseExpression(); expr != nil {
-			// Accept function calls as statements even if last token is ')', as long as next is semicolon
 			if p.tok.Type != token.T_SEMICOLON {
+				if p.tok.Type == token.T_RBRACE && isIncompletePropertyFetch(expr) {
+					return &ast.ExpressionStmt{
+						Expr: expr,
+						Pos:  expr.GetPos(),
+					}, nil
+				}
 				p.addError("line %d:%d: expected ; after expression, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal)
 				return nil, nil
 			}
@@ -409,6 +414,9 @@ func (p *Parser) parseExpressionStatement() (ast.Node, error) {
 
 	if p.tok.Type == token.T_SEMICOLON {
 		p.nextToken() // consume ;
+	} else if p.tok.Type == token.T_RBRACE && isIncompletePropertyFetch(expr) {
+		// Incomplete `$obj->` at the end of a block (typical while typing
+		// member completions). Leave `}` for the block parser.
 	} else if p.tok.Type != token.T_CLOSE_TAG && p.tok.Type != token.T_EOF {
 		// A closing "?>" tag (or EOF) implicitly terminates the statement,
 		// same as PHP allows for the last statement before a close tag.
