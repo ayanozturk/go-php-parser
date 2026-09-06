@@ -2,6 +2,20 @@ package analyse
 
 import "testing"
 
+func TestWithRelativeClassNamesRewritesSelfStaticAndParent(t *testing.T) {
+	got := ParseType("self|static|parent|null").withRelativeClassNames(
+		`App\Status`,
+		`App\OpenStatus`,
+		`App\BaseStatus`,
+	)
+	if got.String() != `App\BaseStatus|App\OpenStatus|App\Status|null` {
+		t.Fatalf("rewrote relative class names incorrectly: %q", got.String())
+	}
+	if ParseType("int").withRelativeClassNames(`App\Status`, `App\Status`, "").String() != "int" {
+		t.Fatalf("non-relative types must stay unchanged")
+	}
+}
+
 func TestObjectTypeAcceptsPhpunitDoubleWithUnboundTemplate(t *testing.T) {
 	for _, marker := range []string{
 		`PHPUnit\Framework\MockObject\MockObject`,

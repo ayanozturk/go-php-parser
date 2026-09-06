@@ -1,0 +1,12 @@
+---
+description: Current work is correctness and false positives, not performance
+alwaysApply: true
+---
+
+# Correctness over performance
+
+The active implementation stream is diagnostic correctness and false-positive reduction. Do not start Mago comparisons, isolated-host reruns, allocation/GC batches, duplicate-walk audits, or editor-latency stretch work unless the user explicitly asks.
+
+Fix false positives with failing and clean differential controls. Do not add production file walks to silence a diagnostic. Do not copy private corpus source into the repo.
+
+Ranked next actions live in `docs/full-static-analyser-target.md`. The existing benchmark harness is historical evidence, not a queue.

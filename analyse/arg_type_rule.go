@@ -806,7 +806,7 @@ func checkMethodCallArgTypes(call *ast.MethodCallNode, scope *functionScope, ctx
 	if !ok || len(method.Params) == 0 {
 		return
 	}
-	checkResolvedCallArgTypes(fmt.Sprintf("Method %s", method.Name), method, call.Args, scope, ctx, filename, issues)
+	checkResolvedCallArgTypes(fmt.Sprintf("Method %s", method.Name), method, call.Args, scope, ctx, filename, issues, methodCalleeClass(method, call, scope, ctx, filename))
 }
 
 func checkFunctionCallArgTypes(call *ast.FunctionCallNode, scope *functionScope, ctx *AnalysisContext, filename string, issues *[]AnalysisIssue) {
@@ -826,7 +826,7 @@ func checkFunctionCallArgTypes(call *ast.FunctionCallNode, scope *functionScope,
 	if !ok || len(function.Params) == 0 {
 		return
 	}
-	checkResolvedCallArgTypes("Function "+function.Name, ResolvedMethod{Name: function.Name, Params: function.Params}, call.Args, scope, ctx, filename, issues)
+	checkResolvedCallArgTypes("Function "+function.Name, ResolvedMethod{Name: function.Name, Params: function.Params}, call.Args, scope, ctx, filename, issues, "")
 }
 
 func checkNewArgTypes(node *ast.NewNode, scope *functionScope, ctx *AnalysisContext, filename string, issues *[]AnalysisIssue) {
@@ -834,10 +834,23 @@ func checkNewArgTypes(node *ast.NewNode, scope *functionScope, ctx *AnalysisCont
 	if !ok || len(method.Params) == 0 {
 		return
 	}
-	checkResolvedCallArgTypes(fmt.Sprintf("Class %s constructor", className), method, node.Args, scope, ctx, filename, issues)
+	checkResolvedCallArgTypes(fmt.Sprintf("Class %s constructor", className), method, node.Args, scope, ctx, filename, issues, className)
 }
 
-func checkResolvedCallArgTypes(target string, method ResolvedMethod, args []ast.Node, scope *functionScope, ctx *AnalysisContext, filename string, issues *[]AnalysisIssue) {
+func methodCalleeClass(method ResolvedMethod, call *ast.MethodCallNode, scope *functionScope, ctx *AnalysisContext, filename string) string {
+	if call != nil {
+		if className, ok := inferTypeWithFacts(filename, call.Object, scope, ctx).SingleClassName(); ok {
+			return className
+		}
+	}
+	return method.DeclaringClass
+}
+
+func expectedCallParamType(param ResolvedParam, method ResolvedMethod, calleeClass string, ctx *AnalysisContext) Type {
+	return bindCalleeSignatureType(param.Type, method.DeclaringClass, calleeClass, ctx)
+}
+
+func checkResolvedCallArgTypes(target string, method ResolvedMethod, args []ast.Node, scope *functionScope, ctx *AnalysisContext, filename string, issues *[]AnalysisIssue, calleeClass string) {
 	if len(method.Params) == 0 {
 		return
 	}
@@ -900,7 +913,7 @@ func checkResolvedCallArgTypes(target string, method ResolvedMethod, args []ast.
 		}
 
 		param := method.Params[paramIndex]
-		expected := ParseType(param.Type)
+		expected := expectedCallParamType(param, method, calleeClass, ctx)
 		if expected.IsEmpty() {
 			usedParams[paramIndex] = struct{}{}
 			continue

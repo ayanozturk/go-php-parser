@@ -1,6 +1,6 @@
 # Near-term CLI and adoption plan
 
-The primary project target is [Full Static Analyser and Mago-Class Performance Target](full-static-analyser-target.md). Ranked next work lives there. This file is only the remaining CLI/adoption backlog; it must not pull implementation away from Mago-class performance.
+The primary project target is [Full Static Analyser and Mago-Class Performance Target](full-static-analyser-target.md). Ranked next work lives there and is currently correctness and false-positive reduction. This file is only the remaining CLI/adoption backlog; it must not pull implementation away from that stream. Performance comparisons are parked.
 
 ## Already in place
 
@@ -25,4 +25,4 @@ The primary project target is [Full Static Analyser and Mago-Class Performance T
 - Treat current config fields as aliases rather than removing them.
 - Keep autofix opt-in.
 - YAML remains the config format.
-- Implementations that touch analysis semantics must follow the analyser target's correctness and benchmark gates, not this file's adoption order.
+- Implementations that touch analysis semantics must follow the analyser target's correctness gates, not this file's adoption order. Do not start parked performance items from this backlog.

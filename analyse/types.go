@@ -571,6 +571,106 @@ func splitTopLevelTypes(raw string, sep rune) []string {
 	return parts
 }
 
+func bindCalleeSignatureType(raw, declaringClass, calleeClass string, ctx *AnalysisContext) Type {
+	selfName := strings.TrimPrefix(declaringClass, `\`)
+	staticName := strings.TrimPrefix(calleeClass, `\`)
+	if staticName == "" {
+		staticName = selfName
+	}
+	if selfName == "" {
+		selfName = staticName
+	}
+	return ParseType(raw).withRelativeClassNames(selfName, staticName, relativeParentClass(selfName, ctx))
+}
+
+func relativeClassReplacement(atom typeAtom, selfName, staticName, parentName string) string {
+	if atom.kind != typeKindClass {
+		return ""
+	}
+	switch asciiLowerIdent(atom.display) {
+	case "self":
+		return strings.TrimPrefix(selfName, `\`)
+	case "static":
+		if staticName != "" {
+			return strings.TrimPrefix(staticName, `\`)
+		}
+		return strings.TrimPrefix(selfName, `\`)
+	case "parent":
+		return strings.TrimPrefix(parentName, `\`)
+	default:
+		return ""
+	}
+}
+
+func relativeParentClass(className string, ctx *AnalysisContext) string {
+	className = strings.TrimPrefix(strings.TrimSpace(className), `\`)
+	if className == "" || ctx == nil || ctx.Resolver == nil {
+		return ""
+	}
+	resolved, ok := ctx.Resolver.ResolveClass(className)
+	if !ok || len(resolved.Extends) == 0 {
+		return ""
+	}
+	return strings.TrimPrefix(resolved.Extends[0], `\`)
+}
+
+func (t Type) withRelativeClassNames(selfName, staticName, parentName string) Type {
+	if t.IsEmpty() {
+		return t
+	}
+	selfName = strings.TrimPrefix(selfName, `\`)
+	staticName = strings.TrimPrefix(staticName, `\`)
+	parentName = strings.TrimPrefix(parentName, `\`)
+	if selfName == "" && staticName == "" && parentName == "" {
+		return t
+	}
+
+	mapped := false
+	newAtoms := make(map[string]typeAtom, len(t.atoms))
+	keyMap := make(map[string]string, len(t.atoms))
+	for key, atom := range t.atoms {
+		replacement := relativeClassReplacement(atom, selfName, staticName, parentName)
+		if replacement == "" || strings.EqualFold(replacement, atom.display) {
+			newAtoms[key] = atom
+			keyMap[key] = key
+			continue
+		}
+		newAtom, ok := normalizeTypeAtom(replacement)
+		if !ok {
+			newAtoms[key] = atom
+			keyMap[key] = key
+			continue
+		}
+		mapped = true
+		newAtoms[newAtom.key] = newAtom
+		keyMap[key] = newAtom.key
+	}
+	if !mapped {
+		return t
+	}
+
+	newAlts := make([][]string, 0, len(t.alternatives))
+	for _, alternative := range t.alternatives {
+		keys := make([]string, 0, len(alternative))
+		seen := make(map[string]struct{}, len(alternative))
+		for _, old := range alternative {
+			mappedKey := keyMap[old]
+			if mappedKey == "" {
+				mappedKey = old
+			}
+			if _, duplicate := seen[mappedKey]; duplicate {
+				continue
+			}
+			seen[mappedKey] = struct{}{}
+			keys = append(keys, mappedKey)
+		}
+		if len(keys) > 0 {
+			newAlts = append(newAlts, keys)
+		}
+	}
+	return Type{atoms: newAtoms, alternatives: newAlts}
+}
+
 func classHierarchyCompatible(declaredName, actualName string, scope *functionScope, ctx *AnalysisContext) bool {
 	declaredName = canonicalClassName(declaredName, scope, ctx)
 	actualName = canonicalClassName(actualName, scope, ctx)

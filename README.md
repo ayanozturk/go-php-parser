@@ -4,7 +4,7 @@ A PHP parser, code-style checker, and project-aware static analyzer written in G
 
 `go-php-parser` turns PHP source into a detailed Abstract Syntax Tree, checks it against a registered set of style rules (PSR-12 and friends), and runs a project-aware analyzer that resolves symbols, types, and control flow across the configured files. Diagnostics are emitted in deterministic source order with stable exit codes, and the same engine backs the `analyze` command and the [PHP Strom](docs/full-static-analyser-target.md) language server.
 
-The long-term target is a production-grade, full PHP static analyzer with cold full-project performance comparable to [Mago](https://github.com/carthage-software/mago), without trading semantic coverage or diagnostic quality for speed. See [Full Static Analyzer and Mago-Class Performance Target](docs/full-static-analyser-target.md) for the current pin, M1 status, ranked next actions, benchmark contract, and acceptance gates. Remaining CLI adoption work is in [Near-term CLI and adoption plan](docs/next-feature-plan.md) and is not the main stream.
+The long-term target is a production-grade, full PHP static analyzer. Current implementation work is diagnostic correctness and false-positive reduction against PHPStan-gated fixtures and reviewed corpora. Cold full-project performance comparable to [Mago](https://github.com/carthage-software/mago) remains a later release gate, not the active queue. See [Full Static Analyzer and Mago-Class Performance Target](docs/full-static-analyser-target.md) for the current pin, M1 status, ranked next actions, and acceptance gates. Remaining CLI adoption work is in [Near-term CLI and adoption plan](docs/next-feature-plan.md) and is not the main stream.
 
 ## Features
 

@@ -1804,12 +1804,16 @@ func inferMethodCallType(node *ast.MethodCallNode, scope *functionScope, ctx *An
 		return MixedType()
 	}
 	if object, ok := node.Object.(*ast.VariableNode); ok && object.Name == "this" {
+		callee := ""
+		if scope != nil {
+			callee = scope.className
+		}
 		if method, ok := resolveSameClassMethod(scope, node.Method); ok {
-			return ParseType(method.ReturnType)
+			return bindCalleeSignatureType(method.ReturnType, method.DeclaringClass, callee, ctx)
 		}
 		if scope != nil && ctx != nil && ctx.Resolver != nil {
 			if method, ok := ctx.Resolver.ResolveMethod(scope.className, node.Method); ok {
-				return ParseType(method.ReturnType)
+				return bindCalleeSignatureType(method.ReturnType, method.DeclaringClass, callee, ctx)
 			}
 		}
 	}
@@ -1821,18 +1825,18 @@ func inferMethodCallType(node *ast.MethodCallNode, scope *functionScope, ctx *An
 	}
 	if scope != nil && strings.EqualFold(className, scope.className) {
 		if method, ok := resolveSameClassMethod(scope, node.Method); ok {
-			return ParseType(method.ReturnType)
+			return bindCalleeSignatureType(method.ReturnType, method.DeclaringClass, className, ctx)
 		}
 	}
 	if ctx != nil && ctx.Resolver != nil {
 		if method, ok := ctx.Resolver.ResolveMethod(className, node.Method); ok {
-			return ParseType(method.ReturnType)
+			return bindCalleeSignatureType(method.ReturnType, method.DeclaringClass, className, ctx)
 		}
 	}
 	if scope != nil {
 		if classData, ok := analysisClassScopeDataByName(ctx, className, scope.typeCtx); ok {
 			if method, ok := classData.methods[asciiLowerIdent(node.Method)]; ok {
-				return ParseType(method.ReturnType)
+				return bindCalleeSignatureType(method.ReturnType, method.DeclaringClass, className, ctx)
 			}
 		}
 	}

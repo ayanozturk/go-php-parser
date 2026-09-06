@@ -74,6 +74,96 @@ func TestMethodArgumentTypeCompatible(t *testing.T) {
 	}
 }
 
+func TestSelfParameterAcceptsSameClassFromOutsideCaller(t *testing.T) {
+	files := map[string]string{
+		"status.php": `<?php
+enum CoverageRequestStatus: string
+{
+    case OPEN = 'open';
+    case CLAIMED = 'claimed';
+
+    public function canTransitionTo(self $newStatus): bool
+    {
+        return true;
+    }
+}
+
+final class StatusList
+{
+    public function merge(self $other): self
+    {
+        return $other;
+    }
+}
+
+function transition(CoverageRequestStatus $from, CoverageRequestStatus $to): void
+{
+    $from->canTransitionTo($to);
+}
+
+function mergeLists(StatusList $left, StatusList $right): StatusList
+{
+    return $left->merge($right);
+}
+`,
+	}
+	if issues := runAnalysisLevelOnFiles(t, files, 4); hasArgTypeIssue(issues) {
+		t.Fatalf("expected self-parameter calls to remain silent at level 4, got %#v", issues)
+	}
+	if issues := runAnalysisLevelOnFiles(t, files, 5); hasArgTypeIssue(issues) {
+		t.Fatalf("expected same-class self parameter to accept the callee type, got %#v", issues)
+	}
+}
+
+func TestSelfParameterRejectsUnrelatedType(t *testing.T) {
+	files := map[string]string{
+		"status.php": `<?php
+enum CoverageRequestStatus: string
+{
+    case OPEN = 'open';
+
+    public function canTransitionTo(self $newStatus): bool
+    {
+        return true;
+    }
+}
+
+function transition(CoverageRequestStatus $from): void
+{
+    $from->canTransitionTo('claimed');
+}
+`,
+	}
+	if issues := runAnalysisLevelOnFiles(t, files, 4); hasArgTypeIssue(issues) {
+		t.Fatalf("expected self-parameter mismatch to remain silent at level 4, got %#v", issues)
+	}
+	issues := runAnalysisLevelOnFiles(t, files, 5)
+	if !hasArgTypeIssue(issues) {
+		t.Fatalf("expected string passed to self parameter to report A.ARG.TYPE, got %#v", issues)
+	}
+}
+
+func TestParentParameterAcceptsParentInstanceFromOutsideCaller(t *testing.T) {
+	files := map[string]string{
+		"tree.php": `<?php
+class BaseNode {}
+
+class ChildNode extends BaseNode
+{
+    public function attach(parent $node): void {}
+}
+
+function attach(ChildNode $child, BaseNode $base): void
+{
+    $child->attach($base);
+}
+`,
+	}
+	if issues := runAnalysisLevelOnFiles(t, files, 5); hasArgTypeIssue(issues) {
+		t.Fatalf("expected parent parameter to accept the declaring class parent, got %#v", issues)
+	}
+}
+
 func TestMethodArgumentObjectParameterAcceptsClassInstance(t *testing.T) {
 	php := `<?php
     namespace Symfony\Component\PropertyAccess\Tests;

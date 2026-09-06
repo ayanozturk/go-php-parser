@@ -5,11 +5,11 @@
 - Project target: approved
 - Target repositories: `go-php-parser` and `vscode-php-strom`
 - Baseline date: 2026-08-23 (Europe/London)
-- Last roadmap tidy: 2026-09-05 (Europe/London)
+- Last roadmap tidy: 2026-09-06 (Europe/London)
 - Extension package version: `0.1.35`; the exact parser integration pin is tracked in `vscode-php-strom/server/go.mod`
-- Executable differential gates: 94 / 24 / 96 / 30 / 7 / 18 / 6 / 27 (levels 0–3, 5–8) vs PHPStan 2.2.5
+- Executable differential gates: 94 / 24 / 96 / 30 / 9 / 18 / 6 / 27 (levels 0–3, 5–8) vs PHPStan 2.2.5
 - Benchmark references: Mago for performance and modern PHP type analysis, PHPStan and Psalm for diagnostic depth, and PHPCS for source-style breadth
-- Working milestone: **M0 done as a baseline; M1 in progress.** The current-production WordPress resource comparison is accepted; full level-0 and broader semantic parity remain open.
+- Working milestone: **M0 done as a baseline; M1 in progress.** The current stream is diagnostic correctness and false-positive reduction. The accepted WordPress Mago resource comparison is parked historical evidence, not queued work.
 
 ## Mission
 
@@ -361,7 +361,7 @@ Exit criteria:
 - Full PHPStan level 0 behavior for the agreed corpus and documented progress through levels 1–3.
 - Cold WordPress analysis completes reliably in at most 60 seconds and 2 GB peak RSS on the reference machine.
 
-Progress: spans, immutable snapshots, allocation-light resolver views, copy-on-write function-scope maps, CFG slices, incremental indexing, and PHPStan-gated packs through levels 0–3 and 5–8 are in place. Level 0 is **partial** (94 reviewed fixtures, not corpus parity). Levels 1–3 and 5–8 are gated but thin (24 / 96 / 30 / 6 / 16 / 5 / 5). The stable same-machine WordPress comparison now passes both 5% CV gates and the 1.5x mean / 1.25x RSS resource envelope against Mago 1.47.4. Remaining M1 work is semantic breadth: the accepted resource result does not establish parity with Mago's broader strict configuration.
+Progress: spans, immutable snapshots, allocation-light resolver views, copy-on-write function-scope maps, CFG slices, incremental indexing, and PHPStan-gated packs through levels 0–3 and 5–8 are in place. Level 0 is **partial** (94 reviewed fixtures, not corpus parity). Levels 1–3 and 5–8 are gated but thin (24 / 96 / 30 / 6 / 16 / 5 / 5). Remaining M1 work is semantic breadth and false-positive reduction. The accepted WordPress resource envelope is not a reason to schedule further performance batches.
 
 ### M2 — Broad type-analysis capability
 
@@ -435,16 +435,17 @@ A release must not advance the parser version pinned by PHP Strom until the engi
 
 ## Ranked next actions
 
-Correctness and PHPStan rule-level alignment are now the primary stream. Expand executable rule coverage at the level where PHPStan introduces it, with both failing and clean controls. Preserve the accepted Mago resource envelope as a periodic guardrail: run the corpus comparison for structural hot-path changes and representative rule batches, not every small rule addition. Accepted measurements still require no more than 1.5× mean time and 1.25× peak RSS, CV at most 5%, and complete file/diagnostic accounting.
+Correctness and false-positive reduction are the only active implementation stream. Expand executable rule coverage at the level where PHPStan introduces it, with both failing and clean controls. Do not queue Mago comparisons, isolated-host reruns, allocation batches, or other performance roadmap items. The existing benchmark harness and accepted WordPress envelope stay as historical evidence and a later release gate; they are not current work.
 
-1. **Converge false-positive behavior on the shared private-corpus gate.** Continue correcting remaining return/property/argument mismatches and level-6 eligibility from pinned reference probes. A live probe established that `treatPhpDocTypesAsCertain: false` does not change the nullable-method, unknown-method, or PHPDoc argument-type families PHP Strom currently emits; its observed effect is on already/impossible narrowing diagnostics, which are not implemented yet. Add the setting when that family lands rather than exposing a no-op option. Preserve both PHPStan-default and project-configured reference results so configuration effects are not mistaken for engine parity.
+1. **Converge false-positive behavior on the shared private-corpus gate.** Remaining high-volume argument mismatches after the `self`/`static`/`parent` bind are Symfony Request template leakage (`TDefault|TInput`), array-vs-value-object constructors, Doctrine `Collection` vs `ArrayCollection`, and PHPUnit mock unions. Continue correcting those plus remaining return/property mismatches, unknown-symbol noise, and level-6 eligibility from pinned reference probes. A live probe established that `treatPhpDocTypesAsCertain: false` does not change the nullable-method, unknown-method, or PHPDoc argument-type families PHP Strom currently emits; its observed effect is on already/impossible narrowing diagnostics, which are not implemented yet. Add the setting when that family lands rather than exposing a no-op option. Preserve both PHPStan-default and project-configured reference results so configuration effects are not mistaken for engine parity.
 2. **Add framework-aware symbol/type metadata.** Replace the current Symfony/Doctrine/PHPUnit magic-method and dynamic-return gaps with explicit extension/stub metadata. Do not suppress unresolved calls globally: every correction needs a neutral failing/clean differential control.
 3. **Expand missing PHPStan families by level.** Prioritize the reference corpus's uncovered cast, offset-access, callable, increment, foreach, string-interpolation, and condition-narrowing identifiers at their exact PHPStan levels. Update the README rule table and linked level inventory whenever registration counts change.
 4. **Make parity measurable.** Add a reusable corpus-differential report over an identical first-party manifest, with parse/read accounting, diagnostic crosswalk, and exact file/line/identifier matching. Counts alone are not parity; framework-dependent identifiers must be labelled separately from core behavior.
-5. **Protect performance while rules grow.** Default production analysis must not gain duplicate walks. Re-run exact accounting and the accepted Mago envelope periodically or when a change affects a structural hot path; reject timing claims whenever either CV exceeds 5%.
-6. **Maintenance:** rewrite `vscode-php-strom/FEATURES.md`; structured parser errors and style-rule range migration.
+5. **Maintenance:** rewrite `vscode-php-strom/FEATURES.md`; structured parser errors and style-rule range migration.
 
-Completed deliveries 1–57 are archived below and are not the current queue.
+Parked, not queued: further Mago resource comparisons (including isolated-host PSL/Magento reruns), allocation or GC tuning, duplicate-walk performance audits, and editor-latency stretch work. Incidental constraints remain: do not add production file walks to fix a false positive, and do not claim timing or RSS results when CV exceeds 5%.
+
+Completed deliveries 1–58 are archived below and are not the current queue.
 
 ## Private-corpus correctness gate (2026-09-03)
 
@@ -457,6 +458,10 @@ The first correction batch removed 84 levelled false positives: namespaced class
 ### Ternary branch correction, 2026-09-05
 
 Against exact parser baseline `264a964`, the unchanged 1,930-file first-party manifest produces 1,037 all-rule diagnostics before this correction and 1,015 after it (599 to 577 in source; 438 in tests on both sides), with zero parser/read failures. Dependencies are indexed and excluded from reporting. The 22 removed diagnostics comprise twelve argument, three nullable-method, two unknown-method, two partial-union-method, two return, and one property diagnostic; no diagnostic family gains reports. These current-baseline totals supersede comparisons with the older 1,041 total above, which predates intervening parser commits. This is a correction indicator, not a fresh PHPStan whole-corpus parity result. Private source and raw reports remain local.
+
+### Self/static/parent signature bind, 2026-09-06
+
+Against the 1,930-file first-party `src`/`tests` manifest (1,932 files discovered including two root scripts; vendor indexed and excluded from reporting), levelled analysis falls from 606 to 523 diagnostics with zero parser/read failures. Eighty argument-type and three return-type reports are removed; every `expects self` argument mismatch is gone. Remaining argument-type volume is dominated by Request template parameters, array-vs-value-object constructors, and Collection/ArrayCollection mismatches. This is a correction indicator, not a fresh PHPStan whole-corpus parity result. Private source and raw reports remain local.
 
 ## Completed action log
 
@@ -577,6 +582,8 @@ Note: implemented PHP's alternative/colon control-structure syntax and several o
 
 57. **Done — narrow ternary branch types.** The shared expression traversal, ternary result inference, and hover traversal now use branch-local variable guard scopes for truthy checks, null comparisons, predicates, and negation. Nullable-object `?:` fallbacks preserve their non-null result, while unknown methods and unguarded arguments continue to report. Ten neutral clean/failing controls expand level 8 from five to fifteen fixtures; all 290 cases across levels 0–3 and 5–8 match PHPStan 2.2.5. Focused tests cover nested branches, property assignments, fallback returns, hover, and isolation. The private-corpus indicator removes 22 diagnostics with unchanged file accounting. See `docs/benchmarks/2026-09-05-wordpress-ternary-narrowing.md` for the allocation and interleaved resource guardrail. General falsy-value subtraction, property guards, and arbitrary condition side effects remain partial.
 
+58. **Done — bind method `self`/`static`/`parent` signature types to the callee.** Parameter and return types stored as `self`, `static`, or `parent` were compared using the caller scope, so `CoverageRequestStatus::canTransitionTo(self)` rejected another `CoverageRequestStatus` and `merge(self): self` inferred `self` instead of the declaring class. Call-site checking and method-return inference now rewrite those atoms to the declaring class, called class, and parent. Two level-5 fixtures expand the pack from 7 to 9 cases (clean same-class `self` argument plus a string mismatch); focused tests cover enum/class `self` parameters, parent parameters, and level-4 silence. The complete gates are 94/24/96/30/9/18/6/27. On the private corpus, levelled diagnostics fall from 606 to 523. No production file walk was added.
+
 ## Decision log
 
 - Go remains the implementation language. The target is considered achievable in Go; architecture, allocation behavior, semantic work, and concurrency are the primary constraints.
@@ -586,3 +593,4 @@ Note: implemented PHP's alternative/colon control-structure syntax and several o
 - Correctness and semantic coverage are release gates for performance claims.
 - The 2026-08-25 WordPress profile promotes allocation-light resolver traversal and persistent branch state to M1 prerequisites; richer rules must not be layered onto repeated whole-collection copying.
 - Private source code may expose failures but will not be copied into public fixtures or required for benchmark reproduction.
+- 2026-09-06: Pause performance roadmap items. Current implementation work is diagnostic correctness and false-positive reduction. Existing harnesses and the accepted WordPress envelope remain evidence, not a queue.

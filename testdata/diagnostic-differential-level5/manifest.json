@@ -53,6 +53,20 @@
       "file": "argument-datetime-modify-clean.php",
       "engineCodes": [],
       "phpstanIdentifiers": []
+    },
+    {
+      "id": "argument-self-param-clean",
+      "capability": "self parameter accepts the declaring class from another caller",
+      "file": "argument-self-param-clean.php",
+      "engineCodes": [],
+      "phpstanIdentifiers": []
+    },
+    {
+      "id": "argument-self-param-mismatch",
+      "capability": "self parameter rejects an unrelated argument",
+      "file": "argument-self-param-mismatch.php",
+      "engineCodes": ["A.ARG.TYPE"],
+      "phpstanIdentifiers": ["argument.type"]
     }
   ]
 }
