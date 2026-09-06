@@ -847,7 +847,7 @@ func methodCalleeClass(method ResolvedMethod, call *ast.MethodCallNode, scope *f
 }
 
 func expectedCallParamType(param ResolvedParam, method ResolvedMethod, calleeClass string, ctx *AnalysisContext) Type {
-	return bindCalleeSignatureType(param.Type, method.DeclaringClass, calleeClass, ctx)
+	return bindCalleeSignatureType(expandUnboundClassTemplates(param.Type, method.DeclaringClass, ctx), method.DeclaringClass, calleeClass, ctx)
 }
 
 func checkResolvedCallArgTypes(target string, method ResolvedMethod, args []ast.Node, scope *functionScope, ctx *AnalysisContext, filename string, issues *[]AnalysisIssue, calleeClass string) {

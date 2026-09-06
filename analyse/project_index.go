@@ -1754,12 +1754,42 @@ func (idx *ProjectIndex) addGlobalConstant(filename, name string) {
 	idx.globalConstantFiles[key] = filename
 }
 
+func methodLocalTemplateBindings(doc *ast.PHPDocNode, ft FileTypeContext) map[string]string {
+	if doc == nil || len(doc.Templates) == 0 {
+		return nil
+	}
+	bindings := make(map[string]string, len(doc.Templates))
+	for _, template := range doc.Templates {
+		bound := strings.TrimSpace(template.Bound)
+		if bound == "" {
+			bound = "mixed"
+		} else {
+			bound = normalizeTypeWithContext(bound, ft)
+			if bound == "" {
+				bound = "mixed"
+			}
+		}
+		bindings[template.Name] = bound
+	}
+	return bindings
+}
+
 func methodFromFunction(filename, className string, fn *ast.FunctionNode, ft FileTypeContext, templateParams []string) ResolvedMethod {
 	returnType := fn.ReturnType
 	if fn.PHPDoc != nil && fn.PHPDoc.ReturnType != "" {
 		returnType = fn.PHPDoc.ReturnType
 	}
-	templates := templateNames(templateParams)
+	templates := mergeTemplateNames(templateNames(templateParams), nil)
+	var methodBindings map[string]string
+	if fn.PHPDoc != nil {
+		for _, template := range fn.PHPDoc.Templates {
+			templates = mergeTemplateNames(templates, []string{template.Name})
+		}
+		methodBindings = methodLocalTemplateBindings(fn.PHPDoc, ft)
+		if len(methodBindings) > 0 {
+			returnType = ApplyTemplateBindings(returnType, methodBindings)
+		}
+	}
 	callableReturn := callableReturnType(returnType, ft)
 	normalizedReturn := normalizeTemplateAwareType(returnType, ft, templates)
 	if !callableReturn.IsEmpty() {
@@ -1781,6 +1811,11 @@ func methodFromFunction(filename, className string, fn *ast.FunctionNode, ft Fil
 		IsStatic:           hasModifier(fn.Modifiers, "static"),
 		Abstract:           hasModifier(fn.Modifiers, "abstract"),
 		Final:              hasModifier(fn.Modifiers, "final"),
+	}
+	if len(methodBindings) > 0 {
+		for i := range method.Params {
+			method.Params[i].Type = ApplyTemplateBindings(method.Params[i].Type, methodBindings)
+		}
 	}
 	if fn.PHPDoc != nil {
 		method.Deprecated = fn.PHPDoc.Deprecated

@@ -46,11 +46,72 @@ func isTemplateIdentifierRune(r rune) bool {
 }
 
 func templateNames(docTemplates []string) map[string]struct{} {
-	names := make(map[string]struct{}, len(docTemplates))
+	names := make(map[string]struct{}, len(docTemplates)*2)
 	for _, name := range docTemplates {
+		name = strings.TrimSpace(name)
+		if name == "" {
+			continue
+		}
 		names[name] = struct{}{}
+		names[asciiLowerIdent(name)] = struct{}{}
 	}
 	return names
+}
+
+func isKnownTemplateName(raw string, templates map[string]struct{}) bool {
+	raw = strings.TrimSpace(raw)
+	if raw == "" || len(templates) == 0 {
+		return false
+	}
+	if _, ok := templates[raw]; ok {
+		return true
+	}
+	_, ok := templates[asciiLowerIdent(raw)]
+	return ok
+}
+
+func mergeTemplateNames(base map[string]struct{}, extra []string) map[string]struct{} {
+	if len(extra) == 0 {
+		return base
+	}
+	if base == nil {
+		base = make(map[string]struct{}, len(extra)*2)
+	}
+	for _, name := range extra {
+		name = strings.TrimSpace(name)
+		if name == "" {
+			continue
+		}
+		base[name] = struct{}{}
+		base[asciiLowerIdent(name)] = struct{}{}
+	}
+	return base
+}
+
+func expandUnboundClassTemplates(raw, className string, ctx *AnalysisContext) string {
+	raw = strings.TrimSpace(raw)
+	if raw == "" || ctx == nil || ctx.Resolver == nil || className == "" {
+		return raw
+	}
+	class, ok := ctx.Resolver.ResolveClass(className)
+	if !ok || len(class.TemplateParams) == 0 {
+		return raw
+	}
+	bindings := make(map[string]string, len(class.TemplateParams))
+	for i, name := range class.TemplateParams {
+		if i >= len(class.TemplateBounds) {
+			continue
+		}
+		bound := strings.TrimSpace(class.TemplateBounds[i])
+		if bound == "" {
+			continue
+		}
+		bindings[name] = bound
+	}
+	if len(bindings) == 0 {
+		return raw
+	}
+	return ApplyTemplateBindings(raw, bindings)
 }
 
 func normalizeTemplateAwareType(raw string, ctx FileTypeContext, templates map[string]struct{}) string {
@@ -87,7 +148,7 @@ func normalizeTemplateAwareTypeExpression(raw string, ctx FileTypeContext, templ
 		}
 		return strings.Join(parts, "&")
 	}
-	if _, ok := templates[raw]; ok {
+	if isKnownTemplateName(raw, templates) {
 		return raw
 	}
 	return normalizeTypeWithContext(raw, ctx)

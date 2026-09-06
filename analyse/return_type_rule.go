@@ -1799,6 +1799,10 @@ func inferPropertyFetchType(node *ast.PropertyFetchNode, scope *functionScope, c
 	return MixedType()
 }
 
+func inferredMethodReturnType(method ResolvedMethod, calleeClass string, ctx *AnalysisContext) Type {
+	return bindCalleeSignatureType(expandUnboundClassTemplates(method.ReturnType, method.DeclaringClass, ctx), method.DeclaringClass, calleeClass, ctx)
+}
+
 func inferMethodCallType(node *ast.MethodCallNode, scope *functionScope, ctx *AnalysisContext) Type {
 	if node == nil {
 		return MixedType()
@@ -1809,11 +1813,23 @@ func inferMethodCallType(node *ast.MethodCallNode, scope *functionScope, ctx *An
 			callee = scope.className
 		}
 		if method, ok := resolveSameClassMethod(scope, node.Method); ok {
-			return bindCalleeSignatureType(method.ReturnType, method.DeclaringClass, callee, ctx)
+			return inferredMethodReturnType(method, callee, ctx)
 		}
 		if scope != nil && ctx != nil && ctx.Resolver != nil {
 			if method, ok := ctx.Resolver.ResolveMethod(scope.className, node.Method); ok {
-				return bindCalleeSignatureType(method.ReturnType, method.DeclaringClass, callee, ctx)
+				return inferredMethodReturnType(method, callee, ctx)
+			}
+		}
+	}
+
+	if scope != nil && ctx != nil {
+		if varNode, ok := node.Object.(*ast.VariableNode); ok {
+			if genInst, hasGeneric := scope.genericContext[varNode.Name]; hasGeneric {
+				if resolver, ok := ctx.Resolver.(*ProjectIndex); ok {
+					if method, ok := resolver.ResolveMethodWithGenerics(genInst.ClassName, node.Method, genInst.TypeArguments); ok {
+						return inferredMethodReturnType(method, genInst.ClassName, ctx)
+					}
+				}
 			}
 		}
 	}
@@ -1825,18 +1841,18 @@ func inferMethodCallType(node *ast.MethodCallNode, scope *functionScope, ctx *An
 	}
 	if scope != nil && strings.EqualFold(className, scope.className) {
 		if method, ok := resolveSameClassMethod(scope, node.Method); ok {
-			return bindCalleeSignatureType(method.ReturnType, method.DeclaringClass, className, ctx)
+			return inferredMethodReturnType(method, className, ctx)
 		}
 	}
 	if ctx != nil && ctx.Resolver != nil {
 		if method, ok := ctx.Resolver.ResolveMethod(className, node.Method); ok {
-			return bindCalleeSignatureType(method.ReturnType, method.DeclaringClass, className, ctx)
+			return inferredMethodReturnType(method, className, ctx)
 		}
 	}
 	if scope != nil {
 		if classData, ok := analysisClassScopeDataByName(ctx, className, scope.typeCtx); ok {
 			if method, ok := classData.methods[asciiLowerIdent(node.Method)]; ok {
-				return bindCalleeSignatureType(method.ReturnType, method.DeclaringClass, className, ctx)
+				return inferredMethodReturnType(method, className, ctx)
 			}
 		}
 	}

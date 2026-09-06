@@ -2,6 +2,14 @@ package analyse
 
 import "testing"
 
+func TestGenericCollectionMatchesAfterErasingTypeArguments(t *testing.T) {
+	declared := ParseType(`Doctrine\Common\Collections\Collection<string, App\Entity\User>`)
+	actual := ParseType(`Doctrine\Common\Collections\Collection`)
+	if !declared.Accepts(actual) {
+		t.Fatalf("expected Collection<string, User> to accept Collection after erasing type arguments")
+	}
+}
+
 func TestWithRelativeClassNamesRewritesSelfStaticAndParent(t *testing.T) {
 	got := ParseType("self|static|parent|null").withRelativeClassNames(
 		`App\Status`,

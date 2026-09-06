@@ -671,7 +671,31 @@ func (t Type) withRelativeClassNames(selfName, staticName, parentName string) Ty
 	return Type{atoms: newAtoms, alternatives: newAlts}
 }
 
+func eraseGenericArgs(name string) string {
+	name = strings.TrimSpace(name)
+	if name == "" || !strings.Contains(name, "<") {
+		return name
+	}
+	depth := 0
+	for idx, r := range name {
+		switch r {
+		case '<':
+			if depth == 0 {
+				return strings.TrimSpace(name[:idx])
+			}
+			depth++
+		case '>':
+			if depth > 0 {
+				depth--
+			}
+		}
+	}
+	return name
+}
+
 func classHierarchyCompatible(declaredName, actualName string, scope *functionScope, ctx *AnalysisContext) bool {
+	declaredName = eraseGenericArgs(declaredName)
+	actualName = eraseGenericArgs(actualName)
 	declaredName = canonicalClassName(declaredName, scope, ctx)
 	actualName = canonicalClassName(actualName, scope, ctx)
 	if declaredName == "" || actualName == "" {
@@ -722,7 +746,7 @@ func classHierarchyCompatible(declaredName, actualName string, scope *functionSc
 }
 
 func canonicalClassName(name string, scope *functionScope, ctx *AnalysisContext) string {
-	name = strings.TrimPrefix(strings.TrimSpace(name), `\`)
+	name = eraseGenericArgs(strings.TrimPrefix(strings.TrimSpace(name), `\`))
 	if name == "" {
 		return ""
 	}

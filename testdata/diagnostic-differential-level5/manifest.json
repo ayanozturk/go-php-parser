@@ -67,6 +67,20 @@
       "file": "argument-self-param-mismatch.php",
       "engineCodes": ["A.ARG.TYPE"],
       "phpstanIdentifiers": ["argument.type"]
+    },
+    {
+      "id": "argument-generic-collection-clean",
+      "capability": "generic Collection parameter accepts ArrayCollection",
+      "file": "argument-generic-collection-clean.php",
+      "engineCodes": [],
+      "phpstanIdentifiers": []
+    },
+    {
+      "id": "argument-template-return-clean",
+      "capability": "unbound InputBag templates do not invent classes",
+      "file": "argument-template-return-clean.php",
+      "engineCodes": [],
+      "phpstanIdentifiers": []
     }
   ]
 }

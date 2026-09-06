@@ -164,6 +164,79 @@ function attach(ChildNode $child, BaseNode $base): void
 	}
 }
 
+func TestGenericCollectionParameterAcceptsArrayCollection(t *testing.T) {
+	files := map[string]string{
+		"users.php": `<?php
+namespace Doctrine\Common\Collections;
+
+/**
+ * @template TKey of array-key
+ * @template T
+ */
+interface Collection {}
+
+/**
+ * @template TKey of array-key
+ * @template T
+ * @implements Collection<TKey, T>
+ */
+class ArrayCollection implements Collection {}
+
+class User {}
+
+class Holder
+{
+    /** @param Collection<string, User> $users */
+    public function setUsers($users): void {}
+}
+
+function run(Holder $holder): void
+{
+    $holder->setUsers(new ArrayCollection());
+}
+`,
+	}
+	if issues := runAnalysisLevelOnFiles(t, files, 5); hasArgTypeIssue(issues) {
+		t.Fatalf("expected ArrayCollection to satisfy Collection<string, User>, got %#v", issues)
+	}
+}
+
+func TestUnboundTemplateReturnDoesNotInventClasses(t *testing.T) {
+	files := map[string]string{
+		"input.php": `<?php
+/**
+ * @template TInput of string|int|float|bool|null
+ */
+final class InputBag
+{
+    /**
+     * @template TDefault of string|int|float|bool|null
+     * @param TDefault $default
+     * @return TDefault|TInput
+     */
+    public function get(string $key, mixed $default = null): string|int|float|bool|null
+    {
+        return $default;
+    }
+}
+
+function useDate(InputBag $query): void
+{
+    $date = $query->get('date');
+    if (is_string($date)) {
+        echo (new \DateTime($date))->format('c');
+    }
+}
+`,
+	}
+	if issues := runAnalysisLevelOnFiles(t, files, 4); hasArgTypeIssue(issues) {
+		t.Fatalf("expected template-return DateTime construction to remain silent at level 4, got %#v", issues)
+	}
+	if issues := runAnalysisLevelOnFiles(t, files, 5); hasArgTypeIssue(issues) {
+		t.Fatalf("expected unbound TDefault|TInput not to become fake classes, got %#v", issues)
+	}
+}
+
 func TestMethodArgumentObjectParameterAcceptsClassInstance(t *testing.T) {
 	php := `<?php
     namespace Symfony\Component\PropertyAccess\Tests;
