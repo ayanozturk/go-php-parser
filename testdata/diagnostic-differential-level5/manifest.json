@@ -165,6 +165,20 @@
       "file": "argument-is-string-early-return-mismatch.php",
       "engineCodes": ["A.ARG.TYPE"],
       "phpstanIdentifiers": ["argument.type"]
+    },
+    {
+      "id": "argument-is-string-and-ternary-clean",
+      "capability": "is_string and non-empty ternary infers int|null not bool",
+      "file": "argument-is-string-and-ternary-clean.php",
+      "engineCodes": [],
+      "phpstanIdentifiers": []
+    },
+    {
+      "id": "argument-is-string-and-ternary-mismatch",
+      "capability": "is_string and non-empty ternary int|null rejects string",
+      "file": "argument-is-string-and-ternary-mismatch.php",
+      "engineCodes": ["A.ARG.TYPE"],
+      "phpstanIdentifiers": ["argument.type"]
     }
   ]
 }

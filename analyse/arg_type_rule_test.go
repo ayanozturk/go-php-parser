@@ -590,6 +590,22 @@ function parseDateTime(?string $dateString): void
 	}
 }
 
+func TestIsStringAndNonEmptyTernaryIsIntOrNullNotBool(t *testing.T) {
+	files := map[string]string{
+		"app.php": `<?php
+function take(?int $n): void {}
+
+function run(mixed $x): void
+{
+    take(is_string($x) && $x !== '' ? (int)$x : null);
+}
+`,
+	}
+	if issues := runAnalysisLevelOnFiles(t, files, 5); hasArgTypeIssue(issues) {
+		t.Fatalf("expected is_string && !== '' ternary to be int|null, not bool, got %#v", issues)
+	}
+}
+
 func TestMissingIsStringGuardStillRejectsNullableString(t *testing.T) {
 	files := map[string]string{
 		"app.php": `<?php

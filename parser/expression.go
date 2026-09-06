@@ -306,11 +306,14 @@ func (p *Parser) parseBinaryOperator(left ast.Node, prec int, validateAssignment
 	}
 	p.nextToken()
 	var right ast.Node
-	if op == token.T_BOOLEAN_OR || op == token.T_BOOLEAN_AND {
-		right = p.parseExpressionWithPrecedence(0, true)
-	} else if op == token.T_INSTANCEOF {
+	if op == token.T_INSTANCEOF {
 		right = p.parseSimpleExpression()
 	} else {
+		// && / || must use nextMinPrec. Parsing their right operand at
+		// precedence 0 used to swallow `?:` and the other boolean operator,
+		// so `is_string($x) && $x !== '' ? (int)$x : null` became a bool
+		// `&&` and `$a && $b || $c` associated the wrong way. Assignment
+		// still binds as `$a && ($b = $c)` via the steal-back below.
 		right = p.parseExpressionWithPrecedence(nextMinPrec, false)
 	}
 	if right == nil {

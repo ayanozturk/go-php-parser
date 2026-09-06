@@ -8,7 +8,7 @@ Source for PHPStan level descriptions: [PHPStan Rule Levels](https://phpstan.org
 
 This comparison is limited to analysis behavior. The project also implements PSR/formatting style rules, but those do not directly correspond to PHPStan's rule levels.
 
-Executable parity evidence is tracked separately in [the analyser capability matrix](analyser-capability-matrix.md). Current differential packs gate 94 / 24 / 96 / 30 cases at levels 0–3, 23 cases at level 5, 18 at level 6, 6 at level 7, and 27 at level 8 against PHPStan 2.2.5. Descriptive rows in this document are not parity claims unless backed by a checked-in differential fixture there.
+Executable parity evidence is tracked separately in [the analyser capability matrix](analyser-capability-matrix.md). Current differential packs gate 94 / 24 / 96 / 30 cases at levels 0–3, 25 cases at level 5, 18 at level 6, 6 at level 7, and 27 at level 8 against PHPStan 2.2.5. Descriptive rows in this document are not parity claims unless backed by a checked-in differential fixture there.
 
 ## Coverage Summary
 
@@ -57,7 +57,7 @@ Executable parity evidence is tracked separately in [the analyser capability mat
 | `A.ARG.COUNT` | Legacy non-level-aware argument-count rule for resolved method and constructor calls. | Historical partial PHPStan level 0 coverage; explicit `analysis_level: 0` uses `Level0.Invocation` instead. |
 | `A.RETURN.TYPE` | Checks function/method return expressions against declared return types. | Partial PHPStan level 3 coverage. Registered above level 0 so it is suppressed for `analysis_level: 0`. |
 | `A.PROP.TYPE` | Checks assigned values against resolved property types. | Partial PHPStan level 3 coverage. Registered above level 0 so it is suppressed for `analysis_level: 0`. |
-| `A.ARG.TYPE` | Checks resolved named-function, method, and constructor argument value types against declared parameter types. | Partial PHPStan level 5 coverage, gated by twenty-three fixtures. |
+| `A.ARG.TYPE` | Checks resolved named-function, method, and constructor argument value types against declared parameter types. | Partial PHPStan level 5 coverage, gated by twenty-five fixtures. |
 | `Generic.CodeAnalysis.UnreachableCode` | Reports statements after terminating statements such as `return`, `throw`, `exit`, or `die`. | Similar to PHPStan level 4 dead-code checks, outside this level 0-3 comparison. Registered above level 0. |
 | `Generic.CodeAnalysis.EmptyStatement` | Reports standalone empty statements and empty control-structure bodies. | PHPCS-style code-quality rule; no direct PHPStan level 0-3 mapping. |
 | `Generic.CodeAnalysis.AssignmentInCondition` | Reports assignments inside conditions. | PHPCS-style code-quality rule; no direct PHPStan level 0-3 mapping. |
