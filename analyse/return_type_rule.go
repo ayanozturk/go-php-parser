@@ -943,7 +943,8 @@ func buildClassScopeDataWithSeen(class *ast.ClassNode, typeCtx FileTypeContext, 
 				paramType = ParseType(normalizeTypeWithContext(param.UnionType.TokenLiteral(), typeCtx))
 			}
 			if paramType.IsEmpty() && method.PHPDoc != nil {
-				paramType = ParseType(normalizeTypeWithContext(method.PHPDoc.GetParamTypeFromPHPDoc(param.Name), typeCtx))
+				documented := expandPHPDocTypeAliases(method.PHPDoc.GetParamTypeFromPHPDoc(param.Name), phpDocTypeAliasBindings(class.PHPDoc, method.PHPDoc))
+				paramType = ParseType(normalizeTypeWithContext(documented, typeCtx))
 			}
 			resolved.Params = append(resolved.Params, ResolvedParam{
 				Name:       param.Name,
@@ -1394,7 +1395,8 @@ func promotedClassProperties(class *ast.ClassNode, typeCtx FileTypeContext, scop
 				paramType = ParseType(normalizeTypeWithContext(param.UnionType.TokenLiteral(), typeCtx))
 			}
 			if paramType.IsEmpty() && method.PHPDoc != nil {
-				paramType = ParseType(normalizeTypeWithContext(method.PHPDoc.GetParamTypeFromPHPDoc(param.Name), typeCtx))
+				documented := expandPHPDocTypeAliases(method.PHPDoc.GetParamTypeFromPHPDoc(param.Name), phpDocTypeAliasBindings(class.PHPDoc, method.PHPDoc))
+				paramType = ParseType(normalizeTypeWithContext(documented, typeCtx))
 			}
 			if paramType.IsEmpty() && param.DefaultValue != nil {
 				paramType = inferType(param.DefaultValue, scope, nil)

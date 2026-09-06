@@ -81,6 +81,20 @@
       "file": "argument-template-return-clean.php",
       "engineCodes": [],
       "phpstanIdentifiers": []
+    },
+    {
+      "id": "argument-phpdoc-type-alias-clean",
+      "capability": "phpstan-type list alias constructor accepts array",
+      "file": "argument-phpdoc-type-alias-clean.php",
+      "engineCodes": [],
+      "phpstanIdentifiers": []
+    },
+    {
+      "id": "argument-phpdoc-type-alias-mismatch",
+      "capability": "phpstan-type list alias constructor rejects a string",
+      "file": "argument-phpdoc-type-alias-mismatch.php",
+      "engineCodes": ["A.ARG.TYPE"],
+      "phpstanIdentifiers": ["argument.type"]
     }
   ]
 }

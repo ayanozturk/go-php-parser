@@ -237,6 +237,72 @@ function useDate(InputBag $query): void
 	}
 }
 
+func TestPHPDocTypeAliasParameterAcceptsArray(t *testing.T) {
+	files := map[string]string{
+		"overview.php": `<?php
+namespace App\VO;
+
+class ManagerSummary {}
+
+/**
+ * @phpstan-type ManagerSummaries list<ManagerSummary>
+ */
+final readonly class CompanyOverview
+{
+    /** @param ManagerSummaries $managers */
+    public function __construct(public array $managers) {}
+}
+`,
+		"caller.php": `<?php
+namespace App;
+
+use App\VO\CompanyOverview;
+use App\VO\ManagerSummary;
+
+function run(): void
+{
+    new CompanyOverview([new ManagerSummary()]);
+}
+`,
+	}
+	if issues := runAnalysisLevelOnFiles(t, files, 5); hasArgTypeIssue(issues) {
+		t.Fatalf("expected phpstan-type list alias to accept an array, got %#v", issues)
+	}
+}
+
+func TestPHPDocTypeAliasParameterRejectsScalar(t *testing.T) {
+	files := map[string]string{
+		"overview.php": `<?php
+namespace App\VO;
+
+/**
+ * @phpstan-type ManagerSummaries list<string>
+ */
+final readonly class CompanyOverview
+{
+    /** @param ManagerSummaries $managers */
+    public function __construct(public array $managers) {}
+}
+`,
+		"caller.php": `<?php
+namespace App;
+
+use App\VO\CompanyOverview;
+
+function run(): void
+{
+    new CompanyOverview('not-an-array');
+}
+`,
+	}
+	if issues := runAnalysisLevelOnFiles(t, files, 4); hasArgTypeIssue(issues) {
+		t.Fatalf("expected phpstan-type mismatch to remain silent at level 4, got %#v", issues)
+	}
+	if issues := runAnalysisLevelOnFiles(t, files, 5); !hasArgTypeIssue(issues) {
+		t.Fatalf("expected phpstan-type list alias to reject a string, got %#v", issues)
+	}
+}
+
 func TestMethodArgumentObjectParameterAcceptsClassInstance(t *testing.T) {
 	php := `<?php
     namespace Symfony\Component\PropertyAccess\Tests;

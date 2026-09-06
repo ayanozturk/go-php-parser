@@ -1387,29 +1387,29 @@ func (idx *ProjectIndex) indexNodes(filename string, nodes []ast.Node, ft FileTy
 				ConsistentConstructor: hasPHPStanConsistentConstructorTag(n.PHPDoc),
 			}
 			idx.addClass(filename, class, n)
-			idx.indexClassMembers(filename, name, n.Properties, n.Methods, n.Constants, ft, templates)
+			idx.indexClassMembers(filename, name, n.Properties, n.Methods, n.Constants, ft, n.PHPDoc, templates)
 		case *ast.InterfaceNode:
 			name := ft.resolveClassLike(n.Name)
 			templates, templateBounds, genericParents := resolvedGenericMetadata(n.PHPDoc, ft)
 			idx.addClass(filename, ResolvedClass{Name: name, Extends: resolvedList(ft, n.Extends), TemplateParams: templates, TemplateBounds: templateBounds, GenericParents: genericParents, Kind: "interface"}, n)
-			idx.indexInterfaceMembers(filename, name, n.Members, ft, templates)
+			idx.indexInterfaceMembers(filename, name, n.Members, ft, n.PHPDoc, templates)
 		case *ast.TraitNode:
 			if n.Name != nil {
 				name := ft.resolveClassLike(n.Name.Name)
 				idx.addClass(filename, ResolvedClass{Name: name, Kind: "trait", Traits: traitUsesFromMembers(n.Body, ft)}, n)
-				idx.indexClassMembers(filename, name, n.Body, nil, nil, ft, nil)
+				idx.indexClassMembers(filename, name, n.Body, nil, nil, ft, nil, nil)
 			}
 		case *ast.EnumNode:
 			name := ft.resolveClassLike(n.Name)
 			idx.addClass(filename, ResolvedClass{Name: name, Implements: resolvedList(ft, n.Implements), Kind: "enum", Final: true}, n)
-			idx.indexClassMembers(filename, name, nil, n.Methods, nil, ft, nil)
+			idx.indexClassMembers(filename, name, nil, n.Methods, nil, ft, nil, nil)
 			for _, enumCase := range n.Cases {
 				idx.addClassConstant(name, ResolvedConstant{Name: enumCase.Name, DeclaringClass: name, Declaration: sourceLocation(filename, enumCase), Visibility: "public"})
 			}
 			idx.addEnumNativeMembers(filename, name, n)
 		case *ast.FunctionNode:
 			if currentClass != "" {
-				idx.addMethod(currentClass, methodFromFunction(filename, currentClass, n, ft, nil))
+				idx.addMethod(currentClass, methodFromFunction(filename, currentClass, n, ft, nil, nil))
 				continue
 			}
 			name := ft.resolveClassLike(n.Name)
@@ -1417,12 +1417,13 @@ func (idx *ProjectIndex) indexNodes(filename string, nodes []ast.Node, ft FileTy
 			if n.PHPDoc != nil && n.PHPDoc.ReturnType != "" {
 				returnType = n.PHPDoc.ReturnType
 			}
+			returnType = expandPHPDocTypeAliases(returnType, phpDocTypeAliasBindings(n.PHPDoc))
 			callableReturn := callableReturnType(returnType, ft)
 			normalizedReturn := normalizeTypeWithContext(returnType, ft)
 			if !callableReturn.IsEmpty() {
 				normalizedReturn = "callable"
 			}
-			fn := ResolvedFunction{Name: name, Declaration: sourceLocation(filename, n), ReturnType: normalizedReturn, CallableReturnType: callableReturn.dnfString(), Params: paramsFromNodesWithPHPDoc(n.Params, n.PHPDoc, ft, nil)}
+			fn := ResolvedFunction{Name: name, Declaration: sourceLocation(filename, n), ReturnType: normalizedReturn, CallableReturnType: callableReturn.dnfString(), Params: paramsFromNodesWithPHPDoc(n.Params, n.PHPDoc, ft, nil, phpDocTypeAliasBindings(n.PHPDoc))}
 			if n.PHPDoc != nil {
 				fn.Deprecated = n.PHPDoc.Deprecated
 				fn.DeprecationMessage = n.PHPDoc.DeprecationMessage
@@ -1454,7 +1455,7 @@ func (idx *ProjectIndex) indexPromotedProperties(filename, className string, con
 	}
 }
 
-func (idx *ProjectIndex) indexClassMembers(filename, className string, properties, methods, constants []ast.Node, ft FileTypeContext, templateParams []string) {
+func (idx *ProjectIndex) indexClassMembers(filename, className string, properties, methods, constants []ast.Node, ft FileTypeContext, classDoc *ast.PHPDocNode, templateParams []string) {
 	for _, propNode := range properties {
 		switch p := propNode.(type) {
 		case *ast.PropertyNode:
@@ -1486,7 +1487,7 @@ func (idx *ProjectIndex) indexClassMembers(filename, className string, propertie
 		case *ast.TraitUseNode:
 			// Trait use is checked by level-0 rules; no index entry needed.
 		case *ast.FunctionNode:
-			idx.addMethod(className, methodFromFunction(filename, className, p, ft, templateParams))
+			idx.addMethod(className, methodFromFunction(filename, className, p, ft, classDoc, templateParams))
 		}
 	}
 	for _, methodNode := range methods {
@@ -1494,7 +1495,7 @@ func (idx *ProjectIndex) indexClassMembers(filename, className string, propertie
 		if !ok {
 			continue
 		}
-		idx.addMethod(className, methodFromFunction(filename, className, fn, ft, templateParams))
+		idx.addMethod(className, methodFromFunction(filename, className, fn, ft, classDoc, templateParams))
 		if strings.EqualFold(fn.Name, "__construct") {
 			idx.indexPromotedProperties(filename, className, fn, ft)
 		}
@@ -1506,7 +1507,7 @@ func (idx *ProjectIndex) indexClassMembers(filename, className string, propertie
 	}
 }
 
-func (idx *ProjectIndex) indexInterfaceMembers(filename, className string, members []ast.Node, ft FileTypeContext, templateParams []string) {
+func (idx *ProjectIndex) indexInterfaceMembers(filename, className string, members []ast.Node, ft FileTypeContext, classDoc *ast.PHPDocNode, templateParams []string) {
 	templates := templateNames(templateParams)
 	for _, member := range members {
 		switch m := member.(type) {
@@ -1519,6 +1520,11 @@ func (idx *ProjectIndex) indexInterfaceMembers(filename, className string, membe
 			if m.PHPDoc != nil && m.PHPDoc.ReturnType != "" {
 				returnType = m.PHPDoc.ReturnType
 			}
+			aliases := phpDocTypeAliasBindings(classDoc, m.PHPDoc)
+			returnType = expandPHPDocTypeAliases(returnType, aliases)
+			for name := range aliases {
+				templates = mergeTemplateNames(templates, []string{name})
+			}
 			callableReturn := callableReturnType(returnType, ft)
 			normalizedReturn := normalizeTemplateAwareType(returnType, ft, templates)
 			if !callableReturn.IsEmpty() {
@@ -1528,7 +1534,7 @@ func (idx *ProjectIndex) indexInterfaceMembers(filename, className string, membe
 			if nativeReturn != "" {
 				nativeReturnType = normalizeTemplateAwareType(nativeReturn, ft, templates)
 			}
-			idx.addMethod(className, ResolvedMethod{Name: m.Name, DeclaringClass: className, Declaration: sourceLocation(filename, m), ReturnType: normalizedReturn, NativeReturnType: nativeReturnType, CallableReturnType: callableReturn.dnfString(), Params: paramsFromNodesWithPHPDoc(m.Params, m.PHPDoc, ft, templates), Visibility: "public", Abstract: true})
+			idx.addMethod(className, ResolvedMethod{Name: m.Name, DeclaringClass: className, Declaration: sourceLocation(filename, m), ReturnType: normalizedReturn, NativeReturnType: nativeReturnType, CallableReturnType: callableReturn.dnfString(), Params: paramsFromNodesWithPHPDoc(m.Params, m.PHPDoc, ft, templates, aliases), Visibility: "public", Abstract: true})
 		case *ast.PropertyNode:
 			rawType := m.TypeHint
 			docType := ""
@@ -1754,6 +1760,27 @@ func (idx *ProjectIndex) addGlobalConstant(filename, name string) {
 	idx.globalConstantFiles[key] = filename
 }
 
+func phpDocTypeAliasBindings(docs ...*ast.PHPDocNode) map[string]string {
+	var bindings map[string]string
+	for _, doc := range docs {
+		if doc == nil || len(doc.TypeAliases) == 0 {
+			continue
+		}
+		if bindings == nil {
+			bindings = make(map[string]string, len(doc.TypeAliases))
+		}
+		for _, alias := range doc.TypeAliases {
+			name := strings.TrimSpace(alias.Name)
+			typ := strings.TrimSpace(alias.Type)
+			if name == "" || typ == "" {
+				continue
+			}
+			bindings[name] = typ
+		}
+	}
+	return bindings
+}
+
 func methodLocalTemplateBindings(doc *ast.PHPDocNode, ft FileTypeContext) map[string]string {
 	if doc == nil || len(doc.Templates) == 0 {
 		return nil
@@ -1774,11 +1801,13 @@ func methodLocalTemplateBindings(doc *ast.PHPDocNode, ft FileTypeContext) map[st
 	return bindings
 }
 
-func methodFromFunction(filename, className string, fn *ast.FunctionNode, ft FileTypeContext, templateParams []string) ResolvedMethod {
+func methodFromFunction(filename, className string, fn *ast.FunctionNode, ft FileTypeContext, classDoc *ast.PHPDocNode, templateParams []string) ResolvedMethod {
+	aliases := phpDocTypeAliasBindings(classDoc, fn.PHPDoc)
 	returnType := fn.ReturnType
 	if fn.PHPDoc != nil && fn.PHPDoc.ReturnType != "" {
 		returnType = fn.PHPDoc.ReturnType
 	}
+	returnType = expandPHPDocTypeAliases(returnType, aliases)
 	templates := mergeTemplateNames(templateNames(templateParams), nil)
 	var methodBindings map[string]string
 	if fn.PHPDoc != nil {
@@ -1789,6 +1818,9 @@ func methodFromFunction(filename, className string, fn *ast.FunctionNode, ft Fil
 		if len(methodBindings) > 0 {
 			returnType = ApplyTemplateBindings(returnType, methodBindings)
 		}
+	}
+	for name := range aliases {
+		templates = mergeTemplateNames(templates, []string{name})
 	}
 	callableReturn := callableReturnType(returnType, ft)
 	normalizedReturn := normalizeTemplateAwareType(returnType, ft, templates)
@@ -1806,7 +1838,7 @@ func methodFromFunction(filename, className string, fn *ast.FunctionNode, ft Fil
 		ReturnType:         normalizedReturn,
 		NativeReturnType:   nativeReturnType,
 		CallableReturnType: callableReturn.dnfString(),
-		Params:             paramsFromNodesWithPHPDoc(fn.Params, fn.PHPDoc, ft, templates),
+		Params:             paramsFromNodesWithPHPDoc(fn.Params, fn.PHPDoc, ft, templates, aliases),
 		Visibility:         functionVisibility(fn),
 		IsStatic:           hasModifier(fn.Modifiers, "static"),
 		Abstract:           hasModifier(fn.Modifiers, "abstract"),
@@ -1885,10 +1917,10 @@ func functionVisibility(fn *ast.FunctionNode) string {
 }
 
 func paramsFromNodes(nodes []ast.Node, ft FileTypeContext) []ResolvedParam {
-	return paramsFromNodesWithPHPDoc(nodes, nil, ft, nil)
+	return paramsFromNodesWithPHPDoc(nodes, nil, ft, nil, nil)
 }
 
-func paramsFromNodesWithPHPDoc(nodes []ast.Node, doc *ast.PHPDocNode, ft FileTypeContext, templates map[string]struct{}) []ResolvedParam {
+func paramsFromNodesWithPHPDoc(nodes []ast.Node, doc *ast.PHPDocNode, ft FileTypeContext, templates map[string]struct{}, aliases map[string]string) []ResolvedParam {
 	var callableTemplates map[string]struct{}
 	if doc != nil {
 		for _, template := range doc.Templates {
@@ -1913,6 +1945,7 @@ func paramsFromNodesWithPHPDoc(nodes []ast.Node, doc *ast.PHPDocNode, ft FileTyp
 				typ = documented
 			}
 		}
+		typ = expandPHPDocTypeAliases(typ, aliases)
 		// Call-site template inference is not represented in ResolvedParam yet.
 		// Treat method/function-local templates conservatively as mixed instead
 		// of resolving namespaced T-like identifiers as concrete classes.

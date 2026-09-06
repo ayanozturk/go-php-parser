@@ -328,23 +328,14 @@ func addPHPDocAliasNames(doc *ast.PHPDocNode, names *map[string]struct{}) {
 	if doc == nil {
 		return
 	}
-	content := strings.TrimSpace(doc.RawContent)
-	content = strings.TrimSpace(strings.TrimSuffix(strings.TrimPrefix(content, "/**"), "*/"))
-	for _, line := range strings.Split(content, "\n") {
-		line = strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(line), "*"))
-		for _, tag := range []string{"@phpstan-type", "@psalm-type"} {
-			if !strings.HasPrefix(line, tag+" ") && !strings.HasPrefix(line, tag+"\t") {
-				continue
-			}
-			fields := strings.Fields(strings.TrimSpace(strings.TrimPrefix(line, tag)))
-			if len(fields) == 0 {
-				continue
-			}
-			if *names == nil {
-				*names = make(map[string]struct{})
-			}
-			(*names)[asciiLowerIdent(fields[0])] = struct{}{}
+	for _, alias := range doc.TypeAliases {
+		if strings.TrimSpace(alias.Name) == "" {
+			continue
 		}
+		if *names == nil {
+			*names = make(map[string]struct{})
+		}
+		(*names)[asciiLowerIdent(alias.Name)] = struct{}{}
 	}
 }
 

@@ -88,6 +88,21 @@ func mergeTemplateNames(base map[string]struct{}, extra []string) map[string]str
 	return base
 }
 
+func expandPHPDocTypeAliases(raw string, aliases map[string]string) string {
+	raw = strings.TrimSpace(raw)
+	if raw == "" || len(aliases) == 0 {
+		return raw
+	}
+	for i := 0; i < 8; i++ {
+		next := ApplyTemplateBindings(raw, aliases)
+		if next == raw {
+			return raw
+		}
+		raw = next
+	}
+	return raw
+}
+
 func expandUnboundClassTemplates(raw, className string, ctx *AnalysisContext) string {
 	raw = strings.TrimSpace(raw)
 	if raw == "" || ctx == nil || ctx.Resolver == nil || className == "" {

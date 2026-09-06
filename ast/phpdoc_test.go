@@ -205,6 +205,23 @@ func TestParsePHPDocPreservesArrayShapeCallableParamType(t *testing.T) {
 	}
 }
 
+func TestParsePHPDocTypeAlias(t *testing.T) {
+	doc := ParsePHPDoc(`/**
+ * @phpstan-type ManagerSummaries list<ManagerTeamHealthSummary>
+ * @psalm-type Names = list<string>
+ */
+`)
+	if len(doc.TypeAliases) != 2 {
+		t.Fatalf("expected 2 type aliases, got %#v", doc.TypeAliases)
+	}
+	if doc.TypeAliases[0].Name != "ManagerSummaries" || doc.TypeAliases[0].Type != "list<ManagerTeamHealthSummary>" {
+		t.Fatalf("unexpected phpstan-type alias: %#v", doc.TypeAliases[0])
+	}
+	if doc.TypeAliases[1].Name != "Names" || doc.TypeAliases[1].Type != "list<string>" {
+		t.Fatalf("unexpected psalm-type alias: %#v", doc.TypeAliases[1])
+	}
+}
+
 func TestGetParamTypeFromPHPDoc(t *testing.T) {
 	phpdoc := &PHPDocNode{
 		Params: []PHPDocParam{

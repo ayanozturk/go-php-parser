@@ -12,6 +12,7 @@ type PHPDocNode struct {
 	ReturnType         string
 	VarType            string
 	Templates          []PHPDocTemplate
+	TypeAliases        []PHPDocTypeAlias
 	Extends            []PHPDocTypeReference
 	Implements         []PHPDocTypeReference
 	Deprecated         bool
@@ -26,6 +27,12 @@ type PHPDocNode struct {
 type PHPDocTemplate struct {
 	Name  string
 	Bound string
+}
+
+// PHPDocTypeAlias describes a local @phpstan-type or @psalm-type binding.
+type PHPDocTypeAlias struct {
+	Name string
+	Type string
 }
 
 // PHPDocTypeReference describes a generic inheritance annotation such as
@@ -102,6 +109,11 @@ func ParsePHPDoc(rawContent string) *PHPDocNode {
 			inDescription = false
 			if template, ok := parsePHPDocTemplate(value); ok {
 				phpdoc.Templates = append(phpdoc.Templates, template)
+			}
+		} else if tag, value, ok := phpDocTag(line); ok && isTypeAliasTag(tag) {
+			inDescription = false
+			if alias, ok := parsePHPDocTypeAlias(value); ok {
+				phpdoc.TypeAliases = append(phpdoc.TypeAliases, alias)
 			}
 		} else if tag, value, ok := phpDocTag(line); ok && isExtendsTag(tag) {
 			inDescription = false
@@ -189,6 +201,32 @@ func isTemplateTag(tag string) bool {
 	default:
 		return false
 	}
+}
+
+func isTypeAliasTag(tag string) bool {
+	switch tag {
+	case "phpstan-type", "psalm-type":
+		return true
+	default:
+		return false
+	}
+}
+
+func parsePHPDocTypeAlias(value string) (PHPDocTypeAlias, bool) {
+	value = strings.TrimSpace(value)
+	name, rest := splitPHPDocTypeAndRest(value)
+	if name == "" || rest == "" {
+		return PHPDocTypeAlias{}, false
+	}
+	rest = strings.TrimSpace(rest)
+	if strings.HasPrefix(rest, "=") {
+		rest = strings.TrimSpace(strings.TrimPrefix(rest, "="))
+	}
+	aliasType, _ := splitPHPDocTypeAndRest(rest)
+	if aliasType == "" {
+		return PHPDocTypeAlias{}, false
+	}
+	return PHPDocTypeAlias{Name: name, Type: aliasType}, true
 }
 
 func isExtendsTag(tag string) bool {
