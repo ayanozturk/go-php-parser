@@ -267,6 +267,10 @@ function wrap(): AppError
 func TestLevel2RecognizesDateTimeAndReflectionMethods(t *testing.T) {
 	issues := runAnalysisLevelOnFiles(t, map[string]string{
 		"test.php": `<?php
+class Example {
+    public function countByCycle(): int { return 0; }
+}
+
 function run(DateTime $now, ReflectionClass $reflector, ReflectionProperty $property, ReflectionMethod $method): void
 {
     $now->format('c');
@@ -275,6 +279,15 @@ function run(DateTime $now, ReflectionClass $reflector, ReflectionProperty $prop
     $reflector->hasMethod('run');
     $property->setValue(null, 'x');
     $method->invoke(null);
+    $method->isPublic();
+}
+
+function inspect(Example $example): void
+{
+    $reflection = new ReflectionClass($example);
+    $method = $reflection->getMethod('countByCycle');
+    $method->isPublic();
+    $method->getNumberOfParameters();
 }
 `,
 	}, 2)
@@ -286,6 +299,8 @@ function run(DateTime $now, ReflectionClass $reflector, ReflectionProperty $prop
 		"Call to an undefined method ReflectionClass::hasMethod()",
 		"Call to an undefined method ReflectionProperty::setValue()",
 		"Call to an undefined method ReflectionMethod::invoke()",
+		"Call to an undefined method ReflectionMethod::isPublic()",
+		"Call to an undefined method ReflectionMethod::getNumberOfParameters()",
 	} {
 		if hasIssueContaining(issues, level2MethodExistenceCode, unexpected) {
 			t.Fatalf("unexpected method false positive %q, got %#v", unexpected, issues)

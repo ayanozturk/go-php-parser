@@ -2053,12 +2053,14 @@ func (idx *ProjectIndex) seedBuiltins() {
 		{Name: "Stringable", Kind: "interface"},
 		{Name: "ReflectionClass", Kind: "class"},
 		{Name: "ReflectionException", Kind: "class", Extends: []string{"Exception"}},
-		{Name: "ReflectionFunction", Kind: "class"},
-		{Name: "ReflectionMethod", Kind: "class"},
-		{Name: "ReflectionNamedType", Kind: "class"},
+		{Name: "ReflectionFunctionAbstract", Kind: "class", Abstract: true},
+		{Name: "ReflectionFunction", Kind: "class", Extends: []string{"ReflectionFunctionAbstract"}},
+		{Name: "ReflectionMethod", Kind: "class", Extends: []string{"ReflectionFunctionAbstract"}},
+		{Name: "ReflectionNamedType", Kind: "class", Extends: []string{"ReflectionType"}},
 		{Name: "ReflectionObject", Kind: "class", Extends: []string{"ReflectionClass"}},
 		{Name: "ReflectionParameter", Kind: "class"},
 		{Name: "ReflectionProperty", Kind: "class"},
+		{Name: "ReflectionType", Kind: "class"},
 		{Name: "ArrayAccess", Kind: "interface"},
 		{Name: "ArrayIterator", Kind: "class", Implements: []string{"Iterator", "Traversable"}},
 		{Name: "ArrayObject", Kind: "class", Implements: []string{"IteratorAggregate", "Traversable"}},
@@ -2145,7 +2147,54 @@ func (idx *ProjectIndex) seedBuiltins() {
 	} {
 		idx.addMethodIfMissing("ReflectionProperty", method)
 	}
+	for _, method := range []ResolvedMethod{
+		{Name: "getName", ReturnType: "string", Visibility: "public"},
+		{Name: "getNumberOfParameters", ReturnType: "int", Visibility: "public"},
+		{Name: "getParameters", ReturnType: "array", Visibility: "public"},
+		{Name: "getReturnType", ReturnType: "ReflectionType|null", Visibility: "public"},
+		{Name: "hasReturnType", ReturnType: "bool", Visibility: "public"},
+		{Name: "getDocComment", ReturnType: "string|false", Visibility: "public"},
+		{Name: "getFileName", ReturnType: "string|false", Visibility: "public"},
+		{Name: "isDeprecated", ReturnType: "bool", Visibility: "public"},
+		{Name: "isVariadic", ReturnType: "bool", Visibility: "public"},
+		{Name: "isGenerator", ReturnType: "bool", Visibility: "public"},
+		{Name: "returnsReference", ReturnType: "bool", Visibility: "public"},
+	} {
+		idx.addMethodIfMissing("ReflectionFunctionAbstract", method)
+	}
+	for _, method := range []ResolvedMethod{
+		{Name: "isPublic", ReturnType: "bool", Visibility: "public"},
+		{Name: "isPrivate", ReturnType: "bool", Visibility: "public"},
+		{Name: "isProtected", ReturnType: "bool", Visibility: "public"},
+		{Name: "isStatic", ReturnType: "bool", Visibility: "public"},
+		{Name: "isAbstract", ReturnType: "bool", Visibility: "public"},
+		{Name: "isFinal", ReturnType: "bool", Visibility: "public"},
+		{Name: "isConstructor", ReturnType: "bool", Visibility: "public"},
+		{Name: "isDestructor", ReturnType: "bool", Visibility: "public"},
+		{Name: "getDeclaringClass", ReturnType: "ReflectionClass", Visibility: "public"},
+		{Name: "invokeArgs", ReturnType: "mixed", Params: []ResolvedParam{{Name: "object"}, {Name: "args"}}, Visibility: "public"},
+		{Name: "setAccessible", Params: []ResolvedParam{{Name: "accessible"}}, Visibility: "public"},
+	} {
+		idx.addMethodIfMissing("ReflectionMethod", method)
+	}
 	idx.addMethodIfMissing("ReflectionMethod", ResolvedMethod{Name: "invoke", ReturnType: "mixed", Params: []ResolvedParam{{Name: "object"}, {Name: "args", IsVariadic: true}}, Visibility: "public"})
+	for _, method := range []ResolvedMethod{
+		{Name: "getName", ReturnType: "string", Visibility: "public"},
+		{Name: "getType", ReturnType: "ReflectionType|null", Visibility: "public"},
+		{Name: "hasType", ReturnType: "bool", Visibility: "public"},
+		{Name: "isOptional", ReturnType: "bool", Visibility: "public"},
+		{Name: "isPassedByReference", ReturnType: "bool", Visibility: "public"},
+		{Name: "isDefaultValueAvailable", ReturnType: "bool", Visibility: "public"},
+		{Name: "getDefaultValue", ReturnType: "mixed", Visibility: "public"},
+		{Name: "allowsNull", ReturnType: "bool", Visibility: "public"},
+		{Name: "isVariadic", ReturnType: "bool", Visibility: "public"},
+		{Name: "isPromoted", ReturnType: "bool", Visibility: "public"},
+	} {
+		idx.addMethodIfMissing("ReflectionParameter", method)
+	}
+	idx.addMethodIfMissing("ReflectionType", ResolvedMethod{Name: "allowsNull", ReturnType: "bool", Visibility: "public"})
+	idx.addMethodIfMissing("ReflectionNamedType", ResolvedMethod{Name: "getName", ReturnType: "string", Visibility: "public"})
+	idx.addMethodIfMissing("ReflectionNamedType", ResolvedMethod{Name: "isBuiltin", ReturnType: "bool", Visibility: "public"})
 	idx.addMethodIfMissing("Closure", ResolvedMethod{Name: "fromCallable", DeclaringClass: "Closure", ReturnType: "Closure", Params: []ResolvedParam{{Name: "callback"}}, Visibility: "public", IsStatic: true})
 	idx.addMethodIfMissing("DateTimeZone", ResolvedMethod{Name: "__construct", DeclaringClass: "DateTimeZone", Params: []ResolvedParam{{Name: "timezone"}}, Visibility: "public"})
 	idx.addMethodIfMissing("DateInterval", ResolvedMethod{Name: "__construct", DeclaringClass: "DateInterval", Params: []ResolvedParam{{Name: "duration"}}, Visibility: "public"})
