@@ -143,6 +143,75 @@ func expandPHPDocTypeAliases(raw string, aliases map[string]string) string {
 	return raw
 }
 
+func phpDocTypeIsConditional(raw string) bool {
+	return strings.Contains(raw, " is ") || strings.Contains(raw, " is not ")
+}
+
+func collapsePHPDocConditionalType(raw, native string) string {
+	raw = strings.TrimSpace(raw)
+	if !phpDocTypeIsConditional(raw) {
+		return raw
+	}
+	if native = strings.TrimSpace(native); native != "" {
+		return native
+	}
+	thenType, elseType, ok := phpDocConditionalBranches(raw)
+	if !ok {
+		return "mixed"
+	}
+	return thenType + "|" + elseType
+}
+
+func phpDocConditionalBranches(raw string) (string, string, bool) {
+	raw = stripBalancedOuterTypeParens(strings.TrimSpace(raw))
+	if i := strings.Index(raw, "$"); i > 0 {
+		raw = raw[i:]
+	}
+	isIdx := strings.Index(raw, " is not ")
+	if isIdx < 0 {
+		isIdx = strings.Index(raw, " is ")
+	}
+	if isIdx < 0 {
+		return "", "", false
+	}
+	question := indexTopLevelByte(raw[isIdx:], '?')
+	if question < 0 {
+		return "", "", false
+	}
+	question += isIdx
+	colon := indexTopLevelByte(raw[question+1:], ':')
+	if colon < 0 {
+		return "", "", false
+	}
+	colon += question + 1
+	thenType := strings.TrimSpace(raw[question+1 : colon])
+	elseType := strings.TrimSpace(raw[colon+1:])
+	elseType = strings.TrimSpace(strings.TrimSuffix(elseType, ")"))
+	if thenType == "" || elseType == "" {
+		return "", "", false
+	}
+	return thenType, elseType, true
+}
+
+func indexTopLevelByte(raw string, target byte) int {
+	depth := 0
+	for i := 0; i < len(raw); i++ {
+		switch raw[i] {
+		case '<', '(', '{', '[':
+			depth++
+		case '>', ')', '}', ']':
+			if depth > 0 {
+				depth--
+			}
+		default:
+			if raw[i] == target && depth == 0 {
+				return i
+			}
+		}
+	}
+	return -1
+}
+
 func expandUnboundClassTemplates(raw, className string, ctx *AnalysisContext) string {
 	raw = strings.TrimSpace(raw)
 	if raw == "" || ctx == nil || ctx.Resolver == nil || className == "" {

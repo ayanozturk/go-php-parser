@@ -1889,6 +1889,7 @@ func inferredMethodReturnType(method ResolvedMethod, calleeClass string, ctx *An
 
 func inferredMethodReturnTypeWithBindings(method ResolvedMethod, calleeClass string, ctx *AnalysisContext, bindings map[string]string) Type {
 	returnType := ApplyTemplateBindings(method.ReturnType, bindings)
+	returnType = collapsePHPDocConditionalType(returnType, method.NativeReturnType)
 	return bindCalleeSignatureType(expandUnboundClassTemplates(returnType, method.DeclaringClass, ctx), method.DeclaringClass, calleeClass, ctx)
 }
 

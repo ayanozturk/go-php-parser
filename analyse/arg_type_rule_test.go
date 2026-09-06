@@ -443,6 +443,125 @@ class Controller
 	}
 }
 
+func TestConditionalCreateFormReturnIsFormInterface(t *testing.T) {
+	files := map[string]string{
+		"controller.php": `<?php
+namespace Symfony\Bundle\FrameworkBundle\Controller;
+
+use Symfony\Component\Form\FormInterface;
+
+class AbstractController
+{
+    /**
+     * @return ($type is class-string<FormFlowTypeInterface> ? FormFlowInterface : FormInterface)
+     */
+    protected function createForm(string $type, mixed $data = null, array $options = []): FormInterface
+    {
+        throw new \RuntimeException('stub');
+    }
+}
+`,
+		"form.php": `<?php
+namespace Symfony\Component\Form;
+interface FormInterface {}
+`,
+		"app.php": `<?php
+use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
+use Symfony\Component\Form\FormInterface;
+
+class SearchType {}
+
+class Demo extends AbstractController
+{
+    public function takesForm(FormInterface $form): void {}
+
+    public function run(): void
+    {
+        $this->takesForm($this->createForm(SearchType::class));
+    }
+}
+`,
+	}
+	if issues := runAnalysisLevelOnFiles(t, files, 5); hasArgTypeIssue(issues) {
+		t.Fatalf("expected conditional createForm return to be FormInterface, got %#v", issues)
+	}
+}
+
+func TestConditionalCreateFormReturnRejectsString(t *testing.T) {
+	files := map[string]string{
+		"controller.php": `<?php
+namespace Symfony\Bundle\FrameworkBundle\Controller;
+
+use Symfony\Component\Form\FormInterface;
+
+class AbstractController
+{
+    /**
+     * @return ($type is class-string<FormFlowTypeInterface> ? FormFlowInterface : FormInterface)
+     */
+    protected function createForm(string $type): FormInterface
+    {
+        throw new \RuntimeException('stub');
+    }
+}
+`,
+		"form.php": `<?php
+namespace Symfony\Component\Form;
+interface FormInterface {}
+`,
+		"app.php": `<?php
+use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
+
+class Demo extends AbstractController
+{
+    public function takesString(string $value): void {}
+
+    public function run(): void
+    {
+        $this->takesString($this->createForm('SearchType'));
+    }
+}
+`,
+	}
+	if issues := runAnalysisLevelOnFiles(t, files, 4); hasArgTypeIssue(issues) {
+		t.Fatalf("expected FormInterface vs string to remain silent at level 4, got %#v", issues)
+	}
+	if issues := runAnalysisLevelOnFiles(t, files, 5); !hasArgTypeIssue(issues) {
+		t.Fatalf("expected FormInterface not to satisfy string, got %#v", issues)
+	}
+}
+
+func TestInterfaceDispatchTemplateAcceptsEvent(t *testing.T) {
+	files := map[string]string{
+		"dispatcher.php": `<?php
+namespace Symfony\Contracts\EventDispatcher;
+
+interface EventDispatcherInterface
+{
+    /**
+     * @template T of object
+     * @param T $event
+     * @return T
+     */
+    public function dispatch(object $event, ?string $eventName = null): object;
+}
+`,
+		"app.php": `<?php
+use Symfony\Contracts\EventDispatcher\EventDispatcherInterface;
+
+class PolicyCreatedEvent {}
+
+function emit(EventDispatcherInterface $dispatcher): void
+{
+    $dispatcher->dispatch(new PolicyCreatedEvent());
+}
+`,
+	}
+	if issues := runAnalysisLevelOnFiles(t, files, 5); hasArgTypeIssue(issues) {
+		t.Fatalf("expected interface @template T dispatch to accept an event object, got %#v", issues)
+	}
+}
+
 func TestPHPDocTypeAliasParameterAcceptsArray(t *testing.T) {
 	files := map[string]string{
 		"overview.php": `<?php

@@ -244,6 +244,51 @@ class Entity {
 	}
 }
 
+func TestProjectIndexKeepsInterfaceMethodTemplates(t *testing.T) {
+	parsed := map[string][]ast.Node{
+		"dispatcher.php": parsePHPForProjectIndex(t, `<?php
+namespace Symfony\Contracts\EventDispatcher;
+interface EventDispatcherInterface {
+    /**
+     * @template T of object
+     * @param T $event
+     * @return T
+     */
+    public function dispatch(object $event): object;
+}
+`),
+	}
+	idx := BuildProjectIndex(parsed)
+	method, ok := idx.ResolveMethod(`Symfony\Contracts\EventDispatcher\EventDispatcherInterface`, "dispatch")
+	if !ok || method.ReturnType != "T" || len(method.Params) == 0 || method.Params[0].Type != "T" {
+		t.Fatalf("interface method templates should stay unbound, got %#v, %v", method, ok)
+	}
+}
+
+func TestProjectIndexCollapsesConditionalReturnToNative(t *testing.T) {
+	parsed := map[string][]ast.Node{
+		"controller.php": parsePHPForProjectIndex(t, `<?php
+namespace Symfony\Bundle\FrameworkBundle\Controller;
+use Symfony\Component\Form\FormInterface;
+class AbstractController {
+    /**
+     * @return ($type is class-string<FormFlowTypeInterface> ? FormFlowInterface : FormInterface)
+     */
+    protected function createForm(string $type): FormInterface {}
+}
+`),
+		"form.php": parsePHPForProjectIndex(t, `<?php
+namespace Symfony\Component\Form;
+interface FormInterface {}
+`),
+	}
+	idx := BuildProjectIndex(parsed)
+	method, ok := idx.ResolveMethod(`Symfony\Bundle\FrameworkBundle\Controller\AbstractController`, "createForm")
+	if !ok || method.ReturnType != `Symfony\Component\Form\FormInterface` {
+		t.Fatalf("conditional @return should collapse to native FormInterface, got %#v, %v", method, ok)
+	}
+}
+
 func TestProjectIndexAssignsStableIDsToBuiltins(t *testing.T) {
 	idx := NewProjectIndex()
 

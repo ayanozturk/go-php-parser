@@ -130,6 +130,27 @@
       "file": "argument-var-doc-mismatch.php",
       "engineCodes": ["A.ARG.TYPE"],
       "phpstanIdentifiers": ["argument.type"]
+    },
+    {
+      "id": "argument-conditional-form-clean",
+      "capability": "conditional createForm return is FormInterface",
+      "file": "argument-conditional-form-clean.php",
+      "engineCodes": [],
+      "phpstanIdentifiers": []
+    },
+    {
+      "id": "argument-conditional-form-mismatch",
+      "capability": "conditional createForm return rejects string",
+      "file": "argument-conditional-form-mismatch.php",
+      "engineCodes": ["A.ARG.TYPE"],
+      "phpstanIdentifiers": ["argument.type"]
+    },
+    {
+      "id": "argument-interface-template-clean",
+      "capability": "interface method template T accepts an event object",
+      "file": "argument-interface-template-clean.php",
+      "engineCodes": [],
+      "phpstanIdentifiers": []
     }
   ]
 }

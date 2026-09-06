@@ -75,8 +75,12 @@ func appendCallablePHPDocIssues(filename string, declaration ast.Node, params []
 	if doc.ReturnType == "" {
 		return
 	}
-	appendPHPDocTypeIssues(filename, declaration, doc.ReturnType, templates, ft, ctx, issues)
-	if nativeReturn != "" && !phpDocUsesTemplate(doc.ReturnType, templates) && !phpDocTypeFitsNative(doc.ReturnType, nativeReturn, ft, ctx) {
+	effectiveReturn := collapsePHPDocConditionalType(doc.ReturnType, nativeReturn)
+	appendPHPDocTypeIssues(filename, declaration, effectiveReturn, templates, ft, ctx, issues)
+	if phpDocTypeIsConditional(doc.ReturnType) {
+		return
+	}
+	if nativeReturn != "" && !phpDocUsesTemplate(effectiveReturn, templates) && !phpDocTypeFitsNative(effectiveReturn, nativeReturn, ft, ctx) {
 		*issues = append(*issues, issueSpan(filename, declaration, level2PHPDocReturnTypeCode, fmt.Sprintf(
 			"PHPDoc return type %s is not compatible with native return type %s.", doc.ReturnType, nativeReturn,
 		)))

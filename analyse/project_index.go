@@ -1417,6 +1417,7 @@ func (idx *ProjectIndex) indexNodes(filename string, nodes []ast.Node, ft FileTy
 			if n.PHPDoc != nil && n.PHPDoc.ReturnType != "" {
 				returnType = n.PHPDoc.ReturnType
 			}
+			returnType = collapsePHPDocConditionalType(returnType, n.ReturnType)
 			returnType = expandPHPDocTypeAliases(returnType, phpDocTypeAliasBindings(n.PHPDoc))
 			callableReturn := callableReturnType(returnType, ft)
 			normalizedReturn := normalizeTypeWithContext(returnType, ft)
@@ -1505,7 +1506,6 @@ func (idx *ProjectIndex) indexClassMembers(filename, className string, propertie
 }
 
 func (idx *ProjectIndex) indexInterfaceMembers(filename, className string, members []ast.Node, ft FileTypeContext, classDoc *ast.PHPDocNode, templateParams []string) {
-	templates := templateNames(templateParams)
 	for _, member := range members {
 		switch m := member.(type) {
 		case *ast.InterfaceMethodNode:
@@ -1517,8 +1517,15 @@ func (idx *ProjectIndex) indexInterfaceMembers(filename, className string, membe
 			if m.PHPDoc != nil && m.PHPDoc.ReturnType != "" {
 				returnType = m.PHPDoc.ReturnType
 			}
+			returnType = collapsePHPDocConditionalType(returnType, nativeReturn)
 			aliases := phpDocTypeAliasBindings(classDoc, m.PHPDoc)
 			returnType = expandPHPDocTypeAliases(returnType, aliases)
+			templates := templateNames(templateParams)
+			if m.PHPDoc != nil {
+				for _, template := range m.PHPDoc.Templates {
+					templates = mergeTemplateNames(templates, []string{template.Name})
+				}
+			}
 			for name := range aliases {
 				templates = mergeTemplateNames(templates, []string{name})
 			}
@@ -1781,6 +1788,7 @@ func methodFromFunction(filename, className string, fn *ast.FunctionNode, ft Fil
 	if fn.PHPDoc != nil && fn.PHPDoc.ReturnType != "" {
 		returnType = fn.PHPDoc.ReturnType
 	}
+	returnType = collapsePHPDocConditionalType(returnType, fn.ReturnType)
 	returnType = expandPHPDocTypeAliases(returnType, aliases)
 	templates := mergeTemplateNames(templateNames(templateParams), nil)
 	if fn.PHPDoc != nil {
