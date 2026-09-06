@@ -151,6 +151,20 @@
       "file": "argument-interface-template-clean.php",
       "engineCodes": [],
       "phpstanIdentifiers": []
+    },
+    {
+      "id": "argument-is-string-early-return-clean",
+      "capability": "negated is_string or-guard early return narrows to string",
+      "file": "argument-is-string-early-return-clean.php",
+      "engineCodes": [],
+      "phpstanIdentifiers": []
+    },
+    {
+      "id": "argument-is-string-early-return-mismatch",
+      "capability": "nullable string without is_string guard is rejected",
+      "file": "argument-is-string-early-return-mismatch.php",
+      "engineCodes": ["A.ARG.TYPE"],
+      "phpstanIdentifiers": ["argument.type"]
     }
   ]
 }

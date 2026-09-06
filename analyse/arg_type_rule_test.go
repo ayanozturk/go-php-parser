@@ -562,6 +562,53 @@ function emit(EventDispatcherInterface $dispatcher): void
 	}
 }
 
+func TestNegatedIsStringOrEarlyReturnNarrowsToString(t *testing.T) {
+	files := map[string]string{
+		"app.php": `<?php
+function parseCalendarDate(string $value): void {}
+
+function run(?string $start, ?string $end): void
+{
+    if (!is_string($start) || !is_string($end)) {
+        return;
+    }
+    parseCalendarDate($start);
+    parseCalendarDate($end);
+}
+
+function parseDateTime(?string $dateString): void
+{
+    if (!is_string($dateString) || $dateString === '') {
+        return;
+    }
+    echo (new \DateTime($dateString))->format('c');
+}
+`,
+	}
+	if issues := runAnalysisLevelOnFiles(t, files, 5); hasArgTypeIssue(issues) {
+		t.Fatalf("expected !is_string || !is_string early return to narrow both to string, got %#v", issues)
+	}
+}
+
+func TestMissingIsStringGuardStillRejectsNullableString(t *testing.T) {
+	files := map[string]string{
+		"app.php": `<?php
+function parseCalendarDate(string $value): void {}
+
+function run(?string $start): void
+{
+    parseCalendarDate($start);
+}
+`,
+	}
+	if issues := runAnalysisLevelOnFiles(t, files, 4); hasArgTypeIssue(issues) {
+		t.Fatalf("expected nullable string mismatch to remain silent at level 4, got %#v", issues)
+	}
+	if issues := runAnalysisLevelOnFiles(t, files, 5); !hasArgTypeIssue(issues) {
+		t.Fatalf("expected nullable string without is_string guard to mismatch, got %#v", issues)
+	}
+}
+
 func TestPHPDocTypeAliasParameterAcceptsArray(t *testing.T) {
 	files := map[string]string{
 		"overview.php": `<?php

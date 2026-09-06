@@ -288,6 +288,25 @@ func variablesTypedWhenTrue(node ast.Node, scope *functionScope) map[string]Type
 	return map[string]Type{}
 }
 
+func variablesTypedWhenFalse(node ast.Node, scope *functionScope) map[string]Type {
+	switch n := node.(type) {
+	case *ast.BinaryExpr:
+		switch n.Operator {
+		case "||", "or":
+			types := variablesTypedWhenFalse(n.Left, scope)
+			for name, typ := range variablesTypedWhenFalse(n.Right, scope) {
+				types[name] = typ
+			}
+			return types
+		}
+	case *ast.UnaryExpr:
+		if n.Operator == "!" {
+			return variablesTypedWhenTrue(n.Operand, scope)
+		}
+	}
+	return map[string]Type{}
+}
+
 func nonNullVariableType(scope *functionScope, variableName string) (Type, bool) {
 	if scope == nil {
 		return EmptyType(), false
@@ -473,11 +492,8 @@ func applyTerminatingIfFalseScope(scope *functionScope, node *ast.IfNode) {
 			scope.setVariable(cond.variable, typ)
 		}
 	}
-	if unary, ok := node.Condition.(*ast.UnaryExpr); ok && unary.Operator == "!" {
-		for variableName, typ := range variablesTypedWhenTrue(unary.Operand, scope) {
-			if typ.IsEmpty() {
-				continue
-			}
+	for variableName, typ := range variablesTypedWhenFalse(node.Condition, scope) {
+		if !typ.IsEmpty() {
 			scope.setVariable(variableName, typ)
 		}
 	}

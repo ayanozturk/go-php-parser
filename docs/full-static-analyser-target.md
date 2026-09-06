@@ -7,7 +7,7 @@
 - Baseline date: 2026-08-23 (Europe/London)
 - Last roadmap tidy: 2026-09-06 (Europe/London)
 - Extension package version: `0.1.35`; the exact parser integration pin is tracked in `vscode-php-strom/server/go.mod`
-- Executable differential gates: 94 / 24 / 96 / 30 / 16 / 18 / 6 / 27 (levels 0–3, 5–8) vs PHPStan 2.2.5
+- Executable differential gates: 94 / 24 / 96 / 30 / 23 / 18 / 6 / 27 (levels 0–3, 5–8) vs PHPStan 2.2.5
 - Benchmark references: Mago for performance and modern PHP type analysis, PHPStan and Psalm for diagnostic depth, and PHPCS for source-style breadth
 - Working milestone: **M0 done as a baseline; M1 in progress.** The current stream is diagnostic correctness and false-positive reduction. The accepted WordPress Mago resource comparison is parked historical evidence, not queued work.
 
@@ -605,6 +605,8 @@ Note: implemented PHP's alternative/colon control-structure syntax and several o
 62. **Done — attach assignment `@var` to the next expression statement.** `/** @var User $user */ $user = $this->getUser();` stored the PHPDoc until a later declaration consumed it, so `takesUser($user)` still saw `User|null`. Expression statements now keep the doc; unnamed `@var` applies to the assigned variable and a named `@var` asserts that variable even without an assignment. Two level-5 fixtures expand the pack from 16 to 18 cases. The complete gates are 94/24/96/30/18/18/6/27. On the private corpus, analyze reports 424 diagnostics (394 excluding unlevelled unreachable-code, from 444). Nullable `User` arguments after assignment `@var` drop with `a-arg-type` 103 → 84. `@var` on `if`/`foreach` and other non-expression statements remains unattached. No production file walk was added.
 
 63. **Done — collapse conditional PHPDoc returns and keep interface method templates.** `@return ($type is class-string<X> ? A : B)` was FQCN'd as a fake class, so `createForm()` was not `FormInterface`. Interface `@template T` on `dispatch` was namespaced to `EventDispatcher\T`. Conditional returns now use the native type when present; interface method templates stay unbound like class methods. Cache format version 9 invalidates those signatures. Three level-5 fixtures expand the pack from 18 to 21 cases. The complete gates are 94/24/96/30/21/18/6/27. On the private corpus, analyze reports 390 diagnostics (360 excluding unlevelled unreachable-code, from 394). Argument-type reports 84 → 51. Evaluated `$type is` branches remain unimplemented. No production file walk was added.
+
+64. **Done — narrow negated `is_*` predicates after terminating `||` guards.** `if (!is_string($a) || !is_string($b)) { return; }` left later statements seeing `string|null` because false-scope refinement only handled null-stripping and negated `instanceof`. Terminating false now also applies `is_string`/`is_int`/… when a `!` predicate is false, including De Morgan `||` combinations and mixed `!is_string($x) || $x === ''` DateTime guards. Two level-5 fixtures expand the pack from 21 to 23 cases. The complete gates are 94/24/96/30/23/18/6/27. No cache format bump. On the private corpus, analyze reports 362 diagnostics (332 excluding unlevelled unreachable-code, from 360). Argument-type reports 51 → 30. Nullsafe property fetches and ternary `is_string && !== ''` inference remain separate. No production file walk was added.
 
 ## Decision log
 
