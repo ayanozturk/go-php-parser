@@ -485,7 +485,7 @@ func inferType(expr ast.Node, scope *functionScope, ctx *AnalysisContext) Type {
 	case *ast.NewNode:
 		return inferNewTypeWithScope(n, scope)
 	case *ast.FunctionNode, *ast.ArrowFunctionNode:
-		return ParseType("callable")
+		return ParseType("Closure")
 	case *ast.PropertyFetchNode:
 		return inferPropertyFetchType(n, scope, ctx)
 	case *ast.ClassConstFetchNode:
@@ -1802,10 +1802,96 @@ func inferPropertyFetchType(node *ast.PropertyFetchNode, scope *functionScope, c
 }
 
 func inferredMethodReturnType(method ResolvedMethod, calleeClass string, ctx *AnalysisContext) Type {
-	return bindCalleeSignatureType(expandUnboundClassTemplates(method.ReturnType, method.DeclaringClass, ctx), method.DeclaringClass, calleeClass, ctx)
+	return inferredMethodReturnTypeWithBindings(method, calleeClass, ctx, nil)
+}
+
+func inferredMethodReturnTypeWithBindings(method ResolvedMethod, calleeClass string, ctx *AnalysisContext, bindings map[string]string) Type {
+	returnType := ApplyTemplateBindings(method.ReturnType, bindings)
+	return bindCalleeSignatureType(expandUnboundClassTemplates(returnType, method.DeclaringClass, ctx), method.DeclaringClass, calleeClass, ctx)
+}
+
+func bindCallSiteMethodTemplates(method ResolvedMethod, args []ast.Node, scope *functionScope, ctx *AnalysisContext, filename string) map[string]string {
+	if len(method.Params) == 0 {
+		return nil
+	}
+	bindings := make(map[string]string)
+	next := 0
+	for _, argNode := range args {
+		if _, ok := argNode.(*ast.UnpackedArgumentNode); ok {
+			break
+		}
+		paramIndex := -1
+		if named, ok := argNode.(*ast.NamedArgumentNode); ok {
+			for idx, param := range method.Params {
+				if strings.EqualFold(param.Name, named.Name) {
+					paramIndex = idx
+					break
+				}
+			}
+		} else if next < len(method.Params) {
+			paramIndex = next
+			next++
+		}
+		if paramIndex < 0 || paramIndex >= len(method.Params) {
+			continue
+		}
+		name := openTemplateParamName(method.Params[paramIndex].Type, ctx)
+		if name == "" {
+			continue
+		}
+		actual := inferTypeWithFacts(filename, argumentValue(argNode), scope, ctx)
+		if label := strings.TrimSpace(actual.String()); label != "" {
+			bindings[name] = label
+		}
+	}
+	for _, param := range method.Params {
+		name := openTemplateParamName(param.Type, ctx)
+		if name == "" {
+			continue
+		}
+		if _, ok := bindings[name]; ok {
+			continue
+		}
+		if param.HasDefault {
+			bindings[name] = "null"
+		}
+	}
+	if len(bindings) == 0 {
+		return nil
+	}
+	return bindings
+}
+
+func openTemplateParamName(raw string, ctx *AnalysisContext) string {
+	raw = strings.TrimSpace(strings.TrimPrefix(raw, "?"))
+	if raw == "" || strings.ContainsAny(raw, `\|&<>()`) {
+		return ""
+	}
+	if !isPHPDocTemplateIdentifier(raw) {
+		return ""
+	}
+	if atom, ok := normalizeTypeAtom(raw); ok && atom.kind == typeKindBuiltin {
+		return ""
+	}
+	return raw
+}
+
+func isPHPDocTemplateIdentifier(name string) bool {
+	if name == "T" || name == "t" {
+		return true
+	}
+	if len(name) < 2 || (name[0] != 'T' && name[0] != 't') {
+		return false
+	}
+	second := name[1]
+	return second >= 'A' && second <= 'Z'
 }
 
 func inferMethodCallType(node *ast.MethodCallNode, scope *functionScope, ctx *AnalysisContext) Type {
+	return inferMethodCallTypeInFile("", node, scope, ctx)
+}
+
+func inferMethodCallTypeInFile(filename string, node *ast.MethodCallNode, scope *functionScope, ctx *AnalysisContext) Type {
 	if node == nil {
 		return MixedType()
 	}
@@ -1815,11 +1901,11 @@ func inferMethodCallType(node *ast.MethodCallNode, scope *functionScope, ctx *An
 			callee = scope.className
 		}
 		if method, ok := resolveSameClassMethod(scope, node.Method); ok {
-			return inferredMethodReturnType(method, callee, ctx)
+			return inferredMethodReturnTypeWithBindings(method, callee, ctx, bindCallSiteMethodTemplates(method, node.Args, scope, ctx, filename))
 		}
 		if scope != nil && ctx != nil && ctx.Resolver != nil {
 			if method, ok := ctx.Resolver.ResolveMethod(scope.className, node.Method); ok {
-				return inferredMethodReturnType(method, callee, ctx)
+				return inferredMethodReturnTypeWithBindings(method, callee, ctx, bindCallSiteMethodTemplates(method, node.Args, scope, ctx, filename))
 			}
 		}
 	}
@@ -1827,34 +1913,32 @@ func inferMethodCallType(node *ast.MethodCallNode, scope *functionScope, ctx *An
 	if scope != nil && ctx != nil {
 		if varNode, ok := node.Object.(*ast.VariableNode); ok {
 			if genInst, hasGeneric := scope.genericContext[varNode.Name]; hasGeneric {
-				if resolver, ok := ctx.Resolver.(*ProjectIndex); ok {
-					if method, ok := resolver.ResolveMethodWithGenerics(genInst.ClassName, node.Method, genInst.TypeArguments); ok {
-						return inferredMethodReturnType(method, genInst.ClassName, ctx)
-					}
+				if method, ok := resolveMethodWithGenerics(ctx.Resolver, genInst.ClassName, node.Method, genInst.TypeArguments); ok {
+					return inferredMethodReturnTypeWithBindings(method, genInst.ClassName, ctx, bindCallSiteMethodTemplates(method, node.Args, scope, ctx, filename))
 				}
 			}
 		}
 	}
 
 	objectType := inferType(node.Object, scope, ctx)
-	className, ok := objectType.SingleClassName()
+	className, typeArgs, ok := genericReceiver(objectType)
 	if !ok {
 		return MixedType()
 	}
 	if scope != nil && strings.EqualFold(className, scope.className) {
 		if method, ok := resolveSameClassMethod(scope, node.Method); ok {
-			return inferredMethodReturnType(method, className, ctx)
+			return inferredMethodReturnTypeWithBindings(method, className, ctx, bindCallSiteMethodTemplates(method, node.Args, scope, ctx, filename))
 		}
 	}
 	if ctx != nil && ctx.Resolver != nil {
-		if method, ok := ctx.Resolver.ResolveMethod(className, node.Method); ok {
-			return inferredMethodReturnType(method, className, ctx)
+		if method, ok := resolveMethodWithGenerics(ctx.Resolver, className, node.Method, typeArgs); ok {
+			return inferredMethodReturnTypeWithBindings(method, className, ctx, bindCallSiteMethodTemplates(method, node.Args, scope, ctx, filename))
 		}
 	}
 	if scope != nil {
 		if classData, ok := analysisClassScopeDataByName(ctx, className, scope.typeCtx); ok {
 			if method, ok := classData.methods[asciiLowerIdent(node.Method)]; ok {
-				return inferredMethodReturnType(method, className, ctx)
+				return inferredMethodReturnTypeWithBindings(method, className, ctx, bindCallSiteMethodTemplates(method, node.Args, scope, ctx, filename))
 			}
 		}
 	}

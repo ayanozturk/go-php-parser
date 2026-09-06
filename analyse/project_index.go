@@ -1468,10 +1468,7 @@ func (idx *ProjectIndex) indexClassMembers(filename, className string, propertie
 			if callableReturn.IsEmpty() {
 				callableReturn = callableReturnType(rawType, ft)
 			}
-			normalizedType := normalizeTypeWithContext(rawType, ft)
-			if normalizedType == "" {
-				normalizedType = normalizeTypeWithContext(docType, ft)
-			}
+			normalizedType := richerGenericType(rawType, docType, ft)
 			if !callableReturn.IsEmpty() {
 				normalizedType = "callable"
 			}
@@ -1545,10 +1542,7 @@ func (idx *ProjectIndex) indexInterfaceMembers(filename, className string, membe
 			if callableReturn.IsEmpty() {
 				callableReturn = callableReturnType(rawType, ft)
 			}
-			normalizedType := normalizeTypeWithContext(rawType, ft)
-			if normalizedType == "" {
-				normalizedType = normalizeTypeWithContext(docType, ft)
-			}
+			normalizedType := richerGenericType(rawType, docType, ft)
 			if !callableReturn.IsEmpty() {
 				normalizedType = "callable"
 			}
@@ -1781,26 +1775,6 @@ func phpDocTypeAliasBindings(docs ...*ast.PHPDocNode) map[string]string {
 	return bindings
 }
 
-func methodLocalTemplateBindings(doc *ast.PHPDocNode, ft FileTypeContext) map[string]string {
-	if doc == nil || len(doc.Templates) == 0 {
-		return nil
-	}
-	bindings := make(map[string]string, len(doc.Templates))
-	for _, template := range doc.Templates {
-		bound := strings.TrimSpace(template.Bound)
-		if bound == "" {
-			bound = "mixed"
-		} else {
-			bound = normalizeTypeWithContext(bound, ft)
-			if bound == "" {
-				bound = "mixed"
-			}
-		}
-		bindings[template.Name] = bound
-	}
-	return bindings
-}
-
 func methodFromFunction(filename, className string, fn *ast.FunctionNode, ft FileTypeContext, classDoc *ast.PHPDocNode, templateParams []string) ResolvedMethod {
 	aliases := phpDocTypeAliasBindings(classDoc, fn.PHPDoc)
 	returnType := fn.ReturnType
@@ -1809,14 +1783,9 @@ func methodFromFunction(filename, className string, fn *ast.FunctionNode, ft Fil
 	}
 	returnType = expandPHPDocTypeAliases(returnType, aliases)
 	templates := mergeTemplateNames(templateNames(templateParams), nil)
-	var methodBindings map[string]string
 	if fn.PHPDoc != nil {
 		for _, template := range fn.PHPDoc.Templates {
 			templates = mergeTemplateNames(templates, []string{template.Name})
-		}
-		methodBindings = methodLocalTemplateBindings(fn.PHPDoc, ft)
-		if len(methodBindings) > 0 {
-			returnType = ApplyTemplateBindings(returnType, methodBindings)
 		}
 	}
 	for name := range aliases {
@@ -1843,11 +1812,6 @@ func methodFromFunction(filename, className string, fn *ast.FunctionNode, ft Fil
 		IsStatic:           hasModifier(fn.Modifiers, "static"),
 		Abstract:           hasModifier(fn.Modifiers, "abstract"),
 		Final:              hasModifier(fn.Modifiers, "final"),
-	}
-	if len(methodBindings) > 0 {
-		for i := range method.Params {
-			method.Params[i].Type = ApplyTemplateBindings(method.Params[i].Type, methodBindings)
-		}
 	}
 	if fn.PHPDoc != nil {
 		method.Deprecated = fn.PHPDoc.Deprecated
@@ -1946,10 +1910,10 @@ func paramsFromNodesWithPHPDoc(nodes []ast.Node, doc *ast.PHPDocNode, ft FileTyp
 			}
 		}
 		typ = expandPHPDocTypeAliases(typ, aliases)
-		// Call-site template inference is not represented in ResolvedParam yet.
-		// Treat method/function-local templates conservatively as mixed instead
-		// of resolving namespaced T-like identifiers as concrete classes.
-		if phpDocUsesTemplate(typ, callableTemplates) {
+		// Composite types that mention call-site templates stay mixed until
+		// argument inference can bind them. Bare template names are kept so
+		// get($default) can substitute the argument type.
+		if phpDocUsesTemplate(typ, callableTemplates) && !isKnownTemplateName(typ, templates) && !isKnownTemplateName(typ, callableTemplates) {
 			typ = "mixed"
 		}
 		params = append(params, ResolvedParam{

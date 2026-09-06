@@ -847,6 +847,9 @@ func methodCalleeClass(method ResolvedMethod, call *ast.MethodCallNode, scope *f
 }
 
 func expectedCallParamType(param ResolvedParam, method ResolvedMethod, calleeClass string, ctx *AnalysisContext) Type {
+	if name := openTemplateParamName(param.Type, ctx); name != "" {
+		return MixedType()
+	}
 	return bindCalleeSignatureType(expandUnboundClassTemplates(param.Type, method.DeclaringClass, ctx), method.DeclaringClass, calleeClass, ctx)
 }
 
@@ -954,7 +957,7 @@ func resolveMethodForCall(call *ast.MethodCallNode, scope *functionScope, ctx *A
 	}
 
 	objectType := inferTypeWithFacts(filename, call.Object, scope, ctx)
-	className, ok := objectType.SingleClassName()
+	className, typeArgs, ok := genericReceiver(objectType)
 	if !ok {
 		return ResolvedMethod{}, false
 	}
@@ -964,16 +967,12 @@ func resolveMethodForCall(call *ast.MethodCallNode, scope *functionScope, ctx *A
 		}
 	}
 
-	// Check if the object variable has generic context (e.g., Collection<User>)
 	if scope != nil && scope.genericContext != nil {
 		if varNode, ok := call.Object.(*ast.VariableNode); ok {
 			if genInst, hasGeneric := scope.genericContext[varNode.Name]; hasGeneric {
 				if ctx != nil && ctx.Resolver != nil {
-					// Use generic-aware method resolution
-					if resolver, ok := ctx.Resolver.(*ProjectIndex); ok {
-						if method, ok := resolver.ResolveMethodWithGenerics(genInst.ClassName, call.Method, genInst.TypeArguments); ok {
-							return method, true
-						}
+					if method, ok := resolveMethodWithGenerics(ctx.Resolver, genInst.ClassName, call.Method, genInst.TypeArguments); ok {
+						return method, true
 					}
 				}
 			}
@@ -981,7 +980,7 @@ func resolveMethodForCall(call *ast.MethodCallNode, scope *functionScope, ctx *A
 	}
 
 	if ctx != nil && ctx.Resolver != nil {
-		if method, ok := ctx.Resolver.ResolveMethod(className, call.Method); ok {
+		if method, ok := resolveMethodWithGenerics(ctx.Resolver, className, call.Method, typeArgs); ok {
 			return method, true
 		}
 	}

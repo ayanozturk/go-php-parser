@@ -348,6 +348,10 @@ func (t Type) hasMockObjectType() bool {
 
 // isMockObjectType returns true for PHPUnit and Mockery mock framework types
 // that are always valid substitutes for the type they were created from.
+func isClosureType(name string) bool {
+	return strings.EqualFold(eraseGenericArgs(strings.TrimPrefix(strings.TrimSpace(name), `\`)), "Closure")
+}
+
 func isMockObjectType(name string) bool {
 	switch name {
 	case `PHPUnit\Framework\MockObject\MockObject`,
@@ -475,6 +479,9 @@ func atomsCompatibleWithContext(declared, actual typeAtom, scope *functionScope,
 	}
 	if declared.kind == typeKindBuiltin && actual.kind == typeKindClass {
 		if declared.key == "object" {
+			return true
+		}
+		if declared.key == "callable" && isClosureType(actual.display) {
 			return true
 		}
 		if declared.key == "iterable" {

@@ -95,6 +95,27 @@
       "file": "argument-phpdoc-type-alias-mismatch.php",
       "engineCodes": ["A.ARG.TYPE"],
       "phpstanIdentifiers": ["argument.type"]
+    },
+    {
+      "id": "argument-inputbag-query-clean",
+      "capability": "InputBag string query get with string default is string",
+      "file": "argument-inputbag-query-clean.php",
+      "engineCodes": [],
+      "phpstanIdentifiers": []
+    },
+    {
+      "id": "argument-closure-filter-clean",
+      "capability": "Collection filter accepts an arrow function",
+      "file": "argument-closure-filter-clean.php",
+      "engineCodes": [],
+      "phpstanIdentifiers": []
+    },
+    {
+      "id": "argument-closure-filter-mismatch",
+      "capability": "Collection filter rejects a string",
+      "file": "argument-closure-filter-mismatch.php",
+      "engineCodes": ["A.ARG.TYPE"],
+      "phpstanIdentifiers": ["argument.type"]
     }
   ]
 }

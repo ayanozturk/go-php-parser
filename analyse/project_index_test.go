@@ -221,7 +221,7 @@ function makeService(): callable {}
 	}
 }
 
-func TestProjectIndexKeepsNativePropertyTypeWhenPHPDocAddsGenerics(t *testing.T) {
+func TestProjectIndexKeepsGenericPHPDocOnNativePropertyType(t *testing.T) {
 	parsed := map[string][]ast.Node{
 		"collections.php": parsePHPForProjectIndex(t, `<?php
 namespace Doctrine\Common\Collections;
@@ -239,8 +239,8 @@ class Entity {
 	}
 	idx := BuildProjectIndex(parsed)
 	property, ok := idx.ResolveProperty(`App\Entity`, "users")
-	if !ok || property.Type != `Doctrine\Common\Collections\Collection` {
-		t.Fatalf("native Collection type should win over generic PHPDoc, got %#v, %v", property, ok)
+	if !ok || property.Type != `Doctrine\Common\Collections\Collection<string, App\Policy>` {
+		t.Fatalf("generic PHPDoc should refine native Collection, got %#v, %v", property, ok)
 	}
 }
 

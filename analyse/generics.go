@@ -88,6 +88,46 @@ func mergeTemplateNames(base map[string]struct{}, extra []string) map[string]str
 	return base
 }
 
+func genericReceiver(typ Type) (className string, typeArgs []string, ok bool) {
+	name, ok := typ.SingleClassName()
+	if !ok {
+		return "", nil, false
+	}
+	if inst, parsed := parseGenericTypeFromString(name); parsed {
+		return eraseGenericArgs(inst.ClassName), inst.TypeArguments, true
+	}
+	return eraseGenericArgs(name), nil, true
+}
+
+func richerGenericType(native, documented string, ft FileTypeContext) string {
+	native = strings.TrimSpace(native)
+	documented = strings.TrimSpace(documented)
+	nativeNorm := normalizeTypeWithContext(native, ft)
+	docNorm := normalizeTypeWithContext(documented, ft)
+	if nativeNorm == "" {
+		return docNorm
+	}
+	if docNorm == "" {
+		return nativeNorm
+	}
+	docInst, docOK := parseGenericTypeFromString(docNorm)
+	if !docOK || len(docInst.TypeArguments) == 0 {
+		return nativeNorm
+	}
+	nativeInst, nativeOK := parseGenericTypeFromString(nativeNorm)
+	if nativeOK && len(nativeInst.TypeArguments) >= len(docInst.TypeArguments) {
+		return nativeNorm
+	}
+	nativeBase := nativeNorm
+	if nativeOK {
+		nativeBase = nativeInst.ClassName
+	}
+	if strings.EqualFold(eraseGenericArgs(nativeBase), eraseGenericArgs(docInst.ClassName)) {
+		return docNorm
+	}
+	return nativeNorm
+}
+
 func expandPHPDocTypeAliases(raw string, aliases map[string]string) string {
 	raw = strings.TrimSpace(raw)
 	if raw == "" || len(aliases) == 0 {

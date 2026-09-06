@@ -2,6 +2,12 @@ package analyse
 
 import "testing"
 
+func TestCallableAcceptsClosure(t *testing.T) {
+	if !ParseType("callable").Accepts(ParseType("Closure")) {
+		t.Fatal("expected callable to accept Closure")
+	}
+}
+
 func TestGenericCollectionMatchesAfterErasingTypeArguments(t *testing.T) {
 	declared := ParseType(`Doctrine\Common\Collections\Collection<string, App\Entity\User>`)
 	actual := ParseType(`Doctrine\Common\Collections\Collection`)

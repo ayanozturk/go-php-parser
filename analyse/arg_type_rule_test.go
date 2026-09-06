@@ -237,6 +237,90 @@ function useDate(InputBag $query): void
 	}
 }
 
+func TestInputBagQueryGetWithStringDefaultIsString(t *testing.T) {
+	files := map[string]string{
+		"http.php": `<?php
+namespace Symfony\Component\HttpFoundation;
+
+/**
+ * @template TInput of string|int|float|bool|null
+ */
+final class InputBag
+{
+    /**
+     * @template TDefault of string|int|float|bool|null
+     * @param TDefault $default
+     * @return TDefault|TInput
+     */
+    public function get(string $key, mixed $default = null): string|int|float|bool|null
+    {
+        return $default;
+    }
+}
+
+class Request
+{
+    /** @var InputBag<string> */
+    public InputBag $query;
+}
+`,
+		"app.php": `<?php
+use Symfony\Component\HttpFoundation\Request;
+
+function takesString(string $value): void {}
+
+function search(Request $request): void
+{
+    takesString($request->query->get('search', ''));
+}
+`,
+	}
+	if issues := runAnalysisLevelOnFiles(t, files, 5); hasArgTypeIssue(issues) {
+		t.Fatalf("expected InputBag<string>::get with string default to be string, got %#v", issues)
+	}
+}
+
+func TestCollectionFilterAcceptsArrowFunction(t *testing.T) {
+	files := map[string]string{
+		"collection.php": `<?php
+class Collection
+{
+    public function filter(Closure $p): void {}
+}
+
+function run(Collection $items): void
+{
+    $items->filter(static fn($item) => true);
+}
+`,
+	}
+	if issues := runAnalysisLevelOnFiles(t, files, 5); hasArgTypeIssue(issues) {
+		t.Fatalf("expected arrow function to satisfy Closure, got %#v", issues)
+	}
+}
+
+func TestCollectionFilterRejectsString(t *testing.T) {
+	files := map[string]string{
+		"collection.php": `<?php
+class Collection
+{
+    public function filter(Closure $p): void {}
+}
+
+function run(Collection $items): void
+{
+    $items->filter('strlen');
+}
+`,
+	}
+	if issues := runAnalysisLevelOnFiles(t, files, 4); hasArgTypeIssue(issues) {
+		t.Fatalf("expected Closure mismatch to remain silent at level 4, got %#v", issues)
+	}
+	if issues := runAnalysisLevelOnFiles(t, files, 5); !hasArgTypeIssue(issues) {
+		t.Fatalf("expected string not to satisfy Closure, got %#v", issues)
+	}
+}
+
 func TestPHPDocTypeAliasParameterAcceptsArray(t *testing.T) {
 	files := map[string]string{
 		"overview.php": `<?php

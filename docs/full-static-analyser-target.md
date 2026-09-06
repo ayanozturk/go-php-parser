@@ -7,7 +7,7 @@
 - Baseline date: 2026-08-23 (Europe/London)
 - Last roadmap tidy: 2026-09-06 (Europe/London)
 - Extension package version: `0.1.35`; the exact parser integration pin is tracked in `vscode-php-strom/server/go.mod`
-- Executable differential gates: 94 / 24 / 96 / 30 / 13 / 18 / 6 / 27 (levels 0–3, 5–8) vs PHPStan 2.2.5
+- Executable differential gates: 94 / 24 / 96 / 30 / 16 / 18 / 6 / 27 (levels 0–3, 5–8) vs PHPStan 2.2.5
 - Benchmark references: Mago for performance and modern PHP type analysis, PHPStan and Psalm for diagnostic depth, and PHPCS for source-style breadth
 - Working milestone: **M0 done as a baseline; M1 in progress.** The current stream is diagnostic correctness and false-positive reduction. The accepted WordPress Mago resource comparison is parked historical evidence, not queued work.
 
@@ -437,7 +437,7 @@ A release must not advance the parser version pinned by PHP Strom until the engi
 
 Correctness and false-positive reduction are the only active implementation stream. Expand executable rule coverage at the level where PHPStan introduces it, with both failing and clean controls. Do not queue Mago comparisons, isolated-host reruns, allocation batches, or other performance roadmap items. The existing benchmark harness and accepted WordPress envelope stay as historical evidence and a later release gate; they are not current work.
 
-1. **Converge false-positive behavior on the shared private-corpus gate.** Remaining high-volume argument mismatches after the `self` bind, generic-erasure, template-bound expansion, and `@phpstan-type` expansion are Request `get()` scalar unions passed to `DateTime`/`string` parameters, nullable `User` arguments, `callable` vs `Closure`, and PHPUnit/Stripe mock unions. Continue correcting those plus remaining return/property mismatches, unknown-symbol noise, and level-6 eligibility from pinned reference probes. A live probe established that `treatPhpDocTypesAsCertain: false` does not change the nullable-method, unknown-method, or PHPDoc argument-type families PHP Strom currently emits; its observed effect is on already/impossible narrowing diagnostics, which are not implemented yet. Add the setting when that family lands rather than exposing a no-op option. Preserve both PHPStan-default and project-configured reference results so configuration effects are not mistaken for engine parity.
+1. **Converge false-positive behavior on the shared private-corpus gate.** Remaining high-volume argument mismatches after generic query `get()` inference and Closure-as-callable are nullable `User` arguments (including `getUser()` plus `@var` that is not yet attached to assignments), Form `class-string` noise, and PHPUnit/Stripe mock unions. Continue correcting those plus remaining return/property mismatches, unknown-symbol noise, and level-6 eligibility from pinned reference probes. A live probe established that `treatPhpDocTypesAsCertain: false` does not change the nullable-method, unknown-method, or PHPDoc argument-type families PHP Strom currently emits; its observed effect is on already/impossible narrowing diagnostics, which are not implemented yet. Add the setting when that family lands rather than exposing a no-op option. Preserve both PHPStan-default and project-configured reference results so configuration effects are not mistaken for engine parity.
 2. **Add framework-aware symbol/type metadata.** Replace the current Symfony/Doctrine/PHPUnit magic-method and dynamic-return gaps with explicit extension/stub metadata. Do not suppress unresolved calls globally: every correction needs a neutral failing/clean differential control.
 3. **Expand missing PHPStan families by level.** Prioritize the reference corpus's uncovered cast, offset-access, callable, increment, foreach, string-interpolation, and condition-narrowing identifiers at their exact PHPStan levels. Update the README rule table and linked level inventory whenever registration counts change.
 4. **Make parity measurable.** Add a reusable corpus-differential report over an identical first-party manifest, with parse/read accounting, diagnostic crosswalk, and exact file/line/identifier matching. Counts alone are not parity; framework-dependent identifiers must be labelled separately from core behavior.
@@ -445,7 +445,7 @@ Correctness and false-positive reduction are the only active implementation stre
 
 Parked, not queued: further Mago resource comparisons (including isolated-host PSL/Magento reruns), allocation or GC tuning, duplicate-walk performance audits, and editor-latency stretch work. Incidental constraints remain: do not add production file walks to fix a false positive, and do not claim timing or RSS results when CV exceeds 5%.
 
-Completed deliveries 1–60 are archived below and are not the current queue.
+Completed deliveries 1–61 are archived below and are not the current queue.
 
 ## Private-corpus correctness gate (2026-09-03)
 
@@ -470,6 +470,10 @@ Against the same 1,932-file discovery, analyze reports 507 diagnostics with zero
 ### PHPDoc type-alias expansion, 2026-09-06
 
 Against the same 1,932-file discovery, analyze reports 482 diagnostics with zero parser/read failures (452 excluding unlevelled unreachable-code, from 477). Constructor arguments typed as class-level `@phpstan-type` aliases for `list<...>` now accept arrays instead of inventing missing value-object classes. Remaining argument-type volume is dominated by Request `get()` scalar unions, nullable `User` arguments, and mock/callable mismatches. This is a correction indicator, not a fresh PHPStan whole-corpus parity result. Private source and raw reports remain local.
+
+### Generic query get and Closure inference, 2026-09-06
+
+Against the same 1,932-file discovery, analyze reports 474 diagnostics with zero parser/read failures (444 excluding unlevelled unreachable-code, from 452). `InputBag<string>::get` with a string default infers `string`; arrow functions satisfy `Closure`. Remaining argument-type volume is dominated by nullable `User` arguments and a few unbound query `get()` calls. This is a correction indicator, not a fresh PHPStan whole-corpus parity result. Private source and raw reports remain local.
 
 ## Completed action log
 
@@ -595,6 +599,8 @@ Note: implemented PHP's alternative/colon control-structure syntax and several o
 59. **Done — erase generic arguments for hierarchy and expand unbound templates to their bounds.** `Collection<string, User>` compared as a distinct class name from `ArrayCollection`, and method/class templates such as `TDefault`/`TInput` were FQCN'd into fake classes. Hierarchy matching now strips `<...>` before walking `extends`/`implements`. Method-local `@template` bounds substitute at index time; class templates with bounds expand at inference; empty-bound templates stay as identifiers. Cache format version 6 invalidates indexes that still stored unbound template names as return types. Two level-5 clean fixtures expand the pack from 9 to 11 cases. The complete gates are 94/24/96/30/11/18/6/27. On the private corpus, analyze reports 507 diagnostics across 1932 files (477 excluding unlevelled unreachable-code, from 523 levelled). Fake `TDefault`/`TInput` argument mismatches and Collection-vs-ArrayCollection mismatches are gone. No production file walk was added.
 
 60. **Done — expand `@phpstan-type` / `@psalm-type` aliases in signatures.** Class-level aliases such as `ManagerSummaries = list<ManagerTeamHealthSummary>` were FQCN'd as missing classes, so array constructor arguments failed. Aliases now expand before type normalization; `list<...>` remains array-compatible. Cache format version 7 invalidates indexes that stored alias names as class types. Two level-5 fixtures expand the pack from 11 to 13 cases (clean array argument plus a string mismatch). The complete gates are 94/24/96/30/13/18/6/27. On the private corpus, analyze reports 482 diagnostics (452 excluding unlevelled unreachable-code, from 477). Array-vs-fake-value-object constructor mismatches are gone. No production file walk was added.
+
+61. **Done — infer generic property methods and treat closures as Closure.** Native `InputBag $query` dropped `@var InputBag<string>`, and method-local `TDefault` was baked to its bound union at index time, so `query->get('search', '')` stayed `bool|float|int|string`. Properties now keep richer PHPDoc generics; call-site templates bind from arguments (omitted defaults as `null`); `fn`/`function` expressions are `Closure`, and `callable` accepts `Closure`. Cache format version 8 invalidates stale InputBag signatures. Three level-5 fixtures expand the pack from 13 to 16 cases. The complete gates are 94/24/96/30/16/18/6/27. On the private corpus, analyze reports 474 diagnostics (444 excluding unlevelled unreachable-code, from 452). Most Request `get()` scalar-union mismatches and all Closure-vs-callable filter mismatches are gone. No production file walk was added.
 
 ## Decision log
 

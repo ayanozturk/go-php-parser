@@ -708,6 +708,20 @@ func (s *SemanticSnapshot) ResolveMethod(className, methodName string) (Resolved
 	return method, true
 }
 
+func (s *SemanticSnapshot) ResolveMethodWithGenerics(className, methodName string, typeArguments []string) (ResolvedMethod, bool) {
+	if s == nil || s.project == nil {
+		return ResolvedMethod{}, false
+	}
+	method, ok := s.project.ResolveMethodWithGenerics(className, methodName, typeArguments)
+	if !ok {
+		return ResolvedMethod{}, false
+	}
+	if method.ID == "" {
+		method.ID = stableSymbolID("method", method.DeclaringClass, method.Name)
+	}
+	return method, true
+}
+
 func (s *SemanticSnapshot) methodReferenceParams(className, methodName string) ([]ResolvedParam, bool) {
 	if s == nil || s.project == nil {
 		return nil, false

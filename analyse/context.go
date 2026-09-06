@@ -55,6 +55,22 @@ type methodViewResolver interface {
 	resolveOwnMethodView(className, methodName string) (ResolvedMethod, bool)
 }
 
+type genericMethodResolver interface {
+	ResolveMethodWithGenerics(className, methodName string, typeArguments []string) (ResolvedMethod, bool)
+}
+
+func resolveMethodWithGenerics(resolver SymbolResolver, className, methodName string, typeArguments []string) (ResolvedMethod, bool) {
+	if resolver == nil {
+		return ResolvedMethod{}, false
+	}
+	if len(typeArguments) > 0 {
+		if generic, ok := resolver.(genericMethodResolver); ok {
+			return generic.ResolveMethodWithGenerics(className, methodName, typeArguments)
+		}
+	}
+	return resolver.ResolveMethod(className, methodName)
+}
+
 func resolveFunctionView(resolver SymbolResolver, name string) (ResolvedFunction, bool) {
 	if resolver == nil {
 		return ResolvedFunction{}, false
