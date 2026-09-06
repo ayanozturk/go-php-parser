@@ -22,7 +22,12 @@ func collectReflectionGuards(nodes []ast.Node, ctx *AnalysisContext, fileCtx Fil
 		constants: map[string]struct{}{},
 		methods:   map[string]struct{}{},
 	}
+	needAliases := ctx == nil || ctx.phpDocTypeAliases == nil
+	var aliases map[string]struct{}
 	walkAllWithFileContext(nodes, fileCtx, ctx, func(node ast.Node, class *ast.ClassNode, _ *ast.FunctionNode, ft FileTypeContext) {
+		if needAliases {
+			collectPHPDocAliasOnNode(node, &aliases)
+		}
 		call, ok := node.(*ast.FunctionCallNode)
 		if !ok {
 			return
@@ -67,6 +72,12 @@ func collectReflectionGuards(nodes []ast.Node, ctx *AnalysisContext, fileCtx Fil
 	if ctx != nil {
 		ctx.reflectionGuards = guards
 		ctx.hasReflectionGuards = true
+		if needAliases {
+			if aliases == nil {
+				aliases = map[string]struct{}{}
+			}
+			ctx.phpDocTypeAliases = aliases
+		}
 	}
 	return guards
 }

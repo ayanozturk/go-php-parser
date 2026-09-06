@@ -50,10 +50,6 @@ func ensureArgCallDiagnostics(filename string, nodes []ast.Node, ctx *AnalysisCo
 	ctx.deprecatedCallSeen = nil
 	ctx.assignmentTypeSink = nil
 	if observe != nil {
-		// Argument diagnostics cover function bodies above. Reuse the same
-		// walker for receiver checks at file scope without argument sinks.
-		fileScope := newFunctionScopeWithContext(ctx, nil, &ast.FunctionNode{}, fileCtx)
-		walkStatementsForArgTypesUsing(nodes, fileScope, ctx, filename, nil, observe)
 		ctx.hasMethodReceiverIssues = true
 	}
 	ctx.argTypeIssues = typeIssues
@@ -63,6 +59,7 @@ func ensureArgCallDiagnostics(filename string, nodes []ast.Node, ctx *AnalysisCo
 }
 
 func walkArgCallDeclarations(nodes []ast.Node, class *ast.ClassNode, ctx *AnalysisContext, filename string, fileCtx FileTypeContext, typeIssueSink *[]AnalysisIssue, observe semanticExpressionObserver) {
+	var fileScope *functionScope
 	for _, node := range nodes {
 		switch n := node.(type) {
 		case *ast.NamespaceNode:
@@ -88,6 +85,11 @@ func walkArgCallDeclarations(nodes []ast.Node, class *ast.ClassNode, ctx *Analys
 			walkStatementsForArgTypesUsing(n.Body, fnScope, ctx, filename, typeIssueSink, observe)
 		case *ast.PropertyNode:
 			walkArgCallProperty(n, class, ctx, filename, fileCtx, typeIssueSink, observe)
+		default:
+			if fileScope == nil {
+				fileScope = newFunctionScopeWithContext(ctx, class, &ast.FunctionNode{}, fileCtx)
+			}
+			walkStatementsForArgTypesUsing([]ast.Node{node}, fileScope, ctx, filename, typeIssueSink, observe)
 		}
 	}
 }

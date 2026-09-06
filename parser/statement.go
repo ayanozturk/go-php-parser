@@ -319,8 +319,9 @@ retry:
 			Pos:  ast.Position(pos),
 		}, nil
 	case token.T_SEMICOLON:
-		p.nextToken() // skip empty statements
-		return nil, nil
+		pos := p.tok.Pos
+		p.nextToken()
+		return &ast.EmptyStatementNode{Pos: ast.Position(pos)}, nil
 	case token.T_ENUM:
 		return p.parseEnum()
 	case token.T_FOREACH:

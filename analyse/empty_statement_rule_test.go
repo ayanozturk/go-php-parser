@@ -103,3 +103,20 @@ func TestEmptyWhileAfterBlockStillReported(t *testing.T) {
 		t.Fatalf("expected empty while body after a closed block, got %v", issues)
 	}
 }
+
+func TestEmptyStatementInStringIsNotReported(t *testing.T) {
+	php := "<?php\n$s = ';';\necho $s;\n"
+	issues := runEmptyStatementAnalysis(t, php)
+	if hasEmptyStatementIssue(issues) {
+		t.Fatalf("semicolon inside a string is not an empty statement, got %v", issues)
+	}
+}
+
+func TestEmptyStatementInCommentIsNotReported(t *testing.T) {
+	php := "<?php\n// ;\n$a = 1;\n"
+	issues := runEmptyStatementAnalysis(t, php)
+	if hasEmptyStatementIssue(issues) {
+		t.Fatalf("semicolon inside a comment is not an empty statement, got %v", issues)
+	}
+}
+

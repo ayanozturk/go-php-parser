@@ -142,41 +142,7 @@ func allReceiverClassesLackMethod(receiverType Type, method string, ctx *Analysi
 
 func walkLevel2MethodExpressions(filename string, nodes []ast.Node, ctx *AnalysisContext, observe semanticExpressionObserver) {
 	fileCtx := analysisFileTypeContext(ctx, nodes)
-
-	var walkDeclarations func([]ast.Node, *ast.ClassNode)
-	walkDeclarations = func(declarations []ast.Node, class *ast.ClassNode) {
-		for _, node := range declarations {
-			switch n := node.(type) {
-			case *ast.NamespaceNode:
-				walkDeclarations(n.Body, class)
-			case *ast.ClassNode:
-				for _, method := range n.Methods {
-					if function, ok := method.(*ast.FunctionNode); ok {
-						walkDeclarations([]ast.Node{function}, n)
-					}
-				}
-			case *ast.TraitNode:
-				traitClass := class
-				if n.Name != nil {
-					traitClass = &ast.ClassNode{Name: n.Name.Name}
-				}
-				walkDeclarations(n.Body, traitClass)
-			case *ast.EnumNode:
-				walkDeclarations(n.Methods, &ast.ClassNode{Name: n.Name})
-			case *ast.InterfaceNode:
-				walkDeclarations(n.Members, class)
-			case *ast.FunctionNode:
-				scope := analysisFunctionScope(ctx, class, n, fileCtx)
-				walkStatementsForArgTypesUsing(n.Body, scope, ctx, filename, nil, observe)
-			}
-		}
-	}
-	walkDeclarations(nodes, nil)
-
-	// Preserve flow across executable file-scope statements. Declaration
-	// nodes are ignored by the shared statement walker.
-	fileScope := newFunctionScopeWithContext(ctx, nil, &ast.FunctionNode{}, fileCtx)
-	walkStatementsForArgTypesUsing(nodes, fileScope, ctx, filename, nil, observe)
+	walkArgCallDeclarations(nodes, nil, ctx, filename, fileCtx, nil, observe)
 }
 
 func init() {

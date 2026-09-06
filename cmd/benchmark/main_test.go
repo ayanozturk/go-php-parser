@@ -12,6 +12,24 @@ import (
 	"github.com/ayanozturk/go-php-parser/parser"
 )
 
+func TestDiscoverPHPFilesIndexesRootVendorAutomatically(t *testing.T) {
+	root := t.TempDir()
+	writeBenchmarkFixture(t, root, "src/keep.php")
+	writeBenchmarkFixture(t, root, "vendor/phpunit/Assert.php")
+
+	files, err := discoverPHPFiles(root, []string{"src"}, nil)
+	if err != nil {
+		t.Fatalf("discover PHP files: %v", err)
+	}
+	want := []string{
+		filepath.Join(root, "src", "keep.php"),
+		filepath.Join(root, "vendor", "phpunit", "Assert.php"),
+	}
+	if !reflect.DeepEqual(files, want) {
+		t.Fatalf("unexpected discovered files:\nwant: %#v\n got: %#v", want, files)
+	}
+}
+
 func TestDiscoverPHPFilesUsesConfiguredPathsAndExcludes(t *testing.T) {
 	root := t.TempDir()
 	writeBenchmarkFixture(t, root, "src/keep.php")

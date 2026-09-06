@@ -21,11 +21,9 @@ var DefaultConfigFilenames = []string{
 }
 
 const DefaultConfigContent = `path: .
-# Extra directories indexed for cross-file symbol resolution (e.g. vendor)
-# but never type-checked. Host scans still honour ignore, so listing vendor
-# here is how Composer dependencies are indexed the way Mago uses includes.
-includes:
-  - vendor
+# Composer vendor is always indexed for symbol resolution and never
+# type-checked. Extra includes are additional index-only trees.
+includes: []
 extensions:
   - php
 ignore:
@@ -207,16 +205,18 @@ func GetFilesToScan(config *Config) ([]string, error) {
 	return walkForFiles(config.Path, ignoreDirSet(config.Ignore), extSet(config.Extensions))
 }
 
-// GetIncludeFiles walks the directories listed in config.Includes and
-// returns their PHP files. These files are parsed and indexed for
-// cross-file symbol resolution (e.g. vendor code) but are never scanned
-// for diagnostics themselves.
+// GetIncludeFiles walks Composer vendor under config.Path plus any extra
+// directories listed in config.Includes. Those files are parsed and indexed
+// for cross-file symbol resolution but are never scanned for diagnostics.
+// The project-root vendor tree is always included when it exists, even if
+// it is also listed in ignore (host scans still skip it).
 func GetIncludeFiles(config *Config) ([]string, error) {
 	ignoreDirs := ignoreDirSet(config.Ignore)
 	allowedExts := extSet(config.Extensions)
 
 	var files []string
-	for _, dir := range config.Includes {
+	seen := make(map[string]struct{})
+	for _, dir := range includeIndexDirs(config) {
 		if dir == "" {
 			continue
 		}
@@ -229,7 +229,10 @@ func GetIncludeFiles(config *Config) ([]string, error) {
 		}
 		if !info.IsDir() {
 			if _, allowed := allowedExts[filepath.Ext(dir)]; allowed {
-				files = append(files, dir)
+				if _, exists := seen[dir]; !exists {
+					seen[dir] = struct{}{}
+					files = append(files, dir)
+				}
 			}
 			continue
 		}
@@ -237,9 +240,43 @@ func GetIncludeFiles(config *Config) ([]string, error) {
 		if err != nil {
 			return nil, err
 		}
-		files = append(files, found...)
+		for _, file := range found {
+			if _, exists := seen[file]; exists {
+				continue
+			}
+			seen[file] = struct{}{}
+			files = append(files, file)
+		}
 	}
 	return files, nil
+}
+
+func includeIndexDirs(config *Config) []string {
+	if config == nil {
+		return nil
+	}
+	seen := make(map[string]struct{})
+	var dirs []string
+	add := func(dir string) {
+		if dir == "" {
+			return
+		}
+		cleaned := filepath.Clean(dir)
+		if _, exists := seen[cleaned]; exists {
+			return
+		}
+		seen[cleaned] = struct{}{}
+		dirs = append(dirs, cleaned)
+	}
+	root := config.Path
+	if root == "" {
+		root = "."
+	}
+	add(filepath.Join(root, "vendor"))
+	for _, dir := range config.Includes {
+		add(dir)
+	}
+	return dirs
 }
 
 // StreamFilesToScan walks the configured path in a background goroutine and

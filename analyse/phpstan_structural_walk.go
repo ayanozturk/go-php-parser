@@ -11,7 +11,7 @@ func throwTypeIssuesForFile(filename string, nodes []ast.Node, ctx *AnalysisCont
 }
 
 func ensureStructuralIssues(filename string, nodes []ast.Node, ctx *AnalysisContext) *AnalysisContext {
-	ctx = ensureLevel0Context(filename, nodes, ctx)
+	ctx = ensureSharedFileDiagnostics(filename, nodes, ctx)
 	if ctx.hasStructuralIssues {
 		return ctx
 	}
@@ -19,9 +19,6 @@ func ensureStructuralIssues(filename string, nodes []ast.Node, ctx *AnalysisCont
 	if ctx.phpDocTypeAliases == nil {
 		ctx.phpDocTypeAliases = collectPHPDocTypeAliases(nodes)
 	}
-	// Level 2 introduces void.pure. Collect all return-family diagnostics in
-	// this existing structural walk from that level onward; individual rule
-	// callbacks filter the shared cache by code.
 	collectReturn := analysisLevelAtLeast(ctx, 2)
 	collectMissingTypes := analysisLevelAtLeast(ctx, 6)
 	walkAllWithFileContext(nodes, fileCtx, ctx, func(node ast.Node, class *ast.ClassNode, currentFn *ast.FunctionNode, ft FileTypeContext) {

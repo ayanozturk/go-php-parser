@@ -14,6 +14,18 @@ func TestNormalizePHPVersionFallsBackToDefault(t *testing.T) {
 	}
 }
 
+func TestSharedStubsAreBundled(t *testing.T) {
+	names := SharedNames()
+	if len(names) == 0 {
+		t.Fatal("expected shared stubs")
+	}
+	for _, name := range []string{"Standard"} {
+		if _, err := ReadShared(name); err != nil {
+			t.Fatalf("read shared %s: %v", name, err)
+		}
+	}
+}
+
 func TestBundledStubsExistPerSupportedVersion(t *testing.T) {
 	for _, version := range supportedPHPVersions {
 		names := Names(version)

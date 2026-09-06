@@ -351,16 +351,20 @@ func addPHPDocAliasNames(doc *ast.PHPDocNode, names *map[string]struct{}) {
 func collectPHPDocTypeAliases(nodes []ast.Node) map[string]struct{} {
 	var aliases map[string]struct{}
 	walkAllWithoutTypeContext(nodes, func(node ast.Node) {
-		switch n := node.(type) {
-		case *ast.ClassNode:
-			addPHPDocAliasNames(n.PHPDoc, &aliases)
-		case *ast.FunctionNode:
-			addPHPDocAliasNames(n.PHPDoc, &aliases)
-		case *ast.PropertyNode:
-			addPHPDocAliasNames(n.PHPDoc, &aliases)
-		}
+		collectPHPDocAliasOnNode(node, &aliases)
 	})
 	return aliases
+}
+
+func collectPHPDocAliasOnNode(node ast.Node, aliases *map[string]struct{}) {
+	switch n := node.(type) {
+	case *ast.ClassNode:
+		addPHPDocAliasNames(n.PHPDoc, aliases)
+	case *ast.FunctionNode:
+		addPHPDocAliasNames(n.PHPDoc, aliases)
+	case *ast.PropertyNode:
+		addPHPDocAliasNames(n.PHPDoc, aliases)
+	}
 }
 
 func mergePHPDocNames(left, right map[string]struct{}) map[string]struct{} {

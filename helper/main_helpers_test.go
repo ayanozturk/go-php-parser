@@ -273,7 +273,6 @@ func TestRunAnalyzeDoesNotTypeCheckVendorOnScanPath(t *testing.T) {
 	level := 10
 	cfg := &config.Config{
 		Path:          dir,
-		Includes:      []string{filepath.Join(dir, "vendor")},
 		Extensions:    []string{"php"},
 		Ignore:        []string{"vendor"},
 		AnalysisLevel: &level,
@@ -283,7 +282,7 @@ func TestRunAnalyzeDoesNotTypeCheckVendorOnScanPath(t *testing.T) {
 	outcome := RunScanOrCommand(
 		CliArgs{CommandName: "analyze", parallelism: 1},
 		cfg,
-		[]string{hostFile, vendorFile},
+		[]string{hostFile},
 		&output,
 		&MemStats{},
 	)

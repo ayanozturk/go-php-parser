@@ -193,10 +193,11 @@ func RunScanOrCommand(args CliArgs, c *config.Config, filesToScan []string, outW
 			}
 		}
 
-		// config.Includes adds extra directories (e.g. vendor) that are
-		// indexed for symbol resolution but never reported on. Vendored
-		// files that already appeared on the host scan path are still
-		// indexed; they are stripped from reportable/analysisTargets above.
+		// Composer vendor under config.Path is always indexed for symbol
+		// resolution and never reported on. config.Includes adds extra
+		// index-only trees. Vendored files that already appeared on the
+		// host scan path are still indexed; they are stripped from
+		// reportable/analysisTargets above.
 		includeFiles, err := config.GetIncludeFiles(c)
 		if err != nil {
 			fmt.Fprintf(outWriter, "Error scanning includes: %v\n", err)

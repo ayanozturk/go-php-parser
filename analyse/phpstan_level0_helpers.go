@@ -16,12 +16,15 @@ func functionCallName(call *ast.FunctionCallNode) string {
 	return ""
 }
 
-// trimFunctionCallNamePrefix strips a leading namespace separator for plain
-// function calls (e.g. "\strlen" -> "strlen"). For static calls the name is
-// "Class::method"; a leading "\" there marks the class as fully-qualified
-// and must be preserved so resolveClassLikeForCall doesn't re-namespace it.
+// trimFunctionCallNamePrefix strips a leading namespace separator for global
+// function calls (e.g. "\strlen" -> "strlen"). Qualified names like
+// "\Vendor\makeService" keep the leading "\" so resolveFunctionNameForCall
+// does not treat them as relative to the current namespace.
 func trimFunctionCallNamePrefix(raw string) string {
 	if strings.Contains(raw, "::") {
+		return raw
+	}
+	if strings.HasPrefix(raw, `\`) && strings.Contains(raw[1:], `\`) {
 		return raw
 	}
 	return strings.TrimPrefix(raw, `\`)
@@ -63,16 +66,54 @@ func resolveClassLikeForCall(name string, current *ast.ClassNode, ft FileTypeCon
 }
 
 func resolveFunctionNameForCall(name string, ft FileTypeContext, ctx *AnalysisContext) string {
-	name = strings.TrimPrefix(strings.TrimSpace(name), `\`)
-	if name == "" || strings.Contains(name, "::") {
+	raw := strings.TrimSpace(name)
+	if raw == "" || strings.Contains(raw, "::") {
+		return raw
+	}
+	fullyQualified := strings.HasPrefix(raw, `\`)
+	name = strings.TrimPrefix(raw, `\`)
+	exists := func(candidate string) bool {
+		return candidate != "" && ctx != nil && ctx.Resolver != nil && ctx.Resolver.FunctionExists(candidate)
+	}
+
+	if !fullyQualified {
+		if rest, ok := namespaceRelativeRemainder(name); ok {
+			if ft.Namespace == "" {
+				return rest
+			}
+			if rest == "" {
+				return ft.Namespace
+			}
+			return ft.Namespace + `\` + rest
+		}
+		first, remainder := splitNameSegment(name)
+		if target, ok := ft.FunctionAliases[asciiLowerIdent(first)]; ok {
+			if remainder == "" {
+				return target
+			}
+			return target + `\` + remainder
+		}
+	}
+	if fullyQualified {
 		return name
 	}
-	if ctx != nil && ctx.Resolver != nil && ctx.Resolver.FunctionExists(name) {
+	if strings.Contains(name, `\`) {
+		if ft.Namespace != "" {
+			return ft.Namespace + `\` + name
+		}
 		return name
 	}
-	resolved := ft.resolveClassLike(name)
-	if ctx != nil && ctx.Resolver != nil && ctx.Resolver.FunctionExists(resolved) {
-		return resolved
+	if ft.Namespace != "" {
+		namespaced := ft.Namespace + `\` + name
+		if exists(namespaced) {
+			return namespaced
+		}
+	}
+	if exists(name) {
+		return name
+	}
+	if ft.Namespace != "" {
+		return ft.Namespace + `\` + name
 	}
 	return name
 }

@@ -2,6 +2,13 @@ package analyse
 
 import "testing"
 
+func TestResolveClassLikeNamespaceRelativePrefix(t *testing.T) {
+	got := resolveClassLikeInContext("Psl\\Str", nil, `namespace\length`)
+	if got != `Psl\Str\length` {
+		t.Fatalf("namespace-relative name = %q, want Psl\\Str\\length", got)
+	}
+}
+
 func TestNormalizeTypeWithContextPreservesDNFGrouping(t *testing.T) {
 	ctx := FileTypeContext{
 		Namespace: "App",

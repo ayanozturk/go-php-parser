@@ -6,19 +6,23 @@ import (
 )
 
 type FileTypeContext struct {
-	Namespace  string
-	Aliases    map[string]string
-	Classes    map[string]ResolvedClass
-	ClassNodes map[string]*ast.ClassNode
-	Constants  map[string]string
+	Namespace       string
+	Aliases         map[string]string
+	FunctionAliases map[string]string
+	ConstAliases    map[string]string
+	Classes         map[string]ResolvedClass
+	ClassNodes      map[string]*ast.ClassNode
+	Constants       map[string]string
 }
 
 func CollectFileTypeContext(nodes []ast.Node) FileTypeContext {
 	ctx := FileTypeContext{
-		Aliases:    make(map[string]string),
-		Classes:    make(map[string]ResolvedClass),
-		ClassNodes: make(map[string]*ast.ClassNode),
-		Constants:  make(map[string]string),
+		Aliases:         make(map[string]string),
+		FunctionAliases: make(map[string]string),
+		ConstAliases:    make(map[string]string),
+		Classes:         make(map[string]ResolvedClass),
+		ClassNodes:      make(map[string]*ast.ClassNode),
+		Constants:       make(map[string]string),
 	}
 	collectFileTypeContextFromNodes(nodes, "", &ctx)
 	return ctx
@@ -41,14 +45,21 @@ func collectFileTypeContextFromNodes(nodes []ast.Node, currentNS string, ctx *Fi
 				ctx.Namespace = n.Name
 			}
 		case *ast.UseNode:
-			if n.Type != "" && n.Type != "class" {
-				continue
-			}
 			alias := n.Alias
 			if alias == "" {
 				alias = unqualifiedTypeName(n.Path)
 			}
-			ctx.Aliases[asciiLowerIdent(alias)] = strings.TrimPrefix(n.Path, `\`)
+			target := strings.TrimPrefix(n.Path, `\`)
+			switch n.Type {
+			case "function":
+				ctx.FunctionAliases[asciiLowerIdent(alias)] = target
+				continue
+			case "const":
+				ctx.ConstAliases[asciiLowerIdent(alias)] = target
+				continue
+			case "", "class":
+				ctx.Aliases[asciiLowerIdent(alias)] = target
+			}
 		case *ast.ConstantNode:
 			if key, ok := literalArrayKey(n.Value); ok {
 				ctx.Constants[n.Name] = key
@@ -103,6 +114,15 @@ func resolveClassLikeInContext(namespace string, aliases map[string]string, name
 	}
 	if strings.HasPrefix(name, `\`) {
 		return strings.TrimPrefix(name, `\`)
+	}
+	if rest, ok := namespaceRelativeRemainder(name); ok {
+		if namespace == "" {
+			return rest
+		}
+		if rest == "" {
+			return namespace
+		}
+		return namespace + `\` + rest
 	}
 
 	firstSegment := name
@@ -198,4 +218,25 @@ func unqualifiedTypeName(name string) string {
 		return name[idx+1:]
 	}
 	return name
+}
+
+// namespaceRelativeRemainder reports the part after a leading namespace\ prefix,
+// which PHP resolves relative to the current namespace.
+func namespaceRelativeRemainder(name string) (string, bool) {
+	idx := strings.Index(name, `\`)
+	if idx <= 0 {
+		return "", false
+	}
+	if asciiLowerIdent(name[:idx]) != "namespace" {
+		return "", false
+	}
+	return name[idx+1:], true
+}
+
+func splitNameSegment(name string) (string, string) {
+	idx := strings.Index(name, `\`)
+	if idx < 0 {
+		return name, ""
+	}
+	return name[:idx], name[idx+1:]
 }

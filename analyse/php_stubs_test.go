@@ -16,6 +16,15 @@ func TestProjectIndexLoadsBundledPHPStubs(t *testing.T) {
 	if _, ok := idx.ResolveMethod("DateTime", "createFromFormat"); !ok {
 		t.Fatal("expected DateTime::createFromFormat")
 	}
+	if !idx.FunctionExists("ord") || !idx.FunctionExists("pack") || !idx.FunctionExists("chr") {
+		t.Fatal("expected Standard library function stubs")
+	}
+	if !idx.ConstantExists("PHP_INT_MAX") || !idx.ConstantExists("STR_PAD_LEFT") {
+		t.Fatal("expected Standard library constant stubs")
+	}
+	if _, ok := idx.ResolveMethod("PHPUnit\\Framework\\Assert", "assertSame"); ok {
+		t.Fatal("PHPUnit should come from indexed vendor, not bundled stubs")
+	}
 	traversable, ok := idx.ResolveClass("Traversable")
 	if !ok || len(traversable.TemplateParams) != 2 {
 		t.Fatalf("expected Traversable to be generic over TKey, TValue, got %#v, %v", traversable, ok)

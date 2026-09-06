@@ -27,6 +27,15 @@ func parsedStubsForVersion(version string) map[string][]ast.Node {
 		nodes := p.Parse()
 		parsed[phpstubs.FileName(version, name)] = nodes
 	}
+	for _, name := range phpstubs.SharedNames() {
+		src, err := phpstubs.ReadShared(name)
+		if err != nil {
+			continue
+		}
+		p := parser.New(lexer.New(string(src)), false)
+		nodes := p.Parse()
+		parsed[phpstubs.SharedFileName(name)] = nodes
+	}
 	actual, _ := parsedPHPStubs.LoadOrStore(version, parsed)
 	return actual.(map[string][]ast.Node)
 }

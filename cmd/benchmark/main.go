@@ -806,7 +806,13 @@ func printResultLine(m runMetrics) {
 
 func discoverPHPFiles(root string, paths, excludes []string) ([]string, error) {
 	filesByPath := make(map[string]struct{})
-	for _, relativeRoot := range paths {
+	scanPaths := append([]string(nil), paths...)
+	if !benchmarkPathsContain(paths, "vendor") {
+		if info, err := os.Stat(filepath.Join(root, "vendor")); err == nil && info.IsDir() {
+			scanPaths = append(scanPaths, "vendor")
+		}
+	}
+	for _, relativeRoot := range scanPaths {
 		scanRoot := filepath.Join(root, filepath.FromSlash(relativeRoot))
 		if _, err := os.Stat(scanRoot); err != nil {
 			return nil, fmt.Errorf("scan path %q: %w", relativeRoot, err)
@@ -865,6 +871,16 @@ func parseBenchmarkPaths(value string, allowEmpty bool) ([]string, error) {
 	}
 	sort.Strings(paths)
 	return paths, nil
+}
+
+func benchmarkPathsContain(paths []string, want string) bool {
+	want = filepath.ToSlash(filepath.Clean(want))
+	for _, path := range paths {
+		if filepath.ToSlash(filepath.Clean(path)) == want {
+			return true
+		}
+	}
+	return false
 }
 
 const maxReportedParseFailures = 20

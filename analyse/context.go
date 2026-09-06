@@ -236,6 +236,7 @@ type AnalysisContext struct {
 	level0Issues                 []AnalysisIssue
 	level0PropertyCallableIssues []AnalysisIssue
 	hasLevel0Issues              bool
+	emptyStatementIssues         []AnalysisIssue
 
 	methodVisibilityIssues  []AnalysisIssue
 	throwTypeIssues         []AnalysisIssue

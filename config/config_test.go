@@ -243,6 +243,37 @@ func sorted(s []string) []string {
 	return copyS
 }
 
+func TestGetIncludeFilesIndexesProjectVendorWithoutIncludes(t *testing.T) {
+	root := t.TempDir()
+	vendorFile := filepath.Join(root, "vendor", "phpunit", "Assert.php")
+	if err := os.MkdirAll(filepath.Dir(vendorFile), 0755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	if err := os.WriteFile(vendorFile, []byte("<?php\nclass Assert {}\n"), 0644); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+
+	cfg := &Config{
+		Path:       root,
+		Extensions: []string{"php"},
+		Ignore:     []string{"vendor"},
+	}
+	host, err := GetFilesToScan(cfg)
+	if err != nil {
+		t.Fatalf("host scan: %v", err)
+	}
+	if len(host) != 0 {
+		t.Fatalf("host scan should ignore vendor, got %#v", host)
+	}
+	includes, err := GetIncludeFiles(cfg)
+	if err != nil {
+		t.Fatalf("include scan: %v", err)
+	}
+	if len(includes) != 1 || includes[0] != vendorFile {
+		t.Fatalf("expected project vendor to be indexed without includes, got %#v", includes)
+	}
+}
+
 func TestGetIncludeFilesIndexesIgnoredVendorRoot(t *testing.T) {
 	root := t.TempDir()
 	vendorFile := filepath.Join(root, "vendor", "pkg", "Lib.php")
@@ -283,8 +314,10 @@ func TestGetIncludeFilesIndexesIgnoredVendorRoot(t *testing.T) {
 }
 
 func TestGetIncludeFilesSkipsMissingDirectory(t *testing.T) {
+	root := t.TempDir()
 	cfg := &Config{
-		Includes:   []string{filepath.Join(t.TempDir(), "vendor")},
+		Path:       root,
+		Includes:   []string{filepath.Join(root, "missing-extra")},
 		Extensions: []string{"php"},
 		Ignore:     []string{"vendor"},
 	}

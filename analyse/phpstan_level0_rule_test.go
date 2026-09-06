@@ -375,6 +375,103 @@ class User {}
 	}
 }
 
+func TestLevel0ResolvesPHPUnitInheritedAssertions(t *testing.T) {
+	issues := runLevel0OnFiles(t, map[string]string{
+		"vendor/phpunit/src/Framework/Assert.php": `<?php
+namespace PHPUnit\Framework;
+
+abstract class Assert
+{
+    final public static function assertSame($expected, $actual, $message = ''): void {}
+    final public static function assertTrue($condition, $message = ''): void {}
+}
+`,
+		"vendor/phpunit/src/Framework/TestCase.php": `<?php
+namespace PHPUnit\Framework;
+
+abstract class TestCase extends Assert
+{
+    final protected function expectException(string $exception): void {}
+}
+`,
+		"test.php": `<?php
+namespace App\Tests;
+
+use PHPUnit\Framework\TestCase;
+
+final class DateTimeTest extends TestCase
+{
+    public function testNow(): void
+    {
+        static::assertSame(1, 1);
+        self::assertTrue(true);
+        $this->expectException(\InvalidArgumentException::class);
+    }
+}
+`,
+	})
+
+	for _, unexpected := range []string{
+		"Call to an undefined static method App\\Tests\\DateTimeTest::assertSame",
+		"Call to an undefined static method App\\Tests\\DateTimeTest::assertTrue",
+		"Call to an undefined method App\\Tests\\DateTimeTest::expectException",
+		"Attribute class PHPUnit\\Framework\\TestCase not found",
+	} {
+		if hasIssueContaining(issues, level0SymbolsCode, unexpected) {
+			t.Fatalf("PHPUnit inherited assertions should resolve, got %#v", issues)
+		}
+	}
+}
+
+func TestLevel0ResolvesNamespaceRelativeFunctionsAndImports(t *testing.T) {
+	issues := runLevel0OnFiles(t, map[string]string{
+		"src/length.php": `<?php
+namespace Psl\Str;
+
+function length(string $string): int
+{
+    return 0;
+}
+
+function run(string $value): int
+{
+    return namespace\length($value);
+}
+`,
+		"src/byte.php": `<?php
+namespace Psl\Str\Byte;
+
+use function ord;
+use function Psl\Str\length as str_length;
+use const PHP_INT_MAX;
+
+function run(string $value): int
+{
+    return namespace\ord($value) + str_length($value) + PHP_INT_MAX + strlen($value);
+}
+
+function ord(string $value): int
+{
+    return 0;
+}
+`,
+	})
+
+	for _, unexpected := range []string{
+		"Function namespace\\length not found",
+		"Function namespace\\ord not found",
+		"Function str_length not found",
+		"Function strlen not found",
+		"Used function ord not found",
+		"Used function Psl\\Str\\length not found",
+		"Used constant PHP_INT_MAX not found",
+	} {
+		if hasIssueContaining(issues, level0SymbolsCode, unexpected) {
+			t.Fatalf("namespace-relative and imported functions should resolve, got %#v", issues)
+		}
+	}
+}
+
 func TestLevel0ResolvesNestedAndInheritedTraitMethods(t *testing.T) {
 	issues := runLevel0OnFiles(t, map[string]string{
 		"test.php": `<?php

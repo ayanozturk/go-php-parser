@@ -8,90 +8,87 @@ import (
 
 func (r *Level0Rule) checkClassModel(filename string, nodes []ast.Node, ctx *AnalysisContext, fileCtx FileTypeContext) []AnalysisIssue {
 	var issues []AnalysisIssue
-	for _, duplicate := range ctx.Resolver.DuplicateClasses(filename) {
-		issues = append(issues, issue(filename, duplicate.Pos, level0ClassModelCode, fmt.Sprintf("Duplicate declaration of class %s.", duplicate.Name)))
-	}
+	appendDuplicateClassIssues(filename, ctx, &issues)
+	walkAllWithFileContext(nodes, fileCtx, ctx, func(node ast.Node, _ *ast.ClassNode, _ *ast.FunctionNode, ft FileTypeContext) {
+		appendClassModelOnNode(filename, node, ft, ctx, &issues)
+	})
+	return issues
+}
 
-	var walk func([]ast.Node, FileTypeContext, string)
-	walk = func(nodes []ast.Node, ft FileTypeContext, currentClass string) {
-		for _, node := range nodes {
-			switch n := node.(type) {
-			case *ast.NamespaceNode:
-				var cache map[*ast.NamespaceNode]FileTypeContext
-				if ctx != nil {
-					if ctx.namespaceContextByNode == nil {
-						ctx.namespaceContextByNode = make(map[*ast.NamespaceNode]FileTypeContext)
-					}
-					cache = ctx.namespaceContextByNode
+func appendDuplicateClassIssues(filename string, ctx *AnalysisContext, issues *[]AnalysisIssue) {
+	if ctx == nil || ctx.Resolver == nil {
+		return
+	}
+	for _, duplicate := range ctx.Resolver.DuplicateClasses(filename) {
+		*issues = append(*issues, issue(filename, duplicate.Pos, level0ClassModelCode, fmt.Sprintf("Duplicate declaration of class %s.", duplicate.Name)))
+	}
+}
+
+func appendClassModelOnNode(filename string, node ast.Node, ft FileTypeContext, ctx *AnalysisContext, issues *[]AnalysisIssue) {
+	if ctx == nil || ctx.Resolver == nil {
+		return
+	}
+	switch n := node.(type) {
+	case *ast.ClassNode:
+		className := ft.resolveClassLike(n.Name)
+		if hasClassModifier(n, "final") && hasClassModifier(n, "abstract") {
+			*issues = append(*issues, issueSpan(filename, n, level0ClassModelCode, fmt.Sprintf("Class %s cannot be both final and abstract.", className)))
+		}
+		if n.Extends != "" {
+			parentName := ft.resolveClassLike(n.Extends)
+			if parent, ok := ctx.Resolver.ResolveClass(parentName); !ok {
+				*issues = append(*issues, issueSpan(filename, n, level0ClassModelCode, fmt.Sprintf("Class %s extends unknown class %s.", className, parentName)))
+			} else if parent.Kind != "class" {
+				*issues = append(*issues, issueSpan(filename, n, level0ClassModelCode, fmt.Sprintf("Class %s extends %s %s.", className, parent.Kind, parent.Name)))
+			} else {
+				if parent.Final {
+					*issues = append(*issues, issueSpan(filename, n, level0ClassModelCode, fmt.Sprintf("Class %s extends final class %s.", className, parent.Name)))
 				}
-				walk(n.Body, namespaceTypeContext(n, cache), currentClass)
-			case *ast.ClassNode:
-				className := ft.resolveClassLike(n.Name)
-				if hasClassModifier(n, "final") && hasClassModifier(n, "abstract") {
-					issues = append(issues, issueSpan(filename, n, level0ClassModelCode, fmt.Sprintf("Class %s cannot be both final and abstract.", className)))
+				classReadonly := hasClassModifier(n, "readonly")
+				if classReadonly && !parent.Readonly {
+					*issues = append(*issues, issueSpan(filename, n, level0ClassModelCode, fmt.Sprintf("Readonly class %s cannot extend non-readonly class %s.", className, parent.Name)))
 				}
-				if n.Extends != "" {
-					parentName := ft.resolveClassLike(n.Extends)
-					if parent, ok := ctx.Resolver.ResolveClass(parentName); !ok {
-						issues = append(issues, issueSpan(filename, n, level0ClassModelCode, fmt.Sprintf("Class %s extends unknown class %s.", className, parentName)))
-					} else if parent.Kind != "class" {
-						issues = append(issues, issueSpan(filename, n, level0ClassModelCode, fmt.Sprintf("Class %s extends %s %s.", className, parent.Kind, parent.Name)))
-					} else {
-						if parent.Final {
-							issues = append(issues, issueSpan(filename, n, level0ClassModelCode, fmt.Sprintf("Class %s extends final class %s.", className, parent.Name)))
-						}
-						classReadonly := hasClassModifier(n, "readonly")
-						if classReadonly && !parent.Readonly {
-							issues = append(issues, issueSpan(filename, n, level0ClassModelCode, fmt.Sprintf("Readonly class %s cannot extend non-readonly class %s.", className, parent.Name)))
-						}
-						if !classReadonly && parent.Readonly {
-							issues = append(issues, issueSpan(filename, n, level0ClassModelCode, fmt.Sprintf("Non-readonly class %s cannot extend readonly class %s.", className, parent.Name)))
-						}
-					}
+				if !classReadonly && parent.Readonly {
+					*issues = append(*issues, issueSpan(filename, n, level0ClassModelCode, fmt.Sprintf("Non-readonly class %s cannot extend readonly class %s.", className, parent.Name)))
 				}
-				for _, implemented := range n.Implements {
-					ifaceName := ft.resolveClassLike(implemented)
-					if iface, ok := ctx.Resolver.ResolveClass(ifaceName); !ok {
-						issues = append(issues, issueSpan(filename, n, level0ClassModelCode, fmt.Sprintf("Class %s implements unknown interface %s.", className, ifaceName)))
-					} else if iface.Kind != "interface" {
-						issues = append(issues, issueSpan(filename, n, level0ClassModelCode, fmt.Sprintf("Class %s implements %s %s.", className, iface.Kind, iface.Name)))
-					}
-				}
-				checkClassMethodLegality(filename, className, n, ctx, &issues)
-				checkConsistentConstructorLegality(filename, className, n, ctx, &issues)
-				checkClassConstantLegality(filename, className, n, ctx, &issues)
-				checkReadonlyClassProperties(filename, className, n, ctx, &issues)
-				walk(n.Properties, ft, className)
-				walk(n.Methods, ft, className)
-			case *ast.InterfaceNode:
-				interfaceName := ft.resolveClassLike(n.Name)
-				for _, parent := range n.Extends {
-					parentName := ft.resolveClassLike(parent)
-					if resolved, ok := ctx.Resolver.ResolveClass(parentName); !ok {
-						issues = append(issues, issueSpan(filename, n, level0ClassModelCode, fmt.Sprintf("Interface %s extends unknown interface %s.", interfaceName, parentName)))
-					} else if resolved.Kind != "interface" {
-						issues = append(issues, issueSpan(filename, n, level0ClassModelCode, fmt.Sprintf("Interface %s extends %s %s.", interfaceName, resolved.Kind, resolved.Name)))
-					}
-				}
-				checkInterfaceMemberLegality(filename, interfaceName, n, &issues)
-			case *ast.TraitUseNode:
-				for _, trait := range n.Traits {
-					traitName := ft.resolveClassLike(trait)
-					if resolved, ok := ctx.Resolver.ResolveClass(traitName); !ok {
-						issues = append(issues, issueSpan(filename, n, level0ClassModelCode, fmt.Sprintf("Trait %s not found.", traitName)))
-					} else if resolved.Kind != "trait" {
-						issues = append(issues, issueSpan(filename, n, level0ClassModelCode, fmt.Sprintf("%s %s used as trait.", titleKind(resolved.Kind), resolved.Name)))
-					}
-				}
-			case *ast.EnumNode:
-				enumName := ft.resolveClassLike(n.Name)
-				checkEnumLegality(filename, enumName, n, &issues)
-				walk(n.Methods, ft, enumName)
 			}
 		}
+		for _, implemented := range n.Implements {
+			ifaceName := ft.resolveClassLike(implemented)
+			if iface, ok := ctx.Resolver.ResolveClass(ifaceName); !ok {
+				*issues = append(*issues, issueSpan(filename, n, level0ClassModelCode, fmt.Sprintf("Class %s implements unknown interface %s.", className, ifaceName)))
+			} else if iface.Kind != "interface" {
+				*issues = append(*issues, issueSpan(filename, n, level0ClassModelCode, fmt.Sprintf("Class %s implements %s %s.", className, iface.Kind, iface.Name)))
+			}
+		}
+		checkClassMethodLegality(filename, className, n, ctx, issues)
+		checkConsistentConstructorLegality(filename, className, n, ctx, issues)
+		checkClassConstantLegality(filename, className, n, ctx, issues)
+		checkReadonlyClassProperties(filename, className, n, ctx, issues)
+	case *ast.InterfaceNode:
+		interfaceName := ft.resolveClassLike(n.Name)
+		for _, parent := range n.Extends {
+			parentName := ft.resolveClassLike(parent)
+			if resolved, ok := ctx.Resolver.ResolveClass(parentName); !ok {
+				*issues = append(*issues, issueSpan(filename, n, level0ClassModelCode, fmt.Sprintf("Interface %s extends unknown interface %s.", interfaceName, parentName)))
+			} else if resolved.Kind != "interface" {
+				*issues = append(*issues, issueSpan(filename, n, level0ClassModelCode, fmt.Sprintf("Interface %s extends %s %s.", interfaceName, resolved.Kind, resolved.Name)))
+			}
+		}
+		checkInterfaceMemberLegality(filename, interfaceName, n, issues)
+	case *ast.TraitUseNode:
+		for _, trait := range n.Traits {
+			traitName := ft.resolveClassLike(trait)
+			if resolved, ok := ctx.Resolver.ResolveClass(traitName); !ok {
+				*issues = append(*issues, issueSpan(filename, n, level0ClassModelCode, fmt.Sprintf("Trait %s not found.", traitName)))
+			} else if resolved.Kind != "trait" {
+				*issues = append(*issues, issueSpan(filename, n, level0ClassModelCode, fmt.Sprintf("%s %s used as trait.", titleKind(resolved.Kind), resolved.Name)))
+			}
+		}
+	case *ast.EnumNode:
+		enumName := ft.resolveClassLike(n.Name)
+		checkEnumLegality(filename, enumName, n, issues)
 	}
-	walk(nodes, fileCtx, "")
-	return issues
 }
 
 func checkClassMethodLegality(filename, className string, class *ast.ClassNode, ctx *AnalysisContext, issues *[]AnalysisIssue) {

@@ -7,7 +7,7 @@ import (
 	"strings"
 )
 
-//go:embed 8.2/*.php 8.3/*.php 8.4/*.php 8.5/*.php
+//go:embed 8.2/*.php 8.3/*.php 8.4/*.php 8.5/*.php shared/*.php
 var content embed.FS
 
 const DefaultPHPVersion = "8.3"
@@ -61,4 +61,32 @@ func FileName(version, name string) string {
 	version = NormalizePHPVersion(version)
 	name = strings.TrimSuffix(strings.TrimSpace(name), ".php")
 	return "phpstub:" + version + "/" + name + ".php"
+}
+
+// SharedNames returns version-independent stub files such as Standard.
+func SharedNames() []string {
+	entries, err := fs.ReadDir(content, "shared")
+	if err != nil {
+		return nil
+	}
+	names := make([]string, 0, len(entries))
+	for _, entry := range entries {
+		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".php") {
+			continue
+		}
+		names = append(names, strings.TrimSuffix(entry.Name(), ".php"))
+	}
+	return names
+}
+
+// ReadShared returns a version-independent stub source file.
+func ReadShared(name string) ([]byte, error) {
+	name = strings.TrimSuffix(strings.TrimSpace(name), ".php")
+	return content.ReadFile(path.Join("shared", name+".php"))
+}
+
+// SharedFileName is the virtual project-index path for a shared stub.
+func SharedFileName(name string) string {
+	name = strings.TrimSuffix(strings.TrimSpace(name), ".php")
+	return "phpstub:shared/" + name + ".php"
 }
