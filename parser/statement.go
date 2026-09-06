@@ -376,37 +376,12 @@ retry:
 			Pos: ast.Position(pos),
 		}, nil
 	default:
-		// Try parsing as expression statement
-		if expr := p.parseExpression(); expr != nil {
-			if p.tok.Type != token.T_SEMICOLON {
-				if p.tok.Type == token.T_RBRACE && isIncompletePropertyFetch(expr) {
-					return &ast.ExpressionStmt{
-						Expr: expr,
-						Pos:  expr.GetPos(),
-					}, nil
-				}
-				p.addError("line %d:%d: expected ; after expression, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal)
-				return nil, nil
-			}
-			p.nextToken() // consume ;
-			return &ast.ExpressionStmt{
-				Expr: expr,
-				Pos:  expr.GetPos(),
-			}, nil
-		}
-		// Enhanced error recovery: skip tokens until semicolon or closing paren to avoid cascading errors
-		p.addError("line %d:%d: unexpected token %s in statement (error recovery)", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal)
-		for p.tok.Type != token.T_SEMICOLON && p.tok.Type != token.T_RPAREN && p.tok.Type != token.T_EOF {
-			p.nextToken()
-		}
-		if p.tok.Type == token.T_SEMICOLON {
-			p.nextToken()
-		}
-		return nil, nil
+		return p.parseExpressionStatement()
 	}
 }
 
 func (p *Parser) parseExpressionStatement() (ast.Node, error) {
+	phpdoc := p.consumeCurrentDoc(p.tok.Pos)
 	expr := p.parseExpressionWithPrecedence(0, true)
 	if expr == nil {
 		return nil, nil
@@ -425,8 +400,9 @@ func (p *Parser) parseExpressionStatement() (ast.Node, error) {
 	}
 
 	return &ast.ExpressionStmt{
-		Expr: expr,
-		Pos:  expr.GetPos(),
+		Expr:   expr,
+		PHPDoc: phpdoc,
+		Pos:    expr.GetPos(),
 	}, nil
 }
 

@@ -114,8 +114,9 @@ func walkStatementsForHoverTypes(nodes []ast.Node, scope *functionScope, ctx *An
 	for _, node := range nodes {
 		switch n := node.(type) {
 		case *ast.ExpressionStmt:
+			applyExpressionStmtVarDocBefore(scope, n)
 			walkExprForHoverTypes(n.Expr, scope, ctx, query, best)
-			applyExpressionScope(scope, n.Expr, ctx)
+			applyExpressionStmtScope(scope, n, ctx)
 		case *ast.AssignmentNode:
 			walkExprForHoverTypes(n.Right, scope, ctx, query, best)
 			applyAssignmentScope(scope, n, ctx)

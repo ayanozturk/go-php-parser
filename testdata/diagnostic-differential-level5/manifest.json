@@ -116,6 +116,20 @@
       "file": "argument-closure-filter-mismatch.php",
       "engineCodes": ["A.ARG.TYPE"],
       "phpstanIdentifiers": ["argument.type"]
+    },
+    {
+      "id": "argument-var-doc-clean",
+      "capability": "assignment @var User accepts getUser() result",
+      "file": "argument-var-doc-clean.php",
+      "engineCodes": [],
+      "phpstanIdentifiers": []
+    },
+    {
+      "id": "argument-var-doc-mismatch",
+      "capability": "nullable User without @var is rejected",
+      "file": "argument-var-doc-mismatch.php",
+      "engineCodes": ["A.ARG.TYPE"],
+      "phpstanIdentifiers": ["argument.type"]
     }
   ]
 }

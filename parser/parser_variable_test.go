@@ -7,6 +7,30 @@ import (
 	"testing"
 )
 
+func TestExpressionStatementKeepsAssignmentVarDoc(t *testing.T) {
+	p := New(lexer.New(`<?php
+function run(?User $from): void {
+    /** @var User $user */
+    $user = $from;
+}
+`), false)
+	nodes := p.Parse()
+	if errs := p.Errors(); len(errs) != 0 {
+		t.Fatalf("parser errors: %v", errs)
+	}
+	fn, ok := nodes[0].(*ast.FunctionNode)
+	if !ok || len(fn.Body) != 1 {
+		t.Fatalf("expected function with one statement, got %#v", nodes)
+	}
+	stmt, ok := fn.Body[0].(*ast.ExpressionStmt)
+	if !ok {
+		t.Fatalf("statement = %T, want ExpressionStmt", fn.Body[0])
+	}
+	if stmt.PHPDoc == nil || stmt.PHPDoc.VarType != "User" || stmt.PHPDoc.VarName != "user" {
+		t.Fatalf("assignment PHPDoc = %#v, want @var User $user", stmt.PHPDoc)
+	}
+}
+
 func TestAssignmentNodesPreserveOperator(t *testing.T) {
 	for _, operator := range []string{"=", "+=", "??="} {
 		t.Run(operator, func(t *testing.T) {

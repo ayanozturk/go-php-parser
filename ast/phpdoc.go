@@ -11,6 +11,7 @@ type PHPDocNode struct {
 	Params             []PHPDocParam
 	ReturnType         string
 	VarType            string
+	VarName            string
 	Templates          []PHPDocTemplate
 	TypeAliases        []PHPDocTypeAlias
 	Extends            []PHPDocTypeReference
@@ -104,7 +105,11 @@ func ParsePHPDoc(rawContent string) *PHPDocNode {
 			phpdoc.ReturnType, _ = splitPHPDocTypeAndRest(strings.TrimSpace(strings.TrimPrefix(line, "@return")))
 		} else if strings.HasPrefix(line, "@var") {
 			inDescription = false
-			phpdoc.VarType, _ = splitPHPDocTypeAndRest(strings.TrimSpace(strings.TrimPrefix(line, "@var")))
+			var remainder string
+			phpdoc.VarType, remainder = splitPHPDocTypeAndRest(strings.TrimSpace(strings.TrimPrefix(line, "@var")))
+			if fields := strings.Fields(remainder); len(fields) > 0 && strings.HasPrefix(fields[0], "$") {
+				phpdoc.VarName = strings.TrimPrefix(fields[0], "$")
+			}
 		} else if tag, value, ok := phpDocTag(line); ok && isTemplateTag(tag) {
 			inDescription = false
 			if template, ok := parsePHPDocTemplate(value); ok {

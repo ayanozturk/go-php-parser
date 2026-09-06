@@ -321,6 +321,128 @@ function run(Collection $items): void
 	}
 }
 
+func TestAssignmentVarDocMakesNullableUserAccepted(t *testing.T) {
+	files := map[string]string{
+		"user.php": `<?php
+class User {}
+
+class Controller
+{
+    public function getUser(): ?User
+    {
+        return null;
+    }
+
+    public function takesUser(User $user): void
+    {
+    }
+
+    public function run(): void
+    {
+        /** @var User $user */
+        $user = $this->getUser();
+        $this->takesUser($user);
+    }
+}
+`,
+	}
+	if issues := runAnalysisLevelOnFiles(t, files, 5); hasArgTypeIssue(issues) {
+		t.Fatalf("expected assignment @var User to accept getUser() result, got %#v", issues)
+	}
+}
+
+func TestAssignmentVarDocStandaloneAssertion(t *testing.T) {
+	files := map[string]string{
+		"user.php": `<?php
+class User {}
+
+class Controller
+{
+    public function getUser(): ?User
+    {
+        return null;
+    }
+
+    public function takesUser(User $user): void
+    {
+    }
+
+    public function run(): void
+    {
+        $user = $this->getUser();
+        /** @var User $user */
+        $this->takesUser($user);
+    }
+}
+`,
+	}
+	if issues := runAnalysisLevelOnFiles(t, files, 5); hasArgTypeIssue(issues) {
+		t.Fatalf("expected standalone @var User to refine later argument, got %#v", issues)
+	}
+}
+
+func TestNullableUserWithoutVarDocIsRejected(t *testing.T) {
+	files := map[string]string{
+		"user.php": `<?php
+class User {}
+
+class Controller
+{
+    public function getUser(): ?User
+    {
+        return null;
+    }
+
+    public function takesUser(User $user): void
+    {
+    }
+
+    public function run(): void
+    {
+        $user = $this->getUser();
+        $this->takesUser($user);
+    }
+}
+`,
+	}
+	if issues := runAnalysisLevelOnFiles(t, files, 4); hasArgTypeIssue(issues) {
+		t.Fatalf("expected nullable User mismatch to remain silent at level 4, got %#v", issues)
+	}
+	if issues := runAnalysisLevelOnFiles(t, files, 5); !hasArgTypeIssue(issues) {
+		t.Fatalf("expected nullable User without @var to mismatch, got %#v", issues)
+	}
+}
+
+func TestWrongNamedVarDocDoesNotRefineAssignedVariable(t *testing.T) {
+	files := map[string]string{
+		"user.php": `<?php
+class User {}
+
+class Controller
+{
+    public function getUser(): ?User
+    {
+        return null;
+    }
+
+    public function takesUser(User $user): void
+    {
+    }
+
+    public function run(): void
+    {
+        /** @var User $other */
+        $user = $this->getUser();
+        $this->takesUser($user);
+    }
+}
+`,
+	}
+	if issues := runAnalysisLevelOnFiles(t, files, 5); !hasArgTypeIssue(issues) {
+		t.Fatalf("expected @var on a different variable not to silence nullable User, got %#v", issues)
+	}
+}
+
 func TestPHPDocTypeAliasParameterAcceptsArray(t *testing.T) {
 	files := map[string]string{
 		"overview.php": `<?php

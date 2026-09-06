@@ -115,8 +115,9 @@ func walkStatementsForArgTypesUsing(nodes []ast.Node, scope *functionScope, ctx 
 	for _, node := range nodes {
 		switch n := node.(type) {
 		case *ast.ExpressionStmt:
+			applyExpressionStmtVarDocBefore(scope, n)
 			walkExprForArgTypesUsing(n.Expr, scope, ctx, filename, issues, observe)
-			applyExpressionScope(scope, n.Expr, ctx)
+			applyExpressionStmtScope(scope, n, ctx)
 		case *ast.NamespaceNode:
 			walkStatementsForArgTypesUsing(n.Body, scope, ctx, filename, issues, observe)
 		case *ast.AssignmentNode:

@@ -392,7 +392,8 @@ func collectObservedReturnsUsing(filename string, nodes []ast.Node, scope *funct
 	for _, n := range nodes {
 		switch n := n.(type) {
 		case *ast.ExpressionStmt:
-			applyExpressionScope(scope, n.Expr, ctx)
+			applyExpressionStmtVarDocBefore(scope, n)
+			applyExpressionStmtScope(scope, n, ctx)
 		case *ast.ReturnNode:
 			returns = append(returns, observedReturn{Type: infer(filename, n.Expr, scope, ctx), Pos: n.GetPos(), Expr: n.Expr})
 		case *ast.AssignmentNode:
@@ -1612,6 +1613,87 @@ func applyExpressionScope(scope *functionScope, expr ast.Node, ctx *AnalysisCont
 		return
 	}
 	applyAssignmentScope(scope, assignment, ctx)
+}
+
+func assignmentExpr(expr ast.Node) *ast.AssignmentNode {
+	assignment, _ := expr.(*ast.AssignmentNode)
+	return assignment
+}
+
+func varDocOverridesAssignment(doc *ast.PHPDocNode, assignment *ast.AssignmentNode) bool {
+	if doc == nil || strings.TrimSpace(doc.VarType) == "" || assignment == nil {
+		return false
+	}
+	left, ok := assignment.Left.(*ast.VariableNode)
+	if !ok {
+		return false
+	}
+	name := strings.TrimSpace(doc.VarName)
+	return name == "" || name == left.Name
+}
+
+func applyExpressionStmtVarDocBefore(scope *functionScope, stmt *ast.ExpressionStmt) {
+	if stmt == nil {
+		return
+	}
+	assignment := assignmentExpr(stmt.Expr)
+	if varDocOverridesAssignment(stmt.PHPDoc, assignment) {
+		return
+	}
+	applyVarDocScope(scope, stmt.PHPDoc, assignment)
+}
+
+func applyExpressionStmtScope(scope *functionScope, stmt *ast.ExpressionStmt, ctx *AnalysisContext) {
+	if stmt == nil {
+		return
+	}
+	applyExpressionScope(scope, stmt.Expr, ctx)
+	assignment := assignmentExpr(stmt.Expr)
+	if varDocOverridesAssignment(stmt.PHPDoc, assignment) {
+		applyVarDocScope(scope, stmt.PHPDoc, assignment)
+	}
+}
+
+func applyVarDocScope(scope *functionScope, doc *ast.PHPDocNode, assignment *ast.AssignmentNode) {
+	if scope == nil || doc == nil {
+		return
+	}
+	raw := strings.TrimSpace(doc.VarType)
+	if raw == "" {
+		return
+	}
+	name := strings.TrimSpace(doc.VarName)
+	if name == "" {
+		if assignment == nil {
+			return
+		}
+		left, ok := assignment.Left.(*ast.VariableNode)
+		if !ok {
+			return
+		}
+		name = left.Name
+	}
+	normalized := normalizeTypeWithContext(raw, scope.typeCtx)
+	typ := ParseType(normalized)
+	if typ.IsEmpty() {
+		return
+	}
+	scope.clearCallableReturn(name)
+	scope.clearArrayShapeCallables(name)
+	scope.clearArrayIndexKeys(name)
+	scope.clearGenericContext(name)
+	scope.setVariable(name, typ)
+	if genInst, ok := parseGenericTypeFromString(normalized); ok {
+		scope.setGenericContext(name, genInst)
+	} else if genInst, ok := parseGenericTypeFromString(raw); ok {
+		scope.setGenericContext(name, genInst)
+	}
+	if fields := parseArrayShapeFields(raw, scope.typeCtx); len(fields) > 0 {
+		scope.setArrayShapeCallables(name, fields)
+	}
+	if returnType := callableReturnType(raw, scope.typeCtx); !returnType.IsEmpty() {
+		scope.setCallableReturn(name, returnType)
+	}
 }
 
 func assertionCondition(expr ast.Node) (ast.Node, bool) {

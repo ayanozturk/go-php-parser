@@ -265,6 +265,7 @@ func (r *ReturnNode) TokenLiteral() string {
 // ExpressionStmt wraps a single expression as a statement
 type ExpressionStmt struct {
 	Expr   Node
+	PHPDoc *PHPDocNode
 	Pos    Position
 	EndPos Position
 }

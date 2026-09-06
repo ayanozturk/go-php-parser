@@ -139,6 +139,18 @@ func TestExtractPHPDocFromComment(t *testing.T) {
 	}
 }
 
+func TestParsePHPDocVarName(t *testing.T) {
+	doc := ParsePHPDoc(`/**
+ * @var User $user
+ */`)
+	if doc.VarType != "User" {
+		t.Fatalf("VarType = %q, want User", doc.VarType)
+	}
+	if doc.VarName != "user" {
+		t.Fatalf("VarName = %q, want user", doc.VarName)
+	}
+}
+
 func TestParsePHPDocPreservesWhitespaceInsideGenericTypes(t *testing.T) {
 	doc := ParsePHPDoc(`/**
  * @param Map<string, Item> $items Items to process
