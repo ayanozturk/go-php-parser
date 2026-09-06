@@ -168,6 +168,41 @@ enum InvoiceStatus: int {
 	}
 }
 
+func TestInferHoverTypeAfterIfElseNullGuards(t *testing.T) {
+	php := `<?php
+class Status { public function isTrial(): bool { return false; } }
+class Subscription { public function getStatusEnum(): Status { return new Status(); } }
+function byId(string $id): ?Subscription { return null; }
+function active(): ?Subscription { return null; }
+function show(?string $id): void {
+    $subscription = null;
+    if ($id) {
+        $subscription = byId($id);
+        if (!$subscription) { return; }
+    } else {
+        $subscription = active();
+        if (!$subscription) { return; }
+    }
+    $subscription->getStatusEnum();
+}
+`
+	nodes := parseHoverFixture(t, php)
+	project := BuildProjectIndex(map[string][]ast.Node{"test.php": nodes})
+	ctx := &AnalysisContext{Resolver: project}
+
+	line := 15
+	nameCol := 5
+	methodCol := 21
+	subscription, ok := InferHoverTargetAtPosition(nodes, line, nameCol, "subscription", ctx)
+	if !ok || subscription.Type != "Subscription" {
+		t.Fatalf("expected $subscription to be Subscription after if/else guards, got %#v, %t", subscription, ok)
+	}
+	method, ok := InferHoverTargetAtPosition(nodes, line, methodCol, "getStatusEnum", ctx)
+	if !ok || method.Kind != HoverTargetMethod || method.ReceiverClass != "Subscription" {
+		t.Fatalf("expected getStatusEnum on Subscription, got %#v, %t", method, ok)
+	}
+}
+
 func parseHoverFixture(t *testing.T, php string) []ast.Node {
 	t.Helper()
 	l := lexer.New(php)

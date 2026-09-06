@@ -138,16 +138,20 @@ func walkStatementsForArgTypesUsing(nodes []ast.Node, scope *functionScope, ctx 
 			walkExprForArgTypesUsing(n.Level, scope, ctx, filename, issues, observe)
 		case *ast.IfNode:
 			walkExprForArgTypesUsing(n.Condition, scope, ctx, filename, issues, observe)
-			walkStatementsForArgTypesUsing(n.Body, scopeForConditionTrue(scope, n.Condition), ctx, filename, issues, observe)
-			for _, elseif := range n.ElseIfs {
+			thenScope := scopeForConditionTrue(scope, n.Condition)
+			walkStatementsForArgTypesUsing(n.Body, thenScope, ctx, filename, issues, observe)
+			elseifScopes := make([]*functionScope, len(n.ElseIfs))
+			for i, elseif := range n.ElseIfs {
 				walkExprForArgTypesUsing(elseif.Condition, scope, ctx, filename, issues, observe)
-				walkStatementsForArgTypesUsing(elseif.Body, scopeForConditionTrue(scope, elseif.Condition), ctx, filename, issues, observe)
+				elseifScopes[i] = scopeForConditionTrue(scope, elseif.Condition)
+				walkStatementsForArgTypesUsing(elseif.Body, elseifScopes[i], ctx, filename, issues, observe)
 			}
+			var elseScope *functionScope
 			if n.Else != nil {
-				walkStatementsForArgTypesUsing(n.Else.Body, scopeForConditionFalse(scope, n.Condition), ctx, filename, issues, observe)
+				elseScope = scopeForConditionFalse(scope, n.Condition)
+				walkStatementsForArgTypesUsing(n.Else.Body, elseScope, ctx, filename, issues, observe)
 			}
-			applyTerminatingIfFalseScope(scope, n)
-			applyLazyInitPropertyScope(scope, n, ctx)
+			finishIfNodeScope(scope, n, thenScope, elseifScopes, elseScope, ctx)
 		case *ast.BlockNode:
 			walkStatementsForArgTypesUsing(n.Statements, scope.clone(), ctx, filename, issues, observe)
 		case *ast.WhileNode:
@@ -351,6 +355,92 @@ func typeFromInstanceofTarget(node ast.Node, scope *functionScope) Type {
 		className = scope.typeCtx.resolveClassLike(className)
 	}
 	return ClassType(className)
+}
+
+func finishIfNodeScope(scope *functionScope, node *ast.IfNode, thenScope *functionScope, elseifScopes []*functionScope, elseScope *functionScope, ctx *AnalysisContext) {
+	applyTerminatingIfFalseScope(scope, node)
+	applyIfElseJoinScope(scope, node, thenScope, elseifScopes, elseScope)
+	applyLazyInitPropertyScope(scope, node, ctx)
+}
+
+func applyIfElseJoinScope(scope *functionScope, node *ast.IfNode, thenScope *functionScope, elseifScopes []*functionScope, elseScope *functionScope) {
+	if scope == nil || node == nil || node.Else == nil {
+		return
+	}
+	var fallthroughs []*functionScope
+	if !statementsTerminate(node.Body) {
+		fallthroughs = append(fallthroughs, thenScope)
+	}
+	for i, elseif := range node.ElseIfs {
+		if statementsTerminate(elseif.Body) {
+			continue
+		}
+		if i < len(elseifScopes) {
+			fallthroughs = append(fallthroughs, elseifScopes[i])
+		}
+	}
+	if !statementsTerminate(node.Else.Body) {
+		fallthroughs = append(fallthroughs, elseScope)
+	}
+	joinFallthroughVariableTypes(scope, fallthroughs)
+}
+
+func joinFallthroughVariableTypes(outer *functionScope, fallthroughs []*functionScope) {
+	if outer == nil || len(fallthroughs) == 0 {
+		return
+	}
+	names := map[string]struct{}{}
+	for _, branch := range fallthroughs {
+		collectOwnedVariableNames(branch, names)
+	}
+	for name := range names {
+		var joined Type
+		found := false
+		all := true
+		for _, branch := range fallthroughs {
+			if branch == nil {
+				all = false
+				continue
+			}
+			typ, ok := branch.variable(name)
+			if !ok {
+				all = false
+				continue
+			}
+			if !found {
+				joined = typ
+				found = true
+				continue
+			}
+			joined = unionInferredTypes(joined, typ)
+		}
+		if !found {
+			continue
+		}
+		if !all {
+			if outerType, ok := outer.variable(name); ok {
+				joined = unionInferredTypes(joined, outerType)
+			}
+		}
+		if !joined.IsEmpty() {
+			outer.setVariable(name, joined)
+		}
+	}
+}
+
+func collectOwnedVariableNames(scope *functionScope, names map[string]struct{}) {
+	if scope == nil || names == nil || scope.variables == nil || !scope.variablesOwned {
+		return
+	}
+	layer := scope.variables
+	if layer.hasOne && layer.name != "" {
+		names[layer.name] = struct{}{}
+	}
+	for name := range layer.values {
+		if name != "" {
+			names[name] = struct{}{}
+		}
+	}
 }
 
 func applyTerminatingIfFalseScope(scope *functionScope, node *ast.IfNode) {

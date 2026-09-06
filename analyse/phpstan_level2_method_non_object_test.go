@@ -90,3 +90,46 @@ function run(
 		t.Fatalf("known nullable union methods should remain clean, got %#v", issues)
 	}
 }
+
+func TestLevel2IfElseNullGuardsJoinAssignedReceiver(t *testing.T) {
+	files := map[string]string{
+		"test.php": `<?php
+class Status {
+    public function isTrial(): bool { return false; }
+}
+class Subscription {
+    public function getCompany(): object { return new \stdClass(); }
+    public function getStatusEnum(): Status { return new Status(); }
+}
+class Service {
+    public function getById(string $id): ?Subscription { return null; }
+    public function getActive(): ?Subscription { return null; }
+}
+class Controller {
+    public function show(?string $subscriptionId, Service $service, object $company): void {
+        $subscription = null;
+        if ($subscriptionId) {
+            $subscription = $service->getById($subscriptionId);
+            if (!$subscription || $subscription->getCompany() !== $company) {
+                return;
+            }
+        } else {
+            $subscription = $service->getActive();
+            if (!$subscription) {
+                return;
+            }
+        }
+        $subscription->getStatusEnum()->isTrial();
+    }
+}
+`,
+	}
+
+	issues := runAnalysisLevelOnFiles(t, files, 2)
+	if hasIssueContaining(issues, level2MethodNonObjectCode, "getStatusEnum") {
+		t.Fatalf("if/else null guards should join a non-null $subscription, got %#v", issues)
+	}
+	if hasIssueContaining(runAnalysisLevelOnFiles(t, files, 8), level8MethodNonObjectCode, "getStatusEnum") {
+		t.Fatalf("joined if/else guards should not stay nullable at level 8")
+	}
+}

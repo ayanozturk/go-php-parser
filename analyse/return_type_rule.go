@@ -398,15 +398,19 @@ func collectObservedReturnsUsing(filename string, nodes []ast.Node, scope *funct
 		case *ast.AssignmentNode:
 			applyAssignmentScope(scope, n, ctx)
 		case *ast.IfNode:
-			returns = append(returns, collectObservedReturnsUsing(filename, n.Body, scopeForConditionTrue(scope, n.Condition), ctx, infer)...)
-			for _, elseif := range n.ElseIfs {
-				returns = append(returns, collectObservedReturnsUsing(filename, elseif.Body, scopeForConditionTrue(scope, elseif.Condition), ctx, infer)...)
+			thenScope := scopeForConditionTrue(scope, n.Condition)
+			returns = append(returns, collectObservedReturnsUsing(filename, n.Body, thenScope, ctx, infer)...)
+			elseifScopes := make([]*functionScope, len(n.ElseIfs))
+			for i, elseif := range n.ElseIfs {
+				elseifScopes[i] = scopeForConditionTrue(scope, elseif.Condition)
+				returns = append(returns, collectObservedReturnsUsing(filename, elseif.Body, elseifScopes[i], ctx, infer)...)
 			}
+			var elseScope *functionScope
 			if n.Else != nil {
-				returns = append(returns, collectObservedReturnsUsing(filename, n.Else.Body, scopeForConditionFalse(scope, n.Condition), ctx, infer)...)
+				elseScope = scopeForConditionFalse(scope, n.Condition)
+				returns = append(returns, collectObservedReturnsUsing(filename, n.Else.Body, elseScope, ctx, infer)...)
 			}
-			applyTerminatingIfFalseScope(scope, n)
-			applyLazyInitPropertyScope(scope, n, ctx)
+			finishIfNodeScope(scope, n, thenScope, elseifScopes, elseScope, ctx)
 		case *ast.BlockNode:
 			returns = append(returns, collectObservedReturnsUsing(filename, n.Statements, scope.clone(), ctx, infer)...)
 		case *ast.WhileNode:

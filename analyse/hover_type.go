@@ -128,16 +128,20 @@ func walkStatementsForHoverTypes(nodes []ast.Node, scope *functionScope, ctx *An
 			walkExprForHoverTypes(n.Level, scope, ctx, query, best)
 		case *ast.IfNode:
 			walkExprForHoverTypes(n.Condition, scope, ctx, query, best)
-			walkStatementsForHoverTypes(n.Body, scopeForConditionTrue(scope, n.Condition), ctx, query, best)
-			for _, elseif := range n.ElseIfs {
+			thenScope := scopeForConditionTrue(scope, n.Condition)
+			walkStatementsForHoverTypes(n.Body, thenScope, ctx, query, best)
+			elseifScopes := make([]*functionScope, len(n.ElseIfs))
+			for i, elseif := range n.ElseIfs {
 				walkExprForHoverTypes(elseif.Condition, scope, ctx, query, best)
-				walkStatementsForHoverTypes(elseif.Body, scopeForConditionTrue(scope, elseif.Condition), ctx, query, best)
+				elseifScopes[i] = scopeForConditionTrue(scope, elseif.Condition)
+				walkStatementsForHoverTypes(elseif.Body, elseifScopes[i], ctx, query, best)
 			}
+			var elseScope *functionScope
 			if n.Else != nil {
-				walkStatementsForHoverTypes(n.Else.Body, scopeForConditionFalse(scope, n.Condition), ctx, query, best)
+				elseScope = scopeForConditionFalse(scope, n.Condition)
+				walkStatementsForHoverTypes(n.Else.Body, elseScope, ctx, query, best)
 			}
-			applyTerminatingIfFalseScope(scope, n)
-			applyLazyInitPropertyScope(scope, n, ctx)
+			finishIfNodeScope(scope, n, thenScope, elseifScopes, elseScope, ctx)
 		case *ast.BlockNode:
 			walkStatementsForHoverTypes(n.Statements, scope.clone(), ctx, query, best)
 		case *ast.WhileNode:
