@@ -1289,9 +1289,9 @@ func (p *Parser) readCastType() (string, bool) {
 	}
 	if p.tok.Type == token.T_STRING {
 		// PHP cast keywords are case-insensitive, e.g. "(String)", "(INT)".
-		switch strings.ToLower(p.tok.Literal) {
+		castType := strings.ToLower(p.tok.Literal)
+		switch castType {
 		case "string", "int", "integer", "float", "double", "real", "bool", "boolean", "object", "unset", "binary", "void":
-			castType := strings.ToLower(p.tok.Literal)
 			if p.peekToken().Type == token.T_RPAREN {
 				p.nextToken()
 				return castType, true

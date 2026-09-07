@@ -980,7 +980,42 @@ func (idx *ProjectIndex) ResolveClass(name string) (ResolvedClass, bool) {
 }
 
 func (idx *ProjectIndex) ResolveMethod(className, methodName string) (ResolvedMethod, bool) {
+	if method, found, safe := idx.resolveMethodFromNonGenericLineage(className, methodName); safe {
+		if !found {
+			return ResolvedMethod{}, false
+		}
+		// Public callers may mutate the returned parameter metadata. Keep the
+		// allocation-light traversal internal, then detach only the mutable slice.
+		method.Params = append([]ResolvedParam(nil), method.Params...)
+		return method, true
+	}
 	return idx.resolveMethodWithTemplates(className, methodName, nil, make(map[string]struct{}))
+}
+
+func (idx *ProjectIndex) resolveMethodFromNonGenericLineage(className, methodName string) (ResolvedMethod, bool, bool) {
+	if idx == nil || idx.classLineages == nil {
+		return ResolvedMethod{}, false, false
+	}
+	class, ok := idx.ResolveClass(className)
+	if !ok {
+		return ResolvedMethod{}, false, true
+	}
+	lineage, ok := idx.classLineages[indexKey(class.Name)]
+	if !ok {
+		return ResolvedMethod{}, false, false
+	}
+	lowerMethodName := asciiLowerIdent(methodName)
+	for _, candidate := range lineage {
+		resolved, ok := idx.Classes[indexKey(candidate)]
+		if !ok || len(resolved.GenericParents) != 0 {
+			return ResolvedMethod{}, false, false
+		}
+		if method, found := idx.Methods[indexKey(resolved.Name)][lowerMethodName]; found {
+			method.DeclaringClass = resolved.Name
+			return method, true, true
+		}
+	}
+	return ResolvedMethod{}, false, true
 }
 
 // ResolveMethodWithGenerics resolves a method on a generic class instance.

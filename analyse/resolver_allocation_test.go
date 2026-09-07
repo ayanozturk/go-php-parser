@@ -5,6 +5,8 @@ import (
 	"testing"
 
 	"github.com/ayanozturk/go-php-parser/ast"
+	"github.com/ayanozturk/go-php-parser/lexer"
+	"github.com/ayanozturk/go-php-parser/parser"
 )
 
 func resolverAllocationSnapshot(t *testing.T) *SemanticSnapshot {
@@ -22,6 +24,87 @@ function allocation_probe(int $count, string $label, array $options): string {}
 		t.Fatalf("build allocation fixture snapshot: %v", err)
 	}
 	return snapshot
+}
+
+func inheritedResolverAllocationSnapshot(t testing.TB) *SemanticSnapshot {
+	t.Helper()
+	p := parser.New(lexer.New(`<?php
+class AllocationBase {
+    private function middle(bool $enabled, array $values): string {}
+}
+class AllocationProbe extends AllocationBase {}
+`), false)
+	nodes := p.Parse()
+	if len(p.Errors()) > 0 {
+		t.Fatalf("parse allocation fixture: %v", p.Errors())
+	}
+	snapshot, err := NewSemanticSnapshot(map[string][]ast.Node{"src/AllocationProbe.php": nodes}, nil)
+	if err != nil {
+		t.Fatalf("build allocation fixture snapshot: %v", err)
+	}
+	return snapshot
+}
+
+func TestProjectIndexResolveInheritedMethodUsesOneAllocation(t *testing.T) {
+	snapshot := inheritedResolverAllocationSnapshot(t)
+	method, ok := snapshot.project.ResolveMethod("AllocationProbe", "middle")
+	if !ok || method.DeclaringClass != "AllocationBase" || len(method.Params) != 2 {
+		t.Fatalf("unexpected inherited method: %#v, found=%v", method, ok)
+	}
+
+	allocs := testing.AllocsPerRun(100, func() {
+		resolved, found := snapshot.project.ResolveMethod("AllocationProbe", "middle")
+		if !found {
+			t.Fatal("expected AllocationProbe::middle method")
+		}
+		consumeResolvedMethodViewForAllocationTest(resolved)
+	})
+	if allocs > 1 {
+		t.Fatalf("inherited ResolveMethod allocations/run = %.2f, want at most the defensive Params copy", allocs)
+	}
+
+	method.Params[0].Type = "mutated"
+	resolved, ok := snapshot.project.ResolveMethod("AllocationProbe", "middle")
+	if !ok || resolved.Params[0].Type != "bool" {
+		t.Fatalf("caller mutation leaked into inherited method metadata: %#v, found=%v", resolved, ok)
+	}
+}
+
+func TestProjectIndexResolveMethodPreservesInheritedGenericBindings(t *testing.T) {
+	nodes := parsePHPForProjectIndex(t, `<?php
+/** @template T */
+class GenericAllocationBase {
+    /**
+     * @param T $value
+     * @return T
+     */
+    public function convert($value) {}
+}
+class AllocationValue {}
+/** @extends GenericAllocationBase<AllocationValue> */
+class GenericAllocationChild extends GenericAllocationBase {}
+`)
+	idx := BuildProjectIndex(map[string][]ast.Node{"src/GenericAllocation.php": nodes})
+	method, ok := idx.ResolveMethod("GenericAllocationChild", "convert")
+	if !ok {
+		t.Fatal("expected inherited generic method")
+	}
+	if method.ReturnType != "AllocationValue" || len(method.Params) != 1 || method.Params[0].Type != "AllocationValue" {
+		t.Fatalf("inherited generic bindings were not preserved: %#v", method)
+	}
+}
+
+func BenchmarkProjectIndexResolveMethod(b *testing.B) {
+	snapshot := inheritedResolverAllocationSnapshot(b)
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		method, ok := snapshot.project.ResolveMethod("AllocationProbe", "middle")
+		if !ok {
+			b.Fatal("expected AllocationProbe::middle method")
+		}
+		consumeResolvedMethodViewForAllocationTest(method)
+	}
 }
 
 func TestMethodsDeclaredByIsDefensiveAndDeterministic(t *testing.T) {

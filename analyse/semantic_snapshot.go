@@ -308,10 +308,6 @@ func NewSemanticSnapshotWithIndex(idx *ProjectIndex, parsed map[string][]ast.Nod
 func newSemanticSnapshot(idx *ProjectIndex, parsed map[string][]ast.Node, facts []SemanticFact, targets []string) (*SemanticSnapshot, error) {
 	filenames := hostSnapshotTargets(parsed, targets)
 	sort.Strings(filenames)
-	scoped := make(map[string][]ast.Node, len(filenames))
-	for _, filename := range filenames {
-		scoped[filename] = parsed[filename]
-	}
 
 	store := make(semanticFactStore, len(filenames))
 
@@ -331,7 +327,7 @@ func newSemanticSnapshot(idx *ProjectIndex, parsed map[string][]ast.Node, facts 
 		facts:     store,
 		filenames: filenames,
 	}
-	snapshot.generateScopedSemantics(scoped)
+	snapshot.generateScopedSemantics(parsed)
 	return snapshot, nil
 }
 

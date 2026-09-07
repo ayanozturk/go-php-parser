@@ -41,6 +41,19 @@ class UserController extends BaseController {
 }
 `
 
+const benchUppercaseCastsPHPCode = `<?php
+$a = (STRING) $value;
+$b = (INT) $value;
+$c = (INTEGER) $value;
+$d = (FLOAT) $value;
+$e = (DOUBLE) $value;
+$f = (REAL) $value;
+$g = (BOOL) $value;
+$h = (BOOLEAN) $value;
+$i = (OBJECT) $value;
+$j = (BINARY) $value;
+`
+
 func BenchmarkParse(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
@@ -56,6 +69,15 @@ func BenchmarkParseSkipFunctionBodies(b *testing.B) {
 		l := lexer.New(benchPHPCode)
 		p := New(l, false)
 		p.SkipFunctionBodies = true
+		_ = p.Parse()
+	}
+}
+
+func BenchmarkParseUppercaseCasts(b *testing.B) {
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		l := lexer.New(benchUppercaseCastsPHPCode)
+		p := New(l, false)
 		_ = p.Parse()
 	}
 }
