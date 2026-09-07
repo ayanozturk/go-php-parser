@@ -590,6 +590,69 @@ function parseDateTime(?string $dateString): void
 	}
 }
 
+func TestFalsyAssignInitNarrowsNullableObject(t *testing.T) {
+	files := map[string]string{
+		"app.php": `<?php
+class ResetPassword {}
+function save(ResetPassword $reset): void {}
+function findReset(): ?ResetPassword { return null; }
+function run(): void
+{
+    $passwordReset = findReset();
+    if (!$passwordReset) {
+        $passwordReset = new ResetPassword();
+    }
+    save($passwordReset);
+}
+`,
+	}
+	if issues := runAnalysisLevelOnFiles(t, files, 5); hasArgTypeIssue(issues) {
+		t.Fatalf("expected if (!$x) { $x = new } to fill nullable object, got %#v", issues)
+	}
+}
+
+func TestMissingFalsyAssignInitStillRejectsNullable(t *testing.T) {
+	files := map[string]string{
+		"app.php": `<?php
+class ResetPassword {}
+function save(ResetPassword $reset): void {}
+function findReset(): ?ResetPassword { return null; }
+function run(): void
+{
+    $passwordReset = findReset();
+    save($passwordReset);
+}
+`,
+	}
+	if issues := runAnalysisLevelOnFiles(t, files, 4); hasArgTypeIssue(issues) {
+		t.Fatalf("expected nullable ResetPassword mismatch to remain silent at level 4, got %#v", issues)
+	}
+	if issues := runAnalysisLevelOnFiles(t, files, 5); !hasArgTypeIssue(issues) {
+		t.Fatalf("expected nullable ResetPassword without falsy assign init to mismatch, got %#v", issues)
+	}
+}
+
+func TestFalseEqualityAssignInitNarrowsInt(t *testing.T) {
+	files := map[string]string{
+		"app.php": `<?php
+function takeInt(int $n): void {}
+/** @return int|false */
+function fileSize() { return false; }
+function run(): void
+{
+    $fileSize = fileSize();
+    if ($fileSize === false) {
+        $fileSize = 0;
+    }
+    takeInt($fileSize);
+}
+`,
+	}
+	if issues := runAnalysisLevelOnFiles(t, files, 5); hasArgTypeIssue(issues) {
+		t.Fatalf("expected if ($x === false) { $x = 0 } to narrow int|false to int, got %#v", issues)
+	}
+}
+
 func TestNullsafePropertyGuardNarrowsReceiver(t *testing.T) {
 	files := map[string]string{
 		"app.php": `<?php

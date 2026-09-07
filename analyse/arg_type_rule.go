@@ -313,6 +313,12 @@ func variablesTypedWhenFalse(node ast.Node, scope *functionScope) map[string]Typ
 				types[name] = typ
 			}
 			return types
+		case "==", "===":
+			if name, ok := falseComparisonVariable(n.Left, n.Right); ok {
+				if typ, ok := variableWithoutBuiltin(scope, name, "false"); ok {
+					return map[string]Type{name: typ}
+				}
+			}
 		}
 	case *ast.UnaryExpr:
 		if n.Operator == "!" {
@@ -330,11 +336,26 @@ func nonNullVariableType(scope *functionScope, variableName string) (Type, bool)
 	if !ok {
 		return EmptyType(), false
 	}
-	refined := current.withoutBuiltin("null")
+	refined := current.withoutBuiltin("null").withoutBuiltin("false")
 	if refined.IsEmpty() {
-		if current.hasBuiltin("null") {
+		if current.hasBuiltin("null") || current.hasBuiltin("false") {
 			return MixedType(), true
 		}
+		return EmptyType(), false
+	}
+	return refined, true
+}
+
+func variableWithoutBuiltin(scope *functionScope, variableName, builtin string) (Type, bool) {
+	if scope == nil {
+		return EmptyType(), false
+	}
+	current, ok := scope.variable(variableName)
+	if !ok {
+		return EmptyType(), false
+	}
+	refined := current.withoutBuiltin(builtin)
+	if refined.IsEmpty() {
 		return EmptyType(), false
 	}
 	return refined, true
@@ -396,6 +417,7 @@ func finishIfNodeScope(scope *functionScope, node *ast.IfNode, thenScope *functi
 	applyTerminatingIfFalseScope(scope, node)
 	applyIfElseJoinScope(scope, node, thenScope, elseifScopes, elseScope)
 	applyLazyInitPropertyScope(scope, node, ctx)
+	applyFalsyInitVariableScope(scope, node, thenScope)
 }
 
 func applyIfElseJoinScope(scope *functionScope, node *ast.IfNode, thenScope *functionScope, elseifScopes []*functionScope, elseScope *functionScope) {
@@ -662,6 +684,113 @@ func bodyAssignsToThisProperty(body []ast.Node, propertyName string) bool {
 		}
 	}
 	return false
+}
+
+func bodyAssignsVariable(body []ast.Node, variableName string) bool {
+	if variableName == "" {
+		return false
+	}
+	for _, stmt := range body {
+		var assignment *ast.AssignmentNode
+		switch n := stmt.(type) {
+		case *ast.AssignmentNode:
+			assignment = n
+		case *ast.ExpressionStmt:
+			a, ok := n.Expr.(*ast.AssignmentNode)
+			if !ok {
+				continue
+			}
+			assignment = a
+		default:
+			continue
+		}
+		variable, ok := assignment.Left.(*ast.VariableNode)
+		if ok && variable.Name == variableName {
+			return true
+		}
+	}
+	return false
+}
+
+func falsyInitGuardVariable(condition ast.Node) (string, bool) {
+	switch n := condition.(type) {
+	case *ast.UnaryExpr:
+		if n.Operator == "!" {
+			if variable, ok := n.Operand.(*ast.VariableNode); ok {
+				return variable.Name, true
+			}
+		}
+	case *ast.BinaryExpr:
+		if n.Operator == "==" || n.Operator == "===" {
+			if name, ok := nullComparisonVariable(n.Left, n.Right); ok {
+				return name, true
+			}
+			if name, ok := falseComparisonVariable(n.Left, n.Right); ok {
+				return name, true
+			}
+		}
+	}
+	return "", false
+}
+
+func falseComparisonVariable(left, right ast.Node) (string, bool) {
+	if isFalseLiteral(left) {
+		if variable, ok := right.(*ast.VariableNode); ok {
+			return variable.Name, true
+		}
+	}
+	if isFalseLiteral(right) {
+		if variable, ok := left.(*ast.VariableNode); ok {
+			return variable.Name, true
+		}
+	}
+	return "", false
+}
+
+func isFalseLiteral(node ast.Node) bool {
+	switch n := node.(type) {
+	case *ast.BooleanLiteral:
+		return !n.Value
+	case *ast.BooleanNode:
+		return !n.Value
+	default:
+		return false
+	}
+}
+
+// applyFalsyInitVariableScope handles `if (!$x) { $x = ...; }` and
+// `if ($x === false) { $x = ...; }` without an else. After the block both
+// the assigned then-branch and the implicit else (condition false) are
+// joined, so later statements see the filled-in type.
+func applyFalsyInitVariableScope(scope *functionScope, node *ast.IfNode, thenScope *functionScope) {
+	if scope == nil || node == nil || thenScope == nil || node.Else != nil || len(node.ElseIfs) > 0 {
+		return
+	}
+	if statementsTerminate(node.Body) {
+		return
+	}
+	name, ok := falsyInitGuardVariable(node.Condition)
+	if !ok || !bodyAssignsVariable(node.Body, name) {
+		return
+	}
+	thenType, thenOK := thenScope.variable(name)
+	elseTypes := variablesTypedWhenFalse(node.Condition, scope)
+	elseType, elseOK := elseTypes[name]
+	if !elseOK {
+		elseType, elseOK = nonNullVariableType(scope, name)
+	}
+	if !thenOK && !elseOK {
+		return
+	}
+	joined := thenType
+	if thenOK && elseOK {
+		joined = unionInferredTypes(thenType, elseType)
+	} else if elseOK {
+		joined = elseType
+	}
+	if !joined.IsEmpty() {
+		scope.setVariable(name, joined)
+	}
 }
 
 // applyLazyInitPropertyScope handles the lazy-initialisation pattern:

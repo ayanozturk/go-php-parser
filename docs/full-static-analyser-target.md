@@ -7,7 +7,7 @@
 - Baseline date: 2026-08-23 (Europe/London)
 - Last roadmap tidy: 2026-09-06 (Europe/London)
 - Extension package version: `0.1.35`; the exact parser integration pin is tracked in `vscode-php-strom/server/go.mod`
-- Executable differential gates: 94 / 24 / 96 / 30 / 29 / 18 / 6 / 27 (levels 0–3, 5–8) vs PHPStan 2.2.5
+- Executable differential gates: 94 / 24 / 96 / 30 / 31 / 18 / 6 / 27 (levels 0–3, 5–8) vs PHPStan 2.2.5
 - Benchmark references: Mago for performance and modern PHP type analysis, PHPStan and Psalm for diagnostic depth, and PHPCS for source-style breadth
 - Working milestone: **M0 done as a baseline; M1 in progress.** The current stream is diagnostic correctness and false-positive reduction. The accepted WordPress Mago resource comparison is parked historical evidence, not queued work.
 
@@ -613,6 +613,8 @@ Note: implemented PHP's alternative/colon control-structure syntax and several o
 66. **Done — bind `find(Foo::class)` through `class-string<T>`.** `@phpstan-param class-string<T>` and `@phpstan-return T|null` were ignored, so Doctrine `EntityManager::find(Subscription::class, $id)` stayed `object|null`. PHPStan param/return tags now overwrite only template-binding forms (`class-string<T>`, `T|null`); generic `Closure(...)` and `Join::ON` phpstan params stay unused so native `Closure`/`string` remain. Call-site templates bind `T` from `Foo::class`, and `class-string<T>` is kept instead of collapsing to `string<T>`. Cache format version 10 invalidates indexes that stored `object|null` for `find`. Two level-5 fixtures expand the pack from 25 to 27 cases. The complete gates are 94/24/96/30/27/18/6/27. On the private corpus, analyze reports 338 diagnostics (308 excluding unlevelled unreachable-code, from 316). Argument-type reports 16 → 14. Nullsafe property fetches remain separate. No production file walk was added.
 
 67. **Done — narrow receivers of truthy property and method access.** `if ($preferenceFit?->hasPreferences)` left `$preferenceFit` as `T|null` because true-scope refinement only handled variables, predicates, and instanceof. A truthy property fetch or method call on a variable now strips null from that variable in the then-branch (`$this` unchanged). Two level-5 fixtures expand the pack from 27 to 29 cases. The complete gates are 94/24/96/30/29/18/6/27. No cache format bump. On the private corpus, analyze reports 336 diagnostics (306 excluding unlevelled unreachable-code, from 308). Argument-type reports 14 → 12. Property `instanceof` and falsey-reassign joins remain separate. No production file walk was added.
+
+68. **Done — join falsy assign-init and strip `false` from truthy variables.** `if (!$passwordReset) { $passwordReset = new ResetPassword(); }` and `if ($fileSize === false) { $fileSize = 0; }` left the outer scope as `T|null` / `int|false` because if-join required an `else`. Non-terminating then-assignments of the guarded variable now join with the implicit else; truthy/`!$x` refinement also strips `false`, so fopen-style `resource|false` early returns narrow. Two level-5 fixtures expand the pack from 29 to 31 cases. The complete gates are 94/24/96/30/31/18/6/27. No cache format bump. On the private corpus, analyze reports 328 diagnostics (298 excluding unlevelled unreachable-code, from 306). Argument-type reports 12 → 7. Property `instanceof` remains separate. No production file walk was added.
 
 ## Decision log
 

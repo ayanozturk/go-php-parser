@@ -207,6 +207,20 @@
       "file": "argument-nullsafe-property-mismatch.php",
       "engineCodes": ["A.ARG.TYPE"],
       "phpstanIdentifiers": ["argument.type"]
+    },
+    {
+      "id": "argument-falsy-assign-init-clean",
+      "capability": "if (!$x) { $x = new } fills nullable object",
+      "file": "argument-falsy-assign-init-clean.php",
+      "engineCodes": [],
+      "phpstanIdentifiers": []
+    },
+    {
+      "id": "argument-falsy-assign-init-mismatch",
+      "capability": "nullable object without falsy assign-init is rejected",
+      "file": "argument-falsy-assign-init-mismatch.php",
+      "engineCodes": ["A.ARG.TYPE"],
+      "phpstanIdentifiers": ["argument.type"]
     }
   ]
 }

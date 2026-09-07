@@ -32,7 +32,7 @@ go run ./cmd/diagnostic-diff --fixtures testdata/diagnostic-differential-level7 
 go run ./cmd/diagnostic-diff --fixtures testdata/diagnostic-differential-level8 --phpstan-bin /absolute/path/to/phpstan --json
 ```
 
-The full report records the PHPStan version returned by the supplied executable. Results from different reference versions must not be merged without review. Current executable gates: **94 / 24 / 96 / 30 / 29 / 18 / 6 / 27** (levels 0–3 and 5–8). The complete packs were last fully verified against pinned PHPStan 2.2.5 with zero engine or reference mismatches. The ordinary Go suite uses engine-only mode so it does not silently download or depend on an external analyser. Ranked next coverage work is in `docs/full-static-analyser-target.md`.
+The full report records the PHPStan version returned by the supplied executable. Results from different reference versions must not be merged without review. Current executable gates: **94 / 24 / 96 / 30 / 31 / 18 / 6 / 27** (levels 0–3 and 5–8). The complete packs were last fully verified against pinned PHPStan 2.2.5 with zero engine or reference mismatches. The ordinary Go suite uses engine-only mode so it does not silently download or depend on an external analyser. Ranked next coverage work is in `docs/full-static-analyser-target.md`.
 
 ## Executable differential coverage
 
