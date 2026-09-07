@@ -272,6 +272,20 @@ func normalizeTemplateAwareTypeExpression(raw string, ctx FileTypeContext, templ
 		}
 		return strings.Join(parts, "&")
 	}
+	if instance, ok := parseGenericTypeFromString(raw); ok {
+		name := instance.ClassName
+		switch asciiLowerIdent(name) {
+		case "class-string", "interface-string", "trait-string":
+			// Keep PHPDoc class-string<T> instead of collapsing to string<T>.
+		default:
+			name = normalizeTemplateAwareTypeExpression(name, ctx, templates)
+		}
+		args := make([]string, len(instance.TypeArguments))
+		for idx, argument := range instance.TypeArguments {
+			args[idx] = normalizeTemplateAwareTypeExpression(argument, ctx, templates)
+		}
+		return name + "<" + strings.Join(args, ", ") + ">"
+	}
 	if isKnownTemplateName(raw, templates) {
 		return raw
 	}
@@ -348,6 +362,15 @@ func parseExactGenericTypeFromString(typeStr string) (GenericInstance, bool) {
 		return GenericInstance{}, false
 	}
 	return instance, true
+}
+
+func isClassStringOfKnownTemplate(typ string, templates, extra map[string]struct{}) bool {
+	instance, ok := parseExactGenericTypeFromString(strings.TrimPrefix(strings.TrimSpace(typ), "?"))
+	if !ok || !strings.EqualFold(instance.ClassName, "class-string") || len(instance.TypeArguments) != 1 {
+		return false
+	}
+	inner := strings.TrimSpace(instance.TypeArguments[0])
+	return isKnownTemplateName(inner, templates) || isKnownTemplateName(inner, extra)
 }
 
 type arrayShapeField struct {

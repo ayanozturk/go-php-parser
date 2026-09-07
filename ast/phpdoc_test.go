@@ -279,3 +279,38 @@ func TestParsePHPDocGenerics(t *testing.T) {
 		t.Fatalf("unexpected implements references: %#v", doc.Implements)
 	}
 }
+
+func TestParsePHPDocPrefersPhpstanParamAndReturn(t *testing.T) {
+	doc := ParsePHPDoc(`/**
+ * @param string $className
+ * @phpstan-param class-string<T> $className
+ * @return object|null
+ * @phpstan-return T|null
+ * @template T of object
+ */
+`)
+	if doc.ReturnType != "T|null" {
+		t.Fatalf("expected phpstan-return to win, got %q", doc.ReturnType)
+	}
+	if got := doc.GetParamTypeFromPHPDoc("className"); got != "class-string<T>" {
+		t.Fatalf("expected phpstan-param to win, got %q", got)
+	}
+	if len(doc.Templates) != 1 || doc.Templates[0].Name != "T" || doc.Templates[0].Bound != "object" {
+		t.Fatalf("expected template T of object, got %#v", doc.Templates)
+	}
+}
+
+func TestParsePHPDocKeepsCallableParamOverGenericClosure(t *testing.T) {
+	doc := ParsePHPDoc(`/**
+ * @param Closure $p
+ * @phpstan-param Closure(T, int|string):bool $p
+ * @return Collection
+ */
+`)
+	if got := doc.GetParamTypeFromPHPDoc("p"); got != "Closure" {
+		t.Fatalf("expected documented Closure to stay, got %q", got)
+	}
+	if doc.ReturnType != "Collection" {
+		t.Fatalf("expected @return Collection, got %q", doc.ReturnType)
+	}
+}

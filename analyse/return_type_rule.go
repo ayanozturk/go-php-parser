@@ -1918,8 +1918,12 @@ func bindCallSiteMethodTemplates(method ResolvedMethod, args []ast.Node, scope *
 		if paramIndex < 0 || paramIndex >= len(method.Params) {
 			continue
 		}
-		name := openTemplateParamName(method.Params[paramIndex].Type, ctx)
+		name := templateNameFromParamType(method.Params[paramIndex].Type, ctx)
 		if name == "" {
+			continue
+		}
+		if className, ok := classNameFromClassStringExpr(argumentValue(argNode), scope); ok {
+			bindings[name] = className
 			continue
 		}
 		actual := inferTypeWithFacts(filename, argumentValue(argNode), scope, ctx)
@@ -1928,7 +1932,7 @@ func bindCallSiteMethodTemplates(method ResolvedMethod, args []ast.Node, scope *
 		}
 	}
 	for _, param := range method.Params {
-		name := openTemplateParamName(param.Type, ctx)
+		name := templateNameFromParamType(param.Type, ctx)
 		if name == "" {
 			continue
 		}
@@ -1943,6 +1947,44 @@ func bindCallSiteMethodTemplates(method ResolvedMethod, args []ast.Node, scope *
 		return nil
 	}
 	return bindings
+}
+
+func templateNameFromParamType(raw string, ctx *AnalysisContext) string {
+	if name := openTemplateParamName(raw, ctx); name != "" {
+		return name
+	}
+	instance, ok := parseExactGenericTypeFromString(strings.TrimPrefix(strings.TrimSpace(raw), "?"))
+	if !ok || !strings.EqualFold(instance.ClassName, "class-string") || len(instance.TypeArguments) != 1 {
+		return ""
+	}
+	inner := strings.TrimSpace(instance.TypeArguments[0])
+	if idx := strings.LastIndex(inner, `\`); idx != -1 {
+		inner = inner[idx+1:]
+	}
+	return openTemplateParamName(inner, ctx)
+}
+
+func classNameFromClassStringExpr(expr ast.Node, scope *functionScope) (string, bool) {
+	fetch, ok := expr.(*ast.ClassConstFetchNode)
+	if !ok || !strings.EqualFold(fetch.Const, "class") {
+		return "", false
+	}
+	className := fetch.Class
+	currentName := ""
+	if scope != nil {
+		currentName = scope.className
+		switch asciiLowerIdent(strings.TrimPrefix(fetch.Class, `\`)) {
+		case "self", "static":
+			className = currentName
+		default:
+			className = scope.typeCtx.resolveClassLike(fetch.Class)
+		}
+	}
+	className = strings.TrimPrefix(className, `\`)
+	if className == "" || isSpecialClassName(className) {
+		return "", false
+	}
+	return className, true
 }
 
 func openTemplateParamName(raw string, ctx *AnalysisContext) string {

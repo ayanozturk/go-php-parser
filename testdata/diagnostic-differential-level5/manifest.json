@@ -179,6 +179,20 @@
       "file": "argument-is-string-and-ternary-mismatch.php",
       "engineCodes": ["A.ARG.TYPE"],
       "phpstanIdentifiers": ["argument.type"]
+    },
+    {
+      "id": "argument-find-class-string-clean",
+      "capability": "find(Foo::class) after null check is Foo not object",
+      "file": "argument-find-class-string-clean.php",
+      "engineCodes": [],
+      "phpstanIdentifiers": []
+    },
+    {
+      "id": "argument-find-class-string-mismatch",
+      "capability": "find(Foo::class) without null check is rejected",
+      "file": "argument-find-class-string-mismatch.php",
+      "engineCodes": ["A.ARG.TYPE"],
+      "phpstanIdentifiers": ["argument.type"]
     }
   ]
 }

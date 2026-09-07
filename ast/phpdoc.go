@@ -86,23 +86,27 @@ func ParsePHPDoc(rawContent string) *PHPDocNode {
 		}
 
 		// Check for @param tags
-		if strings.HasPrefix(line, "@param") {
+		if tag, value, ok := phpDocTag(line); ok && isPHPDocParamTag(tag) {
 			inDescription = false
-			typeName, remainder := splitPHPDocParamTypeAndRest(strings.TrimSpace(strings.TrimPrefix(line, "@param")))
+			typeName, remainder := splitPHPDocParamTypeAndRest(value)
 			parts := strings.Fields(remainder)
 			if typeName != "" && len(parts) >= 1 {
-				param := PHPDocParam{
-					Type: typeName,
-					Name: strings.TrimPrefix(parts[0], "$"),
+				prefer := IsTemplateBindingParamType(typeName)
+				if !prefer && tag != "param" {
+					continue
 				}
-				if len(parts) > 1 {
-					param.Description = strings.Join(parts[1:], " ")
-				}
-				phpdoc.Params = append(phpdoc.Params, param)
+				upsertPHPDocParam(phpdoc, PHPDocParam{
+					Type:        typeName,
+					Name:        strings.TrimPrefix(parts[0], "$"),
+					Description: strings.Join(parts[1:], " "),
+				}, prefer)
 			}
-		} else if strings.HasPrefix(line, "@return") {
+		} else if tag, value, ok := phpDocTag(line); ok && isPHPDocReturnTag(tag) {
 			inDescription = false
-			phpdoc.ReturnType, _ = splitPHPDocTypeAndRest(strings.TrimSpace(strings.TrimPrefix(line, "@return")))
+			returnType, _ := splitPHPDocTypeAndRest(value)
+			if phpdoc.ReturnType == "" || isTemplateUnionReturnType(returnType) {
+				phpdoc.ReturnType = returnType
+			}
 		} else if strings.HasPrefix(line, "@var") {
 			inDescription = false
 			var remainder string
@@ -197,6 +201,123 @@ func phpDocTag(line string) (string, string, bool) {
 		return "", "", false
 	}
 	return strings.ToLower(strings.TrimPrefix(parts[0], "@")), strings.Join(parts[1:], " "), true
+}
+
+func isPHPDocParamTag(tag string) bool {
+	switch tag {
+	case "param", "phpstan-param", "psalm-param":
+		return true
+	default:
+		return false
+	}
+}
+
+func isPHPDocReturnTag(tag string) bool {
+	switch tag {
+	case "return", "phpstan-return", "psalm-return":
+		return true
+	default:
+		return false
+	}
+}
+
+func upsertPHPDocParam(phpdoc *PHPDocNode, param PHPDocParam, preferTemplates bool) {
+	if phpdoc == nil {
+		return
+	}
+	for i, existing := range phpdoc.Params {
+		if existing.Name != param.Name {
+			continue
+		}
+		if preferTemplates {
+			phpdoc.Params[i] = param
+		}
+		return
+	}
+	phpdoc.Params = append(phpdoc.Params, param)
+}
+
+func IsTemplateBindingParamType(typ string) bool {
+	typ = strings.TrimSpace(strings.TrimPrefix(typ, "?"))
+	if typ == "" || strings.ContainsAny(typ, `|&()`) {
+		return false
+	}
+	lower := strings.ToLower(typ)
+	if strings.HasPrefix(lower, "class-string<") {
+		return true
+	}
+	return isBarePHPDocTemplateName(typ)
+}
+
+func isTemplateUnionReturnType(typ string) bool {
+	typ = strings.TrimSpace(strings.TrimPrefix(typ, "?"))
+	if typ == "" {
+		return false
+	}
+	sawTemplate := false
+	part := strings.Builder{}
+	depth := 0
+	flush := func() bool {
+		token := strings.TrimSpace(part.String())
+		part.Reset()
+		if token == "" {
+			return true
+		}
+		if strings.EqualFold(token, "null") {
+			return true
+		}
+		if !isBarePHPDocTemplateName(token) {
+			return false
+		}
+		sawTemplate = true
+		return true
+	}
+	for _, r := range typ {
+		switch r {
+		case '<', '(', '{', '[':
+			depth++
+			part.WriteRune(r)
+		case '>', ')', '}', ']':
+			if depth > 0 {
+				depth--
+			}
+			part.WriteRune(r)
+		case '|':
+			if depth == 0 {
+				if !flush() {
+					return false
+				}
+				continue
+			}
+			part.WriteRune(r)
+		default:
+			part.WriteRune(r)
+		}
+	}
+	if !flush() {
+		return false
+	}
+	return sawTemplate
+}
+
+func isBarePHPDocTemplateName(name string) bool {
+	if name == "T" || name == "t" {
+		return true
+	}
+	if len(name) < 2 || (name[0] != 'T' && name[0] != 't') {
+		return false
+	}
+	if name[1] < 'A' || name[1] > 'Z' {
+		return false
+	}
+	for i := 2; i < len(name); i++ {
+		c := name[i]
+		if c >= 'A' && c <= 'Z' || c >= 'a' && c <= 'z' || c >= '0' && c <= '9' || c == '_' {
+			continue
+		}
+		return false
+	}
+	return true
 }
 
 func isTemplateTag(tag string) bool {

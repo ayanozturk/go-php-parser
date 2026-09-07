@@ -7,7 +7,7 @@
 - Baseline date: 2026-08-23 (Europe/London)
 - Last roadmap tidy: 2026-09-06 (Europe/London)
 - Extension package version: `0.1.35`; the exact parser integration pin is tracked in `vscode-php-strom/server/go.mod`
-- Executable differential gates: 94 / 24 / 96 / 30 / 25 / 18 / 6 / 27 (levels 0–3, 5–8) vs PHPStan 2.2.5
+- Executable differential gates: 94 / 24 / 96 / 30 / 27 / 18 / 6 / 27 (levels 0–3, 5–8) vs PHPStan 2.2.5
 - Benchmark references: Mago for performance and modern PHP type analysis, PHPStan and Psalm for diagnostic depth, and PHPCS for source-style breadth
 - Working milestone: **M0 done as a baseline; M1 in progress.** The current stream is diagnostic correctness and false-positive reduction. The accepted WordPress Mago resource comparison is parked historical evidence, not queued work.
 
@@ -609,6 +609,8 @@ Note: implemented PHP's alternative/colon control-structure syntax and several o
 64. **Done — narrow negated `is_*` predicates after terminating `||` guards.** `if (!is_string($a) || !is_string($b)) { return; }` left later statements seeing `string|null` because false-scope refinement only handled null-stripping and negated `instanceof`. Terminating false now also applies `is_string`/`is_int`/… when a `!` predicate is false, including De Morgan `||` combinations and mixed `!is_string($x) || $x === ''` DateTime guards. Two level-5 fixtures expand the pack from 21 to 23 cases. The complete gates are 94/24/96/30/23/18/6/27. No cache format bump. On the private corpus, analyze reports 362 diagnostics (332 excluding unlevelled unreachable-code, from 360). Argument-type reports 51 → 30. Nullsafe property fetches remain separate. No production file walk was added.
 
 65. **Done — parse `&&`/`||` without swallowing `?:`.** The boolean-and/or right operand was parsed at precedence 0 so `$a && $b = $c` still stole assignment, but that also nested `?:` and `||` inside `&&`. `is_string($x) && $x !== '' ? (int)$x : null` became a `bool` argument. `&&`/`||` now use normal tighter precedence; assignment steal-back is unchanged. Two level-5 fixtures expand the pack from 23 to 25 cases. The complete gates are 94/24/96/30/25/18/6/27. No cache format bump. On the private corpus, analyze reports 346 diagnostics (316 excluding unlevelled unreachable-code, from 332). Argument-type reports 30 → 16. Nullsafe property fetches remain separate. No production file walk was added.
+
+66. **Done — bind `find(Foo::class)` through `class-string<T>`.** `@phpstan-param class-string<T>` and `@phpstan-return T|null` were ignored, so Doctrine `EntityManager::find(Subscription::class, $id)` stayed `object|null`. PHPStan param/return tags now overwrite only template-binding forms (`class-string<T>`, `T|null`); generic `Closure(...)` and `Join::ON` phpstan params stay unused so native `Closure`/`string` remain. Call-site templates bind `T` from `Foo::class`, and `class-string<T>` is kept instead of collapsing to `string<T>`. Cache format version 10 invalidates indexes that stored `object|null` for `find`. Two level-5 fixtures expand the pack from 25 to 27 cases. The complete gates are 94/24/96/30/27/18/6/27. On the private corpus, analyze reports 338 diagnostics (308 excluding unlevelled unreachable-code, from 316). Argument-type reports 16 → 14. Nullsafe property fetches remain separate. No production file walk was added.
 
 ## Decision log
 

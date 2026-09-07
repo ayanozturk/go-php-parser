@@ -265,6 +265,28 @@ interface EventDispatcherInterface {
 	}
 }
 
+func TestProjectIndexKeepsClassStringTemplateParam(t *testing.T) {
+	parsed := map[string][]ast.Node{
+		"em.php": parsePHPForProjectIndex(t, `<?php
+interface ObjectRepository {
+    /**
+     * @param string $className
+     * @phpstan-param class-string<T> $className
+     * @return object|null
+     * @phpstan-return T|null
+     * @template T of object
+     */
+    public function find(string $className, mixed $id): object|null;
+}
+`),
+	}
+	idx := BuildProjectIndex(parsed)
+	method, ok := idx.ResolveMethod("ObjectRepository", "find")
+	if !ok || method.ReturnType != "T|null" || len(method.Params) == 0 || method.Params[0].Type != "class-string<T>" {
+		t.Fatalf("find() should keep class-string<T> and T|null, got %#v, %v", method, ok)
+	}
+}
+
 func TestProjectIndexCollapsesConditionalReturnToNative(t *testing.T) {
 	parsed := map[string][]ast.Node{
 		"controller.php": parsePHPForProjectIndex(t, `<?php

@@ -1913,15 +1913,15 @@ func paramsFromNodesWithPHPDoc(nodes []ast.Node, doc *ast.PHPDocNode, ft FileTyp
 			typ = param.UnionType.TokenLiteral()
 		}
 		if doc != nil {
-			if documented := doc.GetParamTypeFromPHPDoc(param.Name); documented != "" {
-				typ = documented
-			}
+		if documented := doc.GetParamTypeFromPHPDoc(param.Name); documented != "" {
+			typ = documented
+		}
 		}
 		typ = expandPHPDocTypeAliases(typ, aliases)
 		// Composite types that mention call-site templates stay mixed until
-		// argument inference can bind them. Bare template names are kept so
-		// get($default) can substitute the argument type.
-		if phpDocUsesTemplate(typ, callableTemplates) && !isKnownTemplateName(typ, templates) && !isKnownTemplateName(typ, callableTemplates) {
+		// argument inference can bind them. Bare template names and
+		// class-string<T> stay so find(Foo::class) can substitute T.
+		if phpDocUsesTemplate(typ, callableTemplates) && !isKnownTemplateName(typ, templates) && !isKnownTemplateName(typ, callableTemplates) && !isClassStringOfKnownTemplate(typ, templates, callableTemplates) {
 			typ = "mixed"
 		}
 		params = append(params, ResolvedParam{

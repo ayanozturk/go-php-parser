@@ -590,6 +590,73 @@ function parseDateTime(?string $dateString): void
 	}
 }
 
+func TestEntityManagerFindClassStringBindsEntityType(t *testing.T) {
+	files := map[string]string{
+		"app.php": `<?php
+class Subscription {}
+
+interface ObjectRepository
+{
+    /**
+     * @param string $className
+     * @phpstan-param class-string<T> $className
+     * @return object|null
+     * @phpstan-return T|null
+     * @template T of object
+     */
+    public function find(string $className, mixed $id): object|null;
+}
+
+function notify(Subscription $subscription): void {}
+
+function run(ObjectRepository $em): void
+{
+    $subscription = $em->find(Subscription::class, 1);
+    if (!$subscription) {
+        return;
+    }
+    notify($subscription);
+}
+`,
+	}
+	if issues := runAnalysisLevelOnFiles(t, files, 5); hasArgTypeIssue(issues) {
+		t.Fatalf("expected find(Subscription::class) after null check to be Subscription, got %#v", issues)
+	}
+}
+
+func TestEntityManagerFindWithoutNullCheckStillRejectsNullable(t *testing.T) {
+	files := map[string]string{
+		"app.php": `<?php
+class Subscription {}
+
+interface ObjectRepository
+{
+    /**
+     * @param string $className
+     * @phpstan-param class-string<T> $className
+     * @return object|null
+     * @phpstan-return T|null
+     * @template T of object
+     */
+    public function find(string $className, mixed $id): object|null;
+}
+
+function notify(Subscription $subscription): void {}
+
+function run(ObjectRepository $em): void
+{
+    notify($em->find(Subscription::class, 1));
+}
+`,
+	}
+	if issues := runAnalysisLevelOnFiles(t, files, 4); hasArgTypeIssue(issues) {
+		t.Fatalf("expected nullable find() mismatch to remain silent at level 4, got %#v", issues)
+	}
+	if issues := runAnalysisLevelOnFiles(t, files, 5); !hasArgTypeIssue(issues) {
+		t.Fatalf("expected find() without null check to mismatch, got %#v", issues)
+	}
+}
+
 func TestIsStringAndNonEmptyTernaryIsIntOrNullNotBool(t *testing.T) {
 	files := map[string]string{
 		"app.php": `<?php
