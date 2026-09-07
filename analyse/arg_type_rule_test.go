@@ -885,6 +885,91 @@ class Controller
 	}
 }
 
+func TestVarDocAfterTerminatingIfNarrowsArgument(t *testing.T) {
+	files := map[string]string{
+		"app.php": `<?php
+class User {}
+
+class Controller
+{
+    public function getUser(): ?User
+    {
+        return null;
+    }
+
+    public function takesUser(User $user): void
+    {
+    }
+
+    public function run(array $items): void
+    {
+        if (empty($items)) {
+            return;
+        }
+        /** @var User $user */
+        $user = $this->getUser();
+        $result = 0;
+        switch ('go') {
+            case 'go':
+                $this->takesUser($user);
+                break;
+        }
+    }
+}
+`,
+	}
+	if issues := runAnalysisLevelOnFiles(t, files, 5); hasArgTypeIssue(issues) {
+		t.Fatalf("expected assignment @var User after terminating if to narrow inside switch case, got %#v", issues)
+	}
+}
+
+func TestVarDocFQCNAfterTerminatingIfNarrowsInheritedGetUser(t *testing.T) {
+	files := map[string]string{
+		"user.php": `<?php
+namespace App\Entity;
+
+class User {}
+`,
+		"app.php": `<?php
+namespace App\Module;
+
+use App\Entity\User;
+
+class Base
+{
+    protected function getUser(): ?User
+    {
+        return null;
+    }
+}
+
+class Host extends Base
+{
+    public function takesUser(User $user): void
+    {
+    }
+
+    public function run(array $items): void
+    {
+        if (empty($items)) {
+            return;
+        }
+        /** @var \App\Entity\User $user */
+        $user = $this->getUser();
+        switch ('go') {
+            case 'go':
+                $this->takesUser($user);
+                break;
+        }
+    }
+}
+`,
+	}
+	if issues := runAnalysisLevelOnFiles(t, files, 5); hasArgTypeIssue(issues) {
+		t.Fatalf("expected FQCN @var User after terminating if to narrow inherited getUser() inside switch case, got %#v", issues)
+	}
+}
+
 func TestFalsyAssignInitNarrowsNullableObject(t *testing.T) {
 	files := map[string]string{
 		"app.php": `<?php

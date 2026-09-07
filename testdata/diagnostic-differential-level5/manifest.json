@@ -305,6 +305,20 @@
       "file": "argument-var-doc-switch-mismatch.php",
       "engineCodes": ["A.ARG.TYPE"],
       "phpstanIdentifiers": ["argument.type"]
+    },
+    {
+      "id": "argument-var-doc-after-if-clean",
+      "capability": "assignment @var after terminating if narrows switch arguments",
+      "file": "argument-var-doc-after-if-clean.php",
+      "engineCodes": [],
+      "phpstanIdentifiers": []
+    },
+    {
+      "id": "argument-var-doc-after-if-mismatch",
+      "capability": "nullable getUser after terminating if without @var is rejected",
+      "file": "argument-var-doc-after-if-mismatch.php",
+      "engineCodes": ["A.ARG.TYPE"],
+      "phpstanIdentifiers": ["argument.type"]
     }
   ]
 }

@@ -7,7 +7,7 @@
 - Baseline date: 2026-08-23 (Europe/London)
 - Last roadmap tidy: 2026-09-06 (Europe/London)
 - Extension package version: `0.1.35`; the exact parser integration pin is tracked in `vscode-php-strom/server/go.mod`
-- Executable differential gates: 94 / 24 / 96 / 30 / 43 / 18 / 6 / 27 (levels 0–3, 5–8) vs PHPStan 2.2.5
+- Executable differential gates: 94 / 24 / 96 / 30 / 45 / 18 / 6 / 27 (levels 0–3, 5–8) vs PHPStan 2.2.5
 - Benchmark references: Mago for performance and modern PHP type analysis, PHPStan and Psalm for diagnostic depth, and PHPCS for source-style breadth
 - Working milestone: **M0 done as a baseline; M1 in progress.** The current stream is diagnostic correctness and false-positive reduction. The accepted WordPress Mago resource comparison is parked historical evidence, not queued work.
 
@@ -622,6 +622,8 @@ Note: implemented PHP's alternative/colon control-structure syntax and several o
 71. **Done — strip null from a truthy `$obj->prop`.** True-scope property flow already dropped null from `$this->prop` and from property `instanceof`, so `if ($request->targetDateIso) { new DateTimeImmutable($request->targetDateIso); }` still passed `string|null`. Truthy fetches and `!== null` now resolve the named object's declared property type and store the non-null type on the same per-variable key as instanceof. Two level-5 fixtures expand the pack from 33 to 35 cases. The complete gates are 94/24/96/30/35/18/6/27. No cache format bump. On the private corpus, analyze reports 320 diagnostics (290 excluding unlevelled unreachable-code, from 295). Argument-type reports 5 → 4. Remaining `@var`/loop/`0|int`/`false` cases stay separate. No production file walk was added.
 
 72. **Done — while-header null checks, `=== false` ternary else, and native null kept beside `0|positive-int` PHPDoc.** `while ($current !== null)` cloned the pre-loop scope so the body still saw `T|null`. `$x === false ? new T : $x` inferred the else operand without stripping `false`. `@param 0|positive-int` replaced native `null|int` and namespaced `0` as a class. Loop bodies now use condition-true scope; false-scope applies `=== false` refinement; documented params keep native null; integer PHPDoc atoms are `int`. Cache format version 11. Eight level-5 fixtures expand the pack from 35 to 43 cases. The complete gates are 94/24/96/30/43/18/6/27. On the private corpus, analyze reports 306 diagnostics (276 excluding unlevelled unreachable-code, from 290). Argument-type reports 4 → 1. The remaining `@var User` before a `switch` stays separate. No production file walk was added.
+
+73. **Done — keep assignment `@var` after a terminating `if`.** `parseIf` skipped `T_DOC_COMMENT` while looking for `else`/`elseif`, so `if (empty($items)) { return; }` followed by `/** @var User $user */` never attached the docblock and `$user` stayed `User|null` inside a later `switch`. Trailing skip after if/elseif/else bodies now ignores only non-doc comments and whitespace. Two level-5 fixtures expand the pack from 43 to 45 cases. The complete gates are 94/24/96/30/45/18/6/27. No cache format bump. On the private corpus, analyze reports 303 diagnostics (273 excluding unlevelled unreachable-code, from 276). Argument-type reports 1 → 0. No production file walk was added.
 
 ## Decision log
 

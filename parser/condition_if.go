@@ -34,7 +34,7 @@ func (p *Parser) parseIfStatement() (ast.Node, error) {
 	if err != nil {
 		return nil, err
 	}
-	for p.tok.Type == token.T_COMMENT || p.tok.Type == token.T_DOC_COMMENT || p.tok.Type == token.T_WHITESPACE {
+	for p.tok.Type == token.T_COMMENT || p.tok.Type == token.T_WHITESPACE {
 		p.nextToken()
 	}
 
@@ -161,7 +161,7 @@ func (p *Parser) parseElseIfClause() (*ast.ElseIfNode, error) {
 	if err != nil {
 		return nil, err
 	}
-	for p.tok.Type == token.T_COMMENT || p.tok.Type == token.T_DOC_COMMENT || p.tok.Type == token.T_WHITESPACE {
+	for p.tok.Type == token.T_COMMENT || p.tok.Type == token.T_WHITESPACE {
 		p.nextToken()
 	}
 
@@ -180,7 +180,7 @@ func (p *Parser) parseElseClause() (*ast.ElseNode, error) {
 	if err != nil {
 		return nil, err
 	}
-	for p.tok.Type == token.T_COMMENT || p.tok.Type == token.T_DOC_COMMENT || p.tok.Type == token.T_WHITESPACE {
+	for p.tok.Type == token.T_COMMENT || p.tok.Type == token.T_WHITESPACE {
 		p.nextToken()
 	}
 

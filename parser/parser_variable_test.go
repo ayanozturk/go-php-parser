@@ -31,6 +31,36 @@ function run(?User $from): void {
 	}
 }
 
+func TestExpressionStatementKeepsAssignmentVarDocAfterIf(t *testing.T) {
+	p := New(lexer.New(`<?php
+function run(array $items, ?User $from): void {
+    if (empty($items)) {
+        return;
+    }
+    /** @var User $user */
+    $user = $from;
+}
+`), false)
+	nodes := p.Parse()
+	if errs := p.Errors(); len(errs) != 0 {
+		t.Fatalf("parser errors: %v", errs)
+	}
+	fn, ok := nodes[0].(*ast.FunctionNode)
+	if !ok || len(fn.Body) != 2 {
+		t.Fatalf("expected function with two statements, got %#v", nodes)
+	}
+	if _, ok := fn.Body[0].(*ast.IfNode); !ok {
+		t.Fatalf("first statement = %T, want IfNode", fn.Body[0])
+	}
+	stmt, ok := fn.Body[1].(*ast.ExpressionStmt)
+	if !ok {
+		t.Fatalf("second statement = %T, want ExpressionStmt", fn.Body[1])
+	}
+	if stmt.PHPDoc == nil || stmt.PHPDoc.VarType != "User" || stmt.PHPDoc.VarName != "user" {
+		t.Fatalf("assignment PHPDoc = %#v, want @var User $user", stmt.PHPDoc)
+	}
+}
+
 func TestAssignmentNodesPreserveOperator(t *testing.T) {
 	for _, operator := range []string{"=", "+=", "??="} {
 		t.Run(operator, func(t *testing.T) {
