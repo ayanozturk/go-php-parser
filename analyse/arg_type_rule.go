@@ -229,6 +229,13 @@ func scopeForConditionFalse(scope *functionScope, condition ast.Node, ctx *Analy
 			refined.setVariable(name, typ)
 		}
 	}
+	// `!$x instanceof T` is parsed as `(!$x) instanceof T`. When that
+	// operand is false (the right-hand side of `||` / `or`), $x is T.
+	for _, cond := range negatedInstanceofGuardsWhenFalse(condition) {
+		if typ := typeFromInstanceofTarget(cond.target, refined); !typ.IsEmpty() {
+			refined.setVariable(cond.variable, typ)
+		}
+	}
 	return refined
 }
 

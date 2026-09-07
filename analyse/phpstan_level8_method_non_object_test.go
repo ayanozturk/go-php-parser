@@ -76,3 +76,23 @@ function ternary(bool $flag): void {
 		t.Fatalf("nullsafe calls should remain clean, got %#v", level8Issues)
 	}
 }
+
+func TestLevel8NegatedInstanceofOrDoesNotReportNullableMethod(t *testing.T) {
+	files := map[string]string{
+		"test.php": `<?php
+class User {
+    public function getId(): string { return ''; }
+}
+function run(?User $employee, User $user): void {
+    if (!$employee instanceof User || $employee->getId() !== $user->getId()) {
+        return;
+    }
+}
+`,
+	}
+
+	issues := runAnalysisLevelOnFiles(t, files, 8)
+	if hasIssueContaining(issues, level8MethodNonObjectCode, "getId") {
+		t.Fatalf("negated instanceof || should narrow nullable receiver before getId(), got %#v", issues)
+	}
+}

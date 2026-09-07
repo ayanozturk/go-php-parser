@@ -241,6 +241,13 @@
       "phpstanIdentifiers": [
         "argument.type"
       ]
+    },
+    {
+      "id": "known-method-negated-instanceof-or",
+      "capability": "known methods on the right of a negated instanceof disjunction",
+      "file": "known-method-negated-instanceof-or.php",
+      "engineCodes": [],
+      "phpstanIdentifiers": []
     }
   ]
 }

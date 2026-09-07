@@ -716,6 +716,31 @@ class Controller {
 	}
 }
 
+func TestLevel2NegatedInstanceofOrNarrowsSameVariableMethodCall(t *testing.T) {
+	files := map[string]string{
+		"test.php": `<?php
+interface UserInterface {}
+class User implements UserInterface {
+    public function isAdmin(): bool { return false; }
+}
+class Controller {
+    public function getUser(): ?UserInterface { return null; }
+    public function run(): void {
+        $user = $this->getUser();
+        if (!$user instanceof User || !$user->isAdmin()) {
+            return;
+        }
+    }
+}
+`,
+	}
+
+	issues := runAnalysisLevelOnFiles(t, files, 2)
+	if hasIssueContaining(issues, level2MethodExistenceCode, "isAdmin") {
+		t.Fatalf("negated instanceof || should narrow $user to User before isAdmin(), got %#v", issues)
+	}
+}
+
 func TestLevel2NegatedInstanceofOrFailNarrowsNullableReceivers(t *testing.T) {
 	files := map[string]string{
 		"test.php": `<?php
