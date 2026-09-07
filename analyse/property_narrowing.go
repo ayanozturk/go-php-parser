@@ -43,6 +43,25 @@ func applyThisPropertyConditionScope(scope *functionScope, condition ast.Node, t
 			} else if n.Operator == "===" || n.Operator == "!==" {
 				scope.setProperty(name, ParseType("null"))
 			}
+		case "instanceof":
+			if !truth {
+				return
+			}
+			typ := typeFromInstanceofTarget(n.Right, scope)
+			if typ.IsEmpty() {
+				return
+			}
+			property, ok := n.Left.(*ast.PropertyFetchNode)
+			if !ok {
+				return
+			}
+			if name, ok := directThisPropertyName(property); ok {
+				scope.setProperty(name, typ)
+				return
+			}
+			if key, ok := foreignPropertyKey(property); ok {
+				scope.setProperty(key, typ)
+			}
 		}
 	case *ast.PropertyFetchNode:
 		if truth {
@@ -60,6 +79,17 @@ func directThisPropertyName(node ast.Node) (string, bool) {
 	}
 	receiver, ok := property.Object.(*ast.VariableNode)
 	return property.Property, ok && receiver.Name == "this"
+}
+
+func foreignPropertyKey(node *ast.PropertyFetchNode) (string, bool) {
+	if node == nil || node.Property == "" {
+		return "", false
+	}
+	receiver, ok := node.Object.(*ast.VariableNode)
+	if !ok || receiver.Name == "" || receiver.Name == "this" {
+		return "", false
+	}
+	return receiver.Name + "\x1f" + node.Property, true
 }
 
 func removeNullFromThisProperty(scope *functionScope, name string) {

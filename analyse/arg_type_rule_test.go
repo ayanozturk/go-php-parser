@@ -590,6 +590,66 @@ function parseDateTime(?string $dateString): void
 	}
 }
 
+func TestForeignPropertyInstanceofNarrowsArgument(t *testing.T) {
+	files := map[string]string{"app.php": `<?php
+class CompanyTeamHealthOverview {}
+class View {
+    public ?CompanyTeamHealthOverview $companyHealthOverview = null;
+}
+function createCompanyRows(CompanyTeamHealthOverview $overview): void {}
+function run(View $view): void
+{
+    if ($view->companyHealthOverview instanceof CompanyTeamHealthOverview) {
+        createCompanyRows($view->companyHealthOverview);
+    }
+}
+`}
+	if issues := runAnalysisLevelOnFiles(t, files, 5); hasArgTypeIssue(issues) {
+		t.Fatalf("expected $view->prop instanceof T to narrow that property, got %#v", issues)
+	}
+}
+
+func TestThisPropertyInstanceofNarrowsArgument(t *testing.T) {
+	files := map[string]string{"app.php": `<?php
+class CompanyTeamHealthOverview {}
+class Focus {
+    public function issueCountForOverview(CompanyTeamHealthOverview $overview): int { return 0; }
+}
+class Host {
+    public ?CompanyTeamHealthOverview $companyHealthOverview = null;
+    public function run(Focus $focus): void
+    {
+        if ($this->companyHealthOverview instanceof CompanyTeamHealthOverview) {
+            $focus->issueCountForOverview($this->companyHealthOverview);
+        }
+    }
+}
+`}
+	if issues := runAnalysisLevelOnFiles(t, files, 5); hasArgTypeIssue(issues) {
+		t.Fatalf("expected $this->prop instanceof T to narrow that property, got %#v", issues)
+	}
+}
+
+func TestMissingPropertyInstanceofStillRejectsNullable(t *testing.T) {
+	files := map[string]string{"app.php": `<?php
+class CompanyTeamHealthOverview {}
+class View {
+    public ?CompanyTeamHealthOverview $companyHealthOverview = null;
+}
+function createCompanyRows(CompanyTeamHealthOverview $overview): void {}
+function run(View $view): void
+{
+    createCompanyRows($view->companyHealthOverview);
+}
+`}
+	if issues := runAnalysisLevelOnFiles(t, files, 4); hasArgTypeIssue(issues) {
+		t.Fatalf("expected nullable CompanyTeamHealthOverview mismatch to remain silent at level 4, got %#v", issues)
+	}
+	if issues := runAnalysisLevelOnFiles(t, files, 5); !hasArgTypeIssue(issues) {
+		t.Fatalf("expected nullable CompanyTeamHealthOverview without instanceof guard to mismatch, got %#v", issues)
+	}
+}
+
 func TestFalsyAssignInitNarrowsNullableObject(t *testing.T) {
 	files := map[string]string{
 		"app.php": `<?php

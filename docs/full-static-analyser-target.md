@@ -7,7 +7,7 @@
 - Baseline date: 2026-08-23 (Europe/London)
 - Last roadmap tidy: 2026-09-06 (Europe/London)
 - Extension package version: `0.1.35`; the exact parser integration pin is tracked in `vscode-php-strom/server/go.mod`
-- Executable differential gates: 94 / 24 / 96 / 30 / 31 / 18 / 6 / 27 (levels 0–3, 5–8) vs PHPStan 2.2.5
+- Executable differential gates: 94 / 24 / 96 / 30 / 33 / 18 / 6 / 27 (levels 0–3, 5–8) vs PHPStan 2.2.5
 - Benchmark references: Mago for performance and modern PHP type analysis, PHPStan and Psalm for diagnostic depth, and PHPCS for source-style breadth
 - Working milestone: **M0 done as a baseline; M1 in progress.** The current stream is diagnostic correctness and false-positive reduction. The accepted WordPress Mago resource comparison is parked historical evidence, not queued work.
 
@@ -615,6 +615,8 @@ Note: implemented PHP's alternative/colon control-structure syntax and several o
 67. **Done — narrow receivers of truthy property and method access.** `if ($preferenceFit?->hasPreferences)` left `$preferenceFit` as `T|null` because true-scope refinement only handled variables, predicates, and instanceof. A truthy property fetch or method call on a variable now strips null from that variable in the then-branch (`$this` unchanged). Two level-5 fixtures expand the pack from 27 to 29 cases. The complete gates are 94/24/96/30/29/18/6/27. No cache format bump. On the private corpus, analyze reports 336 diagnostics (306 excluding unlevelled unreachable-code, from 308). Argument-type reports 14 → 12. Property `instanceof` and falsey-reassign joins remain separate. No production file walk was added.
 
 68. **Done — join falsy assign-init and strip `false` from truthy variables.** `if (!$passwordReset) { $passwordReset = new ResetPassword(); }` and `if ($fileSize === false) { $fileSize = 0; }` left the outer scope as `T|null` / `int|false` because if-join required an `else`. Non-terminating then-assignments of the guarded variable now join with the implicit else; truthy/`!$x` refinement also strips `false`, so fopen-style `resource|false` early returns narrow. Two level-5 fixtures expand the pack from 29 to 31 cases. The complete gates are 94/24/96/30/31/18/6/27. No cache format bump. On the private corpus, analyze reports 328 diagnostics (298 excluding unlevelled unreachable-code, from 306). Argument-type reports 12 → 7. Property `instanceof` remains separate. No production file walk was added.
+
+69. **Done — narrow `$this->prop instanceof T` and `$obj->prop instanceof T`.** True-scope property flow only handled `$this` null checks and truthy `$this->prop`, so `if ($view->companyHealthOverview instanceof CompanyTeamHealthOverview)` still passed `T|null`. Instanceof now sets the asserted class on `$this` properties and on a per-variable property key that fetch inference consults. Two level-5 fixtures expand the pack from 31 to 33 cases. The complete gates are 94/24/96/30/33/18/6/27. No cache format bump. On the private corpus, analyze reports 325 diagnostics (295 excluding unlevelled unreachable-code, from 298). Argument-type reports 7 → 5. Truthy `$obj->prop` guards and remaining `@var`/loop/`0|int` cases stay separate. No production file walk was added.
 
 ## Decision log
 

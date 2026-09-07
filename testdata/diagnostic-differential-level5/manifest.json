@@ -221,6 +221,20 @@
       "file": "argument-falsy-assign-init-mismatch.php",
       "engineCodes": ["A.ARG.TYPE"],
       "phpstanIdentifiers": ["argument.type"]
+    },
+    {
+      "id": "argument-property-instanceof-clean",
+      "capability": "property instanceof narrows that property for arguments",
+      "file": "argument-property-instanceof-clean.php",
+      "engineCodes": [],
+      "phpstanIdentifiers": []
+    },
+    {
+      "id": "argument-property-instanceof-mismatch",
+      "capability": "nullable property without instanceof is rejected",
+      "file": "argument-property-instanceof-mismatch.php",
+      "engineCodes": ["A.ARG.TYPE"],
+      "phpstanIdentifiers": ["argument.type"]
     }
   ]
 }

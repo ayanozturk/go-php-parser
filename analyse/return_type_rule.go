@@ -1863,6 +1863,13 @@ func inferPropertyFetchType(node *ast.PropertyFetchNode, scope *functionScope, c
 			}
 		}
 	}
+	if object, ok := node.Object.(*ast.VariableNode); ok && object.Name != "this" && scope != nil {
+		if key, ok := foreignPropertyKey(node); ok {
+			if propertyType, ok := scope.property(key); ok {
+				return propertyType
+			}
+		}
+	}
 
 	objectType := inferType(node.Object, scope, ctx)
 	className, ok := objectType.SingleClassName()
