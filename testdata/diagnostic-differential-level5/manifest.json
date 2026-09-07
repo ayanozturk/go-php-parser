@@ -235,6 +235,20 @@
       "file": "argument-property-instanceof-mismatch.php",
       "engineCodes": ["A.ARG.TYPE"],
       "phpstanIdentifiers": ["argument.type"]
+    },
+    {
+      "id": "argument-property-truthy-clean",
+      "capability": "truthy foreign property strips null for arguments",
+      "file": "argument-property-truthy-clean.php",
+      "engineCodes": [],
+      "phpstanIdentifiers": []
+    },
+    {
+      "id": "argument-property-truthy-mismatch",
+      "capability": "nullable property without truthy guard is rejected",
+      "file": "argument-property-truthy-mismatch.php",
+      "engineCodes": ["A.ARG.TYPE"],
+      "phpstanIdentifiers": ["argument.type"]
     }
   ]
 }

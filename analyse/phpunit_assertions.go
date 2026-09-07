@@ -6,7 +6,7 @@ import (
 	"github.com/ayanozturk/go-php-parser/ast"
 )
 
-func applyPHPUnitAssertionScope(scope *functionScope, expr ast.Node) {
+func applyPHPUnitAssertionScope(scope *functionScope, expr ast.Node, ctx *AnalysisContext) {
 	if scope == nil {
 		return
 	}
@@ -27,7 +27,7 @@ func applyPHPUnitAssertionScope(scope *functionScope, expr ast.Node) {
 		}
 	case "asserttrue":
 		if condition := argumentValue(phpUnitArg(args, 0, "condition")); condition != nil {
-			applyConditionTrueScope(scope, condition)
+			applyConditionTrueScope(scope, condition, ctx)
 		}
 	}
 }

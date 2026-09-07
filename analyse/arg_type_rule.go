@@ -139,17 +139,17 @@ func walkStatementsForArgTypesUsing(nodes []ast.Node, scope *functionScope, ctx 
 			walkExprForArgTypesUsing(n.Level, scope, ctx, filename, issues, observe)
 		case *ast.IfNode:
 			walkExprForArgTypesUsing(n.Condition, scope, ctx, filename, issues, observe)
-			thenScope := scopeForConditionTrue(scope, n.Condition)
+			thenScope := scopeForConditionTrue(scope, n.Condition, ctx)
 			walkStatementsForArgTypesUsing(n.Body, thenScope, ctx, filename, issues, observe)
 			elseifScopes := make([]*functionScope, len(n.ElseIfs))
 			for i, elseif := range n.ElseIfs {
 				walkExprForArgTypesUsing(elseif.Condition, scope, ctx, filename, issues, observe)
-				elseifScopes[i] = scopeForConditionTrue(scope, elseif.Condition)
+				elseifScopes[i] = scopeForConditionTrue(scope, elseif.Condition, ctx)
 				walkStatementsForArgTypesUsing(elseif.Body, elseifScopes[i], ctx, filename, issues, observe)
 			}
 			var elseScope *functionScope
 			if n.Else != nil {
-				elseScope = scopeForConditionFalse(scope, n.Condition)
+				elseScope = scopeForConditionFalse(scope, n.Condition, ctx)
 				walkStatementsForArgTypesUsing(n.Else.Body, elseScope, ctx, filename, issues, observe)
 			}
 			finishIfNodeScope(scope, n, thenScope, elseifScopes, elseScope, ctx)
@@ -199,26 +199,26 @@ func walkStatementsForArgTypesUsing(nodes []ast.Node, scope *functionScope, ctx 
 	}
 }
 
-func scopeForConditionTrue(scope *functionScope, condition ast.Node) *functionScope {
+func scopeForConditionTrue(scope *functionScope, condition ast.Node, ctx *AnalysisContext) *functionScope {
 	refined := scope.clone()
 	if refined == nil {
 		return nil
 	}
-	applyConditionTrueScope(refined, condition)
+	applyConditionTrueScope(refined, condition, ctx)
 	return refined
 }
 
 // scopeForConditionFalse keeps branch refinements local to the expression.
 // Reuse the existing guard rules rather than treating every falsy value as null.
-func scopeForConditionFalse(scope *functionScope, condition ast.Node) *functionScope {
+func scopeForConditionFalse(scope *functionScope, condition ast.Node, ctx *AnalysisContext) *functionScope {
 	if unary, ok := condition.(*ast.UnaryExpr); ok && unary.Operator == "!" {
-		return scopeForConditionTrue(scope, unary.Operand)
+		return scopeForConditionTrue(scope, unary.Operand, ctx)
 	}
 	refined := scope.clone()
 	if refined == nil {
 		return nil
 	}
-	applyThisPropertyConditionScope(refined, condition, false)
+	applyThisPropertyConditionScope(refined, condition, false, ctx)
 	for _, name := range variablesNonNullWhenFalse(condition) {
 		if typ, ok := nonNullVariableType(refined, name); ok {
 			refined.setVariable(name, typ)
@@ -227,11 +227,11 @@ func scopeForConditionFalse(scope *functionScope, condition ast.Node) *functionS
 	return refined
 }
 
-func applyConditionTrueScope(scope *functionScope, condition ast.Node) {
+func applyConditionTrueScope(scope *functionScope, condition ast.Node, ctx *AnalysisContext) {
 	if scope == nil {
 		return
 	}
-	applyThisPropertyConditionScope(scope, condition, true)
+	applyThisPropertyConditionScope(scope, condition, true, ctx)
 	for variableName, typ := range variablesTypedWhenTrue(condition, scope) {
 		if !typ.IsEmpty() {
 			scope.setVariable(variableName, typ)
@@ -414,7 +414,7 @@ func typeFromInstanceofTarget(node ast.Node, scope *functionScope) Type {
 }
 
 func finishIfNodeScope(scope *functionScope, node *ast.IfNode, thenScope *functionScope, elseifScopes []*functionScope, elseScope *functionScope, ctx *AnalysisContext) {
-	applyTerminatingIfFalseScope(scope, node)
+	applyTerminatingIfFalseScope(scope, node, ctx)
 	applyIfElseJoinScope(scope, node, thenScope, elseifScopes, elseScope)
 	applyLazyInitPropertyScope(scope, node, ctx)
 	applyFalsyInitVariableScope(scope, node, thenScope)
@@ -500,14 +500,14 @@ func collectOwnedVariableNames(scope *functionScope, names map[string]struct{}) 
 	}
 }
 
-func applyTerminatingIfFalseScope(scope *functionScope, node *ast.IfNode) {
+func applyTerminatingIfFalseScope(scope *functionScope, node *ast.IfNode, ctx *AnalysisContext) {
 	if scope == nil || node == nil || node.Else != nil || len(node.ElseIfs) > 0 {
 		return
 	}
 	if !statementsExitCurrentBlock(node.Body) {
 		return
 	}
-	applyThisPropertyConditionScope(scope, node.Condition, false)
+	applyThisPropertyConditionScope(scope, node.Condition, false, ctx)
 	// Strip null from variables that are non-null when the condition is false
 	// (e.g. `if ($x === null) { return; }` → $x is non-null after).
 	for _, variableName := range variablesNonNullWhenFalse(node.Condition) {
@@ -885,9 +885,9 @@ func walkExprForArgTypesUsing(node ast.Node, scope *functionScope, ctx *Analysis
 		walkExprForArgTypesUsing(n.Left, scope, ctx, filename, issues, observe)
 		switch n.Operator {
 		case "&&", "and":
-			walkExprForArgTypesUsing(n.Right, scopeForConditionTrue(scope, n.Left), ctx, filename, issues, observe)
+			walkExprForArgTypesUsing(n.Right, scopeForConditionTrue(scope, n.Left, ctx), ctx, filename, issues, observe)
 		case "||", "or":
-			walkExprForArgTypesUsing(n.Right, scopeForConditionFalse(scope, n.Left), ctx, filename, issues, observe)
+			walkExprForArgTypesUsing(n.Right, scopeForConditionFalse(scope, n.Left, ctx), ctx, filename, issues, observe)
 		default:
 			walkExprForArgTypesUsing(n.Right, scope, ctx, filename, issues, observe)
 		}
@@ -900,8 +900,8 @@ func walkExprForArgTypesUsing(node ast.Node, scope *functionScope, ctx *Analysis
 		observeSemanticExpression(filename, n, scope, ctx, observe)
 	case *ast.TernaryExpr:
 		walkExprForArgTypesUsing(n.Condition, scope, ctx, filename, issues, observe)
-		walkExprForArgTypesUsing(n.IfTrue, scopeForConditionTrue(scope, n.Condition), ctx, filename, issues, observe)
-		walkExprForArgTypesUsing(n.IfFalse, scopeForConditionFalse(scope, n.Condition), ctx, filename, issues, observe)
+		walkExprForArgTypesUsing(n.IfTrue, scopeForConditionTrue(scope, n.Condition, ctx), ctx, filename, issues, observe)
+		walkExprForArgTypesUsing(n.IfFalse, scopeForConditionFalse(scope, n.Condition, ctx), ctx, filename, issues, observe)
 		observeSemanticExpression(filename, n, scope, ctx, observe)
 	case *ast.NewNode:
 		if issues != nil {

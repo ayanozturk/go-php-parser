@@ -399,16 +399,16 @@ func collectObservedReturnsUsing(filename string, nodes []ast.Node, scope *funct
 		case *ast.AssignmentNode:
 			applyAssignmentScope(scope, n, ctx)
 		case *ast.IfNode:
-			thenScope := scopeForConditionTrue(scope, n.Condition)
+			thenScope := scopeForConditionTrue(scope, n.Condition, ctx)
 			returns = append(returns, collectObservedReturnsUsing(filename, n.Body, thenScope, ctx, infer)...)
 			elseifScopes := make([]*functionScope, len(n.ElseIfs))
 			for i, elseif := range n.ElseIfs {
-				elseifScopes[i] = scopeForConditionTrue(scope, elseif.Condition)
+				elseifScopes[i] = scopeForConditionTrue(scope, elseif.Condition, ctx)
 				returns = append(returns, collectObservedReturnsUsing(filename, elseif.Body, elseifScopes[i], ctx, infer)...)
 			}
 			var elseScope *functionScope
 			if n.Else != nil {
-				elseScope = scopeForConditionFalse(scope, n.Condition)
+				elseScope = scopeForConditionFalse(scope, n.Condition, ctx)
 				returns = append(returns, collectObservedReturnsUsing(filename, n.Else.Body, elseScope, ctx, infer)...)
 			}
 			finishIfNodeScope(scope, n, thenScope, elseifScopes, elseScope, ctx)
@@ -503,12 +503,12 @@ func inferType(expr ast.Node, scope *functionScope, ctx *AnalysisContext) Type {
 	case *ast.TypeCastNode:
 		return ParseType(n.Type)
 	case *ast.TernaryExpr:
-		trueScope := scopeForConditionTrue(scope, n.Condition)
+		trueScope := scopeForConditionTrue(scope, n.Condition, ctx)
 		ifTrue := inferType(n.IfTrue, trueScope, ctx)
 		if n.IfTrue == nil {
 			ifTrue = inferType(n.Condition, trueScope, ctx)
 		}
-		return unionInferredTypes(ifTrue, inferType(n.IfFalse, scopeForConditionFalse(scope, n.Condition), ctx))
+		return unionInferredTypes(ifTrue, inferType(n.IfFalse, scopeForConditionFalse(scope, n.Condition, ctx), ctx))
 	case *ast.UnaryExpr:
 		switch n.Operator {
 		case "clone":
@@ -1604,10 +1604,10 @@ func (s *functionScope) property(name string) (Type, bool) {
 
 func applyExpressionScope(scope *functionScope, expr ast.Node, ctx *AnalysisContext) {
 	if condition, ok := assertionCondition(expr); ok {
-		applyConditionTrueScope(scope, condition)
+		applyConditionTrueScope(scope, condition, ctx)
 		return
 	}
-	applyPHPUnitAssertionScope(scope, expr)
+	applyPHPUnitAssertionScope(scope, expr, ctx)
 	assignment, ok := expr.(*ast.AssignmentNode)
 	if !ok {
 		return

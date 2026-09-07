@@ -2,29 +2,29 @@ package analyse
 
 import "github.com/ayanozturk/go-php-parser/ast"
 
-// applyThisPropertyConditionScope refines only direct properties of the current
-// receiver. A property on another object must not share this flow state, even
-// when both objects have the same class.
-func applyThisPropertyConditionScope(scope *functionScope, condition ast.Node, truth bool) {
+// applyThisPropertyConditionScope refines direct properties of the current
+// receiver and of a named foreign variable. A property on another object must
+// not share $this flow state, even when both objects have the same class.
+func applyThisPropertyConditionScope(scope *functionScope, condition ast.Node, truth bool, ctx *AnalysisContext) {
 	if scope == nil {
 		return
 	}
 	switch n := condition.(type) {
 	case *ast.UnaryExpr:
 		if n.Operator == "!" {
-			applyThisPropertyConditionScope(scope, n.Operand, !truth)
+			applyThisPropertyConditionScope(scope, n.Operand, !truth, ctx)
 		}
 	case *ast.BinaryExpr:
 		switch n.Operator {
 		case "&&", "and":
 			if truth {
-				applyThisPropertyConditionScope(scope, n.Left, true)
-				applyThisPropertyConditionScope(scope, n.Right, true)
+				applyThisPropertyConditionScope(scope, n.Left, true, ctx)
+				applyThisPropertyConditionScope(scope, n.Right, true, ctx)
 			}
 		case "||", "or":
 			if !truth {
-				applyThisPropertyConditionScope(scope, n.Left, false)
-				applyThisPropertyConditionScope(scope, n.Right, false)
+				applyThisPropertyConditionScope(scope, n.Left, false, ctx)
+				applyThisPropertyConditionScope(scope, n.Right, false, ctx)
 			}
 		case "==", "===", "!=", "!==":
 			var property ast.Node
@@ -33,15 +33,25 @@ func applyThisPropertyConditionScope(scope *functionScope, condition ast.Node, t
 			} else if isNullLiteral(n.Right) {
 				property = n.Left
 			}
-			name, ok := directThisPropertyName(property)
+			equal := n.Operator == "==" || n.Operator == "==="
+			if name, ok := directThisPropertyName(property); ok {
+				if truth != equal {
+					removeNullFromThisProperty(scope, name)
+				} else if n.Operator == "===" || n.Operator == "!==" {
+					scope.setProperty(name, ParseType("null"))
+				}
+				return
+			}
+			fetch, ok := property.(*ast.PropertyFetchNode)
 			if !ok {
 				return
 			}
-			equal := n.Operator == "==" || n.Operator == "==="
 			if truth != equal {
-				removeNullFromThisProperty(scope, name)
+				stripNullFromForeignProperty(scope, fetch, ctx)
 			} else if n.Operator == "===" || n.Operator == "!==" {
-				scope.setProperty(name, ParseType("null"))
+				if key, ok := foreignPropertyKey(fetch); ok {
+					scope.setProperty(key, ParseType("null"))
+				}
 			}
 		case "instanceof":
 			if !truth {
@@ -67,7 +77,9 @@ func applyThisPropertyConditionScope(scope *functionScope, condition ast.Node, t
 		if truth {
 			if name, ok := directThisPropertyName(n); ok {
 				removeNullFromThisProperty(scope, name)
+				return
 			}
+			stripNullFromForeignProperty(scope, n, ctx)
 		}
 	}
 }
@@ -102,5 +114,19 @@ func removeNullFromThisProperty(scope *functionScope, name string) {
 	}
 	if refined := current.withoutBuiltin("null"); !refined.IsEmpty() {
 		scope.setProperty(name, refined)
+	}
+}
+
+func stripNullFromForeignProperty(scope *functionScope, property *ast.PropertyFetchNode, ctx *AnalysisContext) {
+	key, ok := foreignPropertyKey(property)
+	if !ok {
+		return
+	}
+	current := inferPropertyFetchType(property, scope, ctx)
+	if !current.hasBuiltin("null") {
+		return
+	}
+	if refined := current.withoutBuiltin("null"); !refined.IsEmpty() {
+		scope.setProperty(key, refined)
 	}
 }

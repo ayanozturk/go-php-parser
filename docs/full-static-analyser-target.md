@@ -7,7 +7,7 @@
 - Baseline date: 2026-08-23 (Europe/London)
 - Last roadmap tidy: 2026-09-06 (Europe/London)
 - Extension package version: `0.1.35`; the exact parser integration pin is tracked in `vscode-php-strom/server/go.mod`
-- Executable differential gates: 94 / 24 / 96 / 30 / 33 / 18 / 6 / 27 (levels 0–3, 5–8) vs PHPStan 2.2.5
+- Executable differential gates: 94 / 24 / 96 / 30 / 35 / 18 / 6 / 27 (levels 0–3, 5–8) vs PHPStan 2.2.5
 - Benchmark references: Mago for performance and modern PHP type analysis, PHPStan and Psalm for diagnostic depth, and PHPCS for source-style breadth
 - Working milestone: **M0 done as a baseline; M1 in progress.** The current stream is diagnostic correctness and false-positive reduction. The accepted WordPress Mago resource comparison is parked historical evidence, not queued work.
 
@@ -618,6 +618,8 @@ Note: implemented PHP's alternative/colon control-structure syntax and several o
 69. **Done — narrow `$this->prop instanceof T` and `$obj->prop instanceof T`.** True-scope property flow only handled `$this` null checks and truthy `$this->prop`, so `if ($view->companyHealthOverview instanceof CompanyTeamHealthOverview)` still passed `T|null`. Instanceof now sets the asserted class on `$this` properties and on a per-variable property key that fetch inference consults. Two level-5 fixtures expand the pack from 31 to 33 cases. The complete gates are 94/24/96/30/33/18/6/27. No cache format bump. On the private corpus, analyze reports 325 diagnostics (295 excluding unlevelled unreachable-code, from 298). Argument-type reports 7 → 5. Truthy `$obj->prop` guards and remaining `@var`/loop/`0|int` cases stay separate. No production file walk was added.
 
 70. **Done — corpus PHPStan compatibility report.** `cmd/phpstan-compat` compares this engine and PHPStan on the same first-party paths using exact path+line+reviewed-identifier matching. Headline is F1; unreviewed/framework PHPStan identifiers are labelled separately from reviewed-family misses; `--index-paths` are indexed only; parse/read and PHPStan file-accounting mismatches fail the run. Checked-in evidence is the command, `docs/phpstan-compatibility-metric.md`, and unit tests — not a published corpus percentage. No production file walk was added.
+
+71. **Done — strip null from a truthy `$obj->prop`.** True-scope property flow already dropped null from `$this->prop` and from property `instanceof`, so `if ($request->targetDateIso) { new DateTimeImmutable($request->targetDateIso); }` still passed `string|null`. Truthy fetches and `!== null` now resolve the named object's declared property type and store the non-null type on the same per-variable key as instanceof. Two level-5 fixtures expand the pack from 33 to 35 cases. The complete gates are 94/24/96/30/35/18/6/27. No cache format bump. On the private corpus, analyze reports 320 diagnostics (290 excluding unlevelled unreachable-code, from 295). Argument-type reports 5 → 4. Remaining `@var`/loop/`0|int`/`false` cases stay separate. No production file walk was added.
 
 ## Decision log
 

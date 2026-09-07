@@ -650,6 +650,58 @@ function run(View $view): void
 	}
 }
 
+func TestForeignPropertyTruthyNarrowsArgument(t *testing.T) {
+	files := map[string]string{"app.php": `<?php
+class Request {
+    public ?string $targetDateIso = null;
+}
+function run(Request $request): void
+{
+    if ($request->targetDateIso) {
+        echo (new \DateTimeImmutable($request->targetDateIso))->format('c');
+    }
+}
+`}
+	if issues := runAnalysisLevelOnFiles(t, files, 5); hasArgTypeIssue(issues) {
+		t.Fatalf("expected truthy $request->prop to narrow nullable property to string, got %#v", issues)
+	}
+}
+
+func TestForeignPropertyNullCheckNarrowsArgument(t *testing.T) {
+	files := map[string]string{"app.php": `<?php
+class Request {
+    public ?string $targetDateIso = null;
+}
+function run(Request $request): void
+{
+    if ($request->targetDateIso !== null) {
+        echo (new \DateTimeImmutable($request->targetDateIso))->format('c');
+    }
+}
+`}
+	if issues := runAnalysisLevelOnFiles(t, files, 5); hasArgTypeIssue(issues) {
+		t.Fatalf("expected $request->prop !== null to narrow nullable property to string, got %#v", issues)
+	}
+}
+
+func TestForeignPropertyWithoutGuardStillRejectsNullable(t *testing.T) {
+	files := map[string]string{"app.php": `<?php
+class Request {
+    public ?string $targetDateIso = null;
+}
+function run(Request $request): void
+{
+    echo (new \DateTimeImmutable($request->targetDateIso))->format('c');
+}
+`}
+	if issues := runAnalysisLevelOnFiles(t, files, 4); hasArgTypeIssue(issues) {
+		t.Fatalf("expected nullable string property mismatch to remain silent at level 4, got %#v", issues)
+	}
+	if issues := runAnalysisLevelOnFiles(t, files, 5); !hasArgTypeIssue(issues) {
+		t.Fatalf("expected nullable string property without guard to mismatch, got %#v", issues)
+	}
+}
+
 func TestFalsyAssignInitNarrowsNullableObject(t *testing.T) {
 	files := map[string]string{
 		"app.php": `<?php

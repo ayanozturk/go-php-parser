@@ -129,17 +129,17 @@ func walkStatementsForHoverTypes(nodes []ast.Node, scope *functionScope, ctx *An
 			walkExprForHoverTypes(n.Level, scope, ctx, query, best)
 		case *ast.IfNode:
 			walkExprForHoverTypes(n.Condition, scope, ctx, query, best)
-			thenScope := scopeForConditionTrue(scope, n.Condition)
+			thenScope := scopeForConditionTrue(scope, n.Condition, ctx)
 			walkStatementsForHoverTypes(n.Body, thenScope, ctx, query, best)
 			elseifScopes := make([]*functionScope, len(n.ElseIfs))
 			for i, elseif := range n.ElseIfs {
 				walkExprForHoverTypes(elseif.Condition, scope, ctx, query, best)
-				elseifScopes[i] = scopeForConditionTrue(scope, elseif.Condition)
+				elseifScopes[i] = scopeForConditionTrue(scope, elseif.Condition, ctx)
 				walkStatementsForHoverTypes(elseif.Body, elseifScopes[i], ctx, query, best)
 			}
 			var elseScope *functionScope
 			if n.Else != nil {
-				elseScope = scopeForConditionFalse(scope, n.Condition)
+				elseScope = scopeForConditionFalse(scope, n.Condition, ctx)
 				walkStatementsForHoverTypes(n.Else.Body, elseScope, ctx, query, best)
 			}
 			finishIfNodeScope(scope, n, thenScope, elseifScopes, elseScope, ctx)
@@ -227,9 +227,9 @@ func walkExprForHoverTypes(node ast.Node, scope *functionScope, ctx *AnalysisCon
 		walkExprForHoverTypes(n.Left, scope, ctx, query, best)
 		switch n.Operator {
 		case "&&", "and":
-			walkExprForHoverTypes(n.Right, scopeForConditionTrue(scope, n.Left), ctx, query, best)
+			walkExprForHoverTypes(n.Right, scopeForConditionTrue(scope, n.Left, ctx), ctx, query, best)
 		case "||", "or":
-			walkExprForHoverTypes(n.Right, scopeForConditionFalse(scope, n.Left), ctx, query, best)
+			walkExprForHoverTypes(n.Right, scopeForConditionFalse(scope, n.Left, ctx), ctx, query, best)
 		default:
 			walkExprForHoverTypes(n.Right, scope, ctx, query, best)
 		}
@@ -239,8 +239,8 @@ func walkExprForHoverTypes(node ast.Node, scope *functionScope, ctx *AnalysisCon
 		}
 	case *ast.TernaryExpr:
 		walkExprForHoverTypes(n.Condition, scope, ctx, query, best)
-		walkExprForHoverTypes(n.IfTrue, scopeForConditionTrue(scope, n.Condition), ctx, query, best)
-		walkExprForHoverTypes(n.IfFalse, scopeForConditionFalse(scope, n.Condition), ctx, query, best)
+		walkExprForHoverTypes(n.IfTrue, scopeForConditionTrue(scope, n.Condition, ctx), ctx, query, best)
+		walkExprForHoverTypes(n.IfFalse, scopeForConditionFalse(scope, n.Condition, ctx), ctx, query, best)
 	case *ast.NamedArgumentNode:
 		walkExprForHoverTypes(n.Value, scope, ctx, query, best)
 	case *ast.UnpackedArgumentNode:
