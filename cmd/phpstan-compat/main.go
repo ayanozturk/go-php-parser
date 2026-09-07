@@ -34,19 +34,27 @@ type diagnostic struct {
 }
 
 type levelMetrics struct {
-	Level                int     `json:"level"`
-	CompatibilityPct     float64 `json:"compatibilityPct"`
-	PrecisionPct         float64 `json:"precisionPct"`
-	RecallPct            float64 `json:"recallPct"`
-	ExactMatches         int     `json:"exactMatches"`
-	EngineDiagnostics    int     `json:"engineDiagnostics"`
-	PHPStanDiagnostics   int     `json:"phpstanDiagnostics"`
-	EngineOnly           int     `json:"engineOnly"`
-	PHPStanOnly          int     `json:"phpstanOnly"`
-	UnmappedEngine       int     `json:"unmappedEngineDiagnostics"`
-	FilesDiscovered      int     `json:"filesDiscovered"`
-	FilesAnalyzed        int     `json:"filesAnalyzed"`
-	PHPStanFilesAnalyzed int     `json:"phpstanFilesAnalyzed"`
+	Level                      int     `json:"level"`
+	CompatibilityPct           float64 `json:"compatibilityPct"`
+	PrecisionPct               float64 `json:"precisionPct"`
+	RecallPct                  float64 `json:"recallPct"`
+	ReviewedCompatibilityPct   float64 `json:"reviewedCompatibilityPct"`
+	ReviewedPrecisionPct       float64 `json:"reviewedPrecisionPct"`
+	ReviewedRecallPct          float64 `json:"reviewedRecallPct"`
+	ExactMatches               int     `json:"exactMatches"`
+	EngineDiagnostics          int     `json:"engineDiagnostics"`
+	PHPStanDiagnostics         int     `json:"phpstanDiagnostics"`
+	ReviewedEngineDiagnostics  int     `json:"reviewedEngineDiagnostics"`
+	ReviewedPHPStanDiagnostics int     `json:"reviewedPHPStanDiagnostics"`
+	EngineOnly                 int     `json:"engineOnly"`
+	EngineOnlyReviewed         int     `json:"engineOnlyReviewed"`
+	PHPStanOnly                int     `json:"phpstanOnly"`
+	PHPStanOnlyReviewed        int     `json:"phpstanOnlyReviewed"`
+	PHPStanOnlyUnreviewed      int     `json:"phpstanOnlyUnreviewed"`
+	UnmappedEngine             int     `json:"unmappedEngineDiagnostics"`
+	FilesDiscovered            int     `json:"filesDiscovered"`
+	FilesAnalyzed              int     `json:"filesAnalyzed"`
+	PHPStanFilesAnalyzed       int     `json:"phpstanFilesAnalyzed"`
 }
 
 type report struct {
@@ -55,6 +63,7 @@ type report struct {
 	Root            string            `json:"root"`
 	Paths           []string          `json:"paths"`
 	PHPStanVersion  string            `json:"phpstanVersion"`
+	PHPVersion      string            `json:"phpVersion,omitempty"`
 	Matching        string            `json:"matching"`
 	HeadlineMetric  string            `json:"headlineMetric"`
 	CrosswalkSource []crosswalkSource `json:"crosswalkSources"`
@@ -168,9 +177,9 @@ func run(root string, reportPaths, indexPaths []string, levelsText, phpstanBin, 
 		return report{}, err
 	}
 
-	result := report{SchemaVersion: schemaVersion, GeneratedAt: time.Now().UTC().Format(time.RFC3339), Root: filepath.ToSlash(absRoot), Paths: reportPaths, PHPStanVersion: version, Matching: "exact normalized path + start line + compatible identifier", HeadlineMetric: "F1 (harmonic mean of diagnostic precision and recall)", CrosswalkSource: sources}
+	result := report{SchemaVersion: schemaVersion, GeneratedAt: time.Now().UTC().Format(time.RFC3339), Root: filepath.ToSlash(absRoot), Paths: reportPaths, PHPStanVersion: version, PHPVersion: phpVersion(absRoot), Matching: "exact normalized path + start line + compatible identifier", HeadlineMetric: "F1 (harmonic mean of diagnostic precision and recall)", CrosswalkSource: sources}
 	for _, level := range levels {
-		engine, _, err := runEngine(absRoot, indexed, reportable, level, workers)
+		engine, engineResult, err := runEngine(absRoot, indexed, reportable, level, workers)
 		if err != nil {
 			return report{}, fmt.Errorf("level %d engine: %w", level, err)
 		}
@@ -182,7 +191,7 @@ func run(root string, reportPaths, indexPaths []string, levelsText, phpstanBin, 
 		// The compatibility denominator is the first-party report manifest.
 		// Extra index-only dependency files must not inflate its accounting.
 		metrics.FilesDiscovered = len(reportable)
-		metrics.FilesAnalyzed = len(reportable)
+		metrics.FilesAnalyzed = engineResult.FilesAnalyzed
 		metrics.PHPStanFilesAnalyzed = referenceFiles
 		result.Levels = append(result.Levels, metrics)
 	}
@@ -196,7 +205,7 @@ func runEngine(root string, indexed, reportable []string, level, workers int) ([
 	}
 	defer os.RemoveAll(cacheDir)
 
-	result := command.AnalyzeFilesIncremental(indexed, &level, nil, workers, cacheDir)
+	result := command.AnalyzeFilesIncrementalScoped(indexed, reportable, &level, nil, workers, cacheDir)
 	if len(result.ReadErrors) > 0 || len(result.ParseErrors) > 0 {
 		return nil, result, fmt.Errorf("incomplete accounting: %d read errors, %d parse-error files", len(result.ReadErrors), len(result.ParseErrors))
 	}
@@ -269,6 +278,7 @@ func runPHPStan(root, binary, configuration string, reportPaths, reportable []st
 
 func score(level int, engine, reference []diagnostic, crosswalk map[int]map[string]map[string]bool) levelMetrics {
 	metrics := levelMetrics{Level: level, EngineDiagnostics: len(engine), PHPStanDiagnostics: len(reference)}
+	reviewedIdentifiers := reviewedIdentifiersAtLevel(crosswalk, level)
 	adjacency := make([][]int, len(engine))
 	for candidateIndex, candidate := range engine {
 		allowed := identifiersAtLevel(crosswalk, level, candidate.Code)
@@ -282,21 +292,34 @@ func score(level int, engine, reference []diagnostic, crosswalk map[int]map[stri
 			}
 		}
 	}
-	metrics.ExactMatches = maximumMatches(adjacency, len(reference))
+	matches, matchedReference := maximumMatches(adjacency, len(reference))
+	metrics.ExactMatches = matches
 	metrics.EngineOnly = len(engine) - metrics.ExactMatches
+	metrics.EngineOnlyReviewed = metrics.EngineOnly - metrics.UnmappedEngine
 	metrics.PHPStanOnly = len(reference) - metrics.ExactMatches
+	for i, expected := range reference {
+		if matchedReference[i] {
+			continue
+		}
+		if reviewedIdentifiers[expected.Identifier] {
+			metrics.PHPStanOnlyReviewed++
+		} else {
+			metrics.PHPStanOnlyUnreviewed++
+		}
+	}
+	metrics.ReviewedEngineDiagnostics = len(engine) - metrics.UnmappedEngine
+	metrics.ReviewedPHPStanDiagnostics = len(reference) - metrics.PHPStanOnlyUnreviewed
 	metrics.PrecisionPct = percentage(metrics.ExactMatches, len(engine))
 	metrics.RecallPct = percentage(metrics.ExactMatches, len(reference))
-	if len(engine)+len(reference) == 0 {
-		metrics.CompatibilityPct = 100
-	} else {
-		metrics.CompatibilityPct = round(float64(2*metrics.ExactMatches) * 100 / float64(len(engine)+len(reference)))
-	}
+	metrics.CompatibilityPct = f1(metrics.ExactMatches, len(engine), len(reference))
+	metrics.ReviewedPrecisionPct = percentage(metrics.ExactMatches, metrics.ReviewedEngineDiagnostics)
+	metrics.ReviewedRecallPct = percentage(metrics.ExactMatches, metrics.ReviewedPHPStanDiagnostics)
+	metrics.ReviewedCompatibilityPct = f1(metrics.ExactMatches, metrics.ReviewedEngineDiagnostics, metrics.ReviewedPHPStanDiagnostics)
 	return metrics
 }
 
 func loadCrosswalk(pattern string) (map[int]map[string]map[string]bool, []crosswalkSource, error) {
-	paths, err := filepath.Glob(pattern)
+	paths, err := expandCrosswalkGlob(pattern)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -329,10 +352,16 @@ func loadCrosswalk(pattern string) (map[int]map[string]map[string]bool, []crossw
 		}
 		for _, fixture := range manifest.Cases {
 			for _, code := range fixture.EngineCodes {
+				if code == "" {
+					continue
+				}
 				if result[level][code] == nil {
 					result[level][code] = make(map[string]bool)
 				}
 				for _, identifier := range fixture.PHPStanIdentifiers {
+					if identifier == "" {
+						continue
+					}
 					result[level][code][identifier] = true
 				}
 			}
@@ -415,6 +444,71 @@ func resolveExecutable(root, binary string) string {
 	return filepath.Join(root, binary)
 }
 
+func expandCrosswalkGlob(pattern string) ([]string, error) {
+	paths, err := filepath.Glob(pattern)
+	if err != nil {
+		return nil, err
+	}
+	if len(paths) > 0 || filepath.IsAbs(pattern) {
+		return paths, nil
+	}
+	if root := moduleRoot("."); root != "" {
+		rooted, rootErr := filepath.Glob(filepath.Join(root, pattern))
+		if rootErr != nil {
+			return nil, rootErr
+		}
+		if len(rooted) > 0 {
+			return rooted, nil
+		}
+	}
+	return paths, nil
+}
+
+func moduleRoot(start string) string {
+	dir, err := filepath.Abs(start)
+	if err != nil {
+		return ""
+	}
+	for {
+		if _, err := os.Stat(filepath.Join(dir, "go.mod")); err == nil {
+			return dir
+		}
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			return ""
+		}
+		dir = parent
+	}
+}
+
+func phpVersion(root string) string {
+	command := exec.Command("php", "-v")
+	command.Dir = root
+	output, err := command.Output()
+	if err != nil {
+		return ""
+	}
+	line, _, _ := strings.Cut(strings.TrimSpace(string(output)), "\n")
+	return strings.TrimSpace(line)
+}
+
+func reviewedIdentifiersAtLevel(crosswalk map[int]map[string]map[string]bool, level int) map[string]bool {
+	result := make(map[string]bool)
+	for reviewedLevel, codes := range crosswalk {
+		if reviewedLevel > level {
+			continue
+		}
+		for _, identifiers := range codes {
+			for identifier := range identifiers {
+				if identifier != "" {
+					result[identifier] = true
+				}
+			}
+		}
+	}
+	return result
+}
+
 func identifiersAtLevel(crosswalk map[int]map[string]map[string]bool, level int, code string) map[string]bool {
 	result := make(map[string]bool)
 	for reviewedLevel, codes := range crosswalk {
@@ -428,7 +522,7 @@ func identifiersAtLevel(crosswalk map[int]map[string]map[string]bool, level int,
 	return result
 }
 
-func maximumMatches(adjacency [][]int, referenceCount int) int {
+func maximumMatches(adjacency [][]int, referenceCount int) (int, []bool) {
 	matchedEngine := make([]int, referenceCount)
 	for i := range matchedEngine {
 		matchedEngine[i] = -1
@@ -454,7 +548,11 @@ func maximumMatches(adjacency [][]int, referenceCount int) int {
 			matches++
 		}
 	}
-	return matches
+	matchedReference := make([]bool, referenceCount)
+	for i, engineIndex := range matchedEngine {
+		matchedReference[i] = engineIndex != -1
+	}
+	return matches, matchedReference
 }
 
 func phpstanAnalyzedFiles(root, debugOutput string) map[string]bool {
@@ -514,10 +612,20 @@ func firstValue(values []string) string {
 
 func printReport(out io.Writer, result report) {
 	fmt.Fprintf(out, "PHPStan compatibility (%s)\n", result.PHPStanVersion)
+	if result.PHPVersion != "" {
+		fmt.Fprintf(out, "PHP: %s\n", result.PHPVersion)
+	}
 	fmt.Fprintln(out, "Compatibility is F1 over exact path + line + identifier matches.")
 	for _, level := range result.Levels {
-		fmt.Fprintf(out, "Level %d: %.2f%% PHPStan compatible (precision %.2f%%, recall %.2f%%, exact %d, engine-only %d, PHPStan-only %d, unmapped %d)\n", level.Level, level.CompatibilityPct, level.PrecisionPct, level.RecallPct, level.ExactMatches, level.EngineOnly, level.PHPStanOnly, level.UnmappedEngine)
+		fmt.Fprintf(out, "Level %d: %.2f%% PHPStan compatible (precision %.2f%%, recall %.2f%%, exact %d, engine-only %d, PHPStan-only %d, unmapped %d, PHPStan-unreviewed %d; reviewed F1 %.2f%%)\n", level.Level, level.CompatibilityPct, level.PrecisionPct, level.RecallPct, level.ExactMatches, level.EngineOnly, level.PHPStanOnly, level.UnmappedEngine, level.PHPStanOnlyUnreviewed, level.ReviewedCompatibilityPct)
 	}
+}
+
+func f1(matches, engineCount, referenceCount int) float64 {
+	if engineCount+referenceCount == 0 {
+		return 100
+	}
+	return round(float64(2*matches) * 100 / float64(engineCount+referenceCount))
 }
 
 func splitList(value string) []string {
