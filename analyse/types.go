@@ -438,6 +438,10 @@ func normalizeTypeAtom(raw string) (typeAtom, bool) {
 	raw = strings.TrimPrefix(raw, "\\")
 	raw = canonicalizeDocType(raw)
 
+	if isIntLiteralType(raw) {
+		return typeAtom{key: "int", display: "int", kind: typeKindBuiltin}, true
+	}
+
 	lower := asciiLowerIdent(raw)
 	if _, ok := builtinTypeNames[lower]; ok {
 		return typeAtom{key: lower, display: lower, kind: typeKindBuiltin}, true
@@ -453,6 +457,25 @@ func normalizeTypeAtom(raw string) (typeAtom, bool) {
 		display: trimmed,
 		kind:    typeKindClass,
 	}, true
+}
+
+func isIntLiteralType(raw string) bool {
+	if raw == "" {
+		return false
+	}
+	i := 0
+	if raw[0] == '-' {
+		if len(raw) == 1 {
+			return false
+		}
+		i = 1
+	}
+	for ; i < len(raw); i++ {
+		if raw[i] < '0' || raw[i] > '9' {
+			return false
+		}
+	}
+	return true
 }
 
 func atomsCompatible(declared, actual typeAtom) bool {

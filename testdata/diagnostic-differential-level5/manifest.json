@@ -249,6 +249,62 @@
       "file": "argument-property-truthy-mismatch.php",
       "engineCodes": ["A.ARG.TYPE"],
       "phpstanIdentifiers": ["argument.type"]
+    },
+    {
+      "id": "argument-while-null-clean",
+      "capability": "while null check narrows loop variable for arguments",
+      "file": "argument-while-null-clean.php",
+      "engineCodes": [],
+      "phpstanIdentifiers": []
+    },
+    {
+      "id": "argument-while-null-mismatch",
+      "capability": "nullable loop variable without while null check is rejected",
+      "file": "argument-while-null-mismatch.php",
+      "engineCodes": ["A.ARG.TYPE"],
+      "phpstanIdentifiers": ["argument.type"]
+    },
+    {
+      "id": "argument-false-ternary-clean",
+      "capability": "ternary === false strips false from the else operand",
+      "file": "argument-false-ternary-clean.php",
+      "engineCodes": [],
+      "phpstanIdentifiers": []
+    },
+    {
+      "id": "argument-false-ternary-mismatch",
+      "capability": "DateTimeImmutable|null|false without ternary is rejected",
+      "file": "argument-false-ternary-mismatch.php",
+      "engineCodes": ["A.ARG.TYPE"],
+      "phpstanIdentifiers": ["argument.type"]
+    },
+    {
+      "id": "argument-native-null-param-clean",
+      "capability": "native null|int keeps null when PHPDoc is 0|positive-int",
+      "file": "argument-native-null-param-clean.php",
+      "engineCodes": [],
+      "phpstanIdentifiers": []
+    },
+    {
+      "id": "argument-native-null-param-mismatch",
+      "capability": "PHPDoc int param still rejects string",
+      "file": "argument-native-null-param-mismatch.php",
+      "engineCodes": ["A.ARG.TYPE"],
+      "phpstanIdentifiers": ["argument.type"]
+    },
+    {
+      "id": "argument-var-doc-switch-clean",
+      "capability": "assignment @var narrows arguments inside switch",
+      "file": "argument-var-doc-switch-clean.php",
+      "engineCodes": [],
+      "phpstanIdentifiers": []
+    },
+    {
+      "id": "argument-var-doc-switch-mismatch",
+      "capability": "nullable getUser in switch without @var is rejected",
+      "file": "argument-var-doc-switch-mismatch.php",
+      "engineCodes": ["A.ARG.TYPE"],
+      "phpstanIdentifiers": ["argument.type"]
     }
   ]
 }

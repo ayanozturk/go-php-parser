@@ -702,6 +702,189 @@ function run(Request $request): void
 	}
 }
 
+func TestWhileNullCheckNarrowsArgument(t *testing.T) {
+	files := map[string]string{"app.php": `<?php
+class Task {
+    public function parent(): ?Task { return null; }
+}
+function sumChildren(Task $task): void {}
+function run(Task $task): void
+{
+    $current = $task->parent();
+    $depth = 0;
+    while ($current !== null && $depth < 64) {
+        sumChildren($current);
+        $current = $current->parent();
+        $depth++;
+    }
+}
+`}
+	if issues := runAnalysisLevelOnFiles(t, files, 5); hasArgTypeIssue(issues) {
+		t.Fatalf("expected while ($current !== null) to narrow nullable Task, got %#v", issues)
+	}
+}
+
+func TestWhileWithoutNullCheckStillRejectsNullable(t *testing.T) {
+	files := map[string]string{"app.php": `<?php
+class Task {
+    public function parent(): ?Task { return null; }
+}
+function sumChildren(Task $task): void {}
+function run(Task $task): void
+{
+    sumChildren($task->parent());
+}
+`}
+	if issues := runAnalysisLevelOnFiles(t, files, 4); hasArgTypeIssue(issues) {
+		t.Fatalf("expected nullable Task mismatch to remain silent at level 4, got %#v", issues)
+	}
+	if issues := runAnalysisLevelOnFiles(t, files, 5); !hasArgTypeIssue(issues) {
+		t.Fatalf("expected nullable Task without while null guard to mismatch, got %#v", issues)
+	}
+}
+
+func TestFalseTernaryStripsFalseFromArgument(t *testing.T) {
+	files := map[string]string{"app.php": `<?php
+function makeDue(?\DateTimeImmutable $due): ?\DateTimeImmutable { return $due; }
+function run(\DateTimeImmutable|null|false $dueDate): void
+{
+    $actual = $dueDate === false ? new \DateTimeImmutable() : $dueDate;
+    makeDue($actual);
+}
+`}
+	if issues := runAnalysisLevelOnFiles(t, files, 5); hasArgTypeIssue(issues) {
+		t.Fatalf("expected false ternary to strip false from DateTimeImmutable|null|false, got %#v", issues)
+	}
+}
+
+func TestFalseUnionWithoutTernaryStillRejects(t *testing.T) {
+	files := map[string]string{"app.php": `<?php
+function makeDue(?\DateTimeImmutable $due): ?\DateTimeImmutable { return $due; }
+function run(\DateTimeImmutable|null|false $dueDate): void
+{
+    makeDue($dueDate);
+}
+`}
+	if issues := runAnalysisLevelOnFiles(t, files, 4); hasArgTypeIssue(issues) {
+		t.Fatalf("expected DateTimeImmutable|null|false mismatch to remain silent at level 4, got %#v", issues)
+	}
+	if issues := runAnalysisLevelOnFiles(t, files, 5); !hasArgTypeIssue(issues) {
+		t.Fatalf("expected DateTimeImmutable|null|false without ternary guard to mismatch, got %#v", issues)
+	}
+}
+
+func TestNativeNullableParamKeepsNullWhenPHPDocOmitsIt(t *testing.T) {
+	files := map[string]string{"app.php": `<?php
+namespace OTPHP;
+
+class TOTP {
+    /**
+     * @param 0|positive-int $timestamp
+     */
+    public function verify(string $otp, null|int $timestamp = null): bool { return true; }
+}
+
+function run(TOTP $totp, string $token): void
+{
+    $totp->verify($token, null);
+}
+`}
+	if issues := runAnalysisLevelOnFiles(t, files, 5); hasArgTypeIssue(issues) {
+		t.Fatalf("expected native null|int param to accept null when PHPDoc omits it, got %#v", issues)
+	}
+}
+
+func TestPHPDocIntParamStillRejectsString(t *testing.T) {
+	files := map[string]string{"app.php": `<?php
+namespace OTPHP;
+
+class TOTP {
+    /**
+     * @param 0|positive-int $timestamp
+     */
+    public function verify(string $otp, null|int $timestamp = null): bool { return true; }
+}
+
+function run(TOTP $totp, string $token): void
+{
+    $totp->verify($token, 'nope');
+}
+`}
+	if issues := runAnalysisLevelOnFiles(t, files, 4); hasArgTypeIssue(issues) {
+		t.Fatalf("expected PHPDoc int param mismatch to remain silent at level 4, got %#v", issues)
+	}
+	if issues := runAnalysisLevelOnFiles(t, files, 5); !hasArgTypeIssue(issues) {
+		t.Fatalf("expected string passed to PHPDoc 0|positive-int param to mismatch, got %#v", issues)
+	}
+}
+
+func TestVarDocNarrowsArgumentInsideSwitch(t *testing.T) {
+	files := map[string]string{"app.php": `<?php
+class User {}
+
+class Controller
+{
+    public function getUser(): ?User
+    {
+        return null;
+    }
+
+    public function takesUser(User $user): void
+    {
+    }
+
+    public function run(): void
+    {
+        /** @var User $user */
+        $user = $this->getUser();
+        $action = 'go';
+        switch ($action) {
+            case 'go':
+                $this->takesUser($user);
+                break;
+        }
+    }
+}
+`}
+	if issues := runAnalysisLevelOnFiles(t, files, 5); hasArgTypeIssue(issues) {
+		t.Fatalf("expected assignment @var User to narrow inside switch case, got %#v", issues)
+	}
+}
+
+func TestVarDocMismatchInsideSwitchStillRejects(t *testing.T) {
+	files := map[string]string{"app.php": `<?php
+class User {}
+
+class Controller
+{
+    public function getUser(): ?User
+    {
+        return null;
+    }
+
+    public function takesUser(User $user): void
+    {
+    }
+
+    public function run(): void
+    {
+        $action = 'go';
+        switch ($action) {
+            case 'go':
+                $this->takesUser($this->getUser());
+                break;
+        }
+    }
+}
+`}
+	if issues := runAnalysisLevelOnFiles(t, files, 4); hasArgTypeIssue(issues) {
+		t.Fatalf("expected nullable User mismatch inside switch to remain silent at level 4, got %#v", issues)
+	}
+	if issues := runAnalysisLevelOnFiles(t, files, 5); !hasArgTypeIssue(issues) {
+		t.Fatalf("expected nullable User without @var inside switch to mismatch, got %#v", issues)
+	}
+}
+
 func TestFalsyAssignInitNarrowsNullableObject(t *testing.T) {
 	files := map[string]string{
 		"app.php": `<?php

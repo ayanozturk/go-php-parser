@@ -1912,10 +1912,11 @@ func paramsFromNodesWithPHPDoc(nodes []ast.Node, doc *ast.PHPDocNode, ft FileTyp
 		if typ == "" && param.UnionType != nil {
 			typ = param.UnionType.TokenLiteral()
 		}
+		native := typ
 		if doc != nil {
-		if documented := doc.GetParamTypeFromPHPDoc(param.Name); documented != "" {
-			typ = documented
-		}
+			if documented := doc.GetParamTypeFromPHPDoc(param.Name); documented != "" {
+				typ = documentedParamTypePreservingNativeNull(native, documented)
+			}
 		}
 		typ = expandPHPDocTypeAliases(typ, aliases)
 		// Composite types that mention call-site templates stay mixed until
@@ -1934,6 +1935,29 @@ func paramsFromNodesWithPHPDoc(nodes []ast.Node, doc *ast.PHPDocNode, ft FileTyp
 		})
 	}
 	return params
+}
+
+func documentedParamTypePreservingNativeNull(native, documented string) string {
+	if documented == "" {
+		return native
+	}
+	if phpTypeIncludesNull(native) && !phpTypeIncludesNull(documented) {
+		return documented + "|null"
+	}
+	return documented
+}
+
+func phpTypeIncludesNull(raw string) bool {
+	raw = strings.TrimSpace(raw)
+	if strings.HasPrefix(raw, "?") {
+		return true
+	}
+	for _, part := range splitTopLevelTypes(raw, '|') {
+		if asciiLowerIdent(strings.TrimPrefix(strings.TrimSpace(part), `\`)) == "null" {
+			return true
+		}
+	}
+	return false
 }
 
 func resolvedList(ft FileTypeContext, names []string) []string {

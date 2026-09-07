@@ -157,7 +157,7 @@ func walkStatementsForArgTypesUsing(nodes []ast.Node, scope *functionScope, ctx 
 			walkStatementsForArgTypesUsing(n.Statements, scope.clone(), ctx, filename, issues, observe)
 		case *ast.WhileNode:
 			walkExprForArgTypesUsing(n.Condition, scope, ctx, filename, issues, observe)
-			walkStatementsForArgTypesUsing(n.Body, scope.clone(), ctx, filename, issues, observe)
+			walkStatementsForArgTypesUsing(n.Body, scopeForConditionTrue(scope, n.Condition, ctx), ctx, filename, issues, observe)
 		case *ast.DoWhileNode:
 			loopScope := scope.clone()
 			walkStatementsForArgTypesUsing(n.Body, loopScope, ctx, filename, issues, observe)
@@ -219,6 +219,11 @@ func scopeForConditionFalse(scope *functionScope, condition ast.Node, ctx *Analy
 		return nil
 	}
 	applyThisPropertyConditionScope(refined, condition, false, ctx)
+	for name, typ := range variablesTypedWhenFalse(condition, refined) {
+		if !typ.IsEmpty() {
+			refined.setVariable(name, typ)
+		}
+	}
 	for _, name := range variablesNonNullWhenFalse(condition) {
 		if typ, ok := nonNullVariableType(refined, name); ok {
 			refined.setVariable(name, typ)

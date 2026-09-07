@@ -147,7 +147,7 @@ func walkStatementsForHoverTypes(nodes []ast.Node, scope *functionScope, ctx *An
 			walkStatementsForHoverTypes(n.Statements, scope.clone(), ctx, query, best)
 		case *ast.WhileNode:
 			walkExprForHoverTypes(n.Condition, scope, ctx, query, best)
-			walkStatementsForHoverTypes(n.Body, scope.clone(), ctx, query, best)
+			walkStatementsForHoverTypes(n.Body, scopeForConditionTrue(scope, n.Condition, ctx), ctx, query, best)
 		case *ast.DoWhileNode:
 			loopScope := scope.clone()
 			walkStatementsForHoverTypes(n.Body, loopScope, ctx, query, best)

@@ -415,7 +415,7 @@ func collectObservedReturnsUsing(filename string, nodes []ast.Node, scope *funct
 		case *ast.BlockNode:
 			returns = append(returns, collectObservedReturnsUsing(filename, n.Statements, scope.clone(), ctx, infer)...)
 		case *ast.WhileNode:
-			returns = append(returns, collectObservedReturnsUsing(filename, n.Body, scope.clone(), ctx, infer)...)
+			returns = append(returns, collectObservedReturnsUsing(filename, n.Body, scopeForConditionTrue(scope, n.Condition, ctx), ctx, infer)...)
 		case *ast.DoWhileNode:
 			returns = append(returns, collectObservedReturnsUsing(filename, n.Body, scope.clone(), ctx, infer)...)
 		case *ast.ForNode:
