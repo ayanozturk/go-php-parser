@@ -41,7 +41,13 @@ func appendMethodReceiverIssuesForCall(filename string, call *ast.MethodCallNode
 	if call == nil || strings.TrimSpace(call.Method) == "" {
 		return
 	}
+	if strings.HasPrefix(call.Method, "$") {
+		return
+	}
 	if receiver, ok := call.Object.(*ast.VariableNode); ok && receiver.Name == "this" {
+		return
+	}
+	if key, ok := methodReceiverGuardKey(call.Object); ok && scope != nil && scope.hasProvidedMethod(key, call.Method) {
 		return
 	}
 	receiverType := inferTypeWithFacts(filename, call.Object, scope, ctx)

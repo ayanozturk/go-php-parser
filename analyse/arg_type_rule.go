@@ -248,11 +248,94 @@ func applyConditionTrueScope(scope *functionScope, condition ast.Node, ctx *Anal
 		return
 	}
 	applyThisPropertyConditionScope(scope, condition, true, ctx)
+	applyMethodExistsGuards(scope, condition)
+	applyIsObjectPropertyGuards(scope, condition, ctx)
 	for variableName, typ := range variablesTypedWhenTrue(condition, scope) {
 		if !typ.IsEmpty() {
 			scope.setVariable(variableName, typ)
 		}
 	}
+}
+
+type methodExistsGuard struct {
+	receiverKey, method string
+}
+
+func methodReceiverGuardKey(node ast.Node) (string, bool) {
+	switch n := node.(type) {
+	case *ast.VariableNode:
+		if n.Name != "" && n.Name != "this" {
+			return n.Name, true
+		}
+	case *ast.PropertyFetchNode:
+		if name, ok := directThisPropertyName(n); ok {
+			return "\x1fthis\x1f" + name, true
+		}
+		return foreignPropertyKey(n)
+	}
+	return "", false
+}
+
+func applyMethodExistsGuards(scope *functionScope, condition ast.Node) {
+	for _, guard := range methodExistsGuards(condition) {
+		scope.provideMethod(guard.receiverKey, guard.method)
+	}
+}
+
+func applyIsObjectPropertyGuards(scope *functionScope, condition ast.Node, ctx *AnalysisContext) {
+	for _, fetch := range isObjectPropertyGuards(condition) {
+		if name, ok := directThisPropertyName(fetch); ok {
+			removeNullFromThisProperty(scope, name)
+			continue
+		}
+		stripNullFromForeignProperty(scope, fetch, ctx)
+	}
+}
+
+func isObjectPropertyGuards(node ast.Node) []*ast.PropertyFetchNode {
+	switch n := node.(type) {
+	case *ast.BinaryExpr:
+		switch n.Operator {
+		case "&&", "and":
+			guards := isObjectPropertyGuards(n.Left)
+			return append(guards, isObjectPropertyGuards(n.Right)...)
+		}
+	case *ast.FunctionCallNode:
+		if asciiLowerIdent(functionCallName(n)) != "is_object" || len(n.Args) != 1 {
+			return nil
+		}
+		fetch, ok := argumentValue(n.Args[0]).(*ast.PropertyFetchNode)
+		if !ok {
+			return nil
+		}
+		return []*ast.PropertyFetchNode{fetch}
+	}
+	return nil
+}
+
+func methodExistsGuards(node ast.Node) []methodExistsGuard {
+	switch n := node.(type) {
+	case *ast.BinaryExpr:
+		switch n.Operator {
+		case "&&", "and":
+			guards := methodExistsGuards(n.Left)
+			return append(guards, methodExistsGuards(n.Right)...)
+		}
+	case *ast.FunctionCallNode:
+		if asciiLowerIdent(functionCallName(n)) != "method_exists" || len(n.Args) < 2 {
+			return nil
+		}
+		receiverKey, ok := methodReceiverGuardKey(argumentValue(n.Args[0]))
+		if !ok {
+			return nil
+		}
+		method, ok := stringLiteralValue(argumentValue(n.Args[1]))
+		if !ok || method == "" {
+			return nil
+		}
+		return []methodExistsGuard{{receiverKey: receiverKey, method: method}}
+	}
+	return nil
 }
 
 func variablesTypedWhenTrue(node ast.Node, scope *functionScope) map[string]Type {

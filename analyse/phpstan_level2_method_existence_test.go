@@ -951,6 +951,59 @@ namespace {
 	}
 }
 
+func TestLevel2MethodExistsGuardAllowsCall(t *testing.T) {
+	issues := runAnalysisLevelOnFiles(t, map[string]string{
+		"test.php": `<?php
+class Service {}
+
+function run(Service $service): void {
+    if (method_exists($service, 'optional')) {
+        $service->optional();
+    }
+    $service->optional();
+}
+`,
+	}, 2)
+
+	if countIssueContaining(issues, level2MethodExistenceCode, "Service::optional()") != 1 {
+		t.Fatalf("expected one unguarded optional() diagnostic, got %#v", issues)
+	}
+}
+
+func TestLevel2AndMethodExistsGuardAllowsCall(t *testing.T) {
+	issues := runAnalysisLevelOnFiles(t, map[string]string{
+		"test.php": `<?php
+class Node {}
+
+function run(?Node $previous): void {
+    if ($previous && method_exists($previous, 'getSQLState')) {
+        $previous->getSQLState();
+    }
+}
+`,
+	}, 2)
+
+	if hasIssueContaining(issues, level2MethodExistenceCode, "getSQLState") {
+		t.Fatalf("method_exists in && condition should allow guarded call, got %#v", issues)
+	}
+}
+
+func TestLevel2DynamicMethodNameIsClean(t *testing.T) {
+	issues := runAnalysisLevelOnFiles(t, map[string]string{
+		"test.php": `<?php
+class Provider {}
+
+function run(Provider $provider, string $method, mixed ...$args): void {
+    $provider->$method(...$args);
+}
+`,
+	}, 2)
+
+	if hasIssueContaining(issues, level2MethodExistenceCode, "Provider::") {
+		t.Fatalf("dynamic method name should stay silent, got %#v", issues)
+	}
+}
+
 func TestLevel2InstanceofKeepsMockIntersectionMethods(t *testing.T) {
 	files := map[string]string{
 		"mock.php": `<?php
@@ -991,5 +1044,27 @@ final class ExampleTest extends \PHPUnit\Framework\TestCase {
 	issues := runAnalysisLevelOnFiles(t, files, 2)
 	if hasIssueContaining(issues, level2MethodExistenceCode, "method") {
 		t.Fatalf("instanceof should keep mock intersection methods, got %#v", issues)
+	}
+}
+
+func TestLevel2MethodExistsOnThisProperty(t *testing.T) {
+	issues := runAnalysisLevelOnFiles(t, map[string]string{
+		"test.php": `<?php
+class Invoice {}
+class Controller {
+    /** @var Invoice|null */
+    public $invoice;
+    public function run(): void {
+        if (method_exists($this->invoice, 'optional')) {
+            $this->invoice->optional();
+        }
+        $this->invoice->optional();
+    }
+}
+`,
+	}, 2)
+
+	if countIssueContaining(issues, level2MethodExistenceCode, "optional()") != 1 {
+		t.Fatalf("expected one unguarded optional() diagnostic, got %#v", issues)
 	}
 }

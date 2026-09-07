@@ -69,6 +69,20 @@
       "phpstanIdentifiers": []
     },
     {
+      "id": "known-trait-inherited-iterable-contract",
+      "capability": "trait PHPDoc iterable value types inherited by using class",
+      "file": "known-trait-inherited-iterable-contract.php",
+      "engineCodes": [],
+      "phpstanIdentifiers": []
+    },
+    {
+      "id": "known-phpstan-type-alias",
+      "capability": "phpstan-type alias expands before iterable value checks",
+      "file": "known-phpstan-type-alias.php",
+      "engineCodes": [],
+      "phpstanIdentifiers": []
+    },
+    {
       "id": "missing-explicit-weak-iterable-override",
       "capability": "explicit weak PHPDoc overrides inherited iterable value types",
       "file": "missing-explicit-weak-iterable-override.php",

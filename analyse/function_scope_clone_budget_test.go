@@ -124,6 +124,8 @@ func TestFunctionScopeCloneAllMutableStateWritesAreIsolated(t *testing.T) {
 	clone.setArrayIndexKeys("cloneOnly", []string{"inner"})
 	clone.setGenericContext("service", GenericInstance{ClassName: "OtherRepository", TypeArguments: []string{"OtherService"}})
 	clone.setGenericContext("cloneOnly", GenericInstance{ClassName: "Repository", TypeArguments: []string{"bool"}})
+	clone.provideMethod("service", "optional")
+	clone.provideMethod("cloneOnly", "dynamic")
 
 	assertCloneBudgetVariable(t, clone, "seed", "bool")
 	assertCloneBudgetVariable(t, clone, "branch", "float")
@@ -184,6 +186,15 @@ func TestFunctionScopeCloneAllMutableStateWritesAreIsolated(t *testing.T) {
 	}
 	if cloneMapPointer(clone.genericContext) == cloneMapPointer(root.genericContext) {
 		t.Fatal("generic-context write did not detach clone map")
+	}
+	if clone.functionScopeContext == root.functionScopeContext {
+		t.Fatal("provided-method write did not detach clone context")
+	}
+	if root.hasProvidedMethod("service", "optional") || root.hasProvidedMethod("cloneOnly", "dynamic") {
+		t.Fatal("clone-only provided methods leaked into root")
+	}
+	if !clone.hasProvidedMethod("service", "optional") || !clone.hasProvidedMethod("cloneOnly", "dynamic") {
+		t.Fatal("clone did not record provided methods")
 	}
 
 	if got := clone.variables.values; len(got) != 1 {

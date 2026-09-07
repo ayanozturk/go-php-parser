@@ -697,6 +697,20 @@
       "file": "known-method-instanceof-keeps-mock.php",
       "engineCodes": [],
       "phpstanIdentifiers": []
+    },
+    {
+      "id": "known-method-exists-guard",
+      "capability": "known methods guarded by method_exists",
+      "file": "known-method-exists-guard.php",
+      "engineCodes": [],
+      "phpstanIdentifiers": []
+    },
+    {
+      "id": "known-method-variable-name",
+      "capability": "method calls with dynamic method names",
+      "file": "known-method-variable-name.php",
+      "engineCodes": [],
+      "phpstanIdentifiers": []
     }
   ]
 }

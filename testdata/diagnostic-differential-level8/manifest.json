@@ -248,6 +248,27 @@
       "file": "known-method-negated-instanceof-or.php",
       "engineCodes": [],
       "phpstanIdentifiers": []
+    },
+    {
+      "id": "known-method-exists-property-ternary",
+      "capability": "is_object and method_exists guard property ternary",
+      "file": "known-method-exists-property-ternary.php",
+      "engineCodes": [],
+      "phpstanIdentifiers": []
+    },
+    {
+      "id": "known-method-exists-property-if",
+      "capability": "method_exists guard on property in if",
+      "file": "known-method-exists-property-if.php",
+      "engineCodes": [],
+      "phpstanIdentifiers": []
+    },
+    {
+      "id": "known-method-exists-property-and",
+      "capability": "truthy property and method_exists guard",
+      "file": "known-method-exists-property-and.php",
+      "engineCodes": [],
+      "phpstanIdentifiers": []
     }
   ]
 }

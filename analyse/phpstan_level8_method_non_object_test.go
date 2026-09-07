@@ -96,3 +96,49 @@ function run(?User $employee, User $user): void {
 		t.Fatalf("negated instanceof || should narrow nullable receiver before getId(), got %#v", issues)
 	}
 }
+
+func TestLevel8MethodExistsOnPropertyReceivers(t *testing.T) {
+	files := map[string]string{
+		"test.php": `<?php
+class DataHolder {
+    public function toArray(): array { return []; }
+}
+class Holder {
+    /** @var DataHolder|null */
+    public $data;
+    public function ternary(): array {
+        return is_object($this->data) && method_exists($this->data, 'toArray') ? $this->data->toArray() : [];
+    }
+    public function guardedIf(): void {
+        if (method_exists($this->data, 'toArray')) {
+            $this->data->toArray();
+        }
+    }
+}
+class Rule { public function getX(): int { return 0; } }
+class RuleHolder {
+    /** @var Rule|null */
+    public $rule;
+    public function guarded(): void {
+        if ($this->rule && method_exists($this->rule, 'getX')) {
+            $this->rule->getX();
+        }
+    }
+}
+class Service { public function execute(): void {} }
+function unguarded(?Service $s): void {
+    $s->execute();
+}
+`,
+	}
+
+	issues := runAnalysisLevelOnFiles(t, files, 8)
+	for _, unexpected := range []string{"toArray", "getX"} {
+		if hasIssueContaining(issues, level8MethodNonObjectCode, unexpected) {
+			t.Fatalf("guarded property method %q should stay clean at level eight, got %#v", unexpected, issues)
+		}
+	}
+	if !hasIssueContaining(issues, level8MethodNonObjectCode, "execute") {
+		t.Fatalf("unguarded nullable Service call should still report Level8.MethodNonObject, got %#v", issues)
+	}
+}

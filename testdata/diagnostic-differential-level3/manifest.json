@@ -214,6 +214,41 @@
       "file": "clean-return-bool-comparison.php",
       "engineCodes": [],
       "phpstanIdentifiers": []
+    },
+    {
+      "id": "clean-inherited-generic-this-return",
+      "capability": "inherited generic $this method returns bound type",
+      "file": "clean-inherited-generic-this-return.php",
+      "engineCodes": [],
+      "phpstanIdentifiers": []
+    },
+    {
+      "id": "inherited-generic-this-return-mismatch",
+      "capability": "inherited generic $this method return type mismatches",
+      "file": "inherited-generic-this-return-mismatch.php",
+      "engineCodes": ["A.RETURN.TYPE"],
+      "phpstanIdentifiers": ["return.type"]
+    },
+    {
+      "id": "clean-callable-template-return",
+      "capability": "callable template cache get returns bound type",
+      "file": "clean-callable-template-return.php",
+      "engineCodes": [],
+      "phpstanIdentifiers": []
+    },
+    {
+      "id": "callable-template-return-mismatch",
+      "capability": "callable template cache get return type mismatches",
+      "file": "callable-template-return-mismatch.php",
+      "engineCodes": ["A.RETURN.TYPE"],
+      "phpstanIdentifiers": ["return.type"]
+    },
+    {
+      "id": "clean-generic-parent-property-find",
+      "capability": "generic parent property find returns bound type",
+      "file": "clean-generic-parent-property-find.php",
+      "engineCodes": [],
+      "phpstanIdentifiers": []
     }
   ]
 }

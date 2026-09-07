@@ -46,6 +46,11 @@ func appendMissingTypeIssuesOnNode(filename string, node ast.Node, class *ast.Cl
 }
 
 func appendCallableMissingTypeIssues(filename string, declaration ast.Node, name string, isMethod bool, params []ast.Node, nativeReturn string, doc *ast.PHPDocNode, class *ast.ClassNode, ft FileTypeContext, ctx *AnalysisContext, issues *[]AnalysisIssue) {
+	var classDoc *ast.PHPDocNode
+	if class != nil {
+		classDoc = class.PHPDoc
+	}
+	aliases := phpDocTypeAliasBindings(classDoc, doc)
 	var inherited []ResolvedMethod
 	inheritedLoaded := false
 	loadInherited := func() []ResolvedMethod {
@@ -80,6 +85,7 @@ func appendCallableMissingTypeIssues(filename string, declaration ast.Node, name
 			*issues = append(*issues, issueSpan(filename, param, level6MissingParameterCode, fmt.Sprintf("Parameter $%s has no type specified.", param.Name)))
 			continue
 		}
+		raw = expandPHPDocTypeAliases(raw, aliases)
 		appendMissingTypeIssues(filename, param, raw, ft, ctx, issues)
 	}
 	rawReturn := nativeReturn
@@ -98,6 +104,7 @@ func appendCallableMissingTypeIssues(filename string, declaration ast.Node, name
 		*issues = append(*issues, issueSpan(filename, declaration, level6MissingReturnCode, fmt.Sprintf("Function or method %s has no return type specified.", name)))
 		return
 	}
+	rawReturn = expandPHPDocTypeAliases(rawReturn, aliases)
 	appendMissingTypeIssues(filename, declaration, rawReturn, ft, ctx, issues)
 }
 
@@ -109,7 +116,7 @@ func inheritedMethodContracts(class *ast.ClassNode, methodName string, ft FileTy
 	if !ok {
 		return nil
 	}
-	queue := append(append([]string(nil), resolved.Extends...), resolved.Implements...)
+	queue := append(append(append([]string(nil), resolved.Extends...), resolved.Implements...), resolved.Traits...)
 	seen := make(map[string]struct{}, len(queue))
 	var contracts []ResolvedMethod
 	for len(queue) > 0 {
@@ -126,6 +133,7 @@ func inheritedMethodContracts(class *ast.ClassNode, methodName string, ft FileTy
 		if parent, found := ctx.Resolver.ResolveClass(name); found {
 			queue = append(queue, parent.Extends...)
 			queue = append(queue, parent.Implements...)
+			queue = append(queue, parent.Traits...)
 		}
 	}
 	return contracts

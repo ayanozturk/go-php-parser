@@ -136,6 +136,133 @@ func TestThisPropertyReturnTypeNoMismatch(t *testing.T) {
 	}
 }
 
+func TestInheritedGenericThisMethodReturnTypeNoMismatch(t *testing.T) {
+	php := `<?php
+class User {}
+
+/** @template T */
+class Repository {
+	/** @return T|null */
+	public function find(mixed $id): ?object { return null; }
+}
+
+/** @extends Repository<User> */
+class UserRepository extends Repository {
+	public function byId(mixed $id): ?User {
+		return $this->find($id);
+	}
+}`
+	issues := analysePHP(t, php)
+	if hasReturnTypeIssue(issues) {
+		// ResolveMethod must bind @extends Repository<User> so find() returns User|null, not ?object.
+		t.Fatalf("expected no A.RETURN.TYPE for inherited generic $this->find() bound to ?User, got: %#v", issues)
+	}
+}
+
+func TestInheritedGenericThisMethodReturnTypeMismatchStillReports(t *testing.T) {
+	php := `<?php
+class User {}
+
+/** @template T */
+class Repository {
+	/** @return T|null */
+	public function find(mixed $id): ?object { return null; }
+}
+
+/** @extends Repository<User> */
+class UserRepository extends Repository {
+	public function byId(mixed $id): string {
+		return $this->find($id);
+	}
+}`
+	issues := analysePHP(t, php)
+	if !hasReturnTypeIssue(issues) {
+		t.Fatalf("expected A.RETURN.TYPE when returning bound generic ?User as string, got: %#v", issues)
+	}
+}
+
+func TestCallableTemplateCacheReturnTypeNoMismatch(t *testing.T) {
+	php := `<?php
+class Widget {}
+
+interface Cache {
+	/**
+	 * @template T
+	 * @param callable(): T $callback
+	 * @return T
+	 */
+	public function get(string $key, callable $callback): mixed;
+}
+
+class Service {
+	private Cache $cache;
+
+	public function widget(): Widget {
+		return $this->cache->get('k', function (): Widget {
+			return new Widget();
+		});
+	}
+}`
+	issues := analysePHP(t, php)
+	if hasReturnTypeIssue(issues) {
+		t.Fatalf("expected no A.RETURN.TYPE for callable-bound cache get() returning Widget, got: %#v", issues)
+	}
+}
+
+func TestCallableTemplateCacheReturnTypeMismatchStillReports(t *testing.T) {
+	php := `<?php
+class Widget {}
+
+interface Cache {
+	/**
+	 * @template T
+	 * @param callable(): T $callback
+	 * @return T
+	 */
+	public function get(string $key, callable $callback): mixed;
+}
+
+class Service {
+	private Cache $cache;
+
+	public function widget(): string {
+		return $this->cache->get('k', function (): Widget {
+			return new Widget();
+		});
+	}
+}`
+	issues := analysePHP(t, php)
+	if !hasReturnTypeIssue(issues) {
+		t.Fatalf("expected A.RETURN.TYPE when cache get() returns Widget as string, got: %#v", issues)
+	}
+}
+
+func TestGenericParentPropertyFindReturnTypeNoMismatch(t *testing.T) {
+	php := `<?php
+class User {}
+
+/** @template T */
+class Repo {
+	/** @return T|null */
+	public function find($id): ?object { return null; }
+}
+
+/** @extends Repo<User> */
+class UserRepo extends Repo {}
+
+class Service {
+	public UserRepo $repository;
+
+	public function byId($id): ?User {
+		return $this->repository->find($id);
+	}
+}`
+	issues := analysePHP(t, php)
+	if hasReturnTypeIssue(issues) {
+		t.Fatalf("expected no A.RETURN.TYPE for @extends generic property find() bound to ?User, got: %#v", issues)
+	}
+}
+
 func TestThisMethodReturnTypeNoMismatch(t *testing.T) {
 	php := `<?php
 	class User {}

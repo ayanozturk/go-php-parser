@@ -142,6 +142,45 @@ class UntypedScalarContract implements ScalarContract {
 	}
 }
 
+func TestLevel6MissingIterableTypesUseTraitInheritedContract(t *testing.T) {
+	const source = `<?php
+trait TypedItems {
+    /** @return array<string, int> */
+    public function items(): array { return []; }
+
+    /** @param array<string, int> $items */
+    public function replace(array $items): void {}
+}
+
+class UsesTrait {
+    use TypedItems;
+}
+`
+	issues := runAnalysisLevelOnFiles(t, map[string]string{"test.php": source}, 6)
+	missing := filterIssuesByCode(issues, level6MissingIterableTypeCode)
+	if len(missing) != 0 {
+		t.Fatalf("trait inherited iterable contract should satisfy child declarations, got %#v", missing)
+	}
+}
+
+func TestLevel6MissingIterableTypesExpandPhpStanTypeAlias(t *testing.T) {
+	const source = `<?php
+/**
+ * @phpstan-type ItemList list<string>
+ */
+final class Holder
+{
+    /** @param ItemList $items */
+    public function replace(array $items): void {}
+}
+`
+	issues := runAnalysisLevelOnFiles(t, map[string]string{"test.php": source}, 6)
+	missing := filterIssuesByCode(issues, level6MissingIterableTypeCode)
+	if len(missing) != 0 {
+		t.Fatalf("phpstan-type alias should supply iterable value type, got %#v", missing)
+	}
+}
+
 // TestLevel6MissingReturnTypeSpanIsSignatureOnly guards against regressing
 // to underlining the entire method body: the diagnostic's span should end
 // on the declaration line (after the closing ')' of the parameter list),

@@ -140,6 +140,7 @@ type functionScopeContext struct {
 	classConstantValues     map[string]string
 	propertyArrayShapes     map[string]map[string]arrayShapeField
 	methodArrayShapes       map[string]map[string]arrayShapeField
+	providedMethods         map[string]map[string]struct{}
 }
 
 type classScopeData struct {
@@ -1456,6 +1457,54 @@ func (s *functionScope) clone() *functionScope {
 	return clone
 }
 
+func copyProvidedMethods(src map[string]map[string]struct{}) map[string]map[string]struct{} {
+	if len(src) == 0 {
+		return nil
+	}
+	dst := make(map[string]map[string]struct{}, len(src))
+	for name, methods := range src {
+		dst[name] = methods
+	}
+	return dst
+}
+
+func (s *functionScope) provideMethod(variable, method string) {
+	if s == nil || s.functionScopeContext == nil || variable == "" || method == "" {
+		return
+	}
+	key := asciiLowerIdent(method)
+	if existing, ok := s.providedMethods[variable]; ok {
+		if _, found := existing[key]; found {
+			return
+		}
+	}
+	copied := *s.functionScopeContext
+	copied.providedMethods = copyProvidedMethods(s.providedMethods)
+	if copied.providedMethods == nil {
+		copied.providedMethods = make(map[string]map[string]struct{})
+	}
+	methods := copied.providedMethods[variable]
+	next := make(map[string]struct{}, len(methods)+1)
+	for name := range methods {
+		next[name] = struct{}{}
+	}
+	next[key] = struct{}{}
+	copied.providedMethods[variable] = next
+	s.functionScopeContext = &copied
+}
+
+func (s *functionScope) hasProvidedMethod(variable, method string) bool {
+	if s == nil || s.functionScopeContext == nil || variable == "" || method == "" {
+		return false
+	}
+	methods, ok := s.providedMethods[variable]
+	if !ok {
+		return false
+	}
+	_, ok = methods[asciiLowerIdent(method)]
+	return ok
+}
+
 func (s *functionScope) setCallableReturn(name string, typ Type) {
 	if s == nil || typ.IsEmpty() {
 		return
@@ -1943,14 +1992,29 @@ func bindCallSiteMethodTemplates(method ResolvedMethod, args []ast.Node, scope *
 			continue
 		}
 		name := templateNameFromParamType(method.Params[paramIndex].Type, method.ReturnType, ctx)
+		argExpr := argumentValue(argNode)
+		var typeCtx FileTypeContext
+		if scope != nil {
+			typeCtx = scope.typeCtx
+		}
+		callableReturn := declaredCallableExpressionReturnType(argExpr, typeCtx)
+		if name == "" && !callableReturn.IsEmpty() {
+			name = openTemplateParamName(method.ReturnType, ctx)
+		}
 		if name == "" {
 			continue
 		}
-		if className, ok := classNameFromClassStringExpr(argumentValue(argNode), scope); ok {
+		if className, ok := classNameFromClassStringExpr(argExpr, scope); ok {
 			bindings[name] = className
 			continue
 		}
-		actual := inferTypeWithFacts(filename, argumentValue(argNode), scope, ctx)
+		if !callableReturn.IsEmpty() {
+			if label := strings.TrimSpace(callableReturn.dnfString()); label != "" {
+				bindings[name] = label
+				continue
+			}
+		}
+		actual := inferTypeWithFacts(filename, argExpr, scope, ctx)
 		if label := strings.TrimSpace(actual.String()); label != "" {
 			bindings[name] = label
 		}
@@ -1977,6 +2041,9 @@ func templateNameFromParamType(raw, methodReturnType string, ctx *AnalysisContex
 	if name := openTemplateParamName(raw, ctx); name != "" {
 		return name
 	}
+	if name := templateNameFromCallableParamType(raw, ctx); name != "" {
+		return name
+	}
 	instance, ok := parseExactGenericTypeFromString(strings.TrimPrefix(strings.TrimSpace(raw), "?"))
 	if !ok || !strings.EqualFold(instance.ClassName, "class-string") || len(instance.TypeArguments) != 1 {
 		return ""
@@ -1993,6 +2060,93 @@ func templateNameFromParamType(raw, methodReturnType string, ctx *AnalysisContex
 		return inner
 	}
 	return ""
+}
+
+func templateNameFromCallableParamType(raw string, ctx *AnalysisContext) string {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return ""
+	}
+	for _, part := range splitTopLevelTypes(raw, '|') {
+		part = stripBalancedOuterTypeParens(strings.TrimSpace(part))
+		if ret := rawCallableReturnType(part); ret != "" {
+			if name := openTemplateParamName(ret, ctx); name != "" {
+				return name
+			}
+			if instance, ok := parseExactGenericTypeFromString(ret); ok && len(instance.TypeArguments) == 1 {
+				if name := openTemplateParamName(instance.TypeArguments[0], ctx); name != "" {
+					return name
+				}
+			}
+		}
+		if instance, ok := parseExactGenericTypeFromString(part); ok && len(instance.TypeArguments) == 1 {
+			if name := openTemplateParamName(instance.TypeArguments[0], ctx); name != "" {
+				return name
+			}
+		}
+	}
+	return ""
+}
+
+func rawCallableReturnType(raw string) string {
+	raw = stripBalancedOuterTypeParens(strings.TrimSpace(raw))
+	open := strings.Index(raw, "(")
+	if open < 0 || !strings.EqualFold(strings.TrimSpace(raw[:open]), "callable") {
+		return ""
+	}
+	depth := 0
+	closeIdx := -1
+	for idx, r := range raw[open:] {
+		switch r {
+		case '(':
+			depth++
+		case ')':
+			depth--
+			if depth == 0 {
+				closeIdx = open + idx
+			}
+		}
+		if closeIdx >= 0 {
+			break
+		}
+	}
+	if closeIdx < 0 {
+		return ""
+	}
+	suffix := strings.TrimSpace(raw[closeIdx+1:])
+	if !strings.HasPrefix(suffix, ":") {
+		return ""
+	}
+	return strings.TrimSpace(strings.TrimPrefix(suffix, ":"))
+}
+
+func genericParentTypeArguments(resolver SymbolResolver, className, methodName string) []string {
+	if resolver == nil {
+		return nil
+	}
+	resolvedClass, ok := resolver.ResolveClass(className)
+	if !ok || len(resolvedClass.GenericParents) == 0 {
+		return nil
+	}
+	var fallback []string
+	var declaringClass string
+	if methodName != "" {
+		if method, ok := resolver.ResolveMethod(className, methodName); ok {
+			declaringClass = method.DeclaringClass
+		}
+	}
+	for _, parent := range resolvedClass.GenericParents {
+		if len(parent.TypeArguments) == 0 {
+			continue
+		}
+		if fallback == nil {
+			fallback = parent.TypeArguments
+		}
+		if declaringClass != "" && strings.EqualFold(strings.TrimPrefix(parent.Name, `\`), strings.TrimPrefix(declaringClass, `\`)) {
+			return parent.TypeArguments
+		}
+	}
+	return fallback
 }
 
 func isBindableClassStringTemplate(name, methodReturnType string, ctx *AnalysisContext) bool {
@@ -2102,13 +2256,13 @@ func inferMethodCallTypeInFile(filename string, node *ast.MethodCallNode, scope 
 		if scope != nil {
 			callee = scope.className
 		}
-		if method, ok := resolveSameClassMethod(scope, node.Method); ok {
-			return inferredMethodReturnTypeWithBindings(method, callee, ctx, bindCallSiteMethodTemplates(method, node.Args, scope, ctx, filename))
-		}
 		if scope != nil && ctx != nil && ctx.Resolver != nil {
 			if method, ok := ctx.Resolver.ResolveMethod(scope.className, node.Method); ok {
 				return inferredMethodReturnTypeWithBindings(method, callee, ctx, bindCallSiteMethodTemplates(method, node.Args, scope, ctx, filename))
 			}
+		}
+		if method, ok := resolveSameClassMethod(scope, node.Method); ok {
+			return inferredMethodReturnTypeWithBindings(method, callee, ctx, bindCallSiteMethodTemplates(method, node.Args, scope, ctx, filename))
 		}
 	}
 
@@ -2127,6 +2281,11 @@ func inferMethodCallTypeInFile(filename string, node *ast.MethodCallNode, scope 
 	className, typeArgs, ok := genericReceiver(objectType)
 	if !ok {
 		return MixedType()
+	}
+	if len(typeArgs) == 0 && ctx != nil && ctx.Resolver != nil {
+		if parentArgs := genericParentTypeArguments(ctx.Resolver, className, node.Method); len(parentArgs) > 0 {
+			typeArgs = parentArgs
+		}
 	}
 	if scope != nil && strings.EqualFold(className, scope.className) {
 		if method, ok := resolveSameClassMethod(scope, node.Method); ok {
