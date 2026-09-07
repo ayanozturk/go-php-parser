@@ -307,6 +307,17 @@ Useful flags:
 - `-workers` to control parallelism
 - `-top` to control how many failing-file examples are shown per project
 
+Parser compatibility and PHPStan diagnostic compatibility are separate metrics. To report a corpus-scoped `Level N: X% PHPStan compatible`, use the exact-location precision/recall/F1 report documented in [docs/phpstan-compatibility-metric.md](docs/phpstan-compatibility-metric.md):
+
+```bash
+go run ./cmd/phpstan-compat \
+  --root /path/to/project \
+  --paths src,tests \
+  --index-paths vendor \
+  --phpstan-bin /path/to/project/vendor/bin/phpstan \
+  --phpstan-config /path/to/project/phpstan.neon
+```
+
 ### Full-Analyser Benchmark
 
 To measure the analysis engine itself (not the style checker) against the checked-in `test_projects` corpus — index-only, process-cold full analysis, and warm-loop full analysis, with timing, RSS, and diagnostic counts per the [full-static-analyser benchmark contract](docs/full-static-analyser-target.md#comparable-performance-contract):

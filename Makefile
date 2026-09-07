@@ -35,6 +35,11 @@ build:
 compat-metrics: test-projects
 	go run ./cmd/compat-metrics
 
+# Corpus-level diagnostic compatibility with PHPStan. Example:
+# make phpstan-compat PHPSTAN_COMPAT_ARGS="--root /project --paths src,tests --phpstan-bin /project/vendor/bin/phpstan"
+phpstan-compat:
+	go run ./cmd/phpstan-compat $(PHPSTAN_COMPAT_ARGS)
+
 # Fetch large PHP projects for testing (includes vendor dependencies)
 # Skips already-cloned projects so safe to re-run
 test-projects:
