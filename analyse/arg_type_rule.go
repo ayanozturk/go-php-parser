@@ -280,10 +280,25 @@ func variablesTypedWhenTrue(node ast.Node, scope *functionScope) map[string]Type
 		if typ, ok := nonNullVariableType(scope, n.Name); ok {
 			return map[string]Type{n.Name: typ}
 		}
+	case *ast.PropertyFetchNode:
+		return variablesTypedWhenObjectAccessTrue(n.Object, scope)
+	case *ast.MethodCallNode:
+		return variablesTypedWhenObjectAccessTrue(n.Object, scope)
 	case *ast.FunctionCallNode:
 		if variableName, typ, ok := builtinTypePredicate(n); ok {
 			return map[string]Type{variableName: typ}
 		}
+	}
+	return map[string]Type{}
+}
+
+func variablesTypedWhenObjectAccessTrue(object ast.Node, scope *functionScope) map[string]Type {
+	variable, ok := object.(*ast.VariableNode)
+	if !ok || variable.Name == "this" {
+		return map[string]Type{}
+	}
+	if typ, ok := nonNullVariableType(scope, variable.Name); ok {
+		return map[string]Type{variable.Name: typ}
 	}
 	return map[string]Type{}
 }

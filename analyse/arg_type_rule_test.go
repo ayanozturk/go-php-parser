@@ -590,6 +590,53 @@ function parseDateTime(?string $dateString): void
 	}
 }
 
+func TestNullsafePropertyGuardNarrowsReceiver(t *testing.T) {
+	files := map[string]string{
+		"app.php": `<?php
+class PreferenceFitScore
+{
+    public bool $hasPreferences = false;
+}
+
+function createPreferenceFitBadge(PreferenceFitScore $fit): void {}
+
+function run(?PreferenceFitScore $preferenceFit): void
+{
+    if ($preferenceFit?->hasPreferences) {
+        createPreferenceFitBadge($preferenceFit);
+    }
+}
+`,
+	}
+	if issues := runAnalysisLevelOnFiles(t, files, 5); hasArgTypeIssue(issues) {
+		t.Fatalf("expected truthy nullsafe property to narrow receiver to non-null, got %#v", issues)
+	}
+}
+
+func TestMissingNullsafePropertyGuardStillRejectsNullable(t *testing.T) {
+	files := map[string]string{
+		"app.php": `<?php
+class PreferenceFitScore
+{
+    public bool $hasPreferences = false;
+}
+
+function createPreferenceFitBadge(PreferenceFitScore $fit): void {}
+
+function run(?PreferenceFitScore $preferenceFit): void
+{
+    createPreferenceFitBadge($preferenceFit);
+}
+`,
+	}
+	if issues := runAnalysisLevelOnFiles(t, files, 4); hasArgTypeIssue(issues) {
+		t.Fatalf("expected nullable PreferenceFitScore mismatch to remain silent at level 4, got %#v", issues)
+	}
+	if issues := runAnalysisLevelOnFiles(t, files, 5); !hasArgTypeIssue(issues) {
+		t.Fatalf("expected nullable PreferenceFitScore without nullsafe guard to mismatch, got %#v", issues)
+	}
+}
+
 func TestEntityManagerFindClassStringBindsEntityType(t *testing.T) {
 	files := map[string]string{
 		"app.php": `<?php

@@ -193,6 +193,20 @@
       "file": "argument-find-class-string-mismatch.php",
       "engineCodes": ["A.ARG.TYPE"],
       "phpstanIdentifiers": ["argument.type"]
+    },
+    {
+      "id": "argument-nullsafe-property-clean",
+      "capability": "truthy nullsafe property fetch narrows receiver to non-null",
+      "file": "argument-nullsafe-property-clean.php",
+      "engineCodes": [],
+      "phpstanIdentifiers": []
+    },
+    {
+      "id": "argument-nullsafe-property-mismatch",
+      "capability": "nullable object without nullsafe property guard is rejected",
+      "file": "argument-nullsafe-property-mismatch.php",
+      "engineCodes": ["A.ARG.TYPE"],
+      "phpstanIdentifiers": ["argument.type"]
     }
   ]
 }
