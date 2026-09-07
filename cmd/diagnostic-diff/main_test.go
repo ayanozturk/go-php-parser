@@ -83,7 +83,7 @@ func TestCheckedInEngineDifferentialBaseline(t *testing.T) {
 	if err != nil {
 		t.Fatalf("run engine level-7 differential baseline: %v", err)
 	}
-	if level7Report.Totals.Cases != 6 || level7Report.Totals.EngineMismatches != 0 {
+	if level7Report.Totals.Cases != 8 || level7Report.Totals.EngineMismatches != 0 {
 		t.Fatalf("unexpected level-7 differential baseline: %#v", level7Report.Totals)
 	}
 	if level7Report.Reference != nil {

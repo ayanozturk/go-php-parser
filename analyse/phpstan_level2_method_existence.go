@@ -78,6 +78,7 @@ func appendLevel2UnknownMethodIssue(filename string, call *ast.MethodCallNode, s
 }
 
 func appendLevel2UnknownMethodFromType(filename string, call *ast.MethodCallNode, receiverType Type, ctx *AnalysisContext, issues *[]AnalysisIssue) {
+	receiverType = receiverType.asPhpunitMockIntersection()
 	if className, single := receiverType.SingleClassName(); single {
 		resolvedClass, ok := resolveMethodReceiverClass(className, ctx)
 		if !ok || receiverClassProvidesMethod(resolvedClass.Name, call.Method, ctx) {

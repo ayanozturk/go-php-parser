@@ -55,3 +55,57 @@ func TestScalarTypeRejectsPhpunitMockWithUnboundTemplate(t *testing.T) {
 		t.Fatalf("expected generated mock intersection not to satisfy a scalar type")
 	}
 }
+
+func TestAsPhpunitMockIntersectionRewritesUnion(t *testing.T) {
+	const (
+		userClass = `App\User`
+		mockClass = `PHPUnit\Framework\MockObject\MockObject`
+	)
+
+	assertMockIntersection := func(t *testing.T, got Type, className, mockName string) {
+		t.Helper()
+		gotDNF := got.dnfString()
+		for _, expected := range []string{
+			ParseType(className + "&" + mockName).dnfString(),
+			ParseType(mockName + "&" + className).dnfString(),
+		} {
+			if gotDNF == expected {
+				return
+			}
+		}
+		t.Fatalf("mock intersection DNF = %q, want %q&%q in either order", gotDNF, className, mockName)
+	}
+
+	assertNullableMockIntersection := func(t *testing.T, got Type, className, mockName string) {
+		t.Helper()
+		gotDNF := got.dnfString()
+		for _, intersection := range []string{
+			ParseType(className + "&" + mockName).dnfString(),
+			ParseType(mockName + "&" + className).dnfString(),
+		} {
+			for _, expected := range []string{
+				ParseType("(" + intersection + ")|null").dnfString(),
+				intersection + "|null",
+			} {
+				if gotDNF == expected {
+					return
+				}
+			}
+		}
+		t.Fatalf("nullable mock intersection DNF = %q, want (%q&%q)|null in either order", gotDNF, className, mockName)
+	}
+
+	assertUnchanged := func(t *testing.T, raw string) {
+		t.Helper()
+		original := ParseType(raw)
+		got := original.asPhpunitMockIntersection()
+		if got.dnfString() != original.dnfString() {
+			t.Fatalf("ParseType(%q).asPhpunitMockIntersection().dnfString() = %q, want unchanged %q", raw, got.dnfString(), original.dnfString())
+		}
+	}
+
+	assertMockIntersection(t, ParseType(userClass+"|"+mockClass).asPhpunitMockIntersection(), userClass, mockClass)
+	assertNullableMockIntersection(t, ParseType(userClass+"|"+mockClass+"|null").asPhpunitMockIntersection(), userClass, mockClass)
+	assertUnchanged(t, "FirstChoice|SecondChoice")
+	assertUnchanged(t, userClass+"&"+mockClass)
+}

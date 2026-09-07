@@ -5,6 +5,8 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"unicode"
+	"unicode/utf8"
 
 	"github.com/ayanozturk/go-php-parser/ast"
 )
@@ -706,13 +708,23 @@ func declaredFunctionReturnType(fn *ast.FunctionNode, typeCtx FileTypeContext) T
 	if fn == nil {
 		return EmptyType()
 	}
-	if fn.ReturnType != "" {
-		return ParseType(normalizeTypeWithContext(fn.ReturnType, typeCtx))
-	}
+	raw := ""
 	if fn.PHPDoc != nil && fn.PHPDoc.ReturnType != "" {
-		return ParseType(normalizeTypeWithContext(fn.PHPDoc.ReturnType, typeCtx))
+		raw = fn.PHPDoc.ReturnType
+	} else if fn.ReturnType != "" {
+		raw = fn.ReturnType
 	}
-	return EmptyType()
+	if raw == "" {
+		return EmptyType()
+	}
+	raw = collapsePHPDocConditionalType(raw, fn.ReturnType)
+	templates := map[string]struct{}{}
+	if fn.PHPDoc != nil {
+		for _, template := range fn.PHPDoc.Templates {
+			templates = mergeTemplateNames(templates, []string{template.Name})
+		}
+	}
+	return ParseType(normalizeTemplateAwareType(raw, typeCtx, templates))
 }
 
 func methodReturnTypeAnnotation(fn *ast.FunctionNode) string {
@@ -930,7 +942,7 @@ func buildClassScopeDataWithSeen(class *ast.ClassNode, typeCtx FileTypeContext, 
 		methodType := declaredFunctionReturnType(method, typeCtx)
 		resolved := ResolvedMethod{
 			Name:               method.Name,
-			ReturnType:         methodType.String(),
+			ReturnType:         methodType.dnfString(),
 			CallableReturnType: callableReturnType(methodReturnTypeAnnotation(method), typeCtx).dnfString(),
 			Params:             make([]ResolvedParam, 0, len(method.Params)),
 		}
@@ -949,7 +961,7 @@ func buildClassScopeDataWithSeen(class *ast.ClassNode, typeCtx FileTypeContext, 
 			}
 			resolved.Params = append(resolved.Params, ResolvedParam{
 				Name:       param.Name,
-				Type:       paramType.String(),
+				Type:       paramType.dnfString(),
 				HasDefault: param.DefaultValue != nil,
 				IsVariadic: param.IsVariadic,
 				IsByRef:    param.IsByRef,
@@ -1925,7 +1937,7 @@ func bindCallSiteMethodTemplates(method ResolvedMethod, args []ast.Node, scope *
 		if paramIndex < 0 || paramIndex >= len(method.Params) {
 			continue
 		}
-		name := templateNameFromParamType(method.Params[paramIndex].Type, ctx)
+		name := templateNameFromParamType(method.Params[paramIndex].Type, method.ReturnType, ctx)
 		if name == "" {
 			continue
 		}
@@ -1939,7 +1951,7 @@ func bindCallSiteMethodTemplates(method ResolvedMethod, args []ast.Node, scope *
 		}
 	}
 	for _, param := range method.Params {
-		name := templateNameFromParamType(param.Type, ctx)
+		name := templateNameFromParamType(param.Type, method.ReturnType, ctx)
 		if name == "" {
 			continue
 		}
@@ -1956,7 +1968,7 @@ func bindCallSiteMethodTemplates(method ResolvedMethod, args []ast.Node, scope *
 	return bindings
 }
 
-func templateNameFromParamType(raw string, ctx *AnalysisContext) string {
+func templateNameFromParamType(raw, methodReturnType string, ctx *AnalysisContext) string {
 	if name := openTemplateParamName(raw, ctx); name != "" {
 		return name
 	}
@@ -1968,7 +1980,60 @@ func templateNameFromParamType(raw string, ctx *AnalysisContext) string {
 	if idx := strings.LastIndex(inner, `\`); idx != -1 {
 		inner = inner[idx+1:]
 	}
-	return openTemplateParamName(inner, ctx)
+	if name := openTemplateParamName(inner, ctx); name != "" {
+		return name
+	}
+	// PHPUnit uses @template RealInstanceType, which is not a T-prefixed name.
+	if isBindableClassStringTemplate(inner, methodReturnType, ctx) {
+		return inner
+	}
+	return ""
+}
+
+func isBindableClassStringTemplate(name, methodReturnType string, ctx *AnalysisContext) bool {
+	if name == "" || strings.ContainsAny(name, `\|<>()&`) {
+		return false
+	}
+	if atom, ok := normalizeTypeAtom(name); ok && atom.kind == typeKindBuiltin {
+		return false
+	}
+	if ctx != nil && ctx.Resolver != nil {
+		if _, ok := ctx.Resolver.ResolveClass(name); ok {
+			return false
+		}
+	}
+	if !typeContainsIdentifier(methodReturnType, name) {
+		return false
+	}
+	r, _ := utf8.DecodeRuneInString(name)
+	return unicode.IsUpper(r)
+}
+
+func typeContainsIdentifier(raw, name string) bool {
+	if raw == "" || name == "" {
+		return false
+	}
+	for start := 0; start < len(raw); {
+		r, size := utf8.DecodeRuneInString(raw[start:])
+		if !isTemplateIdentifierRune(r) {
+			start += size
+			continue
+		}
+		end := start + size
+		for end < len(raw) {
+			next, nextSize := utf8.DecodeRuneInString(raw[end:])
+			if !isTemplateIdentifierRune(next) {
+				break
+			}
+			end += nextSize
+		}
+		token := raw[start:end]
+		if token == name || unqualifiedTypeName(token) == name {
+			return true
+		}
+		start = end
+	}
+	return false
 }
 
 func classNameFromClassStringExpr(expr ast.Node, scope *functionScope) (string, bool) {
@@ -2053,6 +2118,7 @@ func inferMethodCallTypeInFile(filename string, node *ast.MethodCallNode, scope 
 	}
 
 	objectType := inferType(node.Object, scope, ctx)
+	objectType = objectType.asPhpunitMockIntersection()
 	className, typeArgs, ok := genericReceiver(objectType)
 	if !ok {
 		return MixedType()

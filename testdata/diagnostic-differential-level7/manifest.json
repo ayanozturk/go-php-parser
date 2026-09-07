@@ -41,6 +41,20 @@
       "phpstanIdentifiers": []
     },
     {
+      "id": "known-method-phpunit-mock-intersection",
+      "capability": "known methods on PHPUnit mock intersections",
+      "file": "known-method-phpunit-mock-intersection.php",
+      "engineCodes": [],
+      "phpstanIdentifiers": []
+    },
+    {
+      "id": "known-method-phpunit-create-mock",
+      "capability": "known methods on PHPUnit createMock doubles",
+      "file": "known-method-phpunit-create-mock.php",
+      "engineCodes": [],
+      "phpstanIdentifiers": []
+    },
+    {
       "id": "argument-strict-return-union",
       "capability": "strict argument checking for a false return union",
       "file": "argument-strict-return-union.php",

@@ -77,3 +77,106 @@ function run(
 		t.Fatalf("level seven should not duplicate all-missing, known, or mixed receivers, got %#v", level7Issues)
 	}
 }
+
+func TestLevel7AllowsPhpunitMockIntersectionAndCreateMock(t *testing.T) {
+	files := map[string]string{
+		"mock.php": `<?php
+
+namespace PHPUnit\Framework\MockObject;
+
+interface MockObject
+{
+    public function method(string $name): MockObject;
+}
+
+namespace PHPUnit\Framework;
+
+use PHPUnit\Framework\MockObject\MockObject;
+
+abstract class TestCase
+{
+    /**
+     * @template RealInstanceType of object
+     * @param class-string<RealInstanceType> $type
+     * @return MockObject&RealInstanceType
+     */
+    final protected function createMock(string $type): MockObject
+    {
+        throw new \RuntimeException('stub');
+    }
+}
+
+namespace {
+
+use PHPUnit\Framework\MockObject\MockObject;
+use PHPUnit\Framework\TestCase;
+
+class User
+{
+    public function id(): string
+    {
+        return '';
+    }
+}
+
+final class ExampleTest extends TestCase
+{
+    private function mockUser(): MockObject&User
+    {
+        throw new \RuntimeException('stub');
+    }
+
+    public function testMocks(): void
+    {
+        $user = $this->mockUser();
+        $user->method('id');
+        $user->id();
+
+        $this->createMock(User::class)->method('id');
+        $this->createMock(User::class)->id();
+    }
+}
+
+}
+`,
+		"partial.php": `<?php
+class FirstChoice {}
+
+class SecondChoice
+{
+    public function optional(): void {}
+}
+
+function runPartialUnion(FirstChoice|SecondChoice $choice): void
+{
+    $choice->optional();
+}
+`,
+	}
+
+	level7Issues := runAnalysisLevelOnFiles(t, files, 7)
+	for _, unexpected := range []string{
+		"MockObject&User::method()",
+		"MockObject&User::id()",
+		"User&MockObject::method()",
+		"User&MockObject::id()",
+		"method('id')",
+		"::id()",
+	} {
+		if hasIssueContaining(level7Issues, level7MethodUnionCode, unexpected) {
+			t.Fatalf("level seven should not report mock intersection or createMock calls as %s containing %q, got %#v", level7MethodUnionCode, unexpected, level7Issues)
+		}
+	}
+	if countIssueContaining(level7Issues, level7MethodUnionCode, "FirstChoice|SecondChoice::optional()") != 1 {
+		t.Fatalf("expected one partial union %s diagnostic, got %#v", level7MethodUnionCode, level7Issues)
+	}
+	level7MethodUnionCount := 0
+	for _, issue := range level7Issues {
+		if issue.Code == level7MethodUnionCode {
+			level7MethodUnionCount++
+		}
+	}
+	if level7MethodUnionCount != 1 {
+		t.Fatalf("expected exactly one %s diagnostic, got %#v", level7MethodUnionCode, level7Issues)
+	}
+}

@@ -24,6 +24,7 @@ func appendLevel7PartialUnionMethodIssue(filename string, call *ast.MethodCallNo
 }
 
 func appendLevel7PartialUnionMethodFromType(filename string, call *ast.MethodCallNode, receiverType Type, ctx *AnalysisContext, issues *[]AnalysisIssue) {
+	receiverType = receiverType.asPhpunitMockIntersection()
 	if !someButNotAllDNFAlternativesLackMethod(receiverType, call.Method, ctx) {
 		return
 	}

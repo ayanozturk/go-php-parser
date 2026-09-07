@@ -353,6 +353,7 @@ func isClosureType(name string) bool {
 }
 
 func isMockObjectType(name string) bool {
+	name = strings.TrimPrefix(strings.TrimSpace(name), `\`)
 	switch name {
 	case `PHPUnit\Framework\MockObject\MockObject`,
 		`PHPUnit\Framework\MockObject\MockObjectForAbstractClass`,
@@ -363,7 +364,70 @@ func isMockObjectType(name string) bool {
 		`Mockery\LegacyMockInterface`:
 		return true
 	}
+	switch unqualifiedTypeName(name) {
+	case "MockObject", "MockObjectForAbstractClass", "MockObjectForTrait", "MockInterface", "LegacyMockInterface":
+		return true
+	}
 	return false
+}
+
+// asPhpunitMockIntersection rewrites T|MockObject to T&MockObject. PHPUnit
+// doubles are intersections; Type.String() and some PHPDoc still spell them
+// as unions, which would otherwise look like partial method-availability.
+func (t Type) asPhpunitMockIntersection() Type {
+	stripped := t.withoutBuiltin("null")
+	if len(stripped.alternatives) != 2 {
+		return t
+	}
+	var mockAlt, classAlt []string
+	for _, alternative := range stripped.alternatives {
+		if alternativeIsMockOnly(stripped, alternative) {
+			if mockAlt != nil {
+				return t
+			}
+			mockAlt = alternative
+			continue
+		}
+		if alternativeIsSingleClass(stripped, alternative) {
+			if classAlt != nil {
+				return t
+			}
+			classAlt = alternative
+			continue
+		}
+		return t
+	}
+	if mockAlt == nil || classAlt == nil {
+		return t
+	}
+	parts := make([]string, 0, len(classAlt)+len(mockAlt))
+	for _, key := range classAlt {
+		parts = append(parts, stripped.atoms[key].display)
+	}
+	for _, key := range mockAlt {
+		parts = append(parts, stripped.atoms[key].display)
+	}
+	intersected := ParseType(strings.Join(parts, "&"))
+	if _, hasNull := t.atoms["null"]; hasNull {
+		return ParseType(intersected.dnfString() + "|null")
+	}
+	return intersected
+}
+
+func alternativeIsMockOnly(t Type, keys []string) bool {
+	if len(keys) != 1 {
+		return false
+	}
+	atom, ok := t.atoms[keys[0]]
+	return ok && atom.kind == typeKindClass && isMockObjectType(atom.display)
+}
+
+func alternativeIsSingleClass(t Type, keys []string) bool {
+	if len(keys) != 1 {
+		return false
+	}
+	atom, ok := t.atoms[keys[0]]
+	return ok && atom.kind == typeKindClass && !isMockObjectType(atom.display)
 }
 
 func (t Type) hasClassAtom() bool {

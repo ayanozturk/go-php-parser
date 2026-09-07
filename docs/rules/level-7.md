@@ -8,10 +8,10 @@
 
 - **Introduced at this level:** 1 registered levelled rule, `Level7.MethodUnion`.
 - **Cumulative registered levelled rules:** 31.
-- **Checked-in differential pack:** 6 cases in `testdata/diagnostic-differential-level7`.
+- **Checked-in differential pack:** 8 cases in `testdata/diagnostic-differential-level7`.
 
 ## Coverage and boundaries
 
-`Level7.MethodUnion` reports selected method calls that are not available on every member of a union or disjunctive-normal-form receiver type. It relies on resolved receiver metadata and is intentionally conservative when a union member cannot be resolved or when magic and dynamic methods affect the result. The differential pack also verifies cumulative strict argument checking for a `DateTime|false` return union while keeping PHP 8.3+ `DateTime::modify()` non-false.
+`Level7.MethodUnion` reports selected method calls that are not available on every member of a union or disjunctive-normal-form receiver type. It relies on resolved receiver metadata and is intentionally conservative when a union member cannot be resolved or when magic and dynamic methods affect the result. PHPUnit `T|MockObject` is treated as `T&MockObject` for method existence, and class-scope method return types use DNF strings so intersections are not flattened to unions. Clean controls include `known-method-phpunit-mock-intersection` and `known-method-phpunit-create-mock`. The differential pack also verifies cumulative strict argument checking for a `DateTime|false` return union while keeping PHP 8.3+ `DateTime::modify()` non-false.
 
 Levels 0 through 6 are cumulative. Level 5 adds argument-type checks; level 6 adds focused missing-type checks.
