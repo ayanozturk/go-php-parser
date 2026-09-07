@@ -346,6 +346,15 @@ func (t Type) hasMockObjectType() bool {
 	return false
 }
 
+func (t Type) hasIntersectionAlternative() bool {
+	for _, alternative := range t.alternatives {
+		if len(alternative) > 1 {
+			return true
+		}
+	}
+	return false
+}
+
 // isMockObjectType returns true for PHPUnit and Mockery mock framework types
 // that are always valid substitutes for the type they were created from.
 func isClosureType(name string) bool {
@@ -428,6 +437,67 @@ func alternativeIsSingleClass(t Type, keys []string) bool {
 	}
 	atom, ok := t.atoms[keys[0]]
 	return ok && atom.kind == typeKindClass && !isMockObjectType(atom.display)
+}
+
+// refineTypeByInstanceof keeps intersection members that already include the
+// asserted class (e.g. MockObject&User instanceof User stays MockObject&User)
+// instead of replacing the whole type with the asserted class alone.
+func refineTypeByInstanceof(current, asserted Type) Type {
+	if asserted.IsEmpty() {
+		return current
+	}
+	if current.IsEmpty() {
+		return asserted
+	}
+	assertedClass, ok := asserted.SingleClassName()
+	if !ok {
+		return asserted
+	}
+	stripped := current.withoutBuiltin("null")
+	if stripped.IsEmpty() {
+		return asserted
+	}
+	parts := make([]string, 0, len(stripped.alternatives))
+	for _, alternative := range stripped.alternatives {
+		if !dnfAlternativeIncludesClass(stripped, alternative, assertedClass) {
+			continue
+		}
+		members := make([]string, 0, len(alternative))
+		for _, key := range alternative {
+			if atom, ok := stripped.atoms[key]; ok {
+				members = append(members, atom.display)
+			}
+		}
+		if len(members) == 0 {
+			continue
+		}
+		sort.Strings(members)
+		value := strings.Join(members, "&")
+		if len(members) > 1 {
+			value = "(" + value + ")"
+		}
+		parts = append(parts, value)
+	}
+	if len(parts) == 0 {
+		return asserted
+	}
+	return ParseType(strings.Join(parts, "|"))
+}
+
+func dnfAlternativeIncludesClass(t Type, keys []string, className string) bool {
+	want := asciiLowerIdent(strings.TrimPrefix(className, `\`))
+	wantUnqualified := asciiLowerIdent(unqualifiedTypeName(className))
+	for _, key := range keys {
+		atom, ok := t.atoms[key]
+		if !ok || atom.kind != typeKindClass {
+			continue
+		}
+		got := asciiLowerIdent(strings.TrimPrefix(atom.display, `\`))
+		if got == want || asciiLowerIdent(unqualifiedTypeName(atom.display)) == wantUnqualified {
+			return true
+		}
+	}
+	return false
 }
 
 func (t Type) hasClassAtom() bool {

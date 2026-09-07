@@ -109,3 +109,22 @@ func TestAsPhpunitMockIntersectionRewritesUnion(t *testing.T) {
 	assertUnchanged(t, "FirstChoice|SecondChoice")
 	assertUnchanged(t, userClass+"&"+mockClass)
 }
+
+func TestRefineTypeByInstanceofKeepsMockIntersection(t *testing.T) {
+	assertRefined := func(t *testing.T, currentRaw, assertedRaw, wantRaw string) {
+		t.Helper()
+		got := refineTypeByInstanceof(ParseType(currentRaw), ParseType(assertedRaw))
+		want := ParseType(wantRaw)
+		if got.dnfString() != want.dnfString() {
+			t.Fatalf("refineTypeByInstanceof(ParseType(%q), ParseType(%q)).dnfString() = %q, want %q", currentRaw, assertedRaw, got.dnfString(), want.dnfString())
+		}
+	}
+
+	assertRefined(t,
+		`PHPUnit\Framework\MockObject\MockObject&App\TemplateShift|null`,
+		`App\TemplateShift`,
+		`PHPUnit\Framework\MockObject\MockObject&App\TemplateShift`,
+	)
+	assertRefined(t, `UserInterface|null`, `User`, `User`)
+	assertRefined(t, `App\User|null`, `App\User`, `App\User`)
+}

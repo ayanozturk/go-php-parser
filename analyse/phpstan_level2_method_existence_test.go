@@ -918,3 +918,78 @@ function numbers(): void {
 		t.Fatalf("foreach over Collection<int> should keep int values, got %#v", issues)
 	}
 }
+
+func TestLevel2PhpdocMockIntersectionPropertyAllowsExpects(t *testing.T) {
+	issues := runAnalysisLevelOnFiles(t, map[string]string{
+		"test.php": `<?php
+namespace PHPUnit\Framework\MockObject {
+    interface MockObject {
+        public function expects(mixed $matcher): MockObject;
+        public function method(string $name): MockObject;
+    }
+}
+namespace {
+    use PHPUnit\Framework\MockObject\MockObject;
+    class UserManagementService {
+        public function updateUser(): void {}
+    }
+    class ExampleTest {
+        /** @var UserManagementService&MockObject */
+        private UserManagementService $userManagementService;
+        public function testIt(): void {
+            $this->userManagementService->expects(null)->method('updateUser');
+        }
+    }
+}
+`,
+	}, 2)
+
+	for _, unexpected := range []string{"expects", "method"} {
+		if hasIssueContaining(issues, level2MethodExistenceCode, unexpected) {
+			t.Fatalf("phpdoc mock intersection property should allow expects/method chain, got %#v", issues)
+		}
+	}
+}
+
+func TestLevel2InstanceofKeepsMockIntersectionMethods(t *testing.T) {
+	files := map[string]string{
+		"mock.php": `<?php
+namespace PHPUnit\Framework\MockObject {
+    interface MockObject {
+        public function method(string $name): MockObject;
+    }
+}
+namespace PHPUnit\Framework {
+    use PHPUnit\Framework\MockObject\MockObject;
+    abstract class TestCase {
+        /**
+         * @template RealInstanceType of object
+         * @param class-string<RealInstanceType> $type
+         * @return MockObject&RealInstanceType
+         */
+        final protected function createMock(string $type): MockObject {
+            throw new \RuntimeException('stub');
+        }
+    }
+}
+`,
+		"test.php": `<?php
+class TemplateShift {
+    public function getName(): string { return ''; }
+}
+final class ExampleTest extends \PHPUnit\Framework\TestCase {
+    public function testIt(?string $shiftName): void {
+        $templateShift = $shiftName !== null ? $this->createMock(TemplateShift::class) : null;
+        if ($templateShift instanceof TemplateShift) {
+            $templateShift->method('getName');
+        }
+    }
+}
+`,
+	}
+
+	issues := runAnalysisLevelOnFiles(t, files, 2)
+	if hasIssueContaining(issues, level2MethodExistenceCode, "method") {
+		t.Fatalf("instanceof should keep mock intersection methods, got %#v", issues)
+	}
+}

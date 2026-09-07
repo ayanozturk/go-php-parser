@@ -233,7 +233,11 @@ func scopeForConditionFalse(scope *functionScope, condition ast.Node, ctx *Analy
 	// operand is false (the right-hand side of `||` / `or`), $x is T.
 	for _, cond := range negatedInstanceofGuardsWhenFalse(condition) {
 		if typ := typeFromInstanceofTarget(cond.target, refined); !typ.IsEmpty() {
-			refined.setVariable(cond.variable, typ)
+			current := EmptyType()
+			if existing, ok := refined.variable(cond.variable); ok {
+				current = existing
+			}
+			refined.setVariable(cond.variable, refineTypeByInstanceof(current, typ))
 		}
 	}
 	return refined
@@ -263,8 +267,12 @@ func variablesTypedWhenTrue(node ast.Node, scope *functionScope) map[string]Type
 			return types
 		case "instanceof":
 			if variable, ok := n.Left.(*ast.VariableNode); ok {
-				if typ := typeFromInstanceofTarget(n.Right, scope); !typ.IsEmpty() {
-					return map[string]Type{variable.Name: typ}
+				if asserted := typeFromInstanceofTarget(n.Right, scope); !asserted.IsEmpty() {
+					current := EmptyType()
+					if scope != nil {
+						current, _ = scope.variable(variable.Name)
+					}
+					return map[string]Type{variable.Name: refineTypeByInstanceof(current, asserted)}
 				}
 			}
 		case "==", "===":
@@ -538,7 +546,11 @@ func applyTerminatingIfFalseScope(scope *functionScope, node *ast.IfNode, ctx *A
 	// checks (false means every operand is false).
 	for _, cond := range negatedInstanceofGuardsWhenFalse(node.Condition) {
 		if typ := typeFromInstanceofTarget(cond.target, scope); !typ.IsEmpty() {
-			scope.setVariable(cond.variable, typ)
+			current := EmptyType()
+			if existing, ok := scope.variable(cond.variable); ok {
+				current = existing
+			}
+			scope.setVariable(cond.variable, refineTypeByInstanceof(current, typ))
 		}
 	}
 	for variableName, typ := range variablesTypedWhenFalse(node.Condition, scope) {

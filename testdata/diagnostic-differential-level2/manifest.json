@@ -683,6 +683,20 @@
       "file": "known-method-negated-instanceof-or.php",
       "engineCodes": [],
       "phpstanIdentifiers": []
+    },
+    {
+      "id": "known-method-phpdoc-mock-property",
+      "capability": "known PHPUnit mock methods on @var T&MockObject properties",
+      "file": "known-method-phpdoc-mock-property.php",
+      "engineCodes": [],
+      "phpstanIdentifiers": []
+    },
+    {
+      "id": "known-method-instanceof-keeps-mock",
+      "capability": "known PHPUnit mock methods after instanceof on MockObject&T",
+      "file": "known-method-instanceof-keeps-mock.php",
+      "engineCodes": [],
+      "phpstanIdentifiers": []
     }
   ]
 }

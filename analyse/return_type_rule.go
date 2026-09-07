@@ -918,8 +918,13 @@ func buildClassScopeDataWithSeen(class *ast.ClassNode, typeCtx FileTypeContext, 
 			if callableReturn := callableReturnType(property.PHPDoc.VarType, typeCtx); !callableReturn.IsEmpty() {
 				propertyType = ParseType("callable")
 				data.propertyCallableReturns[property.Name] = callableReturn
-			} else if propertyType.IsEmpty() {
-				propertyType = ParseType(normalizeTypeWithContext(property.PHPDoc.VarType, typeCtx))
+			} else {
+				documented := ParseType(normalizeTypeWithContext(property.PHPDoc.VarType, typeCtx))
+				if propertyType.IsEmpty() || documented.hasMockObjectType() || documented.hasIntersectionAlternative() {
+					if !documented.IsEmpty() {
+						propertyType = documented
+					}
+				}
 			}
 		}
 		if propertyType.IsEmpty() && property.DefaultValue != nil {
