@@ -67,6 +67,39 @@ function foo($x): int {
 	}
 }
 
+func TestReachableAfterReturnWithTrailingCommentNotReported(t *testing.T) {
+	php := `<?php
+class TaskAuditService
+{
+    public function __construct(private readonly EntityManagerInterface $entityManager) {}
+
+    public function recordStatusChange(Task $task, object $actor, string $oldStatus, string $newStatus): void
+    {
+        if ($oldStatus === $newStatus) {
+            return; // no change
+        }
+        $this->persist(new TaskAudit($task, $actor, TaskAuditChangeType::STATUS, $oldStatus, $newStatus));
+    }
+}
+`
+	issues := analyseUnreachablePHP(t, php)
+	if got := countUnreachableIssues(issues); got != 0 {
+		t.Fatalf("expected 0 unreachable issues after return with trailing comment, got %d (%#v)", got, issues)
+	}
+}
+
+func TestUnreachableAfterReturnStillReportedWhenCommentIntervenes(t *testing.T) {
+	php := `<?php
+function foo(): void {
+    return; // done
+    $x = 1;
+}`
+	issues := analyseUnreachablePHP(t, php)
+	if got := countUnreachableIssues(issues); got != 1 {
+		t.Fatalf("expected 1 unreachable issue after return and comment, got %d (%#v)", got, issues)
+	}
+}
+
 func TestReachableAfterUnbracedIfReturnNotReported(t *testing.T) {
 	php := `<?php
 function isFeatureEnabled($feature): bool {

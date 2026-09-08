@@ -859,6 +859,12 @@ func (s *SemanticSnapshot) addFlowScope(filename, kind string, owner ast.Node, s
 
 	for i, statement := range statements {
 		reachable := graph.blockReachable(FlowNodeID(i + 1))
+		if isNonExecutableStatement(statement) {
+			if reachable {
+				s.addChildFlowScopes(filename, statement, scope)
+			}
+			continue
+		}
 		key := flowStatementKey(filename, statement)
 		if key.File != "" {
 			s.recordStatementReachability(key, reachable)

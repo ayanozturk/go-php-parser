@@ -212,6 +212,8 @@ func TestControlFlowUnreachableDiagnosticsMatchLegacyFallback(t *testing.T) {
 	fixtures := []string{
 		`<?php function sample($value): void { return; $a = 1; $b = 2; }`,
 		`<?php function sample($value): void { if ($value) { return; } $a = 1; }`,
+		`<?php function sample($value): void { if ($value) { return; // no change
+} $a = 1; }`,
 		`<?php function sample($value): void { if ($value) { return; } else { throw new RuntimeException(); } $a = 1; }`,
 		`<?php function sample($items): void { foreach ($items as $item) { exit(); $a = 1; } $b = 2; }`,
 	}

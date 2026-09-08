@@ -25,6 +25,9 @@ func (r *UnreachableCodeRule) CheckIssuesWithContext(nodes []ast.Node, filename 
 func (r *UnreachableCodeRule) walkStatements(stmts []ast.Node, filename string, ctx *AnalysisContext, issues *[]AnalysisIssue) {
 	terminated := false
 	for _, stmt := range stmts {
+		if isNonExecutableStatement(stmt) {
+			continue
+		}
 		reachable := !terminated
 		if ctx != nil && ctx.Flow != nil {
 			if fromGraph, ok := ctx.Flow.StatementReachable(flowStatementKey(filename, stmt)); ok {
@@ -80,6 +83,15 @@ func (r *UnreachableCodeRule) walkChildren(node ast.Node, filename string, ctx *
 		r.walkStatements(n.Body, filename, ctx, issues)
 	case *ast.NamespaceNode:
 		r.walkStatements(n.Body, filename, ctx, issues)
+	}
+}
+
+func isNonExecutableStatement(node ast.Node) bool {
+	switch node.(type) {
+	case *ast.CommentNode, *ast.PHPDocNode, *ast.AttributeNode:
+		return true
+	default:
+		return false
 	}
 }
 
