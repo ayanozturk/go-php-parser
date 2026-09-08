@@ -100,6 +100,29 @@ function foo(): void {
 	}
 }
 
+func TestTrailingCommentsAfterTerminatorsAreNotUnreachable(t *testing.T) {
+	cases := []string{
+		`<?php function foo(): void { return; // no change
+}`,
+		`<?php function foo(): void { throw $e; // boom
+}`,
+		`<?php function foo(): void { exit(); // stop
+}`,
+		`<?php function foo(): void { die(); // stop
+}`,
+		`<?php function foo(): void { foreach ([1] as $x) { break; // leave
+} }`,
+		`<?php function foo(): void { foreach ([1] as $x) { continue; // next
+} }`,
+	}
+	for _, php := range cases {
+		issues := analyseUnreachablePHP(t, php)
+		if got := countUnreachableIssues(issues); got != 0 {
+			t.Fatalf("expected 0 unreachable issues for %q, got %d (%#v)", php, got, issues)
+		}
+	}
+}
+
 func TestReachableAfterUnbracedIfReturnNotReported(t *testing.T) {
 	php := `<?php
 function isFeatureEnabled($feature): bool {
