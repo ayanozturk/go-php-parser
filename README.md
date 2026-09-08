@@ -158,8 +158,8 @@ The counts below are registered engine rules, not PHPStan error-identifier count
 | 6 | 5 | 30 | [Level 6 rules](docs/rules/level-6.md) |
 | 7 | 1 | 31 | [Level 7 rules](docs/rules/level-7.md) |
 | 8 | 1 | 32 | [Level 8 rules](docs/rules/level-8.md) |
-| 9 | 0 | 32 | [Level 9 rules](docs/rules/level-9.md) |
-| 10 | 1 | 33 | [Level 10 rules](docs/rules/level-10.md) |
+| 9 | 1 | 33 | [Level 9 rules](docs/rules/level-9.md) |
+| 10 | 0 | 33 | [Level 10 rules](docs/rules/level-10.md) |
 | Unlevelled | 4 | 37 total registered | [Unlevelled rules](docs/rules/unlevelled.md) |
 <!-- analysis-rule-level-table:end -->
 
