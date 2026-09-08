@@ -319,6 +319,13 @@
       "file": "argument-var-doc-after-if-mismatch.php",
       "engineCodes": ["A.ARG.TYPE"],
       "phpstanIdentifiers": ["argument.type"]
+    },
+    {
+      "id": "argument-direct-list-constructor-clean",
+      "capability": "direct PHPDoc list constructor parameters accept empty and populated arrays",
+      "file": "argument-direct-list-constructor-clean.php",
+      "engineCodes": [],
+      "phpstanIdentifiers": []
     }
   ]
 }

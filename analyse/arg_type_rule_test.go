@@ -1298,6 +1298,34 @@ func TestMethodArgumentTypeNormalizesPhpDocAliasesAndGenerics(t *testing.T) {
 	}
 }
 
+func TestConstructorArgumentTypeAcceptsDirectPHPDocLists(t *testing.T) {
+	php := `<?php
+namespace Example\Catalog;
+
+final class Entry
+{
+}
+
+final class EntryPage
+{
+    /**
+     * @param list<Entry> $entries
+     */
+    public function __construct(
+        public array $entries,
+        public int $page,
+    ) {
+    }
+}
+
+new EntryPage([], 1);
+new EntryPage(entries: [new Entry()], page: 2);`
+	issues := analysePHP(t, php)
+	if hasArgTypeIssue(issues) {
+		t.Fatalf("expected empty and populated arrays to satisfy direct PHPDoc list parameters, got: %#v", issues)
+	}
+}
+
 func TestMethodArgumentTypeTreatsCallableLocalTemplateAsConservative(t *testing.T) {
 	const source = `<?php
 class Options {
