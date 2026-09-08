@@ -141,6 +141,8 @@ type functionScopeContext struct {
 	propertyArrayShapes     map[string]map[string]arrayShapeField
 	methodArrayShapes       map[string]map[string]arrayShapeField
 	providedMethods         map[string]map[string]struct{}
+	truthyGuards            map[string]ast.Node
+	exceptionSources        map[string]*ast.NewNode
 }
 
 type classScopeData struct {
@@ -1505,6 +1507,68 @@ func (s *functionScope) hasProvidedMethod(variable, method string) bool {
 	return ok
 }
 
+func copyTruthyGuards(src map[string]ast.Node) map[string]ast.Node {
+	if len(src) == 0 {
+		return nil
+	}
+	dst := make(map[string]ast.Node, len(src))
+	for name, expr := range src {
+		dst[name] = expr
+	}
+	return dst
+}
+
+func copyExceptionSources(src map[string]*ast.NewNode) map[string]*ast.NewNode {
+	if len(src) == 0 {
+		return nil
+	}
+	dst := make(map[string]*ast.NewNode, len(src))
+	for name, node := range src {
+		dst[name] = node
+	}
+	return dst
+}
+
+func (s *functionScope) setTruthyGuard(variable string, condition ast.Node) {
+	if s == nil || s.functionScopeContext == nil || variable == "" || condition == nil {
+		return
+	}
+	copied := *s.functionScopeContext
+	copied.truthyGuards = copyTruthyGuards(s.truthyGuards)
+	if copied.truthyGuards == nil {
+		copied.truthyGuards = make(map[string]ast.Node)
+	}
+	copied.truthyGuards[variable] = condition
+	s.functionScopeContext = &copied
+}
+
+func (s *functionScope) truthyGuard(variable string) ast.Node {
+	if s == nil || s.functionScopeContext == nil || variable == "" {
+		return nil
+	}
+	return s.truthyGuards[variable]
+}
+
+func (s *functionScope) setExceptionSource(variable string, node *ast.NewNode) {
+	if s == nil || s.functionScopeContext == nil || variable == "" || node == nil {
+		return
+	}
+	copied := *s.functionScopeContext
+	copied.exceptionSources = copyExceptionSources(s.exceptionSources)
+	if copied.exceptionSources == nil {
+		copied.exceptionSources = make(map[string]*ast.NewNode)
+	}
+	copied.exceptionSources[variable] = node
+	s.functionScopeContext = &copied
+}
+
+func (s *functionScope) exceptionSource(variable string) *ast.NewNode {
+	if s == nil || s.functionScopeContext == nil || variable == "" {
+		return nil
+	}
+	return s.exceptionSources[variable]
+}
+
 func (s *functionScope) setCallableReturn(name string, typ Type) {
 	if s == nil || typ.IsEmpty() {
 		return
@@ -1812,6 +1876,12 @@ func applyAssignmentScope(scope *functionScope, assignment *ast.AssignmentNode, 
 		if genInst, ok := parseGenericTypeFromString(assignedType.String()); ok {
 			scope.setGenericContext(left.Name, genInst)
 		}
+		if conditionIsAndChain(assignment.Right) {
+			scope.setTruthyGuard(left.Name, assignment.Right)
+		}
+		if constructed, ok := assignment.Right.(*ast.NewNode); ok {
+			scope.setExceptionSource(left.Name, constructed)
+		}
 	case *ast.PropertyFetchNode:
 		if object, ok := left.Object.(*ast.VariableNode); ok && object.Name == "this" {
 			scope.setProperty(left.Property, assignedType)
@@ -1961,9 +2031,13 @@ func inferredMethodReturnType(method ResolvedMethod, calleeClass string, ctx *An
 }
 
 func inferredMethodReturnTypeWithBindings(method ResolvedMethod, calleeClass string, ctx *AnalysisContext, bindings map[string]string) Type {
+	return inferredMethodReturnTypePreserving(method, calleeClass, ctx, bindings, nil)
+}
+
+func inferredMethodReturnTypePreserving(method ResolvedMethod, calleeClass string, ctx *AnalysisContext, bindings map[string]string, preserve map[string]struct{}) Type {
 	returnType := ApplyTemplateBindings(method.ReturnType, bindings)
 	returnType = collapsePHPDocConditionalType(returnType, method.NativeReturnType)
-	return bindCalleeSignatureType(expandUnboundClassTemplates(returnType, method.DeclaringClass, ctx), method.DeclaringClass, calleeClass, ctx)
+	return bindCalleeSignatureType(expandUnboundClassTemplatesExcept(returnType, method.DeclaringClass, ctx, preserve), method.DeclaringClass, calleeClass, ctx)
 }
 
 func bindCallSiteMethodTemplates(method ResolvedMethod, args []ast.Node, scope *functionScope, ctx *AnalysisContext, filename string) map[string]string {
@@ -2120,15 +2194,16 @@ func rawCallableReturnType(raw string) string {
 	return strings.TrimSpace(strings.TrimPrefix(suffix, ":"))
 }
 
-func genericParentTypeArguments(resolver SymbolResolver, className, methodName string) []string {
+func genericParentBinding(resolver SymbolResolver, className, methodName string) (string, []string) {
 	if resolver == nil {
-		return nil
+		return "", nil
 	}
 	resolvedClass, ok := resolver.ResolveClass(className)
 	if !ok || len(resolvedClass.GenericParents) == 0 {
-		return nil
+		return "", nil
 	}
-	var fallback []string
+	var fallbackName string
+	var fallbackArgs []string
 	var declaringClass string
 	if methodName != "" {
 		if method, ok := resolver.ResolveMethod(className, methodName); ok {
@@ -2139,14 +2214,21 @@ func genericParentTypeArguments(resolver SymbolResolver, className, methodName s
 		if len(parent.TypeArguments) == 0 {
 			continue
 		}
-		if fallback == nil {
-			fallback = parent.TypeArguments
+		if fallbackArgs == nil {
+			fallbackName = parent.Name
+			fallbackArgs = parent.TypeArguments
 		}
-		if declaringClass != "" && strings.EqualFold(strings.TrimPrefix(parent.Name, `\`), strings.TrimPrefix(declaringClass, `\`)) {
-			return parent.TypeArguments
+		parentName := strings.TrimPrefix(parent.Name, `\`)
+		if declaringClass != "" && strings.EqualFold(parentName, strings.TrimPrefix(declaringClass, `\`)) {
+			return parent.Name, parent.TypeArguments
 		}
 	}
-	return fallback
+	return fallbackName, fallbackArgs
+}
+
+func genericParentTypeArguments(resolver SymbolResolver, className, methodName string) []string {
+	_, args := genericParentBinding(resolver, className, methodName)
+	return args
 }
 
 func isBindableClassStringTemplate(name, methodReturnType string, ctx *AnalysisContext) bool {
@@ -2247,9 +2329,77 @@ func inferMethodCallType(node *ast.MethodCallNode, scope *functionScope, ctx *An
 	return inferMethodCallTypeInFile("", node, scope, ctx)
 }
 
+func conditionIsAndChain(node ast.Node) bool {
+	binary, ok := node.(*ast.BinaryExpr)
+	if !ok {
+		return false
+	}
+	return binary.Operator == "&&" || binary.Operator == "and"
+}
+
+func constructorPreviousArg(node *ast.NewNode) ast.Node {
+	if node == nil {
+		return nil
+	}
+	for _, arg := range node.Args {
+		named, ok := arg.(*ast.NamedArgumentNode)
+		if ok && strings.EqualFold(named.Name, "previous") {
+			return named.Value
+		}
+	}
+	positional := 0
+	for _, arg := range node.Args {
+		if _, ok := arg.(*ast.NamedArgumentNode); ok {
+			continue
+		}
+		if positional == 2 {
+			return arg
+		}
+		positional++
+	}
+	return nil
+}
+
+func exceptionSourceFromReceiver(receiver ast.Node, scope *functionScope) *ast.NewNode {
+	if scope == nil {
+		return nil
+	}
+	switch n := receiver.(type) {
+	case *ast.VariableNode:
+		return scope.exceptionSource(n.Name)
+	case *ast.MethodCallNode:
+		if !strings.EqualFold(n.Method, "getPrevious") {
+			return nil
+		}
+		inner := exceptionSourceFromReceiver(n.Object, scope)
+		arg := argumentValue(constructorPreviousArg(inner))
+		variable, ok := arg.(*ast.VariableNode)
+		if !ok {
+			return nil
+		}
+		return scope.exceptionSource(variable.Name)
+	default:
+		return nil
+	}
+}
+
+func inferExceptionPreviousType(filename string, receiver ast.Node, scope *functionScope, ctx *AnalysisContext) Type {
+	arg := argumentValue(constructorPreviousArg(exceptionSourceFromReceiver(receiver, scope)))
+	if arg == nil {
+		return EmptyType()
+	}
+	return inferTypeWithFacts(filename, arg, scope, ctx)
+}
+
 func inferMethodCallTypeInFile(filename string, node *ast.MethodCallNode, scope *functionScope, ctx *AnalysisContext) Type {
 	if node == nil {
 		return MixedType()
+	}
+	preserve := classTemplatePreserveSet(scope, ctx)
+	if strings.EqualFold(node.Method, "getPrevious") {
+		if previous := inferExceptionPreviousType(filename, node.Object, scope, ctx); !previous.IsEmpty() {
+			return previous
+		}
 	}
 	if object, ok := node.Object.(*ast.VariableNode); ok && object.Name == "this" {
 		callee := ""
@@ -2258,11 +2408,11 @@ func inferMethodCallTypeInFile(filename string, node *ast.MethodCallNode, scope 
 		}
 		if scope != nil && ctx != nil && ctx.Resolver != nil {
 			if method, ok := ctx.Resolver.ResolveMethod(scope.className, node.Method); ok {
-				return inferredMethodReturnTypeWithBindings(method, callee, ctx, bindCallSiteMethodTemplates(method, node.Args, scope, ctx, filename))
+				return inferredMethodReturnTypePreserving(method, callee, ctx, bindCallSiteMethodTemplates(method, node.Args, scope, ctx, filename), preserve)
 			}
 		}
 		if method, ok := resolveSameClassMethod(scope, node.Method); ok {
-			return inferredMethodReturnTypeWithBindings(method, callee, ctx, bindCallSiteMethodTemplates(method, node.Args, scope, ctx, filename))
+			return inferredMethodReturnTypePreserving(method, callee, ctx, bindCallSiteMethodTemplates(method, node.Args, scope, ctx, filename), preserve)
 		}
 	}
 
@@ -2270,7 +2420,8 @@ func inferMethodCallTypeInFile(filename string, node *ast.MethodCallNode, scope 
 		if varNode, ok := node.Object.(*ast.VariableNode); ok {
 			if genInst, hasGeneric := scope.genericContext[varNode.Name]; hasGeneric {
 				if method, ok := resolveMethodWithGenerics(ctx.Resolver, genInst.ClassName, node.Method, genInst.TypeArguments); ok {
-					return inferredMethodReturnTypeWithBindings(method, genInst.ClassName, ctx, bindCallSiteMethodTemplates(method, node.Args, scope, ctx, filename))
+					callPreserve := mergeTemplateNames(copyTemplateNameSet(preserve), templateNamesFromMap(unboundTemplateArgNames(genInst.TypeArguments, ctx)))
+					return inferredMethodReturnTypePreserving(method, genInst.ClassName, ctx, bindCallSiteMethodTemplates(method, node.Args, scope, ctx, filename), callPreserve)
 				}
 			}
 		}
@@ -2283,28 +2434,58 @@ func inferMethodCallTypeInFile(filename string, node *ast.MethodCallNode, scope 
 		return MixedType()
 	}
 	if len(typeArgs) == 0 && ctx != nil && ctx.Resolver != nil {
-		if parentArgs := genericParentTypeArguments(ctx.Resolver, className, node.Method); len(parentArgs) > 0 {
+		if parentName, parentArgs := genericParentBinding(ctx.Resolver, className, node.Method); len(parentArgs) > 0 {
+			if parentName != "" {
+				className = parentName
+			}
 			typeArgs = parentArgs
 		}
 	}
+	preserve = mergeTemplateNames(preserve, templateNamesSlice(unboundTemplateArgNames(typeArgs, ctx)))
 	if scope != nil && strings.EqualFold(className, scope.className) {
 		if method, ok := resolveSameClassMethod(scope, node.Method); ok {
-			return inferredMethodReturnTypeWithBindings(method, className, ctx, bindCallSiteMethodTemplates(method, node.Args, scope, ctx, filename))
+			return inferredMethodReturnTypePreserving(method, className, ctx, bindCallSiteMethodTemplates(method, node.Args, scope, ctx, filename), preserve)
 		}
 	}
 	if ctx != nil && ctx.Resolver != nil {
 		if method, ok := resolveMethodWithGenerics(ctx.Resolver, className, node.Method, typeArgs); ok {
-			return inferredMethodReturnTypeWithBindings(method, className, ctx, bindCallSiteMethodTemplates(method, node.Args, scope, ctx, filename))
+			return inferredMethodReturnTypePreserving(method, className, ctx, bindCallSiteMethodTemplates(method, node.Args, scope, ctx, filename), preserve)
 		}
 	}
 	if scope != nil {
 		if classData, ok := analysisClassScopeDataByName(ctx, className, scope.typeCtx); ok {
 			if method, ok := classData.methods[asciiLowerIdent(node.Method)]; ok {
-				return inferredMethodReturnTypeWithBindings(method, className, ctx, bindCallSiteMethodTemplates(method, node.Args, scope, ctx, filename))
+				return inferredMethodReturnTypePreserving(method, className, ctx, bindCallSiteMethodTemplates(method, node.Args, scope, ctx, filename), preserve)
 			}
 		}
 	}
 	return MixedType()
+}
+
+func copyTemplateNameSet(src map[string]struct{}) map[string]struct{} {
+	if len(src) == 0 {
+		return nil
+	}
+	dst := make(map[string]struct{}, len(src))
+	for name := range src {
+		dst[name] = struct{}{}
+	}
+	return dst
+}
+
+func templateNamesFromMap(src map[string]struct{}) []string {
+	if len(src) == 0 {
+		return nil
+	}
+	names := make([]string, 0, len(src))
+	for name := range src {
+		names = append(names, name)
+	}
+	return names
+}
+
+func templateNamesSlice(src map[string]struct{}) []string {
+	return templateNamesFromMap(src)
 }
 
 func resolveSameClassMethod(scope *functionScope, methodName string) (ResolvedMethod, bool) {

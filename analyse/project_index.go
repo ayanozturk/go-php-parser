@@ -1023,7 +1023,20 @@ func (idx *ProjectIndex) resolveMethodFromNonGenericLineage(className, methodNam
 // typeArguments are the generic type arguments (e.g., ["User"] for Repository<User>).
 func (idx *ProjectIndex) ResolveMethodWithGenerics(className, methodName string, typeArguments []string) (ResolvedMethod, bool) {
 	class, ok := idx.ResolveClass(className)
-	if !ok || len(class.TemplateParams) == 0 || len(typeArguments) == 0 {
+	if !ok {
+		return ResolvedMethod{}, false
+	}
+	if len(class.TemplateParams) == 0 {
+		if len(typeArguments) == 0 {
+			return idx.ResolveMethod(className, methodName)
+		}
+		bindings := templateBindingsFromAncestors(idx, className, typeArguments)
+		if len(bindings) == 0 {
+			return idx.ResolveMethod(className, methodName)
+		}
+		return idx.resolveMethodWithTemplates(className, methodName, bindings, make(map[string]struct{}))
+	}
+	if len(typeArguments) == 0 {
 		return idx.ResolveMethod(className, methodName)
 	}
 
@@ -1036,6 +1049,28 @@ func (idx *ProjectIndex) ResolveMethodWithGenerics(className, methodName string,
 	}
 
 	return idx.resolveMethodWithTemplates(className, methodName, bindings, make(map[string]struct{}))
+}
+
+func templateBindingsFromAncestors(idx *ProjectIndex, className string, typeArguments []string) map[string]string {
+	if idx == nil || className == "" || len(typeArguments) == 0 {
+		return nil
+	}
+	for _, candidate := range idx.classLineage(className) {
+		class, ok := idx.ResolveClass(candidate)
+		if !ok || len(class.TemplateParams) == 0 {
+			continue
+		}
+		bindings := make(map[string]string, len(class.TemplateParams))
+		for i, param := range class.TemplateParams {
+			if i < len(typeArguments) {
+				bindings[param] = typeArguments[i]
+			}
+		}
+		if len(bindings) > 0 {
+			return bindings
+		}
+	}
+	return nil
 }
 
 func (idx *ProjectIndex) methodReferenceParams(className, methodName string) ([]ResolvedParam, bool) {
@@ -1262,6 +1297,8 @@ func (idx *ProjectIndex) resolveMethodWithTemplates(className, methodName string
 		parentBindings := map[string]string(nil)
 		if relation, relationOK := genericRelationTo(class, parentName); relationOK {
 			parentBindings = bindGenericParent(parent, relation, bindings)
+		} else if len(bindings) > 0 {
+			parentBindings = bindings
 		}
 		if method, found := idx.resolveMethodWithTemplates(parent.Name, methodName, parentBindings, seen); found {
 			return method, true

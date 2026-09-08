@@ -29,6 +29,43 @@ func applyPHPUnitAssertionScope(scope *functionScope, expr ast.Node, ctx *Analys
 		if condition := argumentValue(phpUnitArg(args, 0, "condition")); condition != nil {
 			applyConditionTrueScope(scope, condition, ctx)
 		}
+	case "assertsame":
+		applyAssertSameScope(scope, args, ctx)
+	}
+}
+
+func applyAssertSameScope(scope *functionScope, args []ast.Node, ctx *AnalysisContext) {
+	expected := argumentValue(phpUnitArg(args, 0, "expected"))
+	actual := argumentValue(phpUnitArg(args, 1, "actual"))
+	expectedType := inferType(expected, scope, ctx)
+	if expectedType.IsEmpty() || expectedType.withoutBuiltin("null").IsEmpty() {
+		applyAssertSameNonNullOnly(scope, actual)
+		return
+	}
+	switch actual := actual.(type) {
+	case *ast.PropertyFetchNode:
+		if name, ok := directThisPropertyName(actual); ok {
+			scope.setProperty(name, expectedType)
+			return
+		}
+		if key, ok := foreignPropertyKey(actual); ok {
+			scope.setProperty(key, expectedType)
+		}
+	case *ast.VariableNode:
+		scope.setVariable(actual.Name, expectedType)
+	}
+}
+
+func applyAssertSameNonNullOnly(scope *functionScope, actual ast.Node) {
+	switch actual := actual.(type) {
+	case *ast.PropertyFetchNode:
+		if name, ok := directThisPropertyName(actual); ok {
+			removeNullFromThisProperty(scope, name)
+		}
+	case *ast.VariableNode:
+		if typ, ok := nonNullVariableType(scope, actual.Name); ok {
+			scope.setVariable(actual.Name, typ)
+		}
 	}
 }
 

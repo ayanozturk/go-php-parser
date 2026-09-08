@@ -263,6 +263,133 @@ class Service {
 	}
 }
 
+func TestGenericParentDoctrineFindReturnTypeNoMismatch(t *testing.T) {
+	php := `<?php
+class Record {}
+
+/** @template T */
+class EntityRepository {
+	/** @return T|null */
+	public function find($id): ?object { return null; }
+}
+
+class ServiceEntityRepository extends EntityRepository {}
+
+/** @extends ServiceEntityRepository<Record> */
+class RecordRepository extends ServiceEntityRepository {}
+
+class Lookup {
+	public RecordRepository $repository;
+	public function byId($id): ?Record {
+		return $this->repository->find($id);
+	}
+}`
+	issues := analysePHP(t, php)
+	if hasReturnTypeIssue(issues) {
+		t.Fatalf("expected no A.RETURN.TYPE for multi-hop @extends ServiceEntityRepository find() bound to ?Record, got: %#v", issues)
+	}
+}
+
+const doctrineVendorFindPHP = `<?php
+namespace Doctrine\ORM;
+/**
+ * @template T of object
+ */
+class EntityRepository {
+	/**
+	 * @return object|null
+	 * @phpstan-return ?T
+	 */
+	public function find(mixed $id): object|null { return null; }
+}
+
+namespace Doctrine\Bundle\DoctrineBundle\Repository;
+use Doctrine\ORM\EntityRepository;
+/**
+ * @template T of object
+ * @template-extends EntityRepository<T>
+ */
+class ServiceEntityRepository extends EntityRepository {}
+
+namespace App\Entity;
+class DocumentPolicy {}
+
+namespace App\Repository;
+use App\Entity\DocumentPolicy;
+use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
+/**
+ * @extends ServiceEntityRepository<DocumentPolicy>
+ */
+class DocumentPolicyRepository extends ServiceEntityRepository {}
+
+namespace App\Service;
+use App\Entity\DocumentPolicy;
+use App\Repository\DocumentPolicyRepository;
+class DocumentPolicyService {
+	public function __construct(private readonly DocumentPolicyRepository $repository) {}
+	public function getPolicyById(string $id): ?DocumentPolicy {
+		return $this->repository->find($id);
+	}
+}
+`
+
+func TestDoctrineVendorFindPhpstanReturnWithProjectIndex(t *testing.T) {
+	issues := runAnalysisLevelOnFiles(t, map[string]string{"test.php": doctrineVendorFindPHP}, 3)
+	if hasReturnTypeIssue(issues) {
+		t.Fatalf("expected no A.RETURN.TYPE for namespaced Doctrine @phpstan-return ?T find() bound via @extends, got: %#v", issues)
+	}
+}
+
+func TestAbstractRepositoryFindTemplateReturnWithProjectIndex(t *testing.T) {
+	php := `<?php
+interface EntityInterface {}
+class Record implements EntityInterface {}
+
+/** @template T of object */
+class EntityRepository {
+	/**
+	 * @return object|null
+	 * @phpstan-return T|null
+	 */
+	public function find($id): ?object { return null; }
+}
+
+class ServiceEntityRepository extends EntityRepository {}
+
+/**
+ * @template T of EntityInterface
+ * @template-extends ServiceEntityRepository<T>
+ */
+abstract class AbstractRepository extends ServiceEntityRepository {
+	/** @var EntityRepository<T>|null */
+	private ?EntityRepository $resolvedRepository = null;
+
+	/** @return T|null */
+	public function find($id): ?object {
+		return $this->resolveRepository()->find($id);
+	}
+
+	/** @return EntityRepository<T> */
+	private function resolveRepository(): EntityRepository {
+		if ($this->resolvedRepository instanceof EntityRepository) {
+			return $this->resolvedRepository;
+		}
+		$this->resolvedRepository = new EntityRepository();
+		return $this->resolvedRepository;
+	}
+}
+
+/**
+ * @extends AbstractRepository<Record>
+ */
+class RecordRepository extends AbstractRepository {}
+`
+	issues := runAnalysisLevelOnFiles(t, map[string]string{"test.php": php}, 3)
+	if hasReturnTypeIssue(issues) {
+		t.Fatalf("expected no A.RETURN.TYPE for AbstractRepository find() wrapping EntityRepository<T>, got: %#v", issues)
+	}
+}
+
 func TestThisMethodReturnTypeNoMismatch(t *testing.T) {
 	php := `<?php
 	class User {}

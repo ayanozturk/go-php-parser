@@ -249,6 +249,13 @@
       "file": "clean-generic-parent-property-find.php",
       "engineCodes": [],
       "phpstanIdentifiers": []
+    },
+    {
+      "id": "clean-generic-parent-doctrine-find",
+      "capability": "multi-hop @extends ServiceEntityRepository find returns bound type",
+      "file": "clean-generic-parent-doctrine-find.php",
+      "engineCodes": [],
+      "phpstanIdentifiers": []
     }
   ]
 }

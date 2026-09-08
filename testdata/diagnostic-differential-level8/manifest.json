@@ -269,6 +269,34 @@
       "file": "known-method-exists-property-and.php",
       "engineCodes": [],
       "phpstanIdentifiers": []
+    },
+    {
+      "id": "property-guard-boolean-variable",
+      "capability": "boolean variable replays stored && guard",
+      "file": "property-guard-boolean-variable.php",
+      "engineCodes": [],
+      "phpstanIdentifiers": []
+    },
+    {
+      "id": "phpunit-assert-same-property",
+      "capability": "assertSame narrows nullable property",
+      "file": "phpunit-assert-same-property.php",
+      "engineCodes": [],
+      "phpstanIdentifiers": []
+    },
+    {
+      "id": "assignment-in-condition-nullable",
+      "capability": "assignment in condition narrows nullable",
+      "file": "assignment-in-condition-nullable.php",
+      "engineCodes": [],
+      "phpstanIdentifiers": []
+    },
+    {
+      "id": "nullable-get-previous-constructor-chain",
+      "capability": "getPrevious chain from constructor previous arg",
+      "file": "nullable-get-previous-constructor-chain.php",
+      "engineCodes": [],
+      "phpstanIdentifiers": []
     }
   ]
 }

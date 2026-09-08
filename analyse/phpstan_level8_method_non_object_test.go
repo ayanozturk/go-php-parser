@@ -142,3 +142,79 @@ function unguarded(?Service $s): void {
 		t.Fatalf("unguarded nullable Service call should still report Level8.MethodNonObject, got %#v", issues)
 	}
 }
+
+func TestLevel8TruthyGuardBooleanVariableReplaysAndChain(t *testing.T) {
+	files := map[string]string{
+		"test.php": `<?php
+class Provider { public function sync(): void {} }
+class Worker {
+    /** @var Provider|null */
+    public $provider;
+    public function run(): void {
+        $flag = $this->provider !== null && $this->provider;
+        if ($flag) {
+            $this->provider->sync();
+        }
+    }
+}
+function unguarded(?Provider $provider): void {
+    $provider->sync();
+}
+`,
+	}
+
+	issues := runAnalysisLevelOnFiles(t, files, 8)
+	if countIssueContaining(issues, level8MethodNonObjectCode, "sync") != 1 {
+		t.Fatalf("expected exactly one unguarded sync diagnostic, got %#v", issues)
+	}
+}
+
+func TestLevel8AssignmentInConditionNarrowsNullable(t *testing.T) {
+	files := map[string]string{
+		"test.php": `<?php
+$root = new Exception('root');
+$e = new Exception('mid', 0, $root);
+function run(Exception $e): void {
+    if ($prev = $e->getPrevious()) {
+        $prev->getMessage();
+    }
+}
+function unguarded(Exception $e): void {
+    $e->getPrevious()->getMessage();
+}
+`,
+	}
+
+	issues := runAnalysisLevelOnFiles(t, files, 8)
+	if countIssueContaining(issues, level8MethodNonObjectCode, "getMessage") != 1 {
+		t.Fatalf("expected exactly one unguarded getMessage diagnostic, got %#v", issues)
+	}
+}
+
+func TestLevel8PHPUnitAssertSameNarrowsNullableProperty(t *testing.T) {
+	files := map[string]string{
+		"test.php": `<?php
+class Provider { public function sync(): void {} }
+class Worker {
+    /** @var Provider|null */
+    public $provider;
+    public function testSync(): void {
+        \PHPUnit\Framework\Assert::assertSame(new Provider(), $this->provider);
+        $this->provider->sync();
+    }
+}
+class Unguarded {
+    /** @var Provider|null */
+    public $provider;
+    public function run(): void {
+        $this->provider->sync();
+    }
+}
+`,
+	}
+
+	issues := runAnalysisLevelOnFiles(t, files, 8)
+	if countIssueContaining(issues, level8MethodNonObjectCode, "sync") != 1 {
+		t.Fatalf("expected exactly one unguarded sync diagnostic, got %#v", issues)
+	}
+}

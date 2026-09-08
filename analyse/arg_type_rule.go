@@ -204,6 +204,11 @@ func scopeForConditionTrue(scope *functionScope, condition ast.Node, ctx *Analys
 	if refined == nil {
 		return nil
 	}
+	if variable, ok := condition.(*ast.VariableNode); ok {
+		if stored := refined.truthyGuard(variable.Name); stored != nil {
+			applyConditionTrueScope(refined, stored, ctx)
+		}
+	}
 	applyConditionTrueScope(refined, condition, ctx)
 	return refined
 }
@@ -245,6 +250,15 @@ func scopeForConditionFalse(scope *functionScope, condition ast.Node, ctx *Analy
 
 func applyConditionTrueScope(scope *functionScope, condition ast.Node, ctx *AnalysisContext) {
 	if scope == nil {
+		return
+	}
+	if assignment, ok := condition.(*ast.AssignmentNode); ok {
+		applyAssignmentScope(scope, assignment, ctx)
+		if left, ok := assignment.Left.(*ast.VariableNode); ok {
+			if typ, ok := nonNullVariableType(scope, left.Name); ok {
+				scope.setVariable(left.Name, typ)
+			}
+		}
 		return
 	}
 	applyThisPropertyConditionScope(scope, condition, true, ctx)

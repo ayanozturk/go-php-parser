@@ -11,12 +11,31 @@ import (
 // Identifiers are replaced token-by-token so T does not alter names such as
 // Type or App\TEntity.
 func ApplyTemplateBindings(raw string, bindings map[string]string) string {
+	return substituteTemplateTokens(raw, bindings, false)
+}
+
+func substituteTemplateTokens(raw string, bindings map[string]string, skipGenericArgs bool) string {
 	if raw == "" || len(bindings) == 0 {
 		return raw
 	}
 	var out strings.Builder
+	depth := 0
 	for start := 0; start < len(raw); {
 		r, size := utf8.DecodeRuneInString(raw[start:])
+		switch r {
+		case '<':
+			depth++
+			out.WriteString(raw[start : start+size])
+			start += size
+			continue
+		case '>':
+			if depth > 0 {
+				depth--
+			}
+			out.WriteString(raw[start : start+size])
+			start += size
+			continue
+		}
 		if !isTemplateIdentifierRune(r) {
 			out.WriteString(raw[start : start+size])
 			start += size
@@ -31,7 +50,9 @@ func ApplyTemplateBindings(raw string, bindings map[string]string) string {
 			end += nextSize
 		}
 		token := raw[start:end]
-		if replacement, ok := bindings[token]; ok {
+		if skipGenericArgs && depth > 0 {
+			out.WriteString(token)
+		} else if replacement, ok := bindings[token]; ok {
 			out.WriteString(replacement)
 		} else {
 			out.WriteString(token)
@@ -213,6 +234,10 @@ func indexTopLevelByte(raw string, target byte) int {
 }
 
 func expandUnboundClassTemplates(raw, className string, ctx *AnalysisContext) string {
+	return expandUnboundClassTemplatesExcept(raw, className, ctx, nil)
+}
+
+func expandUnboundClassTemplatesExcept(raw, className string, ctx *AnalysisContext, except map[string]struct{}) string {
 	raw = strings.TrimSpace(raw)
 	if raw == "" || ctx == nil || ctx.Resolver == nil || className == "" {
 		return raw
@@ -223,6 +248,9 @@ func expandUnboundClassTemplates(raw, className string, ctx *AnalysisContext) st
 	}
 	bindings := make(map[string]string, len(class.TemplateParams))
 	for i, name := range class.TemplateParams {
+		if isKnownTemplateName(name, except) {
+			continue
+		}
 		if i >= len(class.TemplateBounds) {
 			continue
 		}
@@ -235,7 +263,48 @@ func expandUnboundClassTemplates(raw, className string, ctx *AnalysisContext) st
 	if len(bindings) == 0 {
 		return raw
 	}
-	return ApplyTemplateBindings(raw, bindings)
+	return substituteTemplateTokens(raw, bindings, true)
+}
+
+func unboundTemplateArgNames(typeArgs []string, ctx *AnalysisContext) map[string]struct{} {
+	if len(typeArgs) == 0 {
+		return nil
+	}
+	names := make(map[string]struct{})
+	for _, arg := range typeArgs {
+		arg = strings.TrimSpace(arg)
+		if arg == "" || strings.ContainsAny(arg, `\|<>()&`) {
+			continue
+		}
+		if atom, ok := normalizeTypeAtom(arg); ok && atom.kind == typeKindBuiltin {
+			continue
+		}
+		if ctx != nil && ctx.Resolver != nil {
+			if _, ok := ctx.Resolver.ResolveClass(arg); ok {
+				continue
+			}
+		}
+		r, _ := utf8.DecodeRuneInString(arg)
+		if !unicode.IsUpper(r) {
+			continue
+		}
+		names = mergeTemplateNames(names, []string{arg})
+	}
+	if len(names) == 0 {
+		return nil
+	}
+	return names
+}
+
+func classTemplatePreserveSet(scope *functionScope, ctx *AnalysisContext) map[string]struct{} {
+	if scope == nil || ctx == nil || ctx.Resolver == nil || scope.className == "" {
+		return nil
+	}
+	class, ok := ctx.Resolver.ResolveClass(scope.className)
+	if !ok || len(class.TemplateParams) == 0 {
+		return nil
+	}
+	return templateNames(class.TemplateParams)
 }
 
 func normalizeTemplateAwareType(raw string, ctx FileTypeContext, templates map[string]struct{}) string {
