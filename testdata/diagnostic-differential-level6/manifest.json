@@ -6,6 +6,13 @@
   },
   "cases": [
     {
+      "id": "known-multiline-array-shape-param",
+      "capability": "multiline array-shape parameters retain their value types",
+      "file": "known-multiline-array-shape-param.php",
+      "engineCodes": [],
+      "phpstanIdentifiers": []
+    },
+    {
       "id": "missing-generic-parameter",
       "capability": "missing generic type arguments in parameters",
       "file": "missing-generic-parameter.php",

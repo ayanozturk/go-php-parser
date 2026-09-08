@@ -554,3 +554,69 @@ func TestInferThisPropertyWithoutScopeIsConservative(t *testing.T) {
 		t.Fatalf("scope-less this-property type = %q, want mixed", inferred.String())
 	}
 }
+
+func TestReturnTypePreservesNativeNullBesideArrayShapePHPDoc(t *testing.T) {
+	issues := analysePHP(t, `<?php
+/**
+ * @return array{
+ *     label: string
+ * }|null
+ */
+function optional_payload(bool $available): ?array {
+    if (!$available) {
+        return null;
+    }
+    return ['label' => 'ready'];
+}
+`)
+	if hasReturnTypeIssue(issues) {
+		t.Fatalf("native nullable return was lost beside array-shape PHPDoc: %#v", issues)
+	}
+}
+
+func TestReturnTypeKeepsClassTemplateIdentity(t *testing.T) {
+	const filename = "src/Store.php"
+	nodes := parseReturnCompletenessPHP(t, `<?php
+namespace Example;
+
+/** @template T of object */
+abstract class Store {
+    /** @return T|null */
+    abstract protected function stored(): ?object;
+
+    /** @return T|null */
+    public function current(): ?object {
+        return $this->stored();
+    }
+}
+`)
+	snapshot, err := NewSemanticSnapshot(map[string][]ast.Node{filename: nodes}, nil)
+	if err != nil {
+		t.Fatalf("build semantic snapshot: %v", err)
+	}
+	issues := (&ReturnTypeRule{}).CheckIssues(nodes, filename, snapshot.NewAnalysisContext())
+	if hasReturnTypeIssue(issues) {
+		t.Fatalf("class template was resolved as a namespaced class: %#v", issues)
+	}
+}
+
+func TestReturnTypeUsesLiteralFalseAndFopenSignature(t *testing.T) {
+	const filename = "src/Streams.php"
+	nodes := parseReturnCompletenessPHP(t, `<?php
+/** @return resource|false */
+function open_stream(string $path) {
+    if ($path === '') {
+        return false;
+    }
+    return fopen($path, 'rb');
+}
+`)
+	snapshot, err := NewSemanticSnapshot(map[string][]ast.Node{filename: nodes}, nil)
+	if err != nil {
+		t.Fatalf("build semantic snapshot: %v", err)
+	}
+	issues := (&ReturnTypeRule{}).CheckIssues(nodes, filename, snapshot.NewAnalysisContext())
+	if hasReturnTypeIssue(issues) {
+		t.Fatalf("resource-or-false returns should accept false and fopen: %#v", issues)
+	}
+}

@@ -459,10 +459,13 @@ func tryFlowOutcomes(n *ast.TryNode) flowOutcome {
 	}
 	if len(n.Finally) > 0 {
 		finallyOutcomes := statementsFlowOutcomes(n.Finally)
-		if finallyOutcomes&(flowTerminate|flowEscape|flowBreak|flowContinue) != 0 {
-			return finallyOutcomes
+		result := finallyOutcomes &^ flowNormal
+		if finallyOutcomes&flowNormal != 0 {
+			// A normally completing finally resumes the outcome selected by the
+			// try/catch. It does not create an independent fallthrough path.
+			result |= outcomes
 		}
-		outcomes |= finallyOutcomes
+		return result
 	}
 	return outcomes
 }

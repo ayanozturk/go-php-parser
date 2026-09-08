@@ -2,7 +2,7 @@
 
 class User {}
 
-/** @template T */
+/** @template T of object */
 class Repo {
     /** @return T|null */
     public function find($id): ?object { return null; }

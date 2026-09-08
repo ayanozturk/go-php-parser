@@ -3,7 +3,7 @@
 class Record {}
 
 /**
- * @template T
+ * @template T of object
  */
 class EntityRepository
 {
@@ -14,6 +14,10 @@ class EntityRepository
     }
 }
 
+/**
+ * @template T of object
+ * @extends EntityRepository<T>
+ */
 class ServiceEntityRepository extends EntityRepository
 {
 }

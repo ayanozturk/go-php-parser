@@ -75,16 +75,11 @@ func ParsePHPDoc(rawContent string) *PHPDocNode {
 		content = content[3 : len(content)-2]
 	}
 
-	lines := strings.Split(content, "\n")
+	lines := logicalPHPDocLines(content)
 	var descriptionLines []string
 	var inDescription = true
 
 	for _, line := range lines {
-		line = strings.TrimSpace(line)
-		if strings.HasPrefix(line, "*") {
-			line = strings.TrimSpace(line[1:])
-		}
-
 		// Check for @param tags
 		if tag, value, ok := phpDocTag(line); ok && isPHPDocParamTag(tag) {
 			inDescription = false
@@ -148,6 +143,52 @@ func ParsePHPDoc(rawContent string) *PHPDocNode {
 
 	phpdoc.Description = strings.Join(descriptionLines, " ")
 	return phpdoc
+}
+
+func logicalPHPDocLines(content string) []string {
+	physical := strings.Split(content, "\n")
+	lines := make([]string, 0, len(physical))
+	for index := 0; index < len(physical); index++ {
+		line := strings.TrimSpace(physical[index])
+		if strings.HasPrefix(line, "*") {
+			line = strings.TrimSpace(line[1:])
+		}
+		combined := line
+		joinType := phpDocLineStartsTypeTag(line)
+		for joinType && phpDocTypeDelimiterDepth(combined) > 0 && index+1 < len(physical) {
+			index++
+			continuation := strings.TrimSpace(physical[index])
+			if strings.HasPrefix(continuation, "*") {
+				continuation = strings.TrimSpace(continuation[1:])
+			}
+			combined = strings.TrimSpace(combined + " " + continuation)
+		}
+		lines = append(lines, combined)
+	}
+	return lines
+}
+
+func phpDocLineStartsTypeTag(line string) bool {
+	tag, _, ok := phpDocTag(line)
+	if !ok {
+		return false
+	}
+	return isPHPDocParamTag(tag) || isPHPDocReturnTag(tag) || tag == "var" || isTypeAliasTag(tag) || isExtendsTag(tag) || isImplementsTag(tag)
+}
+
+func phpDocTypeDelimiterDepth(value string) int {
+	depth := 0
+	for _, r := range value {
+		switch r {
+		case '<', '(', '{', '[':
+			depth++
+		case '>', ')', '}', ']':
+			if depth > 0 {
+				depth--
+			}
+		}
+	}
+	return depth
 }
 
 func splitPHPDocParamTypeAndRest(value string) (string, string) {

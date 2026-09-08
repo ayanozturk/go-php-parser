@@ -2,7 +2,7 @@
 
 class User {}
 
-/** @template T */
+/** @template T of object */
 class Repository {
     /** @return T|null */
     public function find(mixed $id): ?object { return null; }

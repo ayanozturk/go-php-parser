@@ -256,6 +256,34 @@
       "file": "clean-generic-parent-doctrine-find.php",
       "engineCodes": [],
       "phpstanIdentifiers": []
+    },
+    {
+      "id": "clean-multiline-nullable-array-return",
+      "capability": "multiline array-shape returns preserve a trailing null union",
+      "file": "clean-multiline-nullable-array-return.php",
+      "engineCodes": [],
+      "phpstanIdentifiers": []
+    },
+    {
+      "id": "clean-class-template-return",
+      "capability": "class template names retain their identity in local return checks",
+      "file": "clean-class-template-return.php",
+      "engineCodes": [],
+      "phpstanIdentifiers": []
+    },
+    {
+      "id": "clean-return-through-finally",
+      "capability": "normal finally blocks preserve terminating try and catch outcomes",
+      "file": "clean-return-through-finally.php",
+      "engineCodes": [],
+      "phpstanIdentifiers": []
+    },
+    {
+      "id": "clean-resource-or-false-return",
+      "capability": "resource-or-false functions accept literal false and fopen results",
+      "file": "clean-resource-or-false-return.php",
+      "engineCodes": [],
+      "phpstanIdentifiers": []
     }
   ]
 }

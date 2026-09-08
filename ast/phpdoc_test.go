@@ -98,6 +98,18 @@ func TestParsePHPDoc(t *testing.T) {
 	}
 }
 
+func TestParsePHPDocPreservesMultilineArrayShapeReturnSuffix(t *testing.T) {
+	doc := ParsePHPDoc(`/**
+ * @return array{
+ *   label: string,
+ *   nested: array<int, string>
+ * }|null Payload when available
+ */`)
+	if doc.ReturnType != "array{ label: string, nested: array<int, string> }|null" {
+		t.Fatalf("multiline return type = %q", doc.ReturnType)
+	}
+}
+
 func TestExtractPHPDocFromComment(t *testing.T) {
 	tests := []struct {
 		name     string

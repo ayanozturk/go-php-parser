@@ -249,3 +249,24 @@ function outer(): int {
 		t.Fatalf("completeness issues = %#v; want only outer()", issues)
 	}
 }
+
+func TestReturnCompletenessPreservesReturnThroughFinally(t *testing.T) {
+	issues := returnCompletenessIssues(t, `<?php
+function result(bool $fail): string {
+    try {
+        if ($fail) {
+            throw new RuntimeException();
+        }
+        return 'ok';
+    } catch (RuntimeException $exception) {
+        return 'fallback';
+    } finally {
+        record_cleanup();
+    }
+}
+`, nil)
+
+	if len(issues) != 0 {
+		t.Fatalf("normal finally created a false fallthrough path: %#v", issues)
+	}
+}

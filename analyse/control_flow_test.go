@@ -459,7 +459,7 @@ function choice($value): void {
 	}
 }
 
-func TestControlFlowTryThrowsWithFinallyMayFallThrough(t *testing.T) {
+func TestControlFlowTryThrowsWithFinallyDoesNotFallThrough(t *testing.T) {
 	issues := controlFlowUnreachableIssues(t, `<?php
 function mayThrow(): void {
     try {
@@ -471,8 +471,8 @@ function mayThrow(): void {
     $reachable = true;
 }`)
 
-	if len(issues) != 0 {
-		t.Fatalf("expected try with finally (not terminating) to allow fallthrough, got %#v", issues)
+	if len(issues) != 1 || issues[0].Line != 9 {
+		t.Fatalf("expected a normal finally to resume the terminating try outcome, got %#v", issues)
 	}
 }
 
@@ -529,7 +529,7 @@ function tryFinallyTerminate(): void {
 	}
 }
 
-func TestControlFlowFinallyDoesNotTerminateAllowsFallthrough(t *testing.T) {
+func TestControlFlowFinallyDoesNotOverrideTerminatingTryCatch(t *testing.T) {
 	issues := controlFlowUnreachableIssues(t, `<?php
 function tryFinallyFallthrough(): void {
     try {
@@ -543,8 +543,8 @@ function tryFinallyFallthrough(): void {
     $reachable = true;
 }`)
 
-	if len(issues) != 0 {
-		t.Fatalf("expected finally without termination to allow fallthrough, got %#v", issues)
+	if len(issues) != 1 || issues[0].Line != 11 {
+		t.Fatalf("expected a normal finally to preserve terminating try/catch outcomes, got %#v", issues)
 	}
 }
 

@@ -2420,7 +2420,7 @@ func (idx *ProjectIndex) seedBuiltins() {
 		{Name: "filesize", Params: []ResolvedParam{{Name: "filename"}}},
 		{Name: "filter_var", Params: []ResolvedParam{{Name: "value"}, {Name: "filter", HasDefault: true}, {Name: "options", HasDefault: true}}},
 		{Name: "floor", Params: []ResolvedParam{{Name: "num"}}},
-		{Name: "fopen", Params: []ResolvedParam{{Name: "filename"}, {Name: "mode"}, {Name: "use_include_path", HasDefault: true}, {Name: "context", HasDefault: true}}},
+		{Name: "fopen", ReturnType: "resource|false", Params: []ResolvedParam{{Name: "filename"}, {Name: "mode"}, {Name: "use_include_path", HasDefault: true}, {Name: "context", HasDefault: true}}},
 		{Name: "fpassthru", Params: []ResolvedParam{{Name: "stream"}}},
 		{Name: "fputcsv", Params: []ResolvedParam{{Name: "stream"}, {Name: "fields"}, {Name: "separator", HasDefault: true}, {Name: "enclosure", HasDefault: true}, {Name: "escape", HasDefault: true}, {Name: "eol", HasDefault: true}}},
 		{Name: "fscanf", Params: []ResolvedParam{{Name: "stream"}, {Name: "format"}, {Name: "vars", HasDefault: true, IsVariadic: true, IsByRef: true, IsOut: true}}},

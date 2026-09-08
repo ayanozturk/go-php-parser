@@ -172,7 +172,7 @@ func (r *ReturnTypeRule) CheckFunctionReturnType(fn *ast.FunctionNode, class *as
 }
 
 func (r *ReturnTypeRule) checkFunctionReturnType(filename string, fn *ast.FunctionNode, class *ast.ClassNode, typeCtx FileTypeContext, ctx *AnalysisContext) []error {
-	declaredType := declaredFunctionReturnType(fn, typeCtx)
+	declaredType := declaredFunctionReturnTypeInClass(fn, class, typeCtx)
 	if declaredType.IsEmpty() {
 		return nil // no declared return type, nothing to check
 	}
@@ -279,7 +279,7 @@ func appendReturnTypeOnNode(filename string, node ast.Node, class *ast.ClassNode
 	if !ok {
 		return
 	}
-	declared := declaredFunctionReturnType(fn, fileCtx)
+	declared := declaredFunctionReturnTypeInClass(fn, class, fileCtx)
 	if class == nil && fn.Name != "" && declared.String() == "void" && triviallyPureVoidFunction(fn) {
 		*issues = append(*issues, issueSpan(filename, fn, voidPureCode, fmt.Sprintf("Function %s returns void without side effects", fn.Name)))
 	}
@@ -330,12 +330,12 @@ func appendReturnTypeOnNode(filename string, node ast.Node, class *ast.ClassNode
 			Message:  err.Error(),
 		})
 	}
-	if missingReturnValue(fn, filename, fileCtx, ctx) {
+	if missingReturnValue(fn, class, filename, fileCtx, ctx) {
 		name := fn.Name
 		if name == "" {
 			name = "closure"
 		}
-		declared := declaredFunctionReturnType(fn, fileCtx).String()
+		declared := declaredFunctionReturnTypeInClass(fn, class, fileCtx).String()
 		*issues = append(*issues, issueSpan(filename, fn, "A.RETURN.TYPE", fmt.Sprintf(
 			"Function %s: declared return type %s but not all paths return a value", name, declared,
 		)))
@@ -356,8 +356,8 @@ func triviallyPureVoidFunction(fn *ast.FunctionNode) bool {
 	return hasReturn
 }
 
-func missingReturnValue(fn *ast.FunctionNode, filename string, typeCtx FileTypeContext, ctx *AnalysisContext) bool {
-	declared := declaredFunctionReturnType(fn, typeCtx)
+func missingReturnValue(fn *ast.FunctionNode, class *ast.ClassNode, filename string, typeCtx FileTypeContext, ctx *AnalysisContext) bool {
+	declared := declaredFunctionReturnTypeInClass(fn, class, typeCtx)
 	if fn == nil || declared.IsEmpty() || declared.String() == "void" || declared.String() == "never" || hasModifier(fn.Modifiers, "abstract") || functionContainsYield(fn) {
 		return false
 	}
@@ -669,15 +669,23 @@ func unionInferredTypes(types ...Type) Type {
 
 // inferNodeKindType maps concrete node kinds to simple types. Returns "" if unknown.
 func inferNodeKindType(n ast.Node) string {
-	switch n.(type) {
+	switch n := n.(type) {
 	case *ast.IntegerLiteral, *ast.IntegerNode:
 		return "int"
 	case *ast.FloatLiteral, *ast.FloatNode:
 		return "float"
 	case *ast.StringLiteral, *ast.InterpolatedStringLiteral, *ast.StringNode:
 		return "string"
-	case *ast.BooleanLiteral, *ast.BooleanNode:
-		return "bool"
+	case *ast.BooleanLiteral:
+		if n.Value {
+			return "true"
+		}
+		return "false"
+	case *ast.BooleanNode:
+		if n.Value {
+			return "true"
+		}
+		return "false"
 	case *ast.ArrayNode:
 		return "array"
 	case *ast.NullLiteral, *ast.NullNode:
@@ -708,6 +716,10 @@ func inferFallbackType(n ast.Node) string {
 }
 
 func declaredFunctionReturnType(fn *ast.FunctionNode, typeCtx FileTypeContext) Type {
+	return declaredFunctionReturnTypeInClass(fn, nil, typeCtx)
+}
+
+func declaredFunctionReturnTypeInClass(fn *ast.FunctionNode, class *ast.ClassNode, typeCtx FileTypeContext) Type {
 	if fn == nil {
 		return EmptyType()
 	}
@@ -722,6 +734,11 @@ func declaredFunctionReturnType(fn *ast.FunctionNode, typeCtx FileTypeContext) T
 	}
 	raw = collapsePHPDocConditionalType(raw, fn.ReturnType)
 	templates := map[string]struct{}{}
+	if class != nil && class.PHPDoc != nil {
+		for _, template := range class.PHPDoc.Templates {
+			templates = mergeTemplateNames(templates, []string{template.Name})
+		}
+	}
 	if fn.PHPDoc != nil {
 		for _, template := range fn.PHPDoc.Templates {
 			templates = mergeTemplateNames(templates, []string{template.Name})
@@ -947,7 +964,7 @@ func buildClassScopeDataWithSeen(class *ast.ClassNode, typeCtx FileTypeContext, 
 		if !ok {
 			continue
 		}
-		methodType := declaredFunctionReturnType(method, typeCtx)
+		methodType := declaredFunctionReturnTypeInClass(method, class, typeCtx)
 		resolved := ResolvedMethod{
 			Name:               method.Name,
 			ReturnType:         methodType.dnfString(),
