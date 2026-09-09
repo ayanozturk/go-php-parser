@@ -181,6 +181,36 @@ final class Holder
 	}
 }
 
+func TestLevel6MissingIterableTypesAcceptEnumMethodsAndInlinePromotedPropertyDocs(t *testing.T) {
+	const source = `<?php
+enum Language: string
+{
+    case Primary = 'primary';
+
+    /** @return array<string> */
+    public static function values(): array
+    {
+        return [self::Primary->value];
+    }
+}
+
+final class Batch
+{
+    public function __construct(
+        /** @var list<string> */
+        public array $items,
+        /** @var array<string, mixed> */
+        public array $metadata,
+    ) {
+    }
+}`
+	issues := runAnalysisLevelOnFiles(t, map[string]string{"test.php": source}, 6)
+	missing := filterIssuesByCode(issues, level6MissingIterableTypeCode)
+	if len(missing) != 0 {
+		t.Fatalf("enum method and inline promoted-property PHPDoc should supply iterable value types, got %#v", missing)
+	}
+}
+
 // TestLevel6MissingReturnTypeSpanIsSignatureOnly guards against regressing
 // to underlining the entire method body: the diagnostic's span should end
 // on the declaration line (after the closing ')' of the parameter list),

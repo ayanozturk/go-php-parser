@@ -17,6 +17,7 @@ type ParamNode struct {
 	IsReadonly    bool   // true if this promoted parameter is readonly
 	IsVariadic    bool   // true if this param is variadic (...$values)
 	IsByRef       bool   // true if this param is passed by reference (&$data)
+	PHPDoc        *PHPDocNode
 	Pos           Position
 	EndPos        Position
 }

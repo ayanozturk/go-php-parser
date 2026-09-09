@@ -72,6 +72,38 @@ enum ExpressionParserType: string {
 	}
 }
 
+func TestParseEnumPreservesMethodPHPDocWithoutLeakingCasePHPDoc(t *testing.T) {
+	code := `<?php
+enum Language: string {
+    /** @var string */
+    case Primary = 'primary';
+
+    public function label(): string { return $this->value; }
+
+    /** @return array<string> */
+    public static function values(): array { return [self::Primary->value]; }
+}`
+	l := lexer.New(code)
+	p := New(l, true)
+	nodes := p.Parse()
+
+	if len(p.Errors()) > 0 {
+		t.Fatalf("parse errors: %v", p.Errors())
+	}
+	enumNode, ok := nodes[0].(*ast.EnumNode)
+	if !ok || len(enumNode.Methods) != 2 {
+		t.Fatalf("expected enum with two methods, got %#v", nodes)
+	}
+	undocumented, ok := enumNode.Methods[0].(*ast.FunctionNode)
+	if !ok || undocumented.PHPDoc != nil {
+		t.Fatalf("expected enum case PHPDoc not to leak to following method, got %#v", enumNode.Methods[0])
+	}
+	documented, ok := enumNode.Methods[1].(*ast.FunctionNode)
+	if !ok || documented.PHPDoc == nil || documented.PHPDoc.ReturnType != "array<string>" {
+		t.Fatalf("expected enum method return PHPDoc, got %#v", enumNode.Methods[1])
+	}
+}
+
 func TestParseEnumImplements(t *testing.T) {
 	php := `<?php
 enum Status: string implements \Serializable, JsonSerializable {

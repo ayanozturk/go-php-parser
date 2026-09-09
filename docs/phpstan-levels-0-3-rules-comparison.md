@@ -8,7 +8,7 @@ Source for PHPStan level descriptions: [PHPStan Rule Levels](https://phpstan.org
 
 This comparison is limited to analysis behavior. The project also implements PSR/formatting style rules, but those do not directly correspond to PHPStan's rule levels.
 
-Executable parity evidence is tracked separately in [the analyser capability matrix](analyser-capability-matrix.md). Current differential packs gate 94 / 24 / 101 / 35 cases at levels 0–3, 45 cases at level 5, 20 at level 6, 8 at level 7, and 31 at level 8 against PHPStan 2.2.5. Descriptive rows in this document are not parity claims unless backed by a checked-in differential fixture there.
+Executable parity evidence is tracked separately in [the analyser capability matrix](analyser-capability-matrix.md). Current differential packs gate 94 / 24 / 101 / 40 cases at levels 0–3, 46 cases at level 5, 22 at level 6, 8 at level 7, and 35 at level 8 against PHPStan 2.2.5. Descriptive rows in this document are not parity claims unless backed by a checked-in differential fixture there.
 
 ## Coverage Summary
 
@@ -18,7 +18,7 @@ Executable parity evidence is tracked separately in [the analyser capability mat
 | 1 | Undefined and possibly undefined variables, plus unknown magic methods and properties on classes with `__call` and `__get` | Partial variable-flow coverage |
 | 2 | Unknown methods checked on all expressions, PHPDoc validation | Partial method-receiver, invalid-operation, and PHPDoc declaration coverage, including nested array-shape/callable class references and a class-template-bound slice |
 | 3 | Return types, types assigned to properties | Partial, with thirty-five differential cases |
-| 6 | Missing generic type arguments, iterable value types, and missing declaration types | Partial, exact differential-gated slice with sixteen cases; broader missing-type parity remains open |
+| 6 | Missing generic type arguments, iterable value types, and missing declaration types | Partial, exact differential-gated slice with twenty-two cases; broader missing-type parity remains open |
 
 `analysis_level: 0` now runs a level-aware PHPStan compatibility rule set and suppresses current higher-level checks such as return type, property assignment type, argument type, and unreachable-code diagnostics. The implementation is grouped by behavior, not by PHPStan's individual rule classes.
 
@@ -43,7 +43,7 @@ Executable parity evidence is tracked separately in [the analyser capability mat
 | 3 | Return types | Partial, differential-gated | `A.RETURN.TYPE`, `A.RETURN.VOID`, `A.RETURN.NEVER` | Level-3 fixtures cover function/method mismatches, missing returns, `void` and `never` contracts, inferred arithmetic/comparison/logical/unary/spaceship results, clean scalar/nullable controls, method-level callable `@template T` binding, and `@extends` generic-parent method return inference. Coverage remains narrower than PHPStan because inference and symbol knowledge are limited. |
 | 3 | Types assigned to properties | Partial, differential-gated | `A.PROP.TYPE` | Level-3 fixtures cover mismatches through `$this` and typed parameters plus a clean control. Static/compound assignments and broader inference remain incomplete. |
 | 5 | Function, method, and constructor argument types | Partial, differential-gated | `A.ARG.TYPE` | Forty-six fixtures covering mismatches plus scalar, subtype, `self`, generic Collection, direct and aliased PHPDoc lists, unbound template-return, InputBag query `get`, Closure-filter, assignment `@var`, conditional `createForm` return, interface method-template, and flow-narrowing controls. Failing cases are silent at level 4. |
-| 6 | Missing generic, iterable, and declaration types | Partial, differential-gated | `Level6.MissingGenericType`, `Level6.MissingIterableValueType`, `Level6.MissingParameterType`, `Level6.MissingReturnType`, `Level6.MissingPropertyType` | Sixteen fixtures cover missing generic arguments and iterable value types, missing named-function and method parameter/return types, a missing property type, and clean generic, typed-array, array-shape, explicit `mixed`/`void`, PHPDoc declaration, and typed-constructor controls. The ten failing cases are silent at level 5; aliases, conditional/dynamic types, extension-provided signatures, and other declaration surfaces remain outside this exact gate. |
+| 6 | Missing generic, iterable, and declaration types | Partial, differential-gated | `Level6.MissingGenericType`, `Level6.MissingIterableValueType`, `Level6.MissingParameterType`, `Level6.MissingReturnType`, `Level6.MissingPropertyType` | Twenty-two fixtures cover missing generic arguments and iterable value types, missing named-function and method parameter/return types, a missing property type, and clean generic, typed-array, array-shape, enum-method, inline promoted-parameter, explicit `mixed`/`void`, PHPDoc declaration, and typed-constructor controls. The ten failing cases are silent at level 5; aliases, conditional/dynamic types, extension-provided signatures, and other declaration surfaces remain outside this exact gate. |
 
 ## Currently Implemented Analysis Rules
 

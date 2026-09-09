@@ -73,6 +73,10 @@ func appendCallableMissingTypeIssues(filename string, declaration ast.Node, name
 				hasDocumentedType = true
 			}
 		}
+		if !hasDocumentedType && param.PHPDoc != nil && param.PHPDoc.VarType != "" {
+			raw = param.PHPDoc.VarType
+			hasDocumentedType = true
+		}
 		if !hasDocumentedType && typeHasMissingDeclaration(raw, ft, ctx) {
 			for _, contract := range loadInherited() {
 				if paramIndex < len(contract.Params) && typeSuppliesMissingDeclarationDetail(contract.Params[paramIndex].Type) {

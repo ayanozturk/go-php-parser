@@ -151,6 +151,13 @@
       "file": "known-phpdoc-property-constructor.php",
       "engineCodes": [],
       "phpstanIdentifiers": []
+    },
+    {
+      "id": "known-enum-and-promoted-iterables",
+      "capability": "enum method and inline promoted-property PHPDoc iterable controls",
+      "file": "known-enum-and-promoted-iterables.php",
+      "engineCodes": [],
+      "phpstanIdentifiers": []
     }
   ]
 }

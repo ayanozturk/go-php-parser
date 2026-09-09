@@ -93,10 +93,14 @@ func (idx *ProjectIndex) indexPromotedProperties(filename, className string, con
 		if !ok || !param.IsPromoted {
 			continue
 		}
+		docType := ""
+		if param.PHPDoc != nil {
+			docType = param.PHPDoc.VarType
+		}
 		idx.addProperty(className, ResolvedProperty{
 			Declaration: sourceLocation(filename, param),
 			Name:        param.Name,
-			Type:        normalizeTypeWithContext(param.TypeHint, ft),
+			Type:        richerGenericType(param.TypeHint, docType, ft),
 			Visibility:  defaultVisibility(param.Visibility),
 			Readonly:    param.IsReadonly,
 		})
@@ -560,6 +564,9 @@ func paramsFromNodesWithPHPDoc(nodes []ast.Node, doc *ast.PHPDocNode, ft FileTyp
 			typ = param.UnionType.TokenLiteral()
 		}
 		native := typ
+		if param.PHPDoc != nil && param.PHPDoc.VarType != "" {
+			typ = param.PHPDoc.VarType
+		}
 		if doc != nil {
 			if documented := doc.GetParamTypeFromPHPDoc(param.Name); documented != "" {
 				typ = documentedParamTypePreservingNativeNull(native, documented)

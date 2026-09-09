@@ -8,17 +8,28 @@ import (
 
 // parseParameter parses a function or method parameter
 func (p *Parser) parseParameter() ast.Node {
+	var phpdoc *ast.PHPDocNode
 	// Skip PHP attributes (#[...]) and comments before parameter, and allow attributes before any parameter element
 	for {
 		if p.tok.Type == token.T_ATTRIBUTE {
 			p.nextToken()
 			continue
 		}
-		if p.tok.Type == token.T_WHITESPACE || p.tok.Type == token.T_COMMENT || p.tok.Type == token.T_DOC_COMMENT {
+		if p.tok.Type == token.T_DOC_COMMENT {
+			pos := p.tok.Pos
+			p.currentDoc = p.tok.Literal
+			p.nextToken()
+			phpdoc = p.consumeCurrentDoc(pos)
+			continue
+		}
+		if p.tok.Type == token.T_WHITESPACE || p.tok.Type == token.T_COMMENT {
 			p.nextToken()
 			continue
 		}
 		break
+	}
+	if p.tok.Type == token.T_RPAREN || p.tok.Type == token.T_EOF {
+		return nil
 	}
 
 	// Parse all modifiers (visibility, asymmetric visibility "(set)", readonly)
@@ -136,6 +147,7 @@ func (p *Parser) parseParameter() ast.Node {
 		IsReadonly:    isReadonly,
 		IsVariadic:    isVariadic,
 		IsByRef:       isByRef,
+		PHPDoc:        phpdoc,
 		Pos:           ast.Position(pos),
 	}
 }
