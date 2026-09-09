@@ -183,6 +183,30 @@ namespace App {
 	}
 }
 
+func TestLevel6MissingIterableTypesUseAnonymousClassLineage(t *testing.T) {
+	const source = `<?php
+interface BagContract {
+    /** @return string[] */
+    public function values();
+
+    /** @param array<string, mixed> $options */
+    public function configure(array $options): void;
+}
+
+function createBag(): object {
+    return new class implements BagContract {
+        public function values(): array { return []; }
+        public function configure(array $options): void {}
+    };
+}
+`
+	issues := runAnalysisLevelOnFiles(t, map[string]string{"test.php": source}, 6)
+	missing := filterIssuesByCode(issues, level6MissingIterableTypeCode)
+	if len(missing) != 0 {
+		t.Fatalf("anonymous-class overrides should inherit iterable declaration detail, got %#v", missing)
+	}
+}
+
 func TestLevel6MissingIterableTypesUseTraitInheritedContract(t *testing.T) {
 	const source = `<?php
 trait TypedItems {

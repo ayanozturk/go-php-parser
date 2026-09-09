@@ -122,11 +122,18 @@ func inheritedMethodContracts(class *ast.ClassNode, methodName string, ft FileTy
 	if class == nil || ctx == nil || ctx.Resolver == nil || methodName == "" {
 		return nil
 	}
-	resolved, ok := ctx.Resolver.ResolveClass(ft.resolveClassLike(class.Name))
-	if !ok {
-		return nil
+	var queue []string
+	if resolved, ok := ctx.Resolver.ResolveClass(ft.resolveClassLike(class.Name)); ok {
+		queue = append(append(append(queue, resolved.Extends...), resolved.Implements...), resolved.Traits...)
+	} else {
+		// Anonymous classes are deliberately absent from the project symbol
+		// index, but their explicit lineage is still available on the AST.
+		// Resolve that lineage directly so inherited declaration contracts apply
+		// to their overrides just as they do for named classes.
+		queue = append(queue, resolvedList(ft, optionalList(class.Extends))...)
+		queue = append(queue, resolvedList(ft, class.Implements)...)
+		queue = append(queue, traitUsesFromMembers(class.Properties, ft)...)
 	}
-	queue := append(append(append([]string(nil), resolved.Extends...), resolved.Implements...), resolved.Traits...)
 	seen := make(map[string]struct{}, len(queue))
 	var contracts []ResolvedMethod
 	for len(queue) > 0 {

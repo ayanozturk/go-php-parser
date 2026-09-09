@@ -83,6 +83,13 @@
       "phpstanIdentifiers": []
     },
     {
+      "id": "known-anonymous-inherited-iterable-contract",
+      "capability": "anonymous-class overrides inherit iterable declaration detail",
+      "file": "known-anonymous-inherited-iterable-contract.php",
+      "engineCodes": [],
+      "phpstanIdentifiers": []
+    },
+    {
       "id": "known-trait-inherited-iterable-contract",
       "capability": "trait PHPDoc iterable value types inherited by using class",
       "file": "known-trait-inherited-iterable-contract.php",
