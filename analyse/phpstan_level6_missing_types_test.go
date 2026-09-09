@@ -142,6 +142,47 @@ class UntypedScalarContract implements ScalarContract {
 	}
 }
 
+func TestLevel6MissingIterableTypesDoNotRediagnoseNormalizedInheritedShapes(t *testing.T) {
+	const source = `<?php
+interface EventMapContract {
+    /** @return array<string, string|array{0: string, 1: int}|list<array{0: string, 1?: int}>> */
+    public static function events();
+}
+
+final class EventMap implements EventMapContract {
+    public static function events(): array { return []; }
+}
+`
+	issues := runAnalysisLevelOnFiles(t, map[string]string{"test.php": source}, 6)
+	missing := filterIssuesByCode(issues, level6MissingIterableTypeCode)
+	if len(missing) != 0 {
+		t.Fatalf("a detailed inherited array-shape contract should satisfy the implementation, got %#v", missing)
+	}
+}
+
+func TestLevel6MissingIterableTypesUseInheritedArraySuffixContract(t *testing.T) {
+	const source = `<?php
+namespace Framework {
+    class Plugin {}
+    interface ExtensionContract {
+        /** @return Plugin[] */
+        public function plugins();
+    }
+}
+
+namespace App {
+    final class Extension implements \Framework\ExtensionContract {
+        public function plugins(): array { return []; }
+    }
+}
+`
+	issues := runAnalysisLevelOnFiles(t, map[string]string{"test.php": source}, 6)
+	missing := filterIssuesByCode(issues, level6MissingIterableTypeCode)
+	if len(missing) != 0 {
+		t.Fatalf("an inherited T[] contract should satisfy the implementation, got %#v", missing)
+	}
+}
+
 func TestLevel6MissingIterableTypesUseTraitInheritedContract(t *testing.T) {
 	const source = `<?php
 trait TypedItems {

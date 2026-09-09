@@ -67,6 +67,7 @@ func appendCallableMissingTypeIssues(filename string, declaration ast.Node, name
 		}
 		raw := paramTypeName(param)
 		hasDocumentedType := false
+		inheritsDetailedType := false
 		if doc != nil {
 			if documented, found := phpDocDocumentedParameter(doc, param.Name); found {
 				raw = documented.Type
@@ -80,36 +81,41 @@ func appendCallableMissingTypeIssues(filename string, declaration ast.Node, name
 		if !hasDocumentedType && typeHasMissingDeclaration(raw, ft, ctx) {
 			for _, contract := range loadInherited() {
 				if paramIndex < len(contract.Params) && typeSuppliesMissingDeclarationDetail(contract.Params[paramIndex].Type) {
-					raw = contract.Params[paramIndex].Type
+					inheritsDetailedType = true
 					break
 				}
 			}
 		}
-		if raw == "" {
+		if raw == "" && !inheritsDetailedType {
 			*issues = append(*issues, issueSpan(filename, param, level6MissingParameterCode, fmt.Sprintf("Parameter $%s has no type specified.", param.Name)))
 			continue
 		}
 		raw = expandPHPDocTypeAliases(raw, aliases)
-		appendMissingTypeIssues(filename, param, raw, ft, ctx, issues)
+		if !inheritsDetailedType {
+			appendMissingTypeIssues(filename, param, raw, ft, ctx, issues)
+		}
 	}
 	rawReturn := nativeReturn
 	hasDocumentedReturn := doc != nil && doc.ReturnType != ""
+	inheritsDetailedReturn := false
 	if hasDocumentedReturn {
 		rawReturn = doc.ReturnType
 	} else if typeHasMissingDeclaration(rawReturn, ft, ctx) && !(rawReturn == "" && isMethod && isReturnTypeExemptMethod(name)) {
 		for _, contract := range loadInherited() {
 			if typeSuppliesMissingDeclarationDetail(contract.ReturnType) {
-				rawReturn = contract.ReturnType
+				inheritsDetailedReturn = true
 				break
 			}
 		}
 	}
-	if rawReturn == "" && !(isMethod && isReturnTypeExemptMethod(name)) {
+	if rawReturn == "" && !inheritsDetailedReturn && !(isMethod && isReturnTypeExemptMethod(name)) {
 		*issues = append(*issues, issueSpan(filename, declaration, level6MissingReturnCode, fmt.Sprintf("Function or method %s has no return type specified.", name)))
 		return
 	}
 	rawReturn = expandPHPDocTypeAliases(rawReturn, aliases)
-	appendMissingTypeIssues(filename, declaration, rawReturn, ft, ctx, issues)
+	if !inheritsDetailedReturn {
+		appendMissingTypeIssues(filename, declaration, rawReturn, ft, ctx, issues)
+	}
 }
 
 func inheritedMethodContracts(class *ast.ClassNode, methodName string, ft FileTypeContext, ctx *AnalysisContext) []ResolvedMethod {

@@ -325,6 +325,10 @@ func normalizeTemplateAwareTypeExpression(raw string, ctx FileTypeContext, templ
 	if raw == "" {
 		return ""
 	}
+	if strings.HasSuffix(raw, "[]") {
+		element := strings.TrimSpace(strings.TrimSuffix(raw, "[]"))
+		return "array<" + normalizeTemplateAwareTypeExpression(element, ctx, templates) + ">"
+	}
 	if parts := splitTopLevelTypes(raw, '|'); len(parts) > 1 {
 		for idx, part := range parts {
 			normalized := normalizeTemplateAwareTypeExpression(part, ctx, templates)

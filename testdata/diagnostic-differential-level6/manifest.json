@@ -76,6 +76,13 @@
       "phpstanIdentifiers": []
     },
     {
+      "id": "known-inherited-nested-array-shape",
+      "capability": "inherited nested array-shape and T[] contracts are not rediagnosed on implementations",
+      "file": "known-inherited-nested-array-shape.php",
+      "engineCodes": [],
+      "phpstanIdentifiers": []
+    },
+    {
       "id": "known-trait-inherited-iterable-contract",
       "capability": "trait PHPDoc iterable value types inherited by using class",
       "file": "known-trait-inherited-iterable-contract.php",
