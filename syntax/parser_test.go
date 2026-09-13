@@ -342,4 +342,101 @@ func TestParseTraitAdaptationStructured(t *testing.T) {
 	}
 }
 
+func TestParseControlFlowStructured(t *testing.T) {
+	src := `<?php
+if ($a) { echo $a; } elseif ($b) { echo $b; } else { echo 0; }
+if ($c): echo $c; elseif ($d): echo $d; else: echo 0; endif;
+while ($i) { break; continue 2; }
+while ($j): echo $j; endwhile;
+do { $i--; } while ($i);
+for ($i = 0; $i < 3; $i++) { echo $i; }
+for ($i = 0; $i < 3; $i++): echo $i; endfor;
+foreach ($xs as $k => $v) { unset($v); }
+foreach ($xs as $v): echo $v; endforeach;
+switch ($x) { case 1: echo 1; break; default: echo 0; }
+switch ($y): case 2: echo 2; break; default: echo 0; endswitch;
+try { throw $e; } catch (Exception $ex) { echo $ex; } finally { echo 1; }
+match ($x) { 1, 2 => 'a', default => 'b' };
+$z = 1;
+`
+	res := Parse([]byte(src))
+	got := Print(res.File.Root)
+	if got != src {
+		t.Fatalf("file identity\nwant %q\ngot  %q", src, got)
+	}
+	want := map[Kind]bool{
+		KindIfStmt:        false,
+		KindElseIfClause:  false,
+		KindElseClause:    false,
+		KindWhileStmt:     false,
+		KindDoWhileStmt:   false,
+		KindForStmt:       false,
+		KindForeachStmt:   false,
+		KindSwitchStmt:    false,
+		KindCaseClause:    false,
+		KindDefaultClause: false,
+		KindMatchExpr:     false,
+		KindMatchArm:      false,
+		KindTryStmt:       false,
+		KindCatchClause:   false,
+		KindFinallyClause: false,
+		KindBreakStmt:     false,
+		KindContinueStmt:  false,
+		KindThrowStmt:     false,
+		KindUnsetStmt:     false,
+		KindExpressionStmt: false,
+	}
+	var walk func(*RedNode)
+	walk = func(n *RedNode) {
+		if n == nil {
+			return
+		}
+		if _, ok := want[n.Kind()]; ok {
+			want[n.Kind()] = true
+		}
+		for _, c := range n.Children() {
+			walk(c)
+		}
+	}
+	walk(res.File.Root)
+	for k, found := range want {
+		if !found {
+			t.Fatalf("expected %s in green tree", k)
+		}
+	}
+}
+
+func TestParseControlFlowInsideNamespace(t *testing.T) {
+	src := "<?php\nnamespace App {\nif ($a) { return $a; }\nforeach ($xs as $x) { echo $x; }\n}\n"
+	res := Parse([]byte(src))
+	got := Print(res.File.Root)
+	if got != src {
+		t.Fatalf("file identity\nwant %q\ngot  %q", src, got)
+	}
+	want := map[Kind]bool{
+		KindIfStmt:      false,
+		KindForeachStmt: false,
+		KindReturnStmt:  false,
+		KindEchoStmt:    false,
+	}
+	var walk func(*RedNode)
+	walk = func(n *RedNode) {
+		if n == nil {
+			return
+		}
+		if _, ok := want[n.Kind()]; ok {
+			want[n.Kind()] = true
+		}
+		for _, c := range n.Children() {
+			walk(c)
+		}
+	}
+	walk(res.File.Root)
+	for k, found := range want {
+		if !found {
+			t.Fatalf("expected %s in green tree", k)
+		}
+	}
+}
+
 

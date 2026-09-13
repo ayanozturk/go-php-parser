@@ -77,6 +77,25 @@ const (
 	KindEchoStmt
 	KindReturnStmt
 	KindExpressionStmt
+	KindIfStmt
+	KindElseIfClause
+	KindElseClause
+	KindWhileStmt
+	KindDoWhileStmt
+	KindForStmt
+	KindForeachStmt
+	KindSwitchStmt
+	KindCaseClause
+	KindDefaultClause
+	KindMatchExpr
+	KindMatchArm
+	KindTryStmt
+	KindCatchClause
+	KindFinallyClause
+	KindBreakStmt
+	KindContinueStmt
+	KindThrowStmt
+	KindUnsetStmt
 	KindTraitAdaptationList
 	KindTraitAdaptation
 )
@@ -143,6 +162,25 @@ var kindNames = [...]string{
 	KindEchoStmt:           "EchoStmt",
 	KindReturnStmt:         "ReturnStmt",
 	KindExpressionStmt:     "ExpressionStmt",
+	KindIfStmt:             "IfStmt",
+	KindElseIfClause:       "ElseIfClause",
+	KindElseClause:         "ElseClause",
+	KindWhileStmt:          "WhileStmt",
+	KindDoWhileStmt:        "DoWhileStmt",
+	KindForStmt:            "ForStmt",
+	KindForeachStmt:        "ForeachStmt",
+	KindSwitchStmt:         "SwitchStmt",
+	KindCaseClause:         "CaseClause",
+	KindDefaultClause:      "DefaultClause",
+	KindMatchExpr:          "MatchExpr",
+	KindMatchArm:           "MatchArm",
+	KindTryStmt:            "TryStmt",
+	KindCatchClause:        "CatchClause",
+	KindFinallyClause:      "FinallyClause",
+	KindBreakStmt:          "BreakStmt",
+	KindContinueStmt:       "ContinueStmt",
+	KindThrowStmt:          "ThrowStmt",
+	KindUnsetStmt:          "UnsetStmt",
 	KindTraitAdaptationList: "TraitAdaptationList",
 	KindTraitAdaptation:    "TraitAdaptation",
 }
