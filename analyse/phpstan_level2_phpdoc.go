@@ -132,18 +132,22 @@ func appendPHPDocTypeIssues(filename string, declaration ast.Node, raw string, t
 		}
 		return
 	}
+	if params, returnType, ok := phpDocCallableSignature(raw); ok {
+		base := strings.TrimSpace(raw[:strings.Index(raw, "(")])
+		if !strings.EqualFold(base, "callable") {
+			appendUnknownPHPDocClass(filename, declaration, ft.resolveClassLike(base), templates, ctx, issues)
+		}
+		for _, param := range params {
+			appendPHPDocTypeIssues(filename, declaration, param, templates, ft, ctx, issues)
+		}
+		appendPHPDocTypeIssues(filename, declaration, returnType, templates, ft, ctx, issues)
+		return
+	}
 	if instance, ok := parseExactGenericTypeFromString(raw); ok {
 		appendPHPDocGenericBaseIssues(filename, declaration, instance, templates, ft, ctx, issues)
 		for _, argument := range instance.TypeArguments {
 			appendPHPDocTypeIssues(filename, declaration, argument, templates, ft, ctx, issues)
 		}
-		return
-	}
-	if params, returnType, ok := phpDocCallableSignature(raw); ok {
-		for _, param := range params {
-			appendPHPDocTypeIssues(filename, declaration, param, templates, ft, ctx, issues)
-		}
-		appendPHPDocTypeIssues(filename, declaration, returnType, templates, ft, ctx, issues)
 		return
 	}
 	if body, ok := arrayShapeBody(raw); ok {
@@ -200,7 +204,11 @@ func appendPHPDocGenericBaseIssues(filename string, declaration ast.Node, instan
 func phpDocCallableSignature(raw string) ([]string, string, bool) {
 	raw = strings.TrimSpace(raw)
 	open := strings.Index(raw, "(")
-	if open < 0 || !strings.EqualFold(strings.TrimSpace(raw[:open]), "callable") {
+	if open < 0 {
+		return nil, "", false
+	}
+	base := strings.TrimSpace(raw[:open])
+	if !strings.EqualFold(base, "callable") && !strings.EqualFold(strings.TrimPrefix(base, `\`), "Closure") {
 		return nil, "", false
 	}
 	depth, closeIndex := 0, -1
@@ -300,6 +308,11 @@ func erasePHPDocGenericArguments(raw string) string {
 			parts[index] = erasePHPDocGenericArguments(part)
 		}
 		return strings.Join(parts, "&")
+	}
+	if _, _, ok := phpDocCallableSignature(raw); ok {
+		// Native compatibility concerns the callable object itself; signature
+		// parameter and return types are validated separately above.
+		return strings.TrimSpace(raw[:strings.Index(raw, "(")])
 	}
 	if instance, ok := parseExactGenericTypeFromString(raw); ok {
 		return instance.ClassName

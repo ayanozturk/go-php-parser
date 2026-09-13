@@ -5,9 +5,9 @@
 - Project target: approved
 - Target repositories: `go-php-parser` and `vscode-php-strom`
 - Baseline date: 2026-08-23 (Europe/London)
-- Last roadmap tidy: 2026-09-09 (Europe/London)
+- Last roadmap tidy: 2026-09-13 (Europe/London)
 - Extension package version: `0.1.35`; the exact parser integration pin is tracked in `vscode-php-strom/server/go.mod`
-- Executable differential gates: 94 / 24 / 101 / 40 / 46 / 24 / 8 / 35 (levels 0–3, 5–8); the latest level-6 additions match PHPStan 2.1.44, while the preceding complete packs were verified against PHPStan 2.2.5
+- Executable differential gates: 94 / 24 / 104 / 40 / 46 / 24 / 8 / 35 (levels 0–3, 5–8); the latest level-6 additions match PHPStan 2.1.44, while the preceding complete packs were verified against PHPStan 2.2.5
 - Benchmark references: Mago for performance and modern PHP type analysis, PHPStan and Psalm for diagnostic depth, and PHPCS for source-style breadth
 - Working milestone: **M0 done as a baseline; M1 in progress.** The current stream is diagnostic correctness and false-positive reduction. The accepted WordPress Mago resource comparison is parked historical evidence, not queued work.
 
@@ -361,7 +361,7 @@ Exit criteria:
 - Full PHPStan level 0 behavior for the agreed corpus and documented progress through levels 1–3.
 - Cold WordPress analysis completes reliably in at most 60 seconds and 2 GB peak RSS on the reference machine.
 
-Progress: spans, immutable snapshots, allocation-light resolver views, copy-on-write function-scope maps, CFG slices, incremental indexing, and PHPStan-gated packs through levels 0–3 and 5–8 are in place. Level 0 is **partial** (94 reviewed fixtures, not corpus parity). Levels 1–3 and 5–8 are gated but thin (24 / 101 / 36 / 45 / 20 / 8 / 35). Remaining M1 work is semantic breadth and false-positive reduction. The accepted WordPress resource envelope is not a reason to schedule further performance batches.
+Progress: spans, immutable snapshots, allocation-light resolver views, copy-on-write function-scope maps, CFG slices, incremental indexing, and PHPStan-gated packs through levels 0–3 and 5–8 are in place. Level 0 is **partial** (94 reviewed fixtures, not corpus parity). Levels 1–3 and 5–8 are gated but thin (24 / 104 / 40 / 46 / 24 / 8 / 35). Remaining M1 work is semantic breadth and false-positive reduction. The accepted WordPress resource envelope is not a reason to schedule further performance batches.
 
 ### M2 — Broad type-analysis capability
 
@@ -648,6 +648,8 @@ Note: implemented PHP's alternative/colon control-structure syntax and several o
 84. **Done — stop re-diagnosing inherited iterable contracts after normalization.** A child method with no local PHPDoc now treats a detailed inherited parameter or return contract as satisfying its declaration instead of recursively reporting lossy normalized fragments on the child. Template-style `T[]` contracts are retained as `array<T>` in the project index, while explicit weak local PHPDoc remains diagnostic. One neutral level-6 fixture covers a nested array-shape union and an inherited `T[]` return, expanding that pack from 22 to 23 cases; the complete gates are 94/24/101/40/46/23/8/35. The fixture matches PHPStan 2.1.44 with zero engine/reference mismatches. On a same-manifest before/after probe of 1,930 first-party files with the full vendor tree indexed, `Level6.MissingIterableValueType` falls from 67 to 16, removing 51 false positives. That broader 15,700-file index also contains two pre-existing vendor parse-error files, so this is correction evidence rather than a replacement for the accepted zero-failure gate. Cache format version 14 invalidates indexes containing lossy `T[]` method signatures. No production file walk.
 
 85. **Done — apply inherited iterable contracts to anonymous-class overrides.** Anonymous classes are intentionally absent from the project symbol index, so their level-6 checks previously stopped before inspecting explicit `extends` and `implements` lineage. The checker now resolves that lineage directly from the class AST and reuses the same inherited-contract path as named classes. One neutral fixture covers inherited `T[]` returns and detailed array parameters, expanding the level-6 pack from 23 to 24 cases; the complete gates are 94/24/101/40/46/24/8/35 and the fixture matches PHPStan 2.1.44. On the same broad 1,930-file first-party probe, missing-iterable reports fall from 16 to eight, removing all eight anonymous-override false positives. The 15,700-file vendor index still contains the same two pre-existing parse-error files, so this remains correction evidence rather than an accepted-gate replacement. No cache bump or production file walk.
+
+86. **Done — validate Closure PHPDoc signatures without inventing class names.** Level-2 PHPDoc validation now recognizes `Closure(T): U` and `\Closure(T): U`, validates nested parameter/return types, and compares the Closure base against native declarations. Imported and fully qualified Closure forms are covered; unknown nested classes and incompatible native types remain diagnostic. The shared signature reader also retains level-6 missing-iterable checks inside Closure signatures. Renamed aliases and unresolvable signature bases remain outside this slice. No new rule, cache-format change, or production file walk. Neutral abstract-trait probes agreed with PHPStan, so that earlier candidate remains unchanged pending an exact reproduction.
 
 ## Decision log
 

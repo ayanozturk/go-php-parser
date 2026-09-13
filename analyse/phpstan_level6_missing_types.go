@@ -201,14 +201,6 @@ func typeHasMissingDeclaration(raw string, ft FileTypeContext, ctx *AnalysisCont
 			return false
 		}
 	}
-	if instance, ok := parseExactGenericTypeFromString(raw); ok {
-		for _, argument := range instance.TypeArguments {
-			if typeHasMissingDeclaration(argument, ft, ctx) {
-				return true
-			}
-		}
-		return false
-	}
 	if params, returnType, ok := phpDocCallableSignature(raw); ok {
 		for _, param := range params {
 			if typeHasMissingDeclaration(param, ft, ctx) {
@@ -216,6 +208,14 @@ func typeHasMissingDeclaration(raw string, ft FileTypeContext, ctx *AnalysisCont
 			}
 		}
 		return typeHasMissingDeclaration(returnType, ft, ctx)
+	}
+	if instance, ok := parseExactGenericTypeFromString(raw); ok {
+		for _, argument := range instance.TypeArguments {
+			if typeHasMissingDeclaration(argument, ft, ctx) {
+				return true
+			}
+		}
+		return false
 	}
 	if body, ok := arrayShapeBody(raw); ok {
 		for _, entry := range splitTopLevelTypes(body, ',') {
@@ -276,17 +276,17 @@ func appendMissingTypeIssues(filename string, declaration ast.Node, raw string, 
 		}
 		return
 	}
-	if instance, ok := parseExactGenericTypeFromString(raw); ok {
-		for _, argument := range instance.TypeArguments {
-			appendMissingTypeIssues(filename, declaration, argument, ft, ctx, issues)
-		}
-		return
-	}
 	if params, returnType, ok := phpDocCallableSignature(raw); ok {
 		for _, param := range params {
 			appendMissingTypeIssues(filename, declaration, param, ft, ctx, issues)
 		}
 		appendMissingTypeIssues(filename, declaration, returnType, ft, ctx, issues)
+		return
+	}
+	if instance, ok := parseExactGenericTypeFromString(raw); ok {
+		for _, argument := range instance.TypeArguments {
+			appendMissingTypeIssues(filename, declaration, argument, ft, ctx, issues)
+		}
 		return
 	}
 	if body, ok := arrayShapeBody(raw); ok {

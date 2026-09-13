@@ -711,6 +711,27 @@
       "file": "known-method-variable-name.php",
       "engineCodes": [],
       "phpstanIdentifiers": []
+    },
+    {
+      "id": "known-phpdoc-closure-signatures",
+      "capability": "valid Closure PHPDoc signatures on parameters, properties, and returns",
+      "file": "known-phpdoc-closure-signatures.php",
+      "engineCodes": [],
+      "phpstanIdentifiers": []
+    },
+    {
+      "id": "phpdoc-closure-unknown-types",
+      "capability": "unknown nested classes in Closure PHPDoc signatures",
+      "file": "phpdoc-closure-unknown-types.php",
+      "engineCodes": ["Level2.PHPDocClass", "Level2.PHPDocClass"],
+      "phpstanIdentifiers": ["class.notFound", "class.notFound"]
+    },
+    {
+      "id": "phpdoc-closure-incompatible-native",
+      "capability": "incompatible native types for Closure PHPDoc parameters",
+      "file": "phpdoc-closure-incompatible-native.php",
+      "engineCodes": ["Level2.PHPDocParamType"],
+      "phpstanIdentifiers": ["parameter.phpDocType"]
     }
   ]
 }
