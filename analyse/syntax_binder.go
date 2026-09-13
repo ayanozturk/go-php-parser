@@ -241,7 +241,22 @@ func offsetLineCol(lines token.LineTable, offset int) (line, col int) {
 // BindSyntaxFile parses src into green/red and records every name use.
 // Namespace and import aliases are taken from the syntax tree (including group-use).
 func BindSyntaxFile(uri string, src []byte, namespace string, aliases map[string]string) UsageGraph {
-	res := syntax.Parse(src)
+	return bindSyntaxFile(uri, src, namespace, aliases, false)
+}
+
+// BindSyntaxFileForIndex parses src skipping function/method bodies and records name uses.
+// Namespace and import aliases are taken from the syntax tree (including group-use).
+func BindSyntaxFileForIndex(uri string, src []byte, namespace string, aliases map[string]string) UsageGraph {
+	return bindSyntaxFile(uri, src, namespace, aliases, true)
+}
+
+func bindSyntaxFile(uri string, src []byte, namespace string, aliases map[string]string, skipBodies bool) UsageGraph {
+	var res *syntax.ParseResult
+	if skipBodies {
+		res = syntax.ParseForIndex(src)
+	} else {
+		res = syntax.Parse(src)
+	}
 	if res == nil || res.File == nil || res.File.Root == nil {
 		return UsageGraph{}
 	}

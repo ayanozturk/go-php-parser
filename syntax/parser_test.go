@@ -198,7 +198,7 @@ func TestParseNamespaceUseAndAsymmetricVisibility(t *testing.T) {
 
 func TestParseNamespaceBlockStructured(t *testing.T) {
 	src := "<?php\nnamespace App {\nuse Foo\\Bar as Baz;\n;\nclass C {}\nfunction f() {}\n}\n"
-	res := Parse([]byte(src))
+	res := ParseForIndex([]byte(src))
 	got := Print(res.File.Root)
 	if got != src {
 		t.Fatalf("file identity\nwant %q\ngot  %q", src, got)
@@ -233,7 +233,7 @@ func TestParseNamespaceBlockStructured(t *testing.T) {
 		}
 	}
 	if !foundTokenList {
-		t.Fatal("expected KindTokenList for function body")
+		t.Fatal("expected KindTokenList for function body under ParseForIndex")
 	}
 	ns, aliases := NamespaceAndAliases(res.File)
 	if ns != "App" {
@@ -241,6 +241,53 @@ func TestParseNamespaceBlockStructured(t *testing.T) {
 	}
 	if aliases["baz"] != `Foo\Bar` {
 		t.Fatalf("aliases=%v", aliases)
+	}
+}
+
+func TestParseFunctionBodyFullyStructured(t *testing.T) {
+	src := "<?php\nfunction f($a) {\nif ($a) { return $a; }\nforeach ([1] as $x) { echo $x; }\n$y = 1;\n}\n"
+	res := Parse([]byte(src))
+	got := Print(res.File.Root)
+	if got != src {
+		t.Fatalf("file identity\nwant %q\ngot  %q", src, got)
+	}
+	want := map[Kind]bool{
+		KindFunctionDecl:   false,
+		KindStatementList:  false,
+		KindIfStmt:         false,
+		KindForeachStmt:    false,
+		KindReturnStmt:     false,
+		KindEchoStmt:       false,
+		KindExpressionStmt: false,
+	}
+	var funcHasStmtListBody bool
+	var walk func(*RedNode)
+	walk = func(n *RedNode) {
+		if n == nil {
+			return
+		}
+		if _, ok := want[n.Kind()]; ok {
+			want[n.Kind()] = true
+		}
+		if n.Kind() == KindFunctionDecl {
+			for _, c := range n.Children() {
+				if c.Kind() == KindStatementList {
+					funcHasStmtListBody = true
+				}
+			}
+		}
+		for _, c := range n.Children() {
+			walk(c)
+		}
+	}
+	walk(res.File.Root)
+	for k, found := range want {
+		if !found {
+			t.Fatalf("expected %s in green tree", k)
+		}
+	}
+	if !funcHasStmtListBody {
+		t.Fatal("full Parse should structure function body as KindStatementList")
 	}
 }
 

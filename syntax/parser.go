@@ -7,11 +7,12 @@ import (
 
 // Parser builds green trees from a Zend-faithful token stream.
 type Parser struct {
-	src    []byte
-	tokens []token.Token
-	i      int
-	intern *Interner
-	diags  []Diagnostic
+	src                []byte
+	tokens             []token.Token
+	i                  int
+	intern             *Interner
+	diags              []Diagnostic
+	SkipFunctionBodies bool // when true, function/method bodies stay KindTokenList blobs
 }
 
 func NewParser(src []byte) *Parser {
@@ -20,6 +21,11 @@ func NewParser(src []byte) *Parser {
 		tokens: lexFragment(src),
 		intern: NewInterner(),
 	}
+}
+
+// ParseOptions configures tiered parse cost (indexer vs open-file).
+type ParseOptions struct {
+	SkipFunctionBodies bool
 }
 
 // lexFragment tokenizes a code snippet in PHP mode (not HTML-at-start),
@@ -36,13 +42,24 @@ func lexFragment(src []byte) []token.Token {
 	}
 }
 
-// Parse produces a structured File when possible; unknown statement bodies fall
-// back to token-list coverage so identity print still holds for the whole file.
+// Parse produces a structured File with fully parsed function/method bodies.
 func Parse(src []byte) *ParseResult {
+	return ParseWith(src, ParseOptions{})
+}
+
+// ParseForIndex produces a structured File with function/method bodies as
+// round-trip-safe KindTokenList blobs (declaration-tier for workspace indexing).
+func ParseForIndex(src []byte) *ParseResult {
+	return ParseWith(src, ParseOptions{SkipFunctionBodies: true})
+}
+
+// ParseWith produces a structured File using the given options.
+func ParseWith(src []byte, opts ParseOptions) *ParseResult {
 	p := &Parser{
-		src:    src,
-		tokens: lexer.LexAll(src),
-		intern: NewInterner(),
+		src:                src,
+		tokens:             lexer.LexAll(src),
+		intern:             NewInterner(),
+		SkipFunctionBodies: opts.SkipFunctionBodies,
 	}
 	var items []*GreenNode
 
@@ -655,8 +672,9 @@ func (p *Parser) parseHeredoc() *GreenNode {
 	return p.intern.Node(kind, parts...)
 }
 
-// parseFunctionDecl emits a green FunctionDecl/MethodDecl covering signature + body stub.
-// Bodies are kept as a TokenList so identity print holds (index-friendly).
+// parseFunctionDecl emits a green FunctionDecl/MethodDecl covering signature + body.
+// With SkipFunctionBodies, the body is a round-trip-safe KindTokenList blob;
+// otherwise the body is a structured KindStatementList.
 func (p *Parser) parseFunctionDecl() *GreenNode {
 	var parts []*GreenNode
 	if mods := p.parseModifierList(); mods != nil {
@@ -678,7 +696,11 @@ func (p *Parser) parseFunctionDecl() *GreenNode {
 	}
 	kind := KindFunctionDecl
 	if p.at(token.T_LBRACE) {
-		parts = append(parts, p.parseBalancedBlock())
+		if p.SkipFunctionBodies {
+			parts = append(parts, p.parseBalancedBlock())
+		} else {
+			parts = append(parts, p.parseStatementList())
+		}
 	} else if p.at(token.T_SEMICOLON) {
 		parts = append(parts, p.bump())
 		kind = KindMethodDecl // interface/abstract style

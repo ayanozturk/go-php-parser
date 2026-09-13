@@ -1952,7 +1952,10 @@ func declaredCallableExpressionReturnType(expr ast.Node, typeCtx FileTypeContext
 	case *ast.FunctionNode:
 		return declaredFunctionReturnType(closure, typeCtx)
 	case *ast.ArrowFunctionNode:
-		return ParseType(normalizeTypeWithContext(ast.TypeText(closure.ReturnType), typeCtx))
+		if closure.ReturnType == nil {
+			return EmptyType()
+		}
+		return TypeFromAST(closure.ReturnType, typeCtx)
 	default:
 		return EmptyType()
 	}
