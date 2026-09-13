@@ -723,17 +723,7 @@ func declaredFunctionReturnTypeInClass(fn *ast.FunctionNode, class *ast.ClassNod
 	if fn == nil {
 		return EmptyType()
 	}
-	raw := ""
 	native := ast.TypeText(fn.ReturnType)
-	if fn.PHPDoc != nil && fn.PHPDoc.ReturnType != "" {
-		raw = fn.PHPDoc.ReturnType
-	} else {
-		raw = native
-	}
-	if raw == "" {
-		return EmptyType()
-	}
-	raw = collapsePHPDocConditionalType(raw, native)
 	templates := map[string]struct{}{}
 	if class != nil && class.PHPDoc != nil {
 		for _, template := range class.PHPDoc.Templates {
@@ -745,7 +735,18 @@ func declaredFunctionReturnTypeInClass(fn *ast.FunctionNode, class *ast.ClassNod
 			templates = mergeTemplateNames(templates, []string{template.Name})
 		}
 	}
-	return ParseType(normalizeTemplateAwareType(raw, typeCtx, templates))
+	if fn.PHPDoc != nil && fn.PHPDoc.ReturnType != "" {
+		raw := collapsePHPDocConditionalType(fn.PHPDoc.ReturnType, native)
+		return ParseType(normalizeTemplateAwareType(raw, typeCtx, templates))
+	}
+	if fn.ReturnType == nil {
+		return EmptyType()
+	}
+	// Template-bearing signatures still need the string normalizer for T atoms.
+	if len(templates) > 0 {
+		return ParseType(normalizeTemplateAwareType(native, typeCtx, templates))
+	}
+	return TypeFromAST(fn.ReturnType, typeCtx)
 }
 
 func methodReturnTypeAnnotation(fn *ast.FunctionNode) string {
@@ -801,7 +802,7 @@ func newFunctionScopeWithContext(ctx *AnalysisContext, class *ast.ClassNode, fn 
 		if fn.PHPDoc != nil {
 			documentedType = fn.PHPDoc.GetParamTypeFromPHPDoc(param.Name)
 		}
-		paramType := ParseType(normalizeTypeWithContext(ast.TypeText(param.TypeHint), typeCtx))
+		paramType := TypeFromAST(param.TypeHint, typeCtx)
 		if paramType.IsEmpty() && documentedType != "" {
 			paramType = ParseType(normalizeTypeWithContext(documentedType, typeCtx))
 		}
@@ -928,7 +929,7 @@ func buildClassScopeDataWithSeen(class *ast.ClassNode, typeCtx FileTypeContext, 
 		if !ok {
 			continue
 		}
-		propertyType := ParseType(normalizeTypeWithContext(ast.TypeText(property.TypeHint), typeCtx))
+		propertyType := TypeFromAST(property.TypeHint, typeCtx)
 		if property.PHPDoc != nil && property.PHPDoc.VarType != "" {
 			if fields := parseArrayShapeFields(property.PHPDoc.VarType, typeCtx); len(fields) > 0 {
 				data.propertyArrayShapes[property.Name] = fields
@@ -974,7 +975,7 @@ func buildClassScopeDataWithSeen(class *ast.ClassNode, typeCtx FileTypeContext, 
 			if !ok {
 				continue
 			}
-			paramType := ParseType(normalizeTypeWithContext(ast.TypeText(param.TypeHint), typeCtx))
+			paramType := TypeFromAST(param.TypeHint, typeCtx)
 			if paramType.IsEmpty() && method.PHPDoc != nil {
 				documented := expandPHPDocTypeAliases(method.PHPDoc.GetParamTypeFromPHPDoc(param.Name), phpDocTypeAliasBindings(class.PHPDoc, method.PHPDoc))
 				paramType = ParseType(normalizeTypeWithContext(documented, typeCtx))
@@ -1423,7 +1424,7 @@ func promotedClassProperties(class *ast.ClassNode, typeCtx FileTypeContext, scop
 			if !ok || !param.IsPromoted {
 				continue
 			}
-			paramType := ParseType(normalizeTypeWithContext(ast.TypeText(param.TypeHint), typeCtx))
+			paramType := TypeFromAST(param.TypeHint, typeCtx)
 			if paramType.IsEmpty() && method.PHPDoc != nil {
 				documented := expandPHPDocTypeAliases(method.PHPDoc.GetParamTypeFromPHPDoc(param.Name), phpDocTypeAliasBindings(class.PHPDoc, method.PHPDoc))
 				paramType = ParseType(normalizeTypeWithContext(documented, typeCtx))

@@ -425,7 +425,7 @@ func nullableType(t Type) Type {
 	if t.IsEmpty() {
 		return ParseType("null")
 	}
-	return ParseType(t.String() + "|null")
+	return ParseType(t.dnfString() + "|null")
 }
 
 func unionTypes(parts ...Type) Type {
@@ -434,7 +434,12 @@ func unionTypes(parts ...Type) Type {
 		if p.IsEmpty() {
 			continue
 		}
-		names = append(names, p.String())
+		s := p.dnfString()
+		// Keep intersection alternatives parenthesized so ParseType preserves DNF.
+		if len(splitTopLevelTypes(stripBalancedOuterTypeParens(s), '&')) > 1 {
+			s = "(" + stripBalancedOuterTypeParens(s) + ")"
+		}
+		names = append(names, s)
 	}
 	if len(names) == 0 {
 		return Type{}
@@ -448,7 +453,7 @@ func intersectionTypes(parts ...Type) Type {
 		if p.IsEmpty() {
 			continue
 		}
-		names = append(names, p.String())
+		names = append(names, p.dnfString())
 	}
 	if len(names) == 0 {
 		return Type{}
