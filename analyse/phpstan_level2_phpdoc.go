@@ -30,7 +30,7 @@ func appendPHPDocIssuesOnNode(filename string, node ast.Node, class *ast.ClassNo
 	case *ast.InterfaceMethodNode:
 		returnType := ""
 		if n.ReturnType != nil {
-			returnType = n.ReturnType.TokenLiteral()
+			returnType = ast.TypeText(n.ReturnType)
 		}
 		appendCallablePHPDocIssues(filename, n, n.Params, returnType, n.PHPDoc, class, ft, ctx, issues)
 	case *ast.PropertyNode:
@@ -42,7 +42,7 @@ func appendFunctionPHPDocIssues(filename string, fn *ast.FunctionNode, class *as
 	if fn == nil {
 		return
 	}
-	appendCallablePHPDocIssues(filename, fn, fn.Params, fn.ReturnType, fn.PHPDoc, class, ft, ctx, issues)
+	appendCallablePHPDocIssues(filename, fn, fn.Params, ast.TypeText(fn.ReturnType), fn.PHPDoc, class, ft, ctx, issues)
 }
 
 func appendCallablePHPDocIssues(filename string, declaration ast.Node, params []ast.Node, nativeReturn string, doc *ast.PHPDocNode, class *ast.ClassNode, ft FileTypeContext, ctx *AnalysisContext, issues *[]AnalysisIssue) {
@@ -104,11 +104,12 @@ func appendPropertyPHPDocIssues(filename string, property *ast.PropertyNode, cla
 	templates = mergePHPDocNames(templates, ctx.phpDocTypeAliases)
 	documented := property.PHPDoc.VarType
 	appendPHPDocTypeIssues(filename, property, documented, templates, ft, ctx, issues)
-	if property.TypeHint == "" || phpDocUsesTemplate(documented, templates) || phpDocTypeFitsNative(documented, property.TypeHint, ft, ctx) {
+	nativeHint := ast.TypeText(property.TypeHint)
+	if nativeHint == "" || phpDocUsesTemplate(documented, templates) || phpDocTypeFitsNative(documented, nativeHint, ft, ctx) {
 		return
 	}
 	*issues = append(*issues, issueSpan(filename, property, level2PHPDocPropertyTypeCode, fmt.Sprintf(
-		"PHPDoc type %s for property $%s is not compatible with native type %s.", documented, property.Name, property.TypeHint,
+		"PHPDoc type %s for property $%s is not compatible with native type %s.", documented, property.Name, nativeHint,
 	)))
 }
 

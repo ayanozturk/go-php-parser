@@ -24,8 +24,8 @@ type Parser struct {
 	errors      []error
 	debug       bool
 	currentDoc  string // Current PHPDoc comment being tracked
-	modifierArr [4]string
-	modifierBuf []string
+	modifierArr [8]ast.Modifier
+	modifierBuf ast.ModifierList
 	nameBuf     strings.Builder
 	stopBuf     [4]token.TokenType
 	stopLen     int
@@ -53,6 +53,17 @@ func (p *Parser) isStopToken(t token.TokenType) bool {
 func (p *Parser) nextToken() {
 	p.prevTokEnd = p.tok.EndPos()
 	p.tok = p.l.NextToken()
+	p.harvestTriviaDoc(p.tok)
+}
+
+// harvestTriviaDoc pulls a leading T_DOC_COMMENT from the token's trivia into
+// currentDoc (Zend-faithful trivia attachment replaces standalone doc tokens).
+func (p *Parser) harvestTriviaDoc(tok token.Token) {
+	for _, tr := range tok.LeadingTrivia {
+		if tr.Type == token.T_DOC_COMMENT {
+			p.currentDoc = tr.Literal
+		}
+	}
 }
 
 func (p *Parser) addError(format string, args ...interface{}) {
@@ -208,7 +219,7 @@ func (p *Parser) parseFQCN() ast.Node {
 }
 
 // parseModifiers parses and returns member modifiers, reusing the internal modifierBuf.
-func (p *Parser) parseModifiers() []string {
+func (p *Parser) parseModifiers() ast.ModifierList {
 	p.modifierBuf = p.modifierBuf[:0]
 	for {
 		if modifier, ok := p.parsePropertyModifier(); ok {
@@ -217,18 +228,26 @@ func (p *Parser) parseModifiers() []string {
 		}
 		switch p.tok.Type {
 		case token.T_PUBLIC, token.T_PROTECTED, token.T_PRIVATE, token.T_STATIC, token.T_FINAL, token.T_ABSTRACT:
-			p.modifierBuf = append(p.modifierBuf, p.tok.Literal)
+			p.modifierBuf = append(p.modifierBuf, ast.Modifier{Tok: p.tok.Type, Text: p.tok.Literal})
 			p.nextToken()
 			continue
 		case token.T_DOC_COMMENT:
 			p.currentDoc = p.tok.Literal
 			p.nextToken()
 			continue
-		case token.T_COMMENT, token.T_ATTRIBUTE:
+		case token.T_COMMENT:
 			p.nextToken()
+			continue
+		case token.T_ATTRIBUTE:
+			p.skipAttributeGroups()
 			continue
 		}
 		break
 	}
-	return p.modifierBuf
+	if len(p.modifierBuf) == 0 {
+		return nil
+	}
+	out := make(ast.ModifierList, len(p.modifierBuf))
+	copy(out, p.modifierBuf)
+	return out
 }

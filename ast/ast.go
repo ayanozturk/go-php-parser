@@ -669,7 +669,7 @@ func (m *MatchArmNode) TokenLiteral() string { return "=>" }
 // ArrowFunctionNode represents a PHP arrow function (fn)
 type ArrowFunctionNode struct {
 	Params     []Node
-	ReturnType string
+	ReturnType Node // IdentifierNode | UnionTypeNode | IntersectionTypeNode
 	Expr       Node
 	Pos        Position
 	EndPos     Position

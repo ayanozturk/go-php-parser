@@ -176,8 +176,8 @@ func TestParseReadonlyAnonymousClass(t *testing.T) {
 	if !ok {
 		t.Fatalf("expected anonymous class, got %T", newExpr.ClassExpr)
 	}
-	if classExpr.Modifier != "readonly" {
-		t.Fatalf("expected readonly modifier, got %q", classExpr.Modifier)
+	if !classExpr.Modifiers.HasName("readonly") {
+		t.Fatalf("expected readonly modifier, got %q", classExpr.Modifiers.String())
 	}
 }
 

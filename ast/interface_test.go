@@ -5,9 +5,9 @@ import "testing"
 func TestInterfaceNodeMethods(t *testing.T) {
 	method := &InterfaceMethodNode{
 		Name:       "doSomething",
-		Visibility: "public",
-		ReturnType: &UnionTypeNode{Types: []string{"int", "string"}, Pos: Position{Line: 5, Column: 6}},
-		Params:     []Node{&ParamNode{Name: "x", TypeHint: "int", Pos: Position{Line: 7, Column: 8}}},
+		Modifiers:  ModifierListFromTexts([]string{"public"}),
+		ReturnType: &UnionTypeNode{Types: []Node{&IdentifierNode{Value: "int"}, &IdentifierNode{Value: "string"}}, Pos: Position{Line: 5, Column: 6}},
+		Params:     []Node{&ParamNode{Name: "x", TypeHint: &IdentifierNode{Value: "int"}, Pos: Position{Line: 7, Column: 8}}},
 		Pos:        Position{Line: 4, Column: 4},
 	}
 	iface := &InterfaceNode{
@@ -39,11 +39,11 @@ func TestInterfaceNodeMethods(t *testing.T) {
 }
 
 func TestInterfaceMethodNodeMethods(t *testing.T) {
-	param := &ParamNode{Name: "y", TypeHint: "string", Pos: Position{Line: 8, Column: 9}}
-	ret := &UnionTypeNode{Types: []string{"float"}, Pos: Position{Line: 10, Column: 11}}
+	param := &ParamNode{Name: "y", TypeHint: &IdentifierNode{Value: "string"}, Pos: Position{Line: 8, Column: 9}}
+	ret := &UnionTypeNode{Types: []Node{&IdentifierNode{Value: "float"}}, Pos: Position{Line: 10, Column: 11}}
 	method := &InterfaceMethodNode{
 		Name:       "bar",
-		Visibility: "protected",
+		Modifiers:  ModifierListFromTexts([]string{"protected"}),
 		ReturnType: ret,
 		Params:     []Node{param},
 		Pos:        Position{Line: 7, Column: 7},

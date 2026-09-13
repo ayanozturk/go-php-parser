@@ -25,8 +25,11 @@ final readonly class HtmlRenderer {}
 	if !ok {
 		t.Fatalf("expected ClassNode, got %T", nodes[0])
 	}
-	if classNode.Modifier != "final readonly" {
-		t.Fatalf("expected combined modifier, got %q", classNode.Modifier)
+	if !classNode.Modifiers.HasName("final") || !classNode.Modifiers.HasName("readonly") {
+		t.Fatalf("expected final and readonly modifiers, got %q", classNode.Modifiers.String())
+	}
+	if classNode.Modifiers.String() != "final readonly" {
+		t.Fatalf("expected modifier order final readonly, got %q", classNode.Modifiers.String())
 	}
 }
 
@@ -116,8 +119,8 @@ EOT;
 	if !ok {
 		t.Fatalf("expected ConstantNode, got %T", classNode.Constants[0])
 	}
-	if constant.Type != "string" {
-		t.Fatalf("expected typed constant, got type %q", constant.Type)
+	if ast.TypeText(constant.Type) != "string" {
+		t.Fatalf("expected typed constant, got type %q", ast.TypeText(constant.Type))
 	}
 }
 

@@ -41,6 +41,8 @@ func registerASTTypes() {
 	gob.Register(&ast.Variable{})
 	gob.Register(&ast.FunctionCall{})
 	gob.Register(&ast.IdentifierNode{})
+	gob.Register(&ast.CallableTypeNode{})
+	gob.Register(&ast.CallableParamNode{})
 	gob.Register(&ast.FirstClassCallableNode{})
 	gob.Register(&ast.BooleanNode{})
 	gob.Register(&ast.NullNode{})

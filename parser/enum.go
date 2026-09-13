@@ -69,12 +69,13 @@ func (p *Parser) parseEnum() (*ast.EnumNode, error) {
 	var cases []*ast.EnumCaseNode
 	var methods []ast.Node
 	for p.tok.Type != token.T_RBRACE && p.tok.Type != token.T_EOF {
-		for p.tok.Type == token.T_COMMENT || p.tok.Type == token.T_DOC_COMMENT || p.tok.Type == token.T_ATTRIBUTE {
+		for p.tok.Type == token.T_COMMENT || p.tok.Type == token.T_DOC_COMMENT {
 			if p.tok.Type == token.T_DOC_COMMENT {
 				p.currentDoc = p.tok.Literal
 			}
 			p.nextToken()
 		}
+		p.skipAttributeGroups()
 		if p.tok.Type == token.T_CASE {
 			// Enum cases do not currently retain PHPDoc metadata. Clear it so a
 			// case annotation cannot leak to the next method declaration.

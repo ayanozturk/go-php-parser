@@ -3,7 +3,6 @@ package parser
 import (
 	"github.com/ayanozturk/go-php-parser/ast"
 	"github.com/ayanozturk/go-php-parser/token"
-	"strings"
 )
 
 // parseInterfaceDeclaration parses a PHP interface declaration
@@ -67,7 +66,7 @@ func (p *Parser) parseInterfaceDeclaration() ast.Node {
 
 	var members []ast.Node
 	for p.tok.Type != token.T_RBRACE && p.tok.Type != token.T_EOF {
-		modifiers := append([]string(nil), p.parseModifiers()...)
+		modifiers := append(ast.ModifierList(nil), p.parseModifiers()...)
 		if p.tok.Type == token.T_RBRACE || p.tok.Type == token.T_EOF {
 			break
 		}
@@ -80,7 +79,7 @@ func (p *Parser) parseInterfaceDeclaration() ast.Node {
 				members = append(members, constant)
 			}
 		} else if isInterfacePropertyTypeStart(p.tok.Type) {
-			if prop := p.parseInterfaceProperty(visibilityFromModifiers(modifiers)); prop != nil {
+			if prop := p.parseInterfaceProperty(modifiers); prop != nil {
 				members = append(members, prop)
 			}
 		} else {
@@ -128,15 +127,15 @@ func isInterfacePropertyTypeStart(tokenType token.TokenType) bool {
 // declaration in an interface body, e.g. "public string $foo { get; }".
 // Interface properties may not have a default value or a hook body/expr,
 // only bare hook declarations like "{ get; }" or "{ get; set; }".
-func (p *Parser) parseInterfaceProperty(visibility string) ast.Node {
+func (p *Parser) parseInterfaceProperty(modifiers ast.ModifierList) ast.Node {
 	pos := p.tok.Pos
 	phpdoc := p.consumeCurrentDoc(pos)
-	var typeHint string
+	var typeHint ast.Node
 	if p.tok.Type != token.T_VARIABLE {
 		if p.tok.Type == token.T_LPAREN {
-			typeHint = parseFullTypeHint(p)
+			typeHint = parseFullTypeNode(p)
 		} else {
-			typeHint = p.parseTypeHint()
+			typeHint = p.parseTypeNode()
 		}
 		p.skipCommentsAndWhitespace()
 	}
@@ -156,17 +155,17 @@ func (p *Parser) parseInterfaceProperty(visibility string) ast.Node {
 		p.nextToken()
 	}
 	return &ast.PropertyNode{
-		Name:       name,
-		TypeHint:   typeHint,
-		PHPDoc:     phpdoc,
-		Visibility: visibility,
-		Hooks:      hooks,
-		Pos:        ast.Position(pos),
-		EndPos:     ast.Position(p.prevTokEnd),
+		Name:      name,
+		TypeHint:  typeHint,
+		PHPDoc:    phpdoc,
+		Modifiers: modifiers,
+		Hooks:     hooks,
+		Pos:       ast.Position(pos),
+		EndPos:    ast.Position(p.prevTokEnd),
 	}
 }
 
-func (p *Parser) parseInterfaceMethodWithModifiers(modifiers []string) ast.Node {
+func (p *Parser) parseInterfaceMethodWithModifiers(modifiers ast.ModifierList) ast.Node {
 	pos := p.tok.Pos
 
 	// Skip doc comments and regular comments before method signature
@@ -177,7 +176,9 @@ func (p *Parser) parseInterfaceMethodWithModifiers(modifiers []string) ast.Node 
 		p.nextToken()
 	}
 
-	visibility := visibilityFromModifiers(modifiers)
+	// Consume before parsing params — parseParameter must not steal method PHPDoc
+	// harvested as leading trivia on the visibility / function keyword.
+	phpdoc := p.consumeCurrentDoc(pos)
 
 	// Parse function keyword
 	if p.tok.Type != token.T_FUNCTION {
@@ -250,34 +251,8 @@ func (p *Parser) parseInterfaceMethodWithModifiers(modifiers []string) ast.Node 
 	var returnType ast.Node
 	if p.tok.Type == token.T_COLON {
 		p.nextToken() // consume :
-		typePos := p.tok.Pos
-		typeStr := p.parseTypeHint()
-		if typeStr != "" {
-			if strings.Contains(typeStr, "|") {
-				parts := strings.Split(typeStr, "|")
-				for i := range parts {
-					parts[i] = strings.TrimSpace(parts[i])
-				}
-				returnType = &ast.UnionTypeNode{
-					Types: parts,
-					Pos:   ast.Position(typePos),
-				}
-			} else if strings.Contains(typeStr, "&") {
-				parts := strings.Split(typeStr, "&")
-				for i := range parts {
-					parts[i] = strings.TrimSpace(parts[i])
-				}
-				returnType = &ast.IntersectionTypeNode{
-					Types: parts,
-					Pos:   ast.Position(typePos),
-				}
-			} else {
-				returnType = &ast.IdentifierNode{
-					Value: typeStr,
-					Pos:   ast.Position(typePos),
-				}
-			}
-		} else {
+		returnType = p.parseTypeNode()
+		if returnType == nil {
 			p.addError("line %d:%d: expected return type for method %s, got %s", p.tok.Pos.Line, p.tok.Pos.Column, name, p.tok.Literal)
 			p.syncToNextClassMember()
 			return nil
@@ -298,12 +273,11 @@ func (p *Parser) parseInterfaceMethodWithModifiers(modifiers []string) ast.Node 
 	p.nextToken()
 
 	return &ast.InterfaceMethodNode{
-		Name:       name,
-		Visibility: visibility,
-		Modifiers:  append([]string(nil), modifiers...),
+		Name:      name,
+		Modifiers: append(ast.ModifierList(nil), modifiers...),
 		ReturnType: returnType,
 		Params:     params,
-		PHPDoc:     p.consumeCurrentDoc(pos),
+		PHPDoc:     phpdoc,
 		Pos:        ast.Position(pos),
 		EndPos:     ast.Position(p.prevTokEnd),
 	}

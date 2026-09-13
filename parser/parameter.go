@@ -6,27 +6,43 @@ import (
 	"strings"
 )
 
+// tokenHasLeadingDocComment reports whether tok carries a T_DOC_COMMENT in
+// LeadingTrivia (trivia-on-token attachment).
+func tokenHasLeadingDocComment(tok token.Token) bool {
+	for _, tr := range tok.LeadingTrivia {
+		if tr.Type == token.T_DOC_COMMENT {
+			return true
+		}
+	}
+	return false
+}
+
 // parseParameter parses a function or method parameter
 func (p *Parser) parseParameter() ast.Node {
 	var phpdoc *ast.PHPDocNode
-	// Skip PHP attributes (#[...]) and comments before parameter, and allow attributes before any parameter element
 	for {
 		if p.tok.Type == token.T_ATTRIBUTE {
-			p.nextToken()
+			p.skipAttributeGroups()
 			continue
 		}
-		if p.tok.Type == token.T_DOC_COMMENT {
-			pos := p.tok.Pos
-			p.currentDoc = p.tok.Literal
-			p.nextToken()
-			phpdoc = p.consumeCurrentDoc(pos)
-			continue
-		}
-		if p.tok.Type == token.T_WHITESPACE || p.tok.Type == token.T_COMMENT {
+		if p.tok.Type == token.T_WHITESPACE || p.tok.Type == token.T_COMMENT || p.tok.Type == token.T_DOC_COMMENT {
+			if p.tok.Type == token.T_DOC_COMMENT {
+				// Standalone doc token (legacy path): bind to this parameter now.
+				phpdoc = ast.ExtractPHPDocFromComment(p.tok.Literal)
+				if phpdoc != nil {
+					phpdoc.Pos = ast.Position(p.tok.Pos)
+				}
+				p.currentDoc = ""
+			}
 			p.nextToken()
 			continue
 		}
 		break
+	}
+	// Trivia-on-token: only take currentDoc when it was harvested from this
+	// parameter's first significant token, not a stale method/class PHPDoc.
+	if phpdoc == nil && p.currentDoc != "" && tokenHasLeadingDocComment(p.tok) {
+		phpdoc = p.consumeCurrentDoc(p.tok.Pos)
 	}
 	if p.tok.Type == token.T_RPAREN || p.tok.Type == token.T_EOF {
 		return nil
@@ -34,8 +50,7 @@ func (p *Parser) parseParameter() ast.Node {
 
 	// Parse all modifiers (visibility, asymmetric visibility "(set)", readonly)
 	// in any order, e.g. "public private(set) readonly string $x".
-	var visibility string
-	var setVisibility string
+	var mods ast.ModifierList
 	var isPromoted bool
 	var isReadonly bool
 	for {
@@ -45,32 +60,28 @@ func (p *Parser) parseParameter() ast.Node {
 			// keyword followed by "(" (asymmetric visibility); fall back to
 			// a plain visibility keyword here (not followed by "(").
 			if p.tok.Type == token.T_PUBLIC || p.tok.Type == token.T_PROTECTED || p.tok.Type == token.T_PRIVATE {
-				mod = p.tok.Literal
+				mod = ast.Modifier{Tok: p.tok.Type, Text: p.tok.Literal}
 				p.nextToken()
 			} else {
 				break
 			}
 		}
 		isPromoted = true
-		switch mod {
-		case "readonly":
+		if mod.Tok == token.T_READONLY {
 			isReadonly = true
-		case "public(set)", "protected(set)", "private(set)":
-			setVisibility = mod[:len(mod)-5]
-		default:
-			visibility = mod
 		}
+		mods = append(mods, mod)
 	}
 	pos := p.tok.Pos
 
 	// Parse type hint if present (support nullable, union, intersection, FQCNs, parenthesized types)
-	var typeHint string
+	var typeHint ast.Node
 	switch p.tok.Type {
 	case token.T_LPAREN, token.T_NS_SEPARATOR, token.T_STRING, token.T_CALLABLE, token.T_ARRAY, token.T_STATIC, token.T_SELF, token.T_PARENT, token.T_NEW, token.T_QUESTION, token.T_MIXED, token.T_NULL, token.T_FALSE, token.T_TRUE:
-		typeHint = parseFullTypeHint(p)
+		typeHint = parseFullTypeNode(p)
 	default:
 		if p.tok.Literal == "\\" {
-			typeHint = parseFullTypeHint(p)
+			typeHint = parseFullTypeNode(p)
 		}
 	}
 
@@ -138,16 +149,15 @@ func (p *Parser) parseParameter() ast.Node {
 	}
 
 	return &ast.ParamNode{
-		Name:          name,
-		TypeHint:      typeHint,
-		DefaultValue:  defaultValue,
-		Visibility:    visibility,
-		SetVisibility: setVisibility,
-		IsPromoted:    isPromoted,
-		IsReadonly:    isReadonly,
-		IsVariadic:    isVariadic,
-		IsByRef:       isByRef,
-		PHPDoc:        phpdoc,
-		Pos:           ast.Position(pos),
+		Name:         name,
+		TypeHint:     typeHint,
+		DefaultValue: defaultValue,
+		Modifiers:    mods,
+		IsPromoted:   isPromoted,
+		IsReadonly:   isReadonly,
+		IsVariadic:   isVariadic,
+		IsByRef:      isByRef,
+		PHPDoc:       phpdoc,
+		Pos:          ast.Position(pos),
 	}
 }

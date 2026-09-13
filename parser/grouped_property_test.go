@@ -20,7 +20,7 @@ func TestParseGroupedPropertyDeclaration(t *testing.T) {
 		if !ok {
 			t.Fatalf("expected PropertyNode at %d, got %T", index, classNode.Properties[index])
 		}
-		if property.Name != expectedName || property.TypeHint != "?int" || property.Visibility != "protected" || !property.IsStatic {
+		if property.Name != expectedName || ast.TypeText(property.TypeHint) != "?int" || property.Modifiers.Visibility() != "protected" || !property.IsStatic {
 			t.Fatalf("unexpected grouped property at %d: %#v", index, property)
 		}
 	}

@@ -46,7 +46,7 @@ func checkTypeReferenceOnNode(filename string, node ast.Node, ft FileTypeContext
 				checkTypeReference(filename, p.GetPos(), "Parameter $"+p.Name, paramTypeName(p), ft, ctx, guards, issues)
 			}
 		}
-		checkTypeReference(filename, n.GetPos(), "Return type", n.ReturnType, ft, ctx, guards, issues)
+		checkTypeReference(filename, n.GetPos(), "Return type", ast.TypeText(n.ReturnType), ft, ctx, guards, issues)
 	case *ast.InterfaceMethodNode:
 		for _, param := range n.Params {
 			if p, ok := param.(*ast.ParamNode); ok {
@@ -54,12 +54,12 @@ func checkTypeReferenceOnNode(filename string, node ast.Node, ft FileTypeContext
 			}
 		}
 		if n.ReturnType != nil {
-			checkTypeReference(filename, n.GetPos(), "Return type", n.ReturnType.TokenLiteral(), ft, ctx, guards, issues)
+			checkTypeReference(filename, n.GetPos(), "Return type", ast.TypeText(n.ReturnType), ft, ctx, guards, issues)
 		}
 	case *ast.PropertyNode:
-		checkTypeReference(filename, n.GetPos(), "Property $"+n.Name, n.TypeHint, ft, ctx, guards, issues)
+		checkTypeReference(filename, n.GetPos(), "Property $"+n.Name, ast.TypeText(n.TypeHint), ft, ctx, guards, issues)
 	case *ast.ConstantNode:
-		checkTypeReference(filename, n.GetPos(), "Constant "+n.Name, n.Type, ft, ctx, guards, issues)
+		checkTypeReference(filename, n.GetPos(), "Constant "+n.Name, ast.TypeText(n.Type), ft, ctx, guards, issues)
 	case *ast.CatchNode:
 		for _, catchType := range n.Types {
 			name := ft.resolveClassLike(catchType)
@@ -139,11 +139,5 @@ func isPHPDocLiteralOrRangeBound(name string) bool {
 }
 
 func paramTypeName(param *ast.ParamNode) string {
-	if param.TypeHint != "" {
-		return param.TypeHint
-	}
-	if param.UnionType != nil {
-		return param.UnionType.TokenLiteral()
-	}
-	return ""
+	return ast.TypeText(param.TypeHint)
 }

@@ -53,8 +53,7 @@ func (i *InterfaceNode) TokenLiteral() string {
 // InterfaceMethodNode represents a method declaration in an interface
 type InterfaceMethodNode struct {
 	Name       string
-	Visibility string // public, private, protected
-	Modifiers  []string
+	Modifiers  ModifierList
 	ReturnType Node // Changed from string to Node to support union types
 	Params     []Node
 	PHPDoc     *PHPDocNode // Associated PHPDoc comment
@@ -69,8 +68,8 @@ func (m *InterfaceMethodNode) GetEndPos() Position    { return m.EndPos }
 func (m *InterfaceMethodNode) SetEndPos(pos Position) { m.EndPos = pos }
 func (m *InterfaceMethodNode) String() string {
 	var parts []string
-	if m.Visibility != "" {
-		parts = append(parts, m.Visibility)
+	if s := m.Modifiers.String(); s != "" {
+		parts = append(parts, s)
 	}
 	parts = append(parts, fmt.Sprintf("function %s(", m.Name))
 
@@ -82,8 +81,8 @@ func (m *InterfaceMethodNode) String() string {
 	parts = append(parts, strings.Join(paramStrs, ", ")+")")
 
 	// Add return type if present
-	if m.ReturnType != nil {
-		parts = append(parts, ": "+m.ReturnType.TokenLiteral())
+	if text := TypeText(m.ReturnType); text != "" {
+		parts = append(parts, ": "+text)
 	}
 
 	return fmt.Sprintf("%s @ %d:%d", strings.Join(parts, " "), m.Pos.Line, m.Pos.Column)

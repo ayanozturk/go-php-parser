@@ -2,146 +2,129 @@ package lexer
 
 import (
 	"bytes"
-	"strings"
 	"unicode/utf8"
 
 	"github.com/ayanozturk/go-php-parser/token"
 )
 
+// queueHeredocTokens starts a heredoc/nowdoc. T_START_* keeps the exact opener
+// text including the trailing newline (Zend). Body bytes are preserved; indent
+// stripping is a syntax/semantic property, not done in the lexer.
 func (l *Lexer) queueHeredocTokens(pos token.Position) {
-	l.readChar() // consume first <
-	l.readChar() // consume second <
-	l.readChar() // consume third <
-	l.skipWhitespace()
+	startOff := l.pos
+	l.readChar() // <
+	l.readChar() // <
+	l.readChar() // <
 
-	identifier, isNowdoc := l.readHeredocIdentifier()
-	if identifier == "" {
-		l.heredocTokens = []token.Token{{Type: token.T_ILLEGAL, Literal: "Missing heredoc/nowdoc identifier", Pos: pos}}
-		l.heredocTokens[0].End = l.heredocTokens[0].EndPos()
+	// Optional whitespace between <<< and the label (not for indented form's body).
+	for l.char == ' ' || l.char == '\t' {
+		l.readChar()
+	}
+
+	label, isNowdoc := l.readHeredocIdentifier()
+	if label == "" {
+		l.queueToken(token.Token{
+			Type:    token.T_ILLEGAL,
+			Literal: "Missing heredoc/nowdoc identifier",
+			Pos:     pos,
+			End:     token.Position{Line: l.line, Column: l.column, Offset: l.pos},
+		})
 		return
+	}
+
+	// Consume rest of line including newline into the start token (Zend includes it).
+	for !l.atEOF() && l.char != '\n' {
+		if l.char == '\r' && l.peekChar() == '\n' {
+			l.readChar()
+			break
+		}
+		if l.char == '\r' {
+			break
+		}
+		l.readChar()
+	}
+	if l.char == '\r' {
+		l.readChar()
+		if l.char == '\n' {
+			l.readChar()
+		}
+	} else if l.char == '\n' {
+		l.readChar()
 	}
 
 	startType := token.T_START_HEREDOC
 	if isNowdoc {
 		startType = token.T_START_NOWDOC
 	}
-	startToken := token.Token{Type: startType, Literal: identifier, Pos: pos}
-	startToken.End = startToken.EndPos()
-
-	l.skipToNextLine()
-
-	body := l.readHeredocBody(identifier)
-	bodyToken := token.Token{Type: token.T_ENCAPSED_AND_WHITESPACE, Literal: body, Pos: pos}
-	bodyToken.End = bodyToken.EndPos()
-
-	endType := token.T_END_HEREDOC
-	if isNowdoc {
-		endType = token.T_END_NOWDOC
+	startTok := token.Token{
+		Type:    startType,
+		Literal: l.text(startOff, l.pos),
+		Pos:     pos,
+		End:     token.Position{Line: l.line, Column: l.column, Offset: l.pos},
 	}
-	endToken := token.Token{Type: endType, Literal: identifier, Pos: pos}
-	endToken.End = endToken.EndPos()
 
-	l.heredocTokens = []token.Token{startToken, bodyToken, endToken}
+	l.heredocLabel = label
+	l.heredocNowdoc = isNowdoc
+	l.encapsed = encapsedHeredoc
+	// Emit start first via return path: caller does nextHeredocToken after queue.
+	// We return start via queue then body.
+	l.heredocTokens = []token.Token{startTok}
+	l.queueEncapsedBody(isNowdoc)
 }
 
 func (l *Lexer) readHeredocIdentifier() (string, bool) {
 	if l.char == '\'' || l.char == '"' {
 		quote := l.char
-		l.readChar() // consume opening quote
+		l.readChar()
 		start := l.pos
 		for l.char != quote && !l.atEOF() {
 			l.readChar()
 		}
 		identifier := l.text(start, l.pos)
-		isNowdoc := (quote == '\'')
+		isNowdoc := quote == '\''
 		if l.char == quote {
-			l.readChar() // consume closing quote
+			l.readChar()
 		}
 		return identifier, isNowdoc
 	}
 	start := l.pos
-	for isLetter(l.char) || isDigit(l.char) || l.char == '_' {
+	for isLetter(l.char) || isDigit(l.char) {
 		l.readChar()
 	}
-	identifier := l.text(start, l.pos)
-	return identifier, false
+	return l.text(start, l.pos), false
 }
 
-func (l *Lexer) skipToNextLine() {
-	for l.char != '\n' && !l.atEOF() {
-		l.readChar()
+// matchHeredocTerminator reports whether the current position is a valid
+// terminator line: optional indent + exact label + non-identifier char.
+// Returns indent text, label, and ok. Does not consume input.
+func (l *Lexer) matchHeredocTerminator() (indent, label string, ok bool) {
+	if l.heredocLabel == "" {
+		return "", "", false
 	}
-	if l.char == '\n' {
-		l.readChar()
-	}
-}
-
-func (l *Lexer) readHeredocBody(identifier string) string {
-	bodyStart := l.pos
-	bodyEnd := -1
-	terminatorIndent := ""
-	// PHP identifiers are ASCII-only, so byte length == rune count.
-	identByteLen := len(identifier)
-	for !l.atEOF() {
-		lineStart := l.pos
-		indent, ok := l.heredocTerminatorIndent(identifier)
-		if ok {
-			bodyEnd = lineStart
-			terminatorIndent = indent
-			// Advance past identifier using precomputed byte length.
-			end := l.pos + len(indent) + identByteLen
-			for l.pos < end {
-				l.readChar()
-			}
-			break
-		}
-		l.skipToNextLine()
-	}
-	if bodyEnd == -1 {
-		bodyEnd = l.pos
-	}
-	body := l.text(bodyStart, bodyEnd)
-	if terminatorIndent != "" {
-		body = dedentHeredocBody(body, terminatorIndent)
-	}
-	return body
-}
-
-func (l *Lexer) heredocTerminatorIndent(identifier string) (string, bool) {
-	if identifier == "" {
-		return "", false
+	// Terminators are only recognized at the beginning of a line.
+	if l.pos > 0 && l.input[l.pos-1] != '\n' {
+		return "", "", false
 	}
 	identifierPos := l.pos
 	for identifierPos < len(l.input) && (l.input[identifierPos] == ' ' || l.input[identifierPos] == '\t') {
 		identifierPos++
 	}
-	if identifierPos+len(identifier) > len(l.input) || !bytes.Equal(l.input[identifierPos:identifierPos+len(identifier)], []byte(identifier)) {
-		return "", false
+	label = l.heredocLabel
+	if identifierPos+len(label) > len(l.input) || !bytes.Equal(l.input[identifierPos:identifierPos+len(label)], []byte(label)) {
+		return "", "", false
 	}
 	var nextChar rune
-	nextPos := identifierPos + len(identifier)
+	nextPos := identifierPos + len(label)
 	if nextPos < len(l.input) {
 		nextChar, _ = utf8.DecodeRune(l.input[nextPos:])
-	} else {
-		nextChar = 0
 	}
 	if isLetter(nextChar) || isDigit(nextChar) || nextChar == '_' {
-		return "", false
+		return "", "", false
 	}
-	return l.text(l.pos, identifierPos), true
+	indent = l.text(l.pos, identifierPos)
+	return indent, label, true
 }
 
-func dedentHeredocBody(body, indent string) string {
-	lines := strings.SplitAfter(body, "\n")
-	for i, line := range lines {
-		if strings.HasPrefix(line, indent) {
-			lines[i] = strings.TrimPrefix(line, indent)
-		}
-	}
-	return strings.Join(lines, "")
-}
-
-// nextHeredocToken emits the next queued heredoc token
 func (l *Lexer) nextHeredocToken() token.Token {
 	if len(l.heredocTokens) == 0 {
 		return token.Token{Type: token.T_ILLEGAL, Literal: "No heredoc tokens queued", Pos: token.Position{}}

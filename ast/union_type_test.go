@@ -4,8 +4,11 @@ import "testing"
 
 func TestUnionTypeNodeMethods(t *testing.T) {
 	u := &UnionTypeNode{
-		Types: []string{"int", "string"},
-		Pos:   Position{Line: 3, Column: 4},
+		Types: []Node{
+			&IdentifierNode{Value: "int"},
+			&IdentifierNode{Value: "string"},
+		},
+		Pos: Position{Line: 3, Column: 4},
 	}
 	if u.NodeType() != "UnionType" {
 		t.Errorf("NodeType: got %q", u.NodeType())

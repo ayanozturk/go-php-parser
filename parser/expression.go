@@ -49,9 +49,7 @@ func (p *Parser) parseExpressionWithPrecedenceImpl(minPrec int, validateAssignme
 	// Skip attributes attached directly to an expression, e.g.
 	// "return #[When(env: 'prod')] function () {...};" or
 	// "'key' => #[\Closure(...)] function () {...}".
-	for p.tok.Type == token.T_ATTRIBUTE {
-		p.nextToken()
-	}
+	p.skipAttributeGroups()
 	if p.tok.Type == token.T_LBRACKET || p.tok.Type == token.T_ARRAY {
 		left := p.parseArrayLiteral(validateAssignmentTarget)
 		if left == nil {
@@ -399,7 +397,7 @@ func (p *Parser) parseSimpleExpression() ast.Node {
 		}
 		if p.peekToken().Type == token.T_FUNCTION {
 			p.nextToken() // consume static
-			if fn, err := p.parseFunction([]string{"static"}); err == nil {
+			if fn, err := p.parseFunction(ast.ModifierList{{Tok: token.T_STATIC, Text: "static"}}); err == nil {
 				if fn != nil {
 					return fn
 				}
@@ -501,13 +499,11 @@ func (p *Parser) parseSimpleNew() ast.Node {
 	p.skipCommentsAndWhitespace()
 	// Skip attributes directly on an anonymous class expression, e.g.
 	// "new #[\AllowDynamicProperties] class {...}".
-	for p.tok.Type == token.T_ATTRIBUTE {
-		p.nextToken()
-		p.skipCommentsAndWhitespace()
-	}
-	anonymousClassModifier := ""
+	p.skipAttributeGroups()
+	p.skipCommentsAndWhitespace()
+	var anonymousClassMods ast.ModifierList
 	if p.tok.Type == token.T_READONLY {
-		anonymousClassModifier = p.tok.Literal
+		anonymousClassMods = ast.ModifierList{{Tok: token.T_READONLY, Text: p.tok.Literal}}
 		p.nextToken()
 		p.skipCommentsAndWhitespace()
 		if p.tok.Type != token.T_CLASS {
@@ -516,7 +512,7 @@ func (p *Parser) parseSimpleNew() ast.Node {
 		}
 	}
 	if p.tok.Type == token.T_CLASS {
-		classExpr, args := p.parseAnonymousClassExpression(anonymousClassModifier)
+		classExpr, args := p.parseAnonymousClassExpression(anonymousClassMods)
 		if classExpr == nil {
 			return nil
 		}
@@ -861,10 +857,10 @@ func (p *Parser) parseArrowFunction() ast.Node {
 	}
 	p.nextToken() // consume ')'
 
-	var returnType string
+	var returnType ast.Node
 	if p.tok.Type == token.T_COLON {
 		p.nextToken()
-		returnType = p.parseTypeHint()
+		returnType = p.parseTypeNode()
 	}
 
 	if p.tok.Type != token.T_DOUBLE_ARROW {
@@ -934,9 +930,7 @@ func (p *Parser) parseFunctionCallArguments() []ast.Node {
 		}
 		// Skip attributes attached directly to an argument expression, e.g.
 		// "foo(#[Closure] fn () => ...)".
-		for p.tok.Type == token.T_ATTRIBUTE {
-			p.nextToken()
-		}
+		p.skipAttributeGroups()
 		isUnpacked := false
 		if p.tok.Type == token.T_ELLIPSIS {
 			isUnpacked = true
@@ -1058,7 +1052,7 @@ func (p *Parser) parseSimpleMethodCall(expr ast.Node, member string, objOpPos to
 
 func (p *Parser) parseSimpleStringOrConcat() ast.Node {
 	pos := p.tok.Pos
-	value := p.tok.Literal
+	value := decodeStringLiteral(p.tok.Literal)
 	p.nextToken()
 	if p.tok.Type == token.T_VARIABLE {
 		var parts []ast.Node
@@ -1079,26 +1073,106 @@ func (p *Parser) parseSimpleStringOrConcat() ast.Node {
 			Pos:   ast.Position(pos),
 		}
 	}
-	return &ast.StringNode{
+	return &ast.StringLiteral{
 		Value: value,
 		Pos:   ast.Position(pos),
 	}
 }
 
 func (p *Parser) parseSimpleConstantString() ast.Node {
+	// Opening quote of an interpolating string, or legacy T_CONSTANT_STRING.
+	if p.tok.Literal == "\"" {
+		return p.parseInterpolatedStringLiteral()
+	}
 	node := &ast.StringLiteral{
-		Value: p.tok.Literal,
+		Value: decodeStringLiteral(p.tok.Literal),
 		Pos:   ast.Position(p.tok.Pos),
 	}
 	p.nextToken()
 	return node
 }
 
+func (p *Parser) parseInterpolatedStringLiteral() ast.Node {
+	pos := p.tok.Pos
+	p.nextToken() // opening "
+	var parts []ast.Node
+	for p.tok.Type != token.T_EOF {
+		if p.tok.Type == token.T_CONSTANT_STRING && p.tok.Literal == "\"" {
+			p.nextToken()
+			break
+		}
+		switch p.tok.Type {
+		case token.T_ENCAPSED_AND_WHITESPACE:
+			parts = append(parts, &ast.StringNode{Value: p.tok.Literal, Pos: ast.Position(p.tok.Pos)})
+			p.nextToken()
+		case token.T_VARIABLE:
+			parts = append(parts, &ast.VariableNode{Name: p.tok.Literal[1:], Pos: ast.Position(p.tok.Pos)})
+			p.nextToken()
+		default:
+			// Skip brace forms / offsets for now as opaque tokens until expression cutover.
+			p.nextToken()
+		}
+	}
+	return &ast.InterpolatedStringLiteral{Parts: parts, Pos: ast.Position(pos)}
+}
+
+func decodeStringLiteral(lit string) string {
+	if len(lit) >= 2 {
+		q := lit[0]
+		if (q == '"' || q == '\'') && lit[len(lit)-1] == q {
+			inner := lit[1 : len(lit)-1]
+			if q == '\'' {
+				return unescapeSingleQuoted(inner)
+			}
+			return unescapeDoubleQuoted(inner)
+		}
+	}
+	return lit
+}
+
+func unescapeSingleQuoted(s string) string {
+	var b strings.Builder
+	for i := 0; i < len(s); i++ {
+		if s[i] == '\\' && i+1 < len(s) && (s[i+1] == '\\' || s[i+1] == '\'') {
+			b.WriteByte(s[i+1])
+			i++
+			continue
+		}
+		b.WriteByte(s[i])
+	}
+	return b.String()
+}
+
+func unescapeDoubleQuoted(s string) string {
+	var b strings.Builder
+	for i := 0; i < len(s); i++ {
+		if s[i] == '\\' && i+1 < len(s) {
+			i++
+			switch s[i] {
+			case 'n':
+				b.WriteByte('\n')
+			case 't':
+				b.WriteByte('\t')
+			case 'r':
+				b.WriteByte('\r')
+			case '"', '\\', '$':
+				b.WriteByte(s[i])
+			default:
+				b.WriteByte('\\')
+				b.WriteByte(s[i])
+			}
+			continue
+		}
+		b.WriteByte(s[i])
+	}
+	return b.String()
+}
+
 func (p *Parser) parseSimpleLNumber() ast.Node {
 	// Use base 0 so Go auto-detects the "0x"/"0o"/"0b"/leading-zero-octal
-	// prefixes the lexer already normalizes hex/octal/binary literals to;
-	// a fixed base 10 would silently misparse anything but decimal.
-	val, _ := strconv.ParseInt(p.tok.Literal, 0, 64)
+	// prefixes. Underscores are source-faithful in the token; strip for value.
+	lit := strings.ReplaceAll(p.tok.Literal, "_", "")
+	val, _ := strconv.ParseInt(lit, 0, 64)
 	node := &ast.IntegerNode{
 		Value: val,
 		Pos:   ast.Position(p.tok.Pos),
@@ -1108,7 +1182,8 @@ func (p *Parser) parseSimpleLNumber() ast.Node {
 }
 
 func (p *Parser) parseSimpleDNumber() ast.Node {
-	val, _ := strconv.ParseFloat(p.tok.Literal, 64)
+	lit := strings.ReplaceAll(p.tok.Literal, "_", "")
+	val, _ := strconv.ParseFloat(lit, 64)
 	node := &ast.FloatNode{
 		Value: val,
 		Pos:   ast.Position(p.tok.Pos),
@@ -1513,16 +1588,23 @@ func (p *Parser) parseSimpleArrayAccess(expr ast.Node) ast.Node {
 
 func (p *Parser) parseSimpleHeredoc() ast.Node {
 	pos := p.tok.Pos
-	identifier := p.tok.Literal
+	startLit := p.tok.Literal
+	identifier := heredocLabel(startLit)
 	p.nextToken() // consume heredoc start token
 
 	parts := []ast.Node{}
-	if p.tok.Type == token.T_ENCAPSED_AND_WHITESPACE {
-		parts = append(parts, &ast.StringNode{
-			Value: p.tok.Literal,
-			Pos:   ast.Position(p.tok.Pos),
-		})
-		p.nextToken()
+	for p.tok.Type == token.T_ENCAPSED_AND_WHITESPACE || p.tok.Type == token.T_VARIABLE ||
+		p.tok.Type == token.T_CURLY_OPEN || p.tok.Type == token.T_DOLLAR_OPEN_CURLY_BRACES {
+		switch p.tok.Type {
+		case token.T_ENCAPSED_AND_WHITESPACE:
+			parts = append(parts, &ast.StringNode{Value: p.tok.Literal, Pos: ast.Position(p.tok.Pos)})
+			p.nextToken()
+		case token.T_VARIABLE:
+			parts = append(parts, &ast.VariableNode{Name: p.tok.Literal[1:], Pos: ast.Position(p.tok.Pos)})
+			p.nextToken()
+		default:
+			p.nextToken()
+		}
 	}
 
 	if p.tok.Type != token.T_END_HEREDOC && p.tok.Type != token.T_END_NOWDOC {
@@ -1536,6 +1618,15 @@ func (p *Parser) parseSimpleHeredoc() ast.Node {
 		Parts:      parts,
 		Pos:        ast.Position(pos),
 	}
+}
+
+func heredocLabel(startLit string) string {
+	// startLit is like "<<<EOT\n" or "<<<'EOT'\n" or "<<<\"EOT\"\n"
+	s := strings.TrimPrefix(startLit, "<<<")
+	s = strings.TrimLeft(s, " \t")
+	s = strings.TrimRight(s, "\r\n")
+	s = strings.Trim(s, "'\"")
+	return s
 }
 
 func (p *Parser) parseSimpleVariableFunctionCall(expr ast.Node) ast.Node {

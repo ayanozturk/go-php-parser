@@ -93,8 +93,8 @@ interface TestInterface
 	}
 
 	for i, typeName := range expectedTypes {
-		if unionType.Types[i] != typeName {
-			t.Errorf("Expected union type %d to be '%s', got '%s'", i, typeName, unionType.Types[i])
+		if got := ast.TypeText(unionType.Types[i]); got != typeName {
+			t.Errorf("Expected union type %d to be '%s', got '%s'", i, typeName, got)
 		}
 	}
 }

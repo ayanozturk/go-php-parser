@@ -167,13 +167,13 @@ func (p *Printer) printFunction(n *ast.FunctionNode) {
 		p.printIndent()
 		p.printf("Name: %s\n", n.Name)
 	}
-	if n.Visibility != "" {
+	if v := n.Modifiers.Visibility(); v != "" {
 		p.printIndent()
-		p.printf("Visibility: %s\n", n.Visibility)
+		p.printf("Visibility: %s\n", v)
 	}
-	if n.ReturnType != "" {
+	if text := ast.TypeText(n.ReturnType); text != "" {
 		p.printIndent()
-		p.printf("ReturnType: %s\n", n.ReturnType)
+		p.printf("ReturnType: %s\n", text)
 	}
 	if len(n.Params) > 0 {
 		p.printIndent()

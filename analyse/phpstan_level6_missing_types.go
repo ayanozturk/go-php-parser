@@ -23,17 +23,17 @@ func appendMissingTypeIssuesOnNode(filename string, node ast.Node, class *ast.Cl
 	switch n := node.(type) {
 	case *ast.FunctionNode:
 		if n.Name != "" {
-			isMethod := class != nil || n.Visibility != "" || len(n.Modifiers) > 0
-			appendCallableMissingTypeIssues(filename, n, n.Name, isMethod, n.Params, n.ReturnType, n.PHPDoc, class, ft, ctx, issues)
+			isMethod := class != nil || n.Modifiers.Visibility() != "" || len(n.Modifiers) > 0
+			appendCallableMissingTypeIssues(filename, n, n.Name, isMethod, n.Params, ast.TypeText(n.ReturnType), n.PHPDoc, class, ft, ctx, issues)
 		}
 	case *ast.InterfaceMethodNode:
 		returnType := ""
 		if n.ReturnType != nil {
-			returnType = n.ReturnType.TokenLiteral()
+			returnType = ast.TypeText(n.ReturnType)
 		}
 		appendCallableMissingTypeIssues(filename, n, n.Name, true, n.Params, returnType, n.PHPDoc, class, ft, ctx, issues)
 	case *ast.PropertyNode:
-		raw := n.TypeHint
+		raw := ast.TypeText(n.TypeHint)
 		if n.PHPDoc != nil && n.PHPDoc.VarType != "" {
 			raw = n.PHPDoc.VarType
 		}

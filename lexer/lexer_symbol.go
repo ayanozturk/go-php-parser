@@ -161,21 +161,69 @@ func (l *Lexer) lexDot(pos token.Position) token.Token {
 }
 
 func (l *Lexer) lexDoubleQuote(pos token.Position) token.Token {
-	l.inString = true
-	l.readChar()
-	str := l.readString('"')
-	l.readChar()
-	l.inString = false
-	return token.Token{Type: token.T_CONSTANT_ENCAPSED_STRING, Literal: str, Pos: pos}
+	if l.lookDoubleQuoteConstant() {
+		start := l.pos
+		l.readChar() // opening "
+		for !l.atEOF() && l.char != '"' {
+			if l.char == '\\' {
+				l.readChar()
+				if !l.atEOF() {
+					l.readChar()
+				}
+				continue
+			}
+			l.readChar()
+		}
+		if l.char == '"' {
+			l.readChar()
+		}
+		lit := l.text(start, l.pos)
+		return token.Token{
+			Type:    token.T_CONSTANT_ENCAPSED_STRING,
+			Literal: lit,
+			Pos:     pos,
+			End:     token.Position{Line: l.line, Column: l.column, Offset: l.pos},
+		}
+	}
+	// Interpolating string: emit opening quote, queue body + closing quote.
+	l.readChar() // consume "
+	open := token.Token{
+		Type:    token.T_CONSTANT_STRING,
+		Literal: "\"",
+		Pos:     pos,
+		End:     token.Position{Line: l.line, Column: l.column, Offset: l.pos},
+	}
+	l.encapsed = encapsedDoubleQuote
+	l.heredocLabel = ""
+	l.heredocNowdoc = false
+	l.queueEncapsedBody(false)
+	return open
 }
 
 func (l *Lexer) lexSingleQuote(pos token.Position) token.Token {
-	l.inString = true
-	l.readChar()
-	str := l.readString('\'')
-	l.readChar()
-	l.inString = false
-	return token.Token{Type: token.T_CONSTANT_STRING, Literal: str, Pos: pos}
+	start := l.pos
+	l.readChar() // opening '
+	for !l.atEOF() && l.char != '\'' {
+		if l.char == '\\' {
+			l.readChar()
+			if !l.atEOF() {
+				l.readChar()
+			}
+			continue
+		}
+		l.readChar()
+	}
+	if l.char == '\'' {
+		l.readChar()
+	}
+	lit := l.text(start, l.pos)
+	// PHP token_get_all uses T_CONSTANT_ENCAPSED_STRING for both quote styles.
+	return token.Token{
+		Type:    token.T_CONSTANT_ENCAPSED_STRING,
+		Literal: lit,
+		Pos:     pos,
+		End:     token.Position{Line: l.line, Column: l.column, Offset: l.pos},
+	}
 }
 
 func (l *Lexer) lexBackslash(pos token.Position) token.Token {
@@ -218,22 +266,7 @@ func (l *Lexer) lexSingleChar(t token.TokenType, pos token.Position) token.Token
 }
 
 func (l *Lexer) lexSlash(pos token.Position) token.Token {
-	if l.peekChar() == '/' {
-		commentStart := l.pos // byte offset of first '/'
-		l.readChar()          // now at second '/'
-		comment := l.readLineComment(commentStart)
-		return token.Token{Type: token.T_COMMENT, Literal: comment, Pos: pos}
-	} else if l.peekChar() == '*' {
-		commentStart := l.pos // byte offset of opening '/'
-		l.readChar()          // now at '*'
-		if l.peekChar() == '*' {
-			l.readChar() // now at second '*' (doc comment)
-			comment := l.readBlockComment(commentStart)
-			return token.Token{Type: token.T_DOC_COMMENT, Literal: comment, Pos: pos}
-		}
-		comment := l.readBlockComment(commentStart)
-		return token.Token{Type: token.T_COMMENT, Literal: comment, Pos: pos}
-	}
+	// Comments are collected as leading trivia in scanToken; '/' here is only division.
 	if l.peekChar() == '=' {
 		l.readChar()
 		l.readChar()

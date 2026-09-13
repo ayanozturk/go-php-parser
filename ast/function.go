@@ -8,9 +8,8 @@ import (
 // FunctionNode represents a PHP function definition
 type FunctionNode struct {
 	Name       string
-	Visibility string   // public, private, protected (legacy, kept for compatibility)
-	Modifiers  []string // All modifiers, e.g. public, static, final, abstract
-	ReturnType string
+	Modifiers  ModifierList // mirrors syntax.KindModifierList (visibility, static, final, abstract)
+	ReturnType Node         // IdentifierNode | UnionTypeNode | IntersectionTypeNode
 	Params     []Node
 	Uses       []ClosureUse
 	Body       []Node
@@ -53,15 +52,12 @@ func (f *FunctionNode) GetHeaderEndPos() Position {
 }
 func (f *FunctionNode) String() string {
 	var parts []string
-	if len(f.Modifiers) > 0 {
-		parts = append(parts, strings.Join(f.Modifiers, " "))
-	}
-	if f.Visibility != "" {
-		parts = append(parts, f.Visibility)
+	if s := f.Modifiers.String(); s != "" {
+		parts = append(parts, s)
 	}
 	parts = append(parts, fmt.Sprintf("Function(%s)", f.Name))
-	if f.ReturnType != "" {
-		parts = append(parts, fmt.Sprintf(": %s", f.ReturnType))
+	if text := TypeText(f.ReturnType); text != "" {
+		parts = append(parts, fmt.Sprintf(": %s", text))
 	}
 	return fmt.Sprintf("%s @ %d:%d", strings.Join(parts, " "), f.Pos.Line, f.Pos.Column)
 }

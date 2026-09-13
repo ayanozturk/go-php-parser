@@ -3,14 +3,13 @@ package ast
 import "testing"
 
 func TestParamNodeMethods(t *testing.T) {
-	union := &UnionTypeNode{Types: []string{"int", "string"}, Pos: Position{Line: 4, Column: 5}}
+	union := &UnionTypeNode{Types: []Node{&IdentifierNode{Value: "int"}, &IdentifierNode{Value: "string"}}, Pos: Position{Line: 4, Column: 5}}
 	defaultVal := &StringLiteral{Value: "bar", Pos: Position{Line: 6, Column: 7}}
 	p := &ParamNode{
 		Name:         "foo",
-		TypeHint:     "",
-		UnionType:    union,
+		TypeHint:     union,
 		DefaultValue: defaultVal,
-		Visibility:   "public",
+		Modifiers: ModifierListFromTexts([]string{"public"}),
 		IsPromoted:   true,
 		IsVariadic:   true,
 		IsByRef:      true,
@@ -33,8 +32,8 @@ func TestParamNodeMethods(t *testing.T) {
 	if p.TokenLiteral() != "foo" {
 		t.Errorf("TokenLiteral: got %q", p.TokenLiteral())
 	}
-	if p.UnionType != union {
-		t.Errorf("UnionType: got %+v", p.UnionType)
+	if p.TypeHint != union {
+		t.Errorf("TypeHint: got %+v", p.TypeHint)
 	}
 	if p.DefaultValue != defaultVal {
 		t.Errorf("DefaultValue: got %+v", p.DefaultValue)

@@ -13,7 +13,7 @@ func appendPropertyCallableTypeIssue(filename string, node ast.Node, issues *[]A
 	var name, raw string
 	switch n := node.(type) {
 	case *ast.PropertyNode:
-		name, raw = n.Name, n.TypeHint
+		name, raw = n.Name, ast.TypeText(n.TypeHint)
 	case *ast.ParamNode:
 		if !n.IsPromoted {
 			return

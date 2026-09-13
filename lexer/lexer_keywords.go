@@ -1,11 +1,12 @@
 package lexer
 
 import (
-	"github.com/ayanozturk/go-php-parser/token"
 	"strings"
+
+	"github.com/ayanozturk/go-php-parser/token"
 )
 
-// keywordTokenMap maps PHP keywords to their token types.
+// keywordTokenMap maps lowercase PHP keywords to their token types.
 var keywordTokenMap = map[string]token.TokenType{
 	"function":     token.T_FUNCTION,
 	"if":           token.T_IF,
@@ -18,7 +19,7 @@ var keywordTokenMap = map[string]token.TokenType{
 	"endswitch":    token.T_ENDSWITCH,
 	"array":        token.T_ARRAY,
 	"mixed":        token.T_MIXED,
-	"string":       token.T_STRING,
+	"string":       token.T_STRING, // type name soft keyword — kept as T_STRING in Zend for idents; map reserved use
 	"callable":     token.T_CALLABLE,
 	"true":         token.T_TRUE,
 	"false":        token.T_FALSE,
@@ -82,27 +83,15 @@ var keywordTokenMap = map[string]token.TokenType{
 	"never":        token.T_NEVER,
 }
 
-// LookupKeyword returns the token.Token for a given identifier if it's a keyword, else returns T_STRING.
+// LookupKeyword returns the token for ident. Kind is canonical; Literal keeps
+// the original spelling (Function vs function) for rename/format.
 func LookupKeyword(ident string, pos token.Position) token.Token {
 	if tokType, ok := keywordTokenMap[ident]; ok {
 		return token.Token{Type: tokType, Literal: ident, Pos: pos}
 	}
-	// PHP keywords are case-insensitive. Handle corpus-observed mixed-case
-	// forms without lowercasing every identifier on the lexer's hot path.
-	switch len(ident) {
-	case len("as"):
-		if strings.EqualFold(ident, "as") {
-			return token.Token{Type: token.T_AS, Literal: ident, Pos: pos}
-		}
-	case len("const"):
-		if strings.EqualFold(ident, "const") {
-			return token.Token{Type: token.T_CONST, Literal: ident, Pos: pos}
-		}
-	case len("foreach"):
-		if strings.EqualFold(ident, "foreach") {
-			return token.Token{Type: token.T_FOREACH, Literal: ident, Pos: pos}
-		}
+	lower := strings.ToLower(ident)
+	if tokType, ok := keywordTokenMap[lower]; ok {
+		return token.Token{Type: tokType, Literal: ident, Pos: pos}
 	}
-
 	return token.Token{Type: token.T_STRING, Literal: ident, Pos: pos}
 }

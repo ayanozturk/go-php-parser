@@ -18,11 +18,11 @@ func checkConstantNode(t *testing.T, node *ast.ConstantNode, wantName, wantValue
 	if node.Value == nil || node.Value.TokenLiteral() != wantValue {
 		t.Errorf("expected value %s, got %v", wantValue, node.Value)
 	}
-	if node.Visibility != wantVisibility {
-		t.Errorf("expected visibility %s, got %s", wantVisibility, node.Visibility)
+	if node.Modifiers.Visibility() != wantVisibility {
+		t.Errorf("expected visibility %s, got %s", wantVisibility, node.Modifiers.Visibility())
 	}
-	if node.Type != wantType {
-		t.Errorf("expected type %s, got %s", wantType, node.Type)
+	if ast.TypeText(node.Type) != wantType {
+		t.Errorf("expected type %s, got %s", wantType, ast.TypeText(node.Type))
 	}
 }
 
@@ -112,15 +112,15 @@ class Demo {
 		if !ok {
 			t.Fatalf("expected ConstantNode, got %T", classNode.Constants[i])
 		}
-		if constant.Visibility != want {
-			t.Fatalf("constant %d visibility: got %q, want %q", i, constant.Visibility, want)
+		if constant.Modifiers.Visibility() != want {
+			t.Fatalf("constant %d visibility: got %q, want %q", i, constant.Modifiers.Visibility(), want)
 		}
 	}
 	constant, ok := classNode.Constants[3].(*ast.ConstantNode)
 	if !ok {
 		t.Fatalf("expected ConstantNode, got %T", classNode.Constants[3])
 	}
-	if constant.Visibility != "public" || len(constant.Modifiers) != 2 || constant.Modifiers[0] != "final" || constant.Modifiers[1] != "public" {
+	if constant.Modifiers.Visibility() != "public" || len(constant.Modifiers) != 2 || !constant.Modifiers.HasName("final") || constant.Modifiers[1].Canonical() != "public" {
 		t.Fatalf("final public constant modifiers not preserved: %#v", constant)
 	}
 }

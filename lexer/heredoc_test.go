@@ -14,22 +14,27 @@ EOHTML;
 $end = 1;`
 	l := New(input)
 
-	// Find the nowdoc token
-	var nowdocToken token.Token
+	var body string
+	var startLit string
 	for {
 		tok := l.NextToken()
+		if tok.Type == token.T_START_NOWDOC {
+			startLit = tok.Literal
+		}
 		if tok.Type == token.T_ENCAPSED_AND_WHITESPACE {
-			nowdocToken = tok
-			break
+			body = tok.Literal
 		}
 		if tok.Type == token.T_EOF {
-			t.Fatalf("Did not find nowdoc token in input")
+			break
 		}
 	}
 
+	if !containsPrefix(startLit, "<<<") || !contains(startLit, "EOHTML") {
+		t.Fatalf("T_START_NOWDOC literal should keep exact opener, got %q", startLit)
+	}
 	expected := "This is a nowdoc string!\nNo interpolation: $notAVar\n"
-	if nowdocToken.Literal != expected {
-		t.Errorf("nowdoc content mismatch.\nExpected: %q\nGot:      %q", expected, nowdocToken.Literal)
+	if body != expected {
+		t.Errorf("nowdoc content mismatch.\nExpected: %q\nGot:      %q", expected, body)
 	}
 }
 
@@ -43,22 +48,20 @@ EOT;
 $end = 1;`
 	l := New(input)
 
-	// Find the heredoc token
-	var heredocToken token.Token
+	var body string
 	for {
 		tok := l.NextToken()
 		if tok.Type == token.T_ENCAPSED_AND_WHITESPACE {
-			heredocToken = tok
-			break
+			body += tok.Literal
 		}
 		if tok.Type == token.T_EOF {
-			t.Fatalf("Did not find heredoc token in input")
+			break
 		}
 	}
 
 	expected := "This is a heredoc string!\nWith multiple lines.\nAnd special chars: < > $ #\n"
-	if heredocToken.Literal != expected {
-		t.Errorf("heredoc content mismatch.\nExpected: %q\nGot:      %q", expected, heredocToken.Literal)
+	if body != expected {
+		t.Errorf("heredoc content mismatch.\nExpected: %q\nGot:      %q", expected, body)
 	}
 }
 
@@ -120,17 +123,20 @@ func TestLexerNowdocWithUnicodeContinuesAfterTerminator(t *testing.T) {
 	}
 }
 
-func TestLexerIndentedNowdocTerminatorDedentsBody(t *testing.T) {
+func TestLexerIndentedNowdocPreservesBody(t *testing.T) {
+	// Zend does not dedent in the lexer; indent is kept on body and end token.
 	input := "<?php\n$sql = <<<'SQL'\n        SELECT 1\n    SQL;\n$end = 1;"
 	l := New(input)
 
-	var body string
+	var body, endLit string
 	var seenSemicolon, seenEndVar bool
 	for {
 		tok := l.NextToken()
 		switch {
 		case tok.Type == token.T_ENCAPSED_AND_WHITESPACE:
 			body = tok.Literal
+		case tok.Type == token.T_END_NOWDOC:
+			endLit = tok.Literal
 		case tok.Type == token.T_SEMICOLON:
 			seenSemicolon = true
 		case tok.Type == token.T_VARIABLE && tok.Literal == "$end":
@@ -141,10 +147,29 @@ func TestLexerIndentedNowdocTerminatorDedentsBody(t *testing.T) {
 		}
 	}
 
-	if body != "    SELECT 1\n" {
-		t.Fatalf("unexpected dedented nowdoc body: %q", body)
+	if body != "        SELECT 1\n" {
+		t.Fatalf("unexpected raw nowdoc body: %q", body)
+	}
+	if endLit != "    SQL" {
+		t.Fatalf("T_END_NOWDOC should include indent, got %q", endLit)
 	}
 	if !seenSemicolon || !seenEndVar {
 		t.Fatalf("expected lexer to continue after indented terminator; semicolon=%v end=%v", seenSemicolon, seenEndVar)
 	}
+}
+
+func containsPrefix(s, prefix string) bool {
+	return len(s) >= len(prefix) && s[:len(prefix)] == prefix
+}
+
+func contains(s, sub string) bool {
+	return len(s) >= len(sub) && (s == sub || len(sub) == 0 ||
+		func() bool {
+			for i := 0; i+len(sub) <= len(s); i++ {
+				if s[i:i+len(sub)] == sub {
+					return true
+				}
+			}
+			return false
+		}())
 }

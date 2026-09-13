@@ -8,14 +8,14 @@ import (
 )
 
 // parseFunction parses a PHP function declaration
-func (p *Parser) parseFunction(modifiers []string) (ast.Node, error) {
+func (p *Parser) parseFunction(modifiers ast.ModifierList) (ast.Node, error) {
 	pos := p.tok.Pos
 	phpdoc := p.consumeCurrentDoc(pos)
 	p.nextToken() // consume 'function'
 
-	var savedModifiers []string
+	var savedModifiers ast.ModifierList
 	if len(modifiers) > 0 {
-		savedModifiers = make([]string, len(modifiers))
+		savedModifiers = make(ast.ModifierList, len(modifiers))
 		copy(savedModifiers, modifiers)
 	}
 
@@ -112,16 +112,16 @@ func (p *Parser) parseFunction(modifiers []string) (ast.Node, error) {
 	}
 
 	// Parse return type hint
-	var returnType string
+	var returnType ast.Node
 	if p.tok.Type == token.T_COLON {
 		p.nextToken()
 		// Accept static, self, parent as return types (unless part of a union/intersection type)
 		if (p.tok.Type == token.T_STATIC || p.tok.Type == token.T_SELF || p.tok.Type == token.T_PARENT) &&
 			p.peekToken().Type != token.T_PIPE && p.peekToken().Type != token.T_AMPERSAND {
-			returnType = p.tok.Literal
+			returnType = &ast.IdentifierNode{Value: p.tok.Literal, Pos: ast.Position(p.tok.Pos)}
 			p.nextToken()
 		} else {
-			returnType = p.parseTypeHint()
+			returnType = p.parseTypeNode()
 		}
 	}
 
@@ -134,12 +134,13 @@ func (p *Parser) parseFunction(modifiers []string) (ast.Node, error) {
 	headerEnd := ast.Position(p.prevTokEnd)
 
 	// Skip whitespace, comments, and attributes before function body
-	for p.tok.Type == token.T_WHITESPACE || p.tok.Type == token.T_COMMENT || p.tok.Type == token.T_DOC_COMMENT || p.tok.Type == token.T_ATTRIBUTE {
+	for p.tok.Type == token.T_WHITESPACE || p.tok.Type == token.T_COMMENT || p.tok.Type == token.T_DOC_COMMENT {
 		p.nextToken()
 	}
+	p.skipAttributeGroups()
 
 	for _, modifier := range savedModifiers {
-		if modifier == "abstract" && p.tok.Type == token.T_SEMICOLON {
+		if modifier.Tok == token.T_ABSTRACT && !modifier.Set && p.tok.Type == token.T_SEMICOLON {
 			p.nextToken() // consume ;
 			return &ast.FunctionNode{
 				Name:         name,

@@ -724,15 +724,16 @@ func declaredFunctionReturnTypeInClass(fn *ast.FunctionNode, class *ast.ClassNod
 		return EmptyType()
 	}
 	raw := ""
+	native := ast.TypeText(fn.ReturnType)
 	if fn.PHPDoc != nil && fn.PHPDoc.ReturnType != "" {
 		raw = fn.PHPDoc.ReturnType
-	} else if fn.ReturnType != "" {
-		raw = fn.ReturnType
+	} else {
+		raw = native
 	}
 	if raw == "" {
 		return EmptyType()
 	}
-	raw = collapsePHPDocConditionalType(raw, fn.ReturnType)
+	raw = collapsePHPDocConditionalType(raw, native)
 	templates := map[string]struct{}{}
 	if class != nil && class.PHPDoc != nil {
 		for _, template := range class.PHPDoc.Templates {
@@ -754,7 +755,7 @@ func methodReturnTypeAnnotation(fn *ast.FunctionNode) string {
 	if fn.PHPDoc != nil && fn.PHPDoc.ReturnType != "" {
 		return fn.PHPDoc.ReturnType
 	}
-	return fn.ReturnType
+	return ast.TypeText(fn.ReturnType)
 }
 
 func newFunctionScope(class *ast.ClassNode, fn *ast.FunctionNode, typeCtx FileTypeContext) *functionScope {
@@ -800,10 +801,7 @@ func newFunctionScopeWithContext(ctx *AnalysisContext, class *ast.ClassNode, fn 
 		if fn.PHPDoc != nil {
 			documentedType = fn.PHPDoc.GetParamTypeFromPHPDoc(param.Name)
 		}
-		paramType := ParseType(normalizeTypeWithContext(param.TypeHint, typeCtx))
-		if paramType.IsEmpty() && param.UnionType != nil {
-			paramType = ParseType(normalizeTypeWithContext(param.UnionType.TokenLiteral(), typeCtx))
-		}
+		paramType := ParseType(normalizeTypeWithContext(ast.TypeText(param.TypeHint), typeCtx))
 		if paramType.IsEmpty() && documentedType != "" {
 			paramType = ParseType(normalizeTypeWithContext(documentedType, typeCtx))
 		}
@@ -930,7 +928,7 @@ func buildClassScopeDataWithSeen(class *ast.ClassNode, typeCtx FileTypeContext, 
 		if !ok {
 			continue
 		}
-		propertyType := ParseType(normalizeTypeWithContext(property.TypeHint, typeCtx))
+		propertyType := ParseType(normalizeTypeWithContext(ast.TypeText(property.TypeHint), typeCtx))
 		if property.PHPDoc != nil && property.PHPDoc.VarType != "" {
 			if fields := parseArrayShapeFields(property.PHPDoc.VarType, typeCtx); len(fields) > 0 {
 				data.propertyArrayShapes[property.Name] = fields
@@ -976,10 +974,7 @@ func buildClassScopeDataWithSeen(class *ast.ClassNode, typeCtx FileTypeContext, 
 			if !ok {
 				continue
 			}
-			paramType := ParseType(normalizeTypeWithContext(param.TypeHint, typeCtx))
-			if paramType.IsEmpty() && param.UnionType != nil {
-				paramType = ParseType(normalizeTypeWithContext(param.UnionType.TokenLiteral(), typeCtx))
-			}
+			paramType := ParseType(normalizeTypeWithContext(ast.TypeText(param.TypeHint), typeCtx))
 			if paramType.IsEmpty() && method.PHPDoc != nil {
 				documented := expandPHPDocTypeAliases(method.PHPDoc.GetParamTypeFromPHPDoc(param.Name), phpDocTypeAliasBindings(class.PHPDoc, method.PHPDoc))
 				paramType = ParseType(normalizeTypeWithContext(documented, typeCtx))
@@ -1428,10 +1423,7 @@ func promotedClassProperties(class *ast.ClassNode, typeCtx FileTypeContext, scop
 			if !ok || !param.IsPromoted {
 				continue
 			}
-			paramType := ParseType(normalizeTypeWithContext(param.TypeHint, typeCtx))
-			if paramType.IsEmpty() && param.UnionType != nil {
-				paramType = ParseType(normalizeTypeWithContext(param.UnionType.TokenLiteral(), typeCtx))
-			}
+			paramType := ParseType(normalizeTypeWithContext(ast.TypeText(param.TypeHint), typeCtx))
 			if paramType.IsEmpty() && method.PHPDoc != nil {
 				documented := expandPHPDocTypeAliases(method.PHPDoc.GetParamTypeFromPHPDoc(param.Name), phpDocTypeAliasBindings(class.PHPDoc, method.PHPDoc))
 				paramType = ParseType(normalizeTypeWithContext(documented, typeCtx))
@@ -1959,7 +1951,7 @@ func declaredCallableExpressionReturnType(expr ast.Node, typeCtx FileTypeContext
 	case *ast.FunctionNode:
 		return declaredFunctionReturnType(closure, typeCtx)
 	case *ast.ArrowFunctionNode:
-		return ParseType(normalizeTypeWithContext(closure.ReturnType, typeCtx))
+		return ParseType(normalizeTypeWithContext(ast.TypeText(closure.ReturnType), typeCtx))
 	default:
 		return EmptyType()
 	}

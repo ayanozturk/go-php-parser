@@ -3,37 +3,38 @@ package parser
 import (
 	"github.com/ayanozturk/go-php-parser/ast"
 	"github.com/ayanozturk/go-php-parser/token"
-	"strings"
 )
 
-func (p *Parser) parseClassDeclarationWithModifier(modifier string) (ast.Node, error) {
-	return p.parseClassDeclarationWithModifiers([]string{modifier})
+func (p *Parser) parseClassDeclarationWithModifier(mod ast.Modifier) (ast.Node, error) {
+	return p.parseClassDeclarationWithModifiers(ast.ModifierList{mod})
 }
 
-func (p *Parser) parseClassDeclarationWithModifiers(modifiers []string) (ast.Node, error) {
+func (p *Parser) parseClassDeclarationWithModifiers(mods ast.ModifierList) (ast.Node, error) {
 	for {
 		switch {
 		case p.tok.Type == token.T_READONLY:
-			modifiers = append(modifiers, p.tok.Literal)
+			mods = append(mods, ast.Modifier{Tok: token.T_READONLY, Text: p.tok.Literal})
 			p.nextToken()
 		case p.tok.Type == token.T_FINAL || p.tok.Type == token.T_ABSTRACT:
-			modifiers = append(modifiers, p.tok.Literal)
+			mods = append(mods, ast.Modifier{Tok: p.tok.Type, Text: p.tok.Literal})
 			p.nextToken()
 		case p.tok.Type == token.T_STRING && (p.tok.Literal == "final" || p.tok.Literal == "abstract"):
-			modifiers = append(modifiers, p.tok.Literal)
+			m := ast.ModifierFromText(p.tok.Literal)
+			m.Text = p.tok.Literal
+			mods = append(mods, m)
 			p.nextToken()
 		default:
 			// Skip trailing comments/whitespace before 'class' keyword
 			p.skipCommentsAndWhitespace()
 
 			if p.tok.Type != token.T_CLASS {
-				p.addError("line %d:%d: expected 'class' after modifier %s, got %s", p.tok.Pos.Line, p.tok.Pos.Column, strings.Join(modifiers, " "), p.tok.Literal)
+				p.addError("line %d:%d: expected 'class' after modifier %s, got %s", p.tok.Pos.Line, p.tok.Pos.Column, mods.String(), p.tok.Literal)
 				return nil, nil
 			}
 
 			node, err := p.parseClassDeclaration()
 			if classNode, ok := node.(*ast.ClassNode); ok {
-				classNode.Modifier = strings.Join(modifiers, " ")
+				classNode.Modifiers = append(ast.ModifierList(nil), mods...)
 			}
 			return node, err
 		}
@@ -115,12 +116,12 @@ func (p *Parser) parseClassDeclaration() (ast.Node, error) {
 			break
 		}
 		// Parse type hint if present (for property)
-		var typeHint string
+		var typeHint ast.Node
 		if p.tok.Type == token.T_STRING || p.tok.Type == token.T_NS_SEPARATOR || p.tok.Type == token.T_CALLABLE || p.tok.Type == token.T_ARRAY || p.tok.Type == token.T_MIXED || p.tok.Type == token.T_QUESTION || p.tok.Type == token.T_TRUE || p.tok.Type == token.T_FALSE || p.tok.Type == token.T_NULL || p.tok.Type == token.T_STATIC || p.tok.Type == token.T_LPAREN {
 			if p.tok.Type == token.T_LPAREN {
-				typeHint = parseFullTypeHint(p)
+				typeHint = parseFullTypeNode(p)
 			} else {
-				typeHint = p.parseTypeHint()
+				typeHint = p.parseTypeNode()
 			}
 			p.skipCommentsAndWhitespace()
 		}
@@ -152,7 +153,7 @@ func (p *Parser) parseClassDeclaration() (ast.Node, error) {
 			}
 			continue
 		}
-		if len(modifiers) > 0 || typeHint != "" {
+		if len(modifiers) > 0 || typeHint != nil {
 			p.addError("line %d:%d: expected property or function after modifiers/type in class %s body, got %s", p.tok.Pos.Line, p.tok.Pos.Column, name, p.tok.Literal)
 			p.syncToNextClassMember()
 			continue
@@ -187,7 +188,7 @@ func (p *Parser) parseClassDeclaration() (ast.Node, error) {
 	}, nil
 }
 
-func (p *Parser) parseAnonymousClassExpression(modifier string) (ast.Node, []ast.Node) {
+func (p *Parser) parseAnonymousClassExpression(mods ast.ModifierList) (ast.Node, []ast.Node) {
 	pos := p.tok.Pos
 	p.nextToken() // consume 'class'
 
@@ -260,12 +261,12 @@ func (p *Parser) parseAnonymousClassExpression(modifier string) (ast.Node, []ast
 			break
 		}
 
-		var typeHint string
+		var typeHint ast.Node
 		if p.tok.Type == token.T_STRING || p.tok.Type == token.T_NS_SEPARATOR || p.tok.Type == token.T_CALLABLE || p.tok.Type == token.T_ARRAY || p.tok.Type == token.T_MIXED || p.tok.Type == token.T_QUESTION || p.tok.Type == token.T_TRUE || p.tok.Type == token.T_FALSE || p.tok.Type == token.T_NULL || p.tok.Type == token.T_STATIC || p.tok.Type == token.T_LPAREN {
 			if p.tok.Type == token.T_LPAREN {
-				typeHint = parseFullTypeHint(p)
+				typeHint = parseFullTypeNode(p)
 			} else {
-				typeHint = p.parseTypeHint()
+				typeHint = p.parseTypeNode()
 			}
 			p.skipCommentsAndWhitespace()
 		}
@@ -297,7 +298,7 @@ func (p *Parser) parseAnonymousClassExpression(modifier string) (ast.Node, []ast
 			}
 			continue
 		}
-		if len(modifiers) > 0 || typeHint != "" {
+		if len(modifiers) > 0 || typeHint != nil {
 			p.addError("line %d:%d: expected property or function in anonymous class body, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal)
 			p.syncToNextClassMember()
 			continue
@@ -326,7 +327,7 @@ func (p *Parser) parseAnonymousClassExpression(modifier string) (ast.Node, []ast
 		Methods:      methods,
 		Constants:    constants,
 		Pos:          ast.Position(pos),
-		Modifier:     modifier,
+		Modifiers:    mods,
 		HeaderEndPos: headerEnd,
 	}, args
 }
@@ -444,17 +445,19 @@ func (p *Parser) syncToNextClassMember() {
 	}
 }
 
-func (p *Parser) parsePropertyModifier() (string, bool) {
+func (p *Parser) parsePropertyModifier() (ast.Modifier, bool) {
 	if p.tok.Type == token.T_READONLY {
+		lit := p.tok.Literal
 		p.nextToken()
-		return "readonly", true
+		return ast.Modifier{Tok: token.T_READONLY, Text: lit}, true
 	}
 	if p.tok.Type != token.T_PUBLIC && p.tok.Type != token.T_PROTECTED && p.tok.Type != token.T_PRIVATE {
-		return "", false
+		return ast.Modifier{}, false
 	}
+	tokType := p.tok.Type
 	modifier := p.tok.Literal
 	if p.peekToken().Type != token.T_LPAREN {
-		return "", false
+		return ast.Modifier{}, false
 	}
 	// "public(set)"/"protected(set)"/"private(set)" (asymmetric visibility) is
 	// ambiguous with a plain visibility modifier followed by a property type
@@ -466,30 +469,17 @@ func (p *Parser) parsePropertyModifier() (string, bool) {
 	if p.tok.Type != token.T_STRING || p.tok.Literal != "set" || p.peekToken().Type != token.T_RPAREN {
 		p.restore(cp)
 		p.nextToken() // consume just the visibility keyword; leave '(' for the type-hint parser
-		return modifier, true
+		return ast.Modifier{Tok: tokType, Text: modifier}, true
 	}
 	p.nextToken() // consume 'set'
 	p.nextToken() // consume ')'
-	return modifier + "(set)", true
+	return ast.Modifier{Tok: tokType, Set: true, Text: modifier}, true
 }
 
-func (p *Parser) parsePropertyDeclaration(modifiers []string, typeHint string) ([]ast.Node, error) {
+func (p *Parser) parsePropertyDeclaration(modifiers ast.ModifierList, typeHint ast.Node) ([]ast.Node, error) {
 	phpdoc := p.consumeCurrentDoc(p.tok.Pos)
-	// Interpret modifiers
-	var visibility, setVisibility string
-	var isStatic, isReadonly bool
-	for _, m := range modifiers {
-		switch m {
-		case "public", "protected", "private":
-			visibility = m
-		case "public(set)", "protected(set)", "private(set)":
-			setVisibility = m[:len(m)-5]
-		case "static":
-			isStatic = true
-		case "readonly":
-			isReadonly = true
-		}
-	}
+	isStatic := modifiers.Has(token.T_STATIC)
+	isReadonly := modifiers.Has(token.T_READONLY)
 	var properties []ast.Node
 	for {
 		if p.tok.Type != token.T_VARIABLE {
@@ -511,8 +501,8 @@ func (p *Parser) parsePropertyDeclaration(modifiers []string, typeHint string) (
 			hooks = p.parsePropertyHooks(name)
 			properties = append(properties, &ast.PropertyNode{
 				Name: name, TypeHint: typeHint, PHPDoc: phpdoc, DefaultValue: defaultValue,
-				Visibility: visibility, SetVisibility: setVisibility,
-				IsStatic: isStatic, IsReadonly: isReadonly, Hooks: hooks,
+				Modifiers: modifiers,
+				IsStatic:  isStatic, IsReadonly: isReadonly, Hooks: hooks,
 				Pos: ast.Position(pos), EndPos: ast.Position(p.prevTokEnd),
 			})
 			return properties, nil
@@ -520,8 +510,8 @@ func (p *Parser) parsePropertyDeclaration(modifiers []string, typeHint string) (
 
 		property := &ast.PropertyNode{
 			Name: name, TypeHint: typeHint, PHPDoc: phpdoc, DefaultValue: defaultValue,
-			Visibility: visibility, SetVisibility: setVisibility,
-			IsStatic: isStatic, IsReadonly: isReadonly,
+			Modifiers: modifiers,
+			IsStatic:  isStatic, IsReadonly: isReadonly,
 			Pos: ast.Position(pos), EndPos: ast.Position(p.prevTokEnd),
 		}
 		properties = append(properties, property)

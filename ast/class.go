@@ -15,7 +15,7 @@ type ClassNode struct {
 	Constants  []Node // Class constants
 	Pos        Position
 	EndPos     Position
-	Modifier   string      // final, abstract, or ""
+	Modifiers  ModifierList
 	PHPDoc     *PHPDocNode // Associated PHPDoc comment
 	// HeaderEndPos marks the end of the declaration's header (name plus
 	// extends/implements), before the body's '{'. See FunctionNode.HeaderEndPos.
@@ -53,17 +53,16 @@ func (c *ClassNode) TokenLiteral() string {
 
 // PropertyNode represents a class property
 type PropertyNode struct {
-	Name          string
-	TypeHint      string
-	PHPDoc        *PHPDocNode
-	DefaultValue  Node
-	Visibility    string // public, private, protected
-	SetVisibility string // PHP 8.4 asymmetric visibility: public(set), protected(set), private(set)
-	IsStatic      bool
-	IsReadonly    bool
-	Hooks         []PropertyHookNode
-	Pos           Position
-	EndPos        Position
+	Name         string
+	TypeHint     Node // IdentifierNode | UnionTypeNode | IntersectionTypeNode
+	PHPDoc       *PHPDocNode
+	DefaultValue Node
+	Modifiers    ModifierList // mirrors syntax.KindModifierList incl. asymmetric visibility
+	IsStatic     bool
+	IsReadonly   bool
+	Hooks        []PropertyHookNode
+	Pos          Position
+	EndPos       Position
 }
 
 type PropertyHookNode struct {
@@ -98,11 +97,8 @@ func (n *PropertyNode) NodeType() string {
 
 func (n *PropertyNode) String() string {
 	var parts []string
-	if n.Visibility != "" {
-		parts = append(parts, n.Visibility)
-	}
-	if n.SetVisibility != "" {
-		parts = append(parts, n.SetVisibility+"(set)")
+	if s := n.Modifiers.String(); s != "" {
+		parts = append(parts, s)
 	}
 	parts = append(parts, fmt.Sprintf("Property($%s)", n.Name))
 	return fmt.Sprintf("%s @ %d:%d", strings.Join(parts, " "), n.Pos.Line, n.Pos.Column)

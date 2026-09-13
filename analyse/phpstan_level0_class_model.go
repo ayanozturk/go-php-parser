@@ -31,7 +31,7 @@ func appendClassModelOnNode(filename string, node ast.Node, ft FileTypeContext, 
 	switch n := node.(type) {
 	case *ast.ClassNode:
 		className := ft.resolveClassLike(n.Name)
-		if hasClassModifier(n, "final") && hasClassModifier(n, "abstract") {
+		if n.Modifiers.HasName("final") && n.Modifiers.HasName("abstract") {
 			*issues = append(*issues, issueSpan(filename, n, level0ClassModelCode, fmt.Sprintf("Class %s cannot be both final and abstract.", className)))
 		}
 		if n.Extends != "" {
@@ -44,7 +44,7 @@ func appendClassModelOnNode(filename string, node ast.Node, ft FileTypeContext, 
 				if parent.Final {
 					*issues = append(*issues, issueSpan(filename, n, level0ClassModelCode, fmt.Sprintf("Class %s extends final class %s.", className, parent.Name)))
 				}
-				classReadonly := hasClassModifier(n, "readonly")
+				classReadonly := n.Modifiers.HasName("readonly")
 				if classReadonly && !parent.Readonly {
 					*issues = append(*issues, issueSpan(filename, n, level0ClassModelCode, fmt.Sprintf("Readonly class %s cannot extend non-readonly class %s.", className, parent.Name)))
 				}
@@ -92,13 +92,13 @@ func appendClassModelOnNode(filename string, node ast.Node, ft FileTypeContext, 
 }
 
 func checkClassMethodLegality(filename, className string, class *ast.ClassNode, ctx *AnalysisContext, issues *[]AnalysisIssue) {
-	isAbstractClass := hasClassModifier(class, "abstract")
+	isAbstractClass := class.Modifiers.HasName("abstract")
 	for _, methodNode := range class.Methods {
 		method, ok := methodNode.(*ast.FunctionNode)
 		if !ok {
 			continue
 		}
-		if strings.EqualFold(method.Name, "__construct") && method.ReturnType != "" {
+		if strings.EqualFold(method.Name, "__construct") && method.ReturnType != nil {
 			*issues = append(*issues, issueSpan(filename, method, level0ClassModelCode, fmt.Sprintf("Constructor %s::__construct() cannot have a return type.", className)))
 		}
 		if hasModifier(method.Modifiers, "abstract") {
@@ -128,7 +128,7 @@ func checkClassConstantLegality(filename, className string, class *ast.ClassNode
 		if !ok {
 			continue
 		}
-		if hasModifier(constant.Modifiers, "final") && constant.Visibility == "private" {
+		if hasModifier(constant.Modifiers, "final") && constant.Modifiers.Visibility() == "private" {
 			*issues = append(*issues, issueSpan(filename, constant, level0ClassModelCode, fmt.Sprintf("Private constant %s::%s cannot be final.", className, constant.Name)))
 		}
 		if parentConstant, ok := finalConstantInAncestors(ctx.Resolver, className, constant.Name); ok {
@@ -138,7 +138,7 @@ func checkClassConstantLegality(filename, className string, class *ast.ClassNode
 }
 
 func checkConsistentConstructorLegality(filename, className string, class *ast.ClassNode, ctx *AnalysisContext, issues *[]AnalysisIssue) {
-	if hasPHPStanConsistentConstructorTag(class.PHPDoc) && hasPrivateConstructor(ctx.Resolver, className) && !hasClassModifier(class, "final") {
+	if hasPHPStanConsistentConstructorTag(class.PHPDoc) && hasPrivateConstructor(ctx.Resolver, className) && !class.Modifiers.HasName("final") {
 		*issues = append(*issues, issueSpan(filename, class, level0ClassModelCode, fmt.Sprintf("Class %s has @phpstan-consistent-constructor but its constructor is private.", className)))
 	}
 	required, ok := consistentConstructorInAncestors(ctx.Resolver, className)
@@ -158,11 +158,11 @@ func checkInterfaceMemberLegality(filename, interfaceName string, iface *ast.Int
 	for _, member := range iface.Members {
 		switch n := member.(type) {
 		case *ast.InterfaceMethodNode:
-			if n.Visibility != "" && n.Visibility != "public" {
+			if v := n.Modifiers.Visibility(); v != "" && v != "public" {
 				*issues = append(*issues, issueSpan(filename, n, level0ClassModelCode, fmt.Sprintf("Interface method %s::%s() must be public.", interfaceName, n.Name)))
 			}
 		case *ast.ConstantNode:
-			if n.Visibility != "" && n.Visibility != "public" {
+			if v := n.Modifiers.Visibility(); v != "" && v != "public" {
 				*issues = append(*issues, issueSpan(filename, n, level0ClassModelCode, fmt.Sprintf("Interface constant %s::%s must be public.", interfaceName, n.Name)))
 			}
 		}
@@ -170,7 +170,7 @@ func checkInterfaceMemberLegality(filename, interfaceName string, iface *ast.Int
 }
 
 func checkReadonlyClassProperties(filename, className string, class *ast.ClassNode, ctx *AnalysisContext, issues *[]AnalysisIssue) {
-	classReadonly := hasClassModifier(class, "readonly")
+	classReadonly := class.Modifiers.HasName("readonly")
 	for _, propNode := range class.Properties {
 		property, ok := propNode.(*ast.PropertyNode)
 		if !ok {
@@ -281,15 +281,6 @@ func consistentConstructorInAncestorsSeen(resolver SymbolResolver, className str
 		}
 	}
 	return ResolvedMethod{}, false
-}
-
-func hasClassModifier(class *ast.ClassNode, modifier string) bool {
-	for _, part := range strings.Fields(class.Modifier) {
-		if strings.EqualFold(part, modifier) {
-			return true
-		}
-	}
-	return false
 }
 
 func hasPHPStanConsistentConstructorTag(doc *ast.PHPDocNode) bool {

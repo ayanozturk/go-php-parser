@@ -10,9 +10,8 @@ func TestFunctionNodeMethods(t *testing.T) {
 	bodyStmt := &StringLiteral{Value: "body", Pos: Position{Line: 4, Column: 5}}
 	fn := &FunctionNode{
 		Name:       "myFunc",
-		Visibility: "public",
-		Modifiers:  []string{"static"},
-		ReturnType: "int",
+		Modifiers: ModifierListFromTexts([]string{"public", "static"}),
+		ReturnType: &IdentifierNode{Value: "int"},
 		Params:     []Node{param},
 		Body:       []Node{bodyStmt},
 		Pos:        Position{Line: 1, Column: 1},
@@ -102,14 +101,13 @@ func TestStaticFunctionNode(t *testing.T) {
 	param := &Identifier{Name: "x", Pos: Position{Line: 2, Column: 1}}
 	fn := &FunctionNode{
 		Name:       "staticFunc",
-		Visibility: "public",
-		Modifiers:  []string{"static"},
-		ReturnType: "void",
+		Modifiers: ModifierListFromTexts([]string{"public", "static"}),
+		ReturnType: &IdentifierNode{Value: "void"},
 		Params:     []Node{param},
 		Body:       nil,
 		Pos:        Position{Line: 1, Column: 1},
 	}
-	if len(fn.Modifiers) == 0 || fn.Modifiers[0] != "static" {
+	if len(fn.Modifiers) == 0 || !fn.Modifiers.HasName("static") {
 		t.Errorf("Expected 'static' modifier, got %+v", fn.Modifiers)
 	}
 	if !strings.Contains(fn.String(), "static") {

@@ -39,13 +39,13 @@ func TestParseFunctionWithUnionAndNamedParameters(t *testing.T) {
 		if param0.Name != "mixed" {
 			t.Errorf("Expected parameter 1 name to be 'mixed', but got '%s'", param0.Name)
 		}
-		if param0.TypeHint != "mixed|null" {
+		if ast.TypeText(param0.TypeHint) != "mixed|null" {
 			t.Errorf("Expected parameter 1 type hint to be 'mixed|null', but got '%s'", param0.TypeHint)
 		}
 		if param1.Name != "string" {
 			t.Errorf("Expected parameter 2 name to be 'string', but got '%s'", param1.Name)
 		}
-		if param1.TypeHint != "string" {
+		if ast.TypeText(param1.TypeHint) != "string" {
 			t.Errorf("Expected parameter 2 type hint to be 'string', but got '%s'", param1.TypeHint)
 		}
 	}
@@ -83,7 +83,7 @@ func TestParseFunctionWithCallable(t *testing.T) {
 		if param0.Name != "callable" {
 			t.Errorf("Expected parameter 1 name to be 'callable', but got '%s'", param0.Name)
 		}
-		if param0.TypeHint != "callable" {
+		if ast.TypeText(param0.TypeHint) != "callable" {
 			t.Errorf("Expected parameter 1 type hint to be 'callable', but got '%s'", param0.TypeHint)
 		}
 	}
@@ -118,12 +118,12 @@ class Foo {
 	}
 	foundStatic := false
 	for _, m := range method.Modifiers {
-		if m == "static" {
+		if m.Canonical() == "static" {
 			foundStatic = true
 		}
 	}
 	if !foundStatic {
-		t.Errorf("Expected 'static' in method.Modifiers, got %+v", method.Modifiers)
+		t.Errorf("Expected 'static' in method.Modifiers.Texts(), got %+v", method.Modifiers)
 	}
 }
 func TestParseFunctionWithUnionTypeParam(t *testing.T) {
@@ -483,11 +483,11 @@ class DepartmentData {
 		t.Fatalf("Expected both methods to be preserved, got %d", len(classNode.Methods))
 	}
 	first, ok := classNode.Methods[0].(*ast.FunctionNode)
-	if !ok || first.ReturnType != "never" {
+	if !ok || ast.TypeText(first.ReturnType) != "never" {
 		t.Fatalf("Expected never return type, got %#v", classNode.Methods[0])
 	}
 	second, ok := classNode.Methods[1].(*ast.FunctionNode)
-	if !ok || second.Name != "toArray" || second.ReturnType != "array" {
+	if !ok || second.Name != "toArray" || ast.TypeText(second.ReturnType) != "array" {
 		t.Fatalf("Expected following toArray method, got %#v", classNode.Methods[1])
 	}
 }

@@ -33,8 +33,7 @@ func TestClassNodeMethods(t *testing.T) {
 func TestPropertyNodeMethods(t *testing.T) {
 	p := &PropertyNode{
 		Name:          "foo",
-		Visibility:    "private",
-		SetVisibility: "protected",
+		Modifiers: ModifierListFromTexts([]string{"private", "protected(set)"}),
 		Pos:           Position{Line: 2, Column: 3},
 	}
 	if p.NodeType() != "Property" {

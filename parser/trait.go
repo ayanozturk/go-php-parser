@@ -31,12 +31,12 @@ func (p *Parser) parseTraitDeclaration() (ast.Node, error) {
 	var body []ast.Node
 	for p.tok.Type != token.T_RBRACE && p.tok.Type != token.T_EOF {
 		modifiers := p.parseModifiers()
-		var typeHint string
+		var typeHint ast.Node
 		if p.tok.Type == token.T_STRING || p.tok.Type == token.T_NS_SEPARATOR || p.tok.Type == token.T_CALLABLE || p.tok.Type == token.T_ARRAY || p.tok.Type == token.T_MIXED || p.tok.Type == token.T_QUESTION || p.tok.Type == token.T_TRUE || p.tok.Type == token.T_FALSE || p.tok.Type == token.T_NULL || p.tok.Type == token.T_STATIC || p.tok.Type == token.T_LPAREN {
 			if p.tok.Type == token.T_LPAREN {
-				typeHint = parseFullTypeHint(p)
+				typeHint = parseFullTypeNode(p)
 			} else {
-				typeHint = p.parseTypeHint()
+				typeHint = p.parseTypeNode()
 			}
 		}
 		if p.tok.Type == token.T_FUNCTION {
@@ -74,7 +74,7 @@ func (p *Parser) parseTraitDeclaration() (ast.Node, error) {
 			}
 			continue
 		}
-		if len(modifiers) > 0 || typeHint != "" {
+		if len(modifiers) > 0 || typeHint != nil {
 			p.addError("line %d:%d: expected property or function after modifiers/type in trait %s body, got %s", p.tok.Pos.Line, p.tok.Pos.Column, name, p.tok.Literal)
 			p.nextToken()
 			continue

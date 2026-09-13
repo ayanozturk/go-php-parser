@@ -54,7 +54,7 @@ func TestFloatLiteralNodeEdgeCases(t *testing.T) {
 }
 
 func TestUnionTypeNodeEmptyTypes(t *testing.T) {
-	u := &UnionTypeNode{Types: []string{}, Pos: Position{Line: 1, Column: 1}}
+	u := &UnionTypeNode{Types: []Node{}, Pos: Position{Line: 1, Column: 1}}
 	if u.NodeType() != "UnionType" {
 		t.Errorf("NodeType: got %q", u.NodeType())
 	}
@@ -71,8 +71,8 @@ func TestParamNodeNilFields(t *testing.T) {
 	if p.NodeType() != "Param" {
 		t.Errorf("NodeType: got %q", p.NodeType())
 	}
-	if p.UnionType != nil {
-		t.Errorf("UnionType: got %+v", p.UnionType)
+	if p.TypeHint != nil {
+		t.Errorf("TypeHint: got %+v", p.TypeHint)
 	}
 	if p.DefaultValue != nil {
 		t.Errorf("DefaultValue: got %+v", p.DefaultValue)

@@ -7,19 +7,17 @@ import (
 
 // ParamNode represents a function or method parameter
 type ParamNode struct {
-	Name          string
-	TypeHint      string
-	UnionType     *UnionTypeNode // For PHP 8.0+ union types
-	DefaultValue  Node
-	Visibility    string // public, protected, private (for promoted constructor params)
-	SetVisibility string // public, protected, private (asymmetric visibility write-scope, e.g. "public private(set)")
-	IsPromoted    bool   // true if this param is promoted to a property
-	IsReadonly    bool   // true if this promoted parameter is readonly
-	IsVariadic    bool   // true if this param is variadic (...$values)
-	IsByRef       bool   // true if this param is passed by reference (&$data)
-	PHPDoc        *PHPDocNode
-	Pos           Position
-	EndPos        Position
+	Name         string
+	TypeHint     Node // IdentifierNode | UnionTypeNode | IntersectionTypeNode
+	DefaultValue Node
+	Modifiers    ModifierList // promoted-property visibility / asymmetric / readonly
+	IsPromoted   bool         // true if this param is promoted to a property
+	IsReadonly   bool         // true if this promoted parameter is readonly
+	IsVariadic   bool         // true if this param is variadic (...$values)
+	IsByRef      bool         // true if this param is passed by reference (&$data)
+	PHPDoc       *PHPDocNode
+	Pos          Position
+	EndPos       Position
 }
 
 func (p *ParamNode) NodeType() string       { return "Param" }
@@ -29,13 +27,11 @@ func (p *ParamNode) GetEndPos() Position    { return p.EndPos }
 func (p *ParamNode) SetEndPos(pos Position) { p.EndPos = pos }
 func (p *ParamNode) String() string {
 	var parts []string
-	if p.Visibility != "" {
-		parts = append(parts, p.Visibility)
+	if s := p.Modifiers.String(); s != "" {
+		parts = append(parts, s)
 	}
-	if p.TypeHint != "" {
-		parts = append(parts, p.TypeHint)
-	} else if p.UnionType != nil {
-		parts = append(parts, p.UnionType.TokenLiteral())
+	if text := TypeText(p.TypeHint); text != "" {
+		parts = append(parts, text)
 	}
 	if p.IsByRef {
 		parts = append(parts, "&")

@@ -53,8 +53,11 @@ interface CallableInterface {
 	if !ok {
 		t.Fatalf("Expected parameter to be ParamNode, got %T", method.Params[0])
 	}
-	if param.TypeHint != "callable" {
-		t.Errorf("Expected parameter type hint to be 'callable', got '%s'", param.TypeHint)
+	if ast.TypeText(param.TypeHint) != "callable" {
+		t.Errorf("Expected parameter type hint to be 'callable', got '%s'", ast.TypeText(param.TypeHint))
+	}
+	if _, ok := param.TypeHint.(*ast.CallableTypeNode); !ok {
+		t.Fatalf("Expected parameter type hint to be CallableTypeNode, got %T", param.TypeHint)
 	}
 	if param.Name != "handler" {
 		t.Errorf("Expected parameter name to be 'handler', got '%s'", param.Name)
@@ -114,11 +117,10 @@ interface CallableReturnTypeInterface {
 	if method.ReturnType == nil {
 		t.Fatal("Expected return type, got nil")
 	}
-	retType, ok := method.ReturnType.(*ast.IdentifierNode)
-	if !ok {
-		t.Fatalf("Expected return type to be IdentifierNode, got %T", method.ReturnType)
+	if ast.TypeText(method.ReturnType) != "callable" {
+		t.Errorf("Expected return type to be 'callable', got '%s'", ast.TypeText(method.ReturnType))
 	}
-	if retType.Value != "callable" {
-		t.Errorf("Expected return type to be 'callable', got '%v'", retType.Value)
+	if _, ok := method.ReturnType.(*ast.CallableTypeNode); !ok {
+		t.Fatalf("Expected return type to be CallableTypeNode, got %T", method.ReturnType)
 	}
 }

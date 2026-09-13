@@ -38,7 +38,7 @@ type Lexer struct {
 	line     int
 	column   int
 	inString bool // Tracks if currently inside a string
-	// For heredoc token queue
+	// Pending significant tokens (heredoc/encapsed/<?= echo expansion).
 	heredocTokens []token.Token
 	// Lookahead cache: avoids state save/restore on PeekToken
 	hasPeeked   bool
@@ -48,6 +48,16 @@ type Lexer struct {
 	// with, contain, or end with inline HTML/text; this flag switches the
 	// scanner between raw-text mode and normal PHP tokenization.
 	inHTML bool
+
+	// Encapsed / heredoc interpolation state (Zend-aligned).
+	encapsed       encapsedMode
+	heredocLabel   string
+	heredocNowdoc  bool
+	braceExprDepth int
+	afterCurlyOpen bool
+	// lastSignificant is the previous non-trivia token type, used so
+	// semi-reserved words (enum, ...) stay T_STRING after \\ / class / etc.
+	lastSignificant token.TokenType
 }
 
 // inStringMode returns whether the lexer is currently inside a string.
@@ -60,31 +70,43 @@ func (l *Lexer) inStringMode() bool {
 // peeked token isn't enough to disambiguate a construct (e.g. distinguishing
 // "public(set)" from a property type that happens to start with "(").
 type State struct {
-	pos, readPos  int
-	char          rune
-	size          int
-	line, column  int
-	inString      bool
-	heredocTokens []token.Token
-	hasPeeked     bool
-	peekedToken   token.Token
-	inHTML        bool
+	pos, readPos   int
+	char           rune
+	size           int
+	line, column   int
+	inString       bool
+	heredocTokens  []token.Token
+	hasPeeked      bool
+	peekedToken    token.Token
+	inHTML         bool
+	encapsed       encapsedMode
+	heredocLabel   string
+	heredocNowdoc  bool
+	braceExprDepth  int
+	afterCurlyOpen  bool
+	lastSignificant token.TokenType
 }
 
 // Snapshot captures the current lexer position so it can be restored later.
 func (l *Lexer) Snapshot() State {
 	return State{
-		pos:           l.pos,
-		readPos:       l.readPos,
-		char:          l.char,
-		size:          l.size,
-		line:          l.line,
-		column:        l.column,
-		inString:      l.inString,
-		heredocTokens: l.heredocTokens,
-		hasPeeked:     l.hasPeeked,
-		peekedToken:   l.peekedToken,
-		inHTML:        l.inHTML,
+		pos:             l.pos,
+		readPos:         l.readPos,
+		char:            l.char,
+		size:            l.size,
+		line:            l.line,
+		column:          l.column,
+		inString:        l.inString,
+		heredocTokens:   append([]token.Token(nil), l.heredocTokens...),
+		hasPeeked:       l.hasPeeked,
+		peekedToken:     l.peekedToken,
+		inHTML:          l.inHTML,
+		encapsed:        l.encapsed,
+		heredocLabel:    l.heredocLabel,
+		heredocNowdoc:   l.heredocNowdoc,
+		braceExprDepth:  l.braceExprDepth,
+		afterCurlyOpen:  l.afterCurlyOpen,
+		lastSignificant: l.lastSignificant,
 	}
 }
 
@@ -97,10 +119,16 @@ func (l *Lexer) Restore(s State) {
 	l.line = s.line
 	l.column = s.column
 	l.inString = s.inString
-	l.heredocTokens = s.heredocTokens
+	l.heredocTokens = append([]token.Token(nil), s.heredocTokens...)
 	l.hasPeeked = s.hasPeeked
 	l.peekedToken = s.peekedToken
 	l.inHTML = s.inHTML
+	l.encapsed = s.encapsed
+	l.heredocLabel = s.heredocLabel
+	l.heredocNowdoc = s.heredocNowdoc
+	l.braceExprDepth = s.braceExprDepth
+	l.afterCurlyOpen = s.afterCurlyOpen
+	l.lastSignificant = s.lastSignificant
 }
 
 func New(input string) *Lexer {
@@ -369,17 +397,6 @@ func stripUnderscores(s string) string {
 	return strings.ReplaceAll(s, "_", "")
 }
 
-// readOctalNumber reads and processes an octal number (0o format)
-func (l *Lexer) readOctalNumber() (string, bool) {
-	l.readChar() // consume '0'
-	l.readChar() // consume 'o' or 'O'
-	start := l.pos
-	for (l.char >= '0' && l.char <= '7') || l.char == '_' {
-		l.readChar()
-	}
-	return "0o" + stripUnderscores(l.text(start, l.pos)), false
-}
-
 func (l *Lexer) readNumber() (string, bool) {
 	position := l.pos
 	isFloat := false
@@ -393,20 +410,18 @@ func (l *Lexer) readNumber() (string, bool) {
 			// Binary literal: e.g. "0b1010".
 			l.readChar() // consume '0'
 			l.readChar() // consume 'b' or 'B'
-			start := l.pos
 			for l.char == '0' || l.char == '1' || l.char == '_' {
 				l.readChar()
 			}
-			return "0b" + stripUnderscores(l.text(start, l.pos)), false
+			return l.text(position, l.pos), false
 		case 'x', 'X':
 			// Hexadecimal literal
 			l.readChar() // consume '0'
 			l.readChar() // consume 'x' or 'X'
-			start := l.pos
 			for (l.char >= '0' && l.char <= '9') || (l.char >= 'a' && l.char <= 'f') || (l.char >= 'A' && l.char <= 'F') || l.char == '_' {
 				l.readChar()
 			}
-			return "0x" + stripUnderscores(l.text(start, l.pos)), false
+			return l.text(position, l.pos), false
 		}
 	}
 
@@ -416,11 +431,6 @@ func (l *Lexer) readNumber() (string, bool) {
 				break
 			}
 			isFloat = true
-		}
-		if l.char == '_' {
-			// PHP 7.4+ numeric literal separator, skip underscore
-			l.readChar()
-			continue
 		}
 		l.readChar()
 	}
@@ -443,7 +453,17 @@ func (l *Lexer) readNumber() (string, bool) {
 		}
 	}
 
-	return stripUnderscores(l.text(position, l.pos)), isFloat
+	return l.text(position, l.pos), isFloat
+}
+
+func (l *Lexer) readOctalNumber() (string, bool) {
+	position := l.pos
+	l.readChar() // consume '0'
+	l.readChar() // consume 'o' or 'O'
+	for (l.char >= '0' && l.char <= '7') || l.char == '_' {
+		l.readChar()
+	}
+	return l.text(position, l.pos), false
 }
 
 // readIdentifier reads a PHP identifier (supports Unicode)
@@ -459,48 +479,79 @@ func (l *Lexer) NextToken() token.Token {
 	if l.hasPeeked {
 		tok := l.peekedToken
 		l.hasPeeked = false
+		if tok.Type != token.T_EOF {
+			l.lastSignificant = tok.Type
+		}
 		return tok
 	}
-	return l.finishToken(l.scanToken())
+	tok := l.finishToken(l.scanToken())
+	if tok.Type != token.T_EOF {
+		l.lastSignificant = tok.Type
+	}
+	return tok
 }
 
 func (l *Lexer) scanToken() token.Token {
 	if len(l.heredocTokens) > 0 {
 		return l.nextHeredocToken()
 	}
+	if l.encapsed != encapsedNone {
+		l.queueEncapsedBody(l.heredocNowdoc)
+		if len(l.heredocTokens) > 0 {
+			return l.nextHeredocToken()
+		}
+	}
 	if l.inHTML {
 		return l.lexInlineHTML()
 	}
-	l.skipWhitespace()
+
+	trivia := l.collectLeadingTrivia()
 	pos := token.Position{Line: l.line, Column: l.column, Offset: l.pos}
 
-	// Attributes
-	if l.char == '#' && l.peekChar() == '[' {
-		return l.lexAttribute(pos)
-	}
-	if l.char == '#' {
-		comment := l.readHashComment()
-		return token.Token{Type: token.T_COMMENT, Literal: comment, Pos: pos}
+	if l.atEOF() {
+		tok := token.Token{Type: token.T_EOF, Literal: "", Pos: pos, End: pos}
+		tok.TrailingTrivia = trivia
+		return tok
 	}
 
+	// Attributes: T_ATTRIBUTE is only "#[" (Zend).
+	if l.char == '#' && l.peekChar() == '[' {
+		tok := l.lexAttribute(pos)
+		tok.LeadingTrivia = trivia
+		return tok
+	}
+
+	var tok token.Token
 	switch l.char {
 	case '?':
-		return l.lexQuestion(pos)
-	case 0:
-		return token.Token{Type: token.T_EOF, Literal: "", Pos: pos}
+		tok = l.lexQuestion(pos)
 	case '+', '-', '*', '/', '%', '|', '^', '>', '<', '$', '=', '(', ')', '{', '}', ';', ',', '&', '.', '"', '\'', '\\', ':', '[', ']', '!', '@', '~':
-		return l.lexSymbol(pos)
+		tok = l.lexSymbol(pos)
+	default:
+		if isLetter(l.char) {
+			tok = l.lexIdentifier(pos)
+		} else if isDigit(l.char) {
+			tok = l.lexNumber(pos)
+		} else {
+			tok = token.Token{Type: token.T_ILLEGAL, Literal: asciiString(l.char), Pos: pos}
+			l.readChar()
+			tok.End = token.Position{Line: l.line, Column: l.column, Offset: l.pos}
+		}
 	}
 
-	if isLetter(l.char) {
-		return l.lexIdentifier(pos)
+	tok.LeadingTrivia = trivia
+	// After {$expr} / ${...}, a closing '}' resumes encapsed scanning.
+	if l.afterCurlyOpen {
+		switch tok.Type {
+		case token.T_LBRACE:
+			l.braceExprDepth++
+		case token.T_RBRACE:
+			l.braceExprDepth--
+			if l.braceExprDepth <= 0 {
+				l.resumeEncapsedAfterBrace()
+			}
+		}
 	}
-	if isDigit(l.char) {
-		return l.lexNumber(pos)
-	}
-
-	tok := token.Token{Type: token.T_ILLEGAL, Literal: asciiString(l.char), Pos: pos}
-	l.readChar()
 	return tok
 }
 
@@ -568,41 +619,6 @@ func (l *Lexer) lexOpenTag(pos token.Position) token.Token {
 }
 
 // --- Helper methods for NextToken ---
-
-func (l *Lexer) lexAttribute(pos token.Position) token.Token {
-	startPos := l.pos
-	startLine := l.line
-	startCol := l.column
-	l.readChar() // '#'
-	l.readChar() // '['
-	depth := 1
-	for !l.atEOF() && depth > 0 {
-		// Skip string literals so '[' or ']' inside them don't affect depth.
-		if l.char == '\'' || l.char == '"' {
-			quote := l.char
-			l.readChar() // consume opening quote
-			for !l.atEOF() && l.char != quote {
-				if l.char == '\\' {
-					l.readChar() // skip escaped char
-				}
-				l.readChar()
-			}
-			if l.char == quote {
-				l.readChar() // consume closing quote
-			}
-			continue
-		}
-		if l.char == '[' {
-			depth++
-		} else if l.char == ']' {
-			depth--
-		}
-		l.readChar()
-	}
-	endPos := l.pos
-	attrLiteral := l.text(startPos, endPos)
-	return token.Token{Type: token.T_ATTRIBUTE, Literal: attrLiteral, Pos: token.Position{Line: startLine, Column: startCol, Offset: startPos}}
-}
 
 func (l *Lexer) lexQuestion(pos token.Position) token.Token {
 	if l.peekChar() == '-' && l.readPos+1 < len(l.input) && l.input[l.readPos+1] == '>' {
@@ -709,13 +725,78 @@ func (l *Lexer) lexSymbol(pos token.Position) token.Token {
 
 func (l *Lexer) lexIdentifier(pos token.Position) token.Token {
 	ident := l.readIdentifier()
-	return LookupKeyword(ident, pos)
+	tok := LookupKeyword(ident, pos)
+	tok.End = token.Position{Line: l.line, Column: l.column, Offset: l.pos}
+	// Semi-reserved keywords are T_STRING in name contexts (App\Enum, class Enum).
+	if isSemiReserved(tok.Type) && forcesStringIdent(l.lastSignificant) {
+		tok.Type = token.T_STRING
+	}
+	return tok
+}
+
+func forcesStringIdent(prev token.TokenType) bool {
+	switch prev {
+	case token.T_NS_SEPARATOR, token.T_CLASS, token.T_INTERFACE, token.T_TRAIT, token.T_ENUM,
+		token.T_FUNCTION, token.T_CONST, token.T_EXTENDS, token.T_IMPLEMENTS,
+		token.T_AS, token.T_OBJECT_OPERATOR, token.T_NULLSAFE_OBJECT_OPERATOR,
+		token.T_DOUBLE_COLON, token.T_GOTO, token.T_NAMESPACE:
+		return true
+	default:
+		return false
+	}
+}
+
+func isSemiReserved(tt token.TokenType) bool {
+	switch tt {
+	case token.T_ENUM, token.T_MATCH, token.T_SELF, token.T_PARENT, token.T_STATIC,
+		token.T_MIXED, token.T_NEVER, token.T_TRUE, token.T_FALSE, token.T_NULL,
+		token.T_ARRAY, token.T_CALLABLE, token.T_READONLY,
+		token.T_ABSTRACT, token.T_FINAL, token.T_PUBLIC, token.T_PRIVATE, token.T_PROTECTED,
+		token.T_LOGICAL_AND, token.T_LOGICAL_OR, token.T_LOGICAL_XOR:
+		return true
+	default:
+		return false
+	}
 }
 
 func (l *Lexer) lexNumber(pos token.Position) token.Token {
 	num, isFloat := l.readNumber()
+	end := token.Position{Line: l.line, Column: l.column, Offset: l.pos}
 	if isFloat {
-		return token.Token{Type: token.T_DNUMBER, Literal: num, Pos: pos}
+		return token.Token{Type: token.T_DNUMBER, Literal: num, Pos: pos, End: end}
 	}
-	return token.Token{Type: token.T_LNUMBER, Literal: num, Pos: pos}
+	return token.Token{Type: token.T_LNUMBER, Literal: num, Pos: pos, End: end}
+}
+
+// LexAll returns every significant token with trivia attached, through T_EOF.
+func LexAll(src []byte) []token.Token {
+	l := NewFileBytes(src)
+	var toks []token.Token
+	for {
+		tok := l.NextToken()
+		toks = append(toks, tok)
+		if tok.Type == token.T_EOF {
+			return toks
+		}
+	}
+}
+
+// PrintTokens concatenates leading trivia + token text (+ trailing on EOF)
+// covering the full source. Identity: PrintTokens(LexAll(src), src) == string(src)
+// when the lexer is lossless.
+func PrintTokens(toks []token.Token, src []byte) string {
+	var b strings.Builder
+	b.Grow(len(src))
+	for _, tok := range toks {
+		for _, tr := range tok.LeadingTrivia {
+			b.WriteString(tr.Text(src))
+		}
+		if tok.Type != token.T_EOF {
+			b.WriteString(tok.Text(src))
+		}
+		for _, tr := range tok.TrailingTrivia {
+			b.WriteString(tr.Text(src))
+		}
+	}
+	return b.String()
 }

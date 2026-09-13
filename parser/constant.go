@@ -11,11 +11,9 @@ func (p *Parser) parseConstant() []*ast.ConstantNode {
 	return p.parseConstantWithModifiers(nil)
 }
 
-func (p *Parser) parseConstantWithModifiers(modifiers []string) []*ast.ConstantNode {
-	visibility := visibilityFromModifiers(modifiers)
+func (p *Parser) parseConstantWithModifiers(modifiers ast.ModifierList) []*ast.ConstantNode {
 	if len(modifiers) == 0 && (p.tok.Type == token.T_PUBLIC || p.tok.Type == token.T_PROTECTED || p.tok.Type == token.T_PRIVATE) {
-		visibility = p.tok.Literal
-		modifiers = append(modifiers, p.tok.Literal)
+		modifiers = ast.ModifierList{{Tok: p.tok.Type, Text: p.tok.Literal}}
 		p.nextToken()
 	}
 	if p.tok.Type != token.T_CONST {
@@ -24,16 +22,16 @@ func (p *Parser) parseConstantWithModifiers(modifiers []string) []*ast.ConstantN
 	}
 	phpdoc := p.consumeCurrentDoc(p.tok.Pos)
 	p.nextToken() // consume 'const'
-	typeStr := ""
+	var typeNode ast.Node
 	if isConstTypeToken(p.tok.Type) {
 		// Speculatively parse a (possibly union/intersection) type; only
 		// keep it if a constant name (T_STRING) follows, e.g.
 		// "const string|int BAR = 'bar';" vs. plain "const BAR = 1;"
 		// (where "BAR" itself would otherwise look like a type token).
 		cp := p.checkpoint()
-		candidate := p.parseTypeHint()
+		candidate := p.parseTypeNode()
 		if p.tok.Type == token.T_STRING {
-			typeStr = candidate
+			typeNode = candidate
 		} else {
 			p.restore(cp)
 		}
@@ -48,12 +46,12 @@ func (p *Parser) parseConstantWithModifiers(modifiers []string) []*ast.ConstantN
 		}
 		name := p.tok.Literal
 		p.nextToken() // consume name
-		itemType := typeStr
+		itemType := typeNode
 		if p.tok.Type == token.T_COLON {
 			p.nextToken() // consume ':'
 			// Parse type (simple identifier or namespaced)
 			if p.tok.Type == token.T_STRING {
-				itemType = p.tok.Literal
+				itemType = &ast.IdentifierNode{Value: p.tok.Literal, Pos: ast.Position(p.tok.Pos)}
 				p.nextToken()
 			}
 		}
@@ -67,13 +65,12 @@ func (p *Parser) parseConstantWithModifiers(modifiers []string) []*ast.ConstantN
 			p.nextToken()
 		}
 		constants = append(constants, &ast.ConstantNode{
-			Name:       name,
-			Type:       itemType,
-			Visibility: visibility,
-			Modifiers:  append([]string(nil), modifiers...),
-			Value:      value,
-			PHPDoc:     phpdoc,
-			Pos:        ast.Position(pos),
+			Name:      name,
+			Type:      itemType,
+			Modifiers: append(ast.ModifierList(nil), modifiers...),
+			Value:     value,
+			PHPDoc:    phpdoc,
+			Pos:       ast.Position(pos),
 		})
 		if p.tok.Type == token.T_COMMA {
 			p.nextToken() // consume ',' and parse the next grouped constant
@@ -97,20 +94,5 @@ func isConstantNameToken(tokenType token.TokenType) bool {
 }
 
 func isConstTypeToken(tokenType token.TokenType) bool {
-	switch tokenType {
-	case token.T_ARRAY, token.T_CALLABLE, token.T_STRING, token.T_NULL:
-		return true
-	default:
-		return false
-	}
-}
-
-func visibilityFromModifiers(modifiers []string) string {
-	for _, modifier := range modifiers {
-		switch modifier {
-		case "public", "protected", "private":
-			return modifier
-		}
-	}
-	return ""
+	return isNativeTypeStart(token.Token{Type: tokenType})
 }

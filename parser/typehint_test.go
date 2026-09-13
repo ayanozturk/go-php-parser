@@ -30,8 +30,8 @@ function foo(null|\Product\Custom\Entity $customProductEntity) {}`
 		t.Fatalf("Expected parameter to be ParamNode, got %T", funcNode.Params[0])
 	}
 	expected := "null|\\Product\\Custom\\Entity"
-	if param.TypeHint != expected {
-		t.Errorf("Expected type hint '%s', got '%s'", expected, param.TypeHint)
+	if ast.TypeText(param.TypeHint) != expected {
+		t.Errorf("Expected type hint '%s', got '%s'", expected, ast.TypeText(param.TypeHint))
 	}
 }
 
@@ -58,7 +58,7 @@ function foo(array &$missingFields) {}`
 	if !ok {
 		t.Fatalf("Expected parameter to be ParamNode, got %T", funcNode.Params[0])
 	}
-	if param.TypeHint != "array" {
+	if ast.TypeText(param.TypeHint) != "array" {
 		t.Fatalf("Expected type hint 'array', got %q", param.TypeHint)
 	}
 	if !param.IsByRef {

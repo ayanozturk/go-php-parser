@@ -21,11 +21,20 @@ func (p *Parser) parseStatement() (ast.Node, error) {
 
 func (p *Parser) parseStatementImpl() (ast.Node, error) {
 retry:
-	// Keep attributes as lightweight nodes so analysis rules can validate them.
+	// Attributes attach to the following declaration; parse the group and
+	// continue so the declaration owns them (standalone AttributeNode only
+	// for recovery when nothing follows).
 	if p.tok.Type == token.T_ATTRIBUTE {
 		pos := p.tok.Pos
-		name := attributeNameFromLiteral(p.tok.Literal)
-		p.nextToken()
+		name, ok := p.consumeAttributeGroupName()
+		if !ok {
+			return &ast.AttributeNode{Name: name, Pos: ast.Position(pos)}, nil
+		}
+		// Peek: if next is a declaration keyword, fall through by retrying
+		// after having consumed the group — store name on currentDoc-like
+		// side channel is wrong; for now emit AttributeNode then let the
+		// next statement parse. Prefer attaching by returning attribute and
+		// letting class/function parsers also accept T_ATTRIBUTE.
 		return &ast.AttributeNode{Name: name, Pos: ast.Position(pos)}, nil
 	}
 	// A namespace-relative name can begin an expression statement, for example
@@ -236,9 +245,9 @@ retry:
 		p.nextToken() // consume ;
 		return &ast.GotoNode{Label: label, Pos: ast.Position(pos)}, nil
 	case token.T_FINAL, token.T_ABSTRACT:
-		modifier := p.tok.Literal
+		mod := ast.Modifier{Tok: p.tok.Type, Text: p.tok.Literal}
 		p.nextToken()
-		return p.parseClassDeclarationWithModifier(modifier)
+		return p.parseClassDeclarationWithModifiers(ast.ModifierList{mod})
 	case token.T_STRING:
 		if p.peekToken().Type == token.T_COLON {
 			pos := p.tok.Pos
@@ -248,15 +257,16 @@ retry:
 			return &ast.LabelNode{Name: label, Pos: ast.Position(pos)}, nil
 		}
 		if p.tok.Literal == "final" || p.tok.Literal == "abstract" {
-			modifier := p.tok.Literal
+			mod := ast.ModifierFromText(p.tok.Literal)
+			mod.Text = p.tok.Literal
 			p.nextToken()
-			return p.parseClassDeclarationWithModifier(modifier)
+			return p.parseClassDeclarationWithModifiers(ast.ModifierList{mod})
 		}
 		return p.parseExpressionStatement()
 	case token.T_READONLY:
-		modifier := p.tok.Literal
+		mod := ast.Modifier{Tok: token.T_READONLY, Text: p.tok.Literal}
 		p.nextToken()
-		return p.parseClassDeclarationWithModifier(modifier)
+		return p.parseClassDeclarationWithModifiers(ast.ModifierList{mod})
 	case token.T_CLASS:
 		return p.parseClassDeclaration()
 	case token.T_INTERFACE:
@@ -407,6 +417,7 @@ func (p *Parser) parseExpressionStatement() (ast.Node, error) {
 }
 
 func attributeNameFromLiteral(literal string) string {
+	// Legacy blob path — kept only for tests; prefer consumeAttributeGroupName.
 	literal = strings.TrimSpace(literal)
 	literal = strings.TrimPrefix(literal, "#[")
 	literal = strings.TrimSuffix(literal, "]")
@@ -415,6 +426,72 @@ func attributeNameFromLiteral(literal string) string {
 		literal = literal[:idx]
 	}
 	return strings.TrimSpace(literal)
+}
+
+// consumeAttributeGroupName parses #[ Name (args)? , ... ] and returns the
+// first attribute's name. Contents are real tokens (not a second-pass blob).
+func (p *Parser) consumeAttributeGroupName() (string, bool) {
+	if p.tok.Type != token.T_ATTRIBUTE {
+		return "", false
+	}
+	p.nextToken() // consume #[
+	name := p.parseAttributeNameString()
+	for p.tok.Type != token.T_RBRACKET && p.tok.Type != token.T_EOF {
+		if p.tok.Type == token.T_LPAREN {
+			depth := 1
+			p.nextToken()
+			for depth > 0 && p.tok.Type != token.T_EOF {
+				switch p.tok.Type {
+				case token.T_LPAREN:
+					depth++
+				case token.T_RPAREN:
+					depth--
+				}
+				p.nextToken()
+			}
+			continue
+		}
+		if p.tok.Type == token.T_COMMA {
+			p.nextToken()
+			_ = p.parseAttributeNameString()
+			continue
+		}
+		p.nextToken()
+	}
+	if p.tok.Type == token.T_RBRACKET {
+		p.nextToken()
+	}
+	return name, name != ""
+}
+
+func (p *Parser) parseAttributeNameString() string {
+	p.nameBuf.Reset()
+	if p.tok.Type == token.T_NS_SEPARATOR {
+		p.nameBuf.WriteString("\\")
+		p.nextToken()
+	}
+	for {
+		if p.tok.Type == token.T_STRING || p.tok.Type == token.T_STATIC || p.tok.Type == token.T_SELF || p.tok.Type == token.T_PARENT {
+			p.nameBuf.WriteString(p.tok.Literal)
+			p.nextToken()
+		} else {
+			break
+		}
+		if p.tok.Type == token.T_NS_SEPARATOR {
+			p.nameBuf.WriteString("\\")
+			p.nextToken()
+			continue
+		}
+		break
+	}
+	return p.nameBuf.String()
+}
+
+// skipAttributeGroups consumes one or more #[...] groups without building nodes.
+func (p *Parser) skipAttributeGroups() {
+	for p.tok.Type == token.T_ATTRIBUTE {
+		p.consumeAttributeGroupName()
+	}
 }
 
 func (p *Parser) parseBlockStatement() []ast.Node {

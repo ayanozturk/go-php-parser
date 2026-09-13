@@ -10,8 +10,8 @@ func TestConstantNode_Basic(t *testing.T) {
 	pos := Position{Line: 10, Column: 5}
 	n := &ConstantNode{
 		Name:       "FOO",
-		Type:       "int",
-		Visibility: "public",
+		Type:       &IdentifierNode{Value: "int"},
+		Modifiers: ModifierListFromTexts([]string{"public"}),
 		Value:      val,
 		Pos:        pos,
 	}
@@ -35,11 +35,11 @@ func TestConstantNode_Basic(t *testing.T) {
 	if n.Name != "FOO" {
 		t.Errorf("Name = %s; want FOO", n.Name)
 	}
-	if n.Type != "int" {
-		t.Errorf("Type = %s; want int", n.Type)
+	if TypeText(n.Type) != "int" {
+		t.Errorf("Type = %s; want int", TypeText(n.Type))
 	}
-	if n.Visibility != "public" {
-		t.Errorf("Visibility = %s; want public", n.Visibility)
+	if n.Modifiers.Visibility() != "public" {
+		t.Errorf("Visibility = %s; want public", n.Modifiers.Visibility())
 	}
 	if !reflect.DeepEqual(n.Value, val) {
 		t.Errorf("Value = %+v; want %+v", n.Value, val)

@@ -28,9 +28,9 @@ func (idx *ProjectIndex) indexNodes(filename string, nodes []ast.Node, ft FileTy
 				GenericParents:        genericParents,
 				Traits:                traitUsesFromMembers(n.Properties, ft),
 				Kind:                  "class",
-				Final:                 strings.Contains(n.Modifier, "final"),
-				Abstract:              strings.Contains(n.Modifier, "abstract"),
-				Readonly:              strings.Contains(n.Modifier, "readonly"),
+				Final:                 n.Modifiers.HasName("final"),
+				Abstract:              n.Modifiers.HasName("abstract"),
+				Readonly:              n.Modifiers.HasName("readonly"),
 				ConsistentConstructor: hasPHPStanConsistentConstructorTag(n.PHPDoc),
 			}
 			idx.addClass(filename, class, n)
@@ -60,11 +60,12 @@ func (idx *ProjectIndex) indexNodes(filename string, nodes []ast.Node, ft FileTy
 				continue
 			}
 			name := ft.resolveClassLike(n.Name)
-			returnType := n.ReturnType
+			nativeReturn := ast.TypeText(n.ReturnType)
+			returnType := nativeReturn
 			if n.PHPDoc != nil && n.PHPDoc.ReturnType != "" {
 				returnType = n.PHPDoc.ReturnType
 			}
-			returnType = collapsePHPDocConditionalType(returnType, n.ReturnType)
+			returnType = collapsePHPDocConditionalType(returnType, nativeReturn)
 			returnType = expandPHPDocTypeAliases(returnType, phpDocTypeAliasBindings(n.PHPDoc))
 			callableReturn := callableReturnType(returnType, ft)
 			normalizedReturn := normalizeTypeWithContext(returnType, ft)
@@ -100,8 +101,8 @@ func (idx *ProjectIndex) indexPromotedProperties(filename, className string, con
 		idx.addProperty(className, ResolvedProperty{
 			Declaration: sourceLocation(filename, param),
 			Name:        param.Name,
-			Type:        richerGenericType(param.TypeHint, docType, ft),
-			Visibility:  defaultVisibility(param.Visibility),
+			Type:        richerGenericType(ast.TypeText(param.TypeHint), docType, ft),
+			Visibility:  param.Modifiers.DefaultVisibility(),
 			Readonly:    param.IsReadonly,
 		})
 	}
@@ -111,7 +112,7 @@ func (idx *ProjectIndex) indexClassMembers(filename, className string, propertie
 	for _, propNode := range properties {
 		switch p := propNode.(type) {
 		case *ast.PropertyNode:
-			rawType := p.TypeHint
+			rawType := ast.TypeText(p.TypeHint)
 			docType := ""
 			if p.PHPDoc != nil {
 				docType = p.PHPDoc.VarType
@@ -129,7 +130,7 @@ func (idx *ProjectIndex) indexClassMembers(filename, className string, propertie
 				Name:               p.Name,
 				Type:               normalizedType,
 				CallableReturnType: callableReturn.dnfString(),
-				Visibility:         defaultVisibility(p.Visibility),
+				Visibility:         p.Modifiers.DefaultVisibility(),
 				IsStatic:           p.IsStatic,
 				Readonly:           p.IsReadonly,
 			})
@@ -162,7 +163,7 @@ func (idx *ProjectIndex) indexInterfaceMembers(filename, className string, membe
 		case *ast.InterfaceMethodNode:
 			nativeReturn := ""
 			if m.ReturnType != nil {
-				nativeReturn = m.ReturnType.TokenLiteral()
+				nativeReturn = ast.TypeText(m.ReturnType)
 			}
 			returnType := nativeReturn
 			if m.PHPDoc != nil && m.PHPDoc.ReturnType != "" {
@@ -191,7 +192,7 @@ func (idx *ProjectIndex) indexInterfaceMembers(filename, className string, membe
 			}
 			idx.addMethod(className, ResolvedMethod{Name: m.Name, DeclaringClass: className, Declaration: sourceLocation(filename, m), ReturnType: normalizedReturn, NativeReturnType: nativeReturnType, CallableReturnType: callableReturn.dnfString(), Params: paramsFromNodesWithPHPDoc(m.Params, m.PHPDoc, ft, templates, aliases), Visibility: "public", Abstract: true})
 		case *ast.PropertyNode:
-			rawType := m.TypeHint
+			rawType := ast.TypeText(m.TypeHint)
 			docType := ""
 			if m.PHPDoc != nil {
 				docType = m.PHPDoc.VarType
@@ -435,11 +436,12 @@ func phpDocTypeAliasBindings(docs ...*ast.PHPDocNode) map[string]string {
 
 func methodFromFunction(filename, className string, fn *ast.FunctionNode, ft FileTypeContext, classDoc *ast.PHPDocNode, templateParams []string) ResolvedMethod {
 	aliases := phpDocTypeAliasBindings(classDoc, fn.PHPDoc)
-	returnType := fn.ReturnType
+	nativeReturn := ast.TypeText(fn.ReturnType)
+	returnType := nativeReturn
 	if fn.PHPDoc != nil && fn.PHPDoc.ReturnType != "" {
 		returnType = fn.PHPDoc.ReturnType
 	}
-	returnType = collapsePHPDocConditionalType(returnType, fn.ReturnType)
+	returnType = collapsePHPDocConditionalType(returnType, nativeReturn)
 	returnType = expandPHPDocTypeAliases(returnType, aliases)
 	templates := mergeTemplateNames(templateNames(templateParams), nil)
 	if fn.PHPDoc != nil {
@@ -456,8 +458,8 @@ func methodFromFunction(filename, className string, fn *ast.FunctionNode, ft Fil
 		normalizedReturn = "callable"
 	}
 	nativeReturnType := ""
-	if fn.ReturnType != "" {
-		nativeReturnType = normalizeTemplateAwareType(fn.ReturnType, ft, templates)
+	if nativeReturn != "" {
+		nativeReturnType = normalizeTemplateAwareType(nativeReturn, ft, templates)
 	}
 	method := ResolvedMethod{
 		Name:               fn.Name,
@@ -505,7 +507,7 @@ func resolvedGenericMetadata(doc *ast.PHPDocNode, ft FileTypeContext) ([]string,
 }
 
 func constantFromNode(filename, className string, c *ast.ConstantNode, ft FileTypeContext) ResolvedConstant {
-	typ := c.Type
+	typ := ast.TypeText(c.Type)
 	if typ == "" && c.PHPDoc != nil && c.PHPDoc.VarType != "" {
 		typ = c.PHPDoc.VarType
 	}
@@ -514,7 +516,7 @@ func constantFromNode(filename, className string, c *ast.ConstantNode, ft FileTy
 		DeclaringClass: className,
 		Declaration:    sourceLocation(filename, c),
 		Type:           normalizeTypeWithContext(typ, ft),
-		Visibility:     defaultVisibility(c.Visibility),
+		Visibility:     c.Modifiers.DefaultVisibility(),
 		Final:          hasModifier(c.Modifiers, "final"),
 	}
 }
@@ -526,17 +528,19 @@ func sourceLocation(filename string, node ast.Node) SourceLocation {
 	return SourceLocation{File: filename, Start: node.GetPos(), End: node.GetEndPos()}
 }
 
+func hasModifier(modifiers ast.ModifierList, wanted string) bool {
+	return modifiers.HasName(wanted)
+}
+
+func defaultVisibility(visibility string) string {
+	if visibility == "" {
+		return "public"
+	}
+	return visibility
+}
+
 func functionVisibility(fn *ast.FunctionNode) string {
-	if fn.Visibility != "" {
-		return defaultVisibility(fn.Visibility)
-	}
-	if hasModifier(fn.Modifiers, "private") {
-		return "private"
-	}
-	if hasModifier(fn.Modifiers, "protected") {
-		return "protected"
-	}
-	return "public"
+	return fn.Modifiers.DefaultVisibility()
 }
 
 func paramsFromNodes(nodes []ast.Node, ft FileTypeContext) []ResolvedParam {
@@ -559,10 +563,7 @@ func paramsFromNodesWithPHPDoc(nodes []ast.Node, doc *ast.PHPDocNode, ft FileTyp
 		if !ok {
 			continue
 		}
-		typ := param.TypeHint
-		if typ == "" && param.UnionType != nil {
-			typ = param.UnionType.TokenLiteral()
-		}
+		typ := ast.TypeText(param.TypeHint)
 		native := typ
 		if param.PHPDoc != nil && param.PHPDoc.VarType != "" {
 			typ = param.PHPDoc.VarType
@@ -644,22 +645,6 @@ func optionalList(value string) []string {
 		return nil
 	}
 	return []string{value}
-}
-
-func hasModifier(modifiers []string, wanted string) bool {
-	for _, modifier := range modifiers {
-		if strings.EqualFold(modifier, wanted) {
-			return true
-		}
-	}
-	return false
-}
-
-func defaultVisibility(visibility string) string {
-	if visibility == "" {
-		return "public"
-	}
-	return visibility
 }
 
 func indexKey(name string) string {

@@ -383,9 +383,40 @@ type Position struct {
 
 type Token struct {
 	Type    TokenType
-	Literal string
+	Literal string // debug / legacy; prefer Text(src) for exact source bytes
 	Pos     Position
 	End     Position
+	// LeadingTrivia holds whitespace/comments immediately before this token.
+	// TrailingTrivia is used on T_EOF (and occasionally close-tag) for leftover trivia.
+	LeadingTrivia  []Token
+	TrailingTrivia []Token
+}
+
+// Text returns the exact source slice for this token's [Pos, End) span.
+// Falls back to Literal when offsets are unset (hand-built test tokens).
+func (t Token) Text(src []byte) string {
+	if t.End.Offset > t.Pos.Offset && t.Pos.Offset >= 0 && t.End.Offset <= len(src) {
+		return string(src[t.Pos.Offset:t.End.Offset])
+	}
+	return t.Literal
+}
+
+// IsTrivia reports whether this token kind is whitespace or a comment.
+func (t Token) IsTrivia() bool {
+	switch t.Type {
+	case T_WHITESPACE, T_COMMENT, T_DOC_COMMENT:
+		return true
+	default:
+		return false
+	}
+}
+
+// Width returns the byte width of the token's significant text (excluding trivia).
+func (t Token) Width() int {
+	if t.End.Offset > t.Pos.Offset {
+		return t.End.Offset - t.Pos.Offset
+	}
+	return len(t.Literal)
 }
 
 // EndPos returns the position immediately after this token's literal text,

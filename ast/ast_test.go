@@ -794,7 +794,7 @@ func TestUseNodeNoAlias(t *testing.T) {
 func TestArrowFunctionNode(t *testing.T) {
 	param := &Variable{Name: "x", Pos: Position{Line: 1, Column: 2}}
 	expr := &IntegerLiteral{Value: 42, Pos: Position{Line: 2, Column: 3}}
-	a := &ArrowFunctionNode{Params: []Node{param}, ReturnType: "int", Expr: expr, Pos: Position{Line: 3, Column: 4}}
+	a := &ArrowFunctionNode{Params: []Node{param}, ReturnType: &IdentifierNode{Value: "int"}, Expr: expr, Pos: Position{Line: 3, Column: 4}}
 	if a.NodeType() != "ArrowFunction" {
 		t.Errorf(errNodeType, a.NodeType())
 	}

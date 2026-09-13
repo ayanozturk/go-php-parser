@@ -30,10 +30,13 @@ func TestLexerObjectOperator(t *testing.T) {
 }
 
 func TestLexerDocComment(t *testing.T) {
-	lex := New("/** doc */")
+	lex := New("/** doc */$x")
 	tok := lex.NextToken()
-	if tok.Type != token.T_DOC_COMMENT {
-		t.Errorf("expected T_DOC_COMMENT, got %v", tok.Type)
+	if tok.Type != token.T_VARIABLE {
+		t.Fatalf("expected T_VARIABLE after trivia, got %v", tok.Type)
+	}
+	if len(tok.LeadingTrivia) != 1 || tok.LeadingTrivia[0].Type != token.T_DOC_COMMENT {
+		t.Fatalf("expected leading T_DOC_COMMENT trivia, got %+v", tok.LeadingTrivia)
 	}
 }
 
@@ -248,16 +251,16 @@ func TestHelperIsDigit(t *testing.T) {
 }
 
 func TestLexerStringEscapes(t *testing.T) {
+	// Lossless: Literal is exact source text including quotes and escapes.
 	cases := []struct {
-		input    string
-		expected string
+		input string
 	}{
-		{"'foo\\nbar'", "foo\nbar"},
-		{"'foo\\tbar'", "foo\tbar"},
-		{"'foo\\rbar'", "foo\rbar"},
-		{"'foo\\'bar'", "foo'bar"},
-		{"'foo\\\\bar'", "foo\\bar"},
-		{"'foo\\xbar'", "foo\\xbar"},
+		{"'foo\\nbar'"},
+		{"'foo\\tbar'"},
+		{"'foo\\rbar'"},
+		{"'foo\\'bar'"},
+		{"'foo\\\\bar'"},
+		{"'foo\\xbar'"},
 	}
 	for _, c := range cases {
 		lex := New(c.input)
@@ -265,8 +268,8 @@ func TestLexerStringEscapes(t *testing.T) {
 		if tok.Type != token.T_CONSTANT_STRING && tok.Type != token.T_CONSTANT_ENCAPSED_STRING {
 			t.Errorf(expectedStringTokenMsg, tok.Type)
 		}
-		if tok.Literal != c.expected {
-			t.Errorf("expected %q, got %q", c.expected, tok.Literal)
+		if tok.Literal != c.input {
+			t.Errorf("expected %q, got %q", c.input, tok.Literal)
 		}
 	}
 }
@@ -405,11 +408,10 @@ func TestLexerNumberLiteral(t *testing.T) {
 		{"123", token.T_LNUMBER, "123"},
 		{"45.67", token.T_DNUMBER, "45.67"},
 		{"0o123", token.T_LNUMBER, "0o123"},
-		{"0O777", token.T_LNUMBER, "0o777"},
-		{"0o1_2_3", token.T_LNUMBER, "0o123"},
-		// Invalid octal: should still parse as LNUMBER, but literal will be incomplete or illegal
+		{"0O777", token.T_LNUMBER, "0O777"},
+		{"0o1_2_3", token.T_LNUMBER, "0o1_2_3"},
 		{"0o", token.T_LNUMBER, "0o"},
-		{"0o_123", token.T_LNUMBER, "0o123"},
+		{"0o_123", token.T_LNUMBER, "0o_123"},
 		{"0o89", token.T_LNUMBER, "0o"}, // 8 and 9 not valid, should stop at prefix
 	}
 	for _, c := range cases {
@@ -425,18 +427,22 @@ func TestLexerNumberLiteral(t *testing.T) {
 }
 
 func TestLexerCommentModes(t *testing.T) {
-	lex := New("// line\n/* block */\n# hash")
-	tok1 := lex.NextToken()
-	tok2 := lex.NextToken()
-	tok3 := lex.NextToken()
-	if tok1.Type != token.T_COMMENT {
-		t.Errorf("expected T_COMMENT, got %v", tok1.Type)
+	lex := New("// line\n/* block */\n# hash\n$x")
+	tok := lex.NextToken()
+	if tok.Type != token.T_VARIABLE {
+		t.Fatalf("expected T_VARIABLE, got %v", tok.Type)
 	}
-	if tok2.Type != token.T_COMMENT {
-		t.Errorf("expected T_COMMENT, got %v", tok2.Type)
+	if len(tok.LeadingTrivia) < 3 {
+		t.Fatalf("expected >=3 leading trivia comments/ws, got %d %+v", len(tok.LeadingTrivia), tok.LeadingTrivia)
 	}
-	if tok3.Type != token.T_COMMENT {
-		t.Errorf("expected T_COMMENT, got %v", tok3.Type)
+	var comments int
+	for _, tr := range tok.LeadingTrivia {
+		if tr.Type == token.T_COMMENT {
+			comments++
+		}
+	}
+	if comments != 3 {
+		t.Fatalf("expected 3 T_COMMENT trivia, got %d", comments)
 	}
 }
 

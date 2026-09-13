@@ -134,7 +134,7 @@ interface Foo {
 	if !ok {
 		t.Fatalf("Expected UnionTypeNode, got %T", method.ReturnType)
 	}
-	if len(union.Types) != 2 || union.Types[0] != "string" || union.Types[1] != "\\Stringable" {
-		t.Errorf("Expected union types [string \\Stringable], got %v", union.Types)
+	if len(union.Types) != 2 || ast.TypeText(union.Types[0]) != "string" || ast.TypeText(union.Types[1]) != "\\Stringable" {
+		t.Errorf("Expected union types [string \\Stringable], got %v / %v", ast.TypeText(union.Types[0]), ast.TypeText(union.Types[1]))
 	}
 }

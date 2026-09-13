@@ -1,0 +1,193 @@
+package syntax
+
+import (
+	"strings"
+
+	"github.com/ayanozturk/go-php-parser/token"
+)
+
+// Diagnostic is a structured parse/analysis error with a source span.
+type Diagnostic struct {
+	Message string
+	Span    Span
+}
+
+// ParseResult is the versioned public parse API.
+type ParseResult struct {
+	File        *File
+	Diagnostics []Diagnostic
+	PHPVersion  string
+}
+
+// NameText returns the reconstructed name text without trivia (parts joined).
+func NameText(n *RedNode) string {
+	if n == nil {
+		return ""
+	}
+	switch n.Kind() {
+	case KindUnqualifiedName, KindQualifiedName, KindFullyQualifiedName, KindRelativeName, KindName:
+		var b []byte
+		for _, c := range n.Children() {
+			if c.Green != nil && c.Green.IsToken() {
+				tok := c.Green.Token
+				if tok.Type == token.T_STRING || tok.Type == token.T_NS_SEPARATOR ||
+					tok.Type == token.T_NAMESPACE || tok.Type == token.T_SELF ||
+					tok.Type == token.T_PARENT || tok.Type == token.T_STATIC {
+					b = append(b, []byte(tok.Literal)...)
+				}
+			}
+		}
+		return string(b)
+	default:
+		return n.Text()
+	}
+}
+
+// TypeText reconstructs a type node's source without leading/trailing trivia gaps.
+func TypeText(n *RedNode) string {
+	if n == nil {
+		return ""
+	}
+	return trimOuterWS(n.Text())
+}
+
+func trimOuterWS(s string) string {
+	i, j := 0, len(s)
+	for i < j && (s[i] == ' ' || s[i] == '\t' || s[i] == '\n' || s[i] == '\r') {
+		i++
+	}
+	for j > i && (s[j-1] == ' ' || s[j-1] == '\t' || s[j-1] == '\n' || s[j-1] == '\r') {
+		j--
+	}
+	return s[i:j]
+}
+
+// FirstChildOfKind returns the first direct child with the given kind.
+func (r *RedNode) FirstChildOfKind(k Kind) *RedNode {
+	for _, c := range r.Children() {
+		if c.Kind() == k {
+			return c
+		}
+	}
+	return nil
+}
+
+// ChildrenOfKind returns all direct children of kind k.
+func (r *RedNode) ChildrenOfKind(k Kind) []*RedNode {
+	var out []*RedNode
+	for _, c := range r.Children() {
+		if c.Kind() == k {
+			out = append(out, c)
+		}
+	}
+	return out
+}
+
+// NamespaceAndAliases walks a syntax File for the primary namespace name and
+// class-like use aliases (including group-use expansions).
+func NamespaceAndAliases(f *File) (string, map[string]string) {
+	aliases := map[string]string{}
+	if f == nil || f.Root == nil {
+		return "", aliases
+	}
+	ns := ""
+	var walk func(*RedNode)
+	walk = func(n *RedNode) {
+		if n == nil {
+			return
+		}
+		switch n.Kind() {
+		case KindNamespaceDecl:
+			for _, c := range n.Children() {
+				switch c.Kind() {
+				case KindUnqualifiedName, KindQualifiedName, KindFullyQualifiedName, KindRelativeName:
+					ns = strings.TrimPrefix(NameText(c), `\`)
+				}
+			}
+		case KindUseDecl:
+			collectUseAliases(n, aliases)
+			return // don't double-walk clauses
+		}
+		for _, c := range n.Children() {
+			walk(c)
+		}
+	}
+	walk(f.Root)
+	return ns, aliases
+}
+
+func collectUseAliases(useDecl *RedNode, aliases map[string]string) {
+	useType := "class"
+	for _, c := range useDecl.Children() {
+		if c.Green != nil && c.Green.IsToken() {
+			switch c.Green.Token.Type {
+			case token.T_FUNCTION:
+				useType = "function"
+			case token.T_CONST:
+				useType = "const"
+			}
+		}
+	}
+	if useType != "class" {
+		// Binder/indexer aliases today are class-like only.
+		return
+	}
+	for _, clause := range useDecl.ChildrenOfKind(KindUseClause) {
+		collectUseClauseAliases(clause, "", aliases)
+	}
+}
+
+func collectUseClauseAliases(clause *RedNode, prefix string, aliases map[string]string) {
+	if clause == nil {
+		return
+	}
+	var name *RedNode
+	var alias *RedNode
+	var group *RedNode
+	for _, c := range clause.Children() {
+		switch c.Kind() {
+		case KindUnqualifiedName, KindQualifiedName, KindFullyQualifiedName, KindRelativeName:
+			if name == nil {
+				name = c
+			} else {
+				alias = c
+			}
+		case KindUseGroup:
+			group = c
+		}
+	}
+	if group != nil {
+		base := strings.TrimPrefix(NameText(name), `\`)
+		if prefix != "" {
+			base = strings.Trim(prefix, `\`) + `\` + strings.Trim(base, `\`)
+		}
+		base = strings.TrimSuffix(base, `\`)
+		for _, inner := range group.ChildrenOfKind(KindUseClause) {
+			collectUseClauseAliases(inner, base, aliases)
+		}
+		return
+	}
+	path := strings.TrimPrefix(NameText(name), `\`)
+	if prefix != "" {
+		path = strings.Trim(prefix, `\`) + `\` + path
+	}
+	path = strings.Trim(path, `\`)
+	aliasName := ""
+	if alias != nil {
+		aliasName = NameText(alias)
+	} else {
+		aliasName = unqualifiedSyntaxName(path)
+	}
+	if aliasName == "" || path == "" {
+		return
+	}
+	aliases[strings.ToLower(aliasName)] = path
+}
+
+func unqualifiedSyntaxName(path string) string {
+	path = strings.Trim(path, `\`)
+	if i := strings.LastIndexByte(path, '\\'); i >= 0 {
+		return path[i+1:]
+	}
+	return path
+}

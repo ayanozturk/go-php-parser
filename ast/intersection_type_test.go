@@ -1,12 +1,15 @@
 package ast
 
 import (
-	"reflect"
 	"testing"
 )
 
 func TestIntersectionTypeNodeBasic(t *testing.T) {
-	types := []string{"A", "B", "C"}
+	types := []Node{
+		&IdentifierNode{Value: "A"},
+		&IdentifierNode{Value: "B"},
+		&IdentifierNode{Value: "C"},
+	}
 	pos := Position{Line: 7, Column: 3}
 	n := &IntersectionTypeNode{Types: types, Pos: pos}
 
@@ -20,13 +23,13 @@ func TestIntersectionTypeNodeBasic(t *testing.T) {
 	if n.GetPos() != (Position{Line: 8, Column: 4}) {
 		t.Errorf("SetPos() failed, got %+v", n.GetPos())
 	}
-	if n.TokenLiteral() != "&" {
-		t.Errorf("TokenLiteral() = %s; want &", n.TokenLiteral())
+	if n.TokenLiteral() != "A&B&C" {
+		t.Errorf("TokenLiteral() = %s; want A&B&C", n.TokenLiteral())
 	}
 	if n.String() != "A & B & C" {
 		t.Errorf("String() = %s; want A & B & C", n.String())
 	}
-	if !reflect.DeepEqual(n.Types, types) {
-		t.Errorf("Types = %+v; want %+v", n.Types, types)
+	if len(n.Types) != 3 || TypeText(n.Types[0]) != "A" || TypeText(n.Types[2]) != "C" {
+		t.Errorf("Types = %+v; want A B C nodes", n.Types)
 	}
 }

@@ -258,13 +258,13 @@ class BackedProperty
 	if !ok {
 		t.Fatalf("Expected PropertyNode, got %T", classNode.Properties[0])
 	}
-	if prop.Visibility != "public" {
-		t.Fatalf("Expected public visibility, got %q", prop.Visibility)
+	if prop.Modifiers.Visibility() != "public" {
+		t.Fatalf("Expected public visibility, got %q", prop.Modifiers.Visibility())
 	}
-	if prop.SetVisibility != "private" {
-		t.Fatalf("Expected private set visibility, got %q", prop.SetVisibility)
+	if prop.Modifiers.SetVisibility() != "private" {
+		t.Fatalf("Expected private set visibility, got %q", prop.Modifiers.SetVisibility())
 	}
-	if prop.TypeHint != "string" {
+	if ast.TypeText(prop.TypeHint) != "string" {
 		t.Fatalf("Expected string type hint, got %q", prop.TypeHint)
 	}
 	if len(prop.Hooks) != 2 {
@@ -298,8 +298,8 @@ class VisibilityFixture
 	if !ok {
 		t.Fatalf("Expected PropertyNode, got %T", classNode.Properties[0])
 	}
-	if prop.SetVisibility != "private" {
-		t.Fatalf("Expected private set visibility, got %q", prop.SetVisibility)
+	if prop.Modifiers.SetVisibility() != "private" {
+		t.Fatalf("Expected private set visibility, got %q", prop.Modifiers.SetVisibility())
 	}
 }
 
@@ -330,7 +330,7 @@ class Foo {
 	if !ok {
 		t.Fatalf("Expected FunctionNode for method, got %T", classNode.Methods[0])
 	}
-	if method.ReturnType != "static" {
+	if ast.TypeText(method.ReturnType) != "static" {
 		t.Errorf("Expected return type 'static', got %q", method.ReturnType)
 	}
 }
@@ -367,7 +367,7 @@ class Foo {
 	if !ok {
 		t.Fatalf("Expected first method to be FunctionNode, got %T", classNode.Methods[0])
 	}
-	if first.ReturnType != "Shift&MockObject" {
+	if ast.TypeText(first.ReturnType) != "Shift&MockObject" {
 		t.Fatalf("Expected intersection return type, got %q", first.ReturnType)
 	}
 	second, ok := classNode.Methods[1].(*ast.FunctionNode)
