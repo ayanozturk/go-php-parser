@@ -114,6 +114,18 @@ func (p *Parser) tryParseStructured() *GreenNode {
 		return p.parseClassLikeDecl()
 	case p.isFunctionStart():
 		return p.parseFunctionDecl()
+	case p.at(token.T_CONST):
+		return p.parseConstDecl()
+	case p.at(token.T_DECLARE):
+		return p.parseDeclareStmt()
+	case p.at(token.T_GLOBAL):
+		return p.parseGlobalStmt()
+	case p.at(token.T_STATIC) && p.i+1 < len(p.tokens) && p.tokens[p.i+1].Type == token.T_VARIABLE:
+		return p.parseStaticVarStmt()
+	case p.at(token.T_ECHO):
+		return p.parseEchoStmt()
+	case p.at(token.T_RETURN):
+		return p.parseReturnStmt()
 	case p.isNameStart():
 		// Bare name only when clearly not part of larger stmt — skip here.
 		return nil
@@ -787,11 +799,228 @@ func (p *Parser) parseUseTraitClause() *GreenNode {
 		parts = append(parts, p.parseName())
 	}
 	if p.at(token.T_LBRACE) {
-		parts = append(parts, p.parseBalancedBlock())
+		parts = append(parts, p.parseTraitAdaptationList())
 	} else if p.at(token.T_SEMICOLON) {
 		parts = append(parts, p.bump())
 	}
 	return p.intern.Node(KindUseTraitClause, parts...)
+}
+
+func (p *Parser) parseTraitAdaptationList() *GreenNode {
+	var parts []*GreenNode
+	parts = append(parts, p.expect(token.T_LBRACE))
+	for !p.at(token.T_RBRACE) && !p.at(token.T_EOF) {
+		if p.at(token.T_SEMICOLON) {
+			parts = append(parts, p.intern.Node(KindEmptyStmt, p.bump()))
+			continue
+		}
+		if adapt := p.tryParseTraitAdaptation(); adapt != nil {
+			parts = append(parts, adapt)
+			continue
+		}
+		// Keep identity if adaptation shape is unexpected.
+		parts = append(parts, p.bump())
+	}
+	if p.at(token.T_RBRACE) {
+		parts = append(parts, p.bump())
+	}
+	return p.intern.Node(KindTraitAdaptationList, parts...)
+}
+
+func (p *Parser) tryParseTraitAdaptation() *GreenNode {
+	if !(p.at(token.T_STRING) || p.at(token.T_NS_SEPARATOR) || p.isNameStart()) {
+		return nil
+	}
+	start := p.i
+	var parts []*GreenNode
+	// Method reference: [Trait::]method
+	name := p.parseName()
+	if p.at(token.T_DOUBLE_COLON) {
+		parts = append(parts, name, p.bump())
+		if p.at(token.T_STRING) {
+			parts = append(parts, p.intern.Node(KindUnqualifiedName, p.bump()))
+		}
+	} else {
+		parts = append(parts, name)
+	}
+	switch {
+	case p.at(token.T_AS):
+		parts = append(parts, p.bump())
+		if mods := p.parseVisibilityOnlyModifiers(); mods != nil {
+			parts = append(parts, mods)
+		}
+		if p.at(token.T_STRING) {
+			parts = append(parts, p.intern.Node(KindUnqualifiedName, p.bump()))
+		}
+	case p.at(token.T_INSTEADOF):
+		parts = append(parts, p.bump())
+		for {
+			parts = append(parts, p.parseName())
+			if p.at(token.T_COMMA) {
+				parts = append(parts, p.bump())
+				continue
+			}
+			break
+		}
+	default:
+		p.i = start
+		return nil
+	}
+	if p.at(token.T_SEMICOLON) {
+		parts = append(parts, p.bump())
+	}
+	return p.intern.Node(KindTraitAdaptation, parts...)
+}
+
+func (p *Parser) parseVisibilityOnlyModifiers() *GreenNode {
+	if p.at(token.T_PUBLIC) || p.at(token.T_PROTECTED) || p.at(token.T_PRIVATE) {
+		return p.intern.Node(KindModifierList, p.bump())
+	}
+	// After T_AS, visibility keywords are lexed as T_STRING (semi-reserved).
+	if p.at(token.T_STRING) {
+		switch lowercase(p.tok().Literal) {
+		case "public", "protected", "private":
+			return p.intern.Node(KindModifierList, p.bump())
+		}
+	}
+	return nil
+}
+
+func (p *Parser) parseConstDecl() *GreenNode {
+	var parts []*GreenNode
+	parts = append(parts, p.expect(token.T_CONST))
+	for {
+		if p.at(token.T_STRING) {
+			parts = append(parts, p.intern.Node(KindUnqualifiedName, p.bump()))
+		}
+		if p.at(token.T_ASSIGN) {
+			parts = append(parts, p.bump())
+			parts = append(parts, p.parseUntilCommaOrSemi())
+		}
+		if p.at(token.T_COMMA) {
+			parts = append(parts, p.bump())
+			continue
+		}
+		break
+	}
+	if p.at(token.T_SEMICOLON) {
+		parts = append(parts, p.bump())
+	}
+	return p.intern.Node(KindConstDecl, parts...)
+}
+
+func (p *Parser) parseDeclareStmt() *GreenNode {
+	var parts []*GreenNode
+	parts = append(parts, p.expect(token.T_DECLARE))
+	parts = append(parts, p.expect(token.T_LPAREN))
+	// Directive list as tokens until ')' — keeps identity without a full expr grammar.
+	depth := 1
+	var dirParts []*GreenNode
+	for !p.at(token.T_EOF) && depth > 0 {
+		switch p.tok().Type {
+		case token.T_LPAREN:
+			depth++
+		case token.T_RPAREN:
+			depth--
+			if depth == 0 {
+				break
+			}
+		}
+		if depth > 0 {
+			dirParts = append(dirParts, p.bump())
+		}
+	}
+	if len(dirParts) > 0 {
+		parts = append(parts, p.intern.Node(KindTokenList, dirParts...))
+	}
+	parts = append(parts, p.expect(token.T_RPAREN))
+	if p.at(token.T_LBRACE) {
+		parts = append(parts, p.parseStatementList())
+	} else if p.at(token.T_COLON) {
+		// Alternate declare syntax: declare(...): ... enddeclare;
+		parts = append(parts, p.bump())
+		var body []*GreenNode
+		for !p.at(token.T_EOF) {
+			if p.at(token.T_ENDDECLARE) {
+				body = append(body, p.bump())
+				if p.at(token.T_SEMICOLON) {
+					body = append(body, p.bump())
+				}
+				break
+			}
+			body = append(body, p.bump())
+		}
+		if len(body) > 0 {
+			parts = append(parts, p.intern.Node(KindTokenList, body...))
+		}
+	} else if p.at(token.T_SEMICOLON) {
+		parts = append(parts, p.bump())
+	}
+	return p.intern.Node(KindDeclareStmt, parts...)
+}
+
+func (p *Parser) parseGlobalStmt() *GreenNode {
+	var parts []*GreenNode
+	parts = append(parts, p.expect(token.T_GLOBAL))
+	for {
+		if p.at(token.T_VARIABLE) {
+			parts = append(parts, p.bump())
+		}
+		if p.at(token.T_COMMA) {
+			parts = append(parts, p.bump())
+			continue
+		}
+		break
+	}
+	if p.at(token.T_SEMICOLON) {
+		parts = append(parts, p.bump())
+	}
+	return p.intern.Node(KindGlobalStmt, parts...)
+}
+
+func (p *Parser) parseStaticVarStmt() *GreenNode {
+	var parts []*GreenNode
+	parts = append(parts, p.expect(token.T_STATIC))
+	for {
+		if p.at(token.T_VARIABLE) {
+			parts = append(parts, p.bump())
+		}
+		if p.at(token.T_ASSIGN) {
+			parts = append(parts, p.bump())
+			parts = append(parts, p.parseUntilCommaOrSemi())
+		}
+		if p.at(token.T_COMMA) {
+			parts = append(parts, p.bump())
+			continue
+		}
+		break
+	}
+	if p.at(token.T_SEMICOLON) {
+		parts = append(parts, p.bump())
+	}
+	return p.intern.Node(KindStaticVarStmt, parts...)
+}
+
+func (p *Parser) parseEchoStmt() *GreenNode {
+	var parts []*GreenNode
+	parts = append(parts, p.expect(token.T_ECHO))
+	parts = append(parts, p.parseUntilStmtEnd())
+	if p.at(token.T_SEMICOLON) {
+		parts = append(parts, p.bump())
+	}
+	return p.intern.Node(KindEchoStmt, parts...)
+}
+
+func (p *Parser) parseReturnStmt() *GreenNode {
+	var parts []*GreenNode
+	parts = append(parts, p.expect(token.T_RETURN))
+	if !p.at(token.T_SEMICOLON) && !p.at(token.T_EOF) {
+		parts = append(parts, p.parseUntilStmtEnd())
+	}
+	if p.at(token.T_SEMICOLON) {
+		parts = append(parts, p.bump())
+	}
+	return p.intern.Node(KindReturnStmt, parts...)
 }
 
 func (p *Parser) parseEnumCase() *GreenNode {

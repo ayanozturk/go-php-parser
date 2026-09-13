@@ -70,6 +70,15 @@ const (
 	KindCallableParamList
 	KindStatementList
 	KindEmptyStmt
+	KindConstDecl
+	KindDeclareStmt
+	KindGlobalStmt
+	KindStaticVarStmt
+	KindEchoStmt
+	KindReturnStmt
+	KindExpressionStmt
+	KindTraitAdaptationList
+	KindTraitAdaptation
 )
 
 var kindNames = [...]string{
@@ -127,6 +136,15 @@ var kindNames = [...]string{
 	KindCallableParamList:  "CallableParamList",
 	KindStatementList:      "StatementList",
 	KindEmptyStmt:          "EmptyStmt",
+	KindConstDecl:          "ConstDecl",
+	KindDeclareStmt:        "DeclareStmt",
+	KindGlobalStmt:         "GlobalStmt",
+	KindStaticVarStmt:      "StaticVarStmt",
+	KindEchoStmt:           "EchoStmt",
+	KindReturnStmt:         "ReturnStmt",
+	KindExpressionStmt:     "ExpressionStmt",
+	KindTraitAdaptationList: "TraitAdaptationList",
+	KindTraitAdaptation:    "TraitAdaptation",
 }
 
 func (k Kind) String() string {

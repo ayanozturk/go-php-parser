@@ -71,6 +71,29 @@ func TestParseTraitUseAdaptationBlock(t *testing.T) {
 	if len(nodes) != 1 {
 		t.Fatalf("expected 1 node, got %d", len(nodes))
 	}
+	class, ok := nodes[0].(*ast.ClassNode)
+	if !ok {
+		t.Fatalf("expected ClassNode, got %T", nodes[0])
+	}
+	var traitUse *ast.TraitUseNode
+	for _, member := range class.Properties {
+		if tu, ok := member.(*ast.TraitUseNode); ok {
+			traitUse = tu
+			break
+		}
+	}
+	if traitUse == nil {
+		t.Fatal("expected TraitUseNode in class properties")
+	}
+	if len(traitUse.Adaptations) != 3 {
+		t.Fatalf("expected 3 adaptations, got %d", len(traitUse.Adaptations))
+	}
+	if got := traitUse.Adaptations[2].Modifiers.Visibility(); got != "protected" {
+		t.Fatalf("third adaptation visibility=%q, want protected", got)
+	}
+	if traitUse.Adaptations[1].As != "bar" || traitUse.Adaptations[1].Modifiers.Visibility() != "" {
+		t.Fatalf("second adaptation = %+v", traitUse.Adaptations[1])
+	}
 }
 
 func TestParseScientificNotationNumberLiteral(t *testing.T) {

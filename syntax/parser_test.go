@@ -274,4 +274,72 @@ func TestParseGroupUseStructured(t *testing.T) {
 	}
 }
 
+func TestParseTopLevelConstDeclareGlobalEchoReturn(t *testing.T) {
+	src := "<?php\ndeclare(strict_types=1);\nconst FOO = 1;\nglobal $a;\nstatic $b = 2;\necho $a;\nreturn $b;\n"
+	res := Parse([]byte(src))
+	got := Print(res.File.Root)
+	if got != src {
+		t.Fatalf("file identity\nwant %q\ngot  %q", src, got)
+	}
+	want := map[Kind]bool{
+		KindDeclareStmt:   false,
+		KindConstDecl:     false,
+		KindGlobalStmt:    false,
+		KindStaticVarStmt: false,
+		KindEchoStmt:      false,
+		KindReturnStmt:    false,
+	}
+	var walk func(*RedNode)
+	walk = func(n *RedNode) {
+		if n == nil {
+			return
+		}
+		if _, ok := want[n.Kind()]; ok {
+			want[n.Kind()] = true
+		}
+		for _, c := range n.Children() {
+			walk(c)
+		}
+	}
+	walk(res.File.Root)
+	for k, found := range want {
+		if !found {
+			t.Fatalf("expected %s in green tree", k)
+		}
+	}
+}
+
+func TestParseTraitAdaptationStructured(t *testing.T) {
+	src := "<?php\nclass C {\nuse A, B {\nA::foo insteadof B;\nB::bar as protected baz;\n}\n}\n"
+	res := Parse([]byte(src))
+	got := Print(res.File.Root)
+	if got != src {
+		t.Fatalf("file identity\nwant %q\ngot  %q", src, got)
+	}
+	want := map[Kind]bool{
+		KindUseTraitClause:      false,
+		KindTraitAdaptationList: false,
+		KindTraitAdaptation:     false,
+		KindModifierList:        false,
+	}
+	var walk func(*RedNode)
+	walk = func(n *RedNode) {
+		if n == nil {
+			return
+		}
+		if _, ok := want[n.Kind()]; ok {
+			want[n.Kind()] = true
+		}
+		for _, c := range n.Children() {
+			walk(c)
+		}
+	}
+	walk(res.File.Root)
+	for k, found := range want {
+		if !found {
+			t.Fatalf("expected %s in green tree", k)
+		}
+	}
+}
+
 

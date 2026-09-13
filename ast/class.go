@@ -126,9 +126,9 @@ type TraitAdaptation struct {
 	// As is the new alias name, when this is an "as" adaptation. Empty
 	// otherwise.
 	As string
-	// Visibility is an optional visibility modifier on an "as" adaptation
-	// (e.g. "protected" in "A::foo as protected bar;"). Empty if absent.
-	Visibility string
+	// Modifiers holds an optional visibility modifier on an "as" adaptation
+	// (e.g. protected in "A::foo as protected bar;"). Empty if absent.
+	Modifiers ModifierList
 	// InsteadOf lists the trait names losing precedence for Method, when
 	// this is an "insteadof" adaptation. Empty otherwise.
 	InsteadOf []string

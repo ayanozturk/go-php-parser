@@ -1,6 +1,8 @@
 package parser
 
 import (
+	"strings"
+
 	"github.com/ayanozturk/go-php-parser/ast"
 	"github.com/ayanozturk/go-php-parser/token"
 )
@@ -336,6 +338,15 @@ func isVisibilityModifierToken(t token.TokenType) bool {
 	return t == token.T_PUBLIC || t == token.T_PRIVATE || t == token.T_PROTECTED
 }
 
+func isVisibilityModifierLiteral(s string) bool {
+	switch strings.ToLower(s) {
+	case "public", "protected", "private":
+		return true
+	default:
+		return false
+	}
+}
+
 func (p *Parser) parseTraitUseStatement() ast.Node {
 	pos := p.tok.Pos
 	p.nextToken() // consume use
@@ -398,8 +409,11 @@ func (p *Parser) parseTraitAdaptation() (ast.TraitAdaptation, bool) {
 	switch p.tok.Type {
 	case token.T_AS:
 		p.nextToken() // consume 'as'
-		if isVisibilityModifierToken(p.tok.Type) {
-			adaptation.Visibility = p.tok.Literal
+		// After T_AS the lexer emits visibility keywords as T_STRING (semi-reserved
+		// name context). Accept either keyword tokens or those spellings.
+		if isVisibilityModifierToken(p.tok.Type) ||
+			(p.tok.Type == token.T_STRING && isVisibilityModifierLiteral(p.tok.Literal)) {
+			adaptation.Modifiers = ast.ModifierList{ast.ModifierFromText(p.tok.Literal)}
 			p.nextToken()
 		}
 		if p.tok.Type != token.T_SEMICOLON {
