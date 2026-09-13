@@ -1,0 +1,36 @@
+---
+description: Layered testing coverage targets for the lossless parser rewrite
+alwaysApply: true
+---
+
+# Testing coverage (lossless parser cutover)
+
+Do **not** chase a single line-% on the whole repo. Use layered targets.
+
+## Must-hold (correctness gates)
+
+- **100% lossless invariant** on fixtures + corpus: `Print(Parse*(src)) == src` for every file that lexes (parse-error cases round-trip via missing/error tokens).
+- **Gold trees** for lossy hotspots: attributes, DNF types, names (qualified/relative/FQ), heredoc/nowdoc + interpolation, mixed-case keywords, trivia attachment on decls.
+- **Token parity** fixtures vs `token_get_all` (kind + text) for Zend edge cases — small set, high value.
+
+## Package-level (unit)
+
+- `syntax` + new binder paths: aim very high (≈90–100% of *new* code).
+- Lexer state machines (attribute/`#[`, encapsed, heredoc): branch-complete on new states, not “lines in lexer.go”.
+- Legacy `ast` / old string parsers: coverage may fall as code is deleted — don’t maintain 100% on code being removed.
+
+## Analyse / Strom
+
+- Prefer **behavioral coverage**: binding, rename/refs, format identity, type-from-syntax — not line % on giant rule files.
+- Keep differential/level fixtures green; add cases when string→syntax edges move.
+
+## Perf (not coverage %)
+
+- Bench gates: allocs/op, tokens/KB on Symfony/WordPress-sized inputs — regressions fail CI even if coverage is high.
+
+## Practical CI target
+
+- New `syntax` / trivia / binder packages: **≥95%** (or 100% if critical-unit-testing bar applies to those packages only).
+- Whole-module line coverage: **non-goal** during cutover; round-trip + gold + analyse suite are the merge bar.
+
+**Summary:** 100% on the identity/gold contract, very high on the new kernel, corpus/analyse green for integration — not “100% of go-php-parser.”
