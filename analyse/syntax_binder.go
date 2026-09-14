@@ -3,23 +3,37 @@ package analyse
 import (
 	"strings"
 	"sync"
+	"unicode/utf16"
 
 	"github.com/ayanozturk/go-php-parser/syntax"
 	"github.com/ayanozturk/go-php-parser/token"
+)
+
+// BindMode selects declaration-tier vs complete reference binding (R3).
+// Do not conflate: declaration indexing is for symbol discovery only;
+// project-wide rename/refs require BindModeReferences (full parse+bind).
+type BindMode int
+
+const (
+	// BindModeDeclarations parses with SkipFunctionBodies — symbol discovery only.
+	BindModeDeclarations BindMode = iota
+	// BindModeReferences fully parses and binds — required before project rename/refs.
+	BindModeReferences
 )
 
 // NameUse records a bound name occurrence for references/rename.
 type NameUse struct {
 	NodeID    int
 	URI       string
-	Span      syntax.Span
-	StartLine int // 0-based LSP line
-	StartChar int // 0-based UTF-16-ish byte column (byte offset on line)
+	Span      syntax.Span // exact leaf-identifier byte span (no trivia)
+	StartLine int         // 0-based LSP line
+	StartChar int         // 0-based UTF-16 code units
 	EndLine   int
 	EndChar   int
 	Written   string
 	Resolved  string // FQN when known (no leading \)
-	Kind      string // class|function|const|attr|type|name
+	Kind      string // class|interface|trait|enum|function|method|property|const|attr|type|name
+	Owner     string // owning type FQN for members (no leading \)
 }
 
 // UsageGraph maps name-node ids to resolved symbols for one file (or merge unit).
@@ -28,19 +42,18 @@ type UsageGraph struct {
 }
 
 // ProjectUsageGraph is a project-scoped binder index: URI → uses, with
-// reverse lookup by resolved / written name for cross-file references.
+// reverse lookup by resolved FQN (+ kind/owner). Unqualified spelling maps are
+// not used for project rename/refs (avoids A\Foo vs B\Foo collisions — R2).
 type ProjectUsageGraph struct {
 	mu        sync.RWMutex
 	byURI     map[string][]NameUse
 	byResolve map[string][]NameUse // lower(resolved) → uses
-	byWritten map[string][]NameUse // lower(unqualified written) → uses
 }
 
 func NewProjectUsageGraph() *ProjectUsageGraph {
 	return &ProjectUsageGraph{
 		byURI:     make(map[string][]NameUse),
 		byResolve: make(map[string][]NameUse),
-		byWritten: make(map[string][]NameUse),
 	}
 }
 
@@ -63,13 +76,6 @@ func (g *ProjectUsageGraph) PutFile(uri string, uses []NameUse) {
 	for _, u := range copied {
 		if r := strings.ToLower(strings.TrimPrefix(u.Resolved, `\`)); r != "" {
 			g.byResolve[r] = append(g.byResolve[r], u)
-		}
-		w := u.Written
-		if i := strings.LastIndexByte(w, '\\'); i >= 0 {
-			w = w[i+1:]
-		}
-		if w = strings.ToLower(w); w != "" {
-			g.byWritten[w] = append(g.byWritten[w], u)
 		}
 	}
 }
@@ -97,16 +103,6 @@ func (g *ProjectUsageGraph) removeFileLocked(uri string) {
 				delete(g.byResolve, r)
 			}
 		}
-		w := u.Written
-		if i := strings.LastIndexByte(w, '\\'); i >= 0 {
-			w = w[i+1:]
-		}
-		if w = strings.ToLower(w); w != "" {
-			g.byWritten[w] = filterUsesURI(g.byWritten[w], uri)
-			if len(g.byWritten[w]) == 0 {
-				delete(g.byWritten, w)
-			}
-		}
 	}
 }
 
@@ -123,64 +119,79 @@ func filterUsesURI(in []NameUse, uri string) []NameUse {
 	return append([]NameUse(nil), out...)
 }
 
-// FindByName returns project uses matching an unqualified or FQN name.
-func (g *ProjectUsageGraph) FindByName(name string) []NameUse {
+// FindByResolved returns uses whose Resolved FQN equals name (no unqualified fallback).
+func (g *ProjectUsageGraph) FindByResolved(name string) []NameUse {
 	if g == nil || name == "" {
 		return nil
 	}
 	g.mu.RLock()
 	defer g.mu.RUnlock()
 	key := strings.ToLower(strings.TrimPrefix(name, `\`))
-	seen := map[string]struct{}{}
+	return append([]NameUse(nil), g.byResolve[key]...)
+}
+
+// FindMatching returns project uses matching the bound symbol identity at the cursor:
+// same Resolved FQN, Kind, and Owner (when set). Never matches via unqualified spelling.
+func (g *ProjectUsageGraph) FindMatching(needle NameUse) []NameUse {
+	if g == nil {
+		return nil
+	}
+	resolved := strings.ToLower(strings.TrimPrefix(needle.Resolved, `\`))
+	if resolved == "" {
+		return nil
+	}
+	g.mu.RLock()
+	defer g.mu.RUnlock()
 	var out []NameUse
-	add := func(list []NameUse) {
-		for _, u := range list {
-			id := u.URI + ":" + itoa(u.NodeID) + ":" + itoa(u.Span.Start)
-			if _, ok := seen[id]; ok {
+	for _, u := range g.byResolve[resolved] {
+		if needle.Kind != "" && u.Kind != "" && !kindsCompatible(needle.Kind, u.Kind) {
+			continue
+		}
+		if needle.Owner != "" || u.Owner != "" {
+			if strings.ToLower(strings.TrimPrefix(needle.Owner, `\`)) !=
+				strings.ToLower(strings.TrimPrefix(u.Owner, `\`)) {
 				continue
 			}
-			seen[id] = struct{}{}
-			out = append(out, u)
 		}
-	}
-	add(g.byResolve[key])
-	if i := strings.LastIndexByte(key, '\\'); i >= 0 {
-		add(g.byWritten[key[i+1:]])
-	} else {
-		add(g.byWritten[key])
+		out = append(out, u)
 	}
 	return out
 }
 
-func itoa(i int) string {
-	if i == 0 {
-		return "0"
-	}
-	var b [20]byte
-	pos := len(b)
-	neg := i < 0
-	if neg {
-		i = -i
-	}
-	for i > 0 {
-		pos--
-		b[pos] = byte('0' + i%10)
-		i /= 10
-	}
-	if neg {
-		pos--
-		b[pos] = '-'
-	}
-	return string(b[pos:])
+// FindByName returns project uses with the given resolved FQN.
+// Unqualified names only match globally-resolved uses (Resolved == name), never
+// every Foo spelling across namespaces (R2 gate).
+func (g *ProjectUsageGraph) FindByName(name string) []NameUse {
+	return g.FindByResolved(name)
 }
 
-// Binder resolves syntax.Name nodes using namespace + imports.
+func kindsCompatible(a, b string) bool {
+	if a == b {
+		return true
+	}
+	classLike := func(k string) bool {
+		switch k {
+		case "class", "interface", "trait", "enum", "type", "name", "attr":
+			return true
+		}
+		return false
+	}
+	if classLike(a) && classLike(b) {
+		return true
+	}
+	return false
+}
+
+// Binder resolves syntax.Name nodes using the current namespace + import aliases.
 type Binder struct {
 	Namespace string
 	Aliases   map[string]string
 	URI       string
+	Owner     string // current class-like FQN for member ownership
 	NextID    int
 	Graph     UsageGraph
+	src       []byte
+	lines     token.LineTable
 }
 
 func NewBinder(namespace string, aliases map[string]string) *Binder {
@@ -190,7 +201,7 @@ func NewBinder(namespace string, aliases map[string]string) *Binder {
 	return &Binder{Namespace: namespace, Aliases: aliases}
 }
 
-// BindName resolves a syntax name node and records a usage.
+// BindName resolves a syntax name node and records a usage with exact leaf span.
 func (b *Binder) BindName(n *syntax.RedNode, kind string) string {
 	if n == nil || b == nil {
 		return ""
@@ -198,7 +209,7 @@ func (b *Binder) BindName(n *syntax.RedNode, kind string) string {
 	written := syntax.NameText(n)
 	resolved := b.resolve(written)
 	b.NextID++
-	span := n.Span()
+	span := nameLeafSpan(n)
 	use := NameUse{
 		NodeID:   b.NextID,
 		URI:      b.URI,
@@ -206,10 +217,17 @@ func (b *Binder) BindName(n *syntax.RedNode, kind string) string {
 		Written:  written,
 		Resolved: resolved,
 		Kind:     kind,
+		Owner:    b.Owner,
 	}
-	if n.File != nil && len(n.File.Lines) > 0 {
-		sl, sc := offsetLineCol(n.File.Lines, span.Start)
-		el, ec := offsetLineCol(n.File.Lines, span.End)
+	if len(b.src) > 0 && len(b.lines) > 0 {
+		sl, sc := offsetToUTF16(b.src, b.lines, span.Start)
+		el, ec := offsetToUTF16(b.src, b.lines, span.End)
+		use.StartLine, use.StartChar = sl, sc
+		use.EndLine, use.EndChar = el, ec
+	} else if n.File != nil && len(n.File.Lines) > 0 {
+		src := n.File.Source
+		sl, sc := offsetToUTF16(src, n.File.Lines, span.Start)
+		el, ec := offsetToUTF16(src, n.File.Lines, span.End)
 		use.StartLine, use.StartChar = sl, sc
 		use.EndLine, use.EndChar = el, ec
 	}
@@ -217,7 +235,121 @@ func (b *Binder) BindName(n *syntax.RedNode, kind string) string {
 	return resolved
 }
 
-// offsetLineCol returns 0-based line and column for a byte offset.
+// nameLeafSpan returns the byte span of the last identifier token in a name
+// (exact rename/edit range — no leading trivia / namespace prefixes).
+func nameLeafSpan(n *syntax.RedNode) syntax.Span {
+	if n == nil {
+		return syntax.Span{}
+	}
+	toks := n.Tokens()
+	var last *token.Token
+	for i := range toks {
+		t := &toks[i]
+		if t.Type == token.T_STRING {
+			last = t
+		}
+	}
+	if last != nil && last.End.Offset >= last.Pos.Offset {
+		return syntax.Span{Start: last.Pos.Offset, End: last.End.Offset}
+	}
+	children := n.Children()
+	for i := len(children) - 1; i >= 0; i-- {
+		c := children[i]
+		if c.Green != nil && c.Green.IsToken() {
+			switch c.Green.TokenType() {
+			case token.T_STRING:
+				return significantTokenSpan(c)
+			case token.T_NS_SEPARATOR, token.T_NAMESPACE:
+				continue
+			}
+		}
+		if c.Kind() == syntax.KindUnqualifiedName {
+			return nameLeafSpan(c)
+		}
+	}
+	return n.Span()
+}
+
+func significantTokenSpan(n *syntax.RedNode) syntax.Span {
+	if n == nil || n.Green == nil || !n.Green.IsToken() {
+		if n == nil {
+			return syntax.Span{}
+		}
+		return n.Span()
+	}
+	tok, ok := n.Green.Token()
+	if !ok {
+		return n.Span()
+	}
+	lead := 0
+	for _, tr := range tok.LeadingTrivia {
+		w := tr.Width()
+		if w == 0 {
+			w = len(tr.Literal)
+		}
+		lead += w
+	}
+	sig := tok.Width()
+	if sig == 0 {
+		sig = len(tok.Literal)
+	}
+	start := n.Offset + lead
+	return syntax.Span{Start: start, End: start + sig}
+}
+
+// offsetToUTF16 returns 0-based line and UTF-16 code-unit column for a byte offset.
+func offsetToUTF16(src []byte, lines token.LineTable, offset int) (line, col int) {
+	if offset < 0 {
+		offset = 0
+	}
+	if offset > len(src) {
+		offset = len(src)
+	}
+	line, _ = offsetLineCol(lines, offset)
+	lineStart := 0
+	if line >= 0 && line < len(lines) {
+		lineStart = lines[line]
+	}
+	if lineStart > offset {
+		lineStart = 0
+	}
+	col = utf16CodeUnits(src[lineStart:offset])
+	return line, col
+}
+
+func utf16CodeUnits(b []byte) int {
+	units := 0
+	for len(b) > 0 {
+		r, size := decodeRune(b)
+		units += utf16.RuneLen(r)
+		if size <= 0 {
+			break
+		}
+		b = b[size:]
+	}
+	return units
+}
+
+func decodeRune(b []byte) (r rune, size int) {
+	if len(b) == 0 {
+		return 0, 0
+	}
+	if b[0] < 0x80 {
+		return rune(b[0]), 1
+	}
+	switch {
+	case b[0]&0xE0 == 0xC0 && len(b) >= 2:
+		return rune(b[0]&0x1F)<<6 | rune(b[1]&0x3F), 2
+	case b[0]&0xF0 == 0xE0 && len(b) >= 3:
+		return rune(b[0]&0x0F)<<12 | rune(b[1]&0x3F)<<6 | rune(b[2]&0x3F), 3
+	case b[0]&0xF8 == 0xF0 && len(b) >= 4:
+		return rune(b[0]&0x07)<<18 | rune(b[1]&0x3F)<<12 | rune(b[2]&0x3F)<<6 | rune(b[3]&0x3F), 4
+	default:
+		return rune(b[0]), 1
+	}
+}
+
+// offsetLineCol returns 0-based line and byte column for a byte offset.
 func offsetLineCol(lines token.LineTable, offset int) (line, col int) {
 	if len(lines) == 0 {
 		return 0, offset
@@ -238,19 +370,68 @@ func offsetLineCol(lines token.LineTable, offset int) (line, col int) {
 	return idx, offset - lines[idx]
 }
 
-// BindSyntaxFile parses src into green/red and records every name use.
-// Namespace and import aliases are taken from the syntax tree (including group-use).
+// UseAtOffset returns the innermost NameUse whose Span covers offset.
+// Spans are treated as inclusive on End so a caret after the last char still hits.
+func UseAtOffset(uses []NameUse, offset int) (NameUse, bool) {
+	var best NameUse
+	found := false
+	bestLen := int(^uint(0) >> 1)
+	for _, u := range uses {
+		if u.Span.End <= u.Span.Start {
+			continue
+		}
+		if offset < u.Span.Start || offset > u.Span.End {
+			continue
+		}
+		spanLen := u.Span.End - u.Span.Start
+		if !found || spanLen < bestLen || (spanLen == bestLen && u.Span.Start >= best.Span.Start) {
+			best = u
+			bestLen = spanLen
+			found = true
+		}
+	}
+	return best, found
+}
+
+// BindModeName documents the two index modes (R3).
+func BindModeName(m BindMode) string {
+	switch m {
+	case BindModeDeclarations:
+		return "declarations"
+	case BindModeReferences:
+		return "references"
+	default:
+		return "unknown"
+	}
+}
+
+// BindFile binds names under the given mode (R3 separation).
+func BindFile(uri string, src []byte, mode BindMode) UsageGraph {
+	switch mode {
+	case BindModeDeclarations:
+		return bindSyntaxFile(uri, src, true)
+	default:
+		return bindSyntaxFile(uri, src, false)
+	}
+}
+
+// BindSyntaxFile fully parses src and records every name use (reference-complete).
+// Namespace scopes and import aliases are taken per-namespace from the syntax tree.
 func BindSyntaxFile(uri string, src []byte, namespace string, aliases map[string]string) UsageGraph {
-	return bindSyntaxFile(uri, src, namespace, aliases, false)
+	_ = namespace
+	_ = aliases
+	return bindSyntaxFile(uri, src, false)
 }
 
-// BindSyntaxFileForIndex parses src skipping function/method bodies and records name uses.
-// Namespace and import aliases are taken from the syntax tree (including group-use).
+// BindSyntaxFileForIndex parses src skipping function/method bodies (declaration index).
+// Not sufficient alone for project-wide rename/refs (R3).
 func BindSyntaxFileForIndex(uri string, src []byte, namespace string, aliases map[string]string) UsageGraph {
-	return bindSyntaxFile(uri, src, namespace, aliases, true)
+	_ = namespace
+	_ = aliases
+	return bindSyntaxFile(uri, src, true)
 }
 
-func bindSyntaxFile(uri string, src []byte, namespace string, aliases map[string]string, skipBodies bool) UsageGraph {
+func bindSyntaxFile(uri string, src []byte, skipBodies bool) UsageGraph {
 	var res *syntax.ParseResult
 	if skipBodies {
 		res = syntax.ParseForIndex(src)
@@ -260,22 +441,98 @@ func bindSyntaxFile(uri string, src []byte, namespace string, aliases map[string
 	if res == nil || res.File == nil || res.File.Root == nil {
 		return UsageGraph{}
 	}
-	syntaxNS, syntaxAliases := syntax.NamespaceAndAliases(res.File)
-	if namespace == "" {
-		namespace = syntaxNS
+	b := NewBinder("", map[string]string{})
+	b.URI = uri
+	b.src = res.File.Source
+	b.lines = res.File.Lines
+	w := &binderWalk{b: b}
+	w.walkFile(res.File.Root)
+	return b.Graph
+}
+
+type binderWalk struct {
+	b *Binder
+}
+
+type scopeSnap struct {
+	ns      string
+	aliases map[string]string
+	owner   string
+}
+
+func (w *binderWalk) saveScope() scopeSnap {
+	aliases := make(map[string]string, len(w.b.Aliases))
+	for k, v := range w.b.Aliases {
+		aliases[k] = v
 	}
-	if len(aliases) == 0 {
-		aliases = syntaxAliases
-	} else {
-		// Prefer caller aliases, fill missing from syntax (group-use).
-		for k, v := range syntaxAliases {
-			if _, ok := aliases[k]; !ok {
-				aliases[k] = v
-			}
+	return scopeSnap{ns: w.b.Namespace, aliases: aliases, owner: w.b.Owner}
+}
+
+func (w *binderWalk) restoreScope(s scopeSnap) {
+	w.b.Namespace = s.ns
+	w.b.Aliases = s.aliases
+	w.b.Owner = s.owner
+}
+
+func (w *binderWalk) walkFile(n *syntax.RedNode) {
+	if n == nil {
+		return
+	}
+	if n.Kind() == syntax.KindStatementList {
+		w.walkStatementList(n)
+		return
+	}
+	for _, c := range n.Children() {
+		if c.Kind() == syntax.KindStatementList {
+			w.walkStatementList(c)
+			continue
+		}
+		w.walk(c)
+	}
+}
+
+func (w *binderWalk) walkStatementList(n *syntax.RedNode) {
+	for _, c := range n.Children() {
+		switch c.Kind() {
+		case syntax.KindNamespaceDecl:
+			w.walkNamespace(c)
+		case syntax.KindUseDecl:
+			syntax.AppendUseAliases(c, w.b.Aliases)
+			w.walkUseNames(c)
+		default:
+			w.walk(c)
 		}
 	}
-	b := NewBinder(namespace, aliases)
-	b.URI = uri
+}
+
+func (w *binderWalk) walkNamespace(n *syntax.RedNode) {
+	nsName := ""
+	var body *syntax.RedNode
+	for _, c := range n.Children() {
+		switch c.Kind() {
+		case syntax.KindUnqualifiedName, syntax.KindQualifiedName,
+			syntax.KindFullyQualifiedName, syntax.KindRelativeName:
+			nsName = strings.TrimPrefix(syntax.NameText(c), `\`)
+			w.b.BindName(c, "name")
+		case syntax.KindStatementList:
+			body = c
+		}
+	}
+	if body != nil {
+		prev := w.saveScope()
+		w.b.Namespace = nsName
+		w.b.Aliases = map[string]string{}
+		w.b.Owner = ""
+		w.walkStatementList(body)
+		w.restoreScope(prev)
+		return
+	}
+	w.b.Namespace = nsName
+	w.b.Aliases = map[string]string{}
+	w.b.Owner = ""
+}
+
+func (w *binderWalk) walkUseNames(useDecl *syntax.RedNode) {
 	var walk func(*syntax.RedNode)
 	walk = func(n *syntax.RedNode) {
 		if n == nil {
@@ -284,29 +541,178 @@ func bindSyntaxFile(uri string, src []byte, namespace string, aliases map[string
 		switch n.Kind() {
 		case syntax.KindUnqualifiedName, syntax.KindQualifiedName,
 			syntax.KindFullyQualifiedName, syntax.KindRelativeName:
-			kind := "name"
-			if p := n.Parent; p != nil {
-				switch p.Kind() {
-				case syntax.KindNamedType:
-					kind = "type"
-				case syntax.KindAttribute:
-					kind = "attr"
-				case syntax.KindClassDecl, syntax.KindInterfaceDecl, syntax.KindTraitDecl, syntax.KindEnumDecl:
-					kind = "class"
-				case syntax.KindFunctionDecl, syntax.KindMethodDecl:
-					kind = "function"
-				case syntax.KindExtendsClause, syntax.KindImplementsClause, syntax.KindUseTraitClause:
-					kind = "class"
-				}
-			}
-			b.BindName(n, kind)
+			w.b.BindName(n, "name")
 		}
 		for _, c := range n.Children() {
 			walk(c)
 		}
 	}
-	walk(res.File.Root)
-	return b.Graph
+	walk(useDecl)
+}
+
+func (w *binderWalk) walk(n *syntax.RedNode) {
+	if n == nil {
+		return
+	}
+	switch n.Kind() {
+	case syntax.KindNamespaceDecl:
+		w.walkNamespace(n)
+		return
+	case syntax.KindUseDecl:
+		syntax.AppendUseAliases(n, w.b.Aliases)
+		w.walkUseNames(n)
+		return
+	case syntax.KindStatementList:
+		w.walkStatementList(n)
+		return
+	case syntax.KindClassDecl, syntax.KindInterfaceDecl, syntax.KindTraitDecl, syntax.KindEnumDecl:
+		w.walkClassLike(n)
+		return
+	case syntax.KindFunctionDecl, syntax.KindMethodDecl:
+		w.walkFunctionLike(n)
+		return
+	case syntax.KindUnqualifiedName, syntax.KindQualifiedName,
+		syntax.KindFullyQualifiedName, syntax.KindRelativeName:
+		w.b.BindName(n, nameKind(n))
+		return
+	}
+	for _, c := range n.Children() {
+		w.walk(c)
+	}
+}
+
+func (w *binderWalk) walkClassLike(n *syntax.RedNode) {
+	kind := "class"
+	switch n.Kind() {
+	case syntax.KindInterfaceDecl:
+		kind = "interface"
+	case syntax.KindTraitDecl:
+		kind = "trait"
+	case syntax.KindEnumDecl:
+		kind = "enum"
+	}
+	var nameNode *syntax.RedNode
+	for _, c := range n.Children() {
+		switch c.Kind() {
+		case syntax.KindUnqualifiedName, syntax.KindQualifiedName,
+			syntax.KindFullyQualifiedName, syntax.KindRelativeName:
+			if nameNode == nil {
+				nameNode = c
+			}
+		}
+	}
+	prevOwner := w.b.Owner
+	if nameNode != nil {
+		fqn := w.b.BindName(nameNode, kind)
+		w.b.Owner = fqn
+	}
+	for _, c := range n.Children() {
+		if c == nameNode {
+			continue
+		}
+		switch c.Kind() {
+		case syntax.KindUnqualifiedName, syntax.KindQualifiedName,
+			syntax.KindFullyQualifiedName, syntax.KindRelativeName:
+			continue
+		case syntax.KindMemberList, syntax.KindStatementList:
+			for _, m := range c.Children() {
+				w.walkMember(m)
+			}
+		default:
+			w.walk(c)
+		}
+	}
+	w.b.Owner = prevOwner
+}
+
+func (w *binderWalk) walkMember(n *syntax.RedNode) {
+	if n == nil {
+		return
+	}
+	switch n.Kind() {
+	case syntax.KindFunctionDecl, syntax.KindMethodDecl:
+		w.walkFunctionLike(n)
+	case syntax.KindClassConstDecl:
+		w.walkClassConst(n)
+	case syntax.KindPropertyDecl:
+		for _, c := range n.Children() {
+			w.walk(c)
+		}
+	default:
+		w.walk(n)
+	}
+}
+
+func (w *binderWalk) walkFunctionLike(n *syntax.RedNode) {
+	kind := "function"
+	if w.b.Owner != "" || n.Kind() == syntax.KindMethodDecl {
+		kind = "method"
+	}
+	var nameNode *syntax.RedNode
+	for _, c := range n.Children() {
+		if c.Kind() == syntax.KindUnqualifiedName && nameNode == nil {
+			nameNode = c
+		}
+	}
+	if nameNode != nil {
+		w.b.BindName(nameNode, kind)
+	}
+	for _, c := range n.Children() {
+		if c == nameNode {
+			continue
+		}
+		w.walk(c)
+	}
+}
+
+func (w *binderWalk) walkClassConst(n *syntax.RedNode) {
+	seenNameish := false
+	for _, c := range n.Children() {
+		switch c.Kind() {
+		case syntax.KindNamedType, syntax.KindNullableType, syntax.KindUnionType,
+			syntax.KindIntersectionType, syntax.KindParenthesizedType, syntax.KindPrimitiveType,
+			syntax.KindCallableType:
+			seenNameish = true
+			w.walk(c)
+		case syntax.KindUnqualifiedName:
+			w.b.BindName(c, "const")
+			seenNameish = true
+			_ = seenNameish
+		default:
+			w.walk(c)
+		}
+	}
+}
+
+func nameKind(n *syntax.RedNode) string {
+	if n == nil {
+		return "name"
+	}
+	if p := n.Parent; p != nil {
+		switch p.Kind() {
+		case syntax.KindNamedType:
+			return "type"
+		case syntax.KindAttribute:
+			return "attr"
+		case syntax.KindClassDecl:
+			return "class"
+		case syntax.KindInterfaceDecl:
+			return "interface"
+		case syntax.KindTraitDecl:
+			return "trait"
+		case syntax.KindEnumDecl:
+			return "enum"
+		case syntax.KindFunctionDecl:
+			return "function"
+		case syntax.KindMethodDecl:
+			return "method"
+		case syntax.KindClassConstDecl:
+			return "const"
+		case syntax.KindExtendsClause, syntax.KindImplementsClause, syntax.KindUseTraitClause:
+			return "class"
+		}
+	}
+	return "name"
 }
 
 // TypeFromSyntax builds analyse.Type from a syntax type node + binder.
@@ -363,11 +769,9 @@ func (b *Binder) TypeFromSyntax(n *syntax.RedNode) Type {
 		fqn := b.BindName(name, "type")
 		return ClassType(fqn)
 	case syntax.KindCallableType:
-		// Bind nested param/return type names; semantic type is callable.
 		b.bindCallableTypeNames(n)
 		return ParseType("callable")
 	default:
-		// Fallback for token-list coverage during cutover.
 		return ParseType(syntax.TypeText(n))
 	}
 }
@@ -450,7 +854,6 @@ func unionTypes(parts ...Type) Type {
 			continue
 		}
 		s := p.dnfString()
-		// Keep intersection alternatives parenthesized so ParseType preserves DNF.
 		if len(splitTopLevelTypes(stripBalancedOuterTypeParens(s), '&')) > 1 {
 			s = "(" + stripBalancedOuterTypeParens(s) + ")"
 		}
