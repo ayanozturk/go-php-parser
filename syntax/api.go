@@ -29,11 +29,36 @@ func NameText(n *RedNode) string {
 		var b []byte
 		for _, c := range n.Children() {
 			if c.Green != nil && c.Green.IsToken() {
-				tok := c.Green.Token
+				tok, ok := c.Green.Token()
+				if !ok {
+					continue
+				}
 				if tok.Type == token.T_STRING || tok.Type == token.T_NS_SEPARATOR ||
 					tok.Type == token.T_NAMESPACE || tok.Type == token.T_SELF ||
 					tok.Type == token.T_PARENT || tok.Type == token.T_STATIC {
-					b = append(b, []byte(tok.Literal)...)
+					if tok.Literal != "" {
+						b = append(b, tok.Literal...)
+					} else {
+						// Position-independent green: slice significant token text from red span.
+						s := c.Span()
+						lead := 0
+						for _, tr := range tok.LeadingTrivia {
+							w := tr.Width()
+							if w == 0 {
+								w = len(tr.Literal)
+							}
+							lead += w
+						}
+						sig := tok.Width()
+						if sig == 0 {
+							sig = len(tok.Literal)
+						}
+						start := s.Start + lead
+						end := start + sig
+						if c.File != nil && start >= 0 && end <= len(c.File.Source) && start <= end {
+							b = append(b, c.File.Source[start:end]...)
+						}
+					}
 				}
 			}
 		}
@@ -83,8 +108,18 @@ func (r *RedNode) ChildrenOfKind(k Kind) []*RedNode {
 	return out
 }
 
+// AppendUseAliases merges class-like import aliases from a KindUseDecl into aliases.
+// Used by the binder for per-namespace scopes (R2).
+func AppendUseAliases(useDecl *RedNode, aliases map[string]string) {
+	if useDecl == nil || aliases == nil {
+		return
+	}
+	collectUseAliases(useDecl, aliases)
+}
+
 // NamespaceAndAliases walks a syntax File for the primary namespace name and
 // class-like use aliases (including group-use expansions).
+// Prefer per-namespace binding via analyse.BindSyntaxFile for multi-namespace files (R2).
 func NamespaceAndAliases(f *File) (string, map[string]string) {
 	aliases := map[string]string{}
 	if f == nil || f.Root == nil {
@@ -120,7 +155,7 @@ func collectUseAliases(useDecl *RedNode, aliases map[string]string) {
 	useType := "class"
 	for _, c := range useDecl.Children() {
 		if c.Green != nil && c.Green.IsToken() {
-			switch c.Green.Token.Type {
+			switch c.Green.TokenType() {
 			case token.T_FUNCTION:
 				useType = "function"
 			case token.T_CONST:

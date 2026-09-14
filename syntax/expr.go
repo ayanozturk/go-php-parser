@@ -518,7 +518,7 @@ func (p *Parser) parsePrimaryExpr() *GreenNode {
 			return attrs
 		}
 		// Re-wrap: attribute list as leading children of the inner root when possible.
-		return p.intern.Node(inner.Kind, append([]*GreenNode{attrs}, inner.Children...)...)
+		return p.intern.Node(inner.kind, append([]*GreenNode{attrs}, inner.children...)...)
 	case token.T_ILLEGAL:
 		if p.tok().Literal == "$" {
 			return p.parseVariableVariable()

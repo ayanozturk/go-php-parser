@@ -19,7 +19,7 @@ func NewParser(src []byte) *Parser {
 	return &Parser{
 		src:    src,
 		tokens: lexFragment(src),
-		intern: NewInterner(),
+		intern: NewInterner(src),
 	}
 }
 
@@ -58,7 +58,7 @@ func ParseWith(src []byte, opts ParseOptions) *ParseResult {
 	p := &Parser{
 		src:                src,
 		tokens:             lexer.LexAll(src),
-		intern:             NewInterner(),
+		intern:             NewInterner(src),
 		SkipFunctionBodies: opts.SkipFunctionBodies,
 	}
 	var items []*GreenNode
@@ -625,7 +625,7 @@ func (p *Parser) parseEncapsulatedExpr() *GreenNode {
 func (p *Parser) parseHeredoc() *GreenNode {
 	start := p.bump()
 	kind := KindHeredoc
-	if start.Token != nil && start.Token.Type == token.T_START_NOWDOC {
+	if start.token != nil && start.token.Type == token.T_START_NOWDOC {
 		kind = KindNowdoc
 	}
 	var parts []*GreenNode

@@ -7,47 +7,75 @@ import (
 	"github.com/ayanozturk/go-php-parser/token"
 )
 
-// Print returns the exact source text represented by a green/red tree by
-// concatenating trivia + token text in order.
+// Print returns the exact source text represented by a red tree by slicing
+// the file source with absolute red offsets + green widths (R1).
 func Print(n *RedNode) string {
 	if n == nil || n.File == nil {
 		return ""
 	}
-	return PrintGreen(n.Green, n.File.Source)
+	return PrintGreenAt(n.Green, n.File.Source, n.Offset)
 }
 
+// PrintGreen reprints a green subtree that starts at byte offset 0 in src
+// (full-file greens only). Prefer Print on a RedNode for subtrees.
 func PrintGreen(g *GreenNode, src []byte) string {
+	return PrintGreenAt(g, src, 0)
+}
+
+// PrintGreenAt reprints green covering src[start:start+g.Width] by walking
+// widths — green tokens carry no absolute source offsets.
+func PrintGreenAt(g *GreenNode, src []byte, start int) string {
 	if g == nil {
 		return ""
 	}
 	var b strings.Builder
-	b.Grow(g.Width)
-	writeGreen(&b, g, src)
+	b.Grow(g.width)
+	off := start
+	writeGreen(&b, g, src, &off)
 	return b.String()
 }
 
-func writeGreen(b *strings.Builder, g *GreenNode, src []byte) {
+func writeGreen(b *strings.Builder, g *GreenNode, src []byte, off *int) {
 	if g == nil {
 		return
 	}
 	if g.IsToken() {
-		writeToken(b, *g.Token, src)
+		end := *off + g.width
+		if g.width > 0 && *off >= 0 && end <= len(src) {
+			b.Write(src[*off:end])
+		} else if g.token != nil {
+			// Fallback for hand-built tokens without a backing source span.
+			writeTokenFallback(b, *g.token, src)
+		}
+		*off = end
 		return
 	}
-	for _, c := range g.Children {
-		writeGreen(b, c, src)
+	for _, c := range g.children {
+		writeGreen(b, c, src, off)
 	}
 }
 
-func writeToken(b *strings.Builder, tok token.Token, src []byte) {
+func writeTokenFallback(b *strings.Builder, tok token.Token, src []byte) {
 	for _, tr := range tok.LeadingTrivia {
-		b.WriteString(tr.Text(src))
+		if t := tr.Text(src); t != "" {
+			b.WriteString(t)
+		} else {
+			b.WriteString(tr.Literal)
+		}
 	}
 	if tok.Type != token.T_EOF {
-		b.WriteString(tok.Text(src))
+		if t := tok.Text(src); t != "" {
+			b.WriteString(t)
+		} else {
+			b.WriteString(tok.Literal)
+		}
 	}
 	for _, tr := range tok.TrailingTrivia {
-		b.WriteString(tr.Text(src))
+		if t := tr.Text(src); t != "" {
+			b.WriteString(t)
+		} else {
+			b.WriteString(tr.Literal)
+		}
 	}
 }
 
@@ -55,14 +83,9 @@ func writeToken(b *strings.Builder, tok token.Token, src []byte) {
 // Identity: Print(BindRed(ParseTokens(src))) == string(src).
 func ParseTokens(src []byte) *File {
 	toks := lexer.LexAll(src)
-	in := NewInterner()
+	in := NewInterner(src)
 	children := make([]*GreenNode, 0, len(toks))
 	for _, tok := range toks {
-		if tok.Type == token.T_EOF {
-			// Keep EOF so trailing trivia is preserved.
-			children = append(children, in.Token(tok))
-			continue
-		}
 		children = append(children, in.Token(tok))
 	}
 	green := in.Node(KindFile, in.Node(KindTokenList, children...))

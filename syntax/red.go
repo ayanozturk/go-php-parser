@@ -6,14 +6,15 @@ import (
 
 // File is the red root for a parsed source file.
 type File struct {
-	Source   []byte
-	Lines    token.LineTable
-	Green    *GreenNode
-	Tokens   []token.Token
-	Root     *RedNode
+	Source []byte
+	Lines  token.LineTable
+	Green  *GreenNode
+	Tokens []token.Token
+	Root   *RedNode
 }
 
 // RedNode is a typed view over a green node with parent and absolute span.
+// Absolute byte offsets live here only — never on green (R1).
 type RedNode struct {
 	File   *File
 	Parent *RedNode
@@ -25,37 +26,37 @@ func (r *RedNode) Kind() Kind {
 	if r == nil || r.Green == nil {
 		return KindError
 	}
-	return r.Green.Kind
+	return r.Green.kind
 }
 
 func (r *RedNode) Span() Span {
 	if r == nil || r.Green == nil {
 		return Span{}
 	}
-	return Span{Start: r.Offset, End: r.Offset + r.Green.Width}
+	return Span{Start: r.Offset, End: r.Offset + r.Green.width}
 }
 
 func (r *RedNode) Text() string {
 	s := r.Span()
-	if s.Start < 0 || s.End > len(r.File.Source) || s.Start > s.End {
+	if r.File == nil || s.Start < 0 || s.End > len(r.File.Source) || s.Start > s.End {
 		return ""
 	}
 	return string(r.File.Source[s.Start:s.End])
 }
 
 func (r *RedNode) Children() []*RedNode {
-	if r == nil || r.Green == nil || len(r.Green.Children) == 0 {
+	if r == nil || r.Green == nil || len(r.Green.children) == 0 {
 		return nil
 	}
-	out := make([]*RedNode, 0, len(r.Green.Children))
+	out := make([]*RedNode, 0, len(r.Green.children))
 	off := r.Offset
-	for _, g := range r.Green.Children {
+	for _, g := range r.Green.children {
 		if g == nil {
 			continue
 		}
 		child := &RedNode{File: r.File, Parent: r, Green: g, Offset: off}
 		out = append(out, child)
-		off += g.Width
+		off += g.width
 	}
 	return out
 }
@@ -68,6 +69,8 @@ func (r *RedNode) Child(i int) *RedNode {
 	return ch[i]
 }
 
+// Tokens returns lexer tokens under this red node with absolute positions
+// reconstructed from the red offset walk (green tokens are position-independent).
 func (r *RedNode) Tokens() []token.Token {
 	var out []token.Token
 	var walk func(*RedNode)
@@ -76,7 +79,26 @@ func (r *RedNode) Tokens() []token.Token {
 			return
 		}
 		if n.Green.IsToken() {
-			out = append(out, *n.Green.Token)
+			tok, ok := n.Green.Token()
+			if !ok {
+				return
+			}
+			// Place the significant token after leading trivia within this green width.
+			lead := 0
+			for _, tr := range tok.LeadingTrivia {
+				w := tr.Width()
+				if w == 0 {
+					w = len(tr.Literal)
+				}
+				lead += w
+			}
+			sig := tok.Width()
+			if sig == 0 && tok.Type != token.T_EOF {
+				sig = len(tok.Literal)
+			}
+			tok.Pos = token.Position{Offset: n.Offset + lead}
+			tok.End = token.Position{Offset: n.Offset + lead + sig}
+			out = append(out, tok)
 			return
 		}
 		for _, c := range n.Children() {
