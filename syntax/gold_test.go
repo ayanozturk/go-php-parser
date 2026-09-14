@@ -249,6 +249,221 @@ func TestGoldTreeInterpolatedString(t *testing.T) {
 	}
 }
 
+func TestGoldTreeExpressions(t *testing.T) {
+	cases := []struct {
+		src  string
+		want string
+	}{
+		{
+			src: "$a + $b * $c",
+			want: "" +
+				"BinaryExpr\n" +
+				"  VariableExpr\n" +
+				"    Token T_VARIABLE \"$a\"\n" +
+				"  Token T_PLUS \"+\"\n" +
+				"  BinaryExpr\n" +
+				"    VariableExpr\n" +
+				"      Token T_VARIABLE \"$b\"\n" +
+				"    Token T_MULTIPLY \"*\"\n" +
+				"    VariableExpr\n" +
+				"      Token T_VARIABLE \"$c\"\n",
+		},
+		{
+			src: "$x = 1",
+			want: "" +
+				"AssignExpr\n" +
+				"  VariableExpr\n" +
+				"    Token T_VARIABLE \"$x\"\n" +
+				"  Token T_ASSIGN \"=\"\n" +
+				"  LiteralExpr\n" +
+				"    Token T_LNUMBER \"1\"\n",
+		},
+		{
+			src: "$o->m($a)",
+			want: "" +
+				"CallExpr\n" +
+				"  MemberAccessExpr\n" +
+				"    VariableExpr\n" +
+				"      Token T_VARIABLE \"$o\"\n" +
+				"    Token T_OBJECT_OPERATOR \"->\"\n" +
+				"    Token T_STRING \"m\"\n" +
+				"  ArgList\n" +
+				"    Token T_LPAREN \"(\"\n" +
+				"    Arg\n" +
+				"      VariableExpr\n" +
+				"        Token T_VARIABLE \"$a\"\n" +
+				"    Token T_RPAREN \")\"\n",
+		},
+		{
+			src: "$o?->p",
+			want: "" +
+				"NullsafeMemberAccessExpr\n" +
+				"  VariableExpr\n" +
+				"    Token T_VARIABLE \"$o\"\n" +
+				"  Token T_NULLSAFE_OBJECT_OPERATOR \"?->\"\n" +
+				"  Token T_STRING \"p\"\n",
+		},
+		{
+			src: "Foo::BAR",
+			want: "" +
+				"StaticMemberAccessExpr\n" +
+				"  UnqualifiedName\n" +
+				"    Token T_STRING \"Foo\"\n" +
+				"  Token T_DOUBLE_COLON \"::\"\n" +
+				"  Token T_STRING \"BAR\"\n",
+		},
+		{
+			src: "$a[0]",
+			want: "" +
+				"ArrayAccessExpr\n" +
+				"  VariableExpr\n" +
+				"    Token T_VARIABLE \"$a\"\n" +
+				"  Token T_LBRACKET \"[\"\n" +
+				"  LiteralExpr\n" +
+				"    Token T_LNUMBER \"0\"\n" +
+				"  Token T_RBRACKET \"]\"\n",
+		},
+		{
+			src: "[1, 'k' => 2, ...$xs]",
+			want: "" +
+				"ArrayExpr\n" +
+				"  Token T_LBRACKET \"[\"\n" +
+				"  ArrayElement\n" +
+				"    LiteralExpr\n" +
+				"      Token T_LNUMBER \"1\"\n" +
+				"  Token T_COMMA \",\"\n" +
+				"  ArrayElement\n" +
+				"    LiteralExpr\n" +
+				"      Token T_CONSTANT_ENCAPSED_STRING \"'k'\"\n" +
+				"    Token T_DOUBLE_ARROW \"=>\"\n" +
+				"    LiteralExpr\n" +
+				"      Token T_LNUMBER \"2\"\n" +
+				"  Token T_COMMA \",\"\n" +
+				"  ArrayElement\n" +
+				"    Token T_ELLIPSIS \"...\"\n" +
+				"    VariableExpr\n" +
+				"      Token T_VARIABLE \"$xs\"\n" +
+				"  Token T_RBRACKET \"]\"\n",
+		},
+		{
+			src: "42",
+			want: "" +
+				"LiteralExpr\n" +
+				"  Token T_LNUMBER \"42\"\n",
+		},
+		{
+			src: "$v",
+			want: "" +
+				"VariableExpr\n" +
+				"  Token T_VARIABLE \"$v\"\n",
+		},
+		{
+			src: "new Foo(1)",
+			want: "" +
+				"NewExpr\n" +
+				"  Token T_NEW \"new\"\n" +
+				"  UnqualifiedName\n" +
+				"    Token T_STRING \"Foo\"\n" +
+				"  ArgList\n" +
+				"    Token T_LPAREN \"(\"\n" +
+				"    Arg\n" +
+				"      LiteralExpr\n" +
+				"        Token T_LNUMBER \"1\"\n" +
+				"    Token T_RPAREN \")\"\n",
+		},
+		{
+			src: "$a ? $b : $c",
+			want: "" +
+				"TernaryExpr\n" +
+				"  VariableExpr\n" +
+				"    Token T_VARIABLE \"$a\"\n" +
+				"  Token T_QUESTION \"?\"\n" +
+				"  VariableExpr\n" +
+				"    Token T_VARIABLE \"$b\"\n" +
+				"  Token T_COLON \":\"\n" +
+				"  VariableExpr\n" +
+				"    Token T_VARIABLE \"$c\"\n",
+		},
+		{
+			src: "array(1, 2)",
+			want: "" +
+				"ArrayExpr\n" +
+				"  Token T_ARRAY \"array\"\n" +
+				"  Token T_LPAREN \"(\"\n" +
+				"  ArrayElement\n" +
+				"    LiteralExpr\n" +
+				"      Token T_LNUMBER \"1\"\n" +
+				"  Token T_COMMA \",\"\n" +
+				"  ArrayElement\n" +
+				"    LiteralExpr\n" +
+				"      Token T_LNUMBER \"2\"\n" +
+				"  Token T_RPAREN \")\"\n",
+		},
+		{
+			src: "list($x, $y)",
+			want: "" +
+				"ListExpr\n" +
+				"  Token T_LIST \"list\"\n" +
+				"  Token T_LPAREN \"(\"\n" +
+				"  ArrayElement\n" +
+				"    VariableExpr\n" +
+				"      Token T_VARIABLE \"$x\"\n" +
+				"  Token T_COMMA \",\"\n" +
+				"  ArrayElement\n" +
+				"    VariableExpr\n" +
+				"      Token T_VARIABLE \"$y\"\n" +
+				"  Token T_RPAREN \")\"\n",
+		},
+		{
+			src: "(int)$x",
+			want: "" +
+				"CastExpr\n" +
+				"  Token T_LPAREN \"(\"\n" +
+				"  Token T_STRING \"int\"\n" +
+				"  Token T_RPAREN \")\"\n" +
+				"  VariableExpr\n" +
+				"    Token T_VARIABLE \"$x\"\n",
+		},
+		{
+			src: "!$x",
+			want: "" +
+				"UnaryExpr\n" +
+				"  Token T_NOT \"!\"\n" +
+				"  VariableExpr\n" +
+				"    Token T_VARIABLE \"$x\"\n",
+		},
+		{
+			src: "foo(...)",
+			want: "" +
+				"FirstClassCallableExpr\n" +
+				"  UnqualifiedName\n" +
+				"    Token T_STRING \"foo\"\n" +
+				"  Token T_LPAREN \"(\"\n" +
+				"  Token T_ELLIPSIS \"...\"\n" +
+				"  Token T_RPAREN \")\"\n",
+		},
+		{
+			src: "isset($a)",
+			want: "" +
+				"CallExpr\n" +
+				"  Token T_ISSET \"isset\"\n" +
+				"  ArgList\n" +
+				"    Token T_LPAREN \"(\"\n" +
+				"    Arg\n" +
+				"      VariableExpr\n" +
+				"        Token T_VARIABLE \"$a\"\n" +
+				"    Token T_RPAREN \")\"\n",
+		},
+	}
+	for _, tc := range cases {
+		root := mustParseFragment(t, tc.src, (*Parser).parseExpression)
+		got := dumpGoldTree(root)
+		if got != tc.want {
+			t.Fatalf("gold expression %q\nwant:\n%s\ngot:\n%s", tc.src, tc.want, got)
+		}
+	}
+}
+
 func TestGoldTreeControlFlow(t *testing.T) {
 	src := "<?php\nif ($a) { echo $a; } else { echo 0; }\nwhile ($i) { break; }\n"
 	res := Parse([]byte(src))
