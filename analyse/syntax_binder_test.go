@@ -71,6 +71,18 @@ func TestProjectUsageGraphCrossFile(t *testing.T) {
 	if !uris["file://a.php"] || !uris["file://b.php"] {
 		t.Fatalf("expected both files in hits, got %v", uris)
 	}
+	aUses := g.UsesForURI("file://a.php")
+	if len(aUses) == 0 {
+		t.Fatal("UsesForURI(a) empty")
+	}
+	for _, u := range aUses {
+		if u.URI != "file://a.php" {
+			t.Fatalf("UsesForURI leaked other URI: %+v", u)
+		}
+	}
+	if g.UsesForURI("file://missing.php") != nil {
+		t.Fatal("expected nil for missing uri")
+	}
 	g.RemoveFile("file://b.php")
 	hits = g.FindByResolved("Foo")
 	for _, h := range hits {

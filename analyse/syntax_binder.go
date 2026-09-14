@@ -119,6 +119,16 @@ func filterUsesURI(in []NameUse, uri string) []NameUse {
 	return append([]NameUse(nil), out...)
 }
 
+// UsesForURI returns a copy of uses currently stored for uri.
+func (g *ProjectUsageGraph) UsesForURI(uri string) []NameUse {
+	if g == nil || uri == "" {
+		return nil
+	}
+	g.mu.RLock()
+	defer g.mu.RUnlock()
+	return append([]NameUse(nil), g.byURI[uri]...)
+}
+
 // FindByResolved returns uses whose Resolved FQN equals name (no unqualified fallback).
 func (g *ProjectUsageGraph) FindByResolved(name string) []NameUse {
 	if g == nil || name == "" {
