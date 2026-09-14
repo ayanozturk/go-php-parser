@@ -431,13 +431,10 @@ func BindSyntaxFileForIndex(uri string, src []byte, namespace string, aliases ma
 	return bindSyntaxFile(uri, src, true)
 }
 
-func bindSyntaxFile(uri string, src []byte, skipBodies bool) UsageGraph {
-	var res *syntax.ParseResult
-	if skipBodies {
-		res = syntax.ParseForIndex(src)
-	} else {
-		res = syntax.Parse(src)
-	}
+// BindSyntaxResult binds names from an already-parsed syntax tree (no re-lex/re-parse).
+// Callers that already hold a ParseResult should use this instead of BindSyntaxFile*
+// so index/rename paths share one parse (Strom dual-lex cutover vertical slice).
+func BindSyntaxResult(uri string, res *syntax.ParseResult) UsageGraph {
 	if res == nil || res.File == nil || res.File.Root == nil {
 		return UsageGraph{}
 	}
@@ -448,6 +445,16 @@ func bindSyntaxFile(uri string, src []byte, skipBodies bool) UsageGraph {
 	w := &binderWalk{b: b}
 	w.walkFile(res.File.Root)
 	return b.Graph
+}
+
+func bindSyntaxFile(uri string, src []byte, skipBodies bool) UsageGraph {
+	var res *syntax.ParseResult
+	if skipBodies {
+		res = syntax.ParseForIndex(src)
+	} else {
+		res = syntax.Parse(src)
+	}
+	return BindSyntaxResult(uri, res)
 }
 
 type binderWalk struct {

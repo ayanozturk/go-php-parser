@@ -281,3 +281,13 @@ func TestImportAliasAsBinding(t *testing.T) {
 		t.Fatalf("expected Alias type use, got %+v", graph.Uses)
 	}
 }
+
+func TestBindSyntaxResultSharesParse(t *testing.T) {
+	src := []byte("<?php\nclass Foo {}\nfunction f(Foo $x) {}\n")
+	res := syntax.ParseForIndex(src)
+	a := BindSyntaxResult("file://once.php", res)
+	b := BindSyntaxFileForIndex("file://once.php", src, "", nil)
+	if len(a.Uses) == 0 || len(a.Uses) != len(b.Uses) {
+		t.Fatalf("BindSyntaxResult uses=%d BindSyntaxFileForIndex uses=%d", len(a.Uses), len(b.Uses))
+	}
+}
