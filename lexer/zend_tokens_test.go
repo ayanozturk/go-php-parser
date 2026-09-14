@@ -1,6 +1,7 @@
 package lexer
 
 import (
+	"fmt"
 	"os/exec"
 	"strings"
 	"testing"
@@ -60,32 +61,44 @@ func TestKeywordKeepsOriginalSpelling(t *testing.T) {
 	}
 }
 
-func TestTokenGetAllKindTextFixtures(t *testing.T) {
+// TestTokenGetAllFullOrderedEquality asserts full ordered kind+text equality vs
+// PHP token_get_all (R5). Known Zend/token_get_all surface differences are
+// normalized only where the plan intentionally diverges (trivia-on-token open
+// tag fold, atomic names vs T_NAME_*, NOWDOC kinds, single-char CHAR folding).
+func TestTokenGetAllFullOrderedEquality(t *testing.T) {
 	if _, err := exec.LookPath("php"); err != nil {
 		t.Skip("php not available")
 	}
-	cases := []struct {
-		src  string
-		want []string // substring kind\ttext lines that must appear in order in both dumps
-	}{
-		{`<?php #[Attr] class C {}`, []string{`T_ATTRIBUTE	"#["`, `T_STRING	"Attr"`, `CHAR	"]"`, `T_CLASS	"class"`}},
-		{`<?php $a = "plain";`, []string{`T_VARIABLE	"$a"`, `T_CONSTANT_ENCAPSED_STRING	"\"plain\""`}},
-		{`<?php $a = 'plain';`, []string{`T_VARIABLE	"$a"`, `T_CONSTANT_ENCAPSED_STRING	"'plain'"`}},
-		{"<?php $a = <<<EOT\nhello\nEOT;", []string{"T_START_HEREDOC\t\"<<<EOT\\n\"", "T_ENCAPSED_AND_WHITESPACE\t\"hello\\n\"", "T_END_HEREDOC\t\"EOT\""}},
+	cases := []string{
+		`<?php #[Attr] class C {}`,
+		`<?php $a = "plain";`,
+		`<?php $a = 'plain';`,
+		"<?php $a = <<<EOT\nhello\nEOT;",
+		`<?php $a = "hello $x world";`,
+		"<?php\n/** doc */\nFunction f() {}\n",
+		"<?php\n#[\\Foo\\Bar(x: 1)]\nfunction f(string $a) {}\n",
+		"<?php\n$a = <<<'EOT'\nhello $x\nEOT;\n",
+		"<?php\n$a = <<<EOT\n    hi\n    EOT;\n",
+		"<?php\n$n = 1_000;\n",
+		"<?php\n$a = 1;\n",
+		`<?php $a = 1 + 2 * 3;`,
+		`<?php $a = Foo\Bar;`,
+		`<?php $a = \Foo\Bar;`,
+		`<?php $a = namespace\Foo;`,
+		`<?php $o->m();`,
+		`<?php $o?->m();`,
 	}
-	for _, tc := range cases {
-		phpOut, err := phpTokenDump(tc.src)
+	for _, src := range cases {
+		phpOut, err := phpTokenDump(src)
 		if err != nil {
-			t.Fatalf("php token dump: %v\n%s", err, phpOut)
+			t.Fatalf("php token dump for %q: %v\n%s", src, err, phpOut)
 		}
-		ours := ourTokenDump([]byte(tc.src))
-		for _, line := range tc.want {
-			if !strings.Contains(phpOut, line) {
-				t.Fatalf("php missing %s in %q\n%s", line, tc.src, phpOut)
-			}
-			if !strings.Contains(ours, line) {
-				t.Fatalf("ours missing %s in %q\n%s", line, tc.src, ours)
-			}
+		ours := ourTokenDump([]byte(src))
+		phpLines := normalizeZendDump(parseDumpLines(phpOut), true)
+		ourLines := normalizeZendDump(parseDumpLines(ours), false)
+		if diff := diffDumpLines(phpLines, ourLines); diff != "" {
+			t.Fatalf("full ordered token equality failed for %q\nPHP:\n%s\nOURS:\n%s\nDIFF:\n%s",
+				src, phpOut, ours, diff)
 		}
 	}
 }
@@ -149,6 +162,124 @@ func mapOurType(t token.TokenType) string {
 	}
 }
 
+type dumpLine struct {
+	kind string
+	text string // unquoted source text
+}
+
+func parseDumpLines(s string) []dumpLine {
+	var out []dumpLine
+	for _, raw := range strings.Split(strings.TrimRight(s, "\n"), "\n") {
+		if raw == "" {
+			continue
+		}
+		parts := strings.SplitN(raw, "\t", 2)
+		if len(parts) != 2 {
+			out = append(out, dumpLine{kind: raw})
+			continue
+		}
+		text, _ := unquoteJSON(parts[1])
+		out = append(out, dumpLine{kind: parts[0], text: text})
+	}
+	return out
+}
+
+// normalizeZendDump produces a comparable ordered stream.
+// expandNames applies only to PHP dumps (token_get_all T_NAME_* compounds).
+func normalizeZendDump(in []dumpLine, expandNames bool) []dumpLine {
+	var out []dumpLine
+	for i := 0; i < len(in); i++ {
+		l := in[i]
+		if l.kind == "T_OPEN_TAG" {
+			text := l.text
+			for i+1 < len(in) && in[i+1].kind == "T_WHITESPACE" {
+				text += in[i+1].text
+				i++
+			}
+			out = append(out, dumpLine{kind: "T_OPEN_TAG", text: text})
+			continue
+		}
+		if expandNames {
+			switch l.kind {
+			case "T_NAME_QUALIFIED", "T_NAME_FULLY_QUALIFIED", "T_NAME_RELATIVE":
+				out = append(out, expandPHPName(l)...)
+				continue
+			}
+		}
+		out = append(out, dumpLine{kind: zendComparableKind(l.kind, l.text), text: l.text})
+	}
+	return out
+}
+
+func expandPHPName(l dumpLine) []dumpLine {
+	text := l.text
+	var out []dumpLine
+	i := 0
+	if strings.HasPrefix(text, `namespace\`) && l.kind == "T_NAME_RELATIVE" {
+		out = append(out, dumpLine{kind: "T_NAMESPACE", text: "namespace"})
+		out = append(out, dumpLine{kind: "T_NS_SEPARATOR", text: `\`})
+		i = len("namespace\\")
+	} else if strings.HasPrefix(text, `\`) && l.kind == "T_NAME_FULLY_QUALIFIED" {
+		out = append(out, dumpLine{kind: "T_NS_SEPARATOR", text: `\`})
+		i = 1
+	}
+	for i < len(text) {
+		if text[i] == '\\' {
+			out = append(out, dumpLine{kind: "T_NS_SEPARATOR", text: `\`})
+			i++
+			continue
+		}
+		j := i
+		for j < len(text) && text[j] != '\\' {
+			j++
+		}
+		out = append(out, dumpLine{kind: "T_STRING", text: text[i:j]})
+		i = j
+	}
+	return out
+}
+
+func zendComparableKind(kind, text string) string {
+	switch kind {
+	case "T_START_NOWDOC":
+		return "T_START_HEREDOC"
+	case "T_END_NOWDOC":
+		return "T_END_HEREDOC"
+	}
+	if len(text) == 1 {
+		switch text[0] {
+		case '(', ')', '{', '}', '[', ']', ';', ',', '=', ':',
+			'+', '-', '*', '/', '%', '.', '!', '?', '|', '&', '^', '~', '@', '<', '>':
+			return "CHAR"
+		}
+	}
+	return kind
+}
+
+func diffDumpLines(php, ours []dumpLine) string {
+	var sb strings.Builder
+	n := len(php)
+	if len(ours) > n {
+		n = len(ours)
+	}
+	if len(php) != len(ours) {
+		sb.WriteString(fmt.Sprintf("len php=%d ours=%d\n", len(php), len(ours)))
+	}
+	for i := 0; i < n; i++ {
+		var a, b dumpLine
+		if i < len(php) {
+			a = php[i]
+		}
+		if i < len(ours) {
+			b = ours[i]
+		}
+		if a.kind != b.kind || a.text != b.text {
+			sb.WriteString(fmt.Sprintf("[%d] php=%s %q | ours=%s %q\n", i, a.kind, a.text, b.kind, b.text))
+		}
+	}
+	return sb.String()
+}
+
 func jsonQuote(s string) string {
 	var b strings.Builder
 	b.WriteByte('"')
@@ -171,56 +302,6 @@ func jsonQuote(s string) string {
 	return b.String()
 }
 
-func tokenDumpCompatible(php, ours string) bool {
-	flatten := func(s string) []string {
-		var out []string
-		lines := strings.Split(strings.TrimSpace(s), "\n")
-		for i := 0; i < len(lines); i++ {
-			line := lines[i]
-			if line == "" {
-				continue
-			}
-			// PHP folds one trailing space into T_OPEN_TAG; we emit trivia.
-			if strings.HasPrefix(line, "T_OPEN_TAG\t") {
-				text := strings.TrimPrefix(line, "T_OPEN_TAG\t")
-				text, _ = unquoteJSON(text)
-				for i+1 < len(lines) && strings.HasPrefix(lines[i+1], "T_WHITESPACE\t") {
-					ws, _ := unquoteJSON(strings.TrimPrefix(lines[i+1], "T_WHITESPACE\t"))
-					text += ws
-					i++
-				}
-				out = append(out, "T_OPEN_TAG\t"+jsonQuote(strings.TrimRight(text, "")))
-				// Normalize: compare open tag without requiring exact trailing ws merge.
-				out[len(out)-1] = "T_OPEN_TAG\t" + jsonQuote(strings.TrimSpace(text) /* keep <?php */)
-				// Actually keep kind-only for open tag:
-				out[len(out)-1] = "T_OPEN_TAG"
-				continue
-			}
-			if strings.HasPrefix(line, "T_WHITESPACE\t") {
-				out = append(out, "T_WHITESPACE")
-				continue
-			}
-			parts := strings.SplitN(line, "\t", 2)
-			if len(parts) != 2 {
-				out = append(out, line)
-				continue
-			}
-			out = append(out, parts[0]+"\t"+parts[1])
-		}
-		return out
-	}
-	a, b := flatten(php), flatten(ours)
-	if len(a) != len(b) {
-		return false
-	}
-	for i := range a {
-		if a[i] != b[i] {
-			return false
-		}
-	}
-	return true
-}
-
 func unquoteJSON(s string) (string, error) {
 	if len(s) >= 2 && s[0] == '"' && s[len(s)-1] == '"' {
 		var b strings.Builder
@@ -234,6 +315,8 @@ func unquoteJSON(s string) (string, error) {
 					b.WriteByte('\r')
 				case 't':
 					b.WriteByte('\t')
+				case '/', '"', '\\':
+					b.WriteByte(s[i])
 				default:
 					b.WriteByte(s[i])
 				}
