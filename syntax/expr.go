@@ -510,6 +510,13 @@ func (p *Parser) parsePrimaryExpr() *GreenNode {
 	case token.T_FUNCTION, token.T_FN:
 		// Closures / arrow functions: keep round-trip-safe token span until structured.
 		return p.parseOpaqueExprSpan()
+	case token.T_STATIC:
+		// static function(...) / static fn(...) are closures, not the name `static`.
+		if p.peekType(1) == token.T_FUNCTION || p.peekType(1) == token.T_FN {
+			return p.parseOpaqueExprSpan()
+		}
+		name := p.parseName()
+		return name
 	case token.T_ATTRIBUTE:
 		// Attributes before closures/anon classes in expr position.
 		attrs := p.parseAttributeList()

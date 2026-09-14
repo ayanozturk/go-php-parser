@@ -660,8 +660,9 @@ func (p *Parser) parseFunctionDecl() *GreenNode {
 	if p.at(token.T_AMPERSAND) {
 		parts = append(parts, p.bump())
 	}
-	if p.at(token.T_STRING) {
-		parts = append(parts, p.intern.Node(KindUnqualifiedName, p.bump()))
+	// Zend keeps keyword tokens (T_LIST, T_DEFAULT, …) after `function`; accept them as names.
+	if name := p.parseIdentName(); name != nil {
+		parts = append(parts, name)
 	}
 	parts = append(parts, p.expect(token.T_LPAREN))
 	parts = append(parts, p.parseParamList())
@@ -682,6 +683,41 @@ func (p *Parser) parseFunctionDecl() *GreenNode {
 		kind = KindMethodDecl // interface/abstract style
 	}
 	return p.intern.Node(kind, parts...)
+}
+
+// parseIdentName consumes a T_STRING or keyword-identifier (e.g. T_LIST) as an UnqualifiedName.
+// PHP allows most keywords as method/function/const names while token_get_all still emits the keyword kind.
+func (p *Parser) parseIdentName() *GreenNode {
+	if !p.atIdentName() {
+		return nil
+	}
+	return p.intern.Node(KindUnqualifiedName, p.bump())
+}
+
+func (p *Parser) atIdentName() bool {
+	if p.at(token.T_STRING) {
+		return true
+	}
+	lit := p.tok().Literal
+	if lit == "" {
+		return false
+	}
+	switch p.tok().Type {
+	case token.T_LPAREN, token.T_RPAREN, token.T_LBRACE, token.T_RBRACE,
+		token.T_LBRACKET, token.T_RBRACKET, token.T_SEMICOLON, token.T_COMMA,
+		token.T_AMPERSAND, token.T_ELLIPSIS, token.T_COLON, token.T_DOUBLE_ARROW,
+		token.T_ASSIGN, token.T_EOF, token.T_VARIABLE, token.T_NS_SEPARATOR,
+		token.T_OBJECT_OPERATOR, token.T_NULLSAFE_OBJECT_OPERATOR, token.T_DOUBLE_COLON,
+		token.T_ATTRIBUTE, token.T_OPEN_TAG, token.T_CLOSE_TAG, token.T_INLINE_HTML,
+		token.T_CONSTANT_STRING, token.T_CONSTANT_ENCAPSED_STRING, token.T_LNUMBER, token.T_DNUMBER,
+		token.T_START_HEREDOC, token.T_START_NOWDOC, token.T_END_HEREDOC, token.T_END_NOWDOC,
+		token.T_ENCAPSED_AND_WHITESPACE, token.T_CURLY_OPEN, token.T_DOLLAR_OPEN_CURLY_BRACES,
+		token.T_ILLEGAL:
+		return false
+	default:
+		r := lit[0]
+		return (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || r == '_'
+	}
 }
 
 func (p *Parser) parseClassLikeDecl() *GreenNode {
@@ -1633,11 +1669,16 @@ func (p *Parser) parseUntilStmtEnd() *GreenNode {
 func (p *Parser) parseParamList() *GreenNode {
 	var parts []*GreenNode
 	for !p.at(token.T_RPAREN) && !p.at(token.T_EOF) {
+		start := p.i
 		if p.at(token.T_COMMA) {
 			parts = append(parts, p.bump())
 			continue
 		}
 		parts = append(parts, p.parseParam())
+		if p.i == start {
+			// No progress (e.g. unexpected keyword) — bump to avoid infinite loops.
+			parts = append(parts, p.bump())
+		}
 	}
 	return p.intern.Node(KindParamList, parts...)
 }

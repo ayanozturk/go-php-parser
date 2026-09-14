@@ -596,4 +596,57 @@ func TestParseExpressionUnitIdentity(t *testing.T) {
 	}
 }
 
+func TestKeywordMethodNameListIdentity(t *testing.T) {
+	cases := []string{
+		"<?php\nclass A {\n    public function list(bool $x = false): array {}\n}\n",
+		"<?php\nabstract class A {\n    abstract public function list(bool $reveal = false): array;\n}\n",
+	}
+	for _, src := range cases {
+		res := Parse([]byte(src))
+		if Print(res.File.Root) != src {
+			t.Fatalf("identity\nwant %q\ngot  %q", src, Print(res.File.Root))
+		}
+	}
+	// Method name keeps T_LIST after `function` (not lowered to T_STRING).
+	res := Parse([]byte(cases[0]))
+	var foundListMethodName bool
+	var walk func(*RedNode)
+	walk = func(n *RedNode) {
+		if n == nil {
+			return
+		}
+		if n.Kind() == KindUnqualifiedName {
+			for _, c := range n.Children() {
+				if c.Green != nil && c.Green.IsToken() {
+					tok, ok := c.Green.Token()
+					if ok && tok.Type == token.T_LIST {
+						foundListMethodName = true
+					}
+				}
+			}
+		}
+		for _, c := range n.Children() {
+			walk(c)
+		}
+	}
+	walk(res.File.Root)
+	if !foundListMethodName {
+		t.Fatalf("expected UnqualifiedName with Token T_LIST for method name")
+	}
+}
+
+func TestStaticClosureExprIdentity(t *testing.T) {
+	cases := []string{
+		"<?php\n$a = static function ($x) { return $x; };\n",
+		"<?php\n$a = static function ( $input = array() ) use ( $f ): array {\n  return array();\n};\n",
+		"<?php\n$a = [\n  'cb' => static function ( $input ) use ( $f ): array {\n    return array();\n  },\n];\n",
+	}
+	for _, src := range cases {
+		res := Parse([]byte(src))
+		if Print(res.File.Root) != src {
+			t.Fatalf("identity\nwant %q\ngot  %q", src, Print(res.File.Root))
+		}
+	}
+}
+
 
