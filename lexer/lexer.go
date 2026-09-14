@@ -548,6 +548,12 @@ func (l *Lexer) scanToken() token.Token {
 		case token.T_RBRACE:
 			l.braceExprDepth--
 			if l.braceExprDepth <= 0 {
+				// finishToken fills End from l.pos when unset. resumeEncapsedAfterBrace
+				// advances the lexer to queue the rest of the encapsed/heredoc body,
+				// so capture End for '}' before that scan or Width() swallows body bytes.
+				if tok.End.Line == 0 && tok.End.Column == 0 && tok.End.Offset == 0 {
+					tok.End = token.Position{Line: l.line, Column: l.column, Offset: l.pos}
+				}
 				l.resumeEncapsedAfterBrace()
 			}
 		}
