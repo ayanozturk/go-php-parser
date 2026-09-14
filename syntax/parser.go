@@ -170,17 +170,25 @@ func (p *Parser) tryParseStructured() *GreenNode {
 	case p.at(token.T_VARIABLE), p.at(token.T_INC), p.at(token.T_DEC),
 		p.at(token.T_NEW), p.at(token.T_CLONE), p.at(token.T_PRINT),
 		p.at(token.T_LIST), p.at(token.T_ARRAY), p.at(token.T_LBRACKET),
-		p.at(token.T_LPAREN), p.at(token.T_LNUMBER), p.at(token.T_DNUMBER):
+		p.at(token.T_LPAREN), p.at(token.T_LNUMBER), p.at(token.T_DNUMBER),
+		p.at(token.T_PLUS), p.at(token.T_MINUS), p.at(token.T_NOT), p.at(token.T_TILDE),
+		p.at(token.T_AT), p.at(token.T_AMPERSAND), p.at(token.T_YIELD), p.at(token.T_YIELD_FROM),
+		p.at(token.T_INCLUDE), p.at(token.T_INCLUDE_ONCE), p.at(token.T_REQUIRE), p.at(token.T_REQUIRE_ONCE),
+		p.at(token.T_ISSET), p.at(token.T_EMPTY), p.at(token.T_EXIT), p.at(token.T_DIE),
+		p.at(token.T_TRUE), p.at(token.T_FALSE), p.at(token.T_NULL),
+		p.at(token.T_FUNCTION), p.at(token.T_FN):
+		return p.parseExpressionStmt()
+	case p.at(token.T_ILLEGAL) && p.tok().Literal == "$":
 		return p.parseExpressionStmt()
 	case p.isNameStart():
 		// Function/const calls and bare names as expression statements.
 		return p.parseExpressionStmt()
 	case p.at(token.T_CONSTANT_ENCAPSED_STRING):
-		return p.parseStringLiteral()
-	case p.at(token.T_CONSTANT_STRING) && p.tok().Literal == "\"":
-		return p.parseInterpolatedString()
+		return p.parseExpressionStmt()
+	case p.at(token.T_CONSTANT_STRING) && (p.tok().Literal == "\"" || p.tok().Literal == "`"):
+		return p.parseExpressionStmt()
 	case p.at(token.T_START_HEREDOC) || p.at(token.T_START_NOWDOC):
-		return p.parseHeredoc()
+		return p.parseExpressionStmt()
 	case p.at(token.T_SEMICOLON):
 		return p.intern.Node(KindEmptyStmt, p.bump())
 	default:
@@ -569,39 +577,7 @@ func (p *Parser) parseArgList() *GreenNode {
 }
 
 func (p *Parser) parseArg() *GreenNode {
-	// named arg: name: expr — expr approximated as tokens until , or )
-	if (p.at(token.T_STRING) || p.at(token.T_CLASS)) && p.i+1 < len(p.tokens) && p.tokens[p.i+1].Type == token.T_COLON {
-		name := p.bump()
-		colon := p.bump()
-		expr := p.parseArgExprTokens()
-		return p.intern.Node(KindNamedArg, name, colon, expr)
-	}
-	if p.at(token.T_ELLIPSIS) {
-		return p.intern.Node(KindArg, p.bump(), p.parseArgExprTokens())
-	}
-	return p.intern.Node(KindArg, p.parseArgExprTokens())
-}
-
-func (p *Parser) parseArgExprTokens() *GreenNode {
-	// Token coverage until ',' or ')' at depth 0.
-	var parts []*GreenNode
-	depth := 0
-	for !p.at(token.T_EOF) {
-		tt := p.tok().Type
-		if depth == 0 && (tt == token.T_COMMA || tt == token.T_RPAREN) {
-			break
-		}
-		switch tt {
-		case token.T_LPAREN, token.T_LBRACKET, token.T_LBRACE:
-			depth++
-		case token.T_RPAREN, token.T_RBRACKET, token.T_RBRACE:
-			if depth > 0 {
-				depth--
-			}
-		}
-		parts = append(parts, p.bump())
-	}
-	return p.intern.Node(KindTokenList, parts...)
+	return p.parseCallArg()
 }
 
 func (p *Parser) parseStringLiteral() *GreenNode {
@@ -946,7 +922,11 @@ func (p *Parser) parseConstDecl() *GreenNode {
 		}
 		if p.at(token.T_ASSIGN) {
 			parts = append(parts, p.bump())
-			parts = append(parts, p.parseUntilCommaOrSemi())
+			if expr := p.parseExpression(); expr != nil {
+				parts = append(parts, expr)
+			} else {
+				parts = append(parts, p.parseUntilCommaOrSemi())
+			}
 		}
 		if p.at(token.T_COMMA) {
 			parts = append(parts, p.bump())
@@ -1038,7 +1018,11 @@ func (p *Parser) parseStaticVarStmt() *GreenNode {
 		}
 		if p.at(token.T_ASSIGN) {
 			parts = append(parts, p.bump())
-			parts = append(parts, p.parseUntilCommaOrSemi())
+			if expr := p.parseExpression(); expr != nil {
+				parts = append(parts, expr)
+			} else {
+				parts = append(parts, p.parseUntilCommaOrSemi())
+			}
 		}
 		if p.at(token.T_COMMA) {
 			parts = append(parts, p.bump())
@@ -1055,7 +1039,7 @@ func (p *Parser) parseStaticVarStmt() *GreenNode {
 func (p *Parser) parseEchoStmt() *GreenNode {
 	var parts []*GreenNode
 	parts = append(parts, p.expect(token.T_ECHO))
-	parts = append(parts, p.parseUntilStmtEnd())
+	parts = append(parts, p.parseExprListComma()...)
 	if p.at(token.T_SEMICOLON) {
 		parts = append(parts, p.bump())
 	}
@@ -1066,7 +1050,9 @@ func (p *Parser) parseReturnStmt() *GreenNode {
 	var parts []*GreenNode
 	parts = append(parts, p.expect(token.T_RETURN))
 	if !p.at(token.T_SEMICOLON) && !p.at(token.T_EOF) {
-		parts = append(parts, p.parseUntilStmtEnd())
+		if expr := p.parseExpression(); expr != nil {
+			parts = append(parts, expr)
+		}
 	}
 	if p.at(token.T_SEMICOLON) {
 		parts = append(parts, p.bump())
@@ -1076,7 +1062,11 @@ func (p *Parser) parseReturnStmt() *GreenNode {
 
 func (p *Parser) parseExpressionStmt() *GreenNode {
 	var parts []*GreenNode
-	parts = append(parts, p.parseUntilStmtEnd())
+	if expr := p.parseExpression(); expr != nil {
+		parts = append(parts, expr)
+	} else {
+		parts = append(parts, p.parseUntilStmtEnd())
+	}
 	if p.at(token.T_SEMICOLON) {
 		parts = append(parts, p.bump())
 	}
@@ -1087,7 +1077,9 @@ func (p *Parser) parseBreakStmt() *GreenNode {
 	var parts []*GreenNode
 	parts = append(parts, p.expect(token.T_BREAK))
 	if !p.at(token.T_SEMICOLON) && !p.at(token.T_EOF) {
-		parts = append(parts, p.parseUntilStmtEnd())
+		if expr := p.parseExpression(); expr != nil {
+			parts = append(parts, expr)
+		}
 	}
 	if p.at(token.T_SEMICOLON) {
 		parts = append(parts, p.bump())
@@ -1099,7 +1091,9 @@ func (p *Parser) parseContinueStmt() *GreenNode {
 	var parts []*GreenNode
 	parts = append(parts, p.expect(token.T_CONTINUE))
 	if !p.at(token.T_SEMICOLON) && !p.at(token.T_EOF) {
-		parts = append(parts, p.parseUntilStmtEnd())
+		if expr := p.parseExpression(); expr != nil {
+			parts = append(parts, expr)
+		}
 	}
 	if p.at(token.T_SEMICOLON) {
 		parts = append(parts, p.bump())
@@ -1111,7 +1105,9 @@ func (p *Parser) parseThrowStmt() *GreenNode {
 	var parts []*GreenNode
 	parts = append(parts, p.expect(token.T_THROW))
 	if !p.at(token.T_SEMICOLON) && !p.at(token.T_EOF) {
-		parts = append(parts, p.parseUntilStmtEnd())
+		if expr := p.parseExpression(); expr != nil {
+			parts = append(parts, expr)
+		}
 	}
 	if p.at(token.T_SEMICOLON) {
 		parts = append(parts, p.bump())
@@ -1122,37 +1118,11 @@ func (p *Parser) parseThrowStmt() *GreenNode {
 func (p *Parser) parseUnsetStmt() *GreenNode {
 	var parts []*GreenNode
 	parts = append(parts, p.expect(token.T_UNSET))
-	parts = p.appendParenExpr(parts)
+	parts = p.appendUnsetParenArgs(parts)
 	if p.at(token.T_SEMICOLON) {
 		parts = append(parts, p.bump())
 	}
 	return p.intern.Node(KindUnsetStmt, parts...)
-}
-
-// appendParenExpr appends '(' , optional KindTokenList contents, ')'.
-func (p *Parser) appendParenExpr(parts []*GreenNode) []*GreenNode {
-	parts = append(parts, p.expect(token.T_LPAREN))
-	depth := 1
-	var inner []*GreenNode
-	for !p.at(token.T_EOF) && depth > 0 {
-		switch p.tok().Type {
-		case token.T_LPAREN:
-			depth++
-		case token.T_RPAREN:
-			depth--
-			if depth == 0 {
-				break
-			}
-		}
-		if depth > 0 {
-			inner = append(inner, p.bump())
-		}
-	}
-	if len(inner) > 0 {
-		parts = append(parts, p.intern.Node(KindTokenList, inner...))
-	}
-	parts = append(parts, p.expect(token.T_RPAREN))
-	return parts
 }
 
 // parseControlBody parses a braced block, alternate colon body until stop, or a single statement.
@@ -1202,7 +1172,7 @@ func (p *Parser) parseColonStatementList(stop ...token.TokenType) *GreenNode {
 func (p *Parser) parseIfStmt() *GreenNode {
 	var parts []*GreenNode
 	parts = append(parts, p.expect(token.T_IF))
-	parts = p.appendParenExpr(parts)
+	parts = p.appendSimpleParenExpr(parts)
 	alt := p.at(token.T_COLON)
 	parts = append(parts, p.parseControlBody(token.T_ELSEIF, token.T_ELSE, token.T_ENDIF)...)
 	for p.at(token.T_ELSEIF) {
@@ -1225,7 +1195,7 @@ func (p *Parser) parseIfStmt() *GreenNode {
 func (p *Parser) parseElseIfClause(alt bool) *GreenNode {
 	var parts []*GreenNode
 	parts = append(parts, p.expect(token.T_ELSEIF))
-	parts = p.appendParenExpr(parts)
+	parts = p.appendSimpleParenExpr(parts)
 	if alt {
 		parts = append(parts, p.parseControlBody(token.T_ELSEIF, token.T_ELSE, token.T_ENDIF)...)
 	} else {
@@ -1248,7 +1218,7 @@ func (p *Parser) parseElseClause(alt bool) *GreenNode {
 func (p *Parser) parseWhileStmt() *GreenNode {
 	var parts []*GreenNode
 	parts = append(parts, p.expect(token.T_WHILE))
-	parts = p.appendParenExpr(parts)
+	parts = p.appendSimpleParenExpr(parts)
 	alt := p.at(token.T_COLON)
 	parts = append(parts, p.parseControlBody(token.T_ENDWHILE)...)
 	if alt {
@@ -1267,7 +1237,7 @@ func (p *Parser) parseDoWhileStmt() *GreenNode {
 	parts = append(parts, p.expect(token.T_DO))
 	parts = append(parts, p.parseControlBody()...)
 	parts = append(parts, p.expect(token.T_WHILE))
-	parts = p.appendParenExpr(parts)
+	parts = p.appendSimpleParenExpr(parts)
 	if p.at(token.T_SEMICOLON) {
 		parts = append(parts, p.bump())
 	}
@@ -1277,7 +1247,7 @@ func (p *Parser) parseDoWhileStmt() *GreenNode {
 func (p *Parser) parseForStmt() *GreenNode {
 	var parts []*GreenNode
 	parts = append(parts, p.expect(token.T_FOR))
-	parts = p.appendParenExpr(parts)
+	parts = p.appendForParenHeader(parts)
 	alt := p.at(token.T_COLON)
 	parts = append(parts, p.parseControlBody(token.T_ENDFOR)...)
 	if alt {
@@ -1294,7 +1264,7 @@ func (p *Parser) parseForStmt() *GreenNode {
 func (p *Parser) parseForeachStmt() *GreenNode {
 	var parts []*GreenNode
 	parts = append(parts, p.expect(token.T_FOREACH))
-	parts = p.appendParenExpr(parts)
+	parts = p.appendForeachParenHeader(parts)
 	alt := p.at(token.T_COLON)
 	parts = append(parts, p.parseControlBody(token.T_ENDFOREACH)...)
 	if alt {
@@ -1311,7 +1281,7 @@ func (p *Parser) parseForeachStmt() *GreenNode {
 func (p *Parser) parseSwitchStmt() *GreenNode {
 	var parts []*GreenNode
 	parts = append(parts, p.expect(token.T_SWITCH))
-	parts = p.appendParenExpr(parts)
+	parts = p.appendSimpleParenExpr(parts)
 	if p.at(token.T_LBRACE) {
 		parts = append(parts, p.parseSwitchBlock(false))
 	} else if p.at(token.T_COLON) {
@@ -1362,7 +1332,11 @@ func (p *Parser) parseSwitchBlock(alt bool) *GreenNode {
 func (p *Parser) parseCaseClause(alt bool) *GreenNode {
 	var parts []*GreenNode
 	parts = append(parts, p.expect(token.T_CASE))
-	parts = append(parts, p.parseUntilCaseSep())
+	if expr := p.parseExpression(); expr != nil {
+		parts = append(parts, expr)
+	} else {
+		parts = append(parts, p.parseUntilCaseSep())
+	}
 	if p.at(token.T_COLON) || p.at(token.T_SEMICOLON) {
 		parts = append(parts, p.bump())
 	}
@@ -1435,7 +1409,7 @@ func (p *Parser) parseMatchExprStmt() *GreenNode {
 func (p *Parser) parseMatchExpr() *GreenNode {
 	var parts []*GreenNode
 	parts = append(parts, p.expect(token.T_MATCH))
-	parts = p.appendParenExpr(parts)
+	parts = p.appendSimpleParenExpr(parts)
 	parts = append(parts, p.expect(token.T_LBRACE))
 	for !p.at(token.T_RBRACE) && !p.at(token.T_EOF) {
 		if p.at(token.T_COMMA) {
@@ -1455,35 +1429,15 @@ func (p *Parser) parseMatchArm() *GreenNode {
 	if p.at(token.T_DEFAULT) {
 		parts = append(parts, p.bump())
 	} else {
-		// Patterns until => (comma-separated), as TokenList.
-		var pat []*GreenNode
-		depth := 0
-		for !p.at(token.T_EOF) {
-			if depth == 0 && p.at(token.T_DOUBLE_ARROW) {
-				break
-			}
-			switch p.tok().Type {
-			case token.T_LPAREN, token.T_LBRACKET, token.T_LBRACE:
-				depth++
-			case token.T_RPAREN, token.T_RBRACKET, token.T_RBRACE:
-				if depth > 0 {
-					depth--
-				} else if p.at(token.T_RBRACE) {
-					break
-				}
-			}
-			if depth == 0 && p.at(token.T_RBRACE) {
-				break
-			}
-			pat = append(pat, p.bump())
-		}
-		if len(pat) > 0 {
-			parts = append(parts, p.intern.Node(KindTokenList, pat...))
-		}
+		parts = append(parts, p.parseExprListComma()...)
 	}
 	if p.at(token.T_DOUBLE_ARROW) {
 		parts = append(parts, p.bump())
-		parts = append(parts, p.parseUntilMatchArmEnd())
+		if expr := p.parseExpression(); expr != nil {
+			parts = append(parts, expr)
+		} else {
+			parts = append(parts, p.parseUntilMatchArmEnd())
+		}
 	}
 	return p.intern.Node(KindMatchArm, parts...)
 }
@@ -1568,7 +1522,11 @@ func (p *Parser) parseEnumCase() *GreenNode {
 	}
 	if p.at(token.T_ASSIGN) {
 		parts = append(parts, p.bump())
-		parts = append(parts, p.parseUntilStmtEnd())
+		if expr := p.parseExpression(); expr != nil {
+			parts = append(parts, expr)
+		} else {
+			parts = append(parts, p.parseUntilStmtEnd())
+		}
 	}
 	if p.at(token.T_SEMICOLON) {
 		parts = append(parts, p.bump())
@@ -1598,7 +1556,11 @@ func (p *Parser) parseClassConstDecl() *GreenNode {
 		}
 		if p.at(token.T_ASSIGN) {
 			parts = append(parts, p.bump())
-			parts = append(parts, p.parseUntilCommaOrSemi())
+			if expr := p.parseExpression(); expr != nil {
+				parts = append(parts, expr)
+			} else {
+				parts = append(parts, p.parseUntilCommaOrSemi())
+			}
 		}
 		if p.at(token.T_COMMA) {
 			parts = append(parts, p.bump())
@@ -1626,7 +1588,11 @@ func (p *Parser) parsePropertyDecl() *GreenNode {
 		}
 		if p.at(token.T_ASSIGN) {
 			parts = append(parts, p.bump())
-			parts = append(parts, p.parseUntilCommaOrSemi())
+			if expr := p.parseExpression(); expr != nil {
+				parts = append(parts, expr)
+			} else {
+				parts = append(parts, p.parseUntilCommaOrSemi())
+			}
 		}
 		if p.at(token.T_COMMA) {
 			parts = append(parts, p.bump())
@@ -1698,8 +1664,11 @@ func (p *Parser) parseParam() *GreenNode {
 	}
 	if p.at(token.T_ASSIGN) {
 		parts = append(parts, p.bump())
-		// Default expression as token list until full expr green exists.
-		parts = append(parts, p.parseUntilParamEnd())
+		if expr := p.parseExpression(); expr != nil {
+			parts = append(parts, expr)
+		} else {
+			parts = append(parts, p.parseUntilParamEnd())
+		}
 	}
 	return p.intern.Node(KindParam, parts...)
 }

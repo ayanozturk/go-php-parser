@@ -98,6 +98,32 @@ const (
 	KindUnsetStmt
 	KindTraitAdaptationList
 	KindTraitAdaptation
+
+	// Expressions
+	KindVariableExpr
+	KindLiteralExpr
+	KindBinaryExpr
+	KindUnaryExpr
+	KindAssignExpr
+	KindTernaryExpr
+	KindCallExpr
+	KindMemberAccessExpr
+	KindNullsafeMemberAccessExpr
+	KindArrayAccessExpr
+	KindStaticMemberAccessExpr
+	KindNewExpr
+	KindCloneExpr
+	KindCastExpr
+	KindParenExpr
+	KindArrayExpr
+	KindArrayElement
+	KindListExpr
+	KindPrintExpr
+	KindIncludeExpr
+	KindThrowExpr
+	KindYieldExpr
+	KindVariableVariableExpr
+	KindFirstClassCallableExpr
 )
 
 var kindNames = [...]string{
@@ -181,8 +207,32 @@ var kindNames = [...]string{
 	KindContinueStmt:       "ContinueStmt",
 	KindThrowStmt:          "ThrowStmt",
 	KindUnsetStmt:          "UnsetStmt",
-	KindTraitAdaptationList: "TraitAdaptationList",
-	KindTraitAdaptation:    "TraitAdaptation",
+	KindTraitAdaptationList:        "TraitAdaptationList",
+	KindTraitAdaptation:            "TraitAdaptation",
+	KindVariableExpr:               "VariableExpr",
+	KindLiteralExpr:                "LiteralExpr",
+	KindBinaryExpr:                 "BinaryExpr",
+	KindUnaryExpr:                  "UnaryExpr",
+	KindAssignExpr:                 "AssignExpr",
+	KindTernaryExpr:                "TernaryExpr",
+	KindCallExpr:                   "CallExpr",
+	KindMemberAccessExpr:           "MemberAccessExpr",
+	KindNullsafeMemberAccessExpr:   "NullsafeMemberAccessExpr",
+	KindArrayAccessExpr:            "ArrayAccessExpr",
+	KindStaticMemberAccessExpr:     "StaticMemberAccessExpr",
+	KindNewExpr:                    "NewExpr",
+	KindCloneExpr:                  "CloneExpr",
+	KindCastExpr:                   "CastExpr",
+	KindParenExpr:                  "ParenExpr",
+	KindArrayExpr:                  "ArrayExpr",
+	KindArrayElement:               "ArrayElement",
+	KindListExpr:                   "ListExpr",
+	KindPrintExpr:                  "PrintExpr",
+	KindIncludeExpr:                "IncludeExpr",
+	KindThrowExpr:                  "ThrowExpr",
+	KindYieldExpr:                  "YieldExpr",
+	KindVariableVariableExpr:       "VariableVariableExpr",
+	KindFirstClassCallableExpr:     "FirstClassCallableExpr",
 }
 
 func (k Kind) String() string {

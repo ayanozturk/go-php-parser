@@ -486,4 +486,114 @@ func TestParseControlFlowInsideNamespace(t *testing.T) {
 	}
 }
 
+func TestParseExpressionsStructured(t *testing.T) {
+	src := `<?php
+$a = 1 + 2 * 3;
+$b = !$a;
+$c = (int)$a;
+$d = $obj->prop;
+$e = $obj?->meth($a, x: 2);
+$f = Foo::bar($a);
+$g = $arr[0];
+$h = new Foo($a);
+$i = clone $obj;
+$j = [1, 'k' => 2, ...$xs];
+$k = array(1, 2);
+list($x, $y) = $j;
+$m = $a ? $b : $c;
+$n = $a ?: $b;
+$o = $a ?? $b;
+$p = foo(...);
+print $a;
+yield $a;
+yield $k => $v;
+include 'f.php';
+$r = throw $e;
+isset($a);
+empty($a);
+$$v = 1;
+$z = $a instanceof Foo;
+$q = ($a);
+`
+	res := Parse([]byte(src))
+	got := Print(res.File.Root)
+	if got != src {
+		t.Fatalf("file identity\nwant %q\ngot  %q", src, got)
+	}
+	want := map[Kind]bool{
+		KindAssignExpr:               false,
+		KindBinaryExpr:               false,
+		KindUnaryExpr:                false,
+		KindCastExpr:                 false,
+		KindMemberAccessExpr:         false,
+		KindNullsafeMemberAccessExpr: false,
+		KindCallExpr:                 false,
+		KindStaticMemberAccessExpr:   false,
+		KindArrayAccessExpr:          false,
+		KindNewExpr:                  false,
+		KindCloneExpr:                false,
+		KindArrayExpr:                false,
+		KindArrayElement:             false,
+		KindListExpr:                 false,
+		KindTernaryExpr:              false,
+		KindFirstClassCallableExpr:   false,
+		KindPrintExpr:                false,
+		KindYieldExpr:                false,
+		KindIncludeExpr:              false,
+		KindThrowExpr:                false,
+		KindVariableVariableExpr:     false,
+		KindVariableExpr:             false,
+		KindLiteralExpr:              false,
+		KindParenExpr:                false,
+	}
+	var walk func(*RedNode)
+	walk = func(n *RedNode) {
+		if n == nil {
+			return
+		}
+		if _, ok := want[n.Kind()]; ok {
+			want[n.Kind()] = true
+		}
+		for _, c := range n.Children() {
+			walk(c)
+		}
+	}
+	walk(res.File.Root)
+	for k, found := range want {
+		if !found {
+			t.Fatalf("expected %s in green tree", k)
+		}
+	}
+}
+
+func TestParseExpressionUnitIdentity(t *testing.T) {
+	cases := []string{
+		`$a + $b * $c`,
+		`!$x`,
+		`(int)$x`,
+		`$o->m($a)`,
+		`$o?->p`,
+		`Foo::BAR`,
+		`$a[0]`,
+		`new Foo(1)`,
+		`[1, 2 => 3]`,
+		`$a ? $b : $c`,
+		`$a ?? $b`,
+		`foo(...)`,
+		`isset($a, $b)`,
+	}
+	for _, src := range cases {
+		p := NewParser([]byte(src))
+		g := p.parseExpression()
+		if g == nil {
+			t.Fatalf("%q: nil expression", src)
+		}
+		f := &File{Source: []byte(src), Green: g}
+		BindRed(f)
+		if Print(f.Root) != src {
+			t.Fatalf("%q identity failed: got %q", src, Print(f.Root))
+		}
+	}
+}
+
 
