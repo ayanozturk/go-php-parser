@@ -60,7 +60,7 @@ func (idx *ProjectIndex) indexNodes(filename string, nodes []ast.Node, ft FileTy
 				continue
 			}
 			name := ft.resolveClassLike(n.Name)
-			nativeReturn := ast.TypeText(n.ReturnType)
+			nativeReturn := nativeTypeDNF(n.ReturnType, ft)
 			returnType := nativeReturn
 			if n.PHPDoc != nil && n.PHPDoc.ReturnType != "" {
 				returnType = n.PHPDoc.ReturnType
@@ -101,7 +101,7 @@ func (idx *ProjectIndex) indexPromotedProperties(filename, className string, con
 		idx.addProperty(className, ResolvedProperty{
 			Declaration: sourceLocation(filename, param),
 			Name:        param.Name,
-			Type:        richerGenericType(ast.TypeText(param.TypeHint), docType, ft),
+			Type:        richerGenericType(nativeTypeDNF(param.TypeHint, ft), docType, ft),
 			Visibility:  param.Modifiers.DefaultVisibility(),
 			Readonly:    param.IsReadonly,
 		})
@@ -112,7 +112,7 @@ func (idx *ProjectIndex) indexClassMembers(filename, className string, propertie
 	for _, propNode := range properties {
 		switch p := propNode.(type) {
 		case *ast.PropertyNode:
-			rawType := ast.TypeText(p.TypeHint)
+			rawType := nativeTypeDNF(p.TypeHint, ft)
 			docType := ""
 			if p.PHPDoc != nil {
 				docType = p.PHPDoc.VarType
@@ -163,7 +163,7 @@ func (idx *ProjectIndex) indexInterfaceMembers(filename, className string, membe
 		case *ast.InterfaceMethodNode:
 			nativeReturn := ""
 			if m.ReturnType != nil {
-				nativeReturn = ast.TypeText(m.ReturnType)
+				nativeReturn = nativeTypeDNF(m.ReturnType, ft)
 			}
 			returnType := nativeReturn
 			if m.PHPDoc != nil && m.PHPDoc.ReturnType != "" {
@@ -192,7 +192,7 @@ func (idx *ProjectIndex) indexInterfaceMembers(filename, className string, membe
 			}
 			idx.addMethod(className, ResolvedMethod{Name: m.Name, DeclaringClass: className, Declaration: sourceLocation(filename, m), ReturnType: normalizedReturn, NativeReturnType: nativeReturnType, CallableReturnType: callableReturn.dnfString(), Params: paramsFromNodesWithPHPDoc(m.Params, m.PHPDoc, ft, templates, aliases), Visibility: "public", Abstract: true})
 		case *ast.PropertyNode:
-			rawType := ast.TypeText(m.TypeHint)
+			rawType := nativeTypeDNF(m.TypeHint, ft)
 			docType := ""
 			if m.PHPDoc != nil {
 				docType = m.PHPDoc.VarType
@@ -436,7 +436,7 @@ func phpDocTypeAliasBindings(docs ...*ast.PHPDocNode) map[string]string {
 
 func methodFromFunction(filename, className string, fn *ast.FunctionNode, ft FileTypeContext, classDoc *ast.PHPDocNode, templateParams []string) ResolvedMethod {
 	aliases := phpDocTypeAliasBindings(classDoc, fn.PHPDoc)
-	nativeReturn := ast.TypeText(fn.ReturnType)
+	nativeReturn := nativeTypeDNF(fn.ReturnType, ft)
 	returnType := nativeReturn
 	if fn.PHPDoc != nil && fn.PHPDoc.ReturnType != "" {
 		returnType = fn.PHPDoc.ReturnType
@@ -507,7 +507,7 @@ func resolvedGenericMetadata(doc *ast.PHPDocNode, ft FileTypeContext) ([]string,
 }
 
 func constantFromNode(filename, className string, c *ast.ConstantNode, ft FileTypeContext) ResolvedConstant {
-	typ := ast.TypeText(c.Type)
+	typ := nativeTypeDNF(c.Type, ft)
 	if typ == "" && c.PHPDoc != nil && c.PHPDoc.VarType != "" {
 		typ = c.PHPDoc.VarType
 	}
@@ -563,7 +563,7 @@ func paramsFromNodesWithPHPDoc(nodes []ast.Node, doc *ast.PHPDocNode, ft FileTyp
 		if !ok {
 			continue
 		}
-		typ := ast.TypeText(param.TypeHint)
+		typ := nativeTypeDNF(param.TypeHint, ft)
 		native := typ
 		if param.PHPDoc != nil && param.PHPDoc.VarType != "" {
 			typ = param.PHPDoc.VarType

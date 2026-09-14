@@ -42,3 +42,23 @@ func TypeFromAST(n ast.Node, typeCtx FileTypeContext) Type {
 		return ParseType(normalizeTypeWithContext(text, typeCtx))
 	}
 }
+
+// nativeTypeDNF returns a structural DNF string for a native AST type node.
+// Prefer this over ast.TypeText at index/analyse edges so unions,
+// intersections, and nullable shapes stay parenthesized correctly.
+//
+// Alias/namespace resolution is intentionally not applied here: callers that
+// still run normalizeTypeWithContext (or template-aware variants) must remain
+// the single resolution step. Pass typeCtx for API symmetry with TypeFromAST;
+// it is reserved for a later cutover that drops the second normalize.
+func nativeTypeDNF(n ast.Node, typeCtx FileTypeContext) string {
+	if n == nil {
+		return ""
+	}
+	_ = typeCtx
+	t := TypeFromAST(n, FileTypeContext{})
+	if t.IsEmpty() {
+		return ""
+	}
+	return t.dnfString()
+}

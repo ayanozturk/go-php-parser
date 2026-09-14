@@ -42,6 +42,47 @@ func TestTypeFromASTUnionNullable(t *testing.T) {
 	}
 }
 
+func TestNativeTypeDNF(t *testing.T) {
+	ctx := FileTypeContext{Namespace: "App", Aliases: map[string]string{"foo": `App\Foo`}}
+
+	if got := nativeTypeDNF(nil, ctx); got != "" {
+		t.Fatalf("nil got %q, want empty", got)
+	}
+
+	nullable := nativeTypeDNF(&ast.NullableTypeNode{
+		Inner: &ast.IdentifierNode{Value: "int"},
+	}, ctx)
+	if nullable != "int|null" {
+		t.Fatalf("nullable got %s, want int|null", nullable)
+	}
+
+	union := nativeTypeDNF(&ast.UnionTypeNode{
+		Types: []ast.Node{
+			&ast.IdentifierNode{Value: "Foo"},
+			&ast.IdentifierNode{Value: "null"},
+		},
+	}, ctx)
+	// Structural only — no alias/namespace resolution (callers normalize once).
+	if union != "Foo|null" {
+		t.Fatalf("union got %s, want Foo|null", union)
+	}
+
+	dnf := nativeTypeDNF(&ast.UnionTypeNode{
+		Types: []ast.Node{
+			&ast.ParenthesizedTypeNode{Inner: &ast.IntersectionTypeNode{
+				Types: []ast.Node{
+					&ast.IdentifierNode{Value: "Left"},
+					&ast.IdentifierNode{Value: "Right"},
+				},
+			}},
+			&ast.IdentifierNode{Value: "null"},
+		},
+	}, ctx)
+	if dnf != "(Left&Right)|null" {
+		t.Fatalf("dnf got %s, want (Left&Right)|null", dnf)
+	}
+}
+
 func TestTypeFromASTCallable(t *testing.T) {
 	got := TypeFromAST(&ast.CallableTypeNode{
 		HasSignature: true,
