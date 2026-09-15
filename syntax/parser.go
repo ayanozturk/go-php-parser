@@ -141,6 +141,8 @@ func (p *Parser) tryParseStructured() *GreenNode {
 		return p.parseStaticVarStmt()
 	case p.at(token.T_ECHO):
 		return p.parseEchoStmt()
+	case p.at(token.T_OPEN_TAG_WITH_ECHO):
+		return p.parseShortEchoStmt()
 	case p.at(token.T_RETURN):
 		return p.parseReturnStmt()
 	case p.at(token.T_IF):
@@ -708,7 +710,7 @@ func (p *Parser) atIdentName() bool {
 		token.T_AMPERSAND, token.T_ELLIPSIS, token.T_COLON, token.T_DOUBLE_ARROW,
 		token.T_ASSIGN, token.T_EOF, token.T_VARIABLE, token.T_NS_SEPARATOR,
 		token.T_OBJECT_OPERATOR, token.T_NULLSAFE_OBJECT_OPERATOR, token.T_DOUBLE_COLON,
-		token.T_ATTRIBUTE, token.T_OPEN_TAG, token.T_CLOSE_TAG, token.T_INLINE_HTML,
+		token.T_ATTRIBUTE, token.T_OPEN_TAG, token.T_OPEN_TAG_WITH_ECHO, token.T_CLOSE_TAG, token.T_INLINE_HTML,
 		token.T_CONSTANT_STRING, token.T_CONSTANT_ENCAPSED_STRING, token.T_LNUMBER, token.T_DNUMBER,
 		token.T_START_HEREDOC, token.T_START_NOWDOC, token.T_END_HEREDOC, token.T_END_NOWDOC,
 		token.T_ENCAPSED_AND_WHITESPACE, token.T_CURLY_OPEN, token.T_DOLLAR_OPEN_CURLY_BRACES,
@@ -1075,6 +1077,17 @@ func (p *Parser) parseStaticVarStmt() *GreenNode {
 func (p *Parser) parseEchoStmt() *GreenNode {
 	var parts []*GreenNode
 	parts = append(parts, p.expect(token.T_ECHO))
+	parts = append(parts, p.parseExprListComma()...)
+	if p.at(token.T_SEMICOLON) {
+		parts = append(parts, p.bump())
+	}
+	return p.intern.Node(KindEchoStmt, parts...)
+}
+
+// parseShortEchoStmt parses <?= expr [, expr...] [;] as KindEchoStmt.
+func (p *Parser) parseShortEchoStmt() *GreenNode {
+	var parts []*GreenNode
+	parts = append(parts, p.expect(token.T_OPEN_TAG_WITH_ECHO))
 	parts = append(parts, p.parseExprListComma()...)
 	if p.at(token.T_SEMICOLON) {
 		parts = append(parts, p.bump())
