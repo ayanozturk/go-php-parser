@@ -119,12 +119,15 @@ func (p *Parser) Parse() []ast.Node {
 		return nodes
 	}
 
-	// Expect PHP open tag first
-	if p.tok.Type != token.T_OPEN_TAG {
+	// Expect PHP open tag first (<?= is T_OPEN_TAG_WITH_ECHO — leave it for
+	// parseStatement so the echo expression is parsed).
+	if p.tok.Type != token.T_OPEN_TAG && p.tok.Type != token.T_OPEN_TAG_WITH_ECHO {
 		p.addError("line %d:%d: expected <?php at start of file, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal)
 		return nodes
 	}
-	p.nextToken()
+	if p.tok.Type == token.T_OPEN_TAG {
+		p.nextToken()
+	}
 
 	// Skip whitespace/comments after open tag (but not doc comments - let statement parsing handle them)
 	for p.tok.Type == token.T_WHITESPACE || p.tok.Type == token.T_COMMENT {

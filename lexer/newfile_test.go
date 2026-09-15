@@ -39,8 +39,16 @@ func TestNewFileStartsInPHPModeWithLeadingOpenTag(t *testing.T) {
 func TestNewFileStartsInPHPModeWithLeadingShortEchoTag(t *testing.T) {
 	l := NewFile("<?= 1;")
 	tok := l.NextToken()
-	if tok.Type != token.T_OPEN_TAG {
-		t.Fatalf("expected first token to be T_OPEN_TAG, got %s", tok.Type)
+	if tok.Type != token.T_OPEN_TAG_WITH_ECHO {
+		t.Fatalf("expected first token to be T_OPEN_TAG_WITH_ECHO, got %s", tok.Type)
+	}
+	if tok.Literal != "<?=" {
+		t.Fatalf("unexpected short-echo literal: %q", tok.Literal)
+	}
+	// Must not invent a synthetic T_ECHO that consumes source width.
+	tok = l.NextToken()
+	if tok.Type == token.T_ECHO {
+		t.Fatalf("unexpected synthetic T_ECHO after <?=; Zend emits expression next")
 	}
 }
 

@@ -596,9 +596,9 @@ func (l *Lexer) lexInlineHTML() token.Token {
 }
 
 // lexOpenTag consumes a PHP open tag ("<?php" or "<?=") and switches the
-// lexer into PHP-tokenization mode. "<?=" is shorthand for "<?php echo ",
-// so it is expanded into an implicit T_ECHO token queued right behind the
-// open tag.
+// lexer into PHP-tokenization mode. "<?=" is T_OPEN_TAG_WITH_ECHO (Zend),
+// covering exactly those three source bytes — never a synthetic T_ECHO
+// that would inflate green widths past the file length.
 func (l *Lexer) lexOpenTag(pos token.Position) token.Token {
 	rest := l.input[l.pos:]
 	switch {
@@ -613,8 +613,7 @@ func (l *Lexer) lexOpenTag(pos token.Position) token.Token {
 			l.readChar()
 		}
 		l.inHTML = false
-		l.heredocTokens = []token.Token{{Type: token.T_ECHO, Literal: "echo", Pos: pos}}
-		return token.Token{Type: token.T_OPEN_TAG, Literal: "<?=", Pos: pos}
+		return token.Token{Type: token.T_OPEN_TAG_WITH_ECHO, Literal: "<?=", Pos: pos}
 	default:
 		// Should be unreachable: callers only invoke lexOpenTag after
 		// atOpenTag() confirmed a match. Fall back to a single literal

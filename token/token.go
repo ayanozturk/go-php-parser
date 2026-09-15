@@ -182,6 +182,7 @@ const (
 	T_END_NOWDOC
 	T_DOLLAR_OPEN_CURLY_BRACES
 	T_CURLY_OPEN
+	T_OPEN_TAG_WITH_ECHO // <?= (Zend); not T_OPEN_TAG + synthetic echo
 )
 
 var tokenTypeNames = [...]string{
@@ -364,6 +365,7 @@ var tokenTypeNames = [...]string{
 	T_END_NOWDOC:               "T_END_NOWDOC",
 	T_DOLLAR_OPEN_CURLY_BRACES: "T_DOLLAR_OPEN_CURLY_BRACES",
 	T_CURLY_OPEN:               "T_CURLY_OPEN",
+	T_OPEN_TAG_WITH_ECHO:       "T_OPEN_TAG_WITH_ECHO",
 }
 
 func (t TokenType) String() string {

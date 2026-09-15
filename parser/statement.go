@@ -54,6 +54,9 @@ retry:
 		p.nextToken()
 		goto retry
 	}
+	if p.tok.Type == token.T_OPEN_TAG_WITH_ECHO {
+		return p.parseEchoStatementFromOpenTag()
+	}
 	if p.tok.Type == token.T_CLOSE_TAG {
 		// "?>" implicitly terminates the previous statement and switches
 		// back to inline-HTML scanning; nothing to emit for the tag itself.
@@ -276,40 +279,7 @@ retry:
 		}
 		return node, nil
 	case token.T_ECHO:
-		pos := p.tok.Pos
-		p.nextToken() // consume echo
-		expr := p.parseExpression()
-		if expr == nil {
-			return nil, nil
-		}
-		exprs := []ast.Node{&ast.ExpressionStmt{Expr: expr, Pos: ast.Position(pos)}}
-		for p.tok.Type == token.T_COMMA {
-			commaPos := p.tok.Pos
-			p.nextToken() // consume ,
-			next := p.parseExpression()
-			if next == nil {
-				return nil, nil
-			}
-			exprs = append(exprs, &ast.ExpressionStmt{Expr: next, Pos: ast.Position(commaPos)})
-		}
-		if p.tok.Type == token.T_SEMICOLON {
-			p.nextToken() // consume ;
-		} else if p.tok.Type != token.T_CLOSE_TAG && p.tok.Type != token.T_EOF {
-			// A closing "?>" tag (or EOF) implicitly terminates the
-			// statement, same as PHP allows (e.g. "<?= $x ?>").
-			p.addError("line %d:%d: expected ; after echo statement, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal)
-			return nil, nil
-		}
-		if len(exprs) == 1 {
-			// Common case: keep the exact same shape as before (a bare
-			// ExpressionStmt) so existing consumers that pattern-match on
-			// ExpressionStmt for single-expression echoes are unaffected.
-			return exprs[0], nil
-		}
-		// echo with multiple comma-separated expressions: wrap the
-		// synthesized per-expression statements in a BlockNode, which
-		// every AST walker already knows how to recurse into.
-		return &ast.BlockNode{Statements: exprs, Pos: ast.Position(pos)}, nil
+		return p.parseEchoStatementFromOpenTag()
 	case token.T_PRINT:
 		return p.parseExpressionStatement()
 	case token.T_THROW:
@@ -502,6 +472,7 @@ func (p *Parser) parseBlockStatement() []ast.Node {
 		// rather than letting parseStatement's internal retry jump straight
 		// from an open tag into whatever follows (which could be the very
 		// '}' that should terminate this block).
+		// T_OPEN_TAG_WITH_ECHO is not skipped — it starts an echo statement.
 		if p.tok.Type == token.T_OPEN_TAG || p.tok.Type == token.T_CLOSE_TAG {
 			p.nextToken()
 			continue
@@ -527,4 +498,42 @@ func (p *Parser) parseBlockStatement() []ast.Node {
 		}
 	}
 	return statements
+}
+
+// parseEchoStatementFromOpenTag parses `echo …` or `<?= …` (T_OPEN_TAG_WITH_ECHO).
+func (p *Parser) parseEchoStatementFromOpenTag() (ast.Node, error) {
+	pos := p.tok.Pos
+	p.nextToken() // consume echo or <?=
+	expr := p.parseExpression()
+	if expr == nil {
+		return nil, nil
+	}
+	exprs := []ast.Node{&ast.ExpressionStmt{Expr: expr, Pos: ast.Position(pos)}}
+	for p.tok.Type == token.T_COMMA {
+		commaPos := p.tok.Pos
+		p.nextToken() // consume ,
+		next := p.parseExpression()
+		if next == nil {
+			return nil, nil
+		}
+		exprs = append(exprs, &ast.ExpressionStmt{Expr: next, Pos: ast.Position(commaPos)})
+	}
+	if p.tok.Type == token.T_SEMICOLON {
+		p.nextToken() // consume ;
+	} else if p.tok.Type != token.T_CLOSE_TAG && p.tok.Type != token.T_EOF {
+		// A closing "?>" tag (or EOF) implicitly terminates the
+		// statement, same as PHP allows (e.g. "<?= $x ?>").
+		p.addError("line %d:%d: expected ; after echo statement, got %s", p.tok.Pos.Line, p.tok.Pos.Column, p.tok.Literal)
+		return nil, nil
+	}
+	if len(exprs) == 1 {
+		// Common case: keep the exact same shape as before (a bare
+		// ExpressionStmt) so existing consumers that pattern-match on
+		// ExpressionStmt for single-expression echoes are unaffected.
+		return exprs[0], nil
+	}
+	// echo with multiple comma-separated expressions: wrap the
+	// synthesized per-expression statements in a BlockNode, which
+	// every AST walker already knows how to recurse into.
+	return &ast.BlockNode{Statements: exprs, Pos: ast.Position(pos)}, nil
 }
