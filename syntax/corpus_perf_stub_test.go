@@ -59,6 +59,8 @@ func TestSyntaxCorpusIdentityGate(t *testing.T) {
 			"control.php":     "<?php\nif ($a) { echo $a; } while ($i) { break; }\n",
 			"names.php":       "<?php\nuse Foo\\Bar as Baz;\nnamespace App;\n",
 			"expressions.php": "<?php\n$a = 1 + 2 * 3;\n$b = $obj->prop->meth($x, $y)[0];\n$c = ['k' => 1, 2];\n$d = -$a ?? true;\n$e = ($a && $b) || !$c;\n",
+			"closures.php":    "<?php\n$f = function($x) use ($y) { return $x; };\n$g = static fn($a): int => $a + 1;\n$o = new class($x) { public function m() {}\n};\n",
+			"short_echo.php":  `<p><?= $name; ?></p>` + "\n",
 		}
 		for name, src := range fixtures {
 			path := filepath.Join(tmp, name)

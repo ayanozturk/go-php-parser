@@ -19,3 +19,19 @@ func TestIdentityPrintTokensOnly(t *testing.T) {
 		}
 	}
 }
+
+func TestIdentityPrintShortEchoHTML(t *testing.T) {
+	fixtures := []string{
+		`<h2>"<?= $statusCode; ?> <?= $statusText; ?>".</h2>`,
+		`<?= $x ?>`,
+		`<?= $this->addElementToGhost(); ?></svg>` + "\n",
+		"<?php\n$f = function($x) use ($y) { return $x + $y; };\n$g = fn($a) => $a;\n$o = new class { public $z; };\n",
+	}
+	for _, src := range fixtures {
+		res := Parse([]byte(src))
+		got := Print(res.File.Root)
+		if got != src {
+			t.Fatalf("identity failed\nwant %q\ngot  %q", src, got)
+		}
+	}
+}

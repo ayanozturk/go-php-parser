@@ -454,6 +454,77 @@ func TestGoldTreeExpressions(t *testing.T) {
 				"        Token T_VARIABLE \"$a\"\n" +
 				"    Token T_RPAREN \")\"\n",
 		},
+		{
+			src: "function($x) use ($y) { return $x; }",
+			want: "" +
+				"ClosureExpr\n" +
+				"  Token T_FUNCTION \"function\"\n" +
+				"  Token T_LPAREN \"(\"\n" +
+				"  ParamList\n" +
+				"    Param\n" +
+				"      Token T_VARIABLE \"$x\"\n" +
+				"  Token T_RPAREN \")\"\n" +
+				"  ClosureUseClause\n" +
+				"    Token T_USE \"use\"\n" +
+				"    Token T_LPAREN \"(\"\n" +
+				"    Token T_VARIABLE \"$y\"\n" +
+				"    Token T_RPAREN \")\"\n" +
+				"  StatementList\n" +
+				"    Token T_LBRACE \"{\"\n" +
+				"    ReturnStmt\n" +
+				"      Token T_RETURN \"return\"\n" +
+				"      VariableExpr\n" +
+				"        Token T_VARIABLE \"$x\"\n" +
+				"      Token T_SEMICOLON \";\"\n" +
+				"    Token T_RBRACE \"}\"\n",
+		},
+		{
+			src: "fn($x): int => $x + 1",
+			want: "" +
+				"ArrowFunctionExpr\n" +
+				"  Token T_FN \"fn\"\n" +
+				"  Token T_LPAREN \"(\"\n" +
+				"  ParamList\n" +
+				"    Param\n" +
+				"      Token T_VARIABLE \"$x\"\n" +
+				"  Token T_RPAREN \")\"\n" +
+				"  Token T_COLON \":\"\n" +
+				"  PrimitiveType\n" +
+				"    Token T_STRING \"int\"\n" +
+				"  Token T_DOUBLE_ARROW \"=>\"\n" +
+				"  BinaryExpr\n" +
+				"    VariableExpr\n" +
+				"      Token T_VARIABLE \"$x\"\n" +
+				"    Token T_PLUS \"+\"\n" +
+				"    LiteralExpr\n" +
+				"      Token T_LNUMBER \"1\"\n",
+		},
+		{
+			src: "new class($a) extends Base { public $x; }",
+			want: "" +
+				"NewExpr\n" +
+				"  Token T_NEW \"new\"\n" +
+				"  AnonymousClass\n" +
+				"    Token T_CLASS \"class\"\n" +
+				"    ArgList\n" +
+				"      Token T_LPAREN \"(\"\n" +
+				"      Arg\n" +
+				"        VariableExpr\n" +
+				"          Token T_VARIABLE \"$a\"\n" +
+				"      Token T_RPAREN \")\"\n" +
+				"    ExtendsClause\n" +
+				"      Token T_EXTENDS \"extends\"\n" +
+				"      UnqualifiedName\n" +
+				"        Token T_STRING \"Base\"\n" +
+				"    MemberList\n" +
+				"      Token T_LBRACE \"{\"\n" +
+				"      PropertyDecl\n" +
+				"        ModifierList\n" +
+				"          Token T_PUBLIC \"public\"\n" +
+				"        Token T_VARIABLE \"$x\"\n" +
+				"        Token T_SEMICOLON \";\"\n" +
+				"      Token T_RBRACE \"}\"\n",
+		},
 	}
 	for _, tc := range cases {
 		root := mustParseFragment(t, tc.src, (*Parser).parseExpression)

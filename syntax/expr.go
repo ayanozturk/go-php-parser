@@ -508,12 +508,11 @@ func (p *Parser) parsePrimaryExpr() *GreenNode {
 	case token.T_ISSET, token.T_EMPTY, token.T_EXIT, token.T_DIE:
 		return p.parseBuiltinCall()
 	case token.T_FUNCTION, token.T_FN:
-		// Closures / arrow functions: keep round-trip-safe token span until structured.
-		return p.parseOpaqueExprSpan()
+		return p.parseClosureOrArrow()
 	case token.T_STATIC:
 		// static function(...) / static fn(...) are closures, not the name `static`.
 		if p.peekType(1) == token.T_FUNCTION || p.peekType(1) == token.T_FN {
-			return p.parseOpaqueExprSpan()
+			return p.parseClosureOrArrow()
 		}
 		name := p.parseName()
 		return name
@@ -593,8 +592,7 @@ func (p *Parser) parseNewExpr() *GreenNode {
 		parts = append(parts, p.parseAttributeList())
 	}
 	if p.at(token.T_CLASS) {
-		// Anonymous class: opaque span covering class body for identity.
-		parts = append(parts, p.parseOpaqueClassTail())
+		parts = append(parts, p.parseAnonymousClass())
 		return p.intern.Node(KindNewExpr, parts...)
 	}
 	if p.at(token.T_LPAREN) {
@@ -611,79 +609,92 @@ func (p *Parser) parseNewExpr() *GreenNode {
 	return p.intern.Node(KindNewExpr, parts...)
 }
 
-func (p *Parser) parseOpaqueClassTail() *GreenNode {
+// parseClosureOrArrow parses function(){} / fn()=> / static variants as structured greens.
+func (p *Parser) parseClosureOrArrow() *GreenNode {
 	var parts []*GreenNode
-	depthBrace := 0
-	started := false
-	for !p.at(token.T_EOF) {
-		tt := p.tok().Type
-		if tt == token.T_LBRACE {
-			depthBrace++
-			started = true
-		} else if tt == token.T_RBRACE {
-			if depthBrace > 0 {
-				depthBrace--
-			}
-			parts = append(parts, p.bump())
-			if started && depthBrace == 0 {
-				break
-			}
-			continue
-		}
+	if p.at(token.T_STATIC) {
 		parts = append(parts, p.bump())
 	}
-	return p.intern.Node(KindTokenList, parts...)
+	isArrow := p.at(token.T_FN)
+	if p.at(token.T_FUNCTION) || p.at(token.T_FN) {
+		parts = append(parts, p.bump())
+	} else {
+		p.errorf("expected function or fn")
+		return p.intern.Node(KindError, parts...)
+	}
+	if p.at(token.T_AMPERSAND) {
+		parts = append(parts, p.bump())
+	}
+	parts = append(parts, p.expect(token.T_LPAREN))
+	parts = append(parts, p.parseParamList())
+	parts = append(parts, p.expect(token.T_RPAREN))
+	if !isArrow && p.at(token.T_USE) {
+		parts = append(parts, p.parseClosureUseClause())
+	}
+	if p.at(token.T_COLON) {
+		parts = append(parts, p.bump())
+		parts = append(parts, p.parseType())
+	}
+	if isArrow {
+		parts = append(parts, p.expect(token.T_DOUBLE_ARROW))
+		if expr := p.parseExpression(); expr != nil {
+			parts = append(parts, expr)
+		}
+		return p.intern.Node(KindArrowFunctionExpr, parts...)
+	}
+	if p.at(token.T_LBRACE) {
+		if p.SkipFunctionBodies {
+			parts = append(parts, p.parseBalancedBlock())
+		} else {
+			parts = append(parts, p.parseStatementList())
+		}
+	}
+	return p.intern.Node(KindClosureExpr, parts...)
 }
 
-func (p *Parser) parseOpaqueExprSpan() *GreenNode {
-	// Consume a closure/arrow-ish construct with paren/brace depth for identity.
+func (p *Parser) parseClosureUseClause() *GreenNode {
 	var parts []*GreenNode
-	depthParen, depthBrace, depthBracket := 0, 0, 0
-	seenBody := false
-	for !p.at(token.T_EOF) {
-		tt := p.tok().Type
-		switch tt {
-		case token.T_LPAREN:
-			depthParen++
-		case token.T_RPAREN:
-			if depthParen > 0 {
-				depthParen--
-			}
-		case token.T_LBRACE:
-			depthBrace++
-			seenBody = true
-		case token.T_RBRACE:
-			if depthBrace > 0 {
-				depthBrace--
-			}
-		case token.T_LBRACKET:
-			depthBracket++
-		case token.T_RBRACKET:
-			if depthBracket > 0 {
-				depthBracket--
-			}
-		case token.T_DOUBLE_ARROW:
-			// arrow function body follows =>
+	parts = append(parts, p.expect(token.T_USE))
+	parts = append(parts, p.expect(token.T_LPAREN))
+	for !p.at(token.T_RPAREN) && !p.at(token.T_EOF) {
+		if p.at(token.T_COMMA) {
 			parts = append(parts, p.bump())
-			if depthParen == 0 && depthBrace == 0 && depthBracket == 0 {
-				if expr := p.parseExpression(); expr != nil {
-					parts = append(parts, expr)
-				}
-				return p.intern.Node(KindTokenList, parts...)
-			}
+			continue
+		}
+		if p.at(token.T_AMPERSAND) {
+			parts = append(parts, p.bump())
+		}
+		if p.at(token.T_VARIABLE) {
+			parts = append(parts, p.bump())
 			continue
 		}
 		parts = append(parts, p.bump())
-		if seenBody && depthBrace == 0 && depthParen == 0 && depthBracket == 0 {
-			break
-		}
-		// Stop before statement terminators if we never opened a body (parse error).
-		if !seenBody && depthParen == 0 && depthBrace == 0 && depthBracket == 0 &&
-			(tt == token.T_SEMICOLON || p.at(token.T_COMMA) || p.at(token.T_RPAREN)) {
-			break
+	}
+	parts = append(parts, p.expect(token.T_RPAREN))
+	return p.intern.Node(KindClosureUseClause, parts...)
+}
+
+// parseAnonymousClass parses `class [(args)] [extends …] [implements …] { members }`.
+func (p *Parser) parseAnonymousClass() *GreenNode {
+	var parts []*GreenNode
+	parts = append(parts, p.expect(token.T_CLASS))
+	if p.at(token.T_LPAREN) {
+		parts = append(parts, p.parseCallArgList())
+	}
+	if p.at(token.T_EXTENDS) {
+		parts = append(parts, p.parseExtendsClause())
+	}
+	if p.at(token.T_IMPLEMENTS) {
+		parts = append(parts, p.parseImplementsClause())
+	}
+	if p.at(token.T_LBRACE) {
+		if p.SkipFunctionBodies {
+			parts = append(parts, p.parseBalancedBlock())
+		} else {
+			parts = append(parts, p.parseMemberList())
 		}
 	}
-	return p.intern.Node(KindTokenList, parts...)
+	return p.intern.Node(KindAnonymousClass, parts...)
 }
 
 func (p *Parser) parseArrayExpr(useArrayKeyword bool) *GreenNode {

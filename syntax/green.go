@@ -130,6 +130,10 @@ const (
 	KindYieldExpr
 	KindVariableVariableExpr
 	KindFirstClassCallableExpr
+	KindClosureExpr
+	KindArrowFunctionExpr
+	KindAnonymousClass
+	KindClosureUseClause
 )
 
 var kindNames = [...]string{
@@ -239,6 +243,10 @@ var kindNames = [...]string{
 	KindYieldExpr:                  "YieldExpr",
 	KindVariableVariableExpr:       "VariableVariableExpr",
 	KindFirstClassCallableExpr:     "FirstClassCallableExpr",
+	KindClosureExpr:                "ClosureExpr",
+	KindArrowFunctionExpr:          "ArrowFunctionExpr",
+	KindAnonymousClass:             "AnonymousClass",
+	KindClosureUseClause:           "ClosureUseClause",
 }
 
 func (k Kind) String() string {
