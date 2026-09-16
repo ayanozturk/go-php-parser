@@ -665,6 +665,8 @@ Note: implemented PHP's alternative/colon control-structure syntax and several o
 
 93. **Done — trailing-whitespace style spans.** `NoTrailingWhitespaceChecker` emits `EndLine`/`EndColumn` covering the trailing space/tab run from first trailing byte through exclusive end past the line; PHP Strom re-pinned and asserts the span in diagnostics tests.
 
+94. **Done — MethodCamelCase style spans.** `MethodCamelCaseSniff` emits `EndLine`/`EndColumn` covering the method name after `function` (not the keyword); PHP Strom re-pinned and asserts the span in diagnostics tests.
+
 ## Decision log
 
 - Go remains the implementation language. The target is considered achievable in Go; architecture, allocation behavior, semantic work, and concurrency are the primary constraints.

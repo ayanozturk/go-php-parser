@@ -131,6 +131,38 @@ class TestClass {
 	}
 }
 
+func TestMethodCamelCaseInvalidNameSpan(t *testing.T) {
+	php := `<?php
+class TestClass {
+	public function set_name() {}
+}
+`
+	issues := runMethodCamelCaseAnalysis(t, php)
+	if len(issues) != 1 {
+		t.Fatalf("expected 1 issue, got %d: %v", len(issues), issues)
+	}
+	issue := issues[0]
+	if issue.Line != 3 || issue.Column != 18 || issue.EndLine != 3 || issue.EndColumn != 26 {
+		t.Errorf("expected Line:3 Column:18 EndLine:3 EndColumn:26, got Line:%d Column:%d EndLine:%d EndColumn:%d",
+			issue.Line, issue.Column, issue.EndLine, issue.EndColumn)
+	}
+}
+
+func TestMethodCamelCaseInvalidNameSpanSameLine(t *testing.T) {
+	php := `<?php
+class C { public function set_name() {} }
+`
+	issues := runMethodCamelCaseAnalysis(t, php)
+	if len(issues) != 1 {
+		t.Fatalf("expected 1 issue, got %d: %v", len(issues), issues)
+	}
+	issue := issues[0]
+	if issue.Line != 2 || issue.Column != 27 || issue.EndLine != 2 || issue.EndColumn != 35 {
+		t.Errorf("expected Line:2 Column:27 EndLine:2 EndColumn:35, got Line:%d Column:%d EndLine:%d EndColumn:%d",
+			issue.Line, issue.Column, issue.EndLine, issue.EndColumn)
+	}
+}
+
 func TestMethodCamelCaseSnakeCase(t *testing.T) {
 	php := `<?php
 class TestClass {
