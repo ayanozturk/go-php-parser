@@ -10,7 +10,6 @@ import (
 
 	"github.com/ayanozturk/go-php-parser/analyse"
 	"github.com/ayanozturk/go-php-parser/ast"
-	"github.com/ayanozturk/go-php-parser/lexer"
 	"github.com/ayanozturk/go-php-parser/overrides"
 	"github.com/ayanozturk/go-php-parser/parser"
 	"github.com/ayanozturk/go-php-parser/sharedcache"
@@ -330,24 +329,33 @@ func analyzeFilesWithCache(files []string, targets []string, level *int, matcher
 	return sortedAnalyzeResult(result)
 }
 
-// parseAnalysisFile reads and parses one PHP file for analyse.
-// Full analyse still uses the classic parser because body-dependent rules need
-// statements; declaration-tier ingestion should prefer syntax.ParseASTForIndex
-// (see syntax/parse_ast.go) once lower coverage and call sites are ready.
+// parseAnalysisFile reads and parses one PHP file for analyse via syntax.ParseAST
+// (CST → classic IR). Parse diagnostics map to legacy Errors() strings.
 func parseAnalysisFile(path string) parsedAnalysisFile {
 	content, err := os.ReadFile(path)
 	if err != nil {
 		return parsedAnalysisFile{path: path, readError: err.Error()}
 	}
-	p := parser.New(lexer.NewFileBytes(content), false)
-	nodes := p.Parse()
+	nodes, diags := syntax.ParseAST(content)
 	return parsedAnalysisFile{
 		path:        path,
 		content:     content,
 		nodes:       nodes,
 		lines:       CountLines(content),
-		parseErrors: append([]string(nil), p.Errors()...),
+		parseErrors: syntaxDiagnosticStrings(content, diags),
 	}
+}
+
+func syntaxDiagnosticStrings(src []byte, diags []syntax.Diagnostic) []string {
+	if len(diags) == 0 {
+		return nil
+	}
+	out := make([]string, len(diags))
+	for i, d := range diags {
+		pe := parser.ParseErrorFromOffsets(src, d.Span.Start, d.Span.End, d.Message)
+		out[i] = pe.Error()
+	}
+	return out
 }
 
 // ParseNodesForIndex is the declaration-tier AST path for project indexing.

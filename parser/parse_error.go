@@ -66,6 +66,11 @@ func stripLeadingLineCol(msg string) (bare string, line, col int) {
 	return bare, line, col
 }
 
+// ClassifyParseError maps a bare diagnostic message to a stable Parser.* code.
+func ClassifyParseError(msg string) string {
+	return classifyParseError(msg)
+}
+
 func classifyParseError(msg string) string {
 	lower := strings.ToLower(msg)
 	switch {

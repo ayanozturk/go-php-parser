@@ -38,6 +38,16 @@ func lowerExpr(n *RedNode, file *File) ast.Node {
 		return lowerCastExpr(n, file)
 	case KindStaticMemberAccessExpr:
 		return lowerStaticMemberAccessExpr(n, file)
+	case KindArrayAccessExpr:
+		return lowerArrayAccessExpr(n, file)
+	case KindNewExpr:
+		return lowerNewExpr(n, file)
+	case KindArrayExpr:
+		return lowerArrayExpr(n, file)
+	case KindTernaryExpr:
+		return lowerTernaryExpr(n, file)
+	case KindThrowExpr:
+		return lowerThrowExpr(n, file)
 	default:
 		return nil
 	}
@@ -202,6 +212,22 @@ func lowerCallExpr(n *RedNode, file *File) ast.Node {
 			Pos:      pos,
 			EndPos:   end,
 			Nullsafe: callee.Kind() == KindNullsafeMemberAccessExpr,
+		}
+	case KindStaticMemberAccessExpr:
+		// Classic emits FunctionCallNode{Name: IdentifierNode{"Class::method"}}.
+		class, member := splitStaticMemberAccess(callee, file)
+		if class == "" || member == "" {
+			return nil
+		}
+		return &ast.FunctionCallNode{
+			Name: &ast.IdentifierNode{
+				Value:  class + "::" + member,
+				Pos:    pos,
+				EndPos: end,
+			},
+			Args:   argNodes,
+			Pos:    pos,
+			EndPos: end,
 		}
 	default:
 		name := lowerExpr(callee, file)
@@ -414,8 +440,22 @@ func lowerCastExpr(n *RedNode, file *File) ast.Node {
 
 func lowerStaticMemberAccessExpr(n *RedNode, file *File) ast.Node {
 	pos, end := nodePos(file, n)
-	class := ""
-	constName := ""
+	class, constName := splitStaticMemberAccess(n, file)
+	if class == "" || constName == "" {
+		return nil
+	}
+	return &ast.ClassConstFetchNode{
+		Class:  class,
+		Const:  constName,
+		Pos:    pos,
+		EndPos: end,
+	}
+}
+
+func splitStaticMemberAccess(n *RedNode, file *File) (class, member string) {
+	if n == nil {
+		return "", ""
+	}
 	for _, c := range n.Children() {
 		if isNameKind(c.Kind()) && class == "" {
 			class = NameText(c)
@@ -434,15 +474,277 @@ func lowerStaticMemberAccessExpr(n *RedNode, file *File) ast.Node {
 			if !ok || tt.Type == token.T_DOUBLE_COLON {
 				continue
 			}
-			constName = strings.TrimSpace(tt.Literal)
+			member = strings.TrimSpace(tt.Literal)
+			if tt.Type == token.T_VARIABLE {
+				member = stripVarDollar(member)
+			}
 		}
 	}
-	if class == "" || constName == "" {
+	return class, member
+}
+
+func lowerArrayAccessExpr(n *RedNode, file *File) ast.Node {
+	pos, end := nodePos(file, n)
+	var arr, idx *RedNode
+	for _, c := range n.Children() {
+		if isExprKind(c.Kind()) || isNameKind(c.Kind()) {
+			if arr == nil {
+				arr = c
+			} else {
+				idx = c
+			}
+		}
+	}
+	if arr == nil {
 		return nil
 	}
-	return &ast.ClassConstFetchNode{
-		Class:  class,
-		Const:  constName,
+	var index ast.Node
+	if idx != nil {
+		index = lowerExpr(idx, file)
+	}
+	return &ast.ArrayAccessNode{
+		Var:    lowerExpr(arr, file),
+		Index:  index,
+		Pos:    pos,
+		EndPos: end,
+	}
+}
+
+func lowerNewExpr(n *RedNode, file *File) ast.Node {
+	pos, end := nodePos(file, n)
+	var classTarget, args *RedNode
+	for _, c := range n.Children() {
+		switch c.Kind() {
+		case KindArgList:
+			args = c
+		case KindAttributeList:
+			continue
+		case KindAnonymousClass:
+			// Anonymous class not lowered yet — skip entire new expr.
+			return nil
+		default:
+			if (isExprKind(c.Kind()) || isNameKind(c.Kind())) && classTarget == nil {
+				classTarget = c
+			}
+		}
+	}
+	if classTarget == nil {
+		return nil
+	}
+	argNodes := lowerArgList(args, file)
+	switch classTarget.Kind() {
+	case KindUnqualifiedName, KindQualifiedName, KindFullyQualifiedName, KindRelativeName, KindName:
+		return &ast.NewNode{
+			ClassName: NameText(classTarget),
+			Args:      argNodes,
+			Pos:       pos,
+			EndPos:    end,
+		}
+	case KindVariableExpr:
+		v, ok := lowerExpr(classTarget, file).(*ast.VariableNode)
+		if !ok || v == nil {
+			return &ast.NewNode{
+				ClassExpr: lowerExpr(classTarget, file),
+				Args:      argNodes,
+				Pos:       pos,
+				EndPos:    end,
+			}
+		}
+		// Classic stores bare `new $var` as ClassName="$name".
+		return &ast.NewNode{
+			ClassName: "$" + v.Name,
+			Args:      argNodes,
+			Pos:       pos,
+			EndPos:    end,
+		}
+	default:
+		return &ast.NewNode{
+			ClassExpr: lowerExpr(classTarget, file),
+			Args:      argNodes,
+			Pos:       pos,
+			EndPos:    end,
+		}
+	}
+}
+
+func lowerArrayExpr(n *RedNode, file *File) ast.Node {
+	pos, end := nodePos(file, n)
+	var elements []ast.Node
+	for _, c := range n.Children() {
+		if c.Kind() != KindArrayElement {
+			continue
+		}
+		if item := lowerArrayElement(c, file); item != nil {
+			elements = append(elements, item)
+		}
+	}
+	return &ast.ArrayNode{Elements: elements, Pos: pos, EndPos: end}
+}
+
+func lowerArrayElement(n *RedNode, file *File) ast.Node {
+	if n == nil {
+		return nil
+	}
+	pos, end := nodePos(file, n)
+	children := n.Children()
+	if len(children) == 0 {
+		return nil
+	}
+	i := 0
+	if isTokenType(children[0], token.T_ELLIPSIS) {
+		var val *RedNode
+		for _, c := range children[1:] {
+			if isExprKind(c.Kind()) || isNameKind(c.Kind()) {
+				val = c
+				break
+			}
+		}
+		if val == nil {
+			return nil
+		}
+		return &ast.ArrayItemNode{
+			Value:  lowerExpr(val, file),
+			Unpack: true,
+			Pos:    pos,
+			EndPos: end,
+		}
+	}
+
+	byRefBeforeFirst := false
+	if isTokenType(children[i], token.T_AMPERSAND) {
+		byRefBeforeFirst = true
+		i++
+	}
+	var first *RedNode
+	for ; i < len(children); i++ {
+		c := children[i]
+		if isExprKind(c.Kind()) || isNameKind(c.Kind()) {
+			first = c
+			i++
+			break
+		}
+	}
+	if first == nil {
+		return nil
+	}
+
+	// Look for => after first expr.
+	hasArrow := false
+	for j := i; j < len(children); j++ {
+		if isTokenType(children[j], token.T_DOUBLE_ARROW) {
+			hasArrow = true
+			i = j + 1
+			break
+		}
+	}
+	if !hasArrow {
+		return &ast.ArrayItemNode{
+			Value:  lowerExpr(first, file),
+			ByRef:  byRefBeforeFirst,
+			Pos:    pos,
+			EndPos: end,
+		}
+	}
+
+	key := lowerExpr(first, file)
+	if byRefBeforeFirst && key != nil {
+		kp, ke := nodePos(file, first)
+		key = &ast.UnaryExpr{Operator: "&", Operand: key, Pos: kp, EndPos: ke}
+	}
+	byRefValue := false
+	if i < len(children) && isTokenType(children[i], token.T_AMPERSAND) {
+		byRefValue = true
+		i++
+	}
+	var val *RedNode
+	for ; i < len(children); i++ {
+		c := children[i]
+		if isExprKind(c.Kind()) || isNameKind(c.Kind()) {
+			val = c
+			break
+		}
+	}
+	var value ast.Node
+	if val != nil {
+		value = lowerExpr(val, file)
+	}
+	return &ast.ArrayItemNode{
+		Key:    key,
+		Value:  value,
+		ByRef:  byRefValue,
+		Pos:    pos,
+		EndPos: end,
+	}
+}
+
+func lowerTernaryExpr(n *RedNode, file *File) ast.Node {
+	pos, end := nodePos(file, n)
+	children := n.Children()
+	var cond *RedNode
+	seenQ := false
+	seenColon := false
+	var thenChild, elseChild *RedNode
+	for _, c := range children {
+		if c.Green != nil && c.Green.IsToken() {
+			tt, ok := tokenOf(c)
+			if !ok {
+				continue
+			}
+			switch tt.Type {
+			case token.T_QUESTION:
+				seenQ = true
+			case token.T_COLON:
+				seenColon = true
+			}
+			continue
+		}
+		if !(isExprKind(c.Kind()) || isNameKind(c.Kind())) {
+			continue
+		}
+		if cond == nil {
+			cond = c
+			continue
+		}
+		if seenQ && !seenColon && thenChild == nil {
+			thenChild = c
+			continue
+		}
+		if seenColon && elseChild == nil {
+			elseChild = c
+		}
+	}
+	if cond == nil {
+		return nil
+	}
+	condNode := lowerExpr(cond, file)
+	var ifTrue ast.Node
+	if thenChild == nil {
+		// Elvis / short ternary: classic sets IfTrue = Condition.
+		ifTrue = condNode
+	} else {
+		ifTrue = lowerExpr(thenChild, file)
+	}
+	var ifFalse ast.Node
+	if elseChild != nil {
+		ifFalse = lowerExpr(elseChild, file)
+	}
+	return &ast.TernaryExpr{
+		Condition: condNode,
+		IfTrue:    ifTrue,
+		IfFalse:   ifFalse,
+		Pos:       pos,
+		EndPos:    end,
+	}
+}
+
+func lowerThrowExpr(n *RedNode, file *File) ast.Node {
+	pos, end := nodePos(file, n)
+	expr := firstExprChild(n)
+	if expr == nil {
+		return nil
+	}
+	return &ast.ThrowNode{
+		Expr:   lowerExpr(expr, file),
 		Pos:    pos,
 		EndPos: end,
 	}

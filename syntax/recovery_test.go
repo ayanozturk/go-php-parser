@@ -94,6 +94,29 @@ func TestMalformedFileAttributeRecovery(t *testing.T) {
 	}
 }
 
+func TestUnclosedClassFunctionBodyAtEOF(t *testing.T) {
+	src := "<?php\nclass Foo {\n\tpublic function bar() {\n\t\t// missing closing brace\n"
+	res := Parse([]byte(src))
+	if Print(res.File.Root) != src {
+		t.Fatalf("identity\nwant %q\ngot  %q", src, Print(res.File.Root))
+	}
+	if len(res.Diagnostics) < 2 {
+		t.Fatalf("expected >=2 T_RBRACE diags for nested unclosed braces, got %#v", res.Diagnostics)
+	}
+	rbrace := 0
+	for _, d := range res.Diagnostics {
+		if strings.Contains(d.Message, "T_RBRACE") {
+			rbrace++
+		}
+	}
+	if rbrace < 2 {
+		t.Fatalf("expected >=2 T_RBRACE diagnostics, got %#v", res.Diagnostics)
+	}
+	if !containsKind(res.File.Root, KindMissing) {
+		t.Fatalf("expected KindMissing close braces:\n%s", dumpGoldTree(res.File.Root))
+	}
+}
+
 func containsKind(n *RedNode, k Kind) bool {
 	if n == nil {
 		return false

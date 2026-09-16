@@ -824,6 +824,10 @@ func (p *Parser) parseBraceDelimitedList(kind Kind, tryItem func() *GreenNode) *
 	}
 	if p.at(token.T_RBRACE) {
 		parts = append(parts, p.bump())
+	} else if p.at(token.T_EOF) {
+		// Emit a diagnostic + KindMissing close so unclosed class/function
+		// bodies surface like classic "expected }" at EOF.
+		parts = append(parts, p.expect(token.T_RBRACE))
 	}
 	return p.intern.Node(kind, parts...)
 }
