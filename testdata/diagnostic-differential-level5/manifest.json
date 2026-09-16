@@ -195,6 +195,20 @@
       "phpstanIdentifiers": ["argument.type"]
     },
     {
+      "id": "argument-container-get-class-string-clean",
+      "capability": "container get(Foo::class) after null check is Foo not object",
+      "file": "argument-container-get-class-string-clean.php",
+      "engineCodes": [],
+      "phpstanIdentifiers": []
+    },
+    {
+      "id": "argument-container-get-class-string-mismatch",
+      "capability": "container get(Foo::class) without null check is rejected",
+      "file": "argument-container-get-class-string-mismatch.php",
+      "engineCodes": ["A.ARG.TYPE"],
+      "phpstanIdentifiers": ["argument.type"]
+    },
+    {
       "id": "argument-nullsafe-property-clean",
       "capability": "truthy nullsafe property fetch narrows receiver to non-null",
       "file": "argument-nullsafe-property-clean.php",
