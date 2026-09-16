@@ -620,6 +620,117 @@ declare(strict_types=1);
 	}
 }
 
+func TestParseASTPropertyHookBodies(t *testing.T) {
+	src := `<?php
+class H {
+    public string $name {
+        get => $this->name;
+        set(string $v) {
+            $this->name = $v;
+            echo $missing;
+        }
+    }
+    abstract public string $abs {
+        get;
+        set;
+    }
+}
+`
+	nodes, diags := syntax.ParseAST([]byte(src))
+	if len(diags) != 0 {
+		t.Fatalf("unexpected diags: %v", diags)
+	}
+	cls := nodes[0].(*ast.ClassNode)
+	if len(cls.Properties) < 2 {
+		t.Fatalf("properties=%d want >=2: %v", len(cls.Properties), nodeTypes(cls.Properties))
+	}
+
+	nameProp := cls.Properties[0].(*ast.PropertyNode)
+	if len(nameProp.Hooks) != 2 {
+		t.Fatalf("name hooks=%d want 2", len(nameProp.Hooks))
+	}
+	get, set := nameProp.Hooks[0], nameProp.Hooks[1]
+	if get.Name != "get" || get.Expr == nil || get.Body != nil {
+		t.Fatalf("get: name=%q Expr=%T Body=%d", get.Name, get.Expr, len(get.Body))
+	}
+	if _, ok := get.Expr.(*ast.PropertyFetchNode); !ok {
+		t.Fatalf("get Expr=%T want PropertyFetchNode", get.Expr)
+	}
+	if set.Name != "set" || set.Expr != nil || len(set.Body) < 2 {
+		t.Fatalf("set: name=%q Expr=%T Body=%d", set.Name, set.Expr, len(set.Body))
+	}
+	if !strings.Contains(set.Parameter, "$v") {
+		t.Fatalf("set Parameter=%q", set.Parameter)
+	}
+	if _, ok := set.Body[0].(*ast.ExpressionStmt); !ok {
+		t.Fatalf("set Body[0]=%T want ExpressionStmt", set.Body[0])
+	}
+
+	absProp := cls.Properties[1].(*ast.PropertyNode)
+	if len(absProp.Hooks) != 2 {
+		t.Fatalf("abs hooks=%d want 2", len(absProp.Hooks))
+	}
+	for _, h := range absProp.Hooks {
+		if h.Expr != nil || h.Body != nil {
+			t.Fatalf("abstract hook %q: Expr=%T Body=%d want nil", h.Name, h.Expr, len(h.Body))
+		}
+	}
+
+	// Behavioural: hook bodies participate in undefined-variable analysis.
+	level := 1
+	ctx := &analyse.AnalysisContext{AnalysisLevel: &level}
+	issues := analyse.RunAnalysisRulesWithContext("hooks.php", nodes, ctx)
+	foundMissing := false
+	for _, iss := range issues {
+		if iss.Code == "Level1.Variables" && strings.Contains(iss.Message, "$missing") {
+			foundMissing = true
+			break
+		}
+	}
+	if !foundMissing {
+		t.Fatalf("expected undefined $missing from set hook body; issues=%v", issues)
+	}
+}
+
+func TestParseASTPropertyDefaultValues(t *testing.T) {
+	src := `<?php
+class C {
+    public string $a = 'x', $b = 1;
+    public int $c = 2;
+    public string $plain;
+}
+`
+	nodes, diags := syntax.ParseAST([]byte(src))
+	if len(diags) != 0 {
+		t.Fatalf("unexpected diags: %v", diags)
+	}
+	cls := nodes[0].(*ast.ClassNode)
+	if len(cls.Properties) != 4 {
+		t.Fatalf("properties=%d want 4: %v", len(cls.Properties), nodeTypes(cls.Properties))
+	}
+	a := cls.Properties[0].(*ast.PropertyNode)
+	b := cls.Properties[1].(*ast.PropertyNode)
+	c := cls.Properties[2].(*ast.PropertyNode)
+	plain := cls.Properties[3].(*ast.PropertyNode)
+	if a.Name != "a" || a.DefaultValue == nil {
+		t.Fatalf("a: name=%q DefaultValue=%T", a.Name, a.DefaultValue)
+	}
+	if _, ok := a.DefaultValue.(*ast.StringNode); !ok {
+		if _, ok := a.DefaultValue.(*ast.StringLiteral); !ok {
+			t.Fatalf("a.DefaultValue=%T want string literal", a.DefaultValue)
+		}
+	}
+	if b.Name != "b" || b.DefaultValue == nil {
+		t.Fatalf("b: name=%q DefaultValue=%T", b.Name, b.DefaultValue)
+	}
+	if c.Name != "c" || c.DefaultValue == nil {
+		t.Fatalf("c: name=%q DefaultValue=%T", c.Name, c.DefaultValue)
+	}
+	if plain.Name != "plain" || plain.DefaultValue != nil {
+		t.Fatalf("plain: name=%q DefaultValue=%T want nil", plain.Name, plain.DefaultValue)
+	}
+}
+
 func nodeTypes(nodes []ast.Node) []string {
 	out := make([]string, len(nodes))
 	for i, n := range nodes {

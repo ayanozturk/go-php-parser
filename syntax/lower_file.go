@@ -6,8 +6,8 @@ import (
 
 // LowerFile lowers KindFile children to top-level classic AST nodes.
 // Exported for the syntax/lower facade; prefer syntax.ParseASTForIndex.
-// Gaps: attributes, anonymous class, closures/arrows, full expr/stmt lowering;
-// method bodies stay empty in index mode.
+// Method/function bodies stay empty in index mode (KindTokenList).
+// Property-hook Expr/Body and property DefaultValue lower whenever CST has them.
 
 // File lowers KindFile children to top-level classic AST nodes.
 func LowerFile(root *RedNode, file *File) []ast.Node {

@@ -1,6 +1,7 @@
 package lower_test
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/ayanozturk/go-php-parser/ast"
@@ -134,6 +135,8 @@ class H {
     }
 }
 `)
+	// Hook CST always carries full expr/stmt trees (SkipFunctionBodies does not
+	// blob hooks), so ParseForIndex still lowers Expr/Body when present.
 	res := syntax.ParseForIndex(src)
 	nodes := lower.File(res.File.Root, res.File)
 	cls := nodes[0].(*ast.ClassNode)
@@ -144,8 +147,18 @@ class H {
 	if prop.Hooks[0].Name != "get" || prop.Hooks[1].Name != "set" {
 		t.Fatalf("hook names: %+v", prop.Hooks)
 	}
-	if prop.Hooks[0].Expr != nil || prop.Hooks[0].Body != nil {
-		t.Fatalf("index mode: hook Expr/Body should be nil")
+	get, set := prop.Hooks[0], prop.Hooks[1]
+	if get.Expr == nil || get.Body != nil {
+		t.Fatalf("get hook: want Expr set and Body nil, got Expr=%T Body=%d", get.Expr, len(get.Body))
+	}
+	if _, ok := get.Expr.(*ast.PropertyFetchNode); !ok {
+		t.Fatalf("get Expr type: %T want PropertyFetchNode", get.Expr)
+	}
+	if set.Parameter == "" || !strings.Contains(set.Parameter, "$v") {
+		t.Fatalf("set Parameter: %q", set.Parameter)
+	}
+	if set.Expr != nil || len(set.Body) == 0 {
+		t.Fatalf("set hook: want Body stmts and Expr nil, got Expr=%T Body=%d", set.Expr, len(set.Body))
 	}
 }
 

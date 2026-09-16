@@ -321,26 +321,49 @@ func lowerProperties(n *RedNode, file *File) []ast.Node {
 	phpdoc := leadingDocFromNode(n)
 	var typeHint ast.Node
 	var hooks []ast.PropertyHookNode
-	var names []struct {
-		name string
-		pos  ast.Position
-		end  ast.Position
+	type propName struct {
+		name         string
+		pos          ast.Position
+		end          ast.Position
+		defaultValue ast.Node
 	}
-	for _, c := range n.Children() {
+	var names []propName
+	children := n.Children()
+	for i := 0; i < len(children); i++ {
+		c := children[i]
 		switch {
 		case isTypeKind(c.Kind()):
 			typeHint = lowerType(c, file)
 		case isTokenType(c, token.T_VARIABLE):
 			sp := c.Span()
-			names = append(names, struct {
-				name string
-				pos  ast.Position
-				end  ast.Position
-			}{
+			nm := propName{
 				name: stripVarDollar(tokenLiteral(c)),
 				pos:  spanStart(file, sp),
 				end:  spanEnd(file, sp),
-			})
+			}
+			// Optional `= <expr>` default immediately after the variable.
+			j := i + 1
+			if j < len(children) && isTokenType(children[j], token.T_ASSIGN) {
+				j++
+				for j < len(children) {
+					v := children[j]
+					if isTokenType(v, token.T_COMMA) || isTokenType(v, token.T_SEMICOLON) ||
+						v.Kind() == KindPropertyHookList {
+						break
+					}
+					if isExprKind(v.Kind()) || isNameKind(v.Kind()) {
+						nm.defaultValue = lowerExpr(v, file)
+						if nm.defaultValue != nil {
+							nm.end = nm.defaultValue.GetEndPos()
+						}
+						j++
+						break
+					}
+					j++
+				}
+				i = j - 1
+			}
+			names = append(names, nm)
 		case c.Kind() == KindPropertyHookList:
 			hooks = lowerPropertyHooks(c, file)
 		}
@@ -351,15 +374,16 @@ func lowerProperties(n *RedNode, file *File) []ast.Node {
 	out := make([]ast.Node, 0, len(names))
 	for _, nm := range names {
 		prop := &ast.PropertyNode{
-			Name:       nm.name,
-			TypeHint:   typeHint,
-			PHPDoc:     phpdoc, // multi-property: same doc on all names (classic)
-			Modifiers:  mods,
-			IsStatic:   mods.HasName("static"),
-			IsReadonly: mods.HasName("readonly"),
-			Hooks:      hooks,
-			Pos:        pos,
-			EndPos:     end,
+			Name:         nm.name,
+			TypeHint:     typeHint,
+			PHPDoc:       phpdoc, // multi-property: same doc on all names (classic)
+			DefaultValue: nm.defaultValue,
+			Modifiers:    mods,
+			IsStatic:     mods.HasName("static"),
+			IsReadonly:   mods.HasName("readonly"),
+			Hooks:        hooks,
+			Pos:          pos,
+			EndPos:       end,
 		}
 		if len(names) == 1 {
 			prop.Pos = pos
@@ -418,7 +442,27 @@ func lowerPropertyHook(n *RedNode, file *File) (ast.PropertyHookNode, bool) {
 			}
 			continue
 		}
-		// Expr/Body left nil in index mode.
+		// Arrow hook: get => <expr>;  /  set($v) => <expr>;
+		if isTokenType(c, token.T_DOUBLE_ARROW) {
+			for j := i + 1; j < len(children); j++ {
+				v := children[j]
+				if isTokenType(v, token.T_SEMICOLON) {
+					break
+				}
+				if isExprKind(v.Kind()) || isNameKind(v.Kind()) {
+					h.Expr = lowerExpr(v, file)
+					i = j
+					break
+				}
+			}
+			continue
+		}
+		// Braced hook body: get { … } / set($v) { … }
+		if c.Kind() == KindStatementList {
+			h.Body = lowerStatements(c, file)
+			continue
+		}
+		// Abstract / interface: bare `get;` / `set;` — Expr and Body stay nil.
 	}
 	if h.Name == "" {
 		return h, false
