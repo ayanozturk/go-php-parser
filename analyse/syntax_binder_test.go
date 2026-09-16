@@ -303,3 +303,179 @@ func TestBindSyntaxResultSharesParse(t *testing.T) {
 		t.Fatalf("BindSyntaxResult uses=%d BindSyntaxFileForIndex uses=%d", len(a.Uses), len(b.Uses))
 	}
 }
+
+func findUse(uses []NameUse, kind, written, owner string) (NameUse, bool) {
+	for _, u := range uses {
+		if u.Kind == kind && u.Written == written && (owner == "" || u.Owner == owner) {
+			return u, true
+		}
+	}
+	return NameUse{}, false
+}
+
+func TestPropertyDeclBinding(t *testing.T) {
+	src := "<?php\nnamespace App;\nclass Foo {\n    public string $prop;\n}\n"
+	graph := BindFile("file://prop.php", []byte(src), BindModeReferences)
+	u, ok := findUse(graph.Uses, "property", "$prop", `App\Foo`)
+	if !ok {
+		t.Fatalf("expected property $prop on App\\Foo, got %+v", graph.Uses)
+	}
+	if u.Resolved != `App\prop` {
+		t.Fatalf("Resolved=%q want App\\prop", u.Resolved)
+	}
+	leaf := string([]byte(src)[u.Span.Start:u.Span.End])
+	if leaf != "$prop" {
+		t.Fatalf("exact leaf %q want $prop", leaf)
+	}
+}
+
+func TestPropertyDeclGrouped(t *testing.T) {
+	src := "<?php\nnamespace App;\nclass Foo {\n    public $a, $b;\n}\n"
+	graph := BindFile("file://group.php", []byte(src), BindModeReferences)
+	if _, ok := findUse(graph.Uses, "property", "$a", `App\Foo`); !ok {
+		t.Fatalf("missing $a: %+v", graph.Uses)
+	}
+	if _, ok := findUse(graph.Uses, "property", "$b", `App\Foo`); !ok {
+		t.Fatalf("missing $b: %+v", graph.Uses)
+	}
+}
+
+func TestPropertyHooksDeclBindsNameOnly(t *testing.T) {
+	src := "<?php\nnamespace App;\nclass C {\n    public string $x { get => $this->x; set => $this->x = $value; }\n}\n"
+	graph := BindFile("file://hooks.php", []byte(src), BindModeReferences)
+	declCount := 0
+	useCount := 0
+	for _, u := range graph.Uses {
+		if u.Kind != "property" || u.Owner != `App\C` {
+			continue
+		}
+		switch u.Written {
+		case "$x":
+			declCount++
+		case "x":
+			useCount++
+		}
+	}
+	if declCount != 1 {
+		t.Fatalf("want 1 property decl $x, got %d uses=%+v", declCount, graph.Uses)
+	}
+	if useCount < 1 {
+		t.Fatalf("want at least one property use x from hooks, got %d", useCount)
+	}
+	for _, u := range graph.Uses {
+		if u.Kind == "property" && u.Written == "$this" {
+			t.Fatalf("must not bind $this as property decl: %+v", u)
+		}
+		if u.Kind == "property" && u.Written == "$value" {
+			t.Fatalf("must not bind hook param $value as property decl: %+v", u)
+		}
+	}
+}
+
+func TestMemberAccessInstanceProperty(t *testing.T) {
+	src := "<?php\nnamespace App;\nclass Foo {\n    public string $p;\n    public function m() { return $this->p; }\n}\n"
+	graph := BindFile("file://mem.php", []byte(src), BindModeReferences)
+	decl, ok := findUse(graph.Uses, "property", "$p", `App\Foo`)
+	if !ok {
+		t.Fatalf("missing decl: %+v", graph.Uses)
+	}
+	use, ok := findUse(graph.Uses, "property", "p", `App\Foo`)
+	if !ok {
+		t.Fatalf("missing use: %+v", graph.Uses)
+	}
+	if decl.Resolved != use.Resolved {
+		t.Fatalf("decl Resolved %q != use Resolved %q", decl.Resolved, use.Resolved)
+	}
+}
+
+func TestNullsafeMemberAccessProperty(t *testing.T) {
+	src := "<?php\nnamespace App;\nclass Foo {\n    public string $p;\n    public function m(?Foo $o) { return $o?->p; }\n}\n"
+	graph := BindFile("file://nullsafe.php", []byte(src), BindModeReferences)
+	if _, ok := findUse(graph.Uses, "property", "p", `App\Foo`); !ok {
+		t.Fatalf("missing nullsafe property use: %+v", graph.Uses)
+	}
+}
+
+func TestStaticMemberAccessPropertyAndConst(t *testing.T) {
+	src := "<?php\nnamespace App;\nclass Foo {\n    public static $stat;\n    public const K = 1;\n    public function m() { $a = self::$stat; $b = self::K; }\n}\n"
+	graph := BindFile("file://static.php", []byte(src), BindModeReferences)
+	if _, ok := findUse(graph.Uses, "property", "$stat", `App\Foo`); !ok {
+		t.Fatalf("missing static property decl/use $stat: %+v", graph.Uses)
+	}
+	if _, ok := findUse(graph.Uses, "const", "K", `App\Foo`); !ok {
+		t.Fatalf("missing const use K: %+v", graph.Uses)
+	}
+}
+
+func TestMemberAccessMethodCall(t *testing.T) {
+	src := "<?php\nnamespace App;\nclass Foo {\n    public function bar() {}\n    public function m() { $this->bar(); }\n}\n"
+	graph := BindFile("file://call.php", []byte(src), BindModeReferences)
+	bars := 0
+	for _, u := range graph.Uses {
+		if u.Kind == "method" && u.Written == "bar" && u.Owner == `App\Foo` {
+			bars++
+		}
+		if u.Kind == "property" && u.Written == "bar" {
+			t.Fatalf("method call must not bind as property: %+v", u)
+		}
+		if u.Kind == "function" && u.Written == "bar" && u.Owner == `App\Foo` {
+			t.Fatalf("class method must not double-bind as function: %+v", u)
+		}
+	}
+	if bars < 2 {
+		t.Fatalf("want decl+call for bar(), got %d: %+v", bars, graph.Uses)
+	}
+}
+
+func TestFindMatchingRespectsOwnerAndKindProperty(t *testing.T) {
+	src := `<?php
+namespace App;
+class Foo {
+    public string $p;
+    public function m() { return $this->p; }
+}
+class Other {
+    public string $p;
+}
+`
+	graph := BindFile("file://pmatch.php", []byte(src), BindModeReferences)
+	g := NewProjectUsageGraph()
+	g.PutFile("file://pmatch.php", graph.Uses)
+	use, ok := findUse(graph.Uses, "property", "p", `App\Foo`)
+	if !ok {
+		t.Fatalf("missing use: %+v", graph.Uses)
+	}
+	hits := g.FindMatching(use)
+	if len(hits) == 0 {
+		t.Fatal("expected matching hits for Foo::$p / ->p")
+	}
+	for _, h := range hits {
+		if h.Owner != `App\Foo` {
+			t.Fatalf("cross-type false hit: %+v", h)
+		}
+		if h.Kind != "property" {
+			t.Fatalf("kind mismatch: %+v", h)
+		}
+	}
+}
+
+func TestBindModeDeclarationsBindsPropertyNotBodyRefs(t *testing.T) {
+	src := `<?php
+namespace App;
+class Foo {
+    public string $p;
+    public function m() { return $this->p; }
+}
+`
+	decl := BindFile("file://mode.php", []byte(src), BindModeDeclarations)
+	refs := BindFile("file://mode.php", []byte(src), BindModeReferences)
+	if _, ok := findUse(decl.Uses, "property", "$p", `App\Foo`); !ok {
+		t.Fatalf("declaration mode should bind property $p: %+v", decl.Uses)
+	}
+	if _, ok := findUse(decl.Uses, "property", "p", `App\Foo`); ok {
+		t.Fatalf("declaration mode must not bind body ->p uses: %+v", decl.Uses)
+	}
+	if _, ok := findUse(refs.Uses, "property", "p", `App\Foo`); !ok {
+		t.Fatalf("references mode should bind ->p: %+v", refs.Uses)
+	}
+}

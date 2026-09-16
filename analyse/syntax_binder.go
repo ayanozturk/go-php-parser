@@ -245,6 +245,81 @@ func (b *Binder) BindName(n *syntax.RedNode, kind string) string {
 	return resolved
 }
 
+// BindPropertyDecl records a property declaration from a T_VARIABLE token node
+// (e.g. `$prop` under KindPropertyDecl). Written keeps the `$`; Resolved uses
+// the bare name so FindMatching can join decls with `->prop` / `::$prop` uses.
+func (b *Binder) BindPropertyDecl(n *syntax.RedNode) string {
+	if n == nil || b == nil {
+		return ""
+	}
+	written := tokenSignificantText(n)
+	if written == "" || !strings.HasPrefix(written, "$") {
+		return ""
+	}
+	return b.bindTokenUse(n, written, "property", strings.TrimPrefix(written, "$"))
+}
+
+// BindMemberUse records a member-access use site (property, method, or const).
+// written is the identifier leaf as in source (`prop`, `$stat`, `bar`).
+func (b *Binder) BindMemberUse(n *syntax.RedNode, written, kind string) string {
+	if n == nil || b == nil || written == "" || kind == "" {
+		return ""
+	}
+	resolveAs := written
+	if strings.HasPrefix(written, "$") {
+		resolveAs = strings.TrimPrefix(written, "$")
+	}
+	return b.bindTokenUse(n, written, kind, resolveAs)
+}
+
+func (b *Binder) bindTokenUse(n *syntax.RedNode, written, kind, resolveAs string) string {
+	resolved := b.resolve(resolveAs)
+	b.NextID++
+	span := significantTokenSpan(n)
+	use := NameUse{
+		NodeID:   b.NextID,
+		URI:      b.URI,
+		Span:     span,
+		Written:  written,
+		Resolved: resolved,
+		Kind:     kind,
+		Owner:    b.Owner,
+	}
+	if len(b.src) > 0 && len(b.lines) > 0 {
+		sl, sc := offsetToUTF16(b.src, b.lines, span.Start)
+		el, ec := offsetToUTF16(b.src, b.lines, span.End)
+		use.StartLine, use.StartChar = sl, sc
+		use.EndLine, use.EndChar = el, ec
+	} else if n.File != nil && len(n.File.Lines) > 0 {
+		src := n.File.Source
+		sl, sc := offsetToUTF16(src, n.File.Lines, span.Start)
+		el, ec := offsetToUTF16(src, n.File.Lines, span.End)
+		use.StartLine, use.StartChar = sl, sc
+		use.EndLine, use.EndChar = el, ec
+	}
+	b.Graph.Uses = append(b.Graph.Uses, use)
+	return resolved
+}
+
+// tokenSignificantText returns the significant (non-trivia) text of a token node.
+func tokenSignificantText(n *syntax.RedNode) string {
+	if n == nil || n.Green == nil || !n.Green.IsToken() {
+		return ""
+	}
+	tok, ok := n.Green.Token()
+	if !ok {
+		return ""
+	}
+	if tok.Literal != "" {
+		return tok.Literal
+	}
+	span := significantTokenSpan(n)
+	if n.File != nil && span.Start >= 0 && span.End <= len(n.File.Source) && span.Start <= span.End {
+		return string(n.File.Source[span.Start:span.End])
+	}
+	return ""
+}
+
 // nameLeafSpan returns the byte span of the last identifier token in a name
 // (exact rename/edit range — no leading trivia / namespace prefixes).
 func nameLeafSpan(n *syntax.RedNode) syntax.Span {
@@ -592,6 +667,12 @@ func (w *binderWalk) walk(n *syntax.RedNode) {
 		syntax.KindFullyQualifiedName, syntax.KindRelativeName:
 		w.b.BindName(n, nameKind(n))
 		return
+	case syntax.KindMemberAccessExpr, syntax.KindNullsafeMemberAccessExpr:
+		w.walkInstanceMemberAccess(n)
+		return
+	case syntax.KindStaticMemberAccessExpr:
+		w.walkStaticMemberAccess(n)
+		return
 	}
 	for _, c := range n.Children() {
 		w.walk(c)
@@ -624,7 +705,7 @@ func (w *binderWalk) walkClassLike(n *syntax.RedNode) {
 		w.b.Owner = fqn
 	}
 	for _, c := range n.Children() {
-		if c == nameNode {
+		if sameRed(c, nameNode) {
 			continue
 		}
 		switch c.Kind() {
@@ -652,11 +733,116 @@ func (w *binderWalk) walkMember(n *syntax.RedNode) {
 	case syntax.KindClassConstDecl:
 		w.walkClassConst(n)
 	case syntax.KindPropertyDecl:
-		for _, c := range n.Children() {
-			w.walk(c)
-		}
+		w.walkPropertyDecl(n)
 	default:
 		w.walk(n)
+	}
+}
+
+func (w *binderWalk) walkPropertyDecl(n *syntax.RedNode) {
+	for _, c := range n.Children() {
+		// Only direct T_VARIABLE children are property names (`public $a, $b`).
+		// Hook params / `$this` live under PropertyHook and must not be decls.
+		if c.Kind() == syntax.KindToken && c.Green != nil && c.Green.TokenType() == token.T_VARIABLE {
+			w.b.BindPropertyDecl(c)
+			continue
+		}
+		w.walk(c)
+	}
+}
+
+func (w *binderWalk) walkInstanceMemberAccess(n *syntax.RedNode) {
+	children := n.Children()
+	if len(children) > 0 {
+		w.walk(children[0]) // receiver
+	}
+	if mem := memberNameToken(n); mem != nil {
+		written := tokenSignificantText(mem)
+		kind := "property"
+		if isCalleeExpr(n) {
+			kind = "method"
+		}
+		w.b.BindMemberUse(mem, written, kind)
+	}
+	// Do not walk the operator/member tokens again (already handled).
+	for i := 3; i < len(children); i++ {
+		w.walk(children[i])
+	}
+}
+
+func (w *binderWalk) walkStaticMemberAccess(n *syntax.RedNode) {
+	children := n.Children()
+	if len(children) > 0 {
+		w.walk(children[0]) // class / self / parent / static
+	}
+	if mem := memberNameToken(n); mem != nil {
+		written := tokenSignificantText(mem)
+		kind := staticMemberUseKind(mem, n)
+		if kind != "" {
+			w.b.BindMemberUse(mem, written, kind)
+		}
+	}
+	for i := 3; i < len(children); i++ {
+		w.walk(children[i])
+	}
+}
+
+// memberNameToken returns the third child when it is a bindable identifier token.
+func memberNameToken(n *syntax.RedNode) *syntax.RedNode {
+	children := n.Children()
+	if len(children) < 3 {
+		return nil
+	}
+	m := children[2]
+	if m == nil || m.Kind() != syntax.KindToken || m.Green == nil {
+		return nil
+	}
+	switch m.Green.TokenType() {
+	case token.T_STRING, token.T_VARIABLE:
+		return m
+	case token.T_CLASS:
+		return nil // Foo::class
+	default:
+		return nil
+	}
+}
+
+func isCalleeExpr(access *syntax.RedNode) bool {
+	if access == nil || access.Parent == nil {
+		return false
+	}
+	p := access.Parent
+	switch p.Kind() {
+	case syntax.KindCallExpr, syntax.KindFirstClassCallableExpr:
+		kids := p.Children()
+		return len(kids) > 0 && sameRed(kids[0], access)
+	}
+	return false
+}
+
+// sameRed compares red identity by green pointer + absolute offset.
+// RedNode.Children() allocates fresh wrappers, so pointer equality is unsafe.
+func sameRed(a, b *syntax.RedNode) bool {
+	if a == nil || b == nil {
+		return a == b
+	}
+	return a.Green == b.Green && a.Offset == b.Offset
+}
+
+func staticMemberUseKind(mem, access *syntax.RedNode) string {
+	if mem == nil || mem.Green == nil {
+		return ""
+	}
+	switch mem.Green.TokenType() {
+	case token.T_VARIABLE:
+		return "property"
+	case token.T_STRING:
+		if isCalleeExpr(access) {
+			return "method"
+		}
+		return "const"
+	default:
+		return ""
 	}
 }
 
@@ -675,7 +861,7 @@ func (w *binderWalk) walkFunctionLike(n *syntax.RedNode) {
 		w.b.BindName(nameNode, kind)
 	}
 	for _, c := range n.Children() {
-		if c == nameNode {
+		if sameRed(c, nameNode) {
 			continue
 		}
 		w.walk(c)
