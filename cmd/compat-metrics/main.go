@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
-	"github.com/ayanozturk/go-php-parser/parser"
+	"github.com/ayanozturk/go-php-parser/diag"
 	"github.com/ayanozturk/go-php-parser/syntax"
 	"io"
 	"io/fs"
@@ -190,7 +190,7 @@ func diagStrings(src []byte, diags []syntax.Diagnostic) []string {
 	}
 	out := make([]string, len(diags))
 	for i, d := range diags {
-		out[i] = parser.ParseErrorFromOffsets(src, d.Span.Start, d.Span.End, d.Message).Error()
+		out[i] = diag.ParseErrorFromOffsets(src, d.Span.Start, d.Span.End, d.Message).Error()
 	}
 	return out
 }

@@ -1,4 +1,4 @@
-package parser
+package diag
 
 import (
 	"fmt"
@@ -13,8 +13,7 @@ import (
 // span; zero end fields mean "point at start only" (same convention as
 // analyse.AnalysisIssue).
 //
-// Errors() continues to return Error() strings so PHP Strom's line N:C: parser
-// remains compatible during migration to StructuredErrors().
+// Error() returns the legacy "line N:C: message" string form editors expect.
 type ParseError struct {
 	Line      int
 	Column    int

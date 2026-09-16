@@ -68,6 +68,8 @@ func lowerExpr(n *RedNode, file *File) ast.Node {
 		return lowerHeredoc(n, file)
 	case KindVariableVariableExpr:
 		return lowerVariableVariableExpr(n, file)
+	case KindFirstClassCallableExpr:
+		return lowerFirstClassCallableExpr(n, file)
 	default:
 		return nil
 	}
@@ -866,6 +868,25 @@ func lowerThrowExpr(n *RedNode, file *File) ast.Node {
 		Pos:    pos,
 		EndPos: end,
 	}
+}
+
+func lowerFirstClassCallableExpr(n *RedNode, file *File) ast.Node {
+	pos, end := nodePos(file, n)
+	expr := firstExprChild(n)
+	if expr == nil {
+		return nil
+	}
+	lowered := lowerExpr(expr, file)
+	if lowered == nil {
+		return nil
+	}
+	fcc := &ast.FirstClassCallableNode{Pos: pos, EndPos: end}
+	if name, ok := lowered.(*ast.IdentifierNode); ok {
+		fcc.Name = name
+	} else {
+		fcc.Target = lowered
+	}
+	return fcc
 }
 
 func tokenOf(n *RedNode) (token.Token, bool) {

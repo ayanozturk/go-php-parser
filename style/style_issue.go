@@ -15,7 +15,7 @@ type StyleIssue struct {
 	// source span, forming a half-open [Line:Column, EndLine:EndColumn)
 	// range for editor squiggly-underline diagnostics. Zero end fields
 	// mean "point at start only" (same convention as analyse.AnalysisIssue
-	// and parser.ParseError).
+	// and diag.ParseError).
 	EndLine   int
 	EndColumn int
 	Type      IssueType // ERROR or WARNING

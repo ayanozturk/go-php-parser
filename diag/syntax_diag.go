@@ -1,4 +1,4 @@
-package parser
+package diag
 
 import (
 	"unicode/utf8"
