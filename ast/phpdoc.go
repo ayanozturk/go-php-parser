@@ -163,9 +163,48 @@ func logicalPHPDocLines(content string) []string {
 			}
 			combined = strings.TrimSpace(combined + " " + continuation)
 		}
-		lines = append(lines, combined)
+		lines = append(lines, splitCompoundPHPDocTagLines(combined)...)
 	}
 	return lines
+}
+
+func splitCompoundPHPDocTagLines(line string) []string {
+	if !strings.Contains(line, "@") {
+		return []string{line}
+	}
+	var parts []string
+	depth := 0
+	start := -1
+	for i := 0; i < len(line); i++ {
+		switch line[i] {
+		case '<', '(', '{', '[':
+			depth++
+		case '>', ')', '}', ']':
+			if depth > 0 {
+				depth--
+			}
+		}
+		if depth != 0 || line[i] != '@' {
+			continue
+		}
+		if i > 0 && line[i-1] != ' ' && line[i-1] != '\t' {
+			continue
+		}
+		if start >= 0 {
+			parts = append(parts, strings.TrimSpace(line[start:i]))
+		}
+		start = i
+	}
+	if start < 0 {
+		return []string{line}
+	}
+	if tail := strings.TrimSpace(line[start:]); tail != "" {
+		parts = append(parts, tail)
+	}
+	if len(parts) <= 1 {
+		return []string{line}
+	}
+	return parts
 }
 
 func phpDocLineStartsTypeTag(line string) bool {

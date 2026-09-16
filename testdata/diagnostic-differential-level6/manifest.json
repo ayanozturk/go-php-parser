@@ -172,6 +172,20 @@
       "file": "known-enum-and-promoted-iterables.php",
       "engineCodes": [],
       "phpstanIdentifiers": []
+    },
+    {
+      "id": "missing-doctrine-collection-iterable-generic",
+      "capability": "bare Doctrine Collection reports missing iterable value type",
+      "file": "missing-doctrine-collection-iterable-generic.php",
+      "engineCodes": ["Level6.MissingIterableValueType"],
+      "phpstanIdentifiers": ["missingType.iterableValue"]
+    },
+    {
+      "id": "clean-doctrine-collection-iterable-generic",
+      "capability": "documented Doctrine Collection generic arguments are clean",
+      "file": "clean-doctrine-collection-iterable-generic.php",
+      "engineCodes": [],
+      "phpstanIdentifiers": []
     }
   ]
 }

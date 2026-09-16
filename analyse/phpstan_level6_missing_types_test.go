@@ -1,6 +1,9 @@
 package analyse
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestLevel6MissingTypesUsePHPDocPrecedenceAndNestedTypes(t *testing.T) {
 	const source = `<?php
@@ -280,6 +283,55 @@ final class Batch
 // to underlining the entire method body: the diagnostic's span should end
 // on the declaration line (after the closing ')' of the parameter list),
 // not on the closing '}' several lines later.
+func TestLevel6MissingIterableGenericClassesReportMissingIterableValueType(t *testing.T) {
+	const source = `<?php
+namespace Doctrine\Common\Collections;
+
+/** @template TKey of array-key @template T @extends \IteratorAggregate<TKey, T> */
+interface Collection extends \IteratorAggregate {}
+
+namespace App;
+
+use Doctrine\Common\Collections\Collection;
+
+final class User {}
+
+function consumeBareCollection(Collection $items): void {}
+
+/** @param Collection<string, User> $items */
+function consumeDocumentedCollection(Collection $items): void {}
+
+function consumeBareIteratorAggregate(\IteratorAggregate $items): void {}
+
+namespace {
+/** @template TValue */
+final class Box {}
+
+function consumeBareBox(Box $box): void {}
+}
+`
+	issues := runAnalysisLevelOnFiles(t, map[string]string{"test.php": source}, 6)
+	missingGeneric := filterIssuesByCode(issues, level6MissingGenericTypeCode)
+	missingIterable := filterIssuesByCode(issues, level6MissingIterableTypeCode)
+	if len(missingGeneric) != 1 {
+		t.Fatalf("expected only bare Box to report missing generic type, got %#v", missingGeneric)
+	}
+	if missingGeneric[0].Message != "Generic class Box does not specify its template types." {
+		t.Fatalf("unexpected missing generic message: %#v", missingGeneric[0])
+	}
+	if len(missingIterable) != 2 {
+		t.Fatalf("expected bare Collection and IteratorAggregate to report missing iterable value type, got %#v", missingIterable)
+	}
+	for _, issue := range missingIterable {
+		if issue.Code != level6MissingIterableTypeCode {
+			t.Fatalf("unexpected issue code %#v", issue)
+		}
+		if !strings.Contains(issue.Message, "does not specify its value type") {
+			t.Fatalf("unexpected missing iterable message: %#v", issue)
+		}
+	}
+}
+
 func TestLevel6MissingReturnTypeSpanIsSignatureOnly(t *testing.T) {
 	const source = `<?php
 class Widget {

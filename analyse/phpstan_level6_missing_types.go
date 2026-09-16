@@ -315,8 +315,45 @@ func appendMissingTypeIssues(filename string, declaration ast.Node, raw string, 
 	}
 	resolved, ok := ctx.Resolver.ResolveClass(name)
 	if ok && len(resolved.TemplateParams) > 0 {
+		if isIterableGenericClass(name, ctx) {
+			*issues = append(*issues, issueSpan(filename, declaration, level6MissingIterableTypeCode, fmt.Sprintf("Iterable type %s does not specify its value type.", name)))
+			return
+		}
 		*issues = append(*issues, issueSpan(filename, declaration, level6MissingGenericTypeCode, fmt.Sprintf("Generic class %s does not specify its template types.", name)))
 	}
+}
+
+func isIterableGenericClass(name string, ctx *AnalysisContext) bool {
+	if ctx == nil || ctx.Resolver == nil {
+		return false
+	}
+	switch indexKey(name) {
+	case "traversable", "iterator", "iteratoraggregate":
+		return true
+	case indexKey("Doctrine\\Common\\Collections\\Collection"):
+		return true
+	}
+	queue := []string{name}
+	seen := make(map[string]struct{})
+	for len(queue) > 0 {
+		current := queue[0]
+		queue = queue[1:]
+		currentKey := indexKey(current)
+		if _, exists := seen[currentKey]; exists {
+			continue
+		}
+		seen[currentKey] = struct{}{}
+		if currentKey == "traversable" {
+			return true
+		}
+		resolved, ok := ctx.Resolver.ResolveClass(current)
+		if !ok {
+			continue
+		}
+		queue = append(queue, resolved.Extends...)
+		queue = append(queue, resolved.Implements...)
+	}
+	return false
 }
 
 func init() {

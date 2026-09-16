@@ -273,6 +273,17 @@ func TestGetParamTypeFromPHPDoc(t *testing.T) {
 	}
 }
 
+func TestParsePHPDocSplitsCompoundTemplateLines(t *testing.T) {
+	doc := ParsePHPDoc(`/** @template TKey of array-key @template T @extends \IteratorAggregate<TKey, T> */`)
+
+	if len(doc.Templates) != 2 || doc.Templates[0].Name != "TKey" || doc.Templates[0].Bound != "array-key" || doc.Templates[1].Name != "T" {
+		t.Fatalf("unexpected templates: %#v", doc.Templates)
+	}
+	if len(doc.Extends) != 1 || doc.Extends[0].Name != "\\IteratorAggregate" || len(doc.Extends[0].TypeArguments) != 2 {
+		t.Fatalf("unexpected extends references: %#v", doc.Extends)
+	}
+}
+
 func TestParsePHPDocGenerics(t *testing.T) {
 	doc := ParsePHPDoc(`/**
  * @template T of EntityInterface
