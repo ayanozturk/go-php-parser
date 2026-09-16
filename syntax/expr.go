@@ -352,27 +352,10 @@ func (p *Parser) parseMemberName() *GreenNode {
 	case token.T_CURLY_OPEN, token.T_DOLLAR_OPEN_CURLY_BRACES:
 		return p.parseEncapsulatedExpr()
 	default:
-		if isKeywordMemberName(p.tok().Type) {
+		if p.atIdentName() {
 			return p.bump()
 		}
 		return nil
-	}
-}
-
-func isKeywordMemberName(tt token.TokenType) bool {
-	switch tt {
-	case token.T_CLASS, token.T_NAMESPACE, token.T_NEW, token.T_CLONE, token.T_FUNCTION,
-		token.T_CONST, token.T_USE, token.T_STATIC, token.T_SELF, token.T_PARENT,
-		token.T_LIST, token.T_ARRAY, token.T_PRINT, token.T_ECHO, token.T_RETURN,
-		token.T_IF, token.T_ELSE, token.T_WHILE, token.T_FOR, token.T_FOREACH,
-		token.T_SWITCH, token.T_CASE, token.T_DEFAULT, token.T_BREAK, token.T_CONTINUE,
-		token.T_TRY, token.T_CATCH, token.T_FINALLY, token.T_THROW, token.T_MATCH,
-		token.T_FN, token.T_YIELD, token.T_INCLUDE, token.T_REQUIRE,
-		token.T_EMPTY, token.T_ISSET, token.T_UNSET, token.T_EXIT, token.T_DIE,
-		token.T_TRUE, token.T_FALSE, token.T_NULL, token.T_MIXED, token.T_CALLABLE:
-		return true
-	default:
-		return false
 	}
 }
 
@@ -390,7 +373,7 @@ func (p *Parser) parseStaticMemberAccess(expr *GreenNode) *GreenNode {
 	case p.at(token.T_DOLLAR_OPEN_CURLY_BRACES), p.at(token.T_CURLY_OPEN):
 		parts = append(parts, p.parseEncapsulatedExpr())
 	default:
-		if isKeywordMemberName(p.tok().Type) {
+		if p.atIdentName() {
 			parts = append(parts, p.bump())
 		}
 	}
@@ -440,8 +423,14 @@ func (p *Parser) parseCallArgList() *GreenNode {
 	open := p.expect(token.T_LPAREN)
 	parts := []*GreenNode{open}
 	for !p.at(token.T_RPAREN) && !p.at(token.T_EOF) {
+		start := p.i
 		parts = append(parts, p.parseCallArg())
 		if p.at(token.T_COMMA) {
+			parts = append(parts, p.bump())
+			continue
+		}
+		if p.i == start {
+			// No progress — bump to avoid infinite loops on unexpected tokens.
 			parts = append(parts, p.bump())
 			continue
 		}
@@ -452,7 +441,8 @@ func (p *Parser) parseCallArgList() *GreenNode {
 }
 
 func (p *Parser) parseCallArg() *GreenNode {
-	if (p.at(token.T_STRING) || p.at(token.T_CLASS)) && p.peekType(1) == token.T_COLON {
+	// Named args accept contextual keyword identifiers (e.g. match: false).
+	if p.atIdentName() && p.peekType(1) == token.T_COLON {
 		name := p.bump()
 		colon := p.bump()
 		expr := p.parseExpression()

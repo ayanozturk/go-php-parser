@@ -426,7 +426,7 @@ func splitMemberAccess(n *RedNode, file *File) (object ast.Node, member string) 
 			case token.T_STRING, token.T_VARIABLE:
 				member = strings.TrimSpace(tt.Literal)
 			default:
-				if isKeywordMemberName(tt.Type) {
+				if isContextualIdent(tt.Type, tt.Literal) {
 					member = strings.TrimSpace(tt.Literal)
 				}
 			}

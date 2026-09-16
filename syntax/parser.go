@@ -701,14 +701,21 @@ func (p *Parser) parseIdentName() *GreenNode {
 }
 
 func (p *Parser) atIdentName() bool {
-	if p.at(token.T_STRING) {
+	return isContextualIdent(p.tok().Type, p.tok().Literal)
+}
+
+// isContextualIdent reports whether a token is usable as a PHP identifier in
+// contextual positions (decl names, member names after ->/::, named arguments).
+// token_get_all still emits keyword kinds for most of these; Zend accepts them
+// as identifiers in those positions.
+func isContextualIdent(tt token.TokenType, lit string) bool {
+	if tt == token.T_STRING {
 		return true
 	}
-	lit := p.tok().Literal
 	if lit == "" {
 		return false
 	}
-	switch p.tok().Type {
+	switch tt {
 	case token.T_LPAREN, token.T_RPAREN, token.T_LBRACE, token.T_RBRACE,
 		token.T_LBRACKET, token.T_RBRACKET, token.T_SEMICOLON, token.T_COMMA,
 		token.T_AMPERSAND, token.T_ELLIPSIS, token.T_COLON, token.T_DOUBLE_ARROW,
@@ -1453,19 +1460,29 @@ func (p *Parser) parseUntilCaseSep() *GreenNode {
 
 func (p *Parser) parseCaseBody(alt bool) []*GreenNode {
 	var parts []*GreenNode
+	depth := 0
 	for !p.at(token.T_EOF) {
-		if p.at(token.T_CASE) || p.at(token.T_DEFAULT) {
+		if depth == 0 && (p.at(token.T_CASE) || p.at(token.T_DEFAULT)) {
 			break
 		}
-		if !alt && p.at(token.T_RBRACE) {
+		if depth == 0 && !alt && p.at(token.T_RBRACE) {
 			break
 		}
-		if alt && p.at(token.T_ENDSWITCH) {
+		if depth == 0 && alt && p.at(token.T_ENDSWITCH) {
 			break
 		}
 		if stmt := p.tryParseStructured(); stmt != nil {
 			parts = append(parts, stmt)
 			continue
+		}
+		// Track nested braces so `case 1: { ... }` does not close the switch.
+		switch p.tok().Type {
+		case token.T_LBRACE:
+			depth++
+		case token.T_RBRACE:
+			if depth > 0 {
+				depth--
+			}
 		}
 		parts = append(parts, p.bump())
 	}
@@ -1493,7 +1510,13 @@ func (p *Parser) parseMatchExpr() *GreenNode {
 			parts = append(parts, p.bump())
 			continue
 		}
+		start := p.i
 		parts = append(parts, p.parseMatchArm())
+		if p.i == start {
+			// No progress (e.g. bare `:` after mistaken match entry) — bump to
+			// avoid unbounded MatchArm allocation.
+			parts = append(parts, p.bump())
+		}
 	}
 	if p.at(token.T_RBRACE) {
 		parts = append(parts, p.bump())
