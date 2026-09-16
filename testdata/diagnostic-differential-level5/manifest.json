@@ -209,6 +209,20 @@
       "phpstanIdentifiers": ["argument.type"]
     },
     {
+      "id": "argument-container-get-string-id-clean",
+      "capability": "container get(string id) without class-string binding stays object|null",
+      "file": "argument-container-get-string-id-clean.php",
+      "engineCodes": [],
+      "phpstanIdentifiers": []
+    },
+    {
+      "id": "argument-container-get-string-id-mismatch",
+      "capability": "container get(string id) passed to typed param is rejected",
+      "file": "argument-container-get-string-id-mismatch.php",
+      "engineCodes": ["A.ARG.TYPE"],
+      "phpstanIdentifiers": ["argument.type"]
+    },
+    {
       "id": "argument-nullsafe-property-clean",
       "capability": "truthy nullsafe property fetch narrows receiver to non-null",
       "file": "argument-nullsafe-property-clean.php",

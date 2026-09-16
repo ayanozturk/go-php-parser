@@ -2091,8 +2091,11 @@ func bindCallSiteMethodTemplates(method ResolvedMethod, args []ast.Node, scope *
 		if name == "" {
 			continue
 		}
-		if className, ok := classNameFromClassStringExpr(argExpr, scope); ok {
+		if className, ok := classNameFromClassStringArgument(argExpr, scope); ok {
 			bindings[name] = className
+			continue
+		}
+		if isClassStringTemplateParam(method.Params[paramIndex].Type, method.ReturnType, ctx) {
 			continue
 		}
 		if !callableReturn.IsEmpty() {
@@ -2288,6 +2291,39 @@ func typeContainsIdentifier(raw, name string) bool {
 		start = end
 	}
 	return false
+}
+
+func isClassStringTemplateParam(raw, methodReturnType string, ctx *AnalysisContext) bool {
+	raw = strings.TrimPrefix(strings.TrimSpace(raw), "?")
+	instance, ok := parseExactGenericTypeFromString(raw)
+	if !ok || !strings.EqualFold(instance.ClassName, "class-string") || len(instance.TypeArguments) != 1 {
+		return false
+	}
+	inner := strings.TrimSpace(instance.TypeArguments[0])
+	if openTemplateParamName(inner, ctx) != "" {
+		return true
+	}
+	if idx := strings.LastIndex(inner, `\`); idx != -1 {
+		inner = inner[idx+1:]
+	}
+	if openTemplateParamName(inner, ctx) != "" {
+		return true
+	}
+	return isBindableClassStringTemplate(inner, methodReturnType, ctx)
+}
+
+func classNameFromClassStringArgument(expr ast.Node, scope *functionScope) (string, bool) {
+	if className, ok := classNameFromClassStringExpr(expr, scope); ok {
+		return className, true
+	}
+	if variable, ok := expr.(*ast.VariableNode); ok {
+		if target, ok := classStringTarget(scope, variable.Name); ok {
+			if className, single := target.SingleClassName(); single {
+				return className, true
+			}
+		}
+	}
+	return "", false
 }
 
 func classNameFromClassStringExpr(expr ast.Node, scope *functionScope) (string, bool) {

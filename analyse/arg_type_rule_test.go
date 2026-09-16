@@ -1114,6 +1114,70 @@ function run(ObjectRepository $em): void
 	}
 }
 
+func TestContainerGetStringIdFallsBackToObjectNull(t *testing.T) {
+	files := map[string]string{
+		"app.php": `<?php
+class UserRepository {}
+
+interface ContainerInterface
+{
+    /**
+     * @param string $id
+     * @phpstan-param class-string<T> $id
+     * @return object|null
+     * @phpstan-return T|null
+     * @template T of object
+     */
+    public function get(string $id): ?object;
+}
+
+function notify(UserRepository $repo): void {}
+
+function run(ContainerInterface $container): void
+{
+    notify($container->get('app.user_repository'));
+}
+`,
+	}
+	if issues := runAnalysisLevelOnFiles(t, files, 5); !hasArgTypeIssue(issues) {
+		t.Fatalf("expected get('app.user_repository') to mismatch UserRepository with object|null, got %#v", issues)
+	}
+}
+
+func TestContainerGetClassStringAfterNullCheckStillClean(t *testing.T) {
+	files := map[string]string{
+		"app.php": `<?php
+class UserRepository {}
+
+interface ContainerInterface
+{
+    /**
+     * @param string $id
+     * @phpstan-param class-string<T> $id
+     * @return object|null
+     * @phpstan-return T|null
+     * @template T of object
+     */
+    public function get(string $id): ?object;
+}
+
+function notify(UserRepository $repo): void {}
+
+function run(ContainerInterface $container): void
+{
+    $repo = $container->get(UserRepository::class);
+    if (!$repo) {
+        return;
+    }
+    notify($repo);
+}
+`,
+	}
+	if issues := runAnalysisLevelOnFiles(t, files, 5); hasArgTypeIssue(issues) {
+		t.Fatalf("expected get(UserRepository::class) after null check to be UserRepository, got %#v", issues)
+	}
+}
+
 func TestEntityManagerFindWithoutNullCheckStillRejectsNullable(t *testing.T) {
 	files := map[string]string{
 		"app.php": `<?php
