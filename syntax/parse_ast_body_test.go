@@ -560,6 +560,66 @@ func staticMemberCallInSubtree(n ast.Node) bool {
 	return false
 }
 
+func TestParseASTUnsetAndDeclareStatements(t *testing.T) {
+	src := `<?php
+unset($x);
+declare(strict_types=1);
+`
+	nodes, diags := syntax.ParseAST([]byte(src))
+	if len(diags) != 0 {
+		t.Fatalf("unexpected diags: %v", diags)
+	}
+	if len(nodes) != 2 {
+		t.Fatalf("expected 2 top-level nodes, got %d: %v", len(nodes), nodeTypes(nodes))
+	}
+
+	unsetStmt, ok := nodes[0].(*ast.ExpressionStmt)
+	if !ok {
+		t.Fatalf("nodes[0]=%T want ExpressionStmt", nodes[0])
+	}
+	unsetCall, ok := unsetStmt.Expr.(*ast.FunctionCallNode)
+	if !ok {
+		t.Fatalf("unset expr=%T want FunctionCallNode", unsetStmt.Expr)
+	}
+	unsetName, ok := unsetCall.Name.(*ast.IdentifierNode)
+	if !ok || unsetName.Value != "unset" {
+		t.Fatalf("unset name=%T(%v) want IdentifierNode(unset)", unsetCall.Name, unsetCall.Name)
+	}
+	if len(unsetCall.Args) != 1 {
+		t.Fatalf("unset args=%d want 1", len(unsetCall.Args))
+	}
+	if _, ok := unsetCall.Args[0].(*ast.VariableNode); !ok {
+		t.Fatalf("unset arg=%T want VariableNode", unsetCall.Args[0])
+	}
+
+	decl, ok := nodes[1].(*ast.DeclareNode)
+	if !ok {
+		t.Fatalf("nodes[1]=%T want DeclareNode", nodes[1])
+	}
+	if decl.NodeType() != "Declare" {
+		t.Fatalf("declare NodeType=%q", decl.NodeType())
+	}
+	val, ok := decl.Directives["strict_types"]
+	if !ok {
+		t.Fatalf("directives=%v want strict_types", decl.Directives)
+	}
+	switch lit := val.(type) {
+	case *ast.IntegerNode:
+		if lit.Value != 1 {
+			t.Fatalf("strict_types=%d want 1", lit.Value)
+		}
+	case *ast.IntegerLiteral:
+		if lit.Value != 1 {
+			t.Fatalf("strict_types=%d want 1", lit.Value)
+		}
+	default:
+		t.Fatalf("strict_types=%T want integer literal", val)
+	}
+	if decl.Body != nil {
+		t.Fatalf("declare body=%T want nil for semicolon form", decl.Body)
+	}
+}
+
 func nodeTypes(nodes []ast.Node) []string {
 	out := make([]string, len(nodes))
 	for i, n := range nodes {

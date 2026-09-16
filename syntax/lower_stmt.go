@@ -1,6 +1,7 @@
 package syntax
 
 import (
+	"strconv"
 	"strings"
 
 	"github.com/ayanozturk/go-php-parser/ast"
@@ -88,6 +89,10 @@ func lowerStmt(n *RedNode, file *File) ast.Node {
 		return lowerGlobalStmt(n, file)
 	case KindStaticVarStmt:
 		return lowerStaticVarStmt(n, file)
+	case KindUnsetStmt:
+		return lowerUnsetStmt(n, file)
+	case KindDeclareStmt:
+		return lowerDeclareStmt(n, file)
 	case KindGotoStmt:
 		label := ""
 		for _, c := range n.Children() {
@@ -548,6 +553,123 @@ func lowerSwitchStmt(n *RedNode, file *File) ast.Node {
 		}
 	}
 	return sw
+}
+
+func lowerUnsetStmt(n *RedNode, file *File) ast.Node {
+	if n == nil {
+		return nil
+	}
+	pos, end := nodePos(file, n)
+	var args []ast.Node
+	for _, c := range n.Children() {
+		if c.Kind() == KindArgList {
+			args = lowerArgList(c, file)
+			break
+		}
+	}
+	if len(args) == 0 {
+		for _, c := range n.Children() {
+			if isExprKind(c.Kind()) || isNameKind(c.Kind()) {
+				if e := lowerExpr(c, file); e != nil {
+					args = append(args, e)
+				}
+			}
+		}
+	}
+	if len(args) == 0 {
+		return nil
+	}
+	name := &ast.IdentifierNode{Value: "unset", Pos: pos, EndPos: end}
+	call := &ast.FunctionCallNode{Name: name, Args: args, Pos: pos, EndPos: end}
+	return &ast.ExpressionStmt{Expr: call, Pos: pos, EndPos: end}
+}
+
+func lowerDeclareStmt(n *RedNode, file *File) ast.Node {
+	if n == nil {
+		return nil
+	}
+	pos, end := nodePos(file, n)
+	decl := &ast.DeclareNode{Directives: map[string]ast.Node{}, Pos: pos, EndPos: end}
+	for _, c := range n.Children() {
+		switch c.Kind() {
+		case KindTokenList:
+			if len(decl.Directives) == 0 {
+				decl.Directives = lowerDeclareDirectives(c, file)
+			}
+		case KindStatementList:
+			stmts := lowerStatements(c, file)
+			if len(stmts) > 0 {
+				bp, be := nodePos(file, c)
+				decl.Body = &ast.BlockNode{Statements: stmts, Pos: bp, EndPos: be}
+			}
+		}
+	}
+	if len(decl.Directives) == 0 {
+		return nil
+	}
+	return decl
+}
+
+func lowerDeclareDirectives(list *RedNode, file *File) map[string]ast.Node {
+	if list == nil {
+		return nil
+	}
+	var tokens []*RedNode
+	for _, c := range list.Children() {
+		if c.Kind() == KindToken {
+			tokens = append(tokens, c)
+		}
+	}
+	out := make(map[string]ast.Node)
+	for i := 0; i < len(tokens); i++ {
+		if !isTokenType(tokens[i], token.T_STRING) {
+			continue
+		}
+		name := strings.TrimSpace(tokenLiteral(tokens[i]))
+		if name == "" {
+			continue
+		}
+		i++
+		for i < len(tokens) && isTokenType(tokens[i], token.T_COMMA) {
+			i++
+		}
+		if i >= len(tokens) || !isTokenType(tokens[i], token.T_ASSIGN) {
+			continue
+		}
+		i++
+		if i >= len(tokens) {
+			break
+		}
+		if val := lowerDeclareDirectiveValue(tokens[i], file); val != nil {
+			out[name] = val
+		}
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
+func lowerDeclareDirectiveValue(n *RedNode, file *File) ast.Node {
+	if n == nil {
+		return nil
+	}
+	pos, end := nodePos(file, n)
+	lit := tokenLiteral(n)
+	switch {
+	case isTokenType(n, token.T_LNUMBER):
+		v, _ := strconv.ParseInt(strings.ReplaceAll(lit, "_", ""), 0, 64)
+		return &ast.IntegerNode{Value: v, Pos: pos, EndPos: end}
+	case isTokenType(n, token.T_DNUMBER):
+		v, _ := strconv.ParseFloat(strings.ReplaceAll(lit, "_", ""), 64)
+		return &ast.FloatNode{Value: v, Pos: pos, EndPos: end}
+	case isTokenType(n, token.T_CONSTANT_ENCAPSED_STRING):
+		return &ast.StringLiteral{Value: decodeLowerStringLiteral(lit), Pos: pos, EndPos: end}
+	case isTokenType(n, token.T_STRING):
+		return &ast.IdentifierNode{Value: lit, Pos: pos, EndPos: end}
+	default:
+		return nil
+	}
 }
 
 func lowerGlobalStmt(n *RedNode, file *File) ast.Node {
