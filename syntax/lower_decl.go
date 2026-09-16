@@ -249,6 +249,13 @@ func lowerFunction(n *RedNode, file *File) *ast.FunctionNode {
 		return nil
 	}
 	pos, end := nodePos(file, n)
+	// Classic anchors Pos at T_FUNCTION (modifiers are outside the Pos span).
+	for _, c := range n.Children() {
+		if isTokenType(c, token.T_FUNCTION) {
+			pos, _ = nodePos(file, c)
+			break
+		}
+	}
 	fn := &ast.FunctionNode{
 		Pos:       pos,
 		EndPos:    end,
@@ -423,32 +430,54 @@ func lowerClassConsts(n *RedNode, file *File) []ast.Node {
 	if n == nil {
 		return nil
 	}
-	pos, end := nodePos(file, n)
+	_, end := nodePos(file, n)
 	mods := lowerModifiers(n)
 	phpdoc := leadingDocFromNode(n)
 	var typeHint ast.Node
-	var names []string
-	for _, c := range n.Children() {
-		switch {
-		case isTypeKind(c.Kind()):
+	children := n.Children()
+	var out []ast.Node
+	for i := 0; i < len(children); i++ {
+		c := children[i]
+		if isTypeKind(c.Kind()) {
 			typeHint = lowerType(c, file)
-		case c.Kind() == KindUnqualifiedName:
-			names = append(names, NameText(c))
+			continue
 		}
-	}
-	if len(names) == 0 {
-		return nil
-	}
-	out := make([]ast.Node, 0, len(names))
-	for _, name := range names {
+		if c.Kind() != KindUnqualifiedName {
+			continue
+		}
+		name := NameText(c)
+		np, ne := nodePos(file, c)
+		var value ast.Node
+		j := i + 1
+		if j < len(children) && isTokenType(children[j], token.T_ASSIGN) {
+			j++
+			for j < len(children) {
+				v := children[j]
+				if isTokenType(v, token.T_COMMA) || isTokenType(v, token.T_SEMICOLON) {
+					break
+				}
+				if isExprKind(v.Kind()) || isNameKind(v.Kind()) {
+					value = lowerExpr(v, file)
+					if value != nil {
+						ne = value.GetEndPos()
+					}
+					j++
+					break
+				}
+				j++
+			}
+		}
 		out = append(out, &ast.ConstantNode{
 			Name:      name,
+			Value:     value,
 			Type:      typeHint,
-			PHPDoc:     phpdoc,
+			PHPDoc:    phpdoc,
 			Modifiers: mods,
-			Pos:       pos,
+			Pos:       np,
 			EndPos:    end,
 		})
+		_ = ne
+		i = j - 1
 	}
 	return out
 }

@@ -45,6 +45,7 @@ func lowerParam(n *RedNode, file *File) *ast.ParamNode {
 	if p.Modifiers.HasName("readonly") {
 		p.IsReadonly = true
 	}
+	seenAssign := false
 	for _, c := range n.Children() {
 		switch {
 		case isTypeKind(c.Kind()):
@@ -55,6 +56,11 @@ func lowerParam(n *RedNode, file *File) *ast.ParamNode {
 			p.IsVariadic = true
 		case isTokenType(c, token.T_VARIABLE):
 			p.Name = stripVarDollar(tokenLiteral(c))
+		case isTokenType(c, token.T_ASSIGN):
+			seenAssign = true
+		case seenAssign && (isExprKind(c.Kind()) || isNameKind(c.Kind())):
+			p.DefaultValue = lowerExpr(c, file)
+			seenAssign = false
 		}
 	}
 	return p

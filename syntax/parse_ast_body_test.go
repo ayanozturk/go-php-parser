@@ -68,6 +68,21 @@ class C {
 }
 `
 
+const bodyAdvFixture = `<?php
+class C {
+  public function adv($v, $o, $z, $name, $b) {
+    make()->x();
+    $f = static function($a) use ($b) { return $a; };
+    $g = fn($x): int => $x;
+    $m = match ($v) { 1 => 'a', default => 'b' };
+    (clone $o)->m();
+    $o = new class extends Base { public function t() { return 1; } };
+    $u = (unset) $z;
+    $s = "hi $name";
+  }
+}
+`
+
 func TestParseASTBodyLowersMethodStatements(t *testing.T) {
 	nodes, diags := syntax.ParseAST([]byte(bodyFixture))
 	if len(diags) != 0 {
@@ -254,6 +269,96 @@ func TestParseASTBodyWidenBehavioural(t *testing.T) {
 	classic := parser.New(lexer.New(bodyWidenFixture), false)
 	nodesC := classic.Parse()
 	nodesS, _ := syntax.ParseAST([]byte(bodyWidenFixture))
+
+	parsedC := map[string][]ast.Node{"f.php": nodesC}
+	parsedS := map[string][]ast.Node{"f.php": nodesS}
+
+	idxC := analyse.BuildProjectIndex(parsedC)
+	idxS := analyse.BuildProjectIndex(parsedS)
+	if idxC == nil || idxS == nil {
+		t.Fatal("BuildProjectIndex returned nil")
+	}
+
+	snapC, err := analyse.NewSemanticSnapshot(parsedC, nil)
+	if err != nil {
+		t.Fatalf("classic NewSemanticSnapshot: %v", err)
+	}
+	snapS, err := analyse.NewSemanticSnapshot(parsedS, nil)
+	if err != nil {
+		t.Fatalf("syntax NewSemanticSnapshot: %v", err)
+	}
+	if snapC == nil || snapS == nil {
+		t.Fatal("nil snapshot")
+	}
+
+	issuesC := analyse.RunAnalysisRules("f.php", nodesC)
+	issuesS := analyse.RunAnalysisRules("f.php", nodesS)
+	codesC := issueCodes(issuesC)
+	codesS := issueCodes(issuesS)
+	if fmt.Sprint(codesC) != fmt.Sprint(codesS) {
+		t.Fatalf("issue codes classic=%v syntax=%v", codesC, codesS)
+	}
+}
+
+func TestParseASTBodyAdvStructural(t *testing.T) {
+	nodes, diags := syntax.ParseAST([]byte(bodyAdvFixture))
+	if len(diags) != 0 {
+		t.Fatalf("unexpected diags: %v", diags)
+	}
+	if len(nodes) != 1 {
+		t.Fatalf("expected 1 top-level node, got %d", len(nodes))
+	}
+	cls, ok := nodes[0].(*ast.ClassNode)
+	if !ok {
+		t.Fatalf("expected ClassNode, got %T", nodes[0])
+	}
+	if len(cls.Methods) != 1 {
+		t.Fatalf("methods=%d", len(cls.Methods))
+	}
+	fn := cls.Methods[0].(*ast.FunctionNode)
+	if fn.Name != "adv" {
+		t.Fatalf("method=%q want adv", fn.Name)
+	}
+	if len(fn.Body) == 0 {
+		t.Fatal("expected non-empty method Body from KindStatementList")
+	}
+
+	exprStmt, ok := fn.Body[0].(*ast.ExpressionStmt)
+	if !ok {
+		t.Fatalf("first stmt=%T want ExpressionStmt (make()->x())", fn.Body[0])
+	}
+	if _, ok := exprStmt.Expr.(*ast.MethodCallNode); !ok {
+		t.Fatalf("first stmt expr=%T want MethodCallNode", exprStmt.Expr)
+	}
+
+	wantTypes := []string{
+		"Function",
+		"ArrowFunction",
+		"Match",
+		"UnaryExpr",
+		"New",
+		"Class",
+		"TypeCast",
+		"InterpolatedString",
+	}
+	counts := subtreeNodeTypeCounts(fn.Body)
+	for _, want := range wantTypes {
+		if counts[want] == 0 {
+			t.Fatalf("missing NodeType %q in method body subtree (counts=%v)", want, counts)
+		}
+	}
+
+	classic := parser.New(lexer.New(bodyAdvFixture), false)
+	nodesC := classic.Parse()
+	clsC := nodesC[0].(*ast.ClassNode)
+	fnC := clsC.Methods[0].(*ast.FunctionNode)
+	assertTopLevelBodyNodeTypesMatch(t, fn.Body, fnC.Body)
+}
+
+func TestParseASTBodyAdvBehavioural(t *testing.T) {
+	classic := parser.New(lexer.New(bodyAdvFixture), false)
+	nodesC := classic.Parse()
+	nodesS, _ := syntax.ParseAST([]byte(bodyAdvFixture))
 
 	parsedC := map[string][]ast.Node{"f.php": nodesC}
 	parsedS := map[string][]ast.Node{"f.php": nodesS}

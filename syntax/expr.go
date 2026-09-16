@@ -208,12 +208,12 @@ func (p *Parser) isCastStart() bool {
 		return false
 	}
 	switch t1 {
-	case token.T_ARRAY, token.T_CALLABLE:
+	case token.T_ARRAY, token.T_CALLABLE, token.T_UNSET:
 		return true
 	case token.T_STRING:
 		switch p.peekLit(1) {
 		case "int", "integer", "bool", "boolean", "float", "double", "real",
-			"string", "binary", "unset", "object":
+			"string", "binary", "unset", "object", "void":
 			return true
 		}
 	}

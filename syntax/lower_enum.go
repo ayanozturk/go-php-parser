@@ -66,11 +66,25 @@ func lowerEnumCase(n *RedNode, file *File) *ast.EnumCaseNode {
 	}
 	pos, end := nodePos(file, n)
 	ec := &ast.EnumCaseNode{Pos: pos, EndPos: end}
+	seenAssign := false
 	for _, c := range n.Children() {
+		if isTokenType(c, token.T_CASE) {
+			pos, _ = nodePos(file, c)
+			ec.Pos = pos
+			continue
+		}
 		if isNameKind(c.Kind()) && ec.Name == "" {
 			ec.Name = NameText(c)
+			continue
 		}
-		// Value expressions stay nil in index mode (no expr lowering).
+		if isTokenType(c, token.T_ASSIGN) {
+			seenAssign = true
+			continue
+		}
+		if seenAssign && (isExprKind(c.Kind()) || isNameKind(c.Kind())) {
+			ec.Value = lowerExpr(c, file)
+			seenAssign = false
+		}
 	}
 	if ec.Name == "" {
 		return nil

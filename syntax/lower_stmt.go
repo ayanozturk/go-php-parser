@@ -41,6 +41,13 @@ func lowerStmt(n *RedNode, file *File) ast.Node {
 		if lowered == nil {
 			return nil
 		}
+		pos, end := nodePos(file, n)
+		if p := lowered.GetPos(); p.Line > 0 {
+			pos = p
+		}
+		if e := lowered.GetEndPos(); e.Line > 0 {
+			end = e
+		}
 		return &ast.ExpressionStmt{Expr: lowered, Pos: pos, EndPos: end}
 	case KindReturnStmt:
 		ret := &ast.ReturnNode{Pos: pos, EndPos: end}

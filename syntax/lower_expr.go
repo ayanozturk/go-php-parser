@@ -48,6 +48,22 @@ func lowerExpr(n *RedNode, file *File) ast.Node {
 		return lowerTernaryExpr(n, file)
 	case KindThrowExpr:
 		return lowerThrowExpr(n, file)
+	case KindClosureExpr:
+		return lowerClosureExpr(n, file)
+	case KindArrowFunctionExpr:
+		return lowerArrowFunctionExpr(n, file)
+	case KindMatchExpr:
+		return lowerMatchExpr(n, file)
+	case KindCloneExpr:
+		return lowerCloneExpr(n, file)
+	case KindListExpr:
+		return lowerListExpr(n, file)
+	case KindIncludeExpr, KindPrintExpr:
+		return lowerKeywordUnaryExpr(n, file)
+	case KindStringLiteral:
+		return lowerInterpolatedStringLiteral(n, file)
+	case KindHeredoc, KindNowdoc:
+		return lowerHeredoc(n, file)
 	default:
 		return nil
 	}
@@ -172,10 +188,18 @@ func lowerAssignExpr(n *RedNode, file *File) ast.Node {
 	if left == nil || op == "" {
 		return nil
 	}
+	leftNode := lowerExpr(left, file)
+	rightNode := lowerExpr(right, file)
+	if leftNode != nil {
+		pos = leftNode.GetPos()
+	}
+	if rightNode != nil {
+		end = rightNode.GetEndPos()
+	}
 	return &ast.AssignmentNode{
-		Left:     lowerExpr(left, file),
+		Left:     leftNode,
 		Operator: op,
-		Right:    lowerExpr(right, file),
+		Right:    rightNode,
 		Pos:      pos,
 		EndPos:   end,
 	}
@@ -231,11 +255,15 @@ func lowerCallExpr(n *RedNode, file *File) ast.Node {
 		}
 	default:
 		name := lowerExpr(callee, file)
+		callPos, callEnd := pos, end
+		if name != nil {
+			callPos = name.GetPos()
+		}
 		return &ast.FunctionCallNode{
 			Name:   name,
 			Args:   argNodes,
-			Pos:    pos,
-			EndPos: end,
+			Pos:    callPos,
+			EndPos: callEnd,
 		}
 	}
 }
@@ -321,7 +349,8 @@ func lowerNamedArg(n *RedNode, file *File) ast.Node {
 func lowerMemberAccessExpr(n *RedNode, file *File) ast.Node {
 	pos, end := nodePos(file, n)
 	obj, prop := splitMemberAccess(n, file)
-	if prop == "" {
+	// Empty property is valid for incomplete `$obj->` (completion / recovery).
+	if obj == nil && prop == "" {
 		return nil
 	}
 	return &ast.PropertyFetchNode{
@@ -520,8 +549,16 @@ func lowerNewExpr(n *RedNode, file *File) ast.Node {
 		case KindAttributeList:
 			continue
 		case KindAnonymousClass:
-			// Anonymous class not lowered yet — skip entire new expr.
-			return nil
+			cls, ctorArgs := lowerAnonymousClass(c, file)
+			if cls == nil {
+				return nil
+			}
+			return &ast.NewNode{
+				ClassExpr: cls,
+				Args:      ctorArgs,
+				Pos:       pos,
+				EndPos:    end,
+			}
 		default:
 			if (isExprKind(c.Kind()) || isNameKind(c.Kind())) && classTarget == nil {
 				classTarget = c

@@ -74,13 +74,26 @@ func lowerTopLevel(n *RedNode, file *File) (nodes []ast.Node, ok bool) {
 		}
 		return nil, true
 	case KindAnonymousClass:
-		// Explicit gap: skip without panicking.
+		// Standalone anonymous class is unexpected at top level; skip.
 		return nil, true
 	case KindToken, KindTokenList, KindError, KindMissing,
 		KindEmptyStmt, KindAttributeList:
 		return nil, false
 	default:
-		// Unsupported stmt/expr — skip.
+		// File-scope statements / expressions (ExpressionStmt, Throw, Echo, …).
+		if isStmtKind(n.Kind()) {
+			if stmt := lowerStmt(n, file); stmt != nil {
+				return []ast.Node{stmt}, true
+			}
+			return nil, true
+		}
+		if isExprKind(n.Kind()) || isNameKind(n.Kind()) {
+			if e := lowerExpr(n, file); e != nil {
+				pos, end := nodePos(file, n)
+				return []ast.Node{&ast.ExpressionStmt{Expr: e, Pos: pos, EndPos: end}}, true
+			}
+			return nil, true
+		}
 		return nil, false
 	}
 }
