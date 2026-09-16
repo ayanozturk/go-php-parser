@@ -2,10 +2,12 @@ package parser
 
 import (
 	"context"
+	"fmt"
+	"strings"
+
 	"github.com/ayanozturk/go-php-parser/ast"
 	"github.com/ayanozturk/go-php-parser/lexer"
 	"github.com/ayanozturk/go-php-parser/token"
-	"strings"
 )
 
 type Parser struct {
@@ -21,7 +23,7 @@ type Parser struct {
 	// updated on every nextToken() call and used to stamp a just-parsed
 	// node's EndPos with "the end of the last token that was part of it".
 	prevTokEnd  token.Position
-	errors      []error
+	errors      []ParseError
 	debug       bool
 	currentDoc  string // Current PHPDoc comment being tracked
 	modifierArr [8]ast.Modifier
@@ -67,16 +69,44 @@ func (p *Parser) harvestTriviaDoc(tok token.Token) {
 }
 
 func (p *Parser) addError(format string, args ...interface{}) {
-	p.errors = append(p.errors, ErrorDeferred{Format: format, Args: args})
+	raw := fmt.Sprintf(format, args...)
+	msg, line, col := stripLeadingLineCol(raw)
+	start := p.tok.Pos
+	end := p.tok.EndPos()
+	if line > 0 {
+		start.Line = line
+		start.Column = col
+	}
+	// Unlocated diagnostics (panic/cancel before a useful token) keep zero ends.
+	if start.Line == 0 && start.Column == 0 && start.Offset == 0 {
+		end = token.Position{}
+	}
+	p.errors = append(p.errors, ParseError{
+		Line:      start.Line,
+		Column:    start.Column,
+		Offset:    start.Offset,
+		EndLine:   end.Line,
+		EndColumn: end.Column,
+		EndOffset: end.Offset,
+		Code:      classifyParseError(msg),
+		Message:   msg,
+	})
 }
 
-// Errors returns the list of errors encountered during parsing
+// Errors returns legacy string diagnostics (including "line N:C:" when located).
 func (p *Parser) Errors() []string {
 	res := make([]string, len(p.errors))
 	for i, err := range p.errors {
 		res[i] = err.Error()
 	}
 	return res
+}
+
+// StructuredErrors returns a copy of structured parse diagnostics with codes and spans.
+func (p *Parser) StructuredErrors() []ParseError {
+	out := make([]ParseError, len(p.errors))
+	copy(out, p.errors)
+	return out
 }
 
 // consumeCurrentDoc consumes the current PHPDoc comment and returns a PHPDocNode
