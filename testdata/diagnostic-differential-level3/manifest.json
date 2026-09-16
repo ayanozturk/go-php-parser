@@ -298,6 +298,20 @@
       "file": "abstract-repository-find-mismatch.php",
       "engineCodes": ["A.RETURN.TYPE"],
       "phpstanIdentifiers": ["return.type"]
+    },
+    {
+      "id": "clean-namespaced-doctrine-phpstan-return",
+      "capability": "namespaced Doctrine @phpstan-return ?T find binds via @extends",
+      "file": "clean-namespaced-doctrine-phpstan-return.php",
+      "engineCodes": [],
+      "phpstanIdentifiers": []
+    },
+    {
+      "id": "namespaced-doctrine-phpstan-return-mismatch",
+      "capability": "namespaced Doctrine @phpstan-return ?T find still mismatches string callers",
+      "file": "namespaced-doctrine-phpstan-return-mismatch.php",
+      "engineCodes": ["A.RETURN.TYPE"],
+      "phpstanIdentifiers": ["return.type"]
     }
   ]
 }
