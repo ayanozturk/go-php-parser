@@ -284,6 +284,20 @@
       "file": "clean-resource-or-false-return.php",
       "engineCodes": [],
       "phpstanIdentifiers": []
+    },
+    {
+      "id": "clean-abstract-repository-find",
+      "capability": "AbstractRepository find wrapping EntityRepository<T> preserves bound return type",
+      "file": "clean-abstract-repository-find.php",
+      "engineCodes": [],
+      "phpstanIdentifiers": []
+    },
+    {
+      "id": "abstract-repository-find-mismatch",
+      "capability": "AbstractRepository find still mismatches when caller expects string",
+      "file": "abstract-repository-find-mismatch.php",
+      "engineCodes": ["A.RETURN.TYPE"],
+      "phpstanIdentifiers": ["return.type"]
     }
   ]
 }
