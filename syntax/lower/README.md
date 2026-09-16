@@ -30,5 +30,5 @@ Lowers a `syntax` red tree to classic `[]ast.Node` for project indexing
 - Hook Expr/Body and enum case values stay nil in index mode
 - TraitNode / EnumNode have no PHPDoc storage field (classic likewise)
 - Method/function bodies stay empty in index mode (`ParseASTForIndex`)
-- Analyse consumers use `syntax.ParseAST` (`command.parseAnalysisFile`) / Strom
-  `parseSemanticSnapshot` after action 98 cutover
+- Analyse consumers (`parseAnalysisFile` / Strom `semantic_cache`) still classic —
+  cutover deferred until diagnostic fixture parity
