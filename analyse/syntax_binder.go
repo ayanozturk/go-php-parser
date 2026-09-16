@@ -217,32 +217,7 @@ func (b *Binder) BindName(n *syntax.RedNode, kind string) string {
 		return ""
 	}
 	written := syntax.NameText(n)
-	resolved := b.resolve(written)
-	b.NextID++
-	span := nameLeafSpan(n)
-	use := NameUse{
-		NodeID:   b.NextID,
-		URI:      b.URI,
-		Span:     span,
-		Written:  written,
-		Resolved: resolved,
-		Kind:     kind,
-		Owner:    b.Owner,
-	}
-	if len(b.src) > 0 && len(b.lines) > 0 {
-		sl, sc := offsetToUTF16(b.src, b.lines, span.Start)
-		el, ec := offsetToUTF16(b.src, b.lines, span.End)
-		use.StartLine, use.StartChar = sl, sc
-		use.EndLine, use.EndChar = el, ec
-	} else if n.File != nil && len(n.File.Lines) > 0 {
-		src := n.File.Source
-		sl, sc := offsetToUTF16(src, n.File.Lines, span.Start)
-		el, ec := offsetToUTF16(src, n.File.Lines, span.End)
-		use.StartLine, use.StartChar = sl, sc
-		use.EndLine, use.EndChar = el, ec
-	}
-	b.Graph.Uses = append(b.Graph.Uses, use)
-	return resolved
+	return b.recordNameUse(n, nameLeafSpan(n), written, b.resolve(written), kind)
 }
 
 // BindPropertyDecl records a property declaration from a T_VARIABLE token node
@@ -256,7 +231,7 @@ func (b *Binder) BindPropertyDecl(n *syntax.RedNode) string {
 	if written == "" || !strings.HasPrefix(written, "$") {
 		return ""
 	}
-	return b.bindTokenUse(n, written, "property", strings.TrimPrefix(written, "$"))
+	return b.BindMemberUse(n, written, "property")
 }
 
 // BindMemberUse records a member-access use site (property, method, or const).
@@ -265,17 +240,14 @@ func (b *Binder) BindMemberUse(n *syntax.RedNode, written, kind string) string {
 	if n == nil || b == nil || written == "" || kind == "" {
 		return ""
 	}
-	resolveAs := written
-	if strings.HasPrefix(written, "$") {
-		resolveAs = strings.TrimPrefix(written, "$")
-	}
-	return b.bindTokenUse(n, written, kind, resolveAs)
+	resolveAs := strings.TrimPrefix(written, "$")
+	return b.recordNameUse(n, significantTokenSpan(n), written, b.resolve(resolveAs), kind)
 }
 
-func (b *Binder) bindTokenUse(n *syntax.RedNode, written, kind, resolveAs string) string {
-	resolved := b.resolve(resolveAs)
+// recordNameUse appends a NameUse with UTF-16 LSP positions filled from binder
+// source or the red node's file.
+func (b *Binder) recordNameUse(n *syntax.RedNode, span syntax.Span, written, resolved, kind string) string {
 	b.NextID++
-	span := significantTokenSpan(n)
 	use := NameUse{
 		NodeID:   b.NextID,
 		URI:      b.URI,
@@ -285,15 +257,15 @@ func (b *Binder) bindTokenUse(n *syntax.RedNode, written, kind, resolveAs string
 		Kind:     kind,
 		Owner:    b.Owner,
 	}
-	if len(b.src) > 0 && len(b.lines) > 0 {
-		sl, sc := offsetToUTF16(b.src, b.lines, span.Start)
-		el, ec := offsetToUTF16(b.src, b.lines, span.End)
-		use.StartLine, use.StartChar = sl, sc
-		use.EndLine, use.EndChar = el, ec
-	} else if n.File != nil && len(n.File.Lines) > 0 {
-		src := n.File.Source
-		sl, sc := offsetToUTF16(src, n.File.Lines, span.Start)
-		el, ec := offsetToUTF16(src, n.File.Lines, span.End)
+	src, lines := b.src, b.lines
+	if len(src) == 0 || len(lines) == 0 {
+		if n != nil && n.File != nil && len(n.File.Lines) > 0 {
+			src, lines = n.File.Source, n.File.Lines
+		}
+	}
+	if len(src) > 0 && len(lines) > 0 {
+		sl, sc := offsetToUTF16(src, lines, span.Start)
+		el, ec := offsetToUTF16(src, lines, span.End)
 		use.StartLine, use.StartChar = sl, sc
 		use.EndLine, use.EndChar = el, ec
 	}
@@ -668,10 +640,10 @@ func (w *binderWalk) walk(n *syntax.RedNode) {
 		w.b.BindName(n, nameKind(n))
 		return
 	case syntax.KindMemberAccessExpr, syntax.KindNullsafeMemberAccessExpr:
-		w.walkInstanceMemberAccess(n)
+		w.walkMemberAccess(n, instanceMemberUseKind)
 		return
 	case syntax.KindStaticMemberAccessExpr:
-		w.walkStaticMemberAccess(n)
+		w.walkMemberAccess(n, staticMemberUseKind)
 		return
 	}
 	for _, c := range n.Children() {
@@ -751,37 +723,17 @@ func (w *binderWalk) walkPropertyDecl(n *syntax.RedNode) {
 	}
 }
 
-func (w *binderWalk) walkInstanceMemberAccess(n *syntax.RedNode) {
+func (w *binderWalk) walkMemberAccess(n *syntax.RedNode, kindFor func(mem, access *syntax.RedNode) string) {
 	children := n.Children()
 	if len(children) > 0 {
-		w.walk(children[0]) // receiver
+		w.walk(children[0]) // receiver / class name
 	}
 	if mem := memberNameToken(n); mem != nil {
-		written := tokenSignificantText(mem)
-		kind := "property"
-		if isCalleeExpr(n) {
-			kind = "method"
-		}
-		w.b.BindMemberUse(mem, written, kind)
-	}
-	// Do not walk the operator/member tokens again (already handled).
-	for i := 3; i < len(children); i++ {
-		w.walk(children[i])
-	}
-}
-
-func (w *binderWalk) walkStaticMemberAccess(n *syntax.RedNode) {
-	children := n.Children()
-	if len(children) > 0 {
-		w.walk(children[0]) // class / self / parent / static
-	}
-	if mem := memberNameToken(n); mem != nil {
-		written := tokenSignificantText(mem)
-		kind := staticMemberUseKind(mem, n)
-		if kind != "" {
-			w.b.BindMemberUse(mem, written, kind)
+		if kind := kindFor(mem, n); kind != "" {
+			w.b.BindMemberUse(mem, tokenSignificantText(mem), kind)
 		}
 	}
+	// Skip operator/member tokens (already handled); walk any trailing children.
 	for i := 3; i < len(children); i++ {
 		w.walk(children[i])
 	}
@@ -827,6 +779,13 @@ func sameRed(a, b *syntax.RedNode) bool {
 		return a == b
 	}
 	return a.Green == b.Green && a.Offset == b.Offset
+}
+
+func instanceMemberUseKind(_ *syntax.RedNode, access *syntax.RedNode) string {
+	if isCalleeExpr(access) {
+		return "method"
+	}
+	return "property"
 }
 
 func staticMemberUseKind(mem, access *syntax.RedNode) string {

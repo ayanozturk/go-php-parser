@@ -787,15 +787,36 @@ func (p *Parser) parseImplementsClause() *GreenNode {
 }
 
 func (p *Parser) parseMemberList() *GreenNode {
+	return p.parseBraceDelimitedList(KindMemberList, func() *GreenNode {
+		if p.at(token.T_ATTRIBUTE) {
+			return p.parseAttributeList()
+		}
+		if member := p.tryParseMember(); member != nil {
+			return member
+		}
+		return nil
+	})
+}
+
+func (p *Parser) parseStatementList() *GreenNode {
+	return p.parseBraceDelimitedList(KindStatementList, func() *GreenNode {
+		if p.at(token.T_ATTRIBUTE) {
+			return p.parseAttributeList()
+		}
+		if stmt := p.tryParseStructured(); stmt != nil {
+			return stmt
+		}
+		return nil
+	})
+}
+
+// parseBraceDelimitedList covers `{` items… `}` with bump-fallback for identity.
+func (p *Parser) parseBraceDelimitedList(kind Kind, tryItem func() *GreenNode) *GreenNode {
 	var parts []*GreenNode
 	parts = append(parts, p.expect(token.T_LBRACE))
 	for !p.at(token.T_RBRACE) && !p.at(token.T_EOF) {
-		if p.at(token.T_ATTRIBUTE) {
-			parts = append(parts, p.parseAttributeList())
-			continue
-		}
-		if member := p.tryParseMember(); member != nil {
-			parts = append(parts, member)
+		if item := tryItem(); item != nil {
+			parts = append(parts, item)
 			continue
 		}
 		// Fallback: consume one token so progress continues (identity still holds).
@@ -804,27 +825,7 @@ func (p *Parser) parseMemberList() *GreenNode {
 	if p.at(token.T_RBRACE) {
 		parts = append(parts, p.bump())
 	}
-	return p.intern.Node(KindMemberList, parts...)
-}
-
-func (p *Parser) parseStatementList() *GreenNode {
-	var parts []*GreenNode
-	parts = append(parts, p.expect(token.T_LBRACE))
-	for !p.at(token.T_RBRACE) && !p.at(token.T_EOF) {
-		if p.at(token.T_ATTRIBUTE) {
-			parts = append(parts, p.parseAttributeList())
-			continue
-		}
-		if stmt := p.tryParseStructured(); stmt != nil {
-			parts = append(parts, stmt)
-			continue
-		}
-		parts = append(parts, p.bump())
-	}
-	if p.at(token.T_RBRACE) {
-		parts = append(parts, p.bump())
-	}
-	return p.intern.Node(KindStatementList, parts...)
+	return p.intern.Node(kind, parts...)
 }
 
 func (p *Parser) tryParseMember() *GreenNode {
@@ -1663,20 +1664,7 @@ func (p *Parser) parsePropertyDecl() *GreenNode {
 
 // parsePropertyHookList covers `{` hook… `}` attached to a property.
 func (p *Parser) parsePropertyHookList() *GreenNode {
-	var parts []*GreenNode
-	parts = append(parts, p.expect(token.T_LBRACE))
-	for !p.at(token.T_RBRACE) && !p.at(token.T_EOF) {
-		if hook := p.parsePropertyHook(); hook != nil {
-			parts = append(parts, hook)
-			continue
-		}
-		// Keep identity if the hook shape is unexpected.
-		parts = append(parts, p.bump())
-	}
-	if p.at(token.T_RBRACE) {
-		parts = append(parts, p.bump())
-	}
-	return p.intern.Node(KindPropertyHookList, parts...)
+	return p.parseBraceDelimitedList(KindPropertyHookList, p.parsePropertyHook)
 }
 
 // parsePropertyHook covers one get/set hook:

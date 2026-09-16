@@ -159,7 +159,7 @@ func TestProjectLookupDoesNotMixUnqualifiedSpellings(t *testing.T) {
 }
 
 func TestFindMatchingRespectsOwnerAndKind(t *testing.T) {
-	src := `<?php
+	assertFindMatchingScoped(t, `<?php
 namespace App;
 class Foo {
     public function bar() {}
@@ -167,35 +167,7 @@ class Foo {
 class Other {
     public function bar() {}
 }
-`
-	graph := BindFile("file://m.php", []byte(src), BindModeReferences)
-	g := NewProjectUsageGraph()
-	g.PutFile("file://m.php", graph.Uses)
-
-	var fooBar NameUse
-	found := false
-	for _, u := range graph.Uses {
-		if u.Kind == "method" && u.Written == "bar" && u.Owner == `App\Foo` {
-			fooBar = u
-			found = true
-			break
-		}
-	}
-	if !found {
-		t.Fatalf("expected App\\Foo::bar use, got %+v", graph.Uses)
-	}
-	hits := g.FindMatching(fooBar)
-	if len(hits) == 0 {
-		t.Fatal("expected matching hits for Foo::bar")
-	}
-	for _, h := range hits {
-		if h.Owner != `App\Foo` {
-			t.Fatalf("cross-type false hit: %+v", h)
-		}
-		if h.Kind != "method" {
-			t.Fatalf("kind mismatch: %+v", h)
-		}
-	}
+`, "file://m.php", "method", "bar", `App\Foo`)
 }
 
 func TestUseAtOffsetAndExactLeafSpan(t *testing.T) {
@@ -313,6 +285,29 @@ func findUse(uses []NameUse, kind, written, owner string) (NameUse, bool) {
 	return NameUse{}, false
 }
 
+func assertFindMatchingScoped(t *testing.T, src, uri, kind, written, owner string) {
+	t.Helper()
+	graph := BindFile(uri, []byte(src), BindModeReferences)
+	g := NewProjectUsageGraph()
+	g.PutFile(uri, graph.Uses)
+	needle, ok := findUse(graph.Uses, kind, written, owner)
+	if !ok {
+		t.Fatalf("expected %s %q on %s, got %+v", kind, written, owner, graph.Uses)
+	}
+	hits := g.FindMatching(needle)
+	if len(hits) == 0 {
+		t.Fatalf("expected matching hits for %s::%s", owner, written)
+	}
+	for _, h := range hits {
+		if h.Owner != owner {
+			t.Fatalf("cross-type false hit: %+v", h)
+		}
+		if h.Kind != kind {
+			t.Fatalf("kind mismatch: %+v", h)
+		}
+	}
+}
+
 func TestPropertyDeclBinding(t *testing.T) {
 	src := "<?php\nnamespace App;\nclass Foo {\n    public string $prop;\n}\n"
 	graph := BindFile("file://prop.php", []byte(src), BindModeReferences)
@@ -428,7 +423,7 @@ func TestMemberAccessMethodCall(t *testing.T) {
 }
 
 func TestFindMatchingRespectsOwnerAndKindProperty(t *testing.T) {
-	src := `<?php
+	assertFindMatchingScoped(t, `<?php
 namespace App;
 class Foo {
     public string $p;
@@ -437,26 +432,7 @@ class Foo {
 class Other {
     public string $p;
 }
-`
-	graph := BindFile("file://pmatch.php", []byte(src), BindModeReferences)
-	g := NewProjectUsageGraph()
-	g.PutFile("file://pmatch.php", graph.Uses)
-	use, ok := findUse(graph.Uses, "property", "p", `App\Foo`)
-	if !ok {
-		t.Fatalf("missing use: %+v", graph.Uses)
-	}
-	hits := g.FindMatching(use)
-	if len(hits) == 0 {
-		t.Fatal("expected matching hits for Foo::$p / ->p")
-	}
-	for _, h := range hits {
-		if h.Owner != `App\Foo` {
-			t.Fatalf("cross-type false hit: %+v", h)
-		}
-		if h.Kind != "property" {
-			t.Fatalf("kind mismatch: %+v", h)
-		}
-	}
+`, "file://pmatch.php", "property", "p", `App\Foo`)
 }
 
 func TestBindModeDeclarationsBindsPropertyNotBodyRefs(t *testing.T) {
