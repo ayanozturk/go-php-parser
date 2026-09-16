@@ -1,7 +1,7 @@
 // Package lower is the public facade for declaration-tier CST→AST lowering.
 //
-// Gaps (MVP): no PHPDoc, attributes, property hooks, enum/trait/anonymous/
-// closures, or full expr/stmt lowering; method bodies stay empty in index mode.
+// Gaps: attributes, anonymous class, closures/arrows, full expr/stmt lowering;
+// method bodies stay empty in index mode. See README.md.
 package lower
 
 import (

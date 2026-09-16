@@ -84,12 +84,89 @@ class C {}
 	res := syntax.ParseForIndex(src)
 	nodes := lower.File(res.File.Root, res.File)
 	foundClass := false
+	foundEnum := false
+	foundTrait := false
 	for _, n := range nodes {
-		if c, ok := n.(*ast.ClassNode); ok && c.Name == "C" {
-			foundClass = true
+		switch x := n.(type) {
+		case *ast.ClassNode:
+			if x.Name == "C" {
+				foundClass = true
+			}
+		case *ast.EnumNode:
+			if x.Name == "Suit" && len(x.Cases) == 1 && x.Cases[0].Name == "Hearts" {
+				foundEnum = true
+			}
+		case *ast.TraitNode:
+			if x.Name != nil && x.Name.Name == "T" {
+				foundTrait = true
+			}
 		}
 	}
-	if !foundClass {
-		t.Fatalf("expected class C among %v", nodes)
+	if !foundClass || !foundEnum || !foundTrait {
+		t.Fatalf("expected class/enum/trait among %v (class=%v enum=%v trait=%v)", nodes, foundClass, foundEnum, foundTrait)
+	}
+}
+
+func TestLowerPHPDocOnMethod(t *testing.T) {
+	src := []byte(`<?php
+class C {
+    /**
+     * @return int
+     */
+    public function m() {}
+}
+`)
+	res := syntax.ParseForIndex(src)
+	nodes := lower.File(res.File.Root, res.File)
+	cls := nodes[0].(*ast.ClassNode)
+	fn := cls.Methods[0].(*ast.FunctionNode)
+	if fn.PHPDoc == nil || fn.PHPDoc.ReturnType != "int" {
+		t.Fatalf("expected @return int PHPDoc, got %+v", fn.PHPDoc)
+	}
+}
+
+func TestLowerPropertyHooks(t *testing.T) {
+	src := []byte(`<?php
+class H {
+    public string $name {
+        get => $this->name;
+        set(string $v) { $this->name = $v; }
+    }
+}
+`)
+	res := syntax.ParseForIndex(src)
+	nodes := lower.File(res.File.Root, res.File)
+	cls := nodes[0].(*ast.ClassNode)
+	prop := cls.Properties[0].(*ast.PropertyNode)
+	if len(prop.Hooks) != 2 {
+		t.Fatalf("expected 2 hooks, got %d", len(prop.Hooks))
+	}
+	if prop.Hooks[0].Name != "get" || prop.Hooks[1].Name != "set" {
+		t.Fatalf("hook names: %+v", prop.Hooks)
+	}
+	if prop.Hooks[0].Expr != nil || prop.Hooks[0].Body != nil {
+		t.Fatalf("index mode: hook Expr/Body should be nil")
+	}
+}
+
+func TestLowerTraitUseInClass(t *testing.T) {
+	src := []byte(`<?php
+class C {
+    use T1, T2;
+    public int $x;
+}
+`)
+	res := syntax.ParseForIndex(src)
+	nodes := lower.File(res.File.Root, res.File)
+	cls := nodes[0].(*ast.ClassNode)
+	if len(cls.Properties) < 2 {
+		t.Fatalf("expected trait use + property, got %d", len(cls.Properties))
+	}
+	tu, ok := cls.Properties[0].(*ast.TraitUseNode)
+	if !ok {
+		t.Fatalf("expected TraitUseNode first, got %T", cls.Properties[0])
+	}
+	if len(tu.Traits) != 2 {
+		t.Fatalf("traits: %v", tu.Traits)
 	}
 }

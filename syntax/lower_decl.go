@@ -137,6 +137,7 @@ func lowerClass(n *RedNode, file *File) *ast.ClassNode {
 		Pos:       pos,
 		EndPos:    end,
 		Modifiers: lowerModifiers(n),
+		PHPDoc:    leadingDocFromNode(n),
 	}
 	var members *RedNode
 	headerEnd := pos
@@ -175,7 +176,11 @@ func lowerInterface(n *RedNode, file *File) *ast.InterfaceNode {
 		return nil
 	}
 	pos, end := nodePos(file, n)
-	iface := &ast.InterfaceNode{Pos: pos, EndPos: end}
+	iface := &ast.InterfaceNode{
+		Pos:    pos,
+		EndPos: end,
+		PHPDoc: leadingDocFromNode(n),
+	}
 	var members *RedNode
 	headerEnd := pos
 	for _, c := range n.Children() {
@@ -203,6 +208,9 @@ func lowerInterface(n *RedNode, file *File) *ast.InterfaceNode {
 				}
 			case KindClassConstDecl:
 				iface.Members = append(iface.Members, lowerClassConsts(m, file)...)
+			case KindPropertyDecl:
+				// PHP 8.4 interface property hooks.
+				iface.Members = append(iface.Members, lowerProperties(m, file)...)
 			}
 		}
 	}
@@ -210,6 +218,8 @@ func lowerInterface(n *RedNode, file *File) *ast.InterfaceNode {
 }
 
 func lowerClassMembers(members *RedNode, file *File, cls *ast.ClassNode) {
+	var traitUses []ast.Node
+	var properties []ast.Node
 	for _, m := range members.Children() {
 		switch m.Kind() {
 		case KindFunctionDecl, KindMethodDecl:
@@ -217,12 +227,20 @@ func lowerClassMembers(members *RedNode, file *File, cls *ast.ClassNode) {
 				cls.Methods = append(cls.Methods, fn)
 			}
 		case KindPropertyDecl:
-			cls.Properties = append(cls.Properties, lowerProperties(m, file)...)
+			properties = append(properties, lowerProperties(m, file)...)
 		case KindClassConstDecl:
 			cls.Constants = append(cls.Constants, lowerClassConsts(m, file)...)
 		case KindUseTraitClause:
-			// MVP gap: trait use not lowered into TraitUseNode.
+			if tu := lowerUseTraitClause(m, file); tu != nil {
+				traitUses = append(traitUses, tu)
+			}
 		}
+	}
+	// Classic prepends trait uses ahead of properties in ClassNode.Properties.
+	if len(traitUses) > 0 {
+		cls.Properties = append(traitUses, properties...)
+	} else {
+		cls.Properties = properties
 	}
 }
 
@@ -235,6 +253,7 @@ func lowerFunction(n *RedNode, file *File) *ast.FunctionNode {
 		Pos:       pos,
 		EndPos:    end,
 		Modifiers: lowerModifiers(n),
+		PHPDoc:    leadingDocFromNode(n),
 	}
 	seenColon := false
 	headerEnd := pos
@@ -278,6 +297,7 @@ func lowerInterfaceMethod(n *RedNode, file *File) *ast.InterfaceMethodNode {
 		Modifiers:  fn.Modifiers,
 		ReturnType: fn.ReturnType,
 		Params:     fn.Params,
+		PHPDoc:     fn.PHPDoc,
 		Pos:        fn.Pos,
 		EndPos:     fn.EndPos,
 	}
@@ -289,7 +309,9 @@ func lowerProperties(n *RedNode, file *File) []ast.Node {
 	}
 	pos, end := nodePos(file, n)
 	mods := lowerModifiers(n)
+	phpdoc := leadingDocFromNode(n)
 	var typeHint ast.Node
+	var hooks []ast.PropertyHookNode
 	var names []struct {
 		name string
 		pos  ast.Position
@@ -310,6 +332,8 @@ func lowerProperties(n *RedNode, file *File) []ast.Node {
 				pos:  spanStart(file, sp),
 				end:  spanEnd(file, sp),
 			})
+		case c.Kind() == KindPropertyHookList:
+			hooks = lowerPropertyHooks(c, file)
 		}
 	}
 	if len(names) == 0 {
@@ -320,9 +344,11 @@ func lowerProperties(n *RedNode, file *File) []ast.Node {
 		prop := &ast.PropertyNode{
 			Name:       nm.name,
 			TypeHint:   typeHint,
+			PHPDoc:     phpdoc, // multi-property: same doc on all names (classic)
 			Modifiers:  mods,
 			IsStatic:   mods.HasName("static"),
 			IsReadonly: mods.HasName("readonly"),
+			Hooks:      hooks,
 			Pos:        pos,
 			EndPos:     end,
 		}
@@ -338,12 +364,66 @@ func lowerProperties(n *RedNode, file *File) []ast.Node {
 	return out
 }
 
+func lowerPropertyHooks(list *RedNode, file *File) []ast.PropertyHookNode {
+	if list == nil {
+		return nil
+	}
+	var out []ast.PropertyHookNode
+	for _, c := range list.Children() {
+		if c.Kind() != KindPropertyHook {
+			continue
+		}
+		if h, ok := lowerPropertyHook(c, file); ok {
+			out = append(out, h)
+		}
+	}
+	return out
+}
+
+func lowerPropertyHook(n *RedNode, file *File) (ast.PropertyHookNode, bool) {
+	pos, end := nodePos(file, n)
+	h := ast.PropertyHookNode{Pos: pos, EndPos: end}
+	children := n.Children()
+	for i := 0; i < len(children); i++ {
+		c := children[i]
+		if isTokenType(c, token.T_AMPERSAND) {
+			h.IsByRef = true
+			continue
+		}
+		if isTokenType(c, token.T_STRING) && h.Name == "" {
+			h.Name = tokenLiteral(c)
+			continue
+		}
+		if isTokenType(c, token.T_LPAREN) {
+			// Capture balanced header text like classic readBalancedPropertyHookHeader.
+			start := c.Span().Start
+			for j := i; j < len(children); j++ {
+				if isTokenType(children[j], token.T_RPAREN) {
+					endOff := children[j].Span().End
+					if file != nil && start >= 0 && endOff <= len(file.Source) && start <= endOff {
+						h.Parameter = string(file.Source[start:endOff])
+					}
+					i = j
+					break
+				}
+			}
+			continue
+		}
+		// Expr/Body left nil in index mode.
+	}
+	if h.Name == "" {
+		return h, false
+	}
+	return h, true
+}
+
 func lowerClassConsts(n *RedNode, file *File) []ast.Node {
 	if n == nil {
 		return nil
 	}
 	pos, end := nodePos(file, n)
 	mods := lowerModifiers(n)
+	phpdoc := leadingDocFromNode(n)
 	var typeHint ast.Node
 	var names []string
 	for _, c := range n.Children() {
@@ -362,6 +442,7 @@ func lowerClassConsts(n *RedNode, file *File) []ast.Node {
 		out = append(out, &ast.ConstantNode{
 			Name:      name,
 			Type:      typeHint,
+			PHPDoc:     phpdoc,
 			Modifiers: mods,
 			Pos:       pos,
 			EndPos:    end,

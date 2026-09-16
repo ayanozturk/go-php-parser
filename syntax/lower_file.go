@@ -6,8 +6,8 @@ import (
 
 // LowerFile lowers KindFile children to top-level classic AST nodes.
 // Exported for the syntax/lower facade; prefer syntax.ParseASTForIndex.
-// Gaps (MVP): no PHPDoc, attributes, property hooks, enum/trait/anonymous/
-// closures, or full expr/stmt lowering; method bodies stay empty in index mode.
+// Gaps: attributes, anonymous class, closures/arrows, full expr/stmt lowering;
+// method bodies stay empty in index mode. Enum case values stay nil.
 
 // File lowers KindFile children to top-level classic AST nodes.
 func LowerFile(root *RedNode, file *File) []ast.Node {
@@ -63,8 +63,18 @@ func lowerTopLevel(n *RedNode, file *File) (nodes []ast.Node, ok bool) {
 	case KindConstDecl:
 		// Global const — name-only MVP via ClassConst-like children.
 		return lowerClassConsts(n, file), true
-	case KindTraitDecl, KindEnumDecl, KindAnonymousClass:
-		// Explicit MVP gap: skip without panicking.
+	case KindTraitDecl:
+		if tr := lowerTrait(n, file); tr != nil {
+			return []ast.Node{tr}, true
+		}
+		return nil, true
+	case KindEnumDecl:
+		if en := lowerEnum(n, file); en != nil {
+			return []ast.Node{en}, true
+		}
+		return nil, true
+	case KindAnonymousClass:
+		// Explicit gap: skip without panicking.
 		return nil, true
 	case KindToken, KindTokenList, KindError, KindMissing,
 		KindEmptyStmt, KindAttributeList:

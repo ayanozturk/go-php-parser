@@ -33,7 +33,11 @@ func lowerParam(n *RedNode, file *File) *ast.ParamNode {
 		return nil
 	}
 	pos, end := nodePos(file, n)
-	p := &ast.ParamNode{Pos: pos, EndPos: end}
+	p := &ast.ParamNode{
+		Pos:    pos,
+		EndPos: end,
+		PHPDoc: leadingDocFromNode(n),
+	}
 	p.Modifiers = lowerModifiers(n)
 	if len(p.Modifiers) > 0 && p.Modifiers.Visibility() != "" {
 		p.IsPromoted = true

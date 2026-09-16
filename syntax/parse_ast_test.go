@@ -98,12 +98,101 @@ func TestParseASTDoesNotPanicOnEnumTrait(t *testing.T) {
 	src := []byte("<?php\nenum E { case A; }\ntrait T {}\ninterface I { public function f(): void; }\n")
 	nodes, _ := syntax.ParseASTForIndex(src)
 	foundIface := false
+	foundEnum := false
+	foundTrait := false
 	for _, n := range nodes {
-		if _, ok := n.(*ast.InterfaceNode); ok {
+		switch n.(type) {
+		case *ast.InterfaceNode:
 			foundIface = true
+		case *ast.EnumNode:
+			foundEnum = true
+		case *ast.TraitNode:
+			foundTrait = true
 		}
 	}
-	if !foundIface {
-		t.Fatalf("expected InterfaceNode in %v", nodes)
+	if !foundIface || !foundEnum || !foundTrait {
+		t.Fatalf("expected Interface/Enum/Trait in %v (i=%v e=%v t=%v)", nodes, foundIface, foundEnum, foundTrait)
+	}
+}
+
+func TestParseASTForIndexPHPDocReturnParity(t *testing.T) {
+	src := `<?php
+class C {
+    /**
+     * @return int
+     */
+    public function m() {}
+}
+`
+	classic := parser.New(lexer.New(src), false)
+	classic.SkipFunctionBodies = true
+	nodesC := classic.Parse()
+	nodesS, _ := syntax.ParseASTForIndex([]byte(src))
+
+	idxC := analyse.BuildProjectIndex(map[string][]ast.Node{"f.php": nodesC})
+	idxS := analyse.BuildProjectIndex(map[string][]ast.Node{"f.php": nodesS})
+
+	methodC, okC := idxC.ResolveMethod(`C`, "m")
+	methodS, okS := idxS.ResolveMethod(`C`, "m")
+	if !okC || !okS {
+		t.Fatalf("ResolveMethod: classic=%v syntax=%v", okC, okS)
+	}
+	if methodC.ReturnType != methodS.ReturnType {
+		t.Fatalf("return classic=%q syntax=%q", methodC.ReturnType, methodS.ReturnType)
+	}
+	if methodS.ReturnType != "int" {
+		t.Fatalf("expected PHPDoc return int, got %q", methodS.ReturnType)
+	}
+}
+
+func TestParseASTForIndexEnumTraitKindParity(t *testing.T) {
+	src := `<?php
+enum Suit { case Hearts; }
+trait Logger { public function log(): void {} }
+`
+	classic := parser.New(lexer.New(src), false)
+	classic.SkipFunctionBodies = true
+	nodesC := classic.Parse()
+	nodesS, _ := syntax.ParseASTForIndex([]byte(src))
+
+	idxC := analyse.BuildProjectIndex(map[string][]ast.Node{"f.php": nodesC})
+	idxS := analyse.BuildProjectIndex(map[string][]ast.Node{"f.php": nodesS})
+
+	enumC, okC := idxC.ResolveClass("Suit")
+	enumS, okS := idxS.ResolveClass("Suit")
+	if !okC || !okS {
+		t.Fatalf("ResolveClass Suit: classic=%v syntax=%v", okC, okS)
+	}
+	if enumC.Kind != enumS.Kind || enumS.Kind != "enum" {
+		t.Fatalf("Suit kind classic=%q syntax=%q", enumC.Kind, enumS.Kind)
+	}
+
+	traitC, okC := idxC.ResolveClass("Logger")
+	traitS, okS := idxS.ResolveClass("Logger")
+	if !okC || !okS {
+		t.Fatalf("ResolveClass Logger: classic=%v syntax=%v", okC, okS)
+	}
+	if traitC.Kind != traitS.Kind || traitS.Kind != "trait" {
+		t.Fatalf("Logger kind classic=%q syntax=%q", traitC.Kind, traitS.Kind)
+	}
+}
+
+func TestParseASTForIndexPropertyHooks(t *testing.T) {
+	src := []byte(`<?php
+class H {
+    public string $name {
+        get => $this->name;
+        set(string $v) { $this->name = $v; }
+    }
+}
+`)
+	nodes, diags := syntax.ParseASTForIndex(src)
+	if len(diags) != 0 {
+		t.Fatalf("diags: %v", diags)
+	}
+	cls := nodes[0].(*ast.ClassNode)
+	prop := cls.Properties[0].(*ast.PropertyNode)
+	if len(prop.Hooks) != 2 {
+		t.Fatalf("hooks=%d", len(prop.Hooks))
 	}
 }
