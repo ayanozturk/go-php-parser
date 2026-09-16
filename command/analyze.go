@@ -14,6 +14,7 @@ import (
 	"github.com/ayanozturk/go-php-parser/overrides"
 	"github.com/ayanozturk/go-php-parser/parser"
 	"github.com/ayanozturk/go-php-parser/sharedcache"
+	"github.com/ayanozturk/go-php-parser/syntax"
 	"github.com/ayanozturk/go-php-parser/token"
 )
 
@@ -329,6 +330,10 @@ func analyzeFilesWithCache(files []string, targets []string, level *int, matcher
 	return sortedAnalyzeResult(result)
 }
 
+// parseAnalysisFile reads and parses one PHP file for analyse.
+// Full analyse still uses the classic parser because body-dependent rules need
+// statements; declaration-tier ingestion should prefer syntax.ParseASTForIndex
+// (see syntax/parse_ast.go) once lower coverage and call sites are ready.
 func parseAnalysisFile(path string) parsedAnalysisFile {
 	content, err := os.ReadFile(path)
 	if err != nil {
@@ -343,6 +348,14 @@ func parseAnalysisFile(path string) parsedAnalysisFile {
 		lines:       CountLines(content),
 		parseErrors: append([]string(nil), p.Errors()...),
 	}
+}
+
+// ParseNodesForIndex is the declaration-tier AST path for project indexing.
+// Prefer this over classic parser.Parse with SkipFunctionBodies when only
+// signatures and members are required (bodies stay empty).
+func ParseNodesForIndex(src []byte) []ast.Node {
+	nodes, _ := syntax.ParseASTForIndex(src)
+	return nodes
 }
 
 func sortedUniquePaths(files []string) []string {

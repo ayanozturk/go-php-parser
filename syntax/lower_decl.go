@@ -1,0 +1,371 @@
+package syntax
+
+import (
+	"strings"
+
+	"github.com/ayanozturk/go-php-parser/ast"
+	"github.com/ayanozturk/go-php-parser/token"
+)
+
+func lowerNamespace(n *RedNode, file *File, siblings []*RedNode, idx int) (*ast.NamespaceNode, int) {
+	pos, end := nodePos(file, n)
+	ns := &ast.NamespaceNode{Pos: pos, EndPos: end}
+	var bodyList *RedNode
+	for _, c := range n.Children() {
+		if isNameKind(c.Kind()) {
+			ns.Name = nameString(c)
+		}
+		if c.Kind() == KindStatementList {
+			bodyList = c
+		}
+	}
+	if bodyList != nil {
+		ns.Body = lowerStatementChildren(bodyList, file)
+		return ns, 0
+	}
+	// Inline `namespace Name;` — fold following top-level decls into Body so
+	// index consumers see a single NamespaceNode (matches MVP fixture asserts).
+	consumed := 0
+	var body []ast.Node
+	for j := idx + 1; j < len(siblings); j++ {
+		sib := siblings[j]
+		if sib.Kind() == KindNamespaceDecl {
+			break
+		}
+		consumed++
+		nodes, _ := lowerTopLevel(sib, file)
+		body = append(body, nodes...)
+	}
+	ns.Body = body
+	return ns, consumed
+}
+
+func lowerStatementChildren(list *RedNode, file *File) []ast.Node {
+	if list == nil {
+		return nil
+	}
+	var out []ast.Node
+	for _, c := range list.Children() {
+		nodes, _ := lowerTopLevel(c, file)
+		out = append(out, nodes...)
+	}
+	return out
+}
+
+func lowerUseDecl(n *RedNode, file *File) []ast.Node {
+	if n == nil {
+		return nil
+	}
+	pos, end := nodePos(file, n)
+	useType := "class"
+	for _, c := range n.Children() {
+		if isTokenType(c, token.T_FUNCTION) {
+			useType = "function"
+		} else if isTokenType(c, token.T_CONST) {
+			useType = "const"
+		}
+	}
+	var out []ast.Node
+	for _, clause := range n.ChildrenOfKind(KindUseClause) {
+		out = append(out, lowerUseClause(clause, "", useType, pos, end)...)
+	}
+	return out
+}
+
+func lowerUseClause(clause *RedNode, prefix, useType string, pos, end ast.Position) []ast.Node {
+	if clause == nil {
+		return nil
+	}
+	itemType := useType
+	var name *RedNode
+	var alias *RedNode
+	var group *RedNode
+	for _, c := range clause.Children() {
+		switch {
+		case isTokenType(c, token.T_FUNCTION):
+			itemType = "function"
+		case isTokenType(c, token.T_CONST):
+			itemType = "const"
+		case isNameKind(c.Kind()):
+			if name == nil {
+				name = c
+			} else {
+				alias = c
+			}
+		case c.Kind() == KindUseGroup:
+			group = c
+		}
+	}
+	if group != nil {
+		base := strings.TrimPrefix(NameText(name), `\`)
+		if prefix != "" {
+			base = strings.Trim(prefix, `\`) + `\` + strings.Trim(base, `\`)
+		}
+		base = strings.TrimSuffix(base, `\`)
+		var out []ast.Node
+		for _, inner := range group.ChildrenOfKind(KindUseClause) {
+			out = append(out, lowerUseClause(inner, base, itemType, pos, end)...)
+		}
+		return out
+	}
+	path := strings.TrimPrefix(NameText(name), `\`)
+	if prefix != "" {
+		path = strings.Trim(prefix, `\`) + `\` + path
+	}
+	path = strings.Trim(path, `\`)
+	aliasName := ""
+	if alias != nil {
+		aliasName = NameText(alias)
+	} else {
+		aliasName = unqualifiedTail(path)
+	}
+	return []ast.Node{&ast.UseNode{
+		Path:   path,
+		Alias:  aliasName,
+		Type:   itemType,
+		Pos:    pos,
+		EndPos: end,
+	}}
+}
+
+func lowerClass(n *RedNode, file *File) *ast.ClassNode {
+	if n == nil {
+		return nil
+	}
+	pos, end := nodePos(file, n)
+	cls := &ast.ClassNode{
+		Pos:       pos,
+		EndPos:    end,
+		Modifiers: lowerModifiers(n),
+	}
+	var members *RedNode
+	headerEnd := pos
+	for _, c := range n.Children() {
+		switch c.Kind() {
+		case KindUnqualifiedName, KindQualifiedName,
+			KindFullyQualifiedName, KindRelativeName:
+			if cls.Name == "" {
+				cls.Name = unqualifiedTail(NameText(c))
+				headerEnd = spanEnd(file, c.Span())
+			}
+		case KindExtendsClause:
+			names := clauseNames(c)
+			if len(names) > 0 {
+				cls.Extends = names[0]
+			}
+			headerEnd = spanEnd(file, c.Span())
+		case KindImplementsClause:
+			cls.Implements = clauseNames(c)
+			headerEnd = spanEnd(file, c.Span())
+		case KindMemberList:
+			members = c
+		case KindModifierList:
+			headerEnd = spanEnd(file, c.Span())
+		}
+	}
+	cls.HeaderEndPos = headerEnd
+	if members != nil {
+		lowerClassMembers(members, file, cls)
+	}
+	return cls
+}
+
+func lowerInterface(n *RedNode, file *File) *ast.InterfaceNode {
+	if n == nil {
+		return nil
+	}
+	pos, end := nodePos(file, n)
+	iface := &ast.InterfaceNode{Pos: pos, EndPos: end}
+	var members *RedNode
+	headerEnd := pos
+	for _, c := range n.Children() {
+		switch c.Kind() {
+		case KindUnqualifiedName, KindQualifiedName,
+			KindFullyQualifiedName, KindRelativeName:
+			if iface.Name == "" {
+				iface.Name = unqualifiedTail(NameText(c))
+				headerEnd = spanEnd(file, c.Span())
+			}
+		case KindExtendsClause:
+			iface.Extends = clauseNames(c)
+			headerEnd = spanEnd(file, c.Span())
+		case KindMemberList:
+			members = c
+		}
+	}
+	iface.HeaderEndPos = headerEnd
+	if members != nil {
+		for _, m := range members.Children() {
+			switch m.Kind() {
+			case KindFunctionDecl, KindMethodDecl:
+				if im := lowerInterfaceMethod(m, file); im != nil {
+					iface.Members = append(iface.Members, im)
+				}
+			case KindClassConstDecl:
+				iface.Members = append(iface.Members, lowerClassConsts(m, file)...)
+			}
+		}
+	}
+	return iface
+}
+
+func lowerClassMembers(members *RedNode, file *File, cls *ast.ClassNode) {
+	for _, m := range members.Children() {
+		switch m.Kind() {
+		case KindFunctionDecl, KindMethodDecl:
+			if fn := lowerFunction(m, file); fn != nil {
+				cls.Methods = append(cls.Methods, fn)
+			}
+		case KindPropertyDecl:
+			cls.Properties = append(cls.Properties, lowerProperties(m, file)...)
+		case KindClassConstDecl:
+			cls.Constants = append(cls.Constants, lowerClassConsts(m, file)...)
+		case KindUseTraitClause:
+			// MVP gap: trait use not lowered into TraitUseNode.
+		}
+	}
+}
+
+func lowerFunction(n *RedNode, file *File) *ast.FunctionNode {
+	if n == nil {
+		return nil
+	}
+	pos, end := nodePos(file, n)
+	fn := &ast.FunctionNode{
+		Pos:       pos,
+		EndPos:    end,
+		Modifiers: lowerModifiers(n),
+	}
+	seenColon := false
+	headerEnd := pos
+	for _, c := range n.Children() {
+		switch c.Kind() {
+		case KindUnqualifiedName:
+			if fn.Name == "" {
+				fn.Name = NameText(c)
+				headerEnd = spanEnd(file, c.Span())
+			}
+		case KindParamList:
+			fn.Params = lowerParamList(c, file)
+			headerEnd = spanEnd(file, c.Span())
+		case KindTokenList, KindStatementList:
+			// Index mode: leave Body nil/empty.
+			fn.Body = nil
+		default:
+			if isTokenType(c, token.T_COLON) {
+				seenColon = true
+				headerEnd = spanEnd(file, c.Span())
+				continue
+			}
+			if seenColon && isTypeKind(c.Kind()) {
+				fn.ReturnType = lowerType(c, file)
+				headerEnd = spanEnd(file, c.Span())
+				seenColon = false
+			}
+		}
+	}
+	fn.HeaderEndPos = headerEnd
+	return fn
+}
+
+func lowerInterfaceMethod(n *RedNode, file *File) *ast.InterfaceMethodNode {
+	fn := lowerFunction(n, file)
+	if fn == nil {
+		return nil
+	}
+	return &ast.InterfaceMethodNode{
+		Name:       fn.Name,
+		Modifiers:  fn.Modifiers,
+		ReturnType: fn.ReturnType,
+		Params:     fn.Params,
+		Pos:        fn.Pos,
+		EndPos:     fn.EndPos,
+	}
+}
+
+func lowerProperties(n *RedNode, file *File) []ast.Node {
+	if n == nil {
+		return nil
+	}
+	pos, end := nodePos(file, n)
+	mods := lowerModifiers(n)
+	var typeHint ast.Node
+	var names []struct {
+		name string
+		pos  ast.Position
+		end  ast.Position
+	}
+	for _, c := range n.Children() {
+		switch {
+		case isTypeKind(c.Kind()):
+			typeHint = lowerType(c, file)
+		case isTokenType(c, token.T_VARIABLE):
+			sp := c.Span()
+			names = append(names, struct {
+				name string
+				pos  ast.Position
+				end  ast.Position
+			}{
+				name: stripVarDollar(tokenLiteral(c)),
+				pos:  spanStart(file, sp),
+				end:  spanEnd(file, sp),
+			})
+		}
+	}
+	if len(names) == 0 {
+		return nil
+	}
+	out := make([]ast.Node, 0, len(names))
+	for _, nm := range names {
+		prop := &ast.PropertyNode{
+			Name:       nm.name,
+			TypeHint:   typeHint,
+			Modifiers:  mods,
+			IsStatic:   mods.HasName("static"),
+			IsReadonly: mods.HasName("readonly"),
+			Pos:        pos,
+			EndPos:     end,
+		}
+		if len(names) == 1 {
+			prop.Pos = pos
+			prop.EndPos = end
+		} else {
+			prop.Pos = nm.pos
+			prop.EndPos = nm.end
+		}
+		out = append(out, prop)
+	}
+	return out
+}
+
+func lowerClassConsts(n *RedNode, file *File) []ast.Node {
+	if n == nil {
+		return nil
+	}
+	pos, end := nodePos(file, n)
+	mods := lowerModifiers(n)
+	var typeHint ast.Node
+	var names []string
+	for _, c := range n.Children() {
+		switch {
+		case isTypeKind(c.Kind()):
+			typeHint = lowerType(c, file)
+		case c.Kind() == KindUnqualifiedName:
+			names = append(names, NameText(c))
+		}
+	}
+	if len(names) == 0 {
+		return nil
+	}
+	out := make([]ast.Node, 0, len(names))
+	for _, name := range names {
+		out = append(out, &ast.ConstantNode{
+			Name:      name,
+			Type:      typeHint,
+			Modifiers: mods,
+			Pos:       pos,
+			EndPos:    end,
+		})
+	}
+	return out
+}

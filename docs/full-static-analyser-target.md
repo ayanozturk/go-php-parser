@@ -667,6 +667,8 @@ Note: implemented PHP's alternative/colon control-structure syntax and several o
 
 94. **Done — MethodCamelCase style spans.** `MethodCamelCaseSniff` emits `EndLine`/`EndColumn` covering the method name after `function` (not the keyword); PHP Strom re-pinned and asserts the span in diagnostics tests.
 
+95. **Done — declaration-tier CST→AST lower MVP.** `syntax.ParseASTForIndex` / `syntax.ParseAST` plus `syntax/lower.File` project syntax CST onto classic `[]ast.Node` for namespaces, uses, classes, interfaces, methods/functions (empty bodies in index mode), params, properties, and class constants (nullable/union/intersection types). Explicit gaps: no PHPDoc, enum/trait/anonymous/closures, attributes, property hooks, or full expr/stmt lowering. `command/analyze.go` `parseAnalysisFile` is **not** switched yet — full analyse still needs bodies. Index parity is covered by `syntax/parse_ast_test.go` against `BuildProjectIndex` / `ResolveClass` / `ResolveMethod`. Next: widen lower coverage, then cut over index ingestion (Strom `putProjectNodes` / analyse index path) while keeping classic parse for body-dependent analyse.
+
 ## Decision log
 
 - Go remains the implementation language. The target is considered achievable in Go; architecture, allocation behavior, semantic work, and concurrency are the primary constraints.
