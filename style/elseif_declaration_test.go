@@ -185,6 +185,40 @@ if ($a && $b) {
 	}
 }
 
+func TestElseIfDeclarationChecker_Span(t *testing.T) {
+	checker := NewElseIfDeclarationChecker()
+
+	t.Run("single space", func(t *testing.T) {
+		code := "} else if ($other) {"
+		issues := checker.CheckIssues([]string{code}, "test.php")
+		if len(issues) != 1 {
+			t.Fatalf("expected 1 issue, got %d", len(issues))
+		}
+		issue := issues[0]
+		if issue.Line != 1 || issue.Column != 3 {
+			t.Errorf("expected Line:1 Column:3, got Line:%d Column:%d", issue.Line, issue.Column)
+		}
+		if issue.EndLine != 1 || issue.EndColumn != 10 {
+			t.Errorf("expected EndLine:1 EndColumn:10, got EndLine:%d EndColumn:%d", issue.EndLine, issue.EndColumn)
+		}
+	})
+
+	t.Run("multiple spaces", func(t *testing.T) {
+		code := "} else   if ("
+		issues := checker.CheckIssues([]string{code}, "test.php")
+		if len(issues) != 1 {
+			t.Fatalf("expected 1 issue, got %d", len(issues))
+		}
+		issue := issues[0]
+		if issue.EndLine != 1 {
+			t.Errorf("expected EndLine:1, got EndLine:%d", issue.EndLine)
+		}
+		if issue.EndColumn <= issue.Column {
+			t.Errorf("expected EndColumn past 'if' (>%d), got EndColumn:%d", issue.Column, issue.EndColumn)
+		}
+	})
+}
+
 func TestElseIfDeclarationChecker_MessageContent(t *testing.T) {
 	checker := NewElseIfDeclarationChecker()
 	

@@ -74,13 +74,21 @@ func (c *ElseIfDeclarationChecker) checkElseIfDeclaration(line, filename string,
 			continue
 		}
 		if k+2 <= len(line) && line[k:k+2] == "if" {
+			// word boundary after "if"
+			if k+2 < len(line) && (isAlphaNumeric(line[k+2]) || line[k+2] == '_') {
+				continue
+			}
 			if c.isPositionInString(line, i) {
 				continue
 			}
 			whitespace := line[j:k]
 			display := strings.ReplaceAll(whitespace, "\t", "\\t")
 			msg := fmt.Sprintf("Use 'elseif' instead of 'else if'. Found %s between 'else' and 'if'", display)
-			issues = append(issues, StyleIssue{Filename: filename, Line: lineNum, Column: i + 1, Type: Error, Fixable: true, Message: msg, Code: elseIfDeclarationCode})
+			issues = append(issues, StyleIssue{
+				Filename: filename, Line: lineNum, Column: i + 1,
+				EndLine: lineNum, EndColumn: k + 3,
+				Type: Error, Fixable: true, Message: msg, Code: elseIfDeclarationCode,
+			})
 		}
 	}
 
