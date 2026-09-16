@@ -56,6 +56,7 @@ type InterfaceMethodNode struct {
 	Modifiers  ModifierList
 	ReturnType Node // Changed from string to Node to support union types
 	Params     []Node
+	Attributes []Node
 	PHPDoc     *PHPDocNode // Associated PHPDoc comment
 	Pos        Position
 	EndPos     Position

@@ -13,6 +13,7 @@ type FunctionNode struct {
 	Params     []Node
 	Uses       []ClosureUse
 	Body       []Node
+	Attributes []Node      // PHP 8 attributes attached to this function/method
 	PHPDoc     *PHPDocNode // Associated PHPDoc comment
 	Pos        Position
 	EndPos     Position

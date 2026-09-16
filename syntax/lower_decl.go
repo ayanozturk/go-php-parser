@@ -200,17 +200,44 @@ func lowerInterface(n *RedNode, file *File) *ast.InterfaceNode {
 	}
 	iface.HeaderEndPos = headerEnd
 	if members != nil {
+		var pendingAttrs []ast.Node
 		for _, m := range members.Children() {
 			switch m.Kind() {
+			case KindAttributeList:
+				pendingAttrs = append(pendingAttrs, lowerAttributeList(m, file)...)
 			case KindFunctionDecl, KindMethodDecl:
 				if im := lowerInterfaceMethod(m, file); im != nil {
+					if len(pendingAttrs) > 0 {
+						im.Attributes = pendingAttrs
+						pendingAttrs = nil
+					}
 					iface.Members = append(iface.Members, im)
 				}
 			case KindClassConstDecl:
-				iface.Members = append(iface.Members, lowerClassConsts(m, file)...)
+				consts := lowerClassConsts(m, file)
+				if len(pendingAttrs) > 0 {
+					for _, node := range consts {
+						if c, ok := node.(*ast.ConstantNode); ok {
+							c.Attributes = pendingAttrs
+						}
+					}
+					pendingAttrs = nil
+				}
+				iface.Members = append(iface.Members, consts...)
 			case KindPropertyDecl:
+				props := lowerProperties(m, file)
+				if len(pendingAttrs) > 0 {
+					for _, node := range props {
+						if prop, ok := node.(*ast.PropertyNode); ok {
+							prop.Attributes = pendingAttrs
+						}
+					}
+					pendingAttrs = nil
+				}
 				// PHP 8.4 interface property hooks.
-				iface.Members = append(iface.Members, lowerProperties(m, file)...)
+				iface.Members = append(iface.Members, props...)
+			default:
+				pendingAttrs = nil
 			}
 		}
 	}
@@ -220,20 +247,48 @@ func lowerInterface(n *RedNode, file *File) *ast.InterfaceNode {
 func lowerClassMembers(members *RedNode, file *File, cls *ast.ClassNode) {
 	var traitUses []ast.Node
 	var properties []ast.Node
+	var pendingAttrs []ast.Node
 	for _, m := range members.Children() {
 		switch m.Kind() {
+		case KindAttributeList:
+			pendingAttrs = append(pendingAttrs, lowerAttributeList(m, file)...)
 		case KindFunctionDecl, KindMethodDecl:
 			if fn := lowerFunction(m, file); fn != nil {
+				if len(pendingAttrs) > 0 {
+					fn.Attributes = pendingAttrs
+					pendingAttrs = nil
+				}
 				cls.Methods = append(cls.Methods, fn)
 			}
 		case KindPropertyDecl:
-			properties = append(properties, lowerProperties(m, file)...)
+			props := lowerProperties(m, file)
+			if len(pendingAttrs) > 0 {
+				for _, node := range props {
+					if prop, ok := node.(*ast.PropertyNode); ok {
+						prop.Attributes = pendingAttrs
+					}
+				}
+				pendingAttrs = nil
+			}
+			properties = append(properties, props...)
 		case KindClassConstDecl:
-			cls.Constants = append(cls.Constants, lowerClassConsts(m, file)...)
+			consts := lowerClassConsts(m, file)
+			if len(pendingAttrs) > 0 {
+				for _, node := range consts {
+					if c, ok := node.(*ast.ConstantNode); ok {
+						c.Attributes = pendingAttrs
+					}
+				}
+				pendingAttrs = nil
+			}
+			cls.Constants = append(cls.Constants, consts...)
 		case KindUseTraitClause:
+			pendingAttrs = nil // attributes do not attach to `use` clauses
 			if tu := lowerUseTraitClause(m, file); tu != nil {
 				traitUses = append(traitUses, tu)
 			}
+		default:
+			pendingAttrs = nil
 		}
 	}
 	// Classic prepends trait uses ahead of properties in ClassNode.Properties.
@@ -306,6 +361,7 @@ func lowerInterfaceMethod(n *RedNode, file *File) *ast.InterfaceMethodNode {
 		Modifiers:  fn.Modifiers,
 		ReturnType: fn.ReturnType,
 		Params:     fn.Params,
+		Attributes: fn.Attributes,
 		PHPDoc:     fn.PHPDoc,
 		Pos:        fn.Pos,
 		EndPos:     fn.EndPos,

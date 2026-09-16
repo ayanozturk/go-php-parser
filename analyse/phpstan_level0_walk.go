@@ -72,11 +72,35 @@ func walkAllConfigured(nodes []ast.Node, fn func(ast.Node, *ast.ClassNode, *ast.
 				walk(child, n, currentFn, cft)
 			}
 		case *ast.FunctionNode:
+			for _, attr := range n.Attributes {
+				walk(attr, class, currentFn, ft)
+			}
 			for _, param := range n.Params {
 				walk(param, class, currentFn, ft)
 			}
 			for _, child := range n.Body {
 				walk(child, class, n, ft)
+			}
+		case *ast.PropertyNode:
+			for _, attr := range n.Attributes {
+				walk(attr, class, currentFn, ft)
+			}
+			walk(n.DefaultValue, class, currentFn, ft)
+		case *ast.ParamNode:
+			for _, attr := range n.Attributes {
+				walk(attr, class, currentFn, ft)
+			}
+		case *ast.ConstantNode:
+			for _, attr := range n.Attributes {
+				walk(attr, class, currentFn, ft)
+			}
+			walk(n.Value, class, currentFn, ft)
+		case *ast.InterfaceMethodNode:
+			for _, attr := range n.Attributes {
+				walk(attr, class, currentFn, ft)
+			}
+			for _, param := range n.Params {
+				walk(param, class, currentFn, ft)
 			}
 		case *ast.InterfaceNode:
 			for _, child := range n.Members {
@@ -217,6 +241,14 @@ func walkAllConfigured(nodes []ast.Node, fn func(ast.Node, *ast.ClassNode, *ast.
 		case *ast.PropertyFetchNode:
 			walk(n.Object, class, currentFn, ft)
 		case *ast.ConcatNode:
+			for _, child := range n.Parts {
+				walk(child, class, currentFn, ft)
+			}
+		case *ast.InterpolatedStringLiteral:
+			for _, child := range n.Parts {
+				walk(child, class, currentFn, ft)
+			}
+		case *ast.HeredocNode:
 			for _, child := range n.Parts {
 				walk(child, class, currentFn, ft)
 			}

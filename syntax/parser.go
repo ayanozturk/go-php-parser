@@ -611,19 +611,21 @@ func (p *Parser) parseInterpolatedString() *GreenNode {
 }
 
 func (p *Parser) parseEncapsulatedExpr() *GreenNode {
-	var parts []*GreenNode
-	parts = append(parts, p.bump())
-	depth := 1
-	for !p.at(token.T_EOF) && depth > 0 {
-		switch p.tok().Type {
-		case token.T_LBRACE, token.T_CURLY_OPEN, token.T_DOLLAR_OPEN_CURLY_BRACES:
-			depth++
-		case token.T_RBRACE:
-			depth--
-		}
-		parts = append(parts, p.bump())
+	open := p.bump()
+	// ${name} — Zend emits T_STRING_VARNAME for the simple identifier form.
+	if open.TokenType() == token.T_DOLLAR_OPEN_CURLY_BRACES && p.at(token.T_STRING_VARNAME) {
+		name := p.bump()
+		close := p.expect(token.T_RBRACE)
+		// Represent as VariableExpr so lower can treat it like $name.
+		inner := p.intern.Node(KindVariableExpr, name)
+		return p.intern.Node(KindEncapsulatedExpr, open, inner, close)
 	}
-	return p.intern.Node(KindEncapsulatedExpr, parts...)
+	inner := p.parseExpression()
+	close := p.expect(token.T_RBRACE)
+	if inner == nil {
+		return p.intern.Node(KindEncapsulatedExpr, open, close)
+	}
+	return p.intern.Node(KindEncapsulatedExpr, open, inner, close)
 }
 
 func (p *Parser) parseHeredoc() *GreenNode {

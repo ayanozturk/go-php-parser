@@ -61,6 +61,7 @@ type PropertyNode struct {
 	IsStatic     bool
 	IsReadonly   bool
 	Hooks        []PropertyHookNode
+	Attributes   []Node // PHP 8 attributes attached to this property
 	Pos          Position
 	EndPos       Position
 }

@@ -731,6 +731,134 @@ class C {
 	}
 }
 
+func TestParseASTDynamicStaticMember(t *testing.T) {
+	src := `<?php
+$x = Foo::{$m};
+$y = Foo::{$m->n};
+`
+	nodes, diags := syntax.ParseAST([]byte(src))
+	if len(diags) != 0 {
+		t.Fatalf("unexpected diags: %v", diags)
+	}
+	if len(nodes) != 2 {
+		t.Fatalf("nodes=%d want 2: %v", len(nodes), nodeTypes(nodes))
+	}
+	assign0 := nodes[0].(*ast.ExpressionStmt).Expr.(*ast.AssignmentNode)
+	fetch0, ok := assign0.Right.(*ast.ClassConstFetchNode)
+	if !ok {
+		t.Fatalf("RHS0=%T want ClassConstFetchNode", assign0.Right)
+	}
+	if fetch0.Class != "Foo" || fetch0.ConstExpr == nil {
+		t.Fatalf("fetch0 class=%q ConstExpr=%T", fetch0.Class, fetch0.ConstExpr)
+	}
+	if _, ok := fetch0.ConstExpr.(*ast.VariableNode); !ok {
+		t.Fatalf("ConstExpr0=%T want VariableNode", fetch0.ConstExpr)
+	}
+	assign1 := nodes[1].(*ast.ExpressionStmt).Expr.(*ast.AssignmentNode)
+	fetch1 := assign1.Right.(*ast.ClassConstFetchNode)
+	if _, ok := fetch1.ConstExpr.(*ast.PropertyFetchNode); !ok {
+		t.Fatalf("ConstExpr1=%T want PropertyFetchNode", fetch1.ConstExpr)
+	}
+
+	level := 1
+	ctx := &analyse.AnalysisContext{AnalysisLevel: &level}
+	issues := analyse.RunAnalysisRulesWithContext("dyn.php", nodes, ctx)
+	for _, iss := range issues {
+		if iss.Code == "Level1.Variables" && strings.Contains(iss.Message, "$m") {
+			return
+		}
+	}
+	t.Fatalf("expected undefined $m from ConstExpr; issues=%v", issues)
+}
+
+func TestParseASTBracedStringInterpolation(t *testing.T) {
+	src := `<?php
+$s = "hi {$missing}";
+$t = "x {$obj->prop}";
+`
+	nodes, diags := syntax.ParseAST([]byte(src))
+	if len(diags) != 0 {
+		t.Fatalf("unexpected diags: %v", diags)
+	}
+	assign := nodes[0].(*ast.ExpressionStmt).Expr.(*ast.AssignmentNode)
+	interp, ok := assign.Right.(*ast.InterpolatedStringLiteral)
+	if !ok {
+		t.Fatalf("RHS=%T want InterpolatedStringLiteral", assign.Right)
+	}
+	foundVar := false
+	for _, part := range interp.Parts {
+		if v, ok := part.(*ast.VariableNode); ok && v.Name == "missing" {
+			foundVar = true
+		}
+	}
+	if !foundVar {
+		t.Fatalf("interpolated parts missing $missing: %#v", interp.Parts)
+	}
+
+	level := 1
+	ctx := &analyse.AnalysisContext{AnalysisLevel: &level}
+	issues := analyse.RunAnalysisRulesWithContext("str.php", nodes, ctx)
+	found := false
+	for _, iss := range issues {
+		if iss.Code == "Level1.Variables" && strings.Contains(iss.Message, "$missing") {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("expected undefined $missing from braced interpolation; issues=%v", issues)
+	}
+}
+
+func TestParseASTMemberAndParamAttributes(t *testing.T) {
+	src := `<?php
+class C {
+    #[MissingAttr]
+    public int $p;
+    #[MissingMethodAttr]
+    public function f(#[MissingParamAttr] int $x) {}
+}
+`
+	nodes, diags := syntax.ParseAST([]byte(src))
+	if len(diags) != 0 {
+		t.Fatalf("unexpected diags: %v", diags)
+	}
+	cls := nodes[0].(*ast.ClassNode)
+	prop := cls.Properties[0].(*ast.PropertyNode)
+	if len(prop.Attributes) != 1 {
+		t.Fatalf("prop attrs=%d want 1", len(prop.Attributes))
+	}
+	if a, ok := prop.Attributes[0].(*ast.AttributeNode); !ok || a.Name != "MissingAttr" {
+		t.Fatalf("prop attr=%#v", prop.Attributes[0])
+	}
+	fn := cls.Methods[0].(*ast.FunctionNode)
+	if len(fn.Attributes) != 1 {
+		t.Fatalf("method attrs=%d want 1", len(fn.Attributes))
+	}
+	param := fn.Params[0].(*ast.ParamNode)
+	if len(param.Attributes) != 1 {
+		t.Fatalf("param attrs=%d want 1", len(param.Attributes))
+	}
+
+	level := 0
+	idx := analyse.BuildProjectIndex(map[string][]ast.Node{"c.php": nodes})
+	ctx := &analyse.AnalysisContext{Resolver: idx, AnalysisLevel: &level}
+	issues := analyse.RunAnalysisRulesWithContext("c.php", nodes, ctx)
+	want := []string{"MissingAttr", "MissingMethodAttr", "MissingParamAttr"}
+	for _, name := range want {
+		found := false
+		for _, iss := range issues {
+			if strings.Contains(iss.Message, name) {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Fatalf("expected attribute class not found for %s; issues=%v", name, issues)
+		}
+	}
+}
+
 func nodeTypes(nodes []ast.Node) []string {
 	out := make([]string, len(nodes))
 	for i, n := range nodes {

@@ -17,18 +17,17 @@ Lowers a `syntax` red tree to classic `[]ast.Node` for project indexing
     Cast (incl. `(unset)`), ThrowExpr, Paren unwrap, Unary
 - Params, properties (incl. property hooks name/by-ref/parameter/Expr/Body, and
   per-name `DefaultValue`), class constants
+- Member / param / method attributes (`Attributes` on Function/Property/Param/Const)
 - Trait use clauses (incl. adaptations) in class `Properties` / trait `Body`
 - Enum cases (names + values when present) and enum methods
 - Leading `T_DOC_COMMENT` PHPDoc on class/interface/function/method/property/param/const
   (multi-property shares one doc; enum cases intentionally get no PHPDoc)
 - Types: named/primitive, nullable, union, intersection, parenthesized
+- Braced string interpolations `{$expr}` / `${name}` in Parts; dynamic static
+  members `Foo::{$m}` → `ClassConstFetchNode.ConstExpr`
 
 ## Explicit gaps
 
-- No member-list / param attributes on declarations (file-scope attributes do lower)
-- Braced string interpolations `{$expr}` / `${expr}` stay dropped (classic parity;
-  CST is token-blob `KindEncapsulatedExpr`)
-- Dynamic static members (`Foo::{$m}`) lower to nil without `ConstExpr`
 - Hook Expr/Body lower when CST has arrow expr / `KindStatementList` (hooks are
   never body-blobbed by `SkipFunctionBodies`; abstract `get;` / `set;` stay nil)
 - TraitNode / EnumNode have no PHPDoc storage field (classic likewise)

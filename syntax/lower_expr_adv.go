@@ -333,8 +333,9 @@ func lowerStringParts(n *RedNode, file *File) []ast.Node {
 			}
 			parts = append(parts, &ast.VariableNode{Name: name, Pos: p, EndPos: e})
 		case KindEncapsulatedExpr:
-			// Classic skips {$expr} / ${expr} brace forms in interpolated strings.
-			continue
+			if e := lowerEncapsulatedExpr(c, file); e != nil {
+				parts = append(parts, e)
+			}
 		}
 	}
 	return parts
@@ -351,6 +352,41 @@ func firstTokenChild(n *RedNode) *RedNode {
 	}
 	if n.Green != nil && n.Green.IsToken() {
 		return n
+	}
+	return nil
+}
+
+// lowerEncapsulatedExpr lowers {$expr} / ${…} inside strings or as a static
+// member name. Prefer a structured expr child when the parser emitted one;
+// otherwise recover a simple variable from token children.
+func lowerEncapsulatedExpr(n *RedNode, file *File) ast.Node {
+	if n == nil {
+		return nil
+	}
+	for _, c := range n.Children() {
+		if isExprKind(c.Kind()) || isNameKind(c.Kind()) {
+			return lowerExpr(c, file)
+		}
+	}
+	// Token-blob fallback: ${name} / {$var} before structured parse.
+	var varname string
+	for _, c := range n.Children() {
+		if isTokenType(c, token.T_VARIABLE) {
+			return &ast.VariableNode{
+				Name:   stripVarDollar(tokenLiteral(c)),
+				Pos:    spanStart(file, c.Span()),
+				EndPos: spanEnd(file, c.Span()),
+			}
+		}
+		if isTokenType(c, token.T_STRING_VARNAME) || isTokenType(c, token.T_STRING) {
+			if varname == "" {
+				varname = tokenLiteral(c)
+			}
+		}
+	}
+	if varname != "" {
+		pos, end := nodePos(file, n)
+		return &ast.VariableNode{Name: varname, Pos: pos, EndPos: end}
 	}
 	return nil
 }

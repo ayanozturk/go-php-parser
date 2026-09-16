@@ -5,13 +5,14 @@ import "fmt"
 // ConstantNode represents a PHP constant declaration
 // e.g. public const FOO: int = 123;
 type ConstantNode struct {
-	Name      string
-	Type      Node // typed class const type hint, nil if untyped
-	Modifiers ModifierList
-	Value     Node
-	PHPDoc    *PHPDocNode // Associated PHPDoc comment
-	Pos       Position
-	EndPos    Position
+	Name       string
+	Type       Node // typed class const type hint, nil if untyped
+	Modifiers  ModifierList
+	Value      Node
+	Attributes []Node
+	PHPDoc     *PHPDocNode // Associated PHPDoc comment
+	Pos        Position
+	EndPos     Position
 }
 
 func (c *ConstantNode) NodeType() string       { return "Constant" }

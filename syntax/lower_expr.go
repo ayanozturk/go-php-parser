@@ -499,8 +499,21 @@ func lowerCastExpr(n *RedNode, file *File) ast.Node {
 
 func lowerStaticMemberAccessExpr(n *RedNode, file *File) ast.Node {
 	pos, end := nodePos(file, n)
-	class, constName := splitStaticMemberAccess(n, file)
-	if class == "" || constName == "" {
+	class, constName, constExpr := splitStaticMemberAccessParts(n, file)
+	if class == "" {
+		return nil
+	}
+	if constExpr != nil {
+		// Dynamic name: Foo::{$m} / Foo::{$m->n} / Foo::${expr}
+		return &ast.ClassConstFetchNode{
+			Class:     class,
+			Const:     "$",
+			ConstExpr: constExpr,
+			Pos:       pos,
+			EndPos:    end,
+		}
+	}
+	if constName == "" {
 		return nil
 	}
 	return &ast.ClassConstFetchNode{
@@ -512,31 +525,54 @@ func lowerStaticMemberAccessExpr(n *RedNode, file *File) ast.Node {
 }
 
 func splitStaticMemberAccess(n *RedNode, file *File) (class, member string) {
+	class, member, _ = splitStaticMemberAccessParts(n, file)
+	return class, member
+}
+
+func splitStaticMemberAccessParts(n *RedNode, file *File) (class, member string, constExpr ast.Node) {
 	if n == nil {
-		return "", ""
+		return "", "", nil
 	}
+	seenColon := false
 	for _, c := range n.Children() {
-		if isNameKind(c.Kind()) && class == "" {
-			class = NameText(c)
+		if isTokenType(c, token.T_DOUBLE_COLON) {
+			seenColon = true
 			continue
 		}
-		if isExprKind(c.Kind()) && class == "" {
-			// Dynamic class expr — classic ClassConstFetch only stores string;
-			// use TokenLiteral of lowered node when possible.
-			if e := lowerExpr(c, file); e != nil {
-				class = e.TokenLiteral()
-			}
-			continue
-		}
-		if c.Green != nil && c.Green.IsToken() {
-			tt, ok := tokenOf(c)
-			if !ok || tt.Type == token.T_DOUBLE_COLON {
+		if !seenColon {
+			if isNameKind(c.Kind()) && class == "" {
+				class = NameText(c)
 				continue
 			}
-			member = strings.TrimSpace(tt.Literal)
+			if (isExprKind(c.Kind()) || isNameKind(c.Kind())) && class == "" {
+				// Dynamic class expr — classic ClassConstFetch only stores string.
+				if e := lowerExpr(c, file); e != nil {
+					class = e.TokenLiteral()
+				}
+			}
+			continue
+		}
+		// After :: — member name (literal token) or dynamic expr.
+		switch c.Kind() {
+		case KindParenExpr:
+			constExpr = lowerParenExpr(c, file)
+			member = "$"
+			return class, member, constExpr
+		case KindEncapsulatedExpr:
+			constExpr = lowerEncapsulatedExpr(c, file)
+			member = "$"
+			return class, member, constExpr
+		default:
+			if c.Green != nil && c.Green.IsToken() {
+				tt, ok := tokenOf(c)
+				if !ok {
+					continue
+				}
+				member = strings.TrimSpace(tt.Literal)
+			}
 		}
 	}
-	return class, member
+	return class, member, nil
 }
 
 func isBuiltinCallNameToken(n *RedNode) bool {

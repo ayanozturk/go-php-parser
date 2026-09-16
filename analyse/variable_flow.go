@@ -1278,6 +1278,10 @@ func (a *variableFlowAnalyzer) expression(node ast.Node, state *variableFlowStat
 		for _, part := range n.Parts {
 			a.expression(part, state, suppressed)
 		}
+	case *ast.InterpolatedStringLiteral:
+		for _, part := range n.Parts {
+			a.expression(part, state, suppressed)
+		}
 	case *ast.YieldNode:
 		a.expression(n.Key, state, suppressed)
 		a.expression(n.Value, state, suppressed)

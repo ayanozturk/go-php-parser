@@ -45,20 +45,48 @@ func lowerTrait(n *RedNode, file *File) *ast.TraitNode {
 // source order (methods, properties, constants, trait uses) like classic.
 func lowerTraitMembers(members *RedNode, file *File) []ast.Node {
 	var body []ast.Node
+	var pendingAttrs []ast.Node
 	for _, m := range members.Children() {
 		switch m.Kind() {
+		case KindAttributeList:
+			pendingAttrs = append(pendingAttrs, lowerAttributeList(m, file)...)
 		case KindFunctionDecl, KindMethodDecl:
 			if fn := lowerFunction(m, file); fn != nil {
+				if len(pendingAttrs) > 0 {
+					fn.Attributes = pendingAttrs
+					pendingAttrs = nil
+				}
 				body = append(body, fn)
 			}
 		case KindPropertyDecl:
-			body = append(body, lowerProperties(m, file)...)
+			props := lowerProperties(m, file)
+			if len(pendingAttrs) > 0 {
+				for _, node := range props {
+					if prop, ok := node.(*ast.PropertyNode); ok {
+						prop.Attributes = pendingAttrs
+					}
+				}
+				pendingAttrs = nil
+			}
+			body = append(body, props...)
 		case KindClassConstDecl:
-			body = append(body, lowerClassConsts(m, file)...)
+			consts := lowerClassConsts(m, file)
+			if len(pendingAttrs) > 0 {
+				for _, node := range consts {
+					if c, ok := node.(*ast.ConstantNode); ok {
+						c.Attributes = pendingAttrs
+					}
+				}
+				pendingAttrs = nil
+			}
+			body = append(body, consts...)
 		case KindUseTraitClause:
+			pendingAttrs = nil
 			if tu := lowerUseTraitClause(m, file); tu != nil {
 				body = append(body, tu)
 			}
+		default:
+			pendingAttrs = nil
 		}
 	}
 	return body

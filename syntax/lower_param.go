@@ -48,6 +48,8 @@ func lowerParam(n *RedNode, file *File) *ast.ParamNode {
 	seenAssign := false
 	for _, c := range n.Children() {
 		switch {
+		case c.Kind() == KindAttributeList:
+			p.Attributes = append(p.Attributes, lowerAttributeList(c, file)...)
 		case isTypeKind(c.Kind()):
 			p.TypeHint = lowerType(c, file)
 		case isTokenType(c, token.T_AMPERSAND):
