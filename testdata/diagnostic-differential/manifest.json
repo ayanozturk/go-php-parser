@@ -72,6 +72,13 @@
       ]
     },
     {
+      "id": "this-method-after-encapsed-curly",
+      "capability": "same-class $this helper after encapsed {$var} stays clean",
+      "file": "this-method-after-encapsed-curly.php",
+      "engineCodes": [],
+      "phpstanIdentifiers": []
+    },
+    {
       "id": "unknown-method-typed-parameter",
       "capability": "typed-parameter method calls remain clean at level 0",
       "file": "unknown-method-typed-parameter.php",

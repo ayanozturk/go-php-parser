@@ -181,3 +181,73 @@ class H {
 		t.Fatalf("hooks=%d", len(prop.Hooks))
 	}
 }
+
+func TestParseASTForIndexKeepsMethodsAfterEncapsedCurly(t *testing.T) {
+	// SkipFunctionBodies must not treat "{$var}" / ${var} / heredoc {$var}
+	// closers as method-body ends, or later methods escape as top-level functions.
+	cases := []struct {
+		name string
+		src  string
+	}{
+		{
+			name: "double-quoted curly",
+			src: `<?php
+namespace App\Tests;
+final class EmployeeCalendarDataTest {
+    public function testSomething(): void {
+        $label = 'day';
+        $msg = "label {$label}";
+        $this->createDayAvailabilityData();
+    }
+    private function createDayAvailabilityData(): void {}
+}
+`,
+		},
+		{
+			name: "dollar-curly",
+			src: `<?php
+namespace App\Tests;
+final class EmployeeCalendarDataTest {
+    public function testSomething(): void {
+        $label = 'day';
+        $msg = "label ${label}";
+        $this->createDayAvailabilityData();
+    }
+    private function createDayAvailabilityData(): void {}
+}
+`,
+		},
+		{
+			name: "heredoc curly",
+			src: "<?php\nnamespace App\\Tests;\nfinal class EmployeeCalendarDataTest {\n" +
+				"    public function testSomething(): void {\n" +
+				"        $label = 'day';\n" +
+				"        $msg = <<<TXT\nlabel {$label}\nTXT;\n" +
+				"        $this->createDayAvailabilityData();\n" +
+				"    }\n" +
+				"    private function createDayAvailabilityData(): void {}\n" +
+				"}\n",
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			nodes, diags := syntax.ParseASTForIndex([]byte(tc.src))
+			if len(diags) != 0 {
+				t.Fatalf("unexpected diags: %v", diags)
+			}
+			idx := analyse.BuildProjectIndex(map[string][]ast.Node{"t.php": nodes})
+			if _, ok := idx.ResolveMethod(`App\Tests\EmployeeCalendarDataTest`, "createDayAvailabilityData"); !ok {
+				t.Fatalf("helper must remain a class method under ParseASTForIndex")
+			}
+			if _, ok := idx.ResolveFunction(`App\Tests\createDayAvailabilityData`); ok {
+				t.Fatalf("helper must not be indexed as a namespaced function")
+			}
+			// Identity still holds for the skip-bodies green tree.
+			tree := syntax.ParseForIndex([]byte(tc.src))
+			if got := syntax.Print(tree.File.Root); got != tc.src {
+				t.Fatalf("identity mismatch\ngot:\n%s\nwant:\n%s", got, tc.src)
+			}
+		})
+	}
+}
+

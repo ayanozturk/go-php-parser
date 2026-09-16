@@ -109,6 +109,12 @@ func (l *Lexer) queueEncapsedBody(nowdoc bool) {
 		}
 		if !nowdoc && l.char == '$' && (isLetter(l.peekChar()) || l.peekChar() == '{') {
 			l.lexEncapsedVariable()
+			// ${...} switches to normal mode until '}' (afterCurlyOpen), matching
+			// the {$...} path which returns from this function. Continuing the
+			// encapsed loop would swallow "}..." into T_ENCAPSED_AND_WHITESPACE.
+			if l.afterCurlyOpen {
+				return
+			}
 			continue
 		}
 		if !nowdoc && l.char == '{' && l.peekChar() == '$' {
