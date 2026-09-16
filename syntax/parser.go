@@ -1877,9 +1877,15 @@ func (p *Parser) parseBalancedBlock() *GreenNode {
 	parts = append(parts, p.expect(token.T_LBRACE))
 	depth := 1
 	for !p.at(token.T_EOF) && depth > 0 {
-		if p.at(token.T_LBRACE) {
+		// Encapsed "{$var}" / "${var}" / heredoc {$var} open with
+		// T_CURLY_OPEN or T_DOLLAR_OPEN_CURLY_BRACES and close with T_RBRACE.
+		// Count those opens so SkipFunctionBodies does not treat the
+		// interpolation closer as the end of the method/function body
+		// (which would eject later members as top-level functions).
+		switch p.tok().Type {
+		case token.T_LBRACE, token.T_CURLY_OPEN, token.T_DOLLAR_OPEN_CURLY_BRACES:
 			depth++
-		} else if p.at(token.T_RBRACE) {
+		case token.T_RBRACE:
 			depth--
 		}
 		parts = append(parts, p.bump())

@@ -16,6 +16,12 @@ EOT;
 `,
 		`<?php $a = "doctrine.dbal.{$name}_connection";
 `,
+		`<?php $a = "hello ${x} world";
+`,
+		`<?php echo <<<EOT
+hello ${x}
+EOT;
+`,
 	}
 	for _, src := range cases {
 		l := NewFileBytes([]byte(src))

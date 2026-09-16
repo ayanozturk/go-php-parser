@@ -437,6 +437,54 @@ final class DateTimeTest extends TestCase
 	}
 }
 
+func TestLevel0SameClassHelperAfterEncapsedCurlySkipBodiesIndex(t *testing.T) {
+	// Editor indexing uses ParseASTForIndex. Encapsed "{$var}" must not eject later
+	// same-class helpers into Functions, or Level0 reports undefined $this->helper().
+	src := `<?php
+namespace App\Tests\Unit\Module\Shift\DTO;
+
+final class EmployeeCalendarDataTest
+{
+    public function testBuild(): void
+    {
+        $label = 'day';
+        $msg = "label {$label}";
+        $this->createDayAvailabilityData();
+        $this->createDayAvailabilityData();
+    }
+
+    /**
+     * @param ExistingAssignmentData[] $existingAssignments
+     */
+    private function createDayAvailabilityData(): void
+    {
+    }
+}
+`
+	indexNodes, diags := syntax.ParseASTForIndex([]byte(src))
+	if len(diags) != 0 {
+		t.Fatalf("index parse diags: %v", diags)
+	}
+	fullNodes, diags := syntax.ParseAST([]byte(src))
+	if len(diags) != 0 {
+		t.Fatalf("full parse diags: %v", diags)
+	}
+	project := BuildProjectIndex(map[string][]ast.Node{"test.php": indexNodes})
+	if _, ok := project.ResolveMethod(`App\Tests\Unit\Module\Shift\DTO\EmployeeCalendarDataTest`, "createDayAvailabilityData"); !ok {
+		t.Fatal("skip-bodies index must retain createDayAvailabilityData as a method")
+	}
+	if _, ok := project.ResolveFunction(`App\Tests\Unit\Module\Shift\DTO\createDayAvailabilityData`); ok {
+		t.Fatal("skip-bodies index must not treat the helper as a namespaced function")
+	}
+	level := 0
+	issues := RunAnalysisRulesWithContext("test.php", fullNodes, &AnalysisContext{Resolver: project, AnalysisLevel: &level})
+	unexpected := "Call to an undefined method App\\Tests\\Unit\\Module\\Shift\\DTO\\EmployeeCalendarDataTest::createDayAvailabilityData"
+	if hasIssueContaining(issues, level0SymbolsCode, unexpected) {
+		t.Fatalf("same-class helper after encapsed curly must stay clean, got %#v", issues)
+	}
+}
+
+
 func TestLevel0ResolvesNamespaceRelativeFunctionsAndImports(t *testing.T) {
 	issues := runLevel0OnFiles(t, map[string]string{
 		"src/length.php": `<?php
