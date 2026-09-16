@@ -100,9 +100,9 @@ func TestReferencesAtMissReturnsNil(t *testing.T) {
 }
 
 func TestReferencesAtRequiresFullParseNotIndex(t *testing.T) {
-	// Body use lives in a top-level function so Owner stays empty on both
-	// the class decl and the `new Foo()` site (FindMatching Owner filter).
-	src := []byte("<?php\nnamespace App;\nclass Foo {}\nfunction f() { return new Foo(); }\n")
+	// Body `new Foo()` inside a method (Owner=App\Foo) must still match the
+	// top-level class decl (Owner="") via softened class-like Owner filter.
+	src := []byte("<?php\nnamespace App;\nclass Foo {\n  public function m() { return new Foo(); }\n}\n")
 	full := syntax.Parse(src)
 	index := syntax.ParseForIndex(src)
 

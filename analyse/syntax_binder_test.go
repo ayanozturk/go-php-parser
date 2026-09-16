@@ -435,6 +435,67 @@ class Other {
 `, "file://pmatch.php", "property", "p", `App\Foo`)
 }
 
+func TestFindMatchingClassLikeAllowsEmptyOwner(t *testing.T) {
+	// Class decl is bound with Owner=""; uses inside methods set Owner to the
+	// enclosing class. FindMatching must still join them on Resolved+Kind.
+	src := `<?php
+namespace App;
+class Foo {}
+class Bar {
+    public function m() { return new Foo(); }
+}
+`
+	graph := BindFile("file://owner.php", []byte(src), BindModeReferences)
+	g := NewProjectUsageGraph()
+	g.PutFile("file://owner.php", graph.Uses)
+
+	var bodyUse NameUse
+	found := false
+	for _, u := range graph.Uses {
+		if u.Written == "Foo" && u.Owner == `App\Bar` && isClassLikeBindKind(u.Kind) {
+			bodyUse = u
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("expected Foo use inside Bar method, got %+v", graph.Uses)
+	}
+	hits := g.FindMatching(bodyUse)
+	sawDecl, sawUse := false, false
+	for _, h := range hits {
+		if h.Resolved != `App\Foo` {
+			t.Fatalf("unexpected Resolved %+v", h)
+		}
+		if h.Owner == "" && (h.Kind == "class" || h.Kind == "name") {
+			sawDecl = true
+		}
+		if h.Owner == `App\Bar` {
+			sawUse = true
+		}
+	}
+	if !sawDecl || !sawUse {
+		t.Fatalf("want decl (Owner=\"\") + body use (Owner=App\\Bar); hits=%+v", hits)
+	}
+
+	// Members still require Owner: Bar::m must not match a same-named method on Foo.
+	var barMethod NameUse
+	for _, u := range graph.Uses {
+		if u.Kind == "method" && u.Written == "m" && u.Owner == `App\Bar` {
+			barMethod = u
+			break
+		}
+	}
+	if barMethod.Written == "" {
+		t.Fatal("missing Bar::m")
+	}
+	for _, h := range g.FindMatching(barMethod) {
+		if h.Owner != "" && h.Owner != `App\Bar` {
+			t.Fatalf("method FindMatching leaked other owner: %+v", h)
+		}
+	}
+}
+
 func TestBindModeDeclarationsBindsPropertyNotBodyRefs(t *testing.T) {
 	src := `<?php
 namespace App;

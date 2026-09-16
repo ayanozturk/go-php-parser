@@ -141,7 +141,10 @@ func (g *ProjectUsageGraph) FindByResolved(name string) []NameUse {
 }
 
 // FindMatching returns project uses matching the bound symbol identity at the cursor:
-// same Resolved FQN, Kind, and Owner (when set). Never matches via unqualified spelling.
+// same Resolved FQN and Kind. Owner must match for members (method/property/const);
+// class-like names (class/type/…) allow an empty Owner on either side so a top-level
+// type decl still matches uses recorded inside methods (Owner=enclosing class).
+// Never matches via unqualified spelling alone.
 func (g *ProjectUsageGraph) FindMatching(needle NameUse) []NameUse {
 	if g == nil {
 		return nil
@@ -157,11 +160,8 @@ func (g *ProjectUsageGraph) FindMatching(needle NameUse) []NameUse {
 		if needle.Kind != "" && u.Kind != "" && !kindsCompatible(needle.Kind, u.Kind) {
 			continue
 		}
-		if needle.Owner != "" || u.Owner != "" {
-			if strings.ToLower(strings.TrimPrefix(needle.Owner, `\`)) !=
-				strings.ToLower(strings.TrimPrefix(u.Owner, `\`)) {
-				continue
-			}
+		if !ownersCompatible(needle, u) {
+			continue
 		}
 		out = append(out, u)
 	}
@@ -179,14 +179,29 @@ func kindsCompatible(a, b string) bool {
 	if a == b {
 		return true
 	}
-	classLike := func(k string) bool {
-		switch k {
-		case "class", "interface", "trait", "enum", "type", "name", "attr":
-			return true
-		}
+	return isClassLikeBindKind(a) && isClassLikeBindKind(b)
+}
+
+func isClassLikeBindKind(k string) bool {
+	switch k {
+	case "class", "interface", "trait", "enum", "type", "name", "attr":
+		return true
+	default:
 		return false
 	}
-	if classLike(a) && classLike(b) {
+}
+
+// ownersCompatible enforces Owner for members; class-like symbols tolerate a
+// blank Owner on either side (type decls are bound before Owner is set).
+func ownersCompatible(needle, u NameUse) bool {
+	nOwner := strings.ToLower(strings.TrimPrefix(needle.Owner, `\`))
+	uOwner := strings.ToLower(strings.TrimPrefix(u.Owner, `\`))
+	if nOwner == uOwner {
+		return true
+	}
+	classLike := (needle.Kind == "" || isClassLikeBindKind(needle.Kind)) &&
+		(u.Kind == "" || isClassLikeBindKind(u.Kind))
+	if classLike && (nOwner == "" || uOwner == "") {
 		return true
 	}
 	return false
