@@ -422,6 +422,85 @@ func TestMemberAccessMethodCall(t *testing.T) {
 	}
 }
 
+func TestDynamicBracedStaticMemberWalksNestedPropertyRef(t *testing.T) {
+	// Foo::{$m->p} must bind nested property p (same as a bare $m->p).
+	src := `<?php
+namespace App;
+class Foo {
+    public string $p;
+    public function m($m) { return Foo::{$m->p}; }
+}
+`
+	graph := BindFile("file://dyn-static.php", []byte(src), BindModeReferences)
+	if _, ok := findUse(graph.Uses, "property", "p", `App\Foo`); !ok {
+		t.Fatalf("expected nested property use p inside Foo::{$m->p}: %+v", graph.Uses)
+	}
+	// Dynamic slot itself must not bind as const/method/property named "{" or "$m".
+	for _, u := range graph.Uses {
+		if u.Written == "{" || u.Written == "$" {
+			t.Fatalf("must not bind brace/dynamic slot as member: %+v", u)
+		}
+	}
+}
+
+func TestDynamicBracedInstanceMemberNoSpuriousPropertyUse(t *testing.T) {
+	// $this->{$m} has no static member name — do not invent a property use on $p.
+	src := `<?php
+namespace App;
+class Foo {
+    public string $p;
+    public function m($m) { return $this->{$m}; }
+}
+`
+	graph := BindFile("file://dyn-inst.php", []byte(src), BindModeReferences)
+	for _, u := range graph.Uses {
+		if u.Kind == "property" && u.Written == "p" && u.Owner == `App\Foo` {
+			// Decl is $p; a use would be written "p". Decl written is "$p".
+			if u.Written == "p" {
+				t.Fatalf("dynamic $this->{$m} must not bind property use p: %+v", u)
+			}
+		}
+	}
+	decl, ok := findUse(graph.Uses, "property", "$p", `App\Foo`)
+	if !ok {
+		t.Fatalf("missing property decl $p: %+v", graph.Uses)
+	}
+	_ = decl
+}
+
+func TestDynamicStaticCallBracedNoMemberBind(t *testing.T) {
+	src := `<?php
+namespace App;
+class Foo {
+    public function bar() {}
+    public function m($m) { Foo::{$m}(); }
+}
+`
+	graph := BindFile("file://dyn-call.php", []byte(src), BindModeReferences)
+	for _, u := range graph.Uses {
+		if u.Kind == "method" && u.Written == "$m" {
+			t.Fatalf("must not bind $m as method: %+v", u)
+		}
+		if u.Kind == "method" && u.Written == "m" && u.Resolved != `App\Foo::m` {
+			// only the enclosing method decl/name is expected among "m"
+		}
+		if (u.Kind == "method" || u.Kind == "const" || u.Kind == "property") &&
+			(u.Written == "{" || u.Written == "$" || u.Written == "$m") {
+			t.Fatalf("dynamic Foo::{$m}() must not bind the braced slot: %+v", u)
+		}
+	}
+	// Nested empty: still bind the declared bar method once (decl only).
+	bars := 0
+	for _, u := range graph.Uses {
+		if u.Kind == "method" && u.Written == "bar" && u.Owner == `App\Foo` {
+			bars++
+		}
+	}
+	if bars != 1 {
+		t.Fatalf("want only bar() decl (no dynamic call bind), got %d: %+v", bars, graph.Uses)
+	}
+}
+
 func TestFindMatchingRespectsOwnerAndKindProperty(t *testing.T) {
 	assertFindMatchingScoped(t, `<?php
 namespace App;

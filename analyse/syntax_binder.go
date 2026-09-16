@@ -747,6 +747,11 @@ func (w *binderWalk) walkMemberAccess(n *syntax.RedNode, kindFor func(mem, acces
 		if kind := kindFor(mem, n); kind != "" {
 			w.b.BindMemberUse(mem, tokenSignificantText(mem), kind)
 		}
+	} else if len(children) >= 3 && children[2] != nil {
+		// Dynamic braced / encapsed member ({$expr} / ${…}): no BindMemberUse on
+		// the slot itself (runtime name), but walk the inner expression so nested
+		// refs like Foo::{$m->p} still bind p.
+		w.walk(children[2])
 	}
 	// Skip operator/member tokens (already handled); walk any trailing children.
 	for i := 3; i < len(children); i++ {
