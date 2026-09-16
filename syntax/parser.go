@@ -1643,6 +1643,12 @@ func (p *Parser) parsePropertyDecl() *GreenNode {
 				parts = append(parts, p.parseUntilCommaOrSemi())
 			}
 		}
+		// PHP 8.4 property hooks: `$prop { get => …; set { … } }` terminates the
+		// property (no trailing `;`, and no further comma-separated names).
+		if p.at(token.T_LBRACE) {
+			parts = append(parts, p.parsePropertyHookList())
+			return p.intern.Node(KindPropertyDecl, parts...)
+		}
 		if p.at(token.T_COMMA) {
 			parts = append(parts, p.bump())
 			continue
@@ -1653,6 +1659,64 @@ func (p *Parser) parsePropertyDecl() *GreenNode {
 		parts = append(parts, p.bump())
 	}
 	return p.intern.Node(KindPropertyDecl, parts...)
+}
+
+// parsePropertyHookList covers `{` hook… `}` attached to a property.
+func (p *Parser) parsePropertyHookList() *GreenNode {
+	var parts []*GreenNode
+	parts = append(parts, p.expect(token.T_LBRACE))
+	for !p.at(token.T_RBRACE) && !p.at(token.T_EOF) {
+		if hook := p.parsePropertyHook(); hook != nil {
+			parts = append(parts, hook)
+			continue
+		}
+		// Keep identity if the hook shape is unexpected.
+		parts = append(parts, p.bump())
+	}
+	if p.at(token.T_RBRACE) {
+		parts = append(parts, p.bump())
+	}
+	return p.intern.Node(KindPropertyHookList, parts...)
+}
+
+// parsePropertyHook covers one get/set hook:
+//
+//	[&] name [( params )] ( ; | => expr ; | { stmts } )
+func (p *Parser) parsePropertyHook() *GreenNode {
+	i := p.i
+	if i < len(p.tokens) && p.tokens[i].Type == token.T_AMPERSAND {
+		i++
+	}
+	if i >= len(p.tokens) || p.tokens[i].Type != token.T_STRING {
+		return nil
+	}
+	var parts []*GreenNode
+	if p.at(token.T_AMPERSAND) {
+		parts = append(parts, p.bump())
+	}
+	parts = append(parts, p.bump()) // get / set
+	if p.at(token.T_LPAREN) {
+		parts = append(parts, p.expect(token.T_LPAREN))
+		parts = append(parts, p.parseParamList())
+		parts = append(parts, p.expect(token.T_RPAREN))
+	}
+	switch {
+	case p.at(token.T_SEMICOLON):
+		parts = append(parts, p.bump())
+	case p.at(token.T_DOUBLE_ARROW):
+		parts = append(parts, p.bump())
+		if expr := p.parseExpression(); expr != nil {
+			parts = append(parts, expr)
+		}
+		if p.at(token.T_SEMICOLON) {
+			parts = append(parts, p.bump())
+		}
+	case p.at(token.T_LBRACE):
+		parts = append(parts, p.parseStatementList())
+	default:
+		// Leave remaining tokens to the hook-list fallback bump so identity holds.
+	}
+	return p.intern.Node(KindPropertyHook, parts...)
 }
 
 func (p *Parser) parseUntilCommaOrSemi() *GreenNode {

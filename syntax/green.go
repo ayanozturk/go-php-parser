@@ -134,6 +134,10 @@ const (
 	KindArrowFunctionExpr
 	KindAnonymousClass
 	KindClosureUseClause
+
+	// Property hooks (PHP 8.4)
+	KindPropertyHookList
+	KindPropertyHook
 )
 
 var kindNames = [...]string{
@@ -247,6 +251,8 @@ var kindNames = [...]string{
 	KindArrowFunctionExpr:          "ArrowFunctionExpr",
 	KindAnonymousClass:             "AnonymousClass",
 	KindClosureUseClause:           "ClosureUseClause",
+	KindPropertyHookList:           "PropertyHookList",
+	KindPropertyHook:               "PropertyHook",
 }
 
 func (k Kind) String() string {
