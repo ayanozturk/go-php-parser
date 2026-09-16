@@ -10,7 +10,8 @@ func ParseASTForIndex(src []byte) ([]ast.Node, []Diagnostic) {
 	return lowerFromResult(res), res.Diagnostics
 }
 
-// ParseAST parses full bodies; MVP may leave method bodies empty or only lower TokenList as empty Body.
+// ParseAST parses full bodies and lowers KindStatementList method/function
+// bodies to classic statements/expressions. KindTokenList bodies stay empty.
 func ParseAST(src []byte) ([]ast.Node, []Diagnostic) {
 	res := Parse(src)
 	return lowerFromResult(res), res.Diagnostics

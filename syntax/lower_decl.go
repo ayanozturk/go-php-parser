@@ -267,9 +267,11 @@ func lowerFunction(n *RedNode, file *File) *ast.FunctionNode {
 		case KindParamList:
 			fn.Params = lowerParamList(c, file)
 			headerEnd = spanEnd(file, c.Span())
-		case KindTokenList, KindStatementList:
-			// Index mode: leave Body nil/empty.
+		case KindTokenList:
+			// Index mode: leave Body nil.
 			fn.Body = nil
+		case KindStatementList:
+			fn.Body = lowerStatements(c, file)
 		default:
 			if isTokenType(c, token.T_COLON) {
 				seenColon = true

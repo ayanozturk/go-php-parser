@@ -671,6 +671,8 @@ Note: implemented PHP's alternative/colon control-structure syntax and several o
 
 96. **Done — widen CST→AST lower with PHPDoc, enum, trait, and property hooks.** Leading `T_DOC_COMMENT` trivia → `PHPDoc` on class/interface/function/method/property/param/const; `KindTraitDecl`/`KindUseTraitClause` and `KindEnumDecl`/`KindEnumCase` lower for index ingestion (enum cases intentionally get no PHPDoc); property hooks fill `PropertyNode.Hooks` (Expr/Body nil in index mode). Remaining gaps: attributes, anonymous class, closures/arrows, full expr/stmt lowering. Tests cover PHPDoc `@return` ResolveMethod parity, enum/trait ResolveClass kind, and hook length.
 
+97. **Done — CST→AST body lowering (statements + core expressions).** `lowerFunction` fills `Body` from `KindStatementList` (full `syntax.Parse`) and keeps `KindTokenList` → `Body` nil (index mode). New `syntax/lower_stmt.go` / `syntax/lower_expr.go` cover ExpressionStmt, Return, If/ElseIf/Else, EmptyStmt, Variable, Literal, Binary, Assign, Call/MethodCall/ArgList, MemberAccess/PropertyFetch, Paren unwrap, plus stretch Unary/Cast/StaticMemberAccess; unsupported kinds skip without panic. Parity/smoke in `syntax/parse_ast_body_test.go` (classic vs syntax NodeTypes, `BuildProjectIndex` + `NewSemanticSnapshot` + `RunAnalysisRules` no panic / same codes on fixture, `ParseASTForIndex` empty-body regression). **`parseAnalysisFile` / semantic_cache not switched** — analyse cutover remains classic by default.
+
 ## Decision log
 
 - Go remains the implementation language. The target is considered achievable in Go; architecture, allocation behavior, semantic work, and concurrency are the primary constraints.

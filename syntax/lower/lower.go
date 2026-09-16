@@ -1,7 +1,7 @@
 // Package lower is the public facade for declaration-tier CST→AST lowering.
 //
-// Gaps: attributes, anonymous class, closures/arrows, full expr/stmt lowering;
-// method bodies stay empty in index mode. See README.md.
+// Gaps: attributes, anonymous class, closures/arrows; unsupported stmt/expr
+// kinds skip; method bodies stay empty in index mode. See README.md.
 package lower
 
 import (
