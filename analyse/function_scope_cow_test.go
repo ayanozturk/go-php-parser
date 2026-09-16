@@ -7,8 +7,7 @@ import (
 	"testing"
 
 	"github.com/ayanozturk/go-php-parser/ast"
-	"github.com/ayanozturk/go-php-parser/lexer"
-	"github.com/ayanozturk/go-php-parser/parser"
+	"github.com/ayanozturk/go-php-parser/syntax"
 )
 
 func TestFunctionScopeCloneSharesReadOnlyLayers(t *testing.T) {
@@ -650,10 +649,9 @@ class CachedProperties {
     public function run(string $input): void {}
 }
 `
-	p := parser.New(lexer.New(source), false)
-	nodes := p.Parse()
-	if len(p.Errors()) > 0 {
-		tb.Fatalf("parse errors: %v", p.Errors())
+	nodes, diags := syntax.ParseAST([]byte(source))
+	if len(diags) > 0 {
+		tb.Fatalf("parse errors: %v", diags)
 	}
 	for _, node := range nodes {
 		class, ok := node.(*ast.ClassNode)

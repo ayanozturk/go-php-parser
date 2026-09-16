@@ -5,8 +5,7 @@ import (
 	"testing"
 
 	"github.com/ayanozturk/go-php-parser/ast"
-	"github.com/ayanozturk/go-php-parser/lexer"
-	"github.com/ayanozturk/go-php-parser/parser"
+	"github.com/ayanozturk/go-php-parser/syntax"
 )
 
 type returnCompletenessMissingFlow struct{}
@@ -41,10 +40,9 @@ func (returnCompletenessKnownFlow) ControlFlowGraph(FlowScopeKey) (ControlFlowGr
 
 func parseReturnCompletenessPHP(t *testing.T, code string) []ast.Node {
 	t.Helper()
-	p := parser.New(lexer.New(code), false)
-	nodes := p.Parse()
-	if errs := p.Errors(); len(errs) != 0 {
-		t.Fatalf("parse PHP: %v", errs)
+	nodes, diags := syntax.ParseAST([]byte(code))
+	if len(diags) != 0 {
+		t.Fatalf("parse PHP: %v", diags)
 	}
 	return nodes
 }

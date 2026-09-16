@@ -167,6 +167,8 @@ func (p *Parser) tryParseStructured() *GreenNode {
 		return p.parseContinueStmt()
 	case p.at(token.T_THROW):
 		return p.parseThrowStmt()
+	case p.at(token.T_GOTO):
+		return p.parseGotoStmt()
 	case p.at(token.T_UNSET):
 		return p.parseUnsetStmt()
 	case p.at(token.T_VARIABLE), p.at(token.T_INC), p.at(token.T_DEC),
@@ -182,6 +184,8 @@ func (p *Parser) tryParseStructured() *GreenNode {
 		return p.parseExpressionStmt()
 	case p.at(token.T_ILLEGAL) && p.tok().Literal == "$":
 		return p.parseExpressionStmt()
+	case p.at(token.T_STRING) && p.i+1 < len(p.tokens) && p.tokens[p.i+1].Type == token.T_COLON:
+		return p.parseLabelStmt()
 	case p.isNameStart():
 		// Function/const calls and bare names as expression statements.
 		return p.parseExpressionStmt()
@@ -367,11 +371,9 @@ func (p *Parser) parseType() *GreenNode {
 		}
 		return p.intern.Node(KindUnionType, parts...)
 	}
-	if p.at(token.T_AMPERSAND) {
-		// Ambiguous with references in params — only treat as intersection when
-		// followed by a type atom (name / ( ).
+	if p.nextIsIntersectionType() {
 		parts := []*GreenNode{first}
-		for p.at(token.T_AMPERSAND) {
+		for p.nextIsIntersectionType() {
 			amp := p.bump()
 			next := p.parseTypeAtom()
 			parts = append(parts, amp, next)
@@ -1169,6 +1171,25 @@ func (p *Parser) parseThrowStmt() *GreenNode {
 	return p.intern.Node(KindThrowStmt, parts...)
 }
 
+func (p *Parser) parseGotoStmt() *GreenNode {
+	var parts []*GreenNode
+	parts = append(parts, p.expect(token.T_GOTO))
+	if p.at(token.T_STRING) {
+		parts = append(parts, p.bump())
+	}
+	if p.at(token.T_SEMICOLON) {
+		parts = append(parts, p.bump())
+	}
+	return p.intern.Node(KindGotoStmt, parts...)
+}
+
+func (p *Parser) parseLabelStmt() *GreenNode {
+	var parts []*GreenNode
+	parts = append(parts, p.expect(token.T_STRING))
+	parts = append(parts, p.expect(token.T_COLON))
+	return p.intern.Node(KindLabelStmt, parts...)
+}
+
 func (p *Parser) parseUnsetStmt() *GreenNode {
 	var parts []*GreenNode
 	parts = append(parts, p.expect(token.T_UNSET))
@@ -1790,6 +1811,23 @@ func (p *Parser) isTypeStart() bool {
 		return true
 	}
 	return p.isPrimitiveType() || p.at(token.T_STRING)
+}
+
+// nextIsIntersectionType reports whether & at the current position continues an
+// intersection type (Foo&Bar), not a by-ref param (&$x) or variadic (&...$x).
+func (p *Parser) nextIsIntersectionType() bool {
+	if !p.at(token.T_AMPERSAND) || p.i+1 >= len(p.tokens) {
+		return false
+	}
+	next := p.tokens[p.i+1].Type
+	if next == token.T_VARIABLE || next == token.T_ELLIPSIS {
+		return false
+	}
+	saved := p.i
+	p.i++
+	ok := p.isTypeStart()
+	p.i = saved
+	return ok
 }
 
 func (p *Parser) parseUntilParamEnd() *GreenNode {

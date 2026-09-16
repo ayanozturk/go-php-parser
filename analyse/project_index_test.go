@@ -1,20 +1,19 @@
 package analyse
 
 import (
-	"github.com/ayanozturk/go-php-parser/ast"
-	"github.com/ayanozturk/go-php-parser/lexer"
-	"github.com/ayanozturk/go-php-parser/parser"
 	"reflect"
 	"strings"
 	"testing"
+
+	"github.com/ayanozturk/go-php-parser/ast"
+	"github.com/ayanozturk/go-php-parser/syntax"
 )
 
 func parsePHPForProjectIndex(t *testing.T, php string) []ast.Node {
 	t.Helper()
-	p := parser.New(lexer.New(php), false)
-	nodes := p.Parse()
-	if len(p.Errors()) > 0 {
-		t.Fatalf("parse errors: %v", p.Errors())
+	nodes, diags := syntax.ParseAST([]byte(php))
+	if len(diags) > 0 {
+		t.Fatalf("parse errors: %v", diags)
 	}
 	return nodes
 }

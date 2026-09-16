@@ -48,7 +48,12 @@ func lowerStmt(n *RedNode, file *File) ast.Node {
 		if e := lowered.GetEndPos(); e.Line > 0 {
 			end = e
 		}
-		return &ast.ExpressionStmt{Expr: lowered, Pos: pos, EndPos: end}
+		return &ast.ExpressionStmt{
+			Expr:   lowered,
+			PHPDoc: leadingDocFromNode(n),
+			Pos:    pos,
+			EndPos: end,
+		}
 	case KindReturnStmt:
 		ret := &ast.ReturnNode{Pos: pos, EndPos: end}
 		if expr := firstExprChild(n); expr != nil {
@@ -79,6 +84,34 @@ func lowerStmt(n *RedNode, file *File) ast.Node {
 		return lowerTryStmt(n, file)
 	case KindSwitchStmt:
 		return lowerSwitchStmt(n, file)
+	case KindGlobalStmt:
+		return lowerGlobalStmt(n, file)
+	case KindStaticVarStmt:
+		return lowerStaticVarStmt(n, file)
+	case KindGotoStmt:
+		label := ""
+		for _, c := range n.Children() {
+			if isTokenType(c, token.T_STRING) {
+				label = strings.TrimSpace(tokenLiteral(c))
+				break
+			}
+		}
+		if label == "" {
+			return nil
+		}
+		return &ast.GotoNode{Label: label, Pos: pos, EndPos: end}
+	case KindLabelStmt:
+		name := ""
+		for _, c := range n.Children() {
+			if isTokenType(c, token.T_STRING) {
+				name = strings.TrimSpace(tokenLiteral(c))
+				break
+			}
+		}
+		if name == "" {
+			return nil
+		}
+		return &ast.LabelNode{Name: name, Pos: pos, EndPos: end}
 	default:
 		return nil
 	}
@@ -517,6 +550,74 @@ func lowerSwitchStmt(n *RedNode, file *File) ast.Node {
 	return sw
 }
 
+func lowerGlobalStmt(n *RedNode, file *File) ast.Node {
+	if n == nil {
+		return nil
+	}
+	pos, end := nodePos(file, n)
+	var vars []ast.GlobalVarEntry
+	for _, c := range n.Children() {
+		if !isTokenType(c, token.T_VARIABLE) {
+			continue
+		}
+		vp, ve := nodePos(file, c)
+		vars = append(vars, ast.GlobalVarEntry{
+			Name:   stripVarDollar(tokenLiteral(c)),
+			Pos:    vp,
+			EndPos: ve,
+		})
+	}
+	if len(vars) == 0 {
+		return nil
+	}
+	return &ast.GlobalVarDeclNode{Vars: vars, Pos: pos, EndPos: end}
+}
+
+func lowerStaticVarStmt(n *RedNode, file *File) ast.Node {
+	if n == nil {
+		return nil
+	}
+	pos, end := nodePos(file, n)
+	var vars []ast.StaticVarEntry
+	var curName string
+	var curPos, curEnd ast.Position
+	var curInit ast.Node
+	flush := func() {
+		if curName == "" {
+			return
+		}
+		vars = append(vars, ast.StaticVarEntry{
+			Name:   curName,
+			Init:   curInit,
+			Pos:    curPos,
+			EndPos: curEnd,
+		})
+		curName = ""
+		curInit = nil
+	}
+	for _, c := range n.Children() {
+		switch {
+		case isTokenType(c, token.T_VARIABLE):
+			flush()
+			curPos, curEnd = nodePos(file, c)
+			curName = stripVarDollar(tokenLiteral(c))
+		case isTokenType(c, token.T_COMMA), isTokenType(c, token.T_SEMICOLON):
+			flush()
+		case isTokenType(c, token.T_ASSIGN):
+			continue
+		default:
+			if curName != "" && (isExprKind(c.Kind()) || isNameKind(c.Kind())) {
+				curInit = lowerExpr(c, file)
+			}
+		}
+	}
+	flush()
+	if len(vars) == 0 {
+		return nil
+	}
+	return &ast.StaticVarDeclNode{Vars: vars, Pos: pos, EndPos: end}
+}
+
 func lowerSwitchCases(block *RedNode, file *File) []*ast.SwitchCaseNode {
 	if block == nil {
 		return nil
@@ -562,7 +663,7 @@ func isStmtKind(k Kind) bool {
 	switch k {
 	case KindExpressionStmt, KindReturnStmt, KindIfStmt, KindEmptyStmt,
 		KindEchoStmt, KindBreakStmt, KindContinueStmt, KindThrowStmt,
-		KindUnsetStmt, KindWhileStmt, KindDoWhileStmt, KindForStmt,
+		KindUnsetStmt, KindGotoStmt, KindLabelStmt, KindWhileStmt, KindDoWhileStmt, KindForStmt,
 		KindForeachStmt, KindSwitchStmt, KindTryStmt, KindGlobalStmt,
 		KindStaticVarStmt, KindDeclareStmt:
 		return true

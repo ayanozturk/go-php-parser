@@ -5,8 +5,7 @@ import (
 	"testing"
 
 	"github.com/ayanozturk/go-php-parser/ast"
-	"github.com/ayanozturk/go-php-parser/lexer"
-	"github.com/ayanozturk/go-php-parser/parser"
+	"github.com/ayanozturk/go-php-parser/syntax"
 )
 
 func resolverAllocationSnapshot(t *testing.T) *SemanticSnapshot {
@@ -28,15 +27,14 @@ function allocation_probe(int $count, string $label, array $options): string {}
 
 func inheritedResolverAllocationSnapshot(t testing.TB) *SemanticSnapshot {
 	t.Helper()
-	p := parser.New(lexer.New(`<?php
+	nodes, diags := syntax.ParseAST([]byte(`<?php
 class AllocationBase {
     private function middle(bool $enabled, array $values): string {}
 }
 class AllocationProbe extends AllocationBase {}
-`), false)
-	nodes := p.Parse()
-	if len(p.Errors()) > 0 {
-		t.Fatalf("parse allocation fixture: %v", p.Errors())
+`))
+	if len(diags) > 0 {
+		t.Fatalf("parse allocation fixture: %v", diags)
 	}
 	snapshot, err := NewSemanticSnapshot(map[string][]ast.Node{"src/AllocationProbe.php": nodes}, nil)
 	if err != nil {

@@ -6,8 +6,6 @@ import (
 	"github.com/ayanozturk/go-php-parser/analyse"
 	"github.com/ayanozturk/go-php-parser/ast"
 	"github.com/ayanozturk/go-php-parser/command"
-	"github.com/ayanozturk/go-php-parser/lexer"
-	"github.com/ayanozturk/go-php-parser/parser"
 )
 
 func TestParseNodesForIndexProjectIndexParity(t *testing.T) {
@@ -20,22 +18,23 @@ class User extends Base {
     private function set_name(string $n): void {}
 }
 `
-	classic := parser.New(lexer.New(src), false)
-	classic.SkipFunctionBodies = true
-	nodesC := classic.Parse()
 	nodesS := command.ParseNodesForIndex([]byte(src))
 
-	idxC := analyse.BuildProjectIndex(map[string][]ast.Node{"f.php": nodesC})
 	idxS := analyse.BuildProjectIndex(map[string][]ast.Node{"f.php": nodesS})
 
-	_, okC := idxC.ResolveClass(`App\User`)
-	_, okS := idxS.ResolveClass(`App\User`)
-	if !okC || !okS {
-		t.Fatalf("ResolveClass classic=%v syntax=%v", okC, okS)
+	classS, okS := idxS.ResolveClass(`App\User`)
+	if !okS {
+		t.Fatalf("ResolveClass App\\User: ok=%v", okS)
 	}
-	mC, okC := idxC.ResolveMethod(`App\User`, "id")
+	if classS.Name != `App\User` {
+		t.Fatalf("class name=%q want App\\User", classS.Name)
+	}
+
 	mS, okS := idxS.ResolveMethod(`App\User`, "id")
-	if !okC || !okS || mC.ReturnType != mS.ReturnType {
-		t.Fatalf("id return classic=%q/%v syntax=%q/%v", mC.ReturnType, okC, mS.ReturnType, okS)
+	if !okS {
+		t.Fatalf("ResolveMethod id: ok=%v", okS)
+	}
+	if mS.ReturnType != "int" {
+		t.Fatalf("id return=%q want int", mS.ReturnType)
 	}
 }

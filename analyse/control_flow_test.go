@@ -6,16 +6,14 @@ import (
 	"testing"
 
 	"github.com/ayanozturk/go-php-parser/ast"
-	"github.com/ayanozturk/go-php-parser/lexer"
-	"github.com/ayanozturk/go-php-parser/parser"
+	"github.com/ayanozturk/go-php-parser/syntax"
 )
 
 func parseControlFlowPHP(t *testing.T, source string) []ast.Node {
 	t.Helper()
-	p := parser.New(lexer.New(source), false)
-	nodes := p.Parse()
-	if errs := p.Errors(); len(errs) != 0 {
-		t.Fatalf("parse control-flow fixture: %v", errs)
+	nodes, diags := syntax.ParseAST([]byte(source))
+	if len(diags) != 0 {
+		t.Fatalf("parse control-flow fixture: %v", diags)
 	}
 	return nodes
 }

@@ -5,8 +5,6 @@ import (
 
 	"github.com/ayanozturk/go-php-parser/analyse"
 	"github.com/ayanozturk/go-php-parser/ast"
-	"github.com/ayanozturk/go-php-parser/lexer"
-	"github.com/ayanozturk/go-php-parser/parser"
 	"github.com/ayanozturk/go-php-parser/syntax"
 )
 
@@ -40,57 +38,52 @@ func TestParseASTForIndexFixture(t *testing.T) {
 
 func TestParseASTForIndexProjectIndexParity(t *testing.T) {
 	src := indexFixture
-	classic := parser.New(lexer.New(src), false)
-	classic.SkipFunctionBodies = true
-	nodesC := classic.Parse()
-	nodesS, _ := syntax.ParseASTForIndex([]byte(src))
+	nodesS, diags := syntax.ParseASTForIndex([]byte(src))
+	if len(diags) != 0 {
+		t.Fatalf("unexpected diags: %v", diags)
+	}
 
-	idxC := analyse.BuildProjectIndex(map[string][]ast.Node{"f.php": nodesC})
 	idxS := analyse.BuildProjectIndex(map[string][]ast.Node{"f.php": nodesS})
 
-	classC, okC := idxC.ResolveClass(`App\User`)
 	classS, okS := idxS.ResolveClass(`App\User`)
-	if !okC || !okS {
-		t.Fatalf("ResolveClass: classic=%v syntax=%v", okC, okS)
+	if !okS {
+		t.Fatalf("ResolveClass App\\User: ok=%v", okS)
 	}
-	if classC.Name != classS.Name {
-		t.Fatalf("class name classic=%q syntax=%q", classC.Name, classS.Name)
+	if classS.Name != `App\User` {
+		t.Fatalf("class name=%q want App\\User", classS.Name)
 	}
-	if len(classC.Extends) != len(classS.Extends) || (len(classS.Extends) > 0 && classC.Extends[0] != classS.Extends[0]) {
-		t.Fatalf("extends classic=%v syntax=%v", classC.Extends, classS.Extends)
+	if len(classS.Extends) != 1 || classS.Extends[0] != `Vendor\Base` {
+		t.Fatalf("extends=%v want [Vendor\\Base]", classS.Extends)
 	}
 
-	methodC, okC := idxC.ResolveMethod(`App\User`, "id")
 	methodS, okS := idxS.ResolveMethod(`App\User`, "id")
-	if !okC || !okS {
-		t.Fatalf("ResolveMethod id: classic=%v syntax=%v", okC, okS)
+	if !okS {
+		t.Fatalf("ResolveMethod id: ok=%v", okS)
 	}
-	if methodC.ReturnType != methodS.ReturnType {
-		t.Fatalf("id return classic=%q syntax=%q", methodC.ReturnType, methodS.ReturnType)
+	if methodS.ReturnType != "int" {
+		t.Fatalf("id return=%q want int", methodS.ReturnType)
 	}
 
-	setC, okC := idxC.ResolveMethod(`App\User`, "set_name")
 	setS, okS := idxS.ResolveMethod(`App\User`, "set_name")
-	if !okC || !okS {
-		t.Fatalf("ResolveMethod set_name: classic=%v syntax=%v", okC, okS)
+	if !okS {
+		t.Fatalf("ResolveMethod set_name: ok=%v", okS)
 	}
-	if setC.ReturnType != setS.ReturnType {
-		t.Fatalf("set_name return classic=%q syntax=%q", setC.ReturnType, setS.ReturnType)
+	if setS.ReturnType != "void" {
+		t.Fatalf("set_name return=%q want void", setS.ReturnType)
 	}
-	if len(setC.Params) != 1 || len(setS.Params) != 1 {
-		t.Fatalf("set_name params classic=%d syntax=%d", len(setC.Params), len(setS.Params))
+	if len(setS.Params) != 1 {
+		t.Fatalf("set_name params=%d want 1", len(setS.Params))
 	}
-	if setC.Params[0].Name != setS.Params[0].Name || setC.Params[0].Type != setS.Params[0].Type {
-		t.Fatalf("param classic=%+v syntax=%+v", setC.Params[0], setS.Params[0])
+	if setS.Params[0].Name != "n" || setS.Params[0].Type != "string" {
+		t.Fatalf("param=%+v want {Name:n Type:string}", setS.Params[0])
 	}
 
-	propC, okC := idxC.ResolveProperty(`App\User`, "name")
 	propS, okS := idxS.ResolveProperty(`App\User`, "name")
-	if !okC || !okS {
-		t.Fatalf("ResolveProperty: classic=%v syntax=%v", okC, okS)
+	if !okS {
+		t.Fatalf("ResolveProperty name: ok=%v", okS)
 	}
-	if propC.Type != propS.Type {
-		t.Fatalf("property type classic=%q syntax=%q", propC.Type, propS.Type)
+	if propS.Type != "string" {
+		t.Fatalf("property type=%q want string", propS.Type)
 	}
 }
 
@@ -124,21 +117,16 @@ class C {
     public function m() {}
 }
 `
-	classic := parser.New(lexer.New(src), false)
-	classic.SkipFunctionBodies = true
-	nodesC := classic.Parse()
-	nodesS, _ := syntax.ParseASTForIndex([]byte(src))
+	nodesS, diags := syntax.ParseASTForIndex([]byte(src))
+	if len(diags) != 0 {
+		t.Fatalf("unexpected diags: %v", diags)
+	}
 
-	idxC := analyse.BuildProjectIndex(map[string][]ast.Node{"f.php": nodesC})
 	idxS := analyse.BuildProjectIndex(map[string][]ast.Node{"f.php": nodesS})
 
-	methodC, okC := idxC.ResolveMethod(`C`, "m")
 	methodS, okS := idxS.ResolveMethod(`C`, "m")
-	if !okC || !okS {
-		t.Fatalf("ResolveMethod: classic=%v syntax=%v", okC, okS)
-	}
-	if methodC.ReturnType != methodS.ReturnType {
-		t.Fatalf("return classic=%q syntax=%q", methodC.ReturnType, methodS.ReturnType)
+	if !okS {
+		t.Fatalf("ResolveMethod: ok=%v", okS)
 	}
 	if methodS.ReturnType != "int" {
 		t.Fatalf("expected PHPDoc return int, got %q", methodS.ReturnType)
@@ -150,30 +138,27 @@ func TestParseASTForIndexEnumTraitKindParity(t *testing.T) {
 enum Suit { case Hearts; }
 trait Logger { public function log(): void {} }
 `
-	classic := parser.New(lexer.New(src), false)
-	classic.SkipFunctionBodies = true
-	nodesC := classic.Parse()
-	nodesS, _ := syntax.ParseASTForIndex([]byte(src))
+	nodesS, diags := syntax.ParseASTForIndex([]byte(src))
+	if len(diags) != 0 {
+		t.Fatalf("unexpected diags: %v", diags)
+	}
 
-	idxC := analyse.BuildProjectIndex(map[string][]ast.Node{"f.php": nodesC})
 	idxS := analyse.BuildProjectIndex(map[string][]ast.Node{"f.php": nodesS})
 
-	enumC, okC := idxC.ResolveClass("Suit")
 	enumS, okS := idxS.ResolveClass("Suit")
-	if !okC || !okS {
-		t.Fatalf("ResolveClass Suit: classic=%v syntax=%v", okC, okS)
+	if !okS {
+		t.Fatalf("ResolveClass Suit: ok=%v", okS)
 	}
-	if enumC.Kind != enumS.Kind || enumS.Kind != "enum" {
-		t.Fatalf("Suit kind classic=%q syntax=%q", enumC.Kind, enumS.Kind)
+	if enumS.Kind != "enum" {
+		t.Fatalf("Suit kind=%q want enum", enumS.Kind)
 	}
 
-	traitC, okC := idxC.ResolveClass("Logger")
 	traitS, okS := idxS.ResolveClass("Logger")
-	if !okC || !okS {
-		t.Fatalf("ResolveClass Logger: classic=%v syntax=%v", okC, okS)
+	if !okS {
+		t.Fatalf("ResolveClass Logger: ok=%v", okS)
 	}
-	if traitC.Kind != traitS.Kind || traitS.Kind != "trait" {
-		t.Fatalf("Logger kind classic=%q syntax=%q", traitC.Kind, traitS.Kind)
+	if traitS.Kind != "trait" {
+		t.Fatalf("Logger kind=%q want trait", traitS.Kind)
 	}
 }
 

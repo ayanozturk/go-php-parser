@@ -8,8 +8,7 @@ import (
 
 	"github.com/ayanozturk/go-php-parser/analyse"
 	"github.com/ayanozturk/go-php-parser/ast"
-	"github.com/ayanozturk/go-php-parser/lexer"
-	"github.com/ayanozturk/go-php-parser/parser"
+	"github.com/ayanozturk/go-php-parser/syntax"
 )
 
 func TestDiscoverPHPFilesIndexesRootVendorAutomatically(t *testing.T) {
@@ -106,15 +105,13 @@ class VendorLib {
     }
 }
 `
-	host := parser.New(lexer.New(hostPHP), false)
-	hostNodes := host.Parse()
-	if errs := host.Errors(); len(errs) > 0 {
-		t.Fatalf("parse host: %v", errs)
+	hostNodes, hostDiags := syntax.ParseAST([]byte(hostPHP))
+	if len(hostDiags) > 0 {
+		t.Fatalf("parse host: %v", hostDiags)
 	}
-	vendored := parser.New(lexer.New(vendorPHP), false)
-	vendorNodes := vendored.Parse()
-	if errs := vendored.Errors(); len(errs) > 0 {
-		t.Fatalf("parse vendor: %v", errs)
+	vendorNodes, vendorDiags := syntax.ParseAST([]byte(vendorPHP))
+	if len(vendorDiags) > 0 {
+		t.Fatalf("parse vendor: %v", vendorDiags)
 	}
 	parsed := map[string][]ast.Node{
 		filepath.Join("src", "app.php"):           hostNodes,
@@ -134,10 +131,9 @@ function identifier(): string {
     return $value;
 }
 `
-	p := parser.New(lexer.New(php), false)
-	nodes := p.Parse()
-	if errs := p.Errors(); len(errs) > 0 {
-		t.Fatalf("parse fixture: %v", errs)
+	nodes, diags := syntax.ParseAST([]byte(php))
+	if len(diags) > 0 {
+		t.Fatalf("parse fixture: %v", diags)
 	}
 	parsed := map[string][]ast.Node{"file.php": nodes}
 	project := analyse.BuildProjectIndex(parsed)

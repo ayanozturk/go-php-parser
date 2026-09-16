@@ -102,6 +102,8 @@ const (
 	KindContinueStmt
 	KindThrowStmt
 	KindUnsetStmt
+	KindGotoStmt
+	KindLabelStmt
 	KindTraitAdaptationList
 	KindTraitAdaptation
 
@@ -221,6 +223,8 @@ var kindNames = [...]string{
 	KindContinueStmt:               "ContinueStmt",
 	KindThrowStmt:                  "ThrowStmt",
 	KindUnsetStmt:                  "UnsetStmt",
+	KindGotoStmt:                   "GotoStmt",
+	KindLabelStmt:                  "LabelStmt",
 	KindTraitAdaptationList:        "TraitAdaptationList",
 	KindTraitAdaptation:            "TraitAdaptation",
 	KindVariableExpr:               "VariableExpr",

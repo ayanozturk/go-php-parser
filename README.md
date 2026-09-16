@@ -401,37 +401,28 @@ ignore:
 package main
 
 import (
-    "go-php-parser/lexer"
-    "go-php-parser/parser"
+    "fmt"
+
     "go-php-parser/ast"
+    "go-php-parser/syntax"
 )
 
 func main() {
-    // Read PHP file
-    input := `<?php
+    src := []byte(`<?php
     function test($param) {
         echo "Hello, $param!";
-    }`
+    }`)
 
-    // Create lexer
-    l := lexer.New(input)
+    nodes, diags := syntax.ParseAST(src)
 
-    // Create parser
-    p := parser.New(l)
-
-    // Parse the input
-    nodes := p.Parse()
-
-    // Check for errors
-    if len(p.Errors()) > 0 {
+    if len(diags) > 0 {
         fmt.Println("Parsing errors:")
-        for _, err := range p.Errors() {
-            fmt.Printf("\t%s\n", err)
+        for _, d := range diags {
+            fmt.Printf("\t%s\n", d.Message)
         }
         return
     }
 
-    // Print AST
     ast.PrintAST(nodes, 0)
 }
 ```

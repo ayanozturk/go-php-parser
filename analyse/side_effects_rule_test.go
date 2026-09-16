@@ -1,9 +1,9 @@
 package analyse
 
 import (
-	"github.com/ayanozturk/go-php-parser/lexer"
-	"github.com/ayanozturk/go-php-parser/parser"
 	"testing"
+
+	"github.com/ayanozturk/go-php-parser/syntax"
 )
 
 func TestSideEffectsOnlyDeclarations(t *testing.T) {
@@ -206,11 +206,9 @@ func runSideEffectsAnalysis(t *testing.T, php string) []AnalysisIssue {
 	t.Helper()
 
 	// Parse the PHP code to get AST nodes
-	l := lexer.New(php)
-	p := parser.New(l, false)
-	nodes := p.Parse()
-	if len(p.Errors()) > 0 {
-		t.Fatalf("parser errors: %v", p.Errors())
+	nodes, diags := syntax.ParseAST([]byte(php))
+	if len(diags) > 0 {
+		t.Fatalf("parser errors: %v", diags)
 	}
 
 	rule := &SideEffectsRule{}

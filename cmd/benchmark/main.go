@@ -65,9 +65,8 @@ import (
 
 	"github.com/ayanozturk/go-php-parser/analyse"
 	"github.com/ayanozturk/go-php-parser/ast"
-	"github.com/ayanozturk/go-php-parser/lexer"
-	"github.com/ayanozturk/go-php-parser/parser"
 	"github.com/ayanozturk/go-php-parser/sharedcache"
+	"github.com/ayanozturk/go-php-parser/syntax"
 )
 
 // runMetrics captures everything the comparable-performance contract asks
@@ -925,10 +924,8 @@ func parseFiles(files []string, workers int) (map[string][]ast.Node, runMetrics)
 					outcomes[idx] = parseOutcome{path: path, failed: true}
 					continue
 				}
-				l := lexer.NewFileBytes(content)
-				p := parser.New(l, false)
-				nodes := p.Parse()
-				if len(p.Errors()) > 0 {
+				nodes, diags := syntax.ParseAST(content)
+				if len(diags) > 0 {
 					outcomes[idx] = parseOutcome{path: path, failed: true, bytes: int64(len(content))}
 					continue
 				}

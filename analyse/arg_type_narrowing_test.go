@@ -4,17 +4,15 @@ import (
 	"testing"
 
 	"github.com/ayanozturk/go-php-parser/ast"
-	"github.com/ayanozturk/go-php-parser/lexer"
-	"github.com/ayanozturk/go-php-parser/parser"
+	"github.com/ayanozturk/go-php-parser/syntax"
 )
 
 func parseArgTypeNarrowingPHP(t *testing.T, source string) []AnalysisIssue {
 	t.Helper()
 	const filename = "narrowing.php"
-	p := parser.New(lexer.New(source), false)
-	nodes := p.Parse()
-	if errs := p.Errors(); len(errs) != 0 {
-		t.Fatalf("parse narrowing fixture: %v", errs)
+	nodes, diags := syntax.ParseAST([]byte(source))
+	if len(diags) != 0 {
+		t.Fatalf("parse narrowing fixture: %v", diags)
 	}
 
 	snapshot, err := NewSemanticSnapshot(map[string][]ast.Node{filename: nodes}, nil)

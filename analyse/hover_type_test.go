@@ -5,8 +5,7 @@ import (
 	"testing"
 
 	"github.com/ayanozturk/go-php-parser/ast"
-	"github.com/ayanozturk/go-php-parser/lexer"
-	"github.com/ayanozturk/go-php-parser/parser"
+	"github.com/ayanozturk/go-php-parser/syntax"
 )
 
 func TestInferHoverTargetAtPositionIgnoresNewKeyword(t *testing.T) {
@@ -18,11 +17,9 @@ class BuilderTest {
         $configuration = (new Builder)->fromParameters(['command', 'argument']);
     }
 }`
-	l := lexer.New(php)
-	p := parser.New(l, true)
-	nodes := p.Parse()
-	if len(p.Errors()) > 0 {
-		t.Fatalf("parser errors: %v", p.Errors())
+	nodes, diags := syntax.ParseASTForIndex([]byte(php))
+	if len(diags) > 0 {
+		t.Fatalf("parser errors: %v", diags)
 	}
 
 	if target, ok := InferHoverTargetAtPosition(nodes, 5, 27, "new", nil); ok {
@@ -205,11 +202,9 @@ function show(?string $id): void {
 
 func parseHoverFixture(t *testing.T, php string) []ast.Node {
 	t.Helper()
-	l := lexer.New(php)
-	p := parser.New(l, false)
-	nodes := p.Parse()
-	if len(p.Errors()) > 0 {
-		t.Fatalf("parser errors: %v", p.Errors())
+	nodes, diags := syntax.ParseAST([]byte(php))
+	if len(diags) > 0 {
+		t.Fatalf("parser errors: %v", diags)
 	}
 	return nodes
 }

@@ -4,8 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/ayanozturk/go-php-parser/lexer"
-	"github.com/ayanozturk/go-php-parser/parser"
+	"github.com/ayanozturk/go-php-parser/syntax"
 )
 
 const maxAnalysisFuzzBytes = 32 << 10
@@ -52,11 +51,10 @@ func FuzzMalformedPHPDocRuleExecution(f *testing.F) {
 		}
 
 		source := "<?php\n/**\n * @param " + raw + " $value\n * @return " + raw + "\n */\nfunction securityFuzz($value) { return $value; }\n"
-		p := parser.New(lexer.New(source), false)
-		nodes := p.Parse()
-		for _, parseErr := range p.Errors() {
-			if strings.HasPrefix(parseErr, "Parser panic:") {
-				t.Fatalf("parser recovered an internal panic: %s", parseErr)
+		nodes, diags := syntax.ParseAST([]byte(source))
+		for _, diag := range diags {
+			if strings.HasPrefix(diag.Message, "Parser panic:") {
+				t.Fatalf("parser recovered an internal panic: %s", diag.Message)
 			}
 		}
 		_ = RunAnalysisRules("security-fuzz.php", nodes)

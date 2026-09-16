@@ -4,8 +4,7 @@ import (
 	"testing"
 
 	"github.com/ayanozturk/go-php-parser/ast"
-	"github.com/ayanozturk/go-php-parser/lexer"
-	"github.com/ayanozturk/go-php-parser/parser"
+	"github.com/ayanozturk/go-php-parser/syntax"
 )
 
 func TestFilesChanged(t *testing.T) {
@@ -73,8 +72,7 @@ func TestProjectIndexMergeIncremental(t *testing.T) {
 	source := `<?php
 class NewClass {}
 `
-	p := parser.New(lexer.New(source), false)
-	nodes := p.Parse()
+	nodes, _ := syntax.ParseAST([]byte(source))
 
 	// Merge: re-index file1
 	newParsed := map[string][]ast.Node{

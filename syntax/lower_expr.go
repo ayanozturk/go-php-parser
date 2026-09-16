@@ -58,12 +58,16 @@ func lowerExpr(n *RedNode, file *File) ast.Node {
 		return lowerCloneExpr(n, file)
 	case KindListExpr:
 		return lowerListExpr(n, file)
+	case KindYieldExpr:
+		return lowerYieldExpr(n, file)
 	case KindIncludeExpr, KindPrintExpr:
 		return lowerKeywordUnaryExpr(n, file)
 	case KindStringLiteral:
 		return lowerInterpolatedStringLiteral(n, file)
 	case KindHeredoc, KindNowdoc:
 		return lowerHeredoc(n, file)
+	case KindVariableVariableExpr:
+		return lowerVariableVariableExpr(n, file)
 	default:
 		return nil
 	}
@@ -207,15 +211,42 @@ func lowerAssignExpr(n *RedNode, file *File) ast.Node {
 
 func lowerCallExpr(n *RedNode, file *File) ast.Node {
 	pos, end := nodePos(file, n)
-	var callee, args *RedNode
+	var callee, args, builtinTok, loneArg *RedNode
 	for _, c := range n.Children() {
 		switch {
 		case c.Kind() == KindArgList:
 			args = c
+		case isBuiltinCallNameToken(c):
+			builtinTok = c
 		case isExprKind(c.Kind()) || isNameKind(c.Kind()):
-			if callee == nil {
+			if builtinTok != nil && args == nil && loneArg == nil {
+				loneArg = c
+			} else if callee == nil {
 				callee = c
 			}
+		}
+	}
+	if builtinTok != nil {
+		tt, ok := tokenOf(builtinTok)
+		if !ok {
+			return nil
+		}
+		namePos, nameEnd := nodePos(file, builtinTok)
+		argNodes := lowerArgList(args, file)
+		if loneArg != nil && len(argNodes) == 0 {
+			if a := lowerExpr(loneArg, file); a != nil {
+				argNodes = []ast.Node{a}
+			}
+		}
+		return &ast.FunctionCallNode{
+			Name: &ast.IdentifierNode{
+				Value:  strings.ToLower(strings.TrimSpace(tt.Literal)),
+				Pos:    namePos,
+				EndPos: nameEnd,
+			},
+			Args:   argNodes,
+			Pos:    pos,
+			EndPos: end,
 		}
 	}
 	if callee == nil {
@@ -374,9 +405,6 @@ func splitMemberAccess(n *RedNode, file *File) (object ast.Node, member string) 
 				continue
 			case token.T_STRING, token.T_VARIABLE:
 				member = strings.TrimSpace(tt.Literal)
-				if tt.Type == token.T_VARIABLE {
-					member = stripVarDollar(member)
-				}
 			default:
 				if isKeywordMemberName(tt.Type) {
 					member = strings.TrimSpace(tt.Literal)
@@ -504,12 +532,65 @@ func splitStaticMemberAccess(n *RedNode, file *File) (class, member string) {
 				continue
 			}
 			member = strings.TrimSpace(tt.Literal)
-			if tt.Type == token.T_VARIABLE {
-				member = stripVarDollar(member)
-			}
 		}
 	}
 	return class, member
+}
+
+func isBuiltinCallNameToken(n *RedNode) bool {
+	return isTokenType(n, token.T_EXIT) || isTokenType(n, token.T_DIE) ||
+		isTokenType(n, token.T_ISSET) || isTokenType(n, token.T_EMPTY) ||
+		isTokenType(n, token.T_UNSET)
+}
+
+func lowerYieldExpr(n *RedNode, file *File) ast.Node {
+	pos, end := nodePos(file, n)
+	from := false
+	hasArrow := false
+	var exprs []*RedNode
+	for _, c := range n.Children() {
+		if c.Green != nil && c.Green.IsToken() {
+			tt, ok := tokenOf(c)
+			if !ok {
+				continue
+			}
+			if tt.Type == token.T_YIELD_FROM {
+				from = true
+			}
+			if tt.Type == token.T_DOUBLE_ARROW {
+				hasArrow = true
+			}
+			continue
+		}
+		if isExprKind(c.Kind()) || isNameKind(c.Kind()) {
+			exprs = append(exprs, c)
+		}
+	}
+	if len(exprs) == 0 {
+		return &ast.YieldNode{From: from, Pos: pos, EndPos: end}
+	}
+	if from {
+		return &ast.YieldNode{
+			Value:  lowerExpr(exprs[0], file),
+			From:   true,
+			Pos:    pos,
+			EndPos: end,
+		}
+	}
+	var key, value ast.Node
+	if hasArrow && len(exprs) >= 2 {
+		key = lowerExpr(exprs[0], file)
+		value = lowerExpr(exprs[1], file)
+	} else {
+		value = lowerExpr(exprs[0], file)
+	}
+	return &ast.YieldNode{
+		Key:    key,
+		Value:  value,
+		From:   false,
+		Pos:    pos,
+		EndPos: end,
+	}
 }
 
 func lowerArrayAccessExpr(n *RedNode, file *File) ast.Node {
@@ -798,8 +879,73 @@ func decodeLowerStringLiteral(lit string) string {
 	if len(lit) >= 2 {
 		q := lit[0]
 		if (q == '"' || q == '\'') && lit[len(lit)-1] == q {
-			return lit[1 : len(lit)-1]
+			inner := lit[1 : len(lit)-1]
+			if q == '\'' {
+				return unescapeLowerSingleQuoted(inner)
+			}
+			return unescapeLowerDoubleQuoted(inner)
 		}
 	}
 	return lit
+}
+
+func unescapeLowerSingleQuoted(s string) string {
+	var b strings.Builder
+	for i := 0; i < len(s); i++ {
+		if s[i] == '\\' && i+1 < len(s) && (s[i+1] == '\\' || s[i+1] == '\'') {
+			b.WriteByte(s[i+1])
+			i++
+			continue
+		}
+		b.WriteByte(s[i])
+	}
+	return b.String()
+}
+
+func unescapeLowerDoubleQuoted(s string) string {
+	var b strings.Builder
+	for i := 0; i < len(s); i++ {
+		if s[i] == '\\' && i+1 < len(s) {
+			i++
+			switch s[i] {
+			case 'n':
+				b.WriteByte('\n')
+			case 't':
+				b.WriteByte('\t')
+			case 'r':
+				b.WriteByte('\r')
+			case '"', '\\', '$':
+				b.WriteByte(s[i])
+			default:
+				b.WriteByte('\\')
+				b.WriteByte(s[i])
+			}
+			continue
+		}
+		b.WriteByte(s[i])
+	}
+	return b.String()
+}
+
+func lowerVariableVariableExpr(n *RedNode, file *File) ast.Node {
+	pos, end := nodePos(file, n)
+	var inner *RedNode
+	for _, c := range n.Children() {
+		if isExprKind(c.Kind()) || isNameKind(c.Kind()) {
+			inner = c
+			break
+		}
+	}
+	if inner == nil {
+		return nil
+	}
+	expr := lowerExpr(inner, file)
+	if expr == nil {
+		return nil
+	}
+	return &ast.VariableVariableNode{
+		Expr:   expr,
+		Pos:    pos,
+		EndPos: end,
+	}
 }

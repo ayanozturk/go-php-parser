@@ -1,9 +1,9 @@
 package style
 
 import (
-	"github.com/ayanozturk/go-php-parser/lexer"
-	"github.com/ayanozturk/go-php-parser/parser"
 	"testing"
+
+	"github.com/ayanozturk/go-php-parser/syntax"
 )
 
 func TestMethodCamelCaseValidNames(t *testing.T) {
@@ -181,12 +181,9 @@ class TestClass {
 func runMethodCamelCaseAnalysis(t *testing.T, php string) []StyleIssue {
 	t.Helper()
 
-	// Parse the PHP code to get AST nodes
-	l := lexer.New(php)
-	p := parser.New(l, true) // Use debug mode for better trait parsing
-	nodes := p.Parse()
-	if len(p.Errors()) > 0 {
-		t.Fatalf("parser errors: %v", p.Errors())
+	nodes, diags := syntax.ParseAST([]byte(php))
+	if len(diags) != 0 {
+		t.Fatalf("parser errors: %v", diags)
 	}
 
 	return RunSelectedRules("test.php", []byte(php), nodes, []string{psr1MethodCamelCaseCode})

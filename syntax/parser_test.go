@@ -31,6 +31,114 @@ func TestParseNameKinds(t *testing.T) {
 	}
 }
 
+func TestParseParamByRefNotIntersection(t *testing.T) {
+	src := "<?php\nfunction f(array &$a) {}\n"
+	res := Parse([]byte(src))
+	if Print(res.File.Root) != src {
+		t.Fatalf("file identity\nwant %q\ngot  %q", src, Print(res.File.Root))
+	}
+	for _, d := range res.Diagnostics {
+		if d.Message == "expected type" {
+			t.Fatalf("unexpected diagnostic: %q", d.Message)
+		}
+	}
+	var param *RedNode
+	var walk func(*RedNode)
+	walk = func(n *RedNode) {
+		if n == nil {
+			return
+		}
+		if n.Kind() == KindParam {
+			param = n
+		}
+		for _, c := range n.Children() {
+			walk(c)
+		}
+	}
+	walk(res.File.Root)
+	if param == nil {
+		t.Fatal("expected KindParam")
+	}
+	var hasPrimitive, hasAmp, hasVar, hasIntersection bool
+	for _, c := range param.Children() {
+		switch c.Kind() {
+		case KindPrimitiveType:
+			hasPrimitive = true
+		case KindIntersectionType:
+			hasIntersection = true
+		default:
+			if c.Green != nil && c.Green.IsToken() {
+				tok, ok := c.Green.Token()
+				if !ok {
+					continue
+				}
+				switch tok.Type {
+				case token.T_AMPERSAND:
+					hasAmp = true
+				case token.T_VARIABLE:
+					hasVar = true
+				}
+			}
+		}
+	}
+	if hasIntersection {
+		t.Fatal("param type should not be IntersectionType")
+	}
+	if !hasPrimitive || !hasAmp || !hasVar {
+		t.Fatalf("param children: primitive=%v amp=%v var=%v", hasPrimitive, hasAmp, hasVar)
+	}
+}
+
+func TestParseParamIntersectionThenByRef(t *testing.T) {
+	src := "<?php\nfunction f(Foo&Bar &$x) {}\n"
+	res := Parse([]byte(src))
+	if Print(res.File.Root) != src {
+		t.Fatalf("file identity\nwant %q\ngot  %q", src, Print(res.File.Root))
+	}
+	var param *RedNode
+	var walk func(*RedNode)
+	walk = func(n *RedNode) {
+		if n == nil {
+			return
+		}
+		if n.Kind() == KindParam {
+			param = n
+		}
+		for _, c := range n.Children() {
+			walk(c)
+		}
+	}
+	walk(res.File.Root)
+	if param == nil {
+		t.Fatal("expected KindParam")
+	}
+	var typeHint *RedNode
+	var hasAmp, hasVar bool
+	for _, c := range param.Children() {
+		if c.Kind() == KindIntersectionType {
+			typeHint = c
+		}
+		if c.Green != nil && c.Green.IsToken() {
+			tok, ok := c.Green.Token()
+			if !ok {
+				continue
+			}
+			switch tok.Type {
+			case token.T_AMPERSAND:
+				hasAmp = true
+			case token.T_VARIABLE:
+				hasVar = true
+			}
+		}
+	}
+	if typeHint == nil {
+		t.Fatal("expected IntersectionType type hint")
+	}
+	if !hasAmp || !hasVar {
+		t.Fatalf("param by-ref: amp=%v var=%v", hasAmp, hasVar)
+	}
+}
+
 func TestParseTypes(t *testing.T) {
 	cases := []struct {
 		src  string

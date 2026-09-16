@@ -1,10 +1,10 @@
 package analyse
 
 import (
-	"github.com/ayanozturk/go-php-parser/ast"
-	"github.com/ayanozturk/go-php-parser/lexer"
-	"github.com/ayanozturk/go-php-parser/parser"
 	"testing"
+
+	"github.com/ayanozturk/go-php-parser/ast"
+	"github.com/ayanozturk/go-php-parser/syntax"
 )
 
 func hasArgTypeIssue(issues []AnalysisIssue) bool {
@@ -31,11 +31,9 @@ function run(): void { acceptInt('wrong'); }
 
 func analysePHPArgTypesWithProject(t *testing.T, code string) []AnalysisIssue {
 	t.Helper()
-	l := lexer.New(code)
-	p := parser.New(l, false)
-	nodes := p.Parse()
-	if len(p.Errors()) > 0 {
-		t.Fatalf("parser errors: %v", p.Errors())
+	nodes, diags := syntax.ParseAST([]byte(code))
+	if len(diags) > 0 {
+		t.Fatalf("parser errors: %v", diags)
 	}
 	project := BuildProjectIndex(map[string][]ast.Node{"test.php": nodes})
 	ctx := &AnalysisContext{Resolver: project}
@@ -1524,11 +1522,9 @@ class Controller {
     }
 }`
 
-	l := lexer.New(php)
-	p := parser.New(l, false)
-	nodes := p.Parse()
-	if len(p.Errors()) > 0 {
-		t.Fatalf("parser errors: %v", p.Errors())
+	nodes, diags := syntax.ParseAST([]byte(php))
+	if len(diags) > 0 {
+		t.Fatalf("parser errors: %v", diags)
 	}
 	project := BuildProjectIndex(map[string][]ast.Node{"test.php": nodes})
 	method, ok := project.ResolveMethod(`App\RecordStore`, "lookup")
@@ -2071,10 +2067,9 @@ class Example {
 
 func parseMethodArgumentFactFixtureSource(t *testing.T, source string) ([]ast.Node, ast.Node) {
 	t.Helper()
-	p := parser.New(lexer.NewFile(source), false)
-	nodes := p.Parse()
-	if len(p.Errors()) != 0 {
-		t.Fatalf("parse errors: %v", p.Errors())
+	nodes, diags := syntax.ParseAST([]byte(source))
+	if len(diags) != 0 {
+		t.Fatalf("parse errors: %v", diags)
 	}
 	class, ok := nodes[0].(*ast.ClassNode)
 	if !ok || len(class.Methods) != 2 {
@@ -2097,7 +2092,7 @@ func parseMethodArgumentFactFixtureSource(t *testing.T, source string) ([]ast.No
 
 func parseMethodReceiverFactFixture(t *testing.T) ([]ast.Node, ast.Node) {
 	t.Helper()
-	nodes := parsePHPForProjectIndex(t, `<?php
+	nodes, diags := syntax.ParseAST([]byte(`<?php
 class Service {
     public function takesInt(int $value): void {}
 }
@@ -2107,7 +2102,10 @@ class Example {
         $service->takesInt("bad");
     }
 }
-`)
+`))
+	if len(diags) != 0 {
+		t.Fatalf("parse errors: %v", diags)
+	}
 	class, ok := nodes[1].(*ast.ClassNode)
 	if !ok || len(class.Methods) != 1 {
 		t.Fatalf("expected Example class with one method, got %#v", nodes)

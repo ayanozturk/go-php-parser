@@ -1,15 +1,11 @@
 package syntax_test
 
 import (
-	"fmt"
-	"sort"
 	"strings"
 	"testing"
 
 	"github.com/ayanozturk/go-php-parser/analyse"
 	"github.com/ayanozturk/go-php-parser/ast"
-	"github.com/ayanozturk/go-php-parser/lexer"
-	"github.com/ayanozturk/go-php-parser/parser"
 	"github.com/ayanozturk/go-php-parser/syntax"
 )
 
@@ -164,50 +160,33 @@ func TestParseASTBodyLowersMethodStatements(t *testing.T) {
 	if _, ok := ret.Expr.(*ast.VariableNode); !ok {
 		t.Fatalf("return expr=%T", ret.Expr)
 	}
-
-	// Classic vs syntax structural smoke: same body NodeType sequence.
-	classic := parser.New(lexer.New(bodyFixture), false)
-	nodesC := classic.Parse()
-	clsC := nodesC[0].(*ast.ClassNode)
-	fnC := clsC.Methods[0].(*ast.FunctionNode)
-	if got, want := nodeTypes(fn.Body), nodeTypes(fnC.Body); fmt.Sprint(got) != fmt.Sprint(want) {
-		t.Fatalf("body NodeTypes syntax=%v classic=%v", got, want)
-	}
 }
 
 func TestParseASTBodyBehaviouralNoPanic(t *testing.T) {
-	classic := parser.New(lexer.New(bodyFixture), false)
-	nodesC := classic.Parse()
-	nodesS, _ := syntax.ParseAST([]byte(bodyFixture))
+	nodesS, diags := syntax.ParseAST([]byte(bodyFixture))
+	if len(diags) != 0 {
+		t.Fatalf("unexpected diags: %v", diags)
+	}
 
-	parsedC := map[string][]ast.Node{"f.php": nodesC}
 	parsedS := map[string][]ast.Node{"f.php": nodesS}
 
-	idxC := analyse.BuildProjectIndex(parsedC)
 	idxS := analyse.BuildProjectIndex(parsedS)
-	if idxC == nil || idxS == nil {
+	if idxS == nil {
 		t.Fatal("BuildProjectIndex returned nil")
 	}
-
-	snapC, err := analyse.NewSemanticSnapshot(parsedC, nil)
-	if err != nil {
-		t.Fatalf("classic NewSemanticSnapshot: %v", err)
+	if _, ok := idxS.ResolveClass("C"); !ok {
+		t.Fatal("ResolveClass C failed")
 	}
+
 	snapS, err := analyse.NewSemanticSnapshot(parsedS, nil)
 	if err != nil {
-		t.Fatalf("syntax NewSemanticSnapshot: %v", err)
+		t.Fatalf("NewSemanticSnapshot: %v", err)
 	}
-	if snapC == nil || snapS == nil {
+	if snapS == nil {
 		t.Fatal("nil snapshot")
 	}
 
-	issuesC := analyse.RunAnalysisRules("f.php", nodesC)
-	issuesS := analyse.RunAnalysisRules("f.php", nodesS)
-	codesC := issueCodes(issuesC)
-	codesS := issueCodes(issuesS)
-	if fmt.Sprint(codesC) != fmt.Sprint(codesS) {
-		t.Fatalf("issue codes classic=%v syntax=%v", codesC, codesS)
-	}
+	_ = analyse.RunAnalysisRules("f.php", nodesS)
 }
 
 func TestParseASTBodyWidenStructural(t *testing.T) {
@@ -257,47 +236,33 @@ func TestParseASTBodyWidenStructural(t *testing.T) {
 	if !bodyHasStaticMemberCall(fn.Body) {
 		t.Fatal("expected static member call lowered to FunctionCall with :: in Name")
 	}
-
-	classic := parser.New(lexer.New(bodyWidenFixture), false)
-	nodesC := classic.Parse()
-	clsC := nodesC[0].(*ast.ClassNode)
-	fnC := clsC.Methods[0].(*ast.FunctionNode)
-	assertTopLevelBodyNodeTypesMatch(t, fn.Body, fnC.Body)
 }
 
 func TestParseASTBodyWidenBehavioural(t *testing.T) {
-	classic := parser.New(lexer.New(bodyWidenFixture), false)
-	nodesC := classic.Parse()
-	nodesS, _ := syntax.ParseAST([]byte(bodyWidenFixture))
+	nodesS, diags := syntax.ParseAST([]byte(bodyWidenFixture))
+	if len(diags) != 0 {
+		t.Fatalf("unexpected diags: %v", diags)
+	}
 
-	parsedC := map[string][]ast.Node{"f.php": nodesC}
 	parsedS := map[string][]ast.Node{"f.php": nodesS}
 
-	idxC := analyse.BuildProjectIndex(parsedC)
 	idxS := analyse.BuildProjectIndex(parsedS)
-	if idxC == nil || idxS == nil {
+	if idxS == nil {
 		t.Fatal("BuildProjectIndex returned nil")
 	}
-
-	snapC, err := analyse.NewSemanticSnapshot(parsedC, nil)
-	if err != nil {
-		t.Fatalf("classic NewSemanticSnapshot: %v", err)
+	if _, ok := idxS.ResolveClass("C"); !ok {
+		t.Fatal("ResolveClass C failed")
 	}
+
 	snapS, err := analyse.NewSemanticSnapshot(parsedS, nil)
 	if err != nil {
-		t.Fatalf("syntax NewSemanticSnapshot: %v", err)
+		t.Fatalf("NewSemanticSnapshot: %v", err)
 	}
-	if snapC == nil || snapS == nil {
+	if snapS == nil {
 		t.Fatal("nil snapshot")
 	}
 
-	issuesC := analyse.RunAnalysisRules("f.php", nodesC)
-	issuesS := analyse.RunAnalysisRules("f.php", nodesS)
-	codesC := issueCodes(issuesC)
-	codesS := issueCodes(issuesS)
-	if fmt.Sprint(codesC) != fmt.Sprint(codesS) {
-		t.Fatalf("issue codes classic=%v syntax=%v", codesC, codesS)
-	}
+	_ = analyse.RunAnalysisRules("f.php", nodesS)
 }
 
 func TestParseASTBodyAdvStructural(t *testing.T) {
@@ -347,47 +312,33 @@ func TestParseASTBodyAdvStructural(t *testing.T) {
 			t.Fatalf("missing NodeType %q in method body subtree (counts=%v)", want, counts)
 		}
 	}
-
-	classic := parser.New(lexer.New(bodyAdvFixture), false)
-	nodesC := classic.Parse()
-	clsC := nodesC[0].(*ast.ClassNode)
-	fnC := clsC.Methods[0].(*ast.FunctionNode)
-	assertTopLevelBodyNodeTypesMatch(t, fn.Body, fnC.Body)
 }
 
 func TestParseASTBodyAdvBehavioural(t *testing.T) {
-	classic := parser.New(lexer.New(bodyAdvFixture), false)
-	nodesC := classic.Parse()
-	nodesS, _ := syntax.ParseAST([]byte(bodyAdvFixture))
+	nodesS, diags := syntax.ParseAST([]byte(bodyAdvFixture))
+	if len(diags) != 0 {
+		t.Fatalf("unexpected diags: %v", diags)
+	}
 
-	parsedC := map[string][]ast.Node{"f.php": nodesC}
 	parsedS := map[string][]ast.Node{"f.php": nodesS}
 
-	idxC := analyse.BuildProjectIndex(parsedC)
 	idxS := analyse.BuildProjectIndex(parsedS)
-	if idxC == nil || idxS == nil {
+	if idxS == nil {
 		t.Fatal("BuildProjectIndex returned nil")
 	}
-
-	snapC, err := analyse.NewSemanticSnapshot(parsedC, nil)
-	if err != nil {
-		t.Fatalf("classic NewSemanticSnapshot: %v", err)
+	if _, ok := idxS.ResolveClass("C"); !ok {
+		t.Fatal("ResolveClass C failed")
 	}
+
 	snapS, err := analyse.NewSemanticSnapshot(parsedS, nil)
 	if err != nil {
-		t.Fatalf("syntax NewSemanticSnapshot: %v", err)
+		t.Fatalf("NewSemanticSnapshot: %v", err)
 	}
-	if snapC == nil || snapS == nil {
+	if snapS == nil {
 		t.Fatal("nil snapshot")
 	}
 
-	issuesC := analyse.RunAnalysisRules("f.php", nodesC)
-	issuesS := analyse.RunAnalysisRules("f.php", nodesS)
-	codesC := issueCodes(issuesC)
-	codesS := issueCodes(issuesS)
-	if fmt.Sprint(codesC) != fmt.Sprint(codesS) {
-		t.Fatalf("issue codes classic=%v syntax=%v", codesC, codesS)
-	}
+	_ = analyse.RunAnalysisRules("f.php", nodesS)
 }
 
 func TestParseASTForIndexStillEmptyBodies(t *testing.T) {
@@ -400,26 +351,6 @@ func TestParseASTForIndexStillEmptyBodies(t *testing.T) {
 	if len(fn.Body) != 0 {
 		t.Fatalf("ParseASTForIndex Body should stay empty, got %d stmts: %v", len(fn.Body), nodeTypes(fn.Body))
 	}
-}
-
-func assertTopLevelBodyNodeTypesMatch(t *testing.T, syntaxBody, classicBody []ast.Node) {
-	got := nodeTypes(syntaxBody)
-	want := nodeTypes(classicBody)
-	if fmt.Sprint(got) == fmt.Sprint(want) {
-		return
-	}
-	gotSorted := sortedStrings(got)
-	wantSorted := sortedStrings(want)
-	if fmt.Sprint(gotSorted) == fmt.Sprint(wantSorted) {
-		t.Fatalf("top-level body NodeType sequence mismatch syntax=%v classic=%v (sorted multisets match)", got, want)
-	}
-	t.Fatalf("top-level body NodeTypes syntax=%v classic=%v; sorted syntax=%v classic=%v", got, want, gotSorted, wantSorted)
-}
-
-func sortedStrings(in []string) []string {
-	out := append([]string(nil), in...)
-	sort.Strings(out)
-	return out
 }
 
 func subtreeNodeTypeCounts(body []ast.Node) map[string]int {
@@ -637,14 +568,6 @@ func nodeTypes(nodes []ast.Node) []string {
 			continue
 		}
 		out[i] = n.NodeType()
-	}
-	return out
-}
-
-func issueCodes(issues []analyse.AnalysisIssue) []string {
-	out := make([]string, len(issues))
-	for i, iss := range issues {
-		out[i] = iss.Code
 	}
 	return out
 }

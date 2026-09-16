@@ -7,8 +7,7 @@ import (
 	"testing"
 
 	"github.com/ayanozturk/go-php-parser/ast"
-	"github.com/ayanozturk/go-php-parser/lexer"
-	"github.com/ayanozturk/go-php-parser/parser"
+	"github.com/ayanozturk/go-php-parser/syntax"
 )
 
 func parseProjectSources(t *testing.T, sources map[string]string) map[string][]ast.Node {
@@ -29,7 +28,8 @@ func BenchmarkBuildProjectIndexIncremental(b *testing.B) {
 	}
 	parsed := make(map[string][]ast.Node, len(sources))
 	for filename, source := range sources {
-		parsed[filename] = parser.New(lexer.New(source), false).Parse()
+		nodes, _ := syntax.ParseAST([]byte(source))
+		parsed[filename] = nodes
 	}
 	previous := BuildProjectIndex(parsed)
 	updated := make(map[string][]ast.Node, len(parsed))
@@ -37,12 +37,14 @@ func BenchmarkBuildProjectIndexIncremental(b *testing.B) {
 		updated[filename] = nodes
 	}
 	const changedFile = "src/Class0500.php"
-	updated[changedFile] = parser.New(lexer.New("<?php\nclass Class0500 { public function value(int $input): string {} }\n"), false).Parse()
+	updatedNodes, _ := syntax.ParseAST([]byte("<?php\nclass Class0500 { public function value(int $input): string {} }\n"))
+	updated[changedFile] = updatedNodes
 	bodyOnly := make(map[string][]ast.Node, len(parsed))
 	for filename, nodes := range parsed {
 		bodyOnly[filename] = nodes
 	}
-	bodyOnly[changedFile] = parser.New(lexer.New("<?php\nclass Class0500 { public function value(): string { return \"updated\"; } }\n"), false).Parse()
+	bodyOnlyNodes, _ := syntax.ParseAST([]byte("<?php\nclass Class0500 { public function value(): string { return \"updated\"; } }\n"))
+	bodyOnly[changedFile] = bodyOnlyNodes
 
 	b.Run("full", func(b *testing.B) {
 		b.ReportAllocs()

@@ -4,17 +4,15 @@ import (
 	"testing"
 
 	"github.com/ayanozturk/go-php-parser/ast"
-	"github.com/ayanozturk/go-php-parser/lexer"
-	"github.com/ayanozturk/go-php-parser/parser"
+	"github.com/ayanozturk/go-php-parser/syntax"
 )
 
 func parseGenericsPHP(t *testing.T, source string) []AnalysisIssue {
 	t.Helper()
 	const filename = "generics.php"
-	p := parser.New(lexer.New(source), false)
-	nodes := p.Parse()
-	if errs := p.Errors(); len(errs) != 0 {
-		t.Fatalf("parse generics fixture: %v", errs)
+	nodes, diags := syntax.ParseAST([]byte(source))
+	if len(diags) != 0 {
+		t.Fatalf("parse generics fixture: %v", diags)
 	}
 
 	snapshot, err := NewSemanticSnapshot(map[string][]ast.Node{filename: nodes}, nil)
@@ -71,10 +69,9 @@ function example() {
 
 func parseGenericReturnFixture(t *testing.T, source string) ([]ast.Node, ast.Node) {
 	t.Helper()
-	p := parser.New(lexer.New(source), false)
-	nodes := p.Parse()
-	if len(p.Errors()) != 0 {
-		t.Fatalf("parse errors: %v", p.Errors())
+	nodes, diags := syntax.ParseAST([]byte(source))
+	if len(diags) != 0 {
+		t.Fatalf("parse errors: %v", diags)
 	}
 	var fn *ast.FunctionNode
 	for _, n := range nodes {

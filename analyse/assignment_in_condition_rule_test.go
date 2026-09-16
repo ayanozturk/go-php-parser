@@ -1,20 +1,18 @@
 package analyse
 
 import (
-	"github.com/ayanozturk/go-php-parser/ast"
-	"github.com/ayanozturk/go-php-parser/lexer"
-	"github.com/ayanozturk/go-php-parser/parser"
 	"testing"
+
+	"github.com/ayanozturk/go-php-parser/ast"
+	"github.com/ayanozturk/go-php-parser/syntax"
 )
 
 // helper to run analysis on a PHP snippet and return issues
 func analysePHPCode(t *testing.T, code string) []AnalysisIssue {
 	t.Helper()
-	l := lexer.New(code)
-	p := parser.New(l, false)
-	nodes := p.Parse()
-	if len(p.Errors()) > 0 {
-		t.Fatalf("parser errors: %v", p.Errors())
+	nodes, diags := syntax.ParseAST([]byte(code))
+	if len(diags) > 0 {
+		t.Fatalf("parser errors: %v", diags)
 	}
 	return RunAnalysisRules("test.php", nodes)
 }
@@ -22,11 +20,9 @@ func analysePHPCode(t *testing.T, code string) []AnalysisIssue {
 // debug helper to print parsed AST
 func debugPHPCode(t *testing.T, code string) {
 	t.Helper()
-	l := lexer.New(code)
-	p := parser.New(l, false)
-	nodes := p.Parse()
-	if len(p.Errors()) > 0 {
-		t.Fatalf("parser errors: %v", p.Errors())
+	nodes, diags := syntax.ParseAST([]byte(code))
+	if len(diags) > 0 {
+		t.Fatalf("parser errors: %v", diags)
 	}
 	for i, node := range nodes {
 		t.Logf("Node %d: %s", i, node.String())

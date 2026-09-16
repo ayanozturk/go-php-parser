@@ -1,18 +1,16 @@
 package analyse
 
 import (
-	"github.com/ayanozturk/go-php-parser/lexer"
-	"github.com/ayanozturk/go-php-parser/parser"
 	"testing"
+
+	"github.com/ayanozturk/go-php-parser/syntax"
 )
 
 func analyseUnreachablePHP(t *testing.T, code string) []AnalysisIssue {
 	t.Helper()
-	l := lexer.New(code)
-	p := parser.New(l, false)
-	nodes := p.Parse()
-	if len(p.Errors()) > 0 {
-		t.Fatalf("parser errors: %v", p.Errors())
+	nodes, diags := syntax.ParseAST([]byte(code))
+	if len(diags) > 0 {
+		t.Fatalf("parser errors: %v", diags)
 	}
 	rule := &UnreachableCodeRule{}
 	return rule.CheckIssues(nodes, "test.php")

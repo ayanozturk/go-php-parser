@@ -14,8 +14,8 @@ import (
 
 	"github.com/ayanozturk/go-php-parser/analyse"
 	"github.com/ayanozturk/go-php-parser/ast"
-	"github.com/ayanozturk/go-php-parser/lexer"
 	"github.com/ayanozturk/go-php-parser/parser"
+	"github.com/ayanozturk/go-php-parser/syntax"
 )
 
 const reportSchemaVersion = 1
@@ -198,14 +198,24 @@ func loadManifest(path string) (manifest, error) {
 	return result, nil
 }
 
+func diagStrings(src []byte, diags []syntax.Diagnostic) []string {
+	if len(diags) == 0 {
+		return nil
+	}
+	out := make([]string, len(diags))
+	for i, d := range diags {
+		out[i] = parser.ParseErrorFromOffsets(src, d.Span.Start, d.Span.End, d.Message).Error()
+	}
+	return out
+}
+
 func runEngine(path string, level int) ([]string, error) {
 	content, err := os.ReadFile(path)
 	if err != nil {
 		return nil, fmt.Errorf("read fixture: %w", err)
 	}
-	phpParser := parser.New(lexer.NewFileBytes(content), false)
-	nodes := phpParser.Parse()
-	if parseErrors := phpParser.Errors(); len(parseErrors) > 0 {
+	nodes, diags := syntax.ParseAST(content)
+	if parseErrors := diagStrings(content, diags); len(parseErrors) > 0 {
 		return nil, fmt.Errorf("parse fixture: %s", strings.Join(parseErrors, "; "))
 	}
 	snapshot, err := analyse.NewSemanticSnapshot(map[string][]ast.Node{path: nodes}, nil)

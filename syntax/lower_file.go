@@ -81,7 +81,9 @@ func lowerTopLevel(n *RedNode, file *File) (nodes []ast.Node, ok bool) {
 			return []ast.Node{stmt}, true
 		}
 		return nil, true
-	case KindToken, KindTokenList, KindError, KindMissing, KindAttributeList:
+	case KindAttributeList:
+		return lowerAttributeList(n, file), true
+	case KindToken, KindTokenList, KindError, KindMissing:
 		return nil, false
 	default:
 		// File-scope statements / expressions (ExpressionStmt, Throw, Echo, …).
@@ -99,5 +101,53 @@ func lowerTopLevel(n *RedNode, file *File) (nodes []ast.Node, ok bool) {
 			return nil, true
 		}
 		return nil, false
+	}
+}
+
+func lowerAttributeList(n *RedNode, file *File) []ast.Node {
+	if n == nil {
+		return nil
+	}
+	var out []ast.Node
+	for _, group := range n.Children() {
+		if group.Kind() != KindAttributeGroup {
+			continue
+		}
+		for _, attr := range group.Children() {
+			if attr.Kind() != KindAttribute {
+				continue
+			}
+			if node := lowerAttribute(attr, file); node != nil {
+				out = append(out, node)
+			}
+		}
+	}
+	return out
+}
+
+func lowerAttribute(n *RedNode, file *File) ast.Node {
+	if n == nil {
+		return nil
+	}
+	pos, end := nodePos(file, n)
+	var name string
+	var args *RedNode
+	for _, c := range n.Children() {
+		if c.Kind() == KindArgList {
+			args = c
+			continue
+		}
+		if isNameKind(c.Kind()) && name == "" {
+			name = NameText(c)
+		}
+	}
+	if name == "" {
+		return nil
+	}
+	return &ast.AttributeNode{
+		Name:      name,
+		Arguments: lowerArgList(args, file),
+		Pos:       pos,
+		EndPos:    end,
 	}
 }

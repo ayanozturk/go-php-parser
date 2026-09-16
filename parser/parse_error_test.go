@@ -3,61 +3,54 @@ package parser
 import (
 	"strings"
 	"testing"
-
-	"github.com/ayanozturk/go-php-parser/lexer"
 )
 
-func TestStructuredErrorsMissingOpenTag(t *testing.T) {
-	p := New(lexer.New("not php"), false)
-	_ = p.Parse()
-	errs := p.StructuredErrors()
-	if len(errs) == 0 {
-		t.Fatal("expected structured parse error")
+func TestParseErrorError(t *testing.T) {
+	e := ParseError{Line: 2, Column: 5, Message: "expected ';'"}
+	if e.Error() != "line 2:5: expected ';'" {
+		t.Fatalf("Error()=%q", e.Error())
 	}
-	e := errs[0]
-	if e.Code != "Parser.MissingOpenTag" {
-		t.Fatalf("Code=%q want Parser.MissingOpenTag", e.Code)
-	}
-	if e.Line < 1 || e.Column < 1 {
-		t.Fatalf("expected located span, got line=%d col=%d", e.Line, e.Column)
-	}
-	if strings.HasPrefix(e.Message, "line ") {
-		t.Fatalf("Message must not include line prefix: %q", e.Message)
-	}
-	legacy := p.Errors()
-	if len(legacy) != 1 || !strings.HasPrefix(legacy[0], "line ") {
-		t.Fatalf("Errors() must keep legacy line prefix form, got %v", legacy)
-	}
-	if legacy[0] != e.Error() {
-		t.Fatalf("Errors()[0]=%q Error()=%q", legacy[0], e.Error())
+	e = ParseError{Message: "bare"}
+	if e.Error() != "bare" {
+		t.Fatalf("Error()=%q want bare", e.Error())
 	}
 }
 
-func TestStructuredErrorsExpectedTokenSpan(t *testing.T) {
-	// Malformed: missing closing paren on function call.
-	src := "<?php\nfoo(1;\n"
-	p := New(lexer.NewFile(src), false)
-	_ = p.Parse()
-	errs := p.StructuredErrors()
-	if len(errs) == 0 {
-		t.Fatal("expected at least one structured error")
+func TestClassifyParseError(t *testing.T) {
+	cases := []struct {
+		msg  string
+		code string
+	}{
+		{"expected <?php", "Parser.MissingOpenTag"},
+		{"Parser panic: boom", "Parser.Internal"},
+		{"context cancelled", "Parser.Internal"},
+		{"expected ';', got '}'", "Parser.ExpectedToken"},
+		{"invalid syntax", "Parser.Syntax"},
 	}
-	found := false
-	for _, e := range errs {
-		if e.Code != "Parser.ExpectedToken" && e.Code != "Parser.Syntax" {
-			continue
+	for _, c := range cases {
+		if got := ClassifyParseError(c.msg); got != c.code {
+			t.Fatalf("ClassifyParseError(%q)=%q want %q", c.msg, got, c.code)
 		}
-		if e.Line < 1 {
-			t.Fatalf("unlocated error: %+v", e)
-		}
-		if e.Message == "" || strings.HasPrefix(e.Message, "line ") {
-			t.Fatalf("bad Message: %+v", e)
-		}
-		found = true
-		break
 	}
-	if !found {
-		t.Fatalf("expected ExpectedToken/Syntax diagnostic, got %+v", errs)
+}
+
+func TestParseErrorFromOffsets(t *testing.T) {
+	src := []byte("<?php\nfoo();\n")
+	e := ParseErrorFromOffsets(src, 7, 10, "expected ';'")
+	if e.Line != 2 || e.Column != 2 {
+		t.Fatalf("start location: line=%d col=%d", e.Line, e.Column)
+	}
+	if e.EndLine != 2 || e.EndColumn != 5 {
+		t.Fatalf("end location: line=%d col=%d", e.EndLine, e.EndColumn)
+	}
+	if e.Offset != 7 || e.EndOffset != 10 {
+		t.Fatalf("offsets: start=%d end=%d", e.Offset, e.EndOffset)
+	}
+	if e.Code != "Parser.ExpectedToken" {
+		t.Fatalf("Code=%q", e.Code)
+	}
+	if e.Message != "expected ';'" || strings.HasPrefix(e.Message, "line ") {
+		t.Fatalf("Message=%q", e.Message)
 	}
 }
 

@@ -4,8 +4,8 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
-	"github.com/ayanozturk/go-php-parser/lexer"
 	"github.com/ayanozturk/go-php-parser/parser"
+	"github.com/ayanozturk/go-php-parser/syntax"
 	"io"
 	"io/fs"
 	"os"
@@ -169,20 +169,30 @@ func parseFile(path, root string) fileResult {
 		}
 	}
 
-	l := lexer.NewFileBytes(content)
-	p := parser.New(l, false)
-	_ = p.Parse()
-	errs := p.Errors()
+	parseResult := syntax.Parse(content)
+	diags := parseResult.Diagnostics
 
 	result := fileResult{
 		path:    path,
 		project: projectName(root, path),
 	}
-	if len(errs) > 0 {
+	if len(diags) > 0 {
+		errs := diagStrings(content, diags)
 		result.errorCount = len(errs)
 		result.firstError = errs[0]
 	}
 	return result
+}
+
+func diagStrings(src []byte, diags []syntax.Diagnostic) []string {
+	if len(diags) == 0 {
+		return nil
+	}
+	out := make([]string, len(diags))
+	for i, d := range diags {
+		out[i] = parser.ParseErrorFromOffsets(src, d.Span.Start, d.Span.End, d.Message).Error()
+	}
+	return out
 }
 
 func projectName(root, path string) string {

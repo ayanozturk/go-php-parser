@@ -4,14 +4,13 @@ import (
 	"testing"
 
 	"github.com/ayanozturk/go-php-parser/ast"
-	"github.com/ayanozturk/go-php-parser/lexer"
-	"github.com/ayanozturk/go-php-parser/parser"
+	"github.com/ayanozturk/go-php-parser/syntax"
 )
 
 var semanticSnapshotAllocationSink *SemanticSnapshot
 
 func BenchmarkSemanticSnapshotConstructionAllocation(b *testing.B) {
-	p := parser.New(lexer.New(`<?php
+	nodes, diags := syntax.ParseAST([]byte(`<?php
 function AllocationProbeFunction(string $input): string {
     $one = trim($input);
     $two = trim($one);
@@ -23,10 +22,9 @@ function AllocationProbeFunction(string $input): string {
     $eight = trim($seven);
     return trim($eight);
 }
-`), false)
-	nodes := p.Parse()
-	if len(p.Errors()) > 0 {
-		b.Fatalf("parse errors: %v", p.Errors())
+`))
+	if len(diags) > 0 {
+		b.Fatalf("parse errors: %v", diags)
 	}
 	parsed := map[string][]ast.Node{"src/AllocationProbe.php": nodes}
 	index := BuildProjectIndex(parsed)
