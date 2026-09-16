@@ -121,6 +121,26 @@ func TestMatchExprRecoveryProgress(t *testing.T) {
 	_ = res
 }
 
+func TestInterfaceNamespaceSegmentRoundTrip(t *testing.T) {
+	cases := []string{
+		"<?php\nuse App\\Module\\Interface\\Foo;\n",
+		"<?php\nnamespace App\\Module\\Interface;\n",
+		"<?php\nnew \\Vendor\\Pkg\\Class\\Trait\\Interface\\Service();\n",
+	}
+	for _, src := range cases {
+		res := Parse([]byte(src))
+		got := Print(res.File.Root)
+		if got != src {
+			t.Fatalf("identity for %q\nwant %q\ngot  %q", src, src, got)
+		}
+		for _, d := range res.Diagnostics {
+			if strings.Contains(d.Message, "expected name part after") || strings.Contains(d.Message, "Parser.ExpectedToken") {
+				t.Fatalf("unexpected diagnostic for %q: %s", src, d.Message)
+			}
+		}
+	}
+}
+
 func TestIsContextualIdent(t *testing.T) {
 	cases := []struct {
 		tt   token.TokenType
@@ -134,6 +154,7 @@ func TestIsContextualIdent(t *testing.T) {
 		{token.T_INSTEADOF, "insteadof", true},
 		{token.T_MATCH, "match", true},
 		{token.T_CLASS, "class", true},
+		{token.T_INTERFACE, "Interface", true},
 		{token.T_LPAREN, "(", false},
 		{token.T_COLON, ":", false},
 		{token.T_VARIABLE, "$x", false},

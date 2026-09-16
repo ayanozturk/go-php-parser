@@ -102,6 +102,51 @@ func (ctx FileTypeContext) resolveClassLike(name string) string {
 	return resolveClassLikeInContext(ctx.Namespace, ctx.Aliases, name)
 }
 
+func (ctx FileTypeContext) resolveFunctionName(name string) string {
+	return resolveFunctionNameInContext(ctx.Namespace, ctx.FunctionAliases, name)
+}
+
+func resolveFunctionNameInContext(namespace string, aliases map[string]string, name string) string {
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return ""
+	}
+	if strings.HasPrefix(name, `\`) {
+		return strings.TrimPrefix(name, `\`)
+	}
+	if rest, ok := namespaceRelativeRemainder(name); ok {
+		if namespace == "" {
+			return rest
+		}
+		if rest == "" {
+			return namespace
+		}
+		return namespace + `\` + rest
+	}
+	firstSegment := name
+	remainder := ""
+	if idx := strings.Index(name, `\`); idx >= 0 {
+		firstSegment = name[:idx]
+		remainder = name[idx+1:]
+	}
+	if target, ok := aliases[asciiLowerIdent(firstSegment)]; ok {
+		if remainder != "" {
+			return target + `\` + remainder
+		}
+		return target
+	}
+	if strings.Contains(name, `\`) {
+		if namespace != "" {
+			return namespace + `\` + name
+		}
+		return name
+	}
+	if namespace != "" {
+		return namespace + `\` + name
+	}
+	return name
+}
+
 func resolveClassLikeInContext(namespace string, aliases map[string]string, name string) string {
 	name = strings.TrimSpace(name)
 	if name == "" {

@@ -59,7 +59,7 @@ func (idx *ProjectIndex) indexNodes(filename string, nodes []ast.Node, ft FileTy
 				idx.addMethod(currentClass, methodFromFunction(filename, currentClass, n, ft, nil, nil))
 				continue
 			}
-			name := ft.resolveClassLike(n.Name)
+			name := ft.resolveFunctionName(n.Name)
 			nativeReturn := nativeTypeDNF(n.ReturnType, ft)
 			returnType := nativeReturn
 			if n.PHPDoc != nil && n.PHPDoc.ReturnType != "" {
@@ -235,11 +235,26 @@ func (idx *ProjectIndex) addClass(filename string, class ResolvedClass, node ast
 func (idx *ProjectIndex) addFunction(fn ResolvedFunction) {
 	fn.ID = stableSymbolID("function", "", fn.Name)
 	key := indexKey(fn.Name)
-	_, exists := idx.Functions[key]
+	existing, exists := idx.Functions[key]
 	if exists {
 		idx.collidingDefinitions[functionDefinitionKey(fn.Name)] = struct{}{}
+		if isSeededBuiltinFunction(existing) && fn.Declaration.File != "" {
+			if len(fn.Params) == 0 && len(existing.Params) > 0 {
+				fn.Params = existing.Params
+			}
+			if fn.ReturnType == "" && existing.ReturnType != "" {
+				fn.ReturnType = existing.ReturnType
+			}
+			if fn.CallableReturnType == "" && existing.CallableReturnType != "" {
+				fn.CallableReturnType = existing.CallableReturnType
+			}
+		}
 	}
 	idx.Functions[key] = fn
+}
+
+func isSeededBuiltinFunction(fn ResolvedFunction) bool {
+	return fn.Declaration == (SourceLocation{})
 }
 
 func (idx *ProjectIndex) addMethod(className string, method ResolvedMethod) {

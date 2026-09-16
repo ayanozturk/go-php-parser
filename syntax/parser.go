@@ -303,7 +303,7 @@ func (p *Parser) parseName() *GreenNode {
 		kind = KindFullyQualifiedName
 	}
 
-	if !(p.at(token.T_STRING) || p.at(token.T_SELF) || p.at(token.T_PARENT) || p.at(token.T_STATIC)) {
+	if !p.atIdentName() {
 		p.errorf("expected name")
 		return p.intern.Node(kind, parts...)
 	}
@@ -311,7 +311,7 @@ func (p *Parser) parseName() *GreenNode {
 
 	for p.at(token.T_NS_SEPARATOR) {
 		parts = append(parts, p.bump())
-		if !(p.at(token.T_STRING) || p.at(token.T_SELF) || p.at(token.T_PARENT) || p.at(token.T_STATIC)) {
+		if !p.atIdentName() {
 			p.errorf("expected name part after \\")
 			break
 		}

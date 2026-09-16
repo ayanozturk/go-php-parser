@@ -232,7 +232,11 @@ func (b *Binder) BindName(n *syntax.RedNode, kind string) string {
 		return ""
 	}
 	written := syntax.NameText(n)
-	return b.recordNameUse(n, nameLeafSpan(n), written, b.resolve(written), kind)
+	resolved := b.resolve(written)
+	if kind == "function" {
+		resolved = b.resolveFunction(written)
+	}
+	return b.recordNameUse(n, nameLeafSpan(n), written, resolved, kind)
 }
 
 // BindPropertyDecl records a property declaration from a T_VARIABLE token node
@@ -872,6 +876,11 @@ func nameKind(n *syntax.RedNode) string {
 	}
 	if p := n.Parent; p != nil {
 		switch p.Kind() {
+		case syntax.KindCallExpr:
+			kids := p.Children()
+			if len(kids) > 0 && sameRed(kids[0], n) {
+				return "function"
+			}
 		case syntax.KindNamedType:
 			return "type"
 		case syntax.KindAttribute:
@@ -982,6 +991,10 @@ func (b *Binder) bindCallableTypeNames(n *syntax.RedNode) {
 			b.bindCallableTypeNames(c)
 		}
 	}
+}
+
+func (b *Binder) resolveFunction(name string) string {
+	return resolveFunctionNameInContext(b.Namespace, nil, name)
 }
 
 func (b *Binder) resolve(name string) string {
