@@ -271,9 +271,27 @@ func lowerCallExpr(n *RedNode, file *File) ast.Node {
 			Nullsafe: callee.Kind() == KindNullsafeMemberAccessExpr,
 		}
 	case KindStaticMemberAccessExpr:
-		// Classic emits FunctionCallNode{Name: IdentifierNode{"Class::method"}}.
-		class, member := splitStaticMemberAccess(callee, file)
-		if class == "" || member == "" {
+		// Classic: Foo::bar() → FunctionCall Name=Identifier{"Foo::bar"};
+		// Foo::{$m}() → FunctionCall Name=ClassConstFetch{ConstExpr}.
+		class, member, constExpr := splitStaticMemberAccessParts(callee, file)
+		if class == "" {
+			return nil
+		}
+		if constExpr != nil {
+			return &ast.FunctionCallNode{
+				Name: &ast.ClassConstFetchNode{
+					Class:     class,
+					Const:     "$",
+					ConstExpr: constExpr,
+					Pos:       pos,
+					EndPos:    end,
+				},
+				Args:   argNodes,
+				Pos:    pos,
+				EndPos: end,
+			}
+		}
+		if member == "" {
 			return nil
 		}
 		return &ast.FunctionCallNode{

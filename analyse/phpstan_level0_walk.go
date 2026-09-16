@@ -240,6 +240,8 @@ func walkAllConfigured(nodes []ast.Node, fn func(ast.Node, *ast.ClassNode, *ast.
 			walk(n.Index, class, currentFn, ft)
 		case *ast.PropertyFetchNode:
 			walk(n.Object, class, currentFn, ft)
+		case *ast.ClassConstFetchNode:
+			walk(n.ConstExpr, class, currentFn, ft)
 		case *ast.ConcatNode:
 			for _, child := range n.Parts {
 				walk(child, class, currentFn, ft)

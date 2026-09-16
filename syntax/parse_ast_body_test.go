@@ -771,6 +771,73 @@ $y = Foo::{$m->n};
 	t.Fatalf("expected undefined $m from ConstExpr; issues=%v", issues)
 }
 
+func TestParseASTDynamicStaticCall(t *testing.T) {
+	src := `<?php
+Foo::{$m}($arg);
+Bar::{$m->n}();
+`
+	nodes, diags := syntax.ParseAST([]byte(src))
+	if len(diags) != 0 {
+		t.Fatalf("unexpected diags: %v", diags)
+	}
+	if len(nodes) != 2 {
+		t.Fatalf("nodes=%d want 2: %v", len(nodes), nodeTypes(nodes))
+	}
+
+	call0, ok := nodes[0].(*ast.ExpressionStmt).Expr.(*ast.FunctionCallNode)
+	if !ok {
+		t.Fatalf("call0=%T want FunctionCallNode", nodes[0].(*ast.ExpressionStmt).Expr)
+	}
+	name0, ok := call0.Name.(*ast.ClassConstFetchNode)
+	if !ok || name0.Class != "Foo" || name0.ConstExpr == nil {
+		t.Fatalf("call0.Name=%#v want ClassConstFetch Foo+ConstExpr", call0.Name)
+	}
+	if _, ok := name0.ConstExpr.(*ast.VariableNode); !ok {
+		t.Fatalf("ConstExpr0=%T want VariableNode", name0.ConstExpr)
+	}
+	if len(call0.Args) != 1 {
+		t.Fatalf("call0 args=%d want 1", len(call0.Args))
+	}
+
+	call1 := nodes[1].(*ast.ExpressionStmt).Expr.(*ast.FunctionCallNode)
+	name1, ok := call1.Name.(*ast.ClassConstFetchNode)
+	if !ok || name1.Class != "Bar" {
+		t.Fatalf("call1.Name=%#v", call1.Name)
+	}
+	if _, ok := name1.ConstExpr.(*ast.PropertyFetchNode); !ok {
+		t.Fatalf("ConstExpr1=%T want PropertyFetchNode", name1.ConstExpr)
+	}
+
+	// Dynamic name must not resolve as static method "$".
+	level := 0
+	idx := analyse.BuildProjectIndex(map[string][]ast.Node{"call.php": nodes})
+	ctx0 := &analyse.AnalysisContext{Resolver: idx, AnalysisLevel: &level}
+	for _, iss := range analyse.RunAnalysisRulesWithContext("call.php", nodes, ctx0) {
+		if strings.Contains(iss.Message, "static method $") {
+			t.Fatalf("spurious dynamic-call symbol issue: %#v", iss)
+		}
+	}
+
+	level1 := 1
+	ctx1 := &analyse.AnalysisContext{AnalysisLevel: &level1}
+	issues := analyse.RunAnalysisRulesWithContext("call.php", nodes, ctx1)
+	foundM, foundArg := false, false
+	for _, iss := range issues {
+		if iss.Code != "Level1.Variables" {
+			continue
+		}
+		if strings.Contains(iss.Message, "$m") {
+			foundM = true
+		}
+		if strings.Contains(iss.Message, "$arg") {
+			foundArg = true
+		}
+	}
+	if !foundM || !foundArg {
+		t.Fatalf("expected undefined $m and $arg from dynamic static call; issues=%v", issues)
+	}
+}
+
 func TestParseASTBracedStringInterpolation(t *testing.T) {
 	src := `<?php
 $s = "hi {$missing}";
