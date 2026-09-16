@@ -5,12 +5,11 @@ import (
 	"fmt"
 	"github.com/ayanozturk/go-php-parser/ast"
 	"github.com/ayanozturk/go-php-parser/config"
-	"github.com/ayanozturk/go-php-parser/lexer"
 	"github.com/ayanozturk/go-php-parser/overrides"
-	"github.com/ayanozturk/go-php-parser/parser"
 	"github.com/ayanozturk/go-php-parser/printer"
 	"github.com/ayanozturk/go-php-parser/sharedcache"
 	"github.com/ayanozturk/go-php-parser/style"
+	"github.com/ayanozturk/go-php-parser/syntax"
 	"io"
 	"os"
 	"sort"
@@ -164,9 +163,7 @@ func ProcessSingleFileWithWriter(filePath, commandName string, debug bool, rules
 		fmt.Fprintf(w, "Could not read file %s: %v\n", filePath, err)
 		return 1, 0
 	}
-	lex := lexer.NewFileBytes(input)
-	p := parser.New(lex, false)
-	nodes := p.Parse()
+	nodes, _ := syntax.ParseAST(input)
 	if commandName == "style" {
 		Commands["style"].ExecuteWithRules(nodes, filePath, w, rules, matcher)
 	} else {

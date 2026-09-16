@@ -5,9 +5,8 @@ import (
 	"sync"
 
 	"github.com/ayanozturk/go-php-parser/ast"
-	"github.com/ayanozturk/go-php-parser/lexer"
-	"github.com/ayanozturk/go-php-parser/parser"
 	"github.com/ayanozturk/go-php-parser/phpstubs"
+	"github.com/ayanozturk/go-php-parser/syntax"
 )
 
 var parsedPHPStubs sync.Map // version -> map[string][]ast.Node
@@ -23,8 +22,7 @@ func parsedStubsForVersion(version string) map[string][]ast.Node {
 		if err != nil {
 			continue
 		}
-		p := parser.New(lexer.New(string(src)), false)
-		nodes := p.Parse()
+		nodes, _ := syntax.ParseASTForIndex(src)
 		parsed[phpstubs.FileName(version, name)] = nodes
 	}
 	for _, name := range phpstubs.SharedNames() {
@@ -32,8 +30,7 @@ func parsedStubsForVersion(version string) map[string][]ast.Node {
 		if err != nil {
 			continue
 		}
-		p := parser.New(lexer.New(string(src)), false)
-		nodes := p.Parse()
+		nodes, _ := syntax.ParseASTForIndex(src)
 		parsed[phpstubs.SharedFileName(name)] = nodes
 	}
 	actual, _ := parsedPHPStubs.LoadOrStore(version, parsed)

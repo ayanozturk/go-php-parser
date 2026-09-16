@@ -676,6 +676,8 @@ Note: implemented PHP's alternative/colon control-structure syntax and several o
 
 99. **Done — closures/anon/match/encapsed body lower + analyse cutover.** File-scope stmts; closures/arrows/uses; anonymous `new class`; match/clone/list; interpolated/heredoc strings; include/print; `(unset)` cast parse; const/enum/param default values; trivia-aware Pos; incomplete `$obj->` PropertyFetch. Strom IndexDocument merges LowerAST symbols (promoted props, backed enum `$value`). `command.parseAnalysisFile` and Strom `parseSemanticSnapshot` switch to `syntax.ParseAST`. Remaining explicit gaps: yield, first-class callable, variable-variables.
 
+100. **Done — drop classic production parse call sites.** CLI style/file pipelines (`command/file_processor.go`, `command/command.go`), stub ingestion (`analyse/php_stubs.go`), empty-statement fallback, Strom `parseDocumentTypeContext`, and `parseSource`/`ParseSource*` wrappers all use `syntax.ParseAST` / `ParseASTForIndex`. Top-level `KindEmptyStmt` lowers for empty-statement rules. Classic `parser` package **kept** for parity tests/benchmarks/`cmd/*` tools and shared `ParseError` helpers. Shared `lexer`/`token` kept (syntax + tokens subcommand).
+
 
 ## Decision log
 

@@ -2,8 +2,7 @@ package analyse
 
 import (
 	"github.com/ayanozturk/go-php-parser/ast"
-	"github.com/ayanozturk/go-php-parser/lexer"
-	"github.com/ayanozturk/go-php-parser/parser"
+	"github.com/ayanozturk/go-php-parser/syntax"
 )
 
 const emptyStatementCode = "Generic.CodeAnalysis.EmptyStatement"
@@ -20,7 +19,7 @@ func appendEmptyStatementIssue(filename string, node ast.Node, issues *[]Analysi
 
 func (r *EmptyStatementRule) CheckIssuesWithSource(filename string, content []byte, nodes []ast.Node) []AnalysisIssue {
 	if len(nodes) == 0 && len(content) > 0 {
-		nodes = parser.New(lexer.New(bytesAsString(content)), false).Parse()
+		nodes, _ = syntax.ParseAST(content)
 	}
 	var issues []AnalysisIssue
 	walkAllWithoutTypeContext(nodes, func(node ast.Node) {

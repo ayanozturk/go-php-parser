@@ -6,9 +6,9 @@ import (
 	"github.com/ayanozturk/go-php-parser/ast"
 	"github.com/ayanozturk/go-php-parser/lexer"
 	"github.com/ayanozturk/go-php-parser/overrides"
-	"github.com/ayanozturk/go-php-parser/parser"
 	"github.com/ayanozturk/go-php-parser/sharedcache"
 	"github.com/ayanozturk/go-php-parser/style"
+	"github.com/ayanozturk/go-php-parser/syntax"
 	"github.com/ayanozturk/go-php-parser/token"
 	"io"
 	"os"
@@ -47,10 +47,9 @@ func ConfigureAnalysis(level *int) {
 	configuredAnalysisLevel = level
 }
 
-func handleParsingErrors(p *parser.Parser, filePath string, w io.Writer, lineCount int) int {
-	errCount := len(p.Errors())
-	fmt.Fprintf(w, "Parsing errors in %s (%d error(s)):\n", filePath, errCount)
-	for _, err := range p.Errors() {
+func handleParsingErrors(parseErrors []string, filePath string, w io.Writer, lineCount int) int {
+	fmt.Fprintf(w, "Parsing errors in %s (%d error(s)):\n", filePath, len(parseErrors))
+	for _, err := range parseErrors {
 		fmt.Fprintf(w, ErrorLineFormat, err)
 	}
 	return lineCount
@@ -74,11 +73,10 @@ func ProcessFile(filePath, commandName string, debug bool, w io.Writer) int {
 		return 0
 	}
 	lineCount := CountLines(input)
-	l := lexer.NewFileBytes(input)
-	p := parser.New(l, debug)
-	nodes := p.Parse()
-	if len(p.Errors()) > 0 {
-		return handleParsingErrors(p, filePath, w, lineCount)
+	nodes, diags := syntax.ParseAST(input)
+	parseErrors := syntaxDiagnosticStrings(input, diags)
+	if len(parseErrors) > 0 {
+		return handleParsingErrors(parseErrors, filePath, w, lineCount)
 	}
 	if cmd, exists := Commands[commandName]; exists {
 		if commandName == "tokens" {
@@ -100,10 +98,8 @@ func ProcessFileWithErrors(filePath, commandName string, debug bool, rules []str
 		return nil, 0
 	}
 	lineCount := CountLines(input)
-	l := lexer.NewFileBytes(input)
-	p := parser.New(l, debug)
-	nodes := p.Parse()
-	errList := p.Errors()
+	nodes, diags := syntax.ParseAST(input)
+	errList := syntaxDiagnosticStrings(input, diags)
 	if len(errList) > 0 {
 		return errList, lineCount
 	}
@@ -195,11 +191,10 @@ func processFileForStyle(file string, rules []string, matcher *overrides.Compile
 		return
 	}
 	lines := CountLines(input)
-	lex := lexer.NewFileBytes(input)
-	p := parser.New(lex, false)
-	nodes := p.Parse()
-	if len(p.Errors()) > 0 {
-		resultCh <- fileResult{lines: lines, errors: len(p.Errors())}
+	nodes, diags := syntax.ParseAST(input)
+	parseErrors := syntaxDiagnosticStrings(input, diags)
+	if len(parseErrors) > 0 {
+		resultCh <- fileResult{lines: lines, errors: len(parseErrors)}
 		if callback != nil {
 			callback()
 		}
@@ -229,11 +224,10 @@ func processFileForStyle(file string, rules []string, matcher *overrides.Compile
 }
 
 func parseAndAnalyzeStyleFile(path string, content []byte, rules []string, matcher *overrides.Compiled, project *analyse.ProjectIndex) parseAnalysisResult {
-	lex := lexer.NewFileBytes(content)
-	p := parser.New(lex, false)
-	nodes := p.Parse()
-	if len(p.Errors()) > 0 {
-		return parseAnalysisResult{errors: len(p.Errors())}
+	nodes, diags := syntax.ParseAST(content)
+	parseErrors := syntaxDiagnosticStrings(content, diags)
+	if len(parseErrors) > 0 {
+		return parseAnalysisResult{errors: len(parseErrors)}
 	}
 
 	analysisIssues := analyse.FilterIssues(runAnalysis(path, nodes, project), matcher)
@@ -435,10 +429,8 @@ func buildProjectIndexForFiles(files []string) *analyse.ProjectIndex {
 			continue
 		}
 		sharedcache.StoreCachedFileContent(file, content)
-		lex := lexer.NewFileBytes(content)
-		p := parser.New(lex, false)
-		nodes := p.Parse()
-		if len(p.Errors()) > 0 {
+		nodes, diags := syntax.ParseASTForIndex(content)
+		if len(diags) > 0 {
 			continue
 		}
 		parsed[file] = nodes

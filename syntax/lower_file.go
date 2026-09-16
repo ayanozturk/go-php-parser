@@ -76,8 +76,12 @@ func lowerTopLevel(n *RedNode, file *File) (nodes []ast.Node, ok bool) {
 	case KindAnonymousClass:
 		// Standalone anonymous class is unexpected at top level; skip.
 		return nil, true
-	case KindToken, KindTokenList, KindError, KindMissing,
-		KindEmptyStmt, KindAttributeList:
+	case KindEmptyStmt:
+		if stmt := lowerStmt(n, file); stmt != nil {
+			return []ast.Node{stmt}, true
+		}
+		return nil, true
+	case KindToken, KindTokenList, KindError, KindMissing, KindAttributeList:
 		return nil, false
 	default:
 		// File-scope statements / expressions (ExpressionStmt, Throw, Echo, …).
