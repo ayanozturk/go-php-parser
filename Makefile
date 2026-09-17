@@ -26,6 +26,17 @@ coverage-html:
 	go test -coverprofile=coverage.out ./...
 	go tool cover -html=coverage.out -o coverage.html
 
+# Fast, directional syntax optimization loop. This preloads a deterministic
+# corpus sample and measures CST parsing, AST lowering, and the combined path
+# separately. Override SYNTAX_BENCH_ROOT, SYNTAX_BENCH_FILES, or
+# SYNTAX_BENCH_COUNT as needed. Full-corpus CV/accounting remains the release gate.
+SYNTAX_BENCH_ROOT ?= $(CURDIR)/test_projects/wordpress-develop
+SYNTAX_BENCH_FILES ?= 128
+SYNTAX_BENCH_COUNT ?= 5
+syntax-bench-quick:
+	GOWORK=off GOMAXPROCS=1 SYNTAX_BENCH_DIR="$(SYNTAX_BENCH_ROOT)" SYNTAX_BENCH_FILES="$(SYNTAX_BENCH_FILES)" \
+		go test ./syntax -run '^$$' -bench '^BenchmarkSyntaxCorpus' -benchtime=1x -count=$(SYNTAX_BENCH_COUNT) -benchmem -cpu=1
+
 style:
 	go run main.go style
 

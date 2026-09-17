@@ -367,6 +367,15 @@ Useful flags:
 - `--skip-cold` skip the process-cold subprocess runs for a quick check
 - `--cpuprofile`/`--memprofile` write a `go tool pprof`-compatible CPU or heap profile from a single in-process full-analysis run (bypasses the cold/warm harness so the profiler attaches directly to the profiled work); pair with `--profile-iterations` to profile several in-process passes at once
 
+For a faster syntax-optimization feedback loop, run `make syntax-bench-quick`.
+It preloads a deterministic 128-file WordPress sample, includes the largest-file
+tail, verifies lossless identity before timing, and reports CST parsing, AST
+lowering, and combined allocations separately. Override the sample with
+`SYNTAX_BENCH_ROOT=/path`, `SYNTAX_BENCH_FILES=256`, or
+`SYNTAX_BENCH_COUNT=10`. Use this directional benchmark to reject weak ideas;
+the full corpus identity, accounting, and cold-CV protocol remains the gate for
+accepted performance claims.
+
 
 
 After scanning, the tool will print performance statistics:
