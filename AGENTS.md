@@ -133,6 +133,39 @@ params, and the ast-side walk visits those. Corpus-validated with zero
 mismatches on the first run (composer-src + symfony). See
 `/memories/repo/cst-direct-migration.md` for the full writeup.
 
+Third Phase 3 port: `analyse/syntax_type_refs_rule.go`'s
+`CheckTypeReferenceIssuesFromCST` is the CST-direct analogue of
+`checkTypeReferenceOnNode` (unresolved use-function/const imports, param/
+return/property/constant type references, caught-class/non-throwable
+checks, unresolved attribute classes). First port needing real
+`FileTypeContext`/`ctx.Resolver`, so first to drive traversal via
+`walkSyntaxConfigured` + `CollectFileTypeContextFromSyntax` together. This
+port's corpus validation (composer-src + symfony, run repeatedly across two
+sessions) surfaced by far the most gaps so far, ALL now centralized in
+`walkSyntaxConfigured` itself (not per-rule) since every one is either a
+genuine `walkAllConfigured`/lowering-pipeline blindness or a reusable
+signal: (1) `lowerStmt` has no case for declaration kinds at all — a class/
+function/etc. declared inside ANY statement body is dropped from the
+`ast.Node` model entirely, not just unwalked (core lowering-pipeline gap,
+not a dispatcher gap); (2) anonymous-class member lists are exempt from (1)
+since they lower via `lowerClassMembers`; (3) `*ast.YieldNode` has no
+dispatcher case at all; (4) enum cases (and their own preceding attribute
+sibling) are invisible, same as (5) class-constant attributes (same
+structural shape as the pre-existing class-constants gap); (6)
+`*ast.FirstClassCallableNode` (`foo(...)` syntax) has no dispatcher case at
+all, hiding e.g. `(new class {...})->m(...)`; (7) a *new* `inStatementBody`
+signal was added to `walkSyntaxConfigured`'s public callback signature
+(gates attributes floating before statement-body expressions, e.g. `return
+#[Attr] function(){};`) — but had to be broadened (any `syntax.
+IsStatementKind` node, not just `KindStatementList` bodies) then narrowed
+again (reset to false inside `KindParam`, since param attributes are always
+visible ast-side regardless of nesting depth via `FunctionNode.Params`).
+Corpus-validated to **0 mismatches** on both composer-src (1006 files) and
+symfony (10478 files) after all fixes. See
+`/memories/repo/cst-direct-migration.md` for the full writeup, including
+the debugging techniques that found each gap (before porting the next
+callback: `checkSymbolOnNode`/`appendClassModelOnNode`/etc.).
+
 ### Perf (not coverage %)
 
 - Bench gates: allocs/op, tokens/KB on Symfony/WordPress-sized inputs — regressions fail CI even if coverage is high.
