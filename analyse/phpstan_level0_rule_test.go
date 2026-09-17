@@ -1013,7 +1013,7 @@ class Other {}
 
 func TestClassModelAncestorChecksUseResolverWithoutProjectMaps(t *testing.T) {
 	const filename = "model.php"
-	nodes := parsePHPForProjectIndex(t, `<?php
+	src := `<?php
 class BaseModel {
     final public const KIND = "base";
     final public function locked(): void {}
@@ -1023,13 +1023,14 @@ class ChildModel extends BaseModel {
     public const KIND = "child";
     public function locked(): void {}
 }
-`)
+`
+	nodes := parsePHPForProjectIndex(t, src)
 	snapshot, err := NewSemanticSnapshot(map[string][]ast.Node{filename: nodes}, nil)
 	if err != nil {
 		t.Fatalf("build snapshot: %v", err)
 	}
 	ctx := snapshot.NewAnalysisContext()
-	issues := (&Level0Rule{}).checkClassModel(filename, nodes, ctx, CollectFileTypeContext(nodes))
+	issues := CheckClassModelIssuesFromCST(filename, []byte(src), ctx)
 	if !hasIssueContaining(issues, level0ClassModelCode, "Cannot override final method BaseModel::locked") {
 		t.Fatalf("expected resolver-backed final method diagnostic, got %#v", issues)
 	}
@@ -1547,7 +1548,7 @@ echo Child::NAME;
 
 func TestSymbolAndInvocationChecksUseResolverWithoutProjectIndex(t *testing.T) {
 	const filename = "test.php"
-	nodes := parsePHPForProjectIndex(t, `<?php
+	src := `<?php
 trait Helpers {
     private function privateHelper(): void {}
 }
@@ -1569,14 +1570,16 @@ class Child extends Base {
     }
 }
 new Child();
-`)
+`
+	nodes := parsePHPForProjectIndex(t, src)
 	snapshot, err := NewSemanticSnapshot(map[string][]ast.Node{filename: nodes}, nil)
 	if err != nil {
 		t.Fatalf("build snapshot: %v", err)
 	}
 	ctx := snapshot.NewAnalysisContext()
 	fileCtx := analysisFileTypeContext(ctx, nodes)
-	issues := (&Level0Rule{}).checkSymbolsAndCalls(filename, nodes, ctx, fileCtx)
+	guards := collectReflectionGuards(nodes, ctx, fileCtx)
+	issues := CheckSymbolIssuesFromCST(filename, []byte(src), ctx, guards)
 
 	for _, expected := range []struct {
 		code    string
