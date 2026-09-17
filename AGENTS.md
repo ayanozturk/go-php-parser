@@ -35,6 +35,19 @@ the original CST-native template; `syntax.RedNode.Pos()`/`EndPos()` and
 incrementally behind the differential/gold suites — do not attempt a bulk
 rewrite of `analyse/phpstan_level0_walk.go`'s dispatcher in one pass.
 
+`syntax/conditions.go` provides reusable, unit-tested condition accessors
+(`IfCondition`, `WhileCondition`, `DoWhileCondition`, `ForConditions`,
+`MatchCondition`) so new rule migrations don't need to re-derive condition
+child-detection logic from `syntax/lower_stmt.go`. Note: a fully faithful
+CST port of a rule that recurses into *expressions* (not just statement
+bodies) is trickier than it looks — a flat `syntax.Walk` from the root
+doesn't preserve a statement-vs-expression traversal boundary the way
+hand-written `ast.Node` type switches do (e.g. it will also visit a
+`KindMatchExpr` nested inside another statement's condition, which the
+original rule wouldn't). See `/memories/repo/cst-direct-migration.md` for the
+full writeup (from investigating `assignment_in_condition_rule.go`) before
+attempting another rule with nested expression recursion.
+
 ### Perf (not coverage %)
 
 - Bench gates: allocs/op, tokens/KB on Symfony/WordPress-sized inputs — regressions fail CI even if coverage is high.
