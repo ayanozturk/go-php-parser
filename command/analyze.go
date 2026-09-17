@@ -177,6 +177,7 @@ func analyzeWithCachedIndex(files []string, targets []string, level *int, matche
 			for path := range analysisJobs {
 				ctx := snapshot.NewAnalysisContext()
 				ctx.AnalysisLevel = level
+				ctx.Content = contents[path]
 				issueResults <- analyse.FilterIssues(analyse.RunAnalysisRulesWithContext(path, parsed[path], ctx), matcher)
 			}
 		}()
@@ -310,6 +311,7 @@ func analyzeFilesWithCache(files []string, targets []string, level *int, matcher
 			for path := range analysisJobs {
 				ctx := snapshot.NewAnalysisContext()
 				ctx.AnalysisLevel = level
+				ctx.Content = contents[path]
 				issueResults <- analyse.FilterIssues(analyse.RunAnalysisRulesWithContext(path, parsed[path], ctx), matcher)
 			}
 		}()

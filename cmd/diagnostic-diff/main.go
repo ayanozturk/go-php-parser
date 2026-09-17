@@ -224,6 +224,7 @@ func runEngine(path string, level int) ([]string, error) {
 	}
 	ctx := snapshot.NewAnalysisContext()
 	ctx.AnalysisLevel = &level
+	ctx.Content = content
 	issues := analyse.RunAnalysisRulesWithContext(path, nodes, ctx)
 	codes := make([]string, 0, len(issues))
 	for _, issue := range issues {

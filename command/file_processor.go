@@ -104,7 +104,7 @@ func ProcessFileWithErrors(filePath, commandName string, debug bool, rules []str
 		return errList, lineCount
 	}
 	if commandName == "style" {
-		analysisIssues := analyse.FilterIssues(runAnalysis(filePath, nodes, nil), matcher)
+		analysisIssues := analyse.FilterIssues(runAnalysis(filePath, nodes, input, nil), matcher)
 		for _, iss := range analysisIssues {
 			style.PrintPHPCSStyleIssueToWriter(w, style.StyleIssue{
 				Filename: iss.Filename,
@@ -201,7 +201,7 @@ func processFileForStyle(file string, rules []string, matcher *overrides.Compile
 		return
 	}
 	// Run analysis rules on the parsed AST and collect issues
-	analysisIssues := analyse.FilterIssues(runAnalysis(file, nodes, nil), matcher)
+	analysisIssues := analyse.FilterIssues(runAnalysis(file, nodes, input, nil), matcher)
 	var fileIssues []style.StyleIssue
 	for _, iss := range analysisIssues {
 		// Convert AnalysisIssue to StyleIssue for unified reporting
@@ -230,7 +230,7 @@ func parseAndAnalyzeStyleFile(path string, content []byte, rules []string, match
 		return parseAnalysisResult{errors: len(parseErrors)}
 	}
 
-	analysisIssues := analyse.FilterIssues(runAnalysis(path, nodes, project), matcher)
+	analysisIssues := analyse.FilterIssues(runAnalysis(path, nodes, content, project), matcher)
 	fileIssues := make([]style.StyleIssue, 0, len(analysisIssues))
 	for _, iss := range analysisIssues {
 		fileIssues = append(fileIssues, style.StyleIssue{
@@ -407,14 +407,14 @@ func ProcessStyleFilesParallelWithCallback(files []string, rules []string, match
 	return allIssues, totalParseErrors, totalLines
 }
 
-func runAnalysis(path string, nodes []ast.Node, project *analyse.ProjectIndex) []analyse.AnalysisIssue {
+func runAnalysis(path string, nodes []ast.Node, content []byte, project *analyse.ProjectIndex) []analyse.AnalysisIssue {
 	if configuredAnalysisLevel == nil && project == nil {
 		return analyse.RunAnalysisRules(path, nodes)
 	}
 	if project == nil {
 		project = analyse.BuildProjectIndex(map[string][]ast.Node{path: nodes})
 	}
-	ctx := &analyse.AnalysisContext{Resolver: project, AnalysisLevel: configuredAnalysisLevel}
+	ctx := &analyse.AnalysisContext{Resolver: project, AnalysisLevel: configuredAnalysisLevel, Content: content}
 	return analyse.RunAnalysisRulesWithContext(path, nodes, ctx)
 }
 

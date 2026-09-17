@@ -1003,8 +1003,9 @@ func runAnalysis(parsed map[string][]ast.Node, project *analyse.ProjectIndex, le
 		os.Exit(1)
 	}
 	type job struct {
-		path  string
-		nodes []ast.Node
+		path    string
+		nodes   []ast.Node
+		content []byte
 	}
 	jobCh := make(chan job, workers*2)
 	var total atomic.Int64
@@ -1016,13 +1017,15 @@ func runAnalysis(parsed map[string][]ast.Node, project *analyse.ProjectIndex, le
 			for j := range jobCh {
 				ctx := snapshot.NewAnalysisContext()
 				ctx.AnalysisLevel = level
+				ctx.Content = j.content
 				issues := analyse.RunAnalysisRulesWithContext(j.path, j.nodes, ctx)
 				total.Add(int64(len(issues)))
 			}
 		}()
 	}
 	for _, path := range snapshot.Files() {
-		jobCh <- job{path: path, nodes: parsed[path]}
+		content, _ := sharedcache.GetCachedFileContent(path)
+		jobCh <- job{path: path, nodes: parsed[path], content: content}
 	}
 	close(jobCh)
 	wg.Wait()

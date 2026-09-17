@@ -134,6 +134,7 @@ func collectPHPFiles(root string) ([]string, error) {
 
 func buildSnapshot(root string, files []string, workers, level int) (*snapshot, error) {
 	parsed := make(map[string][]ast.Node, len(files))
+	contents := make(map[string][]byte, len(files))
 	var parseErrors []string
 	var mu sync.Mutex
 
@@ -157,6 +158,7 @@ func buildSnapshot(root string, files []string, workers, level int) (*snapshot, 
 					parseErrors = append(parseErrors, fmt.Sprintf("%s: %d parse diagnostic(s)", path, len(diags)))
 				} else {
 					parsed[path] = nodes
+					contents[path] = content
 				}
 				mu.Unlock()
 			}
@@ -189,6 +191,7 @@ func buildSnapshot(root string, files []string, workers, level int) (*snapshot, 
 					l := level
 					ctx.AnalysisLevel = &l
 				}
+				ctx.Content = contents[path]
 				issues := analyse.RunAnalysisRulesWithContext(path, parsed[path], ctx)
 				codes := make([]string, len(issues))
 				for i, issue := range issues {
