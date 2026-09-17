@@ -26,6 +26,9 @@ func ensureSharedFileDiagnostics(filename string, nodes []ast.Node, ctx *Analysi
 	if ctx.hasLevel0Issues {
 		return ctx
 	}
+	if len(ctx.Content) > 0 {
+		return ensureSharedFileDiagnosticsFromCST(filename, ctx.Content, nodes, ctx)
+	}
 	fileCtx := analysisFileTypeContext(ctx, nodes)
 	guards := collectReflectionGuards(nodes, ctx, fileCtx)
 

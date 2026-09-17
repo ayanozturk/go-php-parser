@@ -271,10 +271,77 @@ files) on the first run — no new `walkSyntaxConfigured` gaps found despite
 this being the largest/riskiest remaining candidate. **This completes
 Phase 3** — all 7 identified rule-port candidates are now ported,
 unit-tested, and corpus-clean. See `/memories/repo/cst-direct-migration.md`
-for the full writeup. Phase 4 (flip `RunAnalysisRulesWithContext`'s
-signature + the cross-repo call site in
-`vscode-php-strom/server/providers/diagnostics.go`) and Phase 5 (cleanup)
-remain unstarted and require explicit user confirmation before starting.
+for the full writeup.
+
+Phase 4 is done, but with a materially narrower/safer shape than the
+original plan's wording ("flip `RunAnalysisRulesWithContext`'s signature").
+Investigating the full registered-rule set before implementing revealed
+Phase 3 only ported the 10 checks inside `Level0Rule`'s fused ast.Node walk
+(`ensureSharedFileDiagnostics` in `phpstan_level0_rule.go`) plus 3 earlier
+pilots (EmptyStatementRule, AssignmentInConditionRule, SideEffectsRule) —
+about 13 of ~28 total registered rules. A hard signature flip (dropping
+`[]ast.Node` from `RunAnalysisRulesWithContext`) would have broken roughly
+15 other genuinely-separate, still-ast.Node-only registered rules (arg
+count/type, deprecated calls, level1 variables, level2 method existence/
+non-object, level6/7/8 method checks, property type, unreachable code,
+etc.), none of which were ever in scope for CST-direct porting.
+
+Instead, `RunAnalysisRulesWithContext`'s public signature is **unchanged**.
+`AnalysisContext` gained an optional `Content []byte` field (`context.go`);
+when a caller sets it, `ensureSharedFileDiagnostics`
+(`phpstan_level0_rule.go`) and `ensureStructuralIssues`
+(`phpstan_structural_walk.go`) — the two shared per-file cache-populating
+funnel functions that every one of the ~13 fused-walk rules is a thin
+wrapper around — branch to a new CST-direct fused path
+(`ensureSharedFileDiagnosticsFromCST`/`ensureStructuralIssuesFromCST` in
+new file `analyse/syntax_fused_rule.go`) instead of the `[]ast.Node`
+`walkAllWithFileContext` walk, calling the already-ported/validated 10
+`Check*IssuesFromCST` functions plus a new small
+`checkEmptyStatementIssuesFromCST` helper (mirroring
+`EmptyStatementRule.CheckIssuesWithSource`'s existing raw-content branch).
+Left unset (the default for every existing caller/test), behavior is
+byte-for-byte identical to before this field existed — this was an
+additive opt-in, not a breaking migration. `guards`
+(`collectReflectionGuards`) and `ctx.phpDocTypeAliases` are still derived
+from `nodes` (no CST-only equivalent exists for either), so `nodes` remains
+a required parameter on both funnel functions even on the CST-direct
+branch.
+
+Validation: a new `TestRunAnalysisRulesWithContextCSTMatchesASTPath`
+(`analyse/syntax_fused_rule_test.go`) drives the *whole* registered-rule
+pipeline via `RunAnalysisRulesWithContext` itself (not one rule in
+isolation) with `ctx.Content` unset vs. set, across 4 fixtures × 4
+analysis levels (nil/0/2/6) — proving the swap is invisible end-to-end,
+not just per-rule. A throwaway corpus-diff harness (deleted after use, per
+its own header comment) additionally corpus-validated the full pipeline to
+**0 mismatches** on composer-src (532 files) and symfony (10027 files, 177s
+runtime). The re-parse-cost question (each of the 10 `Check*IssuesFromCST`
+functions independently calls `syntax.Parse`/`syntax.ParseAST`, so the
+CST-direct branch reparses the file up to ~11 times instead of the
+ast.Node path's single walk) was deliberately deferred rather than
+resolved: this increment prioritizes correctness and a minimal, reviewable
+diff; a follow-up could refactor the 10 functions to share one
+`walkSyntaxConfigured` traversal if `ctx.Content` is enabled broadly enough
+for the reparse cost to matter in practice (it is currently a purely opt-in
+field — nothing in production sets it in `go-php-parser` itself).
+
+Cross-repo: `vscode-php-strom/server/providers/diagnostics.go`'s
+`runAnalysisRulesForSource` was tried with `ctx.Content = source` set right
+before calling `RunAnalysisRulesWithContext` (raw source bytes were already
+computed there for `sharedcache.StoreCachedFileContent`), and validated via
+`make test-server-dev` (that repo's `go.work`-based mechanism for testing
+against an explicit sibling `go-php-parser` checkout) — all packages pass.
+That edit was then **reverted** rather than committed: `server/go.mod`'s
+pin does not yet include this `Content` field, so the change broke
+`make test-server`/`build-server*`'s `GOWORK=off` build against the pinned
+dependency (confirmed directly: `ctx.Content undefined`). Wiring
+`ctx.Content = source` into `diagnostics.go` is therefore a one-line
+follow-up gated on bumping that pin, which itself requires pushing
+go-php-parser's commits to GitHub first — an action needing explicit user
+confirmation per operational safety rules, not yet requested.
+
+Phase 5 (cleanup) remains unstarted and requires explicit user confirmation
+before starting.
 
 ### Perf (not coverage %)
 

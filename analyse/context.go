@@ -1,8 +1,9 @@
 package analyse
 
 import (
-	"github.com/ayanozturk/go-php-parser/ast"
 	"strings"
+
+	"github.com/ayanozturk/go-php-parser/ast"
 )
 
 // GenericInstance represents a concrete instantiation of a generic class.
@@ -226,6 +227,17 @@ type AnalysisContext struct {
 	PHPVersion         string
 	AnalysisLevel      *int
 	DisabledIssueCodes map[string]bool
+
+	// Content, when set by the caller, is the raw PHP source for filename.
+	// ensureSharedFileDiagnostics/ensureStructuralIssues use it to run the
+	// CST-direct (*syntax.RedNode-walking) equivalents of the Level0/
+	// structural checks instead of the []ast.Node-driven fused walk. Rules
+	// outside that fused walk (arg count/type, deprecated calls, level1
+	// variables, level2 method existence/non-object, level6/7/8 method
+	// checks, property type, unreachable code, etc.) are unaffected and
+	// keep using nodes regardless of Content. Left nil, behavior is
+	// identical to before this field existed.
+	Content []byte
 
 	FileTypeContext     FileTypeContext
 	hasFileTypeContext  bool

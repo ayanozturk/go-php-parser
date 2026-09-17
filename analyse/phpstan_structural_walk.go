@@ -15,6 +15,9 @@ func ensureStructuralIssues(filename string, nodes []ast.Node, ctx *AnalysisCont
 	if ctx.hasStructuralIssues {
 		return ctx
 	}
+	if len(ctx.Content) > 0 {
+		return ensureStructuralIssuesFromCST(filename, ctx.Content, nodes, ctx)
+	}
 	fileCtx := analysisFileTypeContext(ctx, nodes)
 	if ctx.phpDocTypeAliases == nil {
 		ctx.phpDocTypeAliases = collectPHPDocTypeAliases(nodes)
