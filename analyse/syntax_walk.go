@@ -47,8 +47,16 @@ func walkSyntaxConfigured(root *syntax.RedNode, ft FileTypeContext, fn func(n, c
 		case syntax.KindClassDecl, syntax.KindInterfaceDecl, syntax.KindTraitDecl,
 			syntax.KindEnumDecl, syntax.KindAnonymousClass:
 			nextClass = n
-		case syntax.KindFunctionDecl, syntax.KindMethodDecl,
-			syntax.KindClosureExpr, syntax.KindArrowFunctionExpr:
+		case syntax.KindFunctionDecl, syntax.KindMethodDecl, syntax.KindClosureExpr:
+			// KindArrowFunctionExpr is deliberately excluded: arrow functions
+			// lower to the distinct *ast.ArrowFunctionNode type, and
+			// walkAllConfigured's *ast.ArrowFunctionNode case does NOT update
+			// currentFn for its body (it passes the old currentFn through
+			// unchanged) - unlike plain functions/methods/closures, which all
+			// lower to *ast.FunctionNode and DO become the new currentFn via
+			// walkAllConfigured's *ast.FunctionNode case. See
+			// syntax.LowerFunctionLikeContextNode and
+			// /memories/repo/cst-direct-migration.md.
 			nextFn = n
 		}
 		// lowerStmt (syntax/lower_stmt.go) has no case for declaration kinds
@@ -102,6 +110,8 @@ func walkSyntaxConfigured(root *syntax.RedNode, ft FileTypeContext, fn func(n, c
 			nextInStatementBody = false
 		}
 		children := n.Children()
+		elvisCond := syntax.TernaryElvisCondition(n)
+		paramDefault := syntax.ParamDefaultValue(n)
 		for i := 0; i < len(children); i++ {
 			c := children[i]
 			if nextInStatementBody {
@@ -111,6 +121,19 @@ func walkSyntaxConfigured(root *syntax.RedNode, ft FileTypeContext, fn func(n, c
 					continue
 				}
 			}
+			// walkAllConfigured's *ast.ParamNode case (phpstan_level0_walk.go)
+			// only walks n.Attributes, never n.DefaultValue - so a parameter
+			// default value expression (e.g. `$mode =
+			// \RoundingMode::HalfAwayFromZero`), however deeply nested, is
+			// entirely invisible to every rule the dispatcher drives, unlike
+			// KindCastExpr/KindSwitchStmt (where the outer node is at least
+			// visited once): there is no separate ast.Node wrapper here to
+			// visit at all - skip both fn and recursion for this child
+			// entirely. See syntax.ParamDefaultValue and
+			// /memories/repo/cst-direct-migration.md for the full writeup.
+			if paramDefault != nil && c.Green == paramDefault.Green && c.Offset == paramDefault.Offset {
+				continue
+			}
 			// walkAllConfigured's *ast.EnumNode case (phpstan_level0_walk.go) only
 			// walks n.Methods, never any representation of the enum's `case Foo;`
 			// members - so attributes (and anything else) attached to an enum
@@ -118,6 +141,21 @@ func walkSyntaxConfigured(root *syntax.RedNode, ft FileTypeContext, fn func(n, c
 			// by never calling fn for a KindEnumCase subtree at all. See
 			// /memories/repo/cst-direct-migration.md for the full writeup.
 			if c.Kind() == syntax.KindEnumCase {
+				continue
+			}
+			// walkAllConfigured (phpstan_level0_walk.go) has no case at all
+			// for *ast.PropertyDeclNode, and never references its Hooks
+			// field - so a PHP 8.4 property hook's body/expr (e.g. `set {
+			// throw \LogicException('...'); }`), however deeply nested, is
+			// completely invisible to every rule the Level0 dispatcher
+			// drives (unlike e.g. undefined-variable analysis, which visits
+			// hook bodies via a separate, non-Level0 code path - see
+			// TestParseASTPropertyHookBodies in
+			// syntax/parse_ast_body_test.go). Mirror that by never calling
+			// fn for a KindPropertyHookList subtree at all, the same way as
+			// KindEnumCase above. See /memories/repo/cst-direct-migration.md
+			// for the full writeup.
+			if c.Kind() == syntax.KindPropertyHookList {
 				continue
 			}
 			// An enum case's own preceding AttributeList sibling (e.g.
@@ -163,6 +201,24 @@ func walkSyntaxConfigured(root *syntax.RedNode, ft FileTypeContext, fn func(n, c
 				}
 				continue
 			}
+			// walkAllConfigured's *ast.ClassNode case (phpstan_level0_walk.go)
+			// only recurses into n.Properties and n.Methods, never
+			// n.Constants - a class constant's VALUE expression (e.g.
+			// `Level::Debug->value` inside `private const MAP = [Level::
+			// Debug->value => ...]`), however deeply nested, is entirely
+			// invisible to every rule the dispatcher drives, the same kind
+			// of gap as KindSwitchStmt/KindYieldExpr (already noted for the
+			// type-refs port in syntax_type_refs_rule.go, which only skips
+			// dispatching on the KindClassConstDecl node itself - this
+			// centralizes the deeper fix of also never descending into it).
+			// See /memories/repo/cst-direct-migration.md for the full
+			// writeup.
+			if c.Kind() == syntax.KindClassConstDecl {
+				if !syntaxContainerOnlyKinds[c.Kind()] {
+					fn(c, nextClass, nextFn, ft, nextInStatementBody)
+				}
+				continue
+			}
 			// walkAllConfigured also has no case at all for *ast.YieldNode (a
 			// `yield`/`yield from` expression, both of which lower to the same
 			// ast type - see lowerExpr's KindYieldExpr case) - so a yield's
@@ -192,6 +248,58 @@ func walkSyntaxConfigured(root *syntax.RedNode, ft FileTypeContext, fn func(n, c
 				if !syntaxContainerOnlyKinds[c.Kind()] {
 					fn(c, nextClass, nextFn, ft, nextInStatementBody)
 				}
+				continue
+			}
+			// walkAllConfigured also has no case at all for
+			// *ast.TypeCastNode (a `(string) $x`/`(int) foo()`/etc. cast
+			// expression) - so its operand (which can itself contain
+			// arbitrarily complex nested calls, e.g. `(string)
+			// ini_get('disable_functions')`) is entirely invisible to every
+			// rule the dispatcher drives. Mirror the gap the same way as
+			// KindSwitchStmt / KindYieldExpr / KindFirstClassCallableExpr:
+			// fn still fires on the cast expression itself, but its
+			// children (the parens/type tokens and the operand) are never
+			// descended into. See /memories/repo/cst-direct-migration.md
+			// for the full writeup.
+			if c.Kind() == syntax.KindCastExpr {
+				if !syntaxContainerOnlyKinds[c.Kind()] {
+					fn(c, nextClass, nextFn, ft, nextInStatementBody)
+				}
+				continue
+			}
+			// An Elvis/short ternary (`cond ?: else`) lowers to a single
+			// *ast.TernaryExpr whose Condition and IfTrue fields are the
+			// SAME ast.Node value (see syntax.TernaryElvisCondition's doc
+			// comment) - walkAllConfigured's *ast.TernaryExpr case visits
+			// both fields unconditionally, so that shared subtree (and any
+			// issue found anywhere within it) is visited/reported twice.
+			// Mirror that by walking the condition child an extra time
+			// here (its own KindTernaryExpr firing normally via the generic
+			// path below is unaffected - this only duplicates the
+			// condition's subtree walk). See
+			// /memories/repo/cst-direct-migration.md for the full writeup.
+			if elvisCond != nil && c.Green == elvisCond.Green && c.Offset == elvisCond.Offset {
+				walk(c, nextClass, nextFn, ft, nextInStatementBody)
+			}
+			// An anonymous class's constructor argument list (`new class(
+			// $this->message) {...}`) is a CST child of KindAnonymousClass,
+			// but lowerNewExpr/lowerAnonymousClass extracts it as
+			// NewNode.Args - a SIBLING field to NewNode.ClassExpr, not part
+			// of the ClassNode (cls) itself. walkAllConfigured's
+			// *ast.NewNode case walks n.Args using the SAME class/currentFn
+			// context as the `new` expression's enclosing scope, not the
+			// anonymous class's own scope (n.Args is evaluated in the outer
+			// scope at call time, before the anonymous class body ever
+			// runs) - e.g. a ctor arg `$this->message` refers to the
+			// OUTER $this, not a property of the anonymous class being
+			// constructed. nextClass/nextInStatementBody above already
+			// switched to the anonymous class's own scope for this call
+			// (matching its MemberList body), so a KindArgList child needs
+			// the pre-switch (outer) class/currentFn/inStatementBody
+			// values instead. See /memories/repo/cst-direct-migration.md
+			// for the full writeup.
+			if n.Kind() == syntax.KindAnonymousClass && c.Kind() == syntax.KindArgList {
+				walk(c, class, currentFn, ft, inStatementBody)
 				continue
 			}
 			// A namespace declaration re-derives FileTypeContext for its

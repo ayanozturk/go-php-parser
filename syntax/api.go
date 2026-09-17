@@ -191,6 +191,161 @@ func LowerAttributeNode(n *RedNode, file *File) ast.Node {
 	return lowerAttribute(n, file)
 }
 
+// LowerClassLikeContextNode lowers a class-like declaration CST node to the
+// *ast.ClassNode value that walkAllConfigured would thread down as its
+// "class" context parameter for that declaration's body — mirroring
+// phpstan_level0_walk.go's per-declaration-kind class-context rules exactly
+// (this is not a general "lower any class-like to ast.ClassNode" utility):
+//   - KindClassDecl/KindAnonymousClass: the real lowered *ast.ClassNode
+//     (walkAllConfigured's *ast.ClassNode case sets class = n directly).
+//   - KindTraitDecl/KindEnumDecl: a synthetic *ast.ClassNode with only Name
+//     populated (walkAllConfigured's *ast.TraitNode/*ast.EnumNode cases
+//     build a throwaway *ast.ClassNode{Name: ...} rather than reusing the
+//     real *ast.TraitNode/*ast.EnumNode, since callers of the "class"
+//     context parameter only ever read class.Name).
+//   - KindInterfaceDecl (and any other kind): nil (walkAllConfigured's
+//     *ast.InterfaceNode case leaves the "class" parameter unchanged, which
+//     is always nil in valid PHP since interfaces can't nest inside another
+//     class-like).
+//
+// Returns nil for a nil node.
+func LowerClassLikeContextNode(n *RedNode, file *File) *ast.ClassNode {
+	if n == nil {
+		return nil
+	}
+	switch n.Kind() {
+	case KindClassDecl:
+		return lowerClass(n, file)
+	case KindAnonymousClass:
+		cls, _ := lowerAnonymousClass(n, file)
+		if c, ok := cls.(*ast.ClassNode); ok {
+			return c
+		}
+		return nil
+	case KindTraitDecl:
+		t := lowerTrait(n, file)
+		if t == nil || t.Name == nil {
+			return nil
+		}
+		return &ast.ClassNode{Name: t.Name.Name}
+	case KindEnumDecl:
+		e := lowerEnum(n, file)
+		if e == nil {
+			return nil
+		}
+		return &ast.ClassNode{Name: e.Name}
+	default:
+		return nil
+	}
+}
+
+// LowerFunctionLikeContextNode lowers a function/method/closure CST node to
+// the *ast.FunctionNode value that walkAllConfigured would thread down as
+// its "currentFn" context parameter, mirroring phpstan_level0_walk.go's
+// *ast.FunctionNode case (which applies uniformly to plain functions,
+// methods, and closures — all three lower to *ast.FunctionNode). Arrow
+// functions (KindArrowFunctionExpr) are deliberately NOT handled here: they
+// lower to the distinct *ast.ArrowFunctionNode type, and walkAllConfigured's
+// *ast.ArrowFunctionNode case does not update currentFn for its body — the
+// enclosing function's currentFn continues to apply inside an arrow
+// function. Returns nil for a nil or unsupported-kind node.
+func LowerFunctionLikeContextNode(n *RedNode, file *File) *ast.FunctionNode {
+	if n == nil {
+		return nil
+	}
+	switch n.Kind() {
+	case KindFunctionDecl, KindMethodDecl:
+		return lowerFunction(n, file)
+	case KindClosureExpr:
+		if fn, ok := lowerClosureExpr(n, file).(*ast.FunctionNode); ok {
+			return fn
+		}
+		return nil
+	default:
+		return nil
+	}
+}
+
+// TernaryElvisCondition reports whether n is a KindTernaryExpr in "Elvis"
+// (short ternary, `cond ?: else`) form - i.e. the `?` is present but there is
+// no explicit "then" branch before the `:` - and if so returns its condition
+// child. lowerTernaryExpr (syntax/lower_expr.go) reuses the exact same
+// lowered ast.Node value for both the resulting *ast.TernaryExpr's
+// Condition and IfTrue fields in this form (rather than lowering two
+// separate expressions), so walkAllConfigured's *ast.TernaryExpr case -
+// which does walk(n.Condition, ...) then walk(n.IfTrue, ...) unconditionally
+// - ends up visiting that single shared subtree twice, and any rule that
+// fires per-visit (e.g. checkSymbolOnNode) reports every issue found in it
+// twice. Exported so CST-direct ports can replicate that double-visit
+// (see analyse/syntax_walk.go and /memories/repo/cst-direct-migration.md)
+// instead of only visiting the condition once, which would under-count
+// relative to the ast.Node path for this specific construct.
+func TernaryElvisCondition(n *RedNode) *RedNode {
+	if n == nil || n.Kind() != KindTernaryExpr {
+		return nil
+	}
+	var cond *RedNode
+	seenQ := false
+	seenColon := false
+	var thenChild *RedNode
+	for _, c := range n.Children() {
+		if c.Green != nil && c.Green.IsToken() {
+			tt, ok := tokenOf(c)
+			if !ok {
+				continue
+			}
+			switch tt.Type {
+			case token.T_QUESTION:
+				seenQ = true
+			case token.T_COLON:
+				seenColon = true
+			}
+			continue
+		}
+		if !(isExprKind(c.Kind()) || isNameKind(c.Kind())) {
+			continue
+		}
+		if cond == nil {
+			cond = c
+			continue
+		}
+		if seenQ && !seenColon && thenChild == nil {
+			thenChild = c
+		}
+	}
+	if cond == nil || thenChild != nil {
+		return nil
+	}
+	return cond
+}
+
+// ParamDefaultValue returns n's default-value expression child (the
+// expr/name-kind child following the `=` token), if n is a KindParam with
+// one, mirroring lowerParam's own classification (syntax/lower_param.go).
+// walkAllConfigured's *ast.ParamNode case (phpstan_level0_walk.go) only
+// walks n.Attributes, never n.DefaultValue - so a parameter default value
+// (e.g. `$mode = \RoundingMode::HalfAwayFromZero`), however deeply nested,
+// is entirely invisible to every rule the dispatcher drives, the same kind
+// of gap as KindCastExpr/KindSwitchStmt/etc. Exported so CST-direct ports
+// can skip it the same way. See analyse/syntax_walk.go and
+// /memories/repo/cst-direct-migration.md.
+func ParamDefaultValue(n *RedNode) *RedNode {
+	if n == nil || n.Kind() != KindParam {
+		return nil
+	}
+	seenAssign := false
+	for _, c := range n.Children() {
+		if isTokenType(c, token.T_ASSIGN) {
+			seenAssign = true
+			continue
+		}
+		if seenAssign && (isExprKind(c.Kind()) || isNameKind(c.Kind())) {
+			return c
+		}
+	}
+	return nil
+}
+
 // IsStatementKind reports whether k is one of the statement kinds lowered
 // via lowerStmt (as opposed to a declaration, expression, or grouping/
 // container kind). Exported for CST-direct rule ports that need to detect
