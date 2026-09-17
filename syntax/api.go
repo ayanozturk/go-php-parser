@@ -103,6 +103,25 @@ func LowerStmtNode(n *RedNode, file *File) ast.Node {
 	return lowerStmt(n, file)
 }
 
+// LowerPropertyDeclNode lowers a single KindPropertyDecl CST node (a class
+// property declaration, possibly with multiple comma-separated names sharing
+// one type hint) to its classic []ast.Node ([]*ast.PropertyNode). Returns nil
+// for a nil or non-KindPropertyDecl node. Attributes attached via a
+// preceding sibling KindAttributeList (see lowerClassMembers) are not
+// populated when lowering a single node in isolation.
+func LowerPropertyDeclNode(n *RedNode, file *File) []ast.Node {
+	if n == nil || n.Kind() != KindPropertyDecl {
+		return nil
+	}
+	return lowerProperties(n, file)
+}
+
+// LowerParamNode lowers a single KindParam CST node to its classic
+// *ast.ParamNode. Returns nil for a nil or non-KindParam node.
+func LowerParamNode(n *RedNode, file *File) *ast.ParamNode {
+	return lowerParam(n, file)
+}
+
 // Walk performs a pre-order traversal of the CST rooted at root, calling fn
 // for each node. If fn returns false, that node's children are skipped
 // (unlike the lowered ast.Node walkers, this supports early subtree exit).

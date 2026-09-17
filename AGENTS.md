@@ -119,6 +119,20 @@ writeup before porting the next callback (`checkTypeReferenceOnNode`/
 `checkSymbolOnNode`/etc. all need real `FileTypeContext` scope, unlike this
 one, and should double-check against the same switch-body gap).
 
+Second Phase 3 port: `analyse/syntax_property_callable_rule.go`'s
+`CheckPropertyCallableTypeIssuesFromCST` is the CST-direct analogue of
+`appendPropertyCallableTypeIssue` (typed properties/promoted constructor
+params can't declare `callable`). Also context-free, so still no
+`walkSyntaxConfigured` wiring needed. Added `syntax.LowerPropertyDeclNode`/
+`syntax.LowerParamNode` wrappers (property/param declarations aren't
+statements or expressions, so the existing `LowerExprNode`/`LowerStmtNode`
+don't cover them). Unlike the language-rule port, this walk must NOT skip
+descending into a matched `KindPropertyDecl`/`KindParam`'s children —
+default values can contain nested closures with their own promoted-looking
+params, and the ast-side walk visits those. Corpus-validated with zero
+mismatches on the first run (composer-src + symfony). See
+`/memories/repo/cst-direct-migration.md` for the full writeup.
+
 ### Perf (not coverage %)
 
 - Bench gates: allocs/op, tokens/KB on Symfony/WordPress-sized inputs — regressions fail CI even if coverage is high.
