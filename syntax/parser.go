@@ -1,6 +1,9 @@
 package syntax
 
 import (
+	"context"
+	"fmt"
+
 	"github.com/ayanozturk/go-php-parser/lexer"
 	"github.com/ayanozturk/go-php-parser/token"
 )
@@ -12,6 +15,8 @@ type Parser struct {
 	i                  int
 	intern             *Interner
 	diags              []Diagnostic
+	ctx                context.Context
+	cancelled          bool
 	SkipFunctionBodies bool // when true, function/method bodies stay KindTokenList blobs
 }
 
@@ -55,11 +60,22 @@ func ParseForIndex(src []byte) *ParseResult {
 
 // ParseWith produces a structured File using the given options.
 func ParseWith(src []byte, opts ParseOptions) *ParseResult {
+	return ParseWithContext(nil, src, opts)
+}
+
+// ParseWithContext parses with cooperative cancellation during lexing and
+// parsing. A nil context disables cancellation checks.
+func ParseWithContext(ctx context.Context, src []byte, opts ParseOptions) *ParseResult {
+	tokens, lexErr := lexer.LexAllContext(ctx, src)
 	p := &Parser{
 		src:                src,
-		tokens:             lexer.LexAll(src),
+		tokens:             tokens,
 		intern:             NewInterner(src),
+		ctx:                ctx,
 		SkipFunctionBodies: opts.SkipFunctionBodies,
+	}
+	if lexErr != nil {
+		p.recordCancellation(lexErr)
 	}
 	var items []*GreenNode
 
@@ -89,10 +105,39 @@ func (p *Parser) at(tt token.TokenType) bool {
 }
 
 func (p *Parser) tok() token.Token {
+	if p.ctx != nil {
+		if err := p.ctx.Err(); err != nil {
+			p.recordCancellation(err)
+			return token.Token{Type: token.T_EOF, Pos: p.currentPosition(), End: p.currentPosition()}
+		}
+	}
 	if p.i >= len(p.tokens) {
-		return token.Token{Type: token.T_EOF}
+		pos := p.currentPosition()
+		return token.Token{Type: token.T_EOF, Pos: pos, End: pos}
 	}
 	return p.tokens[p.i]
+}
+
+func (p *Parser) currentPosition() token.Position {
+	if p.i < len(p.tokens) {
+		return p.tokens[p.i].Pos
+	}
+	if len(p.tokens) > 0 {
+		return p.tokens[len(p.tokens)-1].End
+	}
+	return token.Position{}
+}
+
+func (p *Parser) recordCancellation(err error) {
+	if p.cancelled || err == nil {
+		return
+	}
+	p.cancelled = true
+	pos := p.currentPosition().Offset
+	p.diags = append(p.diags, Diagnostic{
+		Message: fmt.Sprintf("parser context cancelled: %v", err),
+		Span:    Span{Start: pos, End: pos},
+	})
 }
 
 func (p *Parser) bump() *GreenNode {

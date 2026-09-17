@@ -2,6 +2,7 @@ package lexer
 
 import (
 	"bytes"
+	"context"
 	"strings"
 	"unicode/utf8"
 
@@ -70,18 +71,18 @@ func (l *Lexer) inStringMode() bool {
 // peeked token isn't enough to disambiguate a construct (e.g. distinguishing
 // "public(set)" from a property type that happens to start with "(").
 type State struct {
-	pos, readPos   int
-	char           rune
-	size           int
-	line, column   int
-	inString       bool
-	heredocTokens  []token.Token
-	hasPeeked      bool
-	peekedToken    token.Token
-	inHTML         bool
-	encapsed       encapsedMode
-	heredocLabel   string
-	heredocNowdoc  bool
+	pos, readPos    int
+	char            rune
+	size            int
+	line, column    int
+	inString        bool
+	heredocTokens   []token.Token
+	hasPeeked       bool
+	peekedToken     token.Token
+	inHTML          bool
+	encapsed        encapsedMode
+	heredocLabel    string
+	heredocNowdoc   bool
 	braceExprDepth  int
 	afterCurlyOpen  bool
 	lastSignificant token.TokenType
@@ -775,13 +776,26 @@ func (l *Lexer) lexNumber(pos token.Position) token.Token {
 
 // LexAll returns every significant token with trivia attached, through T_EOF.
 func LexAll(src []byte) []token.Token {
+	toks, _ := LexAllContext(nil, src)
+	return toks
+}
+
+// LexAllContext returns every significant token with trivia attached, through
+// T_EOF, while allowing callers to stop between tokens. A nil context disables
+// cancellation checks and preserves LexAll's existing behavior.
+func LexAllContext(ctx context.Context, src []byte) ([]token.Token, error) {
 	l := NewFileBytes(src)
 	var toks []token.Token
 	for {
+		if ctx != nil {
+			if err := ctx.Err(); err != nil {
+				return toks, err
+			}
+		}
 		tok := l.NextToken()
 		toks = append(toks, tok)
 		if tok.Type == token.T_EOF {
-			return toks
+			return toks, nil
 		}
 	}
 }

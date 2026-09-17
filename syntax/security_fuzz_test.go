@@ -2,6 +2,8 @@ package syntax
 
 import (
 	"bytes"
+	"context"
+	"strings"
 	"testing"
 )
 
@@ -25,6 +27,32 @@ func FuzzSyntaxIndexParserMalformedPHP(f *testing.F) {
 		}
 		assertFuzzParseResult(t, src, ParseForIndex(src))
 	})
+}
+
+func TestParseWithContextPreCancelled(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	res := ParseWithContext(ctx, []byte("<?php function f() {}"), ParseOptions{})
+	if res == nil || res.File == nil || res.File.Root == nil {
+		t.Fatal("cancelled parser returned an incomplete result")
+	}
+	if len(res.Diagnostics) != 1 || !strings.Contains(res.Diagnostics[0].Message, context.Canceled.Error()) {
+		t.Fatalf("expected one cancellation diagnostic, got %#v", res.Diagnostics)
+	}
+}
+
+func TestParseASTWithContextPreCancelled(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	nodes, diags := ParseASTWithContext(ctx, []byte("<?php function f() {}"))
+	if len(nodes) != 0 {
+		t.Fatalf("cancelled parse lowered %d nodes", len(nodes))
+	}
+	if len(diags) != 1 || !strings.Contains(diags[0].Message, context.Canceled.Error()) {
+		t.Fatalf("expected one cancellation diagnostic, got %#v", diags)
+	}
 }
 
 func addSyntaxFuzzSeeds(f *testing.F) {

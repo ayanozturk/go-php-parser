@@ -1,6 +1,8 @@
 package syntax
 
 import (
+	"context"
+
 	"github.com/ayanozturk/go-php-parser/ast"
 )
 
@@ -14,6 +16,18 @@ func ParseASTForIndex(src []byte) ([]ast.Node, []Diagnostic) {
 // bodies to classic statements/expressions. KindTokenList bodies stay empty.
 func ParseAST(src []byte) ([]ast.Node, []Diagnostic) {
 	res := Parse(src)
+	return lowerFromResult(res), res.Diagnostics
+}
+
+// ParseASTForIndexWithContext is the cancellable declaration-tier AST adapter.
+func ParseASTForIndexWithContext(ctx context.Context, src []byte) ([]ast.Node, []Diagnostic) {
+	res := ParseWithContext(ctx, src, ParseOptions{SkipFunctionBodies: true})
+	return lowerFromResult(res), res.Diagnostics
+}
+
+// ParseASTWithContext is the cancellable full-body AST adapter.
+func ParseASTWithContext(ctx context.Context, src []byte) ([]ast.Node, []Diagnostic) {
+	res := ParseWithContext(ctx, src, ParseOptions{})
 	return lowerFromResult(res), res.Diagnostics
 }
 
