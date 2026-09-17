@@ -97,7 +97,7 @@ func constructorForSeen(className string, resolver SymbolResolver, seen map[stri
 	if method, found := resolveOwnMethodView(resolver, class.Name, "__construct"); found {
 		return method
 	}
-	parents := append(append(append([]string(nil), class.Extends...), class.Implements...), class.Traits...)
+	parents := append(append(append([]string(nil), class.Traits...), class.Extends...), class.Implements...)
 	for _, parent := range parents {
 		if method := constructorForSeen(parent, resolver, seen); method.DeclaringClass != "" {
 			return method

@@ -1257,6 +1257,43 @@ class NoCtor {}
 	}
 }
 
+func TestLevel0TraitConstructorTakesPrecedenceOverParentConstructor(t *testing.T) {
+	issues := runLevel0OnFiles(t, map[string]string{
+		"test.php": `<?php
+namespace OpenApi\Annotations;
+class Parameter {
+    public function __construct(array $properties) {}
+}
+
+namespace OpenApi\Attributes;
+trait ParameterTrait {
+    public function __construct(
+        ?string $name = null,
+        ?string $description = null,
+        ?string $in = null,
+        mixed $schema = null
+    ) {}
+}
+class Parameter extends \OpenApi\Annotations\Parameter {
+    use ParameterTrait;
+}
+
+new Parameter(
+    name: 'dateFrom',
+    description: 'Filter by issue date',
+    in: 'query',
+    schema: new \stdClass()
+);
+`,
+	})
+
+	if hasIssueContaining(issues, level0InvocationCode, "Parameter constructor") ||
+		hasIssueContaining(issues, level0InvocationCode, "Unknown parameter") ||
+		hasIssueContaining(issues, argumentCountRuleCode, "Parameter constructor") {
+		t.Fatalf("expected trait constructor signature to accept named arguments, got %#v", issues)
+	}
+}
+
 func TestLevel0InstanceCallToStaticMethod(t *testing.T) {
 	issues := runLevel0OnFiles(t, map[string]string{
 		"test.php": `<?php

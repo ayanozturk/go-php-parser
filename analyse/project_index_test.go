@@ -439,7 +439,7 @@ class CycleB extends CycleA {}
 `
 	parsed := map[string][]ast.Node{"lineage.php": parsePHPForProjectIndex(t, source)}
 	want := map[string][]string{
-		"child":  {"Child", "Base", "Left", "Root", "Right", "Shared"},
+		"child":  {"Child", "Shared", "Base", "Left", "Root", "Right"},
 		"cyclea": {"CycleA", "CycleB"},
 	}
 
@@ -453,6 +453,39 @@ class CycleB extends CycleA {}
 		if got := idx.classLineage("cHiLd"); !reflect.DeepEqual(got, want["child"]) {
 			t.Fatalf("iteration %d: mixed-case classLineage = %#v, want %#v", i, got, want["child"])
 		}
+	}
+}
+
+func TestProjectIndexTraitMembersTakePrecedenceOverInheritedMembers(t *testing.T) {
+	idx := BuildProjectIndex(map[string][]ast.Node{
+		"test.php": parsePHPForProjectIndex(t, `<?php
+class ParentType {
+    public string $value;
+    public function __construct(array $properties) {}
+    public function source(string $parent): string {}
+}
+trait AttributeMembers {
+    public int $value;
+    public function __construct(?string $name = null, ?string $description = null, ?string $in = null, mixed $schema = null) {}
+    public function source(int $trait): string {}
+}
+class AttributeType extends ParentType {
+    use AttributeMembers;
+}
+`),
+	})
+
+	constructor, ok := idx.ResolveMethod("AttributeType", "__construct")
+	if !ok || constructor.DeclaringClass != "AttributeMembers" || len(constructor.Params) != 4 {
+		t.Fatalf("trait constructor should override inherited constructor, got %#v, %v", constructor, ok)
+	}
+	method, ok := idx.ResolveMethod("AttributeType", "source")
+	if !ok || method.DeclaringClass != "AttributeMembers" || len(method.Params) != 1 || method.Params[0].Name != "trait" {
+		t.Fatalf("trait method should override inherited method, got %#v, %v", method, ok)
+	}
+	property, ok := idx.ResolveProperty("AttributeType", "value")
+	if !ok || property.DeclaringClass != "AttributeMembers" || property.Type != "int" {
+		t.Fatalf("trait property should override inherited property, got %#v, %v", property, ok)
 	}
 }
 

@@ -161,17 +161,17 @@ func (idx *ProjectIndex) methodReferenceParamsSeen(className, methodName string,
 	if method, found := idx.Methods[key][asciiLowerIdent(methodName)]; found {
 		return method.Params, true
 	}
+	for _, parentName := range class.Traits {
+		if params, found := idx.methodReferenceParamsSeen(parentName, methodName, seen); found {
+			return params, true
+		}
+	}
 	for _, parentName := range class.Extends {
 		if params, found := idx.methodReferenceParamsSeen(parentName, methodName, seen); found {
 			return params, true
 		}
 	}
 	for _, parentName := range class.Implements {
-		if params, found := idx.methodReferenceParamsSeen(parentName, methodName, seen); found {
-			return params, true
-		}
-	}
-	for _, parentName := range class.Traits {
 		if params, found := idx.methodReferenceParamsSeen(parentName, methodName, seen); found {
 			return params, true
 		}
@@ -235,17 +235,17 @@ func (idx *ProjectIndex) resolveMethodViewSeen(className, lowerMethodName string
 		method.DeclaringClass = class.Name
 		return method, true
 	}
+	for _, parentName := range class.Traits {
+		if method, found := idx.resolveMethodViewSeen(parentName, lowerMethodName, seen); found {
+			return method, true
+		}
+	}
 	for _, parentName := range class.Extends {
 		if method, found := idx.resolveMethodViewSeen(parentName, lowerMethodName, seen); found {
 			return method, true
 		}
 	}
 	for _, parentName := range class.Implements {
-		if method, found := idx.resolveMethodViewSeen(parentName, lowerMethodName, seen); found {
-			return method, true
-		}
-	}
-	for _, parentName := range class.Traits {
 		if method, found := idx.resolveMethodViewSeen(parentName, lowerMethodName, seen); found {
 			return method, true
 		}
@@ -267,17 +267,17 @@ func (idx *ProjectIndex) resolveMethodViewMapped(className, lowerMethodName stri
 		method.DeclaringClass = class.Name
 		return method, true
 	}
+	for _, parentName := range class.Traits {
+		if method, found := idx.resolveMethodViewMapped(parentName, lowerMethodName, seen); found {
+			return method, true
+		}
+	}
 	for _, parentName := range class.Extends {
 		if method, found := idx.resolveMethodViewMapped(parentName, lowerMethodName, seen); found {
 			return method, true
 		}
 	}
 	for _, parentName := range class.Implements {
-		if method, found := idx.resolveMethodViewMapped(parentName, lowerMethodName, seen); found {
-			return method, true
-		}
-	}
-	for _, parentName := range class.Traits {
 		if method, found := idx.resolveMethodViewMapped(parentName, lowerMethodName, seen); found {
 			return method, true
 		}
@@ -349,7 +349,7 @@ func (idx *ProjectIndex) resolveMethodWithTemplates(className, methodName string
 		}
 		return method, true
 	}
-	parents := append(append(append([]string(nil), class.Extends...), class.Implements...), class.Traits...)
+	parents := append(append(append([]string(nil), class.Traits...), class.Extends...), class.Implements...)
 	for _, parentName := range parents {
 		parent, parentOK := idx.ResolveClass(parentName)
 		if !parentOK {
@@ -479,14 +479,14 @@ func buildClassLineage(idx *ProjectIndex, className string) []string {
 		if !ok {
 			return
 		}
+		for _, trait := range class.Traits {
+			walk(trait)
+		}
 		for _, parent := range class.Extends {
 			walk(parent)
 		}
 		for _, iface := range class.Implements {
 			walk(iface)
-		}
-		for _, trait := range class.Traits {
-			walk(trait)
 		}
 	}
 	walk(className)
