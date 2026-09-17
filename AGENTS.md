@@ -69,6 +69,26 @@ ports are blocked until that dispatcher (or `RunAnalysisRulesWithContext`'s
 pitfall (a `KindFile`'s children always include a trailing EOF token) and
 the `declare(){}` quirk this rule deliberately preserves.
 
+The dispatcher/signature migration itself is being done as an approved,
+user-gated 5-phase plan (Phase 0: differential corpus harness; Phase 1: CST
+walker skeleton; Phase 2: CST `FileTypeContext`; Phase 3: per-rule ports;
+Phase 4: flip the public signature + the cross-repo call site in
+`vscode-php-strom/server/providers/diagnostics.go`; Phase 5: cleanup) — do
+not skip ahead to a later phase without explicit confirmation, since Phase 4
+touches the production LSP diagnostics entry point in the sibling repo.
+Phases 0 and 1 are done: `analyse/syntax_walk.go`'s `walkSyntaxConfigured` is
+an additive, not-yet-wired-in CST analogue of `walkAllConfigured` — and,
+unlike the ast.Node version, it does NOT need 43 type-switch cases, because
+`*syntax.RedNode.Children()` is uniform across all kinds (ast.Node isn't).
+It only needs a small "pure container kind" exclusion set
+(`syntaxContainerOnlyKinds`) and class/function scope-boundary tracking.
+`cmd/analysis-corpus-snapshot` is the Phase 3/4 safety net: it runs the full
+rule registry over every `.php` file under `--root` and can capture/diff a
+JSON snapshot of every file's issue set via `--output`/`--baseline`. See
+`/memories/repo/cst-direct-migration.md` for full design notes and gotchas
+(e.g. `RedNode.Text()` on an assignment expression excludes the trailing
+statement semicolon).
+
 ### Perf (not coverage %)
 
 - Bench gates: allocs/op, tokens/KB on Symfony/WordPress-sized inputs — regressions fail CI even if coverage is high.
