@@ -98,6 +98,27 @@ files) and symfony (10467 files) in addition to its unit fixtures. See
 (e.g. `RedNode.Text()` on an assignment expression excludes the trailing
 statement semicolon).
 
+Phase 3 (per-rule ports) has started: `analyse/syntax_language_rule.go`'s
+`CheckLanguageIssuesFromCST` is the CST-direct analogue of
+`checkLanguageOnNode` (goto/label, duplicate array keys, include/require
+existence, non-writable ++/--, void/unset casts, invalid regex, printf/
+sprintf placeholder counts). It was picked first because it ignores
+`FileTypeContext`/class/currentFn entirely, so a flat `syntax.Walk` is safe
+and it needed no `walkSyntaxConfigured` wiring. New reusable
+`syntax.LowerExprNode`/`syntax.LowerStmtNode` wrappers lower *just the
+matched CST subtree* to `ast.Node` so the existing unmodified
+`checkLanguageOnNode` (and its `issueSpan` helper) can run unchanged on it —
+avoids re-deriving literal-extraction logic against raw CST tokens.
+**Corpus validation surfaced a real, pre-existing gap in `walkAllConfigured`
+itself:** it has no case for `*ast.SwitchNode`/`*ast.SwitchCaseNode`, so
+switch bodies (conditions and case bodies alike) are invisible to every rule
+it drives, not just this one. The CST port deliberately preserves this (skips
+`KindSwitchStmt` subtrees) to stay parity-safe; it does not fix the
+underlying gap. See `/memories/repo/cst-direct-migration.md` for the full
+writeup before porting the next callback (`checkTypeReferenceOnNode`/
+`checkSymbolOnNode`/etc. all need real `FileTypeContext` scope, unlike this
+one, and should double-check against the same switch-body gap).
+
 ### Perf (not coverage %)
 
 - Bench gates: allocs/op, tokens/KB on Symfony/WordPress-sized inputs — regressions fail CI even if coverage is high.

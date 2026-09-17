@@ -3,6 +3,7 @@ package syntax
 import (
 	"strings"
 
+	"github.com/ayanozturk/go-php-parser/ast"
 	"github.com/ayanozturk/go-php-parser/token"
 )
 
@@ -85,6 +86,21 @@ func trimOuterWS(s string) string {
 		j--
 	}
 	return s[i:j]
+}
+
+// LowerExprNode lowers a single expression CST node to its classic ast.Node,
+// letting CST-native rules reuse existing ast.Node-based helpers (literal
+// value extraction, etc.) on isolated subtrees without lowering the whole
+// file. Returns nil for unsupported kinds or a nil node.
+func LowerExprNode(n *RedNode, file *File) ast.Node {
+	return lowerExpr(n, file)
+}
+
+// LowerStmtNode lowers a single statement CST node to its classic ast.Node,
+// mirroring LowerExprNode for statement-kind nodes (e.g. KindGotoStmt,
+// KindLabelStmt). Returns nil for unsupported kinds or a nil node.
+func LowerStmtNode(n *RedNode, file *File) ast.Node {
+	return lowerStmt(n, file)
 }
 
 // Walk performs a pre-order traversal of the CST rooted at root, calling fn
