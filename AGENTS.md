@@ -250,6 +250,32 @@ composer-src (532 files) and symfony (10016 files) after the fix. See
 `/memories/repo/cst-direct-migration.md` for the full writeup (before
 porting the last candidate: `appendReturnTypeOnNode`).
 
+Seventh and final Phase 3 port: `analyse/syntax_return_type_rule.go`'s
+`CheckReturnTypeIssuesFromCST` is the CST-direct analogue of
+`appendReturnTypeOnNode` (declared-vs-actual return type mismatches, void/
+never-function issues, return-path completeness). Dispatches on
+`KindFunctionDecl`/`KindMethodDecl` (interface methods lowered via
+`LowerInterfaceMethodDeclNode` pass through as a harmless no-op, since
+`appendReturnTypeOnNode` only ever matches `*ast.FunctionNode` via a type
+assertion — exactly mirroring ast-side production behavior) and
+`KindClosureExpr`. De-risked before implementation rather than via a
+corpus mismatch this time: `FlowScopeKeyForNode`/`flowScopeKey`
+(`analyse/control_flow.go`) is purely position-based (filename + offsets),
+not pointer-identity based, so CST-lowered function nodes still correctly
+match pre-populated `ctx.Flow` scope entries; and
+`analysisFunctionScope`'s cache (`ctx.functionScopeByNode`) is keyed by
+`*ast.FunctionNode` pointer, so reusing one `*AnalysisContext` for both the
+ast-side and cst-side calls in the parity test is safe. Corpus-validated
+to **0 mismatches** on both composer-src (532 files) and symfony (10027
+files) on the first run — no new `walkSyntaxConfigured` gaps found despite
+this being the largest/riskiest remaining candidate. **This completes
+Phase 3** — all 7 identified rule-port candidates are now ported,
+unit-tested, and corpus-clean. See `/memories/repo/cst-direct-migration.md`
+for the full writeup. Phase 4 (flip `RunAnalysisRulesWithContext`'s
+signature + the cross-repo call site in
+`vscode-php-strom/server/providers/diagnostics.go`) and Phase 5 (cleanup)
+remain unstarted and require explicit user confirmation before starting.
+
 ### Perf (not coverage %)
 
 - Bench gates: allocs/op, tokens/KB on Symfony/WordPress-sized inputs — regressions fail CI even if coverage is high.
