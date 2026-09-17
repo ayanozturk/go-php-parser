@@ -197,6 +197,32 @@ mismatches** on both composer-src (1006 files) and symfony (10467 files).
 See `/memories/repo/cst-direct-migration.md` for the full writeup (before
 porting the next callback: `appendClassModelOnNode`/etc.).
 
+Fifth Phase 3 port: `analyse/syntax_class_model_rule.go`'s
+`CheckClassModelIssuesFromCST` is the CST-direct analogue of
+`checkClassModel`/`appendClassModelOnNode` (final+abstract conflicts,
+extends/implements legality, method/constant/constructor legality,
+interface member visibility, readonly property overrides, enum legality,
+trait-use resolution). Unlike every prior context-dependent port, this one
+needed **zero** reimplementation of check logic: `appendClassModelOnNode`
+only fires on 4 already-fully-lowered declaration types
+(`*ast.ClassNode`/`*ast.InterfaceNode`/`*ast.TraitUseNode`/`*ast.EnumNode`),
+so the port just finds the right CST node once per declaration and lowers
+that one subtree via three new thin wrappers added to `syntax/api.go`
+(`LowerInterfaceDeclNode`/`LowerEnumDeclNode`/`LowerTraitDeclNode` — needed
+because the pre-existing `LowerClassLikeContextNode` deliberately returns
+only a synthetic Name-only stand-in for interfaces/traits/enums, since it
+mirrors `walkAllConfigured`'s "class" *context* parameter, not a general
+lowering utility). `*ast.TraitUseNode` isn't a CST declaration kind in its
+own right — it's extracted from the already-lowered `ClassNode.Properties`/
+`TraitNode.Body` slices it gets prepended into by `lowerClassMembers`/
+`lowerTraitMembers`, mirroring exactly how `walkAllConfigured` reaches it
+too. Corpus-validated to **0 mismatches on the first run** on both
+composer-src (532 non-vendor targets) and symfony (10016 non-vendor
+targets) — no new `walkSyntaxConfigured` gaps found. See
+`/memories/repo/cst-direct-migration.md` for the full writeup (before
+porting the next candidate: the structural pass in
+`phpstan_structural_walk.go`).
+
 ### Perf (not coverage %)
 
 - Bench gates: allocs/op, tokens/KB on Symfony/WordPress-sized inputs — regressions fail CI even if coverage is high.
