@@ -231,3 +231,44 @@ if ($a > 0 && $b < 10 || ($a + $b) == 3) {
 		t.Fatalf("expected no Generic.CodeAnalysis.AssignmentInCondition issue for complex condition without assignment, got: %#v", issues)
 	}
 }
+
+// TestAssignmentInConditionCSTMatchesLoweredPath guards the CST-direct
+// CheckIssuesWithSource path against drifting from the ast.Node-based
+// CheckIssues path (still the only one wired into the registered rule).
+func TestAssignmentInConditionCSTMatchesLoweredPath(t *testing.T) {
+	cases := []string{
+		"<?php\nif ($result = doSomething()) {\n    echo $result;\n}\n",
+		"<?php\nif ($a > 1) {\n    echo 1;\n} elseif ($b = compute()) {\n    echo $b;\n} else {\n    echo 2;\n}\n",
+		"<?php\nwhile ($line = readLine()) {\n    echo $line;\n}\n",
+		"<?php\ndo {\n    echo 1;\n} while ($x = next());\n",
+		"<?php\nfor ($i = 0; $i < 10, $j = compute(); $i++) {\n    echo $i;\n}\n",
+		"<?php\n$r = match ($x = compute()) {\n    1 => 'a',\n    default => 'c',\n};\n",
+		"<?php\nif ($a = ($b = 1)) {\n    echo $a;\n}\n",
+		"<?php\nif (($a = 1)) {\n    echo $a;\n}\n",
+		"<?php\nif (foo($a = 1)) {\n    echo $a;\n}\n",
+		"<?php\nif ($obj->method($a = 1)) {\n    echo 1;\n}\n",
+		"<?php\nif ([$a = 1]) {\n    echo 1;\n}\n",
+		"<?php\nif ((int)($a = 1)) {\n    echo $a;\n}\n",
+		"<?php\nif ($a ? ($b = 1) : ($c = 2)) {\n    echo 1;\n}\n",
+		"<?php\nclass Foo {\n    public function bar() {\n        if ($x = 1) {\n            return $x;\n        }\n    }\n}\n",
+		"<?php\n$a = 1;\n$b = 2;\nif ($a > 0 && $b < 10 || ($a + $b) == 3) {\n    echo 1;\n}\n",
+	}
+	r := &AssignmentInConditionRule{}
+	for _, php := range cases {
+		content := []byte(php)
+		cstIssues := r.CheckIssuesWithSource("test.php", content)
+		nodes, diags := syntax.ParseAST(content)
+		if len(diags) > 0 {
+			t.Fatalf("parser errors for %q: %v", php, diags)
+		}
+		loweredIssues := r.CheckIssues(nodes, "test.php")
+		if len(cstIssues) != len(loweredIssues) {
+			t.Fatalf("issue count mismatch for %q: cst=%d lowered=%d (cst=%+v lowered=%+v)", php, len(cstIssues), len(loweredIssues), cstIssues, loweredIssues)
+		}
+		for i := range cstIssues {
+			if cstIssues[i].Line != loweredIssues[i].Line || cstIssues[i].Column != loweredIssues[i].Column {
+				t.Fatalf("position mismatch for %q at issue %d: cst=%+v lowered=%+v", php, i, cstIssues[i], loweredIssues[i])
+			}
+		}
+	}
+}

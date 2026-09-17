@@ -35,18 +35,27 @@ the original CST-native template; `syntax.RedNode.Pos()`/`EndPos()` and
 incrementally behind the differential/gold suites — do not attempt a bulk
 rewrite of `analyse/phpstan_level0_walk.go`'s dispatcher in one pass.
 
-`syntax/conditions.go` provides reusable, unit-tested condition accessors
-(`IfCondition`, `WhileCondition`, `DoWhileCondition`, `ForConditions`,
-`MatchCondition`) so new rule migrations don't need to re-derive condition
-child-detection logic from `syntax/lower_stmt.go`. Note: a fully faithful
-CST port of a rule that recurses into *expressions* (not just statement
-bodies) is trickier than it looks — a flat `syntax.Walk` from the root
-doesn't preserve a statement-vs-expression traversal boundary the way
-hand-written `ast.Node` type switches do (e.g. it will also visit a
-`KindMatchExpr` nested inside another statement's condition, which the
-original rule wouldn't). See `/memories/repo/cst-direct-migration.md` for the
-full writeup (from investigating `assignment_in_condition_rule.go`) before
-attempting another rule with nested expression recursion.
+`syntax/conditions.go` provides reusable, unit-tested condition and body
+accessors (`IfCondition`, `WhileCondition`, `DoWhileCondition`,
+`ForConditions`, `MatchCondition`, `MatchArmConditions`, `IfBody`,
+`IfElseIfs`, `IfElse`, `ElseIfBody`, `ElseBody`, `WhileBody`, `DoWhileBody`,
+`ForBody`, `StatementBodyList`, `FunctionBody`, `ClassMethods`,
+`CallIsMethodLike`, `CallArgList`) so new rule migrations don't need to
+re-derive child-detection logic from `syntax/lower_stmt.go`/`lower_expr.go`.
+`analyse/assignment_in_condition_rule.go`'s `CheckIssuesWithSource` is the
+second migrated rule (test-isolation path only; the registered rule still
+uses the ast.Node-based `CheckIssues`) and is the template for rules that
+recurse into *expressions*, not just statement bodies: a flat `syntax.Walk`
+from the root does NOT preserve the statement-vs-expression traversal
+boundary that hand-written `ast.Node` type switches get for free (e.g. it
+would also visit a `KindMatchExpr` nested inside another statement's
+condition as if it were top-level). The fix is a bespoke recursive
+statement walker that only descends into known body-container kinds, and
+calls a separate, narrowly-scoped expression walker on isolated condition
+subtrees only. See `/memories/repo/cst-direct-migration.md` for the full
+design writeup and the list of sharp edges found (CallExpr method-vs-
+function distinction, transparent ParenExpr unwrapping, KindArg/KindArgList
+wrapper nodes around call arguments) before porting another rule.
 
 ### Perf (not coverage %)
 

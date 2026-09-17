@@ -104,3 +104,103 @@ func TestMatchCondition(t *testing.T) {
 		t.Fatalf("expected condition %q, got %q", "$x", cond.Text())
 	}
 }
+
+func TestMatchArmConditions(t *testing.T) {
+	res := Parse([]byte("<?php\n$r = match ($x) {\n    1, 2 => 'a',\n    default => 'b',\n};\n"))
+	match := firstNodeOfKind(res.File.Root, KindMatchExpr)
+	if match == nil {
+		t.Fatal("expected a MatchExpr node")
+	}
+	conds := MatchArmConditions(match)
+	if len(conds) != 2 {
+		t.Fatalf("expected 2 arm conditions (default excluded), got %d", len(conds))
+	}
+	if strings.TrimSpace(conds[0].Text()) != "1" || strings.TrimSpace(conds[1].Text()) != "2" {
+		t.Fatalf("unexpected arm condition texts: %q, %q", conds[0].Text(), conds[1].Text())
+	}
+}
+
+func TestIfBodyAndElseAccessors(t *testing.T) {
+	res := Parse([]byte("<?php\nif ($a) {\n    echo 1;\n} elseif ($b) {\n    echo 2;\n} else {\n    echo 3;\n}\n"))
+	ifStmt := firstNodeOfKind(res.File.Root, KindIfStmt)
+	if ifStmt == nil {
+		t.Fatal("expected an IfStmt node")
+	}
+	body := IfBody(ifStmt)
+	if body == nil || len(StatementBodyList(body)) != 1 {
+		t.Fatalf("expected 1 statement in if-body, got %v", body)
+	}
+	elseIfs := IfElseIfs(ifStmt)
+	if len(elseIfs) != 1 {
+		t.Fatalf("expected 1 elseif clause, got %d", len(elseIfs))
+	}
+	elseIfBody := ElseIfBody(elseIfs[0])
+	if elseIfBody == nil || len(StatementBodyList(elseIfBody)) != 1 {
+		t.Fatalf("expected 1 statement in elseif-body, got %v", elseIfBody)
+	}
+	els := IfElse(ifStmt)
+	if els == nil {
+		t.Fatal("expected an else clause")
+	}
+	elseBody := ElseBody(els)
+	if elseBody == nil || len(StatementBodyList(elseBody)) != 1 {
+		t.Fatalf("expected 1 statement in else-body, got %v", elseBody)
+	}
+}
+
+func TestWhileDoWhileForBodyAccessors(t *testing.T) {
+	res := Parse([]byte("<?php\nwhile ($a) {\n    echo 1;\n}\ndo {\n    echo 2;\n} while ($b);\nfor ($i = 0; $i < 10; $i++) {\n    echo 3;\n}\n"))
+	while := firstNodeOfKind(res.File.Root, KindWhileStmt)
+	if body := WhileBody(while); body == nil || len(StatementBodyList(body)) != 1 {
+		t.Fatalf("expected 1 statement in while-body, got %v", body)
+	}
+	doWhile := firstNodeOfKind(res.File.Root, KindDoWhileStmt)
+	if body := DoWhileBody(doWhile); body == nil || len(StatementBodyList(body)) != 1 {
+		t.Fatalf("expected 1 statement in do-while-body, got %v", body)
+	}
+	forStmt := firstNodeOfKind(res.File.Root, KindForStmt)
+	if body := ForBody(forStmt); body == nil || len(StatementBodyList(body)) != 1 {
+		t.Fatalf("expected 1 statement in for-body, got %v", body)
+	}
+}
+
+func TestFunctionBodyAndClassMethods(t *testing.T) {
+	res := Parse([]byte("<?php\nclass Foo {\n    public function bar() {\n        echo 1;\n    }\n    public function baz();\n}\n"))
+	class := firstNodeOfKind(res.File.Root, KindClassDecl)
+	if class == nil {
+		t.Fatal("expected a ClassDecl node")
+	}
+	methods := ClassMethods(class)
+	if len(methods) != 2 {
+		t.Fatalf("expected 2 methods, got %d", len(methods))
+	}
+	if body := FunctionBody(methods[0]); body == nil || len(StatementBodyList(body)) != 1 {
+		t.Fatalf("expected 1 statement in bar()'s body, got %v", body)
+	}
+	if body := FunctionBody(methods[1]); body != nil {
+		t.Fatalf("expected nil body for abstract-like method baz(), got %v", body)
+	}
+}
+
+func TestCallIsMethodLikeAndArgList(t *testing.T) {
+	res := Parse([]byte("<?php\nfoo($a);\n$obj->bar($b);\n"))
+	var calls []*RedNode
+	Walk(res.File.Root, func(n *RedNode) bool {
+		if n.Kind() == KindCallExpr {
+			calls = append(calls, n)
+		}
+		return true
+	})
+	if len(calls) != 2 {
+		t.Fatalf("expected 2 call expressions, got %d", len(calls))
+	}
+	if CallIsMethodLike(calls[0]) {
+		t.Fatalf("expected foo(...) to not be method-like")
+	}
+	if CallArgList(calls[0]) == nil {
+		t.Fatal("expected an ArgList for foo(...)")
+	}
+	if !CallIsMethodLike(calls[1]) {
+		t.Fatalf("expected $obj->bar(...) to be method-like")
+	}
+}

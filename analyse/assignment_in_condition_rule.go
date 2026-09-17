@@ -2,6 +2,7 @@ package analyse
 
 import (
 	"github.com/ayanozturk/go-php-parser/ast"
+	"github.com/ayanozturk/go-php-parser/syntax"
 )
 
 // AssignmentInConditionRule detects assignments inside conditional statements
@@ -167,6 +168,121 @@ func (r *AssignmentInConditionRule) findAssignmentsInExpression(expr ast.Node) [
 	}
 
 	return nil
+}
+
+// CheckIssuesWithSource is a CST-direct test-isolation entry point (see
+// empty_statement_rule.go's CheckIssuesWithSource for the established
+// pattern). It parses raw source and walks *syntax.RedNode directly instead
+// of lowering to []ast.Node first. Only statement-body containers (if/
+// elseif/else/while/do-while/for/function/class) are recursed into; a
+// condition subtree is only ever visited once, via the bounded
+// findAssignmentsInCST walk, to avoid double-counting nested constructs
+// (e.g. a match-expression embedded inside another statement's condition).
+// Not wired into the registered rule (CheckIssues, used in production,
+// is unchanged); exists for parity testing against the ast.Node path.
+func (r *AssignmentInConditionRule) CheckIssuesWithSource(filename string, content []byte) []AnalysisIssue {
+	res := syntax.Parse(content)
+	var issues []AnalysisIssue
+	addCond := func(cond *syntax.RedNode) {
+		for _, assign := range findAssignmentsInCST(cond) {
+			pos := assign.Pos()
+			issues = append(issues, AnalysisIssue{
+				Filename: filename,
+				Line:     pos.Line,
+				Column:   pos.Column,
+				Code:     "Generic.CodeAnalysis.AssignmentInCondition",
+				Message:  "Assignment in condition",
+			})
+		}
+	}
+	var walkStmt func(n *syntax.RedNode)
+	walkBody := func(body *syntax.RedNode) {
+		for _, stmt := range syntax.StatementBodyList(body) {
+			walkStmt(stmt)
+		}
+	}
+	walkStmt = func(n *syntax.RedNode) {
+		if n == nil {
+			return
+		}
+		switch n.Kind() {
+		case syntax.KindStatementList:
+			walkBody(n)
+		case syntax.KindIfStmt:
+			addCond(syntax.IfCondition(n))
+			walkBody(syntax.IfBody(n))
+			for _, elseif := range syntax.IfElseIfs(n) {
+				addCond(syntax.IfCondition(elseif))
+				walkBody(syntax.ElseIfBody(elseif))
+			}
+			if els := syntax.IfElse(n); els != nil {
+				walkBody(syntax.ElseBody(els))
+			}
+		case syntax.KindWhileStmt:
+			addCond(syntax.WhileCondition(n))
+			walkBody(syntax.WhileBody(n))
+		case syntax.KindDoWhileStmt:
+			walkBody(syntax.DoWhileBody(n))
+			addCond(syntax.DoWhileCondition(n))
+		case syntax.KindForStmt:
+			for _, cond := range syntax.ForConditions(n) {
+				addCond(cond)
+			}
+			walkBody(syntax.ForBody(n))
+		case syntax.KindMatchExpr:
+			addCond(syntax.MatchCondition(n))
+			for _, cond := range syntax.MatchArmConditions(n) {
+				addCond(cond)
+			}
+		case syntax.KindFunctionDecl, syntax.KindMethodDecl:
+			walkBody(syntax.FunctionBody(n))
+		case syntax.KindClassDecl:
+			for _, method := range syntax.ClassMethods(n) {
+				walkStmt(method)
+			}
+		}
+	}
+	for _, top := range res.File.Root.Children() {
+		walkStmt(top)
+	}
+	return issues
+}
+
+// findAssignmentsInCST is the CST analogue of findAssignmentsInExpression:
+// it recurses only into the same expression shapes the ast.Node version
+// does (assign/binary/ternary/cast operands, unwrapped expression
+// statements, parenthesized expressions, property-fetch objects, and
+// plain-function-call arguments -- explicitly NOT method-call args, matching
+// the absence of an *ast.MethodCallNode case in the original switch).
+func findAssignmentsInCST(expr *syntax.RedNode) []*syntax.RedNode {
+	if expr == nil {
+		return nil
+	}
+	var found []*syntax.RedNode
+	var visit func(n *syntax.RedNode) bool
+	visit = func(n *syntax.RedNode) bool {
+		switch n.Kind() {
+		case syntax.KindAssignExpr:
+			found = append(found, n)
+			return true
+		case syntax.KindBinaryExpr, syntax.KindTernaryExpr, syntax.KindCastExpr,
+			syntax.KindExpressionStmt, syntax.KindParenExpr,
+			syntax.KindMemberAccessExpr, syntax.KindNullsafeMemberAccessExpr,
+			syntax.KindArgList, syntax.KindArg, syntax.KindNamedArg:
+			return true
+		case syntax.KindCallExpr:
+			if !syntax.CallIsMethodLike(n) {
+				if args := syntax.CallArgList(n); args != nil {
+					syntax.Walk(args, visit)
+				}
+			}
+			return false
+		default:
+			return false
+		}
+	}
+	syntax.Walk(expr, visit)
+	return found
 }
 
 func init() {
