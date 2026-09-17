@@ -4,7 +4,7 @@ import (
 	"testing"
 )
 
-func TestCheckSymbolIssuesFromCSTMatchesASTPath(t *testing.T) {
+func TestCheckSymbolIssuesFromCST(t *testing.T) {
 	cases := map[string]string{
 		"unresolvedInstantiation": `<?php
 function run(): void {
@@ -162,18 +162,67 @@ function run(Real $r): void {
 `,
 	}
 
+	type wantIssue struct {
+		Message string
+		Line    int
+		Column  int
+	}
+
+	want := map[string][]wantIssue{
+		"unresolvedInstantiation": {
+			{Message: "Instantiated class Missing not found.", Line: 3, Column: 5},
+		},
+		"abstractInstantiation": {
+			{Message: "Instantiated class Base is abstract.", Line: 4, Column: 5},
+		},
+		"interfaceInstantiation": {
+			{Message: "Cannot instantiate interface HasRun.", Line: 4, Column: 5},
+		},
+		"unresolvedFunctionCall": {
+			{Message: "Function missingFunction not found.", Line: 2, Column: 1},
+		},
+		"classicStaticCall": {
+			{Message: "Call to an undefined static method Real::missing().", Line: 7, Column: 5},
+			{Message: "Call to static method bar() on an unknown class Missing.", Line: 8, Column: 5},
+		},
+		"dynamicStaticCall": {
+			{Message: "Access to undefined static property Real::$.", Line: 7, Column: 5},
+		},
+		"instanceMethodCall": {},
+		"thisMethodCall": {
+			{Message: "Call to an undefined method Real::missing().", Line: 6, Column: 9},
+			{Message: "Using $this inside static method Real::staticRun().", Line: 9, Column: 9},
+		},
+		"classConstFetch": {
+			{Message: "Access to undefined constant Real::MISSING.", Line: 7, Column: 10},
+			{Message: "Access to constant Missing::FIELD on an unknown class Missing.", Line: 8, Column: 10},
+		},
+		"propertyFetch":         {},
+		"chainedMethodCalls":    {},
+		"chainedPropertyAccess": {},
+		"arrowFunctionKeepsEnclosingCurrentFn": {
+			{Message: "Using $this inside static method Real::staticRun().", Line: 5, Column: 23},
+		},
+		"switchBodyGapPreserved":         {},
+		"yieldExpressionGapPreserved":    {},
+		"firstClassCallableGapPreserved": {},
+		"statementBodyDeclarationFound":  {},
+		"clean":                          {},
+	}
+
 	for name, src := range cases {
 		t.Run(name, func(t *testing.T) {
 			filename := name + ".php"
-			ctx, fileCtx, guards, nodes := buildTypeRefTestContext(t, filename, src)
-			want := sortIssuesForCompare((&Level0Rule{}).checkSymbolsAndCalls(filename, nodes, ctx, fileCtx))
+			ctx, _, guards, _ := buildTypeRefTestContext(t, filename, src)
 			got := sortIssuesForCompare(CheckSymbolIssuesFromCST(filename, []byte(src), ctx, guards))
-			if len(want) != len(got) {
-				t.Fatalf("issue count mismatch: ast=%d cst=%d\nast=%+v\ncst=%+v", len(want), len(got), want, got)
+
+			wantIssues := want[name]
+			if len(wantIssues) != len(got) {
+				t.Fatalf("issue count mismatch: want=%d got=%d\nwant=%+v\ngot=%+v", len(wantIssues), len(got), wantIssues, got)
 			}
-			for i := range want {
-				if want[i].Line != got[i].Line || want[i].Column != got[i].Column || want[i].Message != got[i].Message {
-					t.Fatalf("issue %d mismatch:\nast=%+v\ncst=%+v", i, want[i], got[i])
+			for i := range wantIssues {
+				if wantIssues[i].Line != got[i].Line || wantIssues[i].Column != got[i].Column || wantIssues[i].Message != got[i].Message {
+					t.Fatalf("issue %d mismatch:\nwant=%+v\ngot=%+v", i, wantIssues[i], got[i])
 				}
 			}
 		})
