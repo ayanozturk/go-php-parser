@@ -494,15 +494,17 @@ function inspect(): void {
 
 func TestVariableFlowRuleStartsUndefinedDiagnosticsAtLevelOne(t *testing.T) {
 	const filename = "variable-levels.php"
-	nodes := parseControlFlowPHP(t, `<?php
+	src := `<?php
 function choose(bool $condition): void {
     if ($condition) { $possible = 1; }
     echo $possible;
     echo $missing;
-}`)
+}`
+	nodes := parseControlFlowPHP(t, src)
 	snapshot := variableFlowSnapshot(t, filename, nodes)
 
 	zeroContext := snapshot.NewAnalysisContext()
+	zeroContext.Content = []byte(src)
 	zeroIssues := (&Level0Rule{}).CheckIssues(filename, nodes, zeroContext)
 	if hasIssueContaining(zeroIssues, level1VariablesCode, "might not be defined") {
 		t.Fatalf("level zero emitted undefined-variable diagnostics: %#v", zeroIssues)

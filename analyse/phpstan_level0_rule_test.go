@@ -35,7 +35,7 @@ func runAnalysisLevelOnFiles(t *testing.T, files map[string]string, level int) [
 	project := BuildProjectIndex(parsed)
 	var issues []AnalysisIssue
 	for filename, nodes := range parsed {
-		ctx := &AnalysisContext{Resolver: project, AnalysisLevel: &level}
+		ctx := &AnalysisContext{Resolver: project, AnalysisLevel: &level, Content: []byte(files[filename])}
 		issues = append(issues, RunAnalysisRulesWithContext(filename, nodes, ctx)...)
 	}
 	return issues
@@ -483,7 +483,6 @@ final class EmployeeCalendarDataTest
 		t.Fatalf("same-class helper after encapsed curly must stay clean, got %#v", issues)
 	}
 }
-
 
 func TestLevel0ResolvesNamespaceRelativeFunctionsAndImports(t *testing.T) {
 	issues := runLevel0OnFiles(t, map[string]string{

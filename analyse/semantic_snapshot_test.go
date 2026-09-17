@@ -168,8 +168,7 @@ function load_model(int $id): Model {}
 
 func TestSemanticSnapshotGeneratesScopeAwareReturnTypeFacts(t *testing.T) {
 	const filename = "src/Answers.php"
-	parsed := map[string][]ast.Node{
-		filename: parsePHPForProjectIndex(t, `<?php
+	src := `<?php
 function answer(): string {
     $value = 'ok';
     return $value;
@@ -180,7 +179,9 @@ class Provider {
         return 42;
     }
 }
-`),
+`
+	parsed := map[string][]ast.Node{
+		filename: parsePHPForProjectIndex(t, src),
 	}
 
 	snapshot, err := NewSemanticSnapshot(parsed, nil)
@@ -202,6 +203,7 @@ class Provider {
 	}
 
 	ctx := snapshot.NewAnalysisContext()
+	ctx.Content = []byte(src)
 	if issues := (&ReturnTypeRule{}).CheckIssues(parsed[filename], filename, ctx); hasReturnTypeIssue(issues) {
 		t.Fatalf("generated facts changed compatible return diagnostics: %#v", issues)
 	}

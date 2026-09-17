@@ -59,6 +59,7 @@ func returnCompletenessIssues(t *testing.T, code string, flow FlowGraphReader) [
 		}
 		ctx = snapshot.NewAnalysisContext()
 	}
+	ctx.Content = []byte(code)
 
 	issues := (&ReturnTypeRule{}).CheckIssues(nodes, filename, ctx)
 	completeness := make([]AnalysisIssue, 0, len(issues))
@@ -100,10 +101,11 @@ function neverResult(): never {}
 }
 
 func TestNeverFallthroughUsesDedicatedDiagnostic(t *testing.T) {
-	nodes := parseReturnCompletenessPHP(t, `<?php
+	src := `<?php
 function neverResult(): never {}
-`)
-	issues := (&ReturnTypeRule{}).CheckIssues(nodes, "returns.php", &AnalysisContext{})
+`
+	nodes := parseReturnCompletenessPHP(t, src)
+	issues := (&ReturnTypeRule{}).CheckIssues(nodes, "returns.php", &AnalysisContext{Content: []byte(src)})
 	if len(issues) != 1 || issues[0].Code != returnNeverCode {
 		t.Fatalf("never fallthrough issues = %#v; want one %s issue", issues, returnNeverCode)
 	}

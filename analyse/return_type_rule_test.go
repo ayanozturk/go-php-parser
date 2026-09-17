@@ -10,11 +10,12 @@ import (
 // helper to run analysis on a PHP snippet and return issues
 func analysePHP(t *testing.T, code string) []AnalysisIssue {
 	t.Helper()
-	nodes, diags := syntax.ParseAST([]byte(code))
+	content := []byte(code)
+	nodes, diags := syntax.ParseAST(content)
 	if len(diags) > 0 {
 		t.Fatalf("parser errors: %v", diags)
 	}
-	return RunAnalysisRules("test.php", nodes)
+	return RunAnalysisRulesWithContext("test.php", nodes, &AnalysisContext{Content: content})
 }
 
 func hasReturnTypeIssue(issues []AnalysisIssue) bool {
@@ -491,13 +492,14 @@ class Example {
 
 func TestReturnTypeRuleUsesSnapshotInferredTypeFact(t *testing.T) {
 	const filename = "src/Answer.php"
-	nodes, expression := parseReturnFactFixture(t, `<?php
+	src := `<?php
 function answer(): string {
     return 42;
 }
-`)
+`
+	nodes, expression := parseReturnFactFixture(t, src)
 	rule := &ReturnTypeRule{}
-	if issues := rule.CheckIssues(nodes, filename, &AnalysisContext{}); !hasReturnTypeIssue(issues) {
+	if issues := rule.CheckIssues(nodes, filename, &AnalysisContext{Content: []byte(src)}); !hasReturnTypeIssue(issues) {
 		t.Fatalf("expected ordinary inference to report int returned as string, got %#v", issues)
 	}
 
@@ -506,18 +508,21 @@ function answer(): string {
 	if err != nil {
 		t.Fatalf("build semantic snapshot: %v", err)
 	}
-	if issues := rule.CheckIssues(nodes, filename, snapshot.NewAnalysisContext()); hasReturnTypeIssue(issues) {
+	snapshotCtx := snapshot.NewAnalysisContext()
+	snapshotCtx.Content = []byte(src)
+	if issues := rule.CheckIssues(nodes, filename, snapshotCtx); hasReturnTypeIssue(issues) {
 		t.Fatalf("expected shared inferred-type fact to satisfy declared return type, got %#v", issues)
 	}
 }
 
 func TestReturnTypeRuleIgnoresMismatchedAndEmptyInferredTypeFacts(t *testing.T) {
 	const filename = "src/Answer.php"
-	nodes, expression := parseReturnFactFixture(t, `<?php
+	src := `<?php
 function answer(): string {
     return 42;
 }
-`)
+`
+	nodes, expression := parseReturnFactFixture(t, src)
 	key := inferredTypeFactKey(filename, expression)
 	mismatched := key
 	mismatched.StartOffset++
@@ -525,7 +530,7 @@ function answer(): string {
 		mismatched: {Key: mismatched, Type: "string"},
 	}}
 
-	issues := (&ReturnTypeRule{}).CheckIssues(nodes, filename, &AnalysisContext{Facts: reader})
+	issues := (&ReturnTypeRule{}).CheckIssues(nodes, filename, &AnalysisContext{Facts: reader, Content: []byte(src)})
 	if !hasReturnTypeIssue(issues) {
 		t.Fatalf("expected nonmatching fact span to fall back to ordinary inference, got %#v", issues)
 	}
@@ -534,7 +539,7 @@ function answer(): string {
 	}
 
 	reader.facts[key] = SemanticFact{Key: key}
-	issues = (&ReturnTypeRule{}).CheckIssues(nodes, filename, &AnalysisContext{Facts: reader})
+	issues = (&ReturnTypeRule{}).CheckIssues(nodes, filename, &AnalysisContext{Facts: reader, Content: []byte(src)})
 	if !hasReturnTypeIssue(issues) {
 		t.Fatalf("expected empty inferred type fact to fall back to ordinary inference, got %#v", issues)
 	}
@@ -612,7 +617,7 @@ function optional_payload(bool $available): ?array {
 
 func TestReturnTypeKeepsClassTemplateIdentity(t *testing.T) {
 	const filename = "src/Store.php"
-	nodes := parseReturnCompletenessPHP(t, `<?php
+	src := `<?php
 namespace Example;
 
 /** @template T of object */
@@ -625,12 +630,15 @@ abstract class Store {
         return $this->stored();
     }
 }
-`)
+`
+	nodes := parseReturnCompletenessPHP(t, src)
 	snapshot, err := NewSemanticSnapshot(map[string][]ast.Node{filename: nodes}, nil)
 	if err != nil {
 		t.Fatalf("build semantic snapshot: %v", err)
 	}
-	issues := (&ReturnTypeRule{}).CheckIssues(nodes, filename, snapshot.NewAnalysisContext())
+	ctx := snapshot.NewAnalysisContext()
+	ctx.Content = []byte(src)
+	issues := (&ReturnTypeRule{}).CheckIssues(nodes, filename, ctx)
 	if hasReturnTypeIssue(issues) {
 		t.Fatalf("class template was resolved as a namespaced class: %#v", issues)
 	}
@@ -638,7 +646,7 @@ abstract class Store {
 
 func TestReturnTypeUsesLiteralFalseAndFopenSignature(t *testing.T) {
 	const filename = "src/Streams.php"
-	nodes := parseReturnCompletenessPHP(t, `<?php
+	src := `<?php
 /** @return resource|false */
 function open_stream(string $path) {
     if ($path === '') {
@@ -646,12 +654,15 @@ function open_stream(string $path) {
     }
     return fopen($path, 'rb');
 }
-`)
+`
+	nodes := parseReturnCompletenessPHP(t, src)
 	snapshot, err := NewSemanticSnapshot(map[string][]ast.Node{filename: nodes}, nil)
 	if err != nil {
 		t.Fatalf("build semantic snapshot: %v", err)
 	}
-	issues := (&ReturnTypeRule{}).CheckIssues(nodes, filename, snapshot.NewAnalysisContext())
+	ctx := snapshot.NewAnalysisContext()
+	ctx.Content = []byte(src)
+	issues := (&ReturnTypeRule{}).CheckIssues(nodes, filename, ctx)
 	if hasReturnTypeIssue(issues) {
 		t.Fatalf("resource-or-false returns should accept false and fopen: %#v", issues)
 	}
