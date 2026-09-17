@@ -2,22 +2,9 @@ package analyse
 
 import (
 	"testing"
-
-	"github.com/ayanozturk/go-php-parser/ast"
 )
 
-// runMissingTypesOnASTNodes calls appendMissingTypeIssuesOnNode directly via
-// walkAllWithFileContext, bypassing ensureStructuralIssues's fused walk so
-// the ast.Node comparison path is isolated to just this rule.
-func runMissingTypesOnASTNodes(filename string, nodes []ast.Node, ctx *AnalysisContext, fileCtx FileTypeContext) []AnalysisIssue {
-	var issues []AnalysisIssue
-	walkAllWithFileContext(nodes, fileCtx, ctx, func(node ast.Node, class *ast.ClassNode, currentFn *ast.FunctionNode, ft FileTypeContext) {
-		appendMissingTypeIssuesOnNode(filename, node, class, ft, ctx, &issues)
-	})
-	return issues
-}
-
-func TestCheckMissingTypeIssuesFromCSTMatchesASTPath(t *testing.T) {
+func TestCheckMissingTypeIssuesFromCST(t *testing.T) {
 	cases := map[string]string{
 		"missingParamType": `<?php
 function run($x): void {}
@@ -70,18 +57,50 @@ function run($x): void {}
 `,
 	}
 
+	type wantIssue struct {
+		Message string
+		Line    int
+		Column  int
+	}
+
+	want := map[string][]wantIssue{
+		"missingParamType": {
+			{Message: "Parameter $x has no type specified.", Line: 2, Column: 14},
+		},
+		"missingReturnType": {
+			{Message: "Function or method run has no return type specified.", Line: 2, Column: 1},
+		},
+		"missingPropertyType": {
+			{Message: "Property $field has no type specified.", Line: 3, Column: 5},
+		},
+		"missingGenericType": {
+			{Message: "Iterable type array does not specify its value type.", Line: 5, Column: 14},
+		},
+		"missingIterableValueType": {
+			{Message: "Iterable type iterable does not specify its value type.", Line: 5, Column: 14},
+		},
+		"interfaceMethodMissingType": {
+			{Message: "Function or method run has no return type specified.", Line: 3, Column: 12},
+			{Message: "Parameter $x has no type specified.", Line: 3, Column: 25},
+		},
+		"constructorExemptFromReturnType": {},
+		"okAllTypesPresent":               {},
+		"docParamTypeSuppresses":          {},
+	}
+
 	for name, src := range cases {
 		t.Run(name, func(t *testing.T) {
 			filename := name + ".php"
-			ctx, fileCtx, nodes := buildStructuralTestContext(t, filename, src)
-			want := sortIssuesForCompare(runMissingTypesOnASTNodes(filename, nodes, ctx, fileCtx))
+			ctx, _, _ := buildStructuralTestContext(t, filename, src)
 			got := sortIssuesForCompare(CheckMissingTypeIssuesFromCST(filename, []byte(src), ctx))
-			if len(want) != len(got) {
-				t.Fatalf("issue count mismatch: ast=%d cst=%d\nast=%+v\ncst=%+v", len(want), len(got), want, got)
+
+			wantIssues := want[name]
+			if len(wantIssues) != len(got) {
+				t.Fatalf("issue count mismatch: want=%d got=%d\nwant=%+v\ngot=%+v", len(wantIssues), len(got), wantIssues, got)
 			}
-			for i := range want {
-				if want[i].Line != got[i].Line || want[i].Column != got[i].Column || want[i].Message != got[i].Message {
-					t.Fatalf("issue %d mismatch:\nast=%+v\ncst=%+v", i, want[i], got[i])
+			for i := range wantIssues {
+				if wantIssues[i].Line != got[i].Line || wantIssues[i].Column != got[i].Column || wantIssues[i].Message != got[i].Message {
+					t.Fatalf("issue %d mismatch:\nwant=%+v\ngot=%+v", i, wantIssues[i], got[i])
 				}
 			}
 		})
