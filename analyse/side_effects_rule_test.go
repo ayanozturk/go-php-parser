@@ -214,3 +214,50 @@ func runSideEffectsAnalysis(t *testing.T, php string) []AnalysisIssue {
 	rule := &SideEffectsRule{}
 	return rule.CheckIssuesWithSource("test.php", []byte(php), nodes)
 }
+
+func TestSideEffectsCSTMatchesLoweredPath(t *testing.T) {
+	fixtures := []string{
+		"<?php\nclass MyClass {\n    public function method() {}\n}\n\nfunction myFunction() {}\n\nconst MY_CONSTANT = 'value';\n",
+		"<?php\n#[AllowMockObjectsWithoutExpectations]\nclass MyTest {\n}\n",
+		"<?php\necho \"Hello World\";\n$x = 42;\nfile_put_contents('file.txt', 'content');\n",
+		"<?php\nclass MyClass {\n    public function method() {}\n}\n\necho \"Hello World\";\n",
+		"<?php\nclass MyClass {}\n\nnew MyClass();\n",
+		"<?php\nfunction myFunction() {}\n\necho \"test\";\n",
+		"<?php",
+		"<?php\n// echo \"comment\";\n/* echo \"block comment\"; */\nclass MyClass {}\n",
+		"<?php\nclass MyClass {}\n\n$code = 'echo \"string\";';\n",
+		"<?php\nnamespace MyNamespace;\n\nclass MyClass {}\nfunction myFunction() {}\n",
+		"<?php\nnamespace MyNamespace;\n\nuse Foo\\Bar;\n\nfinal class MyClass {}\n",
+		"<?php\nclass MyClass {\n    public function make() {\n        return new OtherClass();\n    }\n}\n",
+		"<?php\ninterface MyInterface {}\n\necho \"test\";\n",
+		"<?php\ntrait MyTrait {}\n\nprint \"test\";\n",
+		"<?php\nclass MyClass {}\n\nheader('Content-Type: application/json');\nsetcookie('session', 'value');\nsession_start();\nmail('to@example.com', 'subject', 'body');\n",
+		// Braced namespace form.
+		"<?php\nnamespace MyNamespace {\n    class MyClass {}\n    echo \"test\";\n}\n",
+		// declare(): bodyless form is never a side effect on its own.
+		"<?php\ndeclare(strict_types=1);\n\nclass MyClass {}\n",
+		// declare(): empty braced body is not a side effect (Body stays nil).
+		"<?php\nclass MyClass {}\n\ndeclare(strict_types=1) {\n}\n",
+		// declare(): non-empty braced body is unconditionally a side effect.
+		"<?php\nclass MyClass {}\n\ndeclare(strict_types=1) {\n    echo \"test\";\n}\n",
+	}
+
+	rule := &SideEffectsRule{}
+	for i, php := range fixtures {
+		content := []byte(php)
+		nodes, diags := syntax.ParseAST(content)
+		if len(diags) > 0 {
+			t.Fatalf("fixture %d: parser errors: %v", i, diags)
+		}
+		lowered := rule.CheckIssuesWithSource("test.php", content, nodes)
+		cst := rule.CheckIssuesFromCST("test.php", content)
+		if len(lowered) != len(cst) {
+			t.Fatalf("fixture %d: issue count mismatch: lowered=%d cst=%d\nphp:\n%s", i, len(lowered), len(cst), php)
+		}
+		for j := range lowered {
+			if lowered[j].Line != cst[j].Line || lowered[j].Column != cst[j].Column || lowered[j].Code != cst[j].Code {
+				t.Fatalf("fixture %d: issue %d mismatch: lowered=%+v cst=%+v", i, j, lowered[j], cst[j])
+			}
+		}
+	}
+}

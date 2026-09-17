@@ -57,6 +57,18 @@ design writeup and the list of sharp edges found (CallExpr method-vs-
 function distinction, transparent ParenExpr unwrapping, KindArg/KindArgList
 wrapper nodes around call arguments) before porting another rule.
 
+`analyse/side_effects_rule.go`'s `CheckIssuesFromCST` is the third migrated
+rule and the last one sharing the plain `RegisterAnalysisRule` +
+self-contained `CheckIssuesWithSource` shape — every remaining rule is
+registered via `RegisterAnalysisRuleWithContext`/`WithLevel`/`WithMeta` and
+fed by the `phpstan_level0_walk.go` fused dispatcher, so further rule-by-rule
+ports are blocked until that dispatcher (or `RunAnalysisRulesWithContext`'s
+`[]ast.Node` signature) is migrated. Added `syntax.NamespaceBody` and
+`syntax.ExpressionStmtExpr` accessors for this port; see
+`/memories/repo/cst-direct-migration.md` for the `KindToken`-exclusion
+pitfall (a `KindFile`'s children always include a trailing EOF token) and
+the `declare(){}` quirk this rule deliberately preserves.
+
 ### Perf (not coverage %)
 
 - Bench gates: allocs/op, tokens/KB on Symfony/WordPress-sized inputs — regressions fail CI even if coverage is high.

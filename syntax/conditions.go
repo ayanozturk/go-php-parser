@@ -369,3 +369,40 @@ func firstExprOrNameChild(n *RedNode) *RedNode {
 	}
 	return nil
 }
+
+// ExpressionStmtExpr returns the inner expression RedNode of an expression
+// statement, or nil. Mirrors lowerStmt's KindExpressionStmt handling
+// (firstExprChild).
+func ExpressionStmtExpr(n *RedNode) *RedNode {
+	if n == nil || n.Kind() != KindExpressionStmt {
+		return nil
+	}
+	return firstExprChild(n)
+}
+
+// NamespaceBody returns a namespace declaration's body nodes, handling both
+// the braced form (`namespace Foo { ... }`, a KindStatementList child) and
+// the unbraced form (`namespace Foo;`, which folds the following top-level
+// siblings into the namespace until the next KindNamespaceDecl). Mirrors
+// lowerNamespace's exact child-classification logic. siblings/idx identify
+// n's position among its own siblings (e.g. a KindFile's children); consumed
+// reports how many following siblings the unbraced form absorbed.
+func NamespaceBody(n *RedNode, siblings []*RedNode, idx int) (body []*RedNode, consumed int) {
+	if n == nil {
+		return nil, 0
+	}
+	for _, c := range n.Children() {
+		if c.Kind() == KindStatementList {
+			return c.Children(), 0
+		}
+	}
+	for j := idx + 1; j < len(siblings); j++ {
+		sib := siblings[j]
+		if sib.Kind() == KindNamespaceDecl {
+			break
+		}
+		consumed++
+		body = append(body, sib)
+	}
+	return body, consumed
+}

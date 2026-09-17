@@ -2,11 +2,126 @@ package analyse
 
 import (
 	"github.com/ayanozturk/go-php-parser/ast"
+	"github.com/ayanozturk/go-php-parser/syntax"
 )
 
 // SideEffectsRule implements PSR1.Files.SideEffects
 // Ensures files either declare symbols OR cause side-effects, but not both
 type SideEffectsRule struct{}
+
+// CheckIssuesFromCST performs the same PSR1.Files.SideEffects analysis
+// directly against the syntax CST (see syntax.Parse/syntax.NamespaceBody),
+// without lowering to []ast.Node first. Mirrors CheckIssuesWithSource's
+// isSideEffectNode/isDeclaration logic node-kind-by-node-kind.
+func (r *SideEffectsRule) CheckIssuesFromCST(filename string, content []byte) []AnalysisIssue {
+	res := syntax.Parse(content)
+	top := flattenTopLevelForSideEffects(res.File.Root)
+
+	hasSideEffects := false
+	hasDeclarations := false
+	for _, n := range top {
+		if isSideEffectCSTNode(n) {
+			hasSideEffects = true
+		}
+		if isDeclarationCSTNode(n) {
+			hasDeclarations = true
+		}
+	}
+
+	if hasSideEffects && hasDeclarations {
+		return []AnalysisIssue{{
+			Filename: filename,
+			Line:     1,
+			Column:   1,
+			Code:     "PSR1.Files.SideEffects",
+			Message:  "A file should declare new symbols or cause side-effects, but not both",
+		}}
+	}
+	return nil
+}
+
+// flattenTopLevelForSideEffects returns the file's top-level CST nodes,
+// unwrapping namespace declarations into their body nodes (braced or
+// unbraced) to mirror how ast.NamespaceNode.Body is treated by
+// isSideEffectNode/isDeclaration.
+func flattenTopLevelForSideEffects(root *syntax.RedNode) []*syntax.RedNode {
+	if root == nil {
+		return nil
+	}
+	children := root.Children()
+	var out []*syntax.RedNode
+	for i := 0; i < len(children); i++ {
+		c := children[i]
+		if c.Kind() == syntax.KindNamespaceDecl {
+			body, consumed := syntax.NamespaceBody(c, children, i)
+			out = append(out, body...)
+			i += consumed
+			continue
+		}
+		out = append(out, c)
+	}
+	return out
+}
+
+// isSideEffectCSTNode mirrors isSideEffectNode's ast.Node type switch.
+func isSideEffectCSTNode(n *syntax.RedNode) bool {
+	if n == nil {
+		return false
+	}
+	switch n.Kind() {
+	case syntax.KindToken, syntax.KindTokenList, syntax.KindError, syntax.KindMissing:
+		return false
+	case syntax.KindUseDecl, syntax.KindAttributeList,
+		syntax.KindClassDecl, syntax.KindFunctionDecl, syntax.KindInterfaceDecl,
+		syntax.KindTraitDecl, syntax.KindConstDecl, syntax.KindEnumDecl:
+		return false
+	case syntax.KindDeclareStmt:
+		// Mirrors the *ast.DeclareNode case: a braced body with at least one
+		// lowerable statement is unconditionally a side effect (the original
+		// code never inspects the body's contents); a bodyless
+		// `declare(...);` or an empty `declare(...) {}` is not.
+		bodyList := n.FirstChildOfKind(syntax.KindStatementList)
+		return bodyList != nil && len(syntax.StatementBodyList(bodyList)) > 0
+	case syntax.KindExpressionStmt:
+		return isSideEffectExprCST(n)
+	default:
+		return true
+	}
+}
+
+// isSideEffectExprCST mirrors isSideEffectExpr's ast.Node type switch.
+func isSideEffectExprCST(stmt *syntax.RedNode) bool {
+	expr := syntax.ExpressionStmtExpr(stmt)
+	if expr == nil {
+		return false
+	}
+	switch expr.Kind() {
+	case syntax.KindAssignExpr:
+		return false
+	case syntax.KindUnqualifiedName, syntax.KindQualifiedName,
+		syntax.KindFullyQualifiedName, syntax.KindRelativeName, syntax.KindName:
+		// The current parser can surface top-level `use Foo\Bar;` as a bare
+		// name expression statement. Treat that malformed import shape as
+		// non-side-effecting, matching the ast.IdentifierNode case.
+		return false
+	default:
+		return true
+	}
+}
+
+// isDeclarationCSTNode mirrors isDeclaration's ast.Node type switch (namespace
+// unwrapping already happened in flattenTopLevelForSideEffects).
+func isDeclarationCSTNode(n *syntax.RedNode) bool {
+	if n == nil {
+		return false
+	}
+	switch n.Kind() {
+	case syntax.KindClassDecl, syntax.KindFunctionDecl, syntax.KindInterfaceDecl,
+		syntax.KindTraitDecl, syntax.KindConstDecl, syntax.KindEnumDecl:
+		return true
+	}
+	return false
+}
 
 // CheckIssuesWithSource performs analysis given explicit source content (used by tests)
 func (r *SideEffectsRule) CheckIssuesWithSource(filename string, content []byte, nodes []ast.Node) []AnalysisIssue {

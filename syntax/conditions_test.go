@@ -204,3 +204,69 @@ func TestCallIsMethodLikeAndArgList(t *testing.T) {
 		t.Fatalf("expected $obj->bar(...) to be method-like")
 	}
 }
+
+func TestExpressionStmtExpr(t *testing.T) {
+	res := Parse([]byte("<?php\n$x = 1;\n"))
+	stmt := firstNodeOfKind(res.File.Root, KindExpressionStmt)
+	if stmt == nil {
+		t.Fatal("expected an ExpressionStmt node")
+	}
+	expr := ExpressionStmtExpr(stmt)
+	if expr == nil || expr.Kind() != KindAssignExpr {
+		t.Fatalf("expected an AssignExpr, got %v", expr)
+	}
+	if ExpressionStmtExpr(nil) != nil {
+		t.Fatal("expected nil for nil input")
+	}
+}
+
+func TestNamespaceBodyBracedAndUnbraced(t *testing.T) {
+	braced := Parse([]byte("<?php\nnamespace Foo {\n    class A {}\n    class B {}\n}\n"))
+	ns := firstNodeOfKind(braced.File.Root, KindNamespaceDecl)
+	if ns == nil {
+		t.Fatal("expected a NamespaceDecl node")
+	}
+	body, consumed := NamespaceBody(ns, braced.File.Root.Children(), 0)
+	if consumed != 0 {
+		t.Fatalf("expected 0 consumed for braced form, got %d", consumed)
+	}
+	var classCount int
+	for _, n := range body {
+		if n.Kind() == KindClassDecl {
+			classCount++
+		}
+	}
+	if classCount != 2 {
+		t.Fatalf("expected 2 classes in braced namespace body, got %d", classCount)
+	}
+
+	unbraced := Parse([]byte("<?php\nnamespace Foo;\n\nclass A {}\nclass B {}\n"))
+	children := unbraced.File.Root.Children()
+	idx := -1
+	for i, c := range children {
+		if c.Kind() == KindNamespaceDecl {
+			idx = i
+			break
+		}
+	}
+	if idx == -1 {
+		t.Fatal("expected a NamespaceDecl child")
+	}
+	ubBody, ubConsumed := NamespaceBody(children[idx], children, idx)
+	// NamespaceBody absorbs every following sibling up to the next
+	// NamespaceDecl (or end of file), including the trailing EOF token —
+	// mirrors lowerNamespace's consumed count exactly, even though the
+	// token itself lowers to nothing.
+	if ubConsumed != len(children)-idx-1 {
+		t.Fatalf("expected %d consumed siblings for unbraced form, got %d", len(children)-idx-1, ubConsumed)
+	}
+	var ubClassCount int
+	for _, n := range ubBody {
+		if n.Kind() == KindClassDecl {
+			ubClassCount++
+		}
+	}
+	if ubClassCount != 2 {
+		t.Fatalf("expected 2 class decls in unbraced namespace body, got %+v", ubBody)
+	}
+}
