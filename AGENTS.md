@@ -223,6 +223,33 @@ targets) — no new `walkSyntaxConfigured` gaps found. See
 porting the next candidate: the structural pass in
 `phpstan_structural_walk.go`).
 
+Sixth Phase 3 port: four CST-direct rule files covering the structural
+pass — `analyse/syntax_method_visibility_rule.go`'s
+`CheckMethodVisibilityIssuesFromCST` (→ `appendMethodVisibilityOnNode`),
+`analyse/syntax_throw_type_rule.go`'s `CheckThrowTypeIssuesFromCST` (→
+`appendThrowTypeOnNode`), `analyse/syntax_phpdoc_rule.go`'s
+`CheckPHPDocIssuesFromCST` (→ `appendPHPDocIssuesOnNode`), and
+`analyse/syntax_missing_types_rule.go`'s `CheckMissingTypeIssuesFromCST` (→
+`appendMissingTypeIssuesOnNode`) — all reusing the same
+`walkSyntaxConfigured`-driven dispatch shape as prior ports. Symfony corpus
+validation surfaced one real (not preserved-gap) CST-side bug: a property's
+PHPDoc nested inside an anonymous class reached via `(new class
+{...})::class` was over-detected as referencing an unknown class for
+`self::*` syntax, because `splitStaticMemberAccessParts`
+(`syntax/lower_expr.go`) — shared by both `lowerStaticMemberAccessExpr` and
+`lowerCallExpr`'s static-call-callee branch — discards the entire lowered
+ast.Node for a non-Name class-part expression before `::`, keeping only its
+`.TokenLiteral()` string; ast-side can therefore never reach that anonymous
+class's members at all (0 issues is correct there), while the CST walker
+was still descending into it. Fixed by centralizing a new
+`staticMemberAccessDynamicClassPart` skip in `analyse/syntax_walk.go` (same
+"no ast.Node wrapper exists" shape as the pre-existing `ParamDefaultValue`
+skip) rather than in the phpdoc rule itself, since it affects every rule
+driven by the shared walker. Corpus-validated to **0 mismatches** on both
+composer-src (532 files) and symfony (10016 files) after the fix. See
+`/memories/repo/cst-direct-migration.md` for the full writeup (before
+porting the last candidate: `appendReturnTypeOnNode`).
+
 ### Perf (not coverage %)
 
 - Bench gates: allocs/op, tokens/KB on Symfony/WordPress-sized inputs — regressions fail CI even if coverage is high.
