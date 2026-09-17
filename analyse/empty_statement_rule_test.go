@@ -2,6 +2,8 @@ package analyse
 
 import (
 	"testing"
+
+	"github.com/ayanozturk/go-php-parser/syntax"
 )
 
 func runEmptyStatementAnalysis(t *testing.T, php string) []AnalysisIssue {
@@ -120,3 +122,37 @@ func TestEmptyStatementInCommentIsNotReported(t *testing.T) {
 	}
 }
 
+// TestCSTPathMatchesLoweredPath guards the CST-direct fallback in
+// CheckIssuesWithSource against drifting from the pre-lowered ast.Node path
+// still used by the fused walk in ensureSharedFileDiagnostics.
+func TestCSTPathMatchesLoweredPath(t *testing.T) {
+	cases := []string{
+		"<?php\n;\n$z = 1;\n",
+		"<?php\nif ($x) ;\n",
+		"<?php\nif ($x)\n    ;\n",
+		"<?php\nwhile ($x) ;\n",
+		"<?php\nfor($i=0;$i<10;$i++) ;\n",
+		"<?php\nfor($i=0;$i<10;$i++) { }\n",
+		"<?php\n; ; ;\n",
+		"<?php\n$a = 1;\n$b = 2;\nif ($a) { echo $b; }\n",
+		"<?php\ndo {\n    $token = next_token();\n} while ($token !== null);\n",
+		"<?php\nif ($ready) {\n    work();\n}\nwhile ($drain) ;\n",
+		"<?php\n$s = ';';\necho $s;\n",
+		"<?php\n// ;\n$a = 1;\n",
+	}
+	r := &EmptyStatementRule{}
+	for _, php := range cases {
+		content := []byte(php)
+		cstIssues := r.CheckIssuesWithSource("test.php", content, nil)
+		nodes, _ := syntax.ParseAST(content)
+		loweredIssues := r.CheckIssuesWithSource("test.php", nil, nodes)
+		if len(cstIssues) != len(loweredIssues) {
+			t.Fatalf("issue count mismatch for %q: cst=%d lowered=%d", php, len(cstIssues), len(loweredIssues))
+		}
+		for i := range cstIssues {
+			if cstIssues[i].Line != loweredIssues[i].Line || cstIssues[i].Column != loweredIssues[i].Column {
+				t.Fatalf("position mismatch for %q at issue %d: cst=%+v lowered=%+v", php, i, cstIssues[i], loweredIssues[i])
+			}
+		}
+	}
+}
