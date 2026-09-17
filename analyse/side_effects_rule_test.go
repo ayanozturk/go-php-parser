@@ -202,6 +202,41 @@ mail('to@example.com', 'subject', 'body');
 	}
 }
 
+// TestSideEffectsRuleHonorsContentContext verifies that
+// runRegisteredSideEffectsRule -- the exact function wired into the rule
+// registry via RegisterAnalysisRuleWithContext, which is what production
+// calls -- branches on ctx.Content: with Content set it must match
+// CheckIssuesFromCST's direct output, and without Content it must match
+// CheckIssues' ast.Node output.
+func TestSideEffectsRuleHonorsContentContext(t *testing.T) {
+	php := `<?php
+class MyClass {
+    public function method() {}
+}
+
+echo "Hello World";
+`
+	content := []byte(php)
+	nodes, diags := syntax.ParseAST(content)
+	if len(diags) > 0 {
+		t.Fatalf("parser errors: %v", diags)
+	}
+
+	rule := &SideEffectsRule{}
+	wantWithContent := rule.CheckIssuesFromCST("test.php", content)
+	wantWithoutContent := rule.CheckIssues(nodes, "test.php")
+
+	gotWithContent := runRegisteredSideEffectsRule("test.php", nodes, &AnalysisContext{Content: content})
+	gotWithoutContent := runRegisteredSideEffectsRule("test.php", nodes, &AnalysisContext{})
+
+	if len(gotWithContent) != len(wantWithContent) {
+		t.Fatalf("with Content: got %d issues via registered rule, want %d (CheckIssuesFromCST)", len(gotWithContent), len(wantWithContent))
+	}
+	if len(gotWithoutContent) != len(wantWithoutContent) {
+		t.Fatalf("without Content: got %d issues via registered rule, want %d (CheckIssues)", len(gotWithoutContent), len(wantWithoutContent))
+	}
+}
+
 func runSideEffectsAnalysis(t *testing.T, php string) []AnalysisIssue {
 	t.Helper()
 

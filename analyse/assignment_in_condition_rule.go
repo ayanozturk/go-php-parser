@@ -178,8 +178,8 @@ func (r *AssignmentInConditionRule) findAssignmentsInExpression(expr ast.Node) [
 // condition subtree is only ever visited once, via the bounded
 // findAssignmentsInCST walk, to avoid double-counting nested constructs
 // (e.g. a match-expression embedded inside another statement's condition).
-// Not wired into the registered rule (CheckIssues, used in production,
-// is unchanged); exists for parity testing against the ast.Node path.
+// Wired into the registered rule when ctx.Content is present; otherwise the
+// registered rule falls back to CheckIssues (the ast.Node path).
 func (r *AssignmentInConditionRule) CheckIssuesWithSource(filename string, content []byte) []AnalysisIssue {
 	res := syntax.Parse(content)
 	var issues []AnalysisIssue
@@ -285,9 +285,18 @@ func findAssignmentsInCST(expr *syntax.RedNode) []*syntax.RedNode {
 	return found
 }
 
+// runRegisteredAssignmentInConditionRule is the body of the registered
+// "Generic.CodeAnalysis.AssignmentInCondition" callback, split out so tests
+// can invoke exactly what production runs without depending on global
+// registry state.
+func runRegisteredAssignmentInConditionRule(filename string, nodes []ast.Node, ctx *AnalysisContext) []AnalysisIssue {
+	rule := &AssignmentInConditionRule{}
+	if len(ctx.Content) > 0 {
+		return rule.CheckIssuesWithSource(filename, ctx.Content)
+	}
+	return rule.CheckIssues(nodes, filename)
+}
+
 func init() {
-	RegisterAnalysisRule("Generic.CodeAnalysis.AssignmentInCondition", func(filename string, nodes []ast.Node) []AnalysisIssue {
-		rule := &AssignmentInConditionRule{}
-		return rule.CheckIssues(nodes, filename)
-	})
+	RegisterAnalysisRuleWithContext("Generic.CodeAnalysis.AssignmentInCondition", runRegisteredAssignmentInConditionRule)
 }

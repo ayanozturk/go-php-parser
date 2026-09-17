@@ -272,3 +272,32 @@ func TestAssignmentInConditionCSTMatchesLoweredPath(t *testing.T) {
 		}
 	}
 }
+
+// TestAssignmentInConditionRuleHonorsContentContext verifies that
+// runRegisteredAssignmentInConditionRule -- the exact function wired into
+// the rule registry via RegisterAnalysisRuleWithContext, which is what
+// production calls -- branches on ctx.Content: with Content set it must
+// match CheckIssuesWithSource's direct output, and without Content it must
+// match CheckIssues' ast.Node output.
+func TestAssignmentInConditionRuleHonorsContentContext(t *testing.T) {
+	php := "<?php\nif ($x = foo()) {\n    bar();\n}\n"
+	content := []byte(php)
+	nodes, diags := syntax.ParseAST(content)
+	if len(diags) > 0 {
+		t.Fatalf("parser errors: %v", diags)
+	}
+
+	rule := &AssignmentInConditionRule{}
+	wantWithContent := rule.CheckIssuesWithSource("test.php", content)
+	wantWithoutContent := rule.CheckIssues(nodes, "test.php")
+
+	gotWithContent := runRegisteredAssignmentInConditionRule("test.php", nodes, &AnalysisContext{Content: content})
+	gotWithoutContent := runRegisteredAssignmentInConditionRule("test.php", nodes, &AnalysisContext{})
+
+	if len(gotWithContent) != len(wantWithContent) {
+		t.Fatalf("with Content: got %d issues via registered rule, want %d (CheckIssuesWithSource)", len(gotWithContent), len(wantWithContent))
+	}
+	if len(gotWithoutContent) != len(wantWithoutContent) {
+		t.Fatalf("without Content: got %d issues via registered rule, want %d (CheckIssues)", len(gotWithoutContent), len(wantWithoutContent))
+	}
+}

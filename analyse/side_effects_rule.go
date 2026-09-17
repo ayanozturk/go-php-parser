@@ -237,9 +237,17 @@ func (r *SideEffectsRule) isDeclaration(node ast.Node) bool {
 	return false
 }
 
+// runRegisteredSideEffectsRule is the body of the registered
+// "PSR1.Files.SideEffects" callback, split out so tests can invoke exactly
+// what production runs without depending on global registry state.
+func runRegisteredSideEffectsRule(filename string, nodes []ast.Node, ctx *AnalysisContext) []AnalysisIssue {
+	rule := &SideEffectsRule{}
+	if len(ctx.Content) > 0 {
+		return rule.CheckIssuesFromCST(filename, ctx.Content)
+	}
+	return rule.CheckIssues(nodes, filename)
+}
+
 func init() {
-	RegisterAnalysisRule("PSR1.Files.SideEffects", func(filename string, nodes []ast.Node) []AnalysisIssue {
-		rule := &SideEffectsRule{}
-		return rule.CheckIssues(nodes, filename)
-	})
+	RegisterAnalysisRuleWithContext("PSR1.Files.SideEffects", runRegisteredSideEffectsRule)
 }
