@@ -2,28 +2,9 @@ package analyse
 
 import (
 	"testing"
-
-	"github.com/ayanozturk/go-php-parser/ast"
-	"github.com/ayanozturk/go-php-parser/syntax"
 )
 
-// astPropertyCallableIssuesReal mirrors how ensureSharedFileDiagnostics
-// drives appendPropertyCallableTypeIssue: fed by the full ast.Node walk,
-// over every node in the tree (the function itself filters by node type).
-func astPropertyCallableIssuesReal(t *testing.T, filename, src string) []AnalysisIssue {
-	t.Helper()
-	nodes, diags := syntax.ParseAST([]byte(src))
-	if len(diags) > 0 {
-		t.Fatalf("unexpected parse diagnostics for %s: %v", filename, diags)
-	}
-	var issues []AnalysisIssue
-	walkAllWithoutTypeContext(nodes, func(node ast.Node) {
-		appendPropertyCallableTypeIssue(filename, node, &issues)
-	})
-	return issues
-}
-
-func TestCheckPropertyCallableTypeIssuesFromCSTMatchesASTPath(t *testing.T) {
+func TestCheckPropertyCallableTypeIssuesFromCST(t *testing.T) {
 	cases := map[string]string{
 		"typedPropertyCallable": `<?php
 class C {
@@ -69,17 +50,44 @@ class C {
 `,
 	}
 
+	type wantIssue struct {
+		Message string
+		Line    int
+		Column  int
+	}
+
+	want := map[string][]wantIssue{
+		"typedPropertyCallable": {
+			{Message: "Property $handler cannot have callable in its type declaration.", Line: 3, Column: 5},
+			{Message: "Property $maybeHandler cannot have callable in its type declaration.", Line: 4, Column: 5},
+		},
+		"unionTypeWithCallable": {
+			{Message: "Property $handler cannot have callable in its type declaration.", Line: 3, Column: 5},
+		},
+		"multiPropertyOneCallable": {
+			{Message: "Property $a cannot have callable in its type declaration.", Line: 3, Column: 20},
+			{Message: "Property $b cannot have callable in its type declaration.", Line: 3, Column: 24},
+		},
+		"promotedConstructorParam": {
+			{Message: "Property $handler cannot have callable in its type declaration.", Line: 3, Column: 33},
+		},
+		"nonPromotedCallableParamIgnored": {},
+		"closureInPropertyDefault":        {},
+		"clean":                           {},
+	}
+
 	for name, src := range cases {
 		t.Run(name, func(t *testing.T) {
 			filename := name + ".php"
-			want := sortIssuesForCompare(astPropertyCallableIssuesReal(t, filename, src))
 			got := sortIssuesForCompare(CheckPropertyCallableTypeIssuesFromCST(filename, []byte(src)))
-			if len(want) != len(got) {
-				t.Fatalf("issue count mismatch: ast=%d cst=%d\nast=%+v\ncst=%+v", len(want), len(got), want, got)
+
+			wantIssues := want[name]
+			if len(wantIssues) != len(got) {
+				t.Fatalf("issue count mismatch: want=%d got=%d\nwant=%+v\ngot=%+v", len(wantIssues), len(got), wantIssues, got)
 			}
-			for i := range want {
-				if want[i].Line != got[i].Line || want[i].Column != got[i].Column || want[i].Message != got[i].Message {
-					t.Fatalf("issue %d mismatch:\nast=%+v\ncst=%+v", i, want[i], got[i])
+			for i := range wantIssues {
+				if wantIssues[i].Line != got[i].Line || wantIssues[i].Column != got[i].Column || wantIssues[i].Message != got[i].Message {
+					t.Fatalf("issue %d mismatch:\nwant=%+v\ngot=%+v", i, wantIssues[i], got[i])
 				}
 			}
 		})
