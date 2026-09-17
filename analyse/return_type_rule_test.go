@@ -49,18 +49,42 @@ func TestShortArrayLiteralReturnMatchesArrayType(t *testing.T) {
 	}
 }
 
+// TestReturnTypeRuleFallbackHonorsContentContext exercises
+// collectReturnTypeIssues's ctx.Content branch specifically, not just the
+// return-type rule in general. It deliberately passes an empty `nodes`
+// slice (stale/mismatched relative to ctx.Content) and an AnalysisLevel
+// below 2 so that neither ensureSharedFileDiagnostics(FromCST) nor
+// ensureStructuralIssues(FromCST) pre-populates ctx.returnTypeIssues /
+// ctx.hasReturnTypeIssues before collectReturnTypeIssues runs (both gate
+// return-type collection behind analysisLevelAtLeast(ctx, 2)). That forces
+// returnTypeIssuesForFile to fall through into collectReturnTypeIssues
+// itself. Level < 2 also falls below appendReturnTypeOnNode's internal
+// analysisLevelAtLeast(ctx, 3) gate, so a plain return-type mismatch
+// wouldn't surface either way; the void-pure-function case
+// (voidPureCode) is emitted unconditionally regardless of level, so it's
+// used here as the observable signal.
+//
+// If collectReturnTypeIssues's ctx.Content branch were removed, this test
+// would walk the empty `nodes` slice instead of re-parsing ctx.Content,
+// find no functions, and fail to observe the issue - proving this test
+// actually covers that branch rather than passing coincidentally.
 func TestReturnTypeRuleFallbackHonorsContentContext(t *testing.T) {
-	src := []byte(`<?php function f(): int { return "not an int"; }`)
-	nodes, diags := syntax.ParseAST(src)
-	if len(diags) > 0 {
-		t.Fatalf("parser errors: %v", diags)
-	}
+	src := []byte(`<?php function f(): void { return; }`)
 	rule := &ReturnTypeRule{}
 
-	ctx := &AnalysisContext{Content: src, Resolver: BuildProjectIndex(map[string][]ast.Node{"test.php": nodes})}
-	issues := rule.CheckIssues(nodes, "test.php", ctx)
-	if !hasReturnTypeIssue(issues) {
-		t.Fatalf("expected at least one A.RETURN.TYPE issue, got: %#v", issues)
+	level := 0
+	ctx := &AnalysisContext{Content: src, AnalysisLevel: &level}
+	issues := rule.CheckIssues(nil, "test.php", ctx)
+
+	found := false
+	for _, iss := range issues {
+		if iss.Code == voidPureCode {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("expected an %s issue produced from ctx.Content via collectReturnTypeIssues's fallback branch, got: %#v", voidPureCode, issues)
 	}
 }
 
