@@ -112,6 +112,10 @@ func walkSyntaxConfigured(root *syntax.RedNode, ft FileTypeContext, fn func(n, c
 		children := n.Children()
 		elvisCond := syntax.TernaryElvisCondition(n)
 		paramDefault := syntax.ParamDefaultValue(n)
+		var dynamicClassPart *syntax.RedNode
+		if n.Kind() == syntax.KindStaticMemberAccessExpr {
+			dynamicClassPart = staticMemberAccessDynamicClassPart(n)
+		}
 		for i := 0; i < len(children); i++ {
 			c := children[i]
 			if nextInStatementBody {
@@ -132,6 +136,19 @@ func walkSyntaxConfigured(root *syntax.RedNode, ft FileTypeContext, fn func(n, c
 			// entirely. See syntax.ParamDefaultValue and
 			// /memories/repo/cst-direct-migration.md for the full writeup.
 			if paramDefault != nil && c.Green == paramDefault.Green && c.Offset == paramDefault.Offset {
+				continue
+			}
+			// splitStaticMemberAccessParts (syntax/lower_expr.go) lowers a
+			// non-Name class part (e.g. `(new class {...})::class`,
+			// `$cls::CONST`) purely to call .TokenLiteral() on it, then
+			// discards the resulting ast.Node entirely - ClassConstFetchNode.
+			// Class/FunctionCallNode.Name only ever store the resulting
+			// *string*. This subtree (including any nested anonymous class
+			// declaration) has no ast.Node representation at all, so it must
+			// never be visited - same "no wrapper exists" shape as
+			// ParamDefaultValue above. See
+			// /memories/repo/cst-direct-migration.md for the full writeup.
+			if dynamicClassPart != nil && c.Green == dynamicClassPart.Green && c.Offset == dynamicClassPart.Offset {
 				continue
 			}
 			// walkAllConfigured's *ast.EnumNode case (phpstan_level0_walk.go) only
@@ -325,6 +342,25 @@ func walkSyntaxConfigured(root *syntax.RedNode, ft FileTypeContext, fn func(n, c
 		}
 	}
 	walk(root, nil, nil, ft, false)
+}
+
+// staticMemberAccessDynamicClassPart returns the class-part child of a
+// KindStaticMemberAccessExpr node when it's a complex expression rather
+// than a plain name (e.g. `(new class {...})::class`, `$cls::CONST`).
+// Returns nil when the class part is a name (isNameKind), which is safely
+// walked normally since a Name node has no meaningful sub-expression
+// content to miss.
+func staticMemberAccessDynamicClassPart(n *syntax.RedNode) *syntax.RedNode {
+	for _, c := range n.Children() {
+		if c.Kind() == syntax.KindToken || c.Kind() == syntax.KindTokenList {
+			continue
+		}
+		if syntax.IsNameKind(c.Kind()) {
+			return nil
+		}
+		return c
+	}
+	return nil
 }
 
 // syntaxContainerOnlyKinds are CST kinds that exist purely for grouping
