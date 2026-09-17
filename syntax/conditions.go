@@ -406,3 +406,23 @@ func NamespaceBody(n *RedNode, siblings []*RedNode, idx int) (body []*RedNode, c
 	}
 	return body, consumed
 }
+
+// IsNameKind reports whether k is one of the name-node kinds (unqualified,
+// qualified, fully-qualified, relative, or the generic KindName).
+func IsNameKind(k Kind) bool {
+	return isNameKind(k)
+}
+
+// ClauseNames returns the name text of every name-kind child of clause (e.g.
+// a KindExtendsClause or KindImplementsClause), in source order. Mirrors the
+// lowering path's clauseNames used by lowerClass/lowerInterface.
+func ClauseNames(clause *RedNode) []string {
+	return clauseNames(clause)
+}
+
+// UnqualifiedTail returns the last backslash-separated segment of path, e.g.
+// "Foo" for both "Foo" and "Ns\Foo". Mirrors the lowering path's
+// unqualifiedTail helper used for class/interface declaration names.
+func UnqualifiedTail(path string) string {
+	return unqualifiedTail(path)
+}

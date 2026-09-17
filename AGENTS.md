@@ -84,7 +84,16 @@ It only needs a small "pure container kind" exclusion set
 (`syntaxContainerOnlyKinds`) and class/function scope-boundary tracking.
 `cmd/analysis-corpus-snapshot` is the Phase 3/4 safety net: it runs the full
 rule registry over every `.php` file under `--root` and can capture/diff a
-JSON snapshot of every file's issue set via `--output`/`--baseline`. See
+JSON snapshot of every file's issue set via `--output`/`--baseline`. Phase 2
+is also done: `analyse/syntax_file_type_context.go`'s
+`CollectFileTypeContextFromSyntax` is the CST-direct analogue of
+`CollectFileTypeContext`, reusing `syntax.NamespaceBody`,
+`syntax.AppendTypedUseAliases`, and 3 new thin exported wrappers
+(`syntax.IsNameKind`, `syntax.ClauseNames`, `syntax.UnqualifiedTail`) rather
+than duplicating name-classification logic; it deliberately leaves
+`ClassNodes`/`Constants` unpopulated (documented, narrow-use gaps — not bugs)
+and was corpus-validated with zero mismatches across composer-src (1006
+files) and symfony (10467 files) in addition to its unit fixtures. See
 `/memories/repo/cst-direct-migration.md` for full design notes and gotchas
 (e.g. `RedNode.Text()` on an assignment expression excludes the trailing
 statement semicolon).
