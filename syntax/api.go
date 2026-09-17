@@ -114,7 +114,16 @@ func AppendUseAliases(useDecl *RedNode, aliases map[string]string) {
 	if useDecl == nil || aliases == nil {
 		return
 	}
-	collectUseAliases(useDecl, aliases)
+	collectUseAliases(useDecl, aliases, nil, nil)
+}
+
+// AppendTypedUseAliases merges imports from a KindUseDecl into the alias map
+// matching their PHP import namespace. Mixed group-use clauses are supported.
+func AppendTypedUseAliases(useDecl *RedNode, classAliases, functionAliases, constAliases map[string]string) {
+	if useDecl == nil {
+		return
+	}
+	collectUseAliases(useDecl, classAliases, functionAliases, constAliases)
 }
 
 // NamespaceAndAliases walks a syntax File for the primary namespace name and
@@ -140,7 +149,7 @@ func NamespaceAndAliases(f *File) (string, map[string]string) {
 				}
 			}
 		case KindUseDecl:
-			collectUseAliases(n, aliases)
+			collectUseAliases(n, aliases, nil, nil)
 			return // don't double-walk clauses
 		}
 		for _, c := range n.Children() {
@@ -151,7 +160,7 @@ func NamespaceAndAliases(f *File) (string, map[string]string) {
 	return ns, aliases
 }
 
-func collectUseAliases(useDecl *RedNode, aliases map[string]string) {
+func collectUseAliases(useDecl *RedNode, classAliases, functionAliases, constAliases map[string]string) {
 	useType := "class"
 	for _, c := range useDecl.Children() {
 		if c.Green != nil && c.Green.IsToken() {
@@ -163,31 +172,32 @@ func collectUseAliases(useDecl *RedNode, aliases map[string]string) {
 			}
 		}
 	}
-	if useType != "class" {
-		// Binder/indexer aliases today are class-like only.
-		return
-	}
 	for _, clause := range useDecl.ChildrenOfKind(KindUseClause) {
-		collectUseClauseAliases(clause, "", aliases)
+		collectUseClauseAliases(clause, "", useType, classAliases, functionAliases, constAliases)
 	}
 }
 
-func collectUseClauseAliases(clause *RedNode, prefix string, aliases map[string]string) {
+func collectUseClauseAliases(clause *RedNode, prefix, useType string, classAliases, functionAliases, constAliases map[string]string) {
 	if clause == nil {
 		return
 	}
+	itemType := useType
 	var name *RedNode
 	var alias *RedNode
 	var group *RedNode
 	for _, c := range clause.Children() {
-		switch c.Kind() {
-		case KindUnqualifiedName, KindQualifiedName, KindFullyQualifiedName, KindRelativeName:
+		switch {
+		case c.Green != nil && c.Green.IsToken() && c.Green.TokenType() == token.T_FUNCTION:
+			itemType = "function"
+		case c.Green != nil && c.Green.IsToken() && c.Green.TokenType() == token.T_CONST:
+			itemType = "const"
+		case c.Kind() == KindUnqualifiedName || c.Kind() == KindQualifiedName || c.Kind() == KindFullyQualifiedName || c.Kind() == KindRelativeName:
 			if name == nil {
 				name = c
 			} else {
 				alias = c
 			}
-		case KindUseGroup:
+		case c.Kind() == KindUseGroup:
 			group = c
 		}
 	}
@@ -198,7 +208,7 @@ func collectUseClauseAliases(clause *RedNode, prefix string, aliases map[string]
 		}
 		base = strings.TrimSuffix(base, `\`)
 		for _, inner := range group.ChildrenOfKind(KindUseClause) {
-			collectUseClauseAliases(inner, base, aliases)
+			collectUseClauseAliases(inner, base, itemType, classAliases, functionAliases, constAliases)
 		}
 		return
 	}
@@ -214,6 +224,16 @@ func collectUseClauseAliases(clause *RedNode, prefix string, aliases map[string]
 		aliasName = unqualifiedSyntaxName(path)
 	}
 	if aliasName == "" || path == "" {
+		return
+	}
+	aliases := classAliases
+	switch itemType {
+	case "function":
+		aliases = functionAliases
+	case "const":
+		aliases = constAliases
+	}
+	if aliases == nil {
 		return
 	}
 	aliases[strings.ToLower(aliasName)] = path

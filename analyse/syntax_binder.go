@@ -23,17 +23,18 @@ const (
 
 // NameUse records a bound name occurrence for references/rename.
 type NameUse struct {
-	NodeID    int
-	URI       string
-	Span      syntax.Span // exact leaf-identifier byte span (no trivia)
-	StartLine int         // 0-based LSP line
-	StartChar int         // 0-based UTF-16 code units
-	EndLine   int
-	EndChar   int
-	Written   string
-	Resolved  string // FQN when known (no leading \)
-	Kind      string // class|interface|trait|enum|function|method|property|const|attr|type|name
-	Owner     string // owning type FQN for members (no leading \)
+	NodeID      int
+	URI         string
+	Span        syntax.Span // exact leaf-identifier byte span (no trivia)
+	StartLine   int         // 0-based LSP line
+	StartChar   int         // 0-based UTF-16 code units
+	EndLine     int
+	EndChar     int
+	Written     string
+	Resolved    string // FQN when known (no leading \)
+	Kind        string // class|interface|trait|enum|function|method|property|const|attr|type|name
+	Owner       string // owning type FQN for members (no leading \)
+	Declaration bool   // true when this occurrence declares the matched symbol
 }
 
 // UsageGraph maps name-node ids to resolved symbols for one file (or merge unit).
@@ -209,21 +210,28 @@ func ownersCompatible(needle, u NameUse) bool {
 
 // Binder resolves syntax.Name nodes using the current namespace + import aliases.
 type Binder struct {
-	Namespace string
-	Aliases   map[string]string
-	URI       string
-	Owner     string // current class-like FQN for member ownership
-	NextID    int
-	Graph     UsageGraph
-	src       []byte
-	lines     token.LineTable
+	Namespace       string
+	Aliases         map[string]string
+	FunctionAliases map[string]string
+	ConstAliases    map[string]string
+	URI             string
+	Owner           string // current class-like FQN for member ownership
+	NextID          int
+	Graph           UsageGraph
+	src             []byte
+	lines           token.LineTable
 }
 
 func NewBinder(namespace string, aliases map[string]string) *Binder {
 	if aliases == nil {
 		aliases = map[string]string{}
 	}
-	return &Binder{Namespace: namespace, Aliases: aliases}
+	return &Binder{
+		Namespace:       namespace,
+		Aliases:         aliases,
+		FunctionAliases: map[string]string{},
+		ConstAliases:    map[string]string{},
+	}
 }
 
 // BindName resolves a syntax name node and records a usage with exact leaf span.
@@ -233,10 +241,31 @@ func (b *Binder) BindName(n *syntax.RedNode, kind string) string {
 	}
 	written := syntax.NameText(n)
 	resolved := b.resolve(written)
+	if kind == "name" && !strings.Contains(written, `\`) {
+		if target, ok := b.ConstAliases[strings.ToLower(written)]; ok {
+			kind = "const"
+			resolved = target
+		}
+	}
+	switch kind {
+	case "function":
+		resolved = b.resolveFunction(written)
+	case "const":
+		resolved = b.resolveConst(written)
+	}
+	return b.recordNameUse(n, nameLeafSpan(n), written, resolved, kind, false)
+}
+
+func (b *Binder) BindDeclarationName(n *syntax.RedNode, kind string) string {
+	if n == nil || b == nil {
+		return ""
+	}
+	written := syntax.NameText(n)
+	resolved := b.resolve(written)
 	if kind == "function" {
 		resolved = b.resolveFunction(written)
 	}
-	return b.recordNameUse(n, nameLeafSpan(n), written, resolved, kind)
+	return b.recordNameUse(n, nameLeafSpan(n), written, resolved, kind, true)
 }
 
 // BindPropertyDecl records a property declaration from a T_VARIABLE token node
@@ -250,31 +279,53 @@ func (b *Binder) BindPropertyDecl(n *syntax.RedNode) string {
 	if written == "" || !strings.HasPrefix(written, "$") {
 		return ""
 	}
-	return b.BindMemberUse(n, written, "property")
+	return b.bindMemberUse(n, written, "property", b.Owner, true)
 }
 
 // BindMemberUse records a member-access use site (property, method, or const).
 // written is the identifier leaf as in source (`prop`, `$stat`, `bar`).
 func (b *Binder) BindMemberUse(n *syntax.RedNode, written, kind string) string {
+	return b.bindMemberUse(n, written, kind, b.Owner, false)
+}
+
+func (b *Binder) bindMemberDeclarationName(n *syntax.RedNode, kind string) string {
+	if n == nil || b == nil {
+		return ""
+	}
+	written := syntax.NameText(n)
+	resolved := memberResolved(b.Owner, written)
+	return b.recordNameUse(n, nameLeafSpan(n), written, resolved, kind, true)
+}
+
+func (b *Binder) bindMemberUse(n *syntax.RedNode, written, kind, owner string, declaration bool) string {
 	if n == nil || b == nil || written == "" || kind == "" {
 		return ""
 	}
 	resolveAs := strings.TrimPrefix(written, "$")
-	return b.recordNameUse(n, significantTokenSpan(n), written, b.resolve(resolveAs), kind)
+	resolved := b.resolve(resolveAs)
+	if owner != "" {
+		resolved = memberResolved(owner, resolveAs)
+	}
+	previousOwner := b.Owner
+	b.Owner = owner
+	result := b.recordNameUse(n, significantTokenSpan(n), written, resolved, kind, declaration)
+	b.Owner = previousOwner
+	return result
 }
 
 // recordNameUse appends a NameUse with UTF-16 LSP positions filled from binder
 // source or the red node's file.
-func (b *Binder) recordNameUse(n *syntax.RedNode, span syntax.Span, written, resolved, kind string) string {
+func (b *Binder) recordNameUse(n *syntax.RedNode, span syntax.Span, written, resolved, kind string, declaration bool) string {
 	b.NextID++
 	use := NameUse{
-		NodeID:   b.NextID,
-		URI:      b.URI,
-		Span:     span,
-		Written:  written,
-		Resolved: resolved,
-		Kind:     kind,
-		Owner:    b.Owner,
+		NodeID:      b.NextID,
+		URI:         b.URI,
+		Span:        span,
+		Written:     written,
+		Resolved:    resolved,
+		Kind:        kind,
+		Owner:       b.Owner,
+		Declaration: declaration,
 	}
 	src, lines := b.src, b.lines
 	if len(src) == 0 || len(lines) == 0 {
@@ -534,13 +585,17 @@ func bindSyntaxFile(uri string, src []byte, skipBodies bool) UsageGraph {
 }
 
 type binderWalk struct {
-	b *Binder
+	b        *Binder
+	varTypes map[string]string
 }
 
 type scopeSnap struct {
-	ns      string
-	aliases map[string]string
-	owner   string
+	ns              string
+	aliases         map[string]string
+	functionAliases map[string]string
+	constAliases    map[string]string
+	owner           string
+	varTypes        map[string]string
 }
 
 func (w *binderWalk) saveScope() scopeSnap {
@@ -548,13 +603,26 @@ func (w *binderWalk) saveScope() scopeSnap {
 	for k, v := range w.b.Aliases {
 		aliases[k] = v
 	}
-	return scopeSnap{ns: w.b.Namespace, aliases: aliases, owner: w.b.Owner}
+	functionAliases := cloneStringMap(w.b.FunctionAliases)
+	constAliases := cloneStringMap(w.b.ConstAliases)
+	return scopeSnap{ns: w.b.Namespace, aliases: aliases, functionAliases: functionAliases, constAliases: constAliases, owner: w.b.Owner, varTypes: cloneStringMap(w.varTypes)}
 }
 
 func (w *binderWalk) restoreScope(s scopeSnap) {
 	w.b.Namespace = s.ns
 	w.b.Aliases = s.aliases
+	w.b.FunctionAliases = s.functionAliases
+	w.b.ConstAliases = s.constAliases
 	w.b.Owner = s.owner
+	w.varTypes = s.varTypes
+}
+
+func cloneStringMap(in map[string]string) map[string]string {
+	out := make(map[string]string, len(in))
+	for k, v := range in {
+		out[k] = v
+	}
+	return out
 }
 
 func (w *binderWalk) walkFile(n *syntax.RedNode) {
@@ -580,7 +648,7 @@ func (w *binderWalk) walkStatementList(n *syntax.RedNode) {
 		case syntax.KindNamespaceDecl:
 			w.walkNamespace(c)
 		case syntax.KindUseDecl:
-			syntax.AppendUseAliases(c, w.b.Aliases)
+			syntax.AppendTypedUseAliases(c, w.b.Aliases, w.b.FunctionAliases, w.b.ConstAliases)
 			w.walkUseNames(c)
 		default:
 			w.walk(c)
@@ -605,6 +673,8 @@ func (w *binderWalk) walkNamespace(n *syntax.RedNode) {
 		prev := w.saveScope()
 		w.b.Namespace = nsName
 		w.b.Aliases = map[string]string{}
+		w.b.FunctionAliases = map[string]string{}
+		w.b.ConstAliases = map[string]string{}
 		w.b.Owner = ""
 		w.walkStatementList(body)
 		w.restoreScope(prev)
@@ -612,6 +682,8 @@ func (w *binderWalk) walkNamespace(n *syntax.RedNode) {
 	}
 	w.b.Namespace = nsName
 	w.b.Aliases = map[string]string{}
+	w.b.FunctionAliases = map[string]string{}
+	w.b.ConstAliases = map[string]string{}
 	w.b.Owner = ""
 }
 
@@ -642,7 +714,7 @@ func (w *binderWalk) walk(n *syntax.RedNode) {
 		w.walkNamespace(n)
 		return
 	case syntax.KindUseDecl:
-		syntax.AppendUseAliases(n, w.b.Aliases)
+		syntax.AppendTypedUseAliases(n, w.b.Aliases, w.b.FunctionAliases, w.b.ConstAliases)
 		w.walkUseNames(n)
 		return
 	case syntax.KindStatementList:
@@ -692,7 +764,7 @@ func (w *binderWalk) walkClassLike(n *syntax.RedNode) {
 	}
 	prevOwner := w.b.Owner
 	if nameNode != nil {
-		fqn := w.b.BindName(nameNode, kind)
+		fqn := w.b.BindDeclarationName(nameNode, kind)
 		w.b.Owner = fqn
 	}
 	for _, c := range n.Children() {
@@ -749,7 +821,8 @@ func (w *binderWalk) walkMemberAccess(n *syntax.RedNode, kindFor func(mem, acces
 	}
 	if mem := memberNameToken(n); mem != nil {
 		if kind := kindFor(mem, n); kind != "" {
-			w.b.BindMemberUse(mem, tokenSignificantText(mem), kind)
+			owner := w.memberReceiverOwner(children[0])
+			w.b.bindMemberUse(mem, tokenSignificantText(mem), kind, owner, false)
 		}
 	} else if len(children) >= 3 && children[2] != nil {
 		// Dynamic braced / encapsed member ({$expr} / ${…}): no BindMemberUse on
@@ -761,6 +834,64 @@ func (w *binderWalk) walkMemberAccess(n *syntax.RedNode, kindFor func(mem, acces
 	for i := 3; i < len(children); i++ {
 		w.walk(children[i])
 	}
+}
+
+func (w *binderWalk) memberReceiverOwner(receiver *syntax.RedNode) string {
+	if receiver == nil {
+		return ""
+	}
+	if receiver.Kind() == syntax.KindUnqualifiedName || receiver.Kind() == syntax.KindQualifiedName ||
+		receiver.Kind() == syntax.KindFullyQualifiedName || receiver.Kind() == syntax.KindRelativeName {
+		name := syntax.NameText(receiver)
+		switch strings.ToLower(strings.TrimPrefix(name, `\`)) {
+		case "self", "static":
+			return w.b.Owner
+		}
+		return w.b.resolve(name)
+	}
+	if variable := firstTokenOfType(receiver, token.T_VARIABLE); variable != nil {
+		if owner := w.varTypes[strings.ToLower(tokenSignificantText(variable))]; owner != "" {
+			return owner
+		}
+	}
+	if receiver.Kind() == syntax.KindNewExpr {
+		if name := firstNameNode(receiver); name != nil {
+			return w.b.resolve(syntax.NameText(name))
+		}
+	}
+	return ""
+}
+
+func firstTokenOfType(n *syntax.RedNode, typ token.TokenType) *syntax.RedNode {
+	if n == nil {
+		return nil
+	}
+	if n.Kind() == syntax.KindToken && n.Green != nil && n.Green.TokenType() == typ {
+		return n
+	}
+	for _, c := range n.Children() {
+		if found := firstTokenOfType(c, typ); found != nil {
+			return found
+		}
+	}
+	return nil
+}
+
+func firstNameNode(n *syntax.RedNode) *syntax.RedNode {
+	if n == nil {
+		return nil
+	}
+	switch n.Kind() {
+	case syntax.KindUnqualifiedName, syntax.KindQualifiedName,
+		syntax.KindFullyQualifiedName, syntax.KindRelativeName:
+		return n
+	}
+	for _, c := range n.Children() {
+		if found := firstNameNode(c); found != nil {
+			return found
+		}
+	}
+	return nil
 }
 
 // memberNameToken returns the third child when it is a bindable identifier token.
@@ -841,14 +972,85 @@ func (w *binderWalk) walkFunctionLike(n *syntax.RedNode) {
 		}
 	}
 	if nameNode != nil {
-		w.b.BindName(nameNode, kind)
+		if kind == "method" {
+			w.b.bindMemberDeclarationName(nameNode, kind)
+		} else {
+			w.b.BindDeclarationName(nameNode, kind)
+		}
 	}
+	previousTypes := w.varTypes
+	w.varTypes = map[string]string{}
+	if w.b.Owner != "" {
+		w.varTypes["$this"] = w.b.Owner
+	}
+	w.collectParamTypes(n)
 	for _, c := range n.Children() {
 		if sameRed(c, nameNode) {
 			continue
 		}
 		w.walk(c)
 	}
+	w.varTypes = previousTypes
+}
+
+func (w *binderWalk) collectParamTypes(n *syntax.RedNode) {
+	params := n.FirstChildOfKind(syntax.KindParamList)
+	if params == nil {
+		return
+	}
+	for _, param := range params.ChildrenOfKind(syntax.KindParam) {
+		variable := firstTokenOfType(param, token.T_VARIABLE)
+		if variable == nil {
+			continue
+		}
+		var owner string
+		for _, c := range param.Children() {
+			if isSyntaxTypeKind(c.Kind()) {
+				owner = w.classOwnerFromType(c)
+				break
+			}
+		}
+		if owner != "" {
+			w.varTypes[strings.ToLower(tokenSignificantText(variable))] = owner
+		}
+	}
+}
+
+func isSyntaxTypeKind(kind syntax.Kind) bool {
+	switch kind {
+	case syntax.KindNamedType, syntax.KindNullableType, syntax.KindUnionType,
+		syntax.KindIntersectionType, syntax.KindParenthesizedType:
+		return true
+	default:
+		return false
+	}
+}
+
+func (w *binderWalk) classOwnerFromType(n *syntax.RedNode) string {
+	if n == nil {
+		return ""
+	}
+	if n.Kind() == syntax.KindNamedType {
+		if name := firstNameNode(n); name != nil {
+			return w.b.resolve(syntax.NameText(name))
+		}
+		return ""
+	}
+	var owner string
+	for _, c := range n.Children() {
+		if !isSyntaxTypeKind(c.Kind()) {
+			continue
+		}
+		candidate := w.classOwnerFromType(c)
+		if candidate == "" {
+			continue
+		}
+		if owner != "" && !strings.EqualFold(owner, candidate) {
+			return ""
+		}
+		owner = candidate
+	}
+	return owner
 }
 
 func (w *binderWalk) walkClassConst(n *syntax.RedNode) {
@@ -861,7 +1063,8 @@ func (w *binderWalk) walkClassConst(n *syntax.RedNode) {
 			seenNameish = true
 			w.walk(c)
 		case syntax.KindUnqualifiedName:
-			w.b.BindName(c, "const")
+			written := syntax.NameText(c)
+			w.b.bindMemberUse(c, written, "const", w.b.Owner, true)
 			seenNameish = true
 			_ = seenNameish
 		default:
@@ -881,6 +1084,8 @@ func nameKind(n *syntax.RedNode) string {
 			if len(kids) > 0 && sameRed(kids[0], n) {
 				return "function"
 			}
+		case syntax.KindLiteralExpr:
+			return "const"
 		case syntax.KindNamedType:
 			return "type"
 		case syntax.KindAttribute:
@@ -994,7 +1199,32 @@ func (b *Binder) bindCallableTypeNames(n *syntax.RedNode) {
 }
 
 func (b *Binder) resolveFunction(name string) string {
+	name = strings.TrimSpace(name)
+	if !strings.Contains(name, `\`) && !strings.HasPrefix(name, `\`) {
+		if target, ok := b.FunctionAliases[strings.ToLower(name)]; ok {
+			return target
+		}
+	}
 	return resolveFunctionNameInContext(b.Namespace, nil, name)
+}
+
+func (b *Binder) resolveConst(name string) string {
+	name = strings.TrimSpace(name)
+	if !strings.Contains(name, `\`) && !strings.HasPrefix(name, `\`) {
+		if target, ok := b.ConstAliases[strings.ToLower(name)]; ok {
+			return target
+		}
+	}
+	return b.resolve(name)
+}
+
+func memberResolved(owner, name string) string {
+	owner = strings.TrimPrefix(owner, `\`)
+	name = strings.TrimPrefix(name, "$")
+	if i := strings.LastIndexByte(owner, '\\'); i >= 0 {
+		return owner[:i+1] + name
+	}
+	return name
 }
 
 func (b *Binder) resolve(name string) string {

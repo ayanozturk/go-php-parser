@@ -123,3 +123,76 @@ func TestReferencesAtRequiresFullParseNotIndex(t *testing.T) {
 		t.Fatalf("index-mode should not exceed full-parse body refs: full=%d idx=%d", len(fullHits), len(idxHits))
 	}
 }
+
+func TestReferencesResolveFunctionAndConstImportAliases(t *testing.T) {
+	src := []byte(`<?php
+namespace App;
+use function Vendor\Tools\run as execute;
+use const Vendor\Config\ENABLED as ON;
+execute();
+if (ON) {}
+`)
+	res := syntax.Parse(src)
+	graph := BindSyntaxResult("file://aliases.php", res)
+
+	want := map[string]string{
+		"execute": `Vendor\Tools\run`,
+		"ON":      `Vendor\Config\ENABLED`,
+	}
+	for written, resolved := range want {
+		found := false
+		for _, use := range graph.Uses {
+			if use.Written == written && use.Resolved == resolved {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Fatalf("missing %s => %s in %+v", written, resolved, graph.Uses)
+		}
+	}
+}
+
+func TestReferencesResolveTypedReceiverMembers(t *testing.T) {
+	src := []byte(`<?php
+namespace App;
+class Service { public function run() {} }
+function invoke(Service $service) { $service->run(); }
+`)
+	res := syntax.Parse(src)
+	g := NewProjectUsageGraph()
+	IndexSyntaxFileForReferences(g, "file://receiver.php", res)
+	offset := strings.LastIndex(string(src), "run")
+	hits := ReferencesAt(g, "file://receiver.php", res, offset)
+	if len(hits) != 2 {
+		t.Fatalf("want method declaration and typed receiver use, got %+v", hits)
+	}
+	for _, hit := range hits {
+		if hit.Owner != `App\Service` || hit.Resolved != `App\run` || hit.Kind != "method" {
+			t.Fatalf("unexpected member identity: %+v", hit)
+		}
+	}
+}
+
+func TestNameUsesMarkDeclarations(t *testing.T) {
+	src := []byte(`<?php
+namespace App;
+class Service {
+    public const READY = true;
+    public string $name;
+    public function run() { return $this->name; }
+}
+`)
+	graph := BindSyntaxResult("file://decls.php", syntax.Parse(src))
+	wantDeclarations := map[string]bool{"Service": false, "READY": false, "$name": false, "run": false}
+	for _, use := range graph.Uses {
+		if _, ok := wantDeclarations[use.Written]; ok && use.Declaration {
+			wantDeclarations[use.Written] = true
+		}
+	}
+	for name, found := range wantDeclarations {
+		if !found {
+			t.Fatalf("%s was not marked as a declaration: %+v", name, graph.Uses)
+		}
+	}
+}
