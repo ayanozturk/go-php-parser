@@ -157,6 +157,48 @@ func LowerInterfaceMethodDeclNode(n *RedNode, file *File) *ast.InterfaceMethodNo
 	return lowerInterfaceMethod(n, file)
 }
 
+// LowerInterfaceDeclNode lowers a single KindInterfaceDecl CST node to its
+// classic *ast.InterfaceNode (including Members). Unlike
+// LowerClassLikeContextNode's nil result for KindInterfaceDecl (interfaces
+// never contribute a "class" context parameter, since they can't nest
+// inside another class-like), this returns the real lowered node for rules
+// that need to inspect an interface declaration itself. Returns nil for a
+// nil or non-KindInterfaceDecl node.
+func LowerInterfaceDeclNode(n *RedNode, file *File) *ast.InterfaceNode {
+	if n == nil || n.Kind() != KindInterfaceDecl {
+		return nil
+	}
+	return lowerInterface(n, file)
+}
+
+// LowerEnumDeclNode lowers a single KindEnumDecl CST node to its classic
+// *ast.EnumNode (including Methods/Cases/Implements). Unlike
+// LowerClassLikeContextNode's synthetic Name-only *ast.ClassNode for
+// KindEnumDecl (walkAllConfigured's "class" context parameter for an enum's
+// body only ever needs Name), this returns the real lowered node for rules
+// that need to inspect the enum declaration itself. Returns nil for a nil
+// or non-KindEnumDecl node.
+func LowerEnumDeclNode(n *RedNode, file *File) *ast.EnumNode {
+	if n == nil || n.Kind() != KindEnumDecl {
+		return nil
+	}
+	return lowerEnum(n, file)
+}
+
+// LowerTraitDeclNode lowers a single KindTraitDecl CST node to its classic
+// *ast.TraitNode (including Body). Unlike LowerClassLikeContextNode's
+// synthetic Name-only *ast.ClassNode for KindTraitDecl, this returns the
+// real lowered node — needed to inspect a trait's own Body for nested
+// *ast.TraitUseNode entries (a trait using another trait), since
+// appendClassModelOnNode has no case for *ast.TraitNode itself. Returns nil
+// for a nil or non-KindTraitDecl node.
+func LowerTraitDeclNode(n *RedNode, file *File) *ast.TraitNode {
+	if n == nil || n.Kind() != KindTraitDecl {
+		return nil
+	}
+	return lowerTrait(n, file)
+}
+
 // LowerClassConstDeclNode lowers a single KindClassConstDecl or KindConstDecl
 // CST node (possibly with multiple comma-separated const names) to its
 // classic []ast.Node ([]*ast.ConstantNode). KindConstDecl (a global,
