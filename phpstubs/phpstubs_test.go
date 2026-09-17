@@ -19,7 +19,7 @@ func TestSharedStubsAreBundled(t *testing.T) {
 	if len(names) == 0 {
 		t.Fatal("expected shared stubs")
 	}
-	for _, name := range []string{"Standard", "Reflection"} {
+	for _, name := range []string{"Standard", "Reflection", "Json", "SimpleXML"} {
 		if _, err := ReadShared(name); err != nil {
 			t.Fatalf("read shared %s: %v", name, err)
 		}
