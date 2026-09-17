@@ -102,8 +102,10 @@ func (ctx FileTypeContext) resolveClassLike(name string) string {
 	return resolveClassLikeInContext(ctx.Namespace, ctx.Aliases, name)
 }
 
-func (ctx FileTypeContext) resolveFunctionName(name string) string {
-	return resolveFunctionNameInContext(ctx.Namespace, ctx.FunctionAliases, name)
+// resolveFunctionDeclarationName resolves a declared function in its namespace.
+// Imports affect call sites, never the name introduced by a declaration.
+func (ctx FileTypeContext) resolveFunctionDeclarationName(name string) string {
+	return resolveFunctionNameInContext(ctx.Namespace, nil, name)
 }
 
 func resolveFunctionNameInContext(namespace string, aliases map[string]string, name string) string {

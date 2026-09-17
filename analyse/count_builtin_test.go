@@ -102,19 +102,21 @@ function caller(array $xs): int { return count($xs); }
 	}
 }
 
-func TestResolveFunctionNameSkipsClassAliases(t *testing.T) {
+func TestResolveFunctionDeclarationNameSkipsImports(t *testing.T) {
 	ctx := FileTypeContext{
 		Namespace: "App",
 		Aliases: map[string]string{
 			"count": `Predis\Command\Traits\Count`,
 		},
-		FunctionAliases: map[string]string{},
+		FunctionAliases: map[string]string{
+			"count": `Vendor\count`,
+		},
 	}
-	got := ctx.resolveFunctionName("count")
+	got := ctx.resolveFunctionDeclarationName("count")
 	if got != `App\count` {
-		t.Fatalf("resolveFunctionName(count) = %q, want App\\count", got)
+		t.Fatalf("resolveFunctionDeclarationName(count) = %q, want App\\count", got)
 	}
-	if strings.Contains(got, "Predis") {
-		t.Fatalf("class alias leaked into function name resolution: %q", got)
+	if strings.Contains(got, "Predis") || strings.Contains(got, "Vendor") {
+		t.Fatalf("import alias leaked into function declaration name: %q", got)
 	}
 }

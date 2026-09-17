@@ -59,7 +59,7 @@ func (idx *ProjectIndex) indexNodes(filename string, nodes []ast.Node, ft FileTy
 				idx.addMethod(currentClass, methodFromFunction(filename, currentClass, n, ft, nil, nil))
 				continue
 			}
-			name := ft.resolveFunctionName(n.Name)
+			name := ft.resolveFunctionDeclarationName(n.Name)
 			nativeReturn := nativeTypeDNF(n.ReturnType, ft)
 			returnType := nativeReturn
 			if n.PHPDoc != nil && n.PHPDoc.ReturnType != "" {

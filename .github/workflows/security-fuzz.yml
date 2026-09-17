@@ -15,6 +15,8 @@ jobs:
   parser-fuzz:
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    env:
+      FUZZ_TIME: ${{ github.event_name == 'schedule' && '2m' || '15s' }}
     steps:
       - name: Check out repository
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
@@ -23,10 +25,10 @@ jobs:
         with:
           go-version-file: go.mod
           cache: true
-      - name: Fuzz malformed parser input
-        run: go test ./parser -run='^$' -fuzz='^FuzzParserMalformedPHP$' -fuzztime=15s
-      - name: Fuzz parser cancellation
-        run: go test ./parser -run='^$' -fuzz='^FuzzParserCancellation$' -fuzztime=10s
+      - name: Fuzz full syntax parser
+        run: go test ./syntax -run='^$' -fuzz='^FuzzSyntaxParserMalformedPHP$' -fuzztime="$FUZZ_TIME"
+      - name: Fuzz declaration-tier syntax parser
+        run: go test ./syntax -run='^$' -fuzz='^FuzzSyntaxIndexParserMalformedPHP$' -fuzztime="$FUZZ_TIME"
 
   phpdoc-analysis-fuzz:
     runs-on: ubuntu-latest

@@ -537,7 +537,7 @@ func (s *SemanticSnapshot) functionSymbolID(fileCtx FileTypeContext, class *ast.
 		}
 		return stableSymbolID("method", className, function.Name)
 	}
-	functionName := fileCtx.resolveFunctionName(function.Name)
+	functionName := fileCtx.resolveFunctionDeclarationName(function.Name)
 	if resolved, ok := s.resolveFunctionView(functionName); ok {
 		return resolved.ID
 	}
