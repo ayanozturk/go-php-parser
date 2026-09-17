@@ -166,6 +166,37 @@ symfony (10478 files) after all fixes. See
 the debugging techniques that found each gap (before porting the next
 callback: `checkSymbolOnNode`/`appendClassModelOnNode`/etc.).
 
+Fourth Phase 3 port: `analyse/syntax_symbols_rule.go`'s
+`CheckSymbolIssuesFromCST` is the CST-direct analogue of `checkSymbolOnNode`
+(unresolved instantiations, function/method/static calls, constant/property
+fetches). First port needing a "mark now, check later" tracking map
+(`callCallees`, to avoid double-reporting a method-call receiver as a
+standalone property fetch) — discovered `syntax.RedNode.Children()`
+allocates a fresh wrapper on every call (no caching), so such maps must be
+keyed by `(Green, Offset)` pairs, not raw `*RedNode` pointers. Corpus
+validation (composer-src + symfony) surfaced four more `walkAllConfigured`/
+lowering-pipeline gaps beyond the type-refs port's list, all centralized in
+`walkSyntaxConfigured`: (1) `*ast.TypeCastNode` has no dispatcher case at
+all, hiding a cast's operand; (2) `lowerTernaryExpr` aliases `IfTrue` to the
+same node as `Condition` for Elvis (`cond ?: else`) form, so
+`walkAllConfigured` visits/reports that shared subtree twice — replicated
+via an extra walk, not fixed; (3) `*ast.ParamNode`'s dispatcher case never
+walks `n.DefaultValue`, hiding param default value expressions; (4)
+`*ast.ClassNode` never walks `n.Constants` at all, hiding a class constant's
+whole value expression (not just its attributes, as the type-refs port had
+already found). Two more fixes were local to this rule, not the shared
+walker: a `suppressed`-subtree marking mechanism for when `lowerCallExpr`
+silently drops an entire dynamic-callee call (`$obj->{$expr}()`) including
+nested args; and an anonymous-class constructor-args scope bug where `new
+class($this->x) {...}`'s ctor args were being checked against the anonymous
+class's own scope instead of the enclosing scope. Also found: PHP 8.4
+property hook bodies (`get {}`/`set {}`) are entirely invisible to the
+Level0 ast dispatcher, so `KindPropertyHookList` subtrees must be skipped
+entirely to avoid CST-side over-detection. Corpus-validated to **0
+mismatches** on both composer-src (1006 files) and symfony (10467 files).
+See `/memories/repo/cst-direct-migration.md` for the full writeup (before
+porting the next callback: `appendClassModelOnNode`/etc.).
+
 ### Perf (not coverage %)
 
 - Bench gates: allocs/op, tokens/KB on Symfony/WordPress-sized inputs — regressions fail CI even if coverage is high.
