@@ -15,13 +15,17 @@ import (
 // any test has a chance to call ClearAnalysisRules().
 //
 // Some tests in rules_test.go (TestListRegisteredAnalysisRuleCodes,
-// TestClearAnalysisRules) clear the registry without restoring it
-// afterward, which leaves it empty for the remainder of a `go test ./...`
-// run depending on test ordering. This snapshot lets
-// TestRunAnalysisRulesWithContextCST restore the registry itself so it
-// exercises the real production pipeline regardless of what ran before it,
-// instead of silently degrading to "zero rules registered, zero issues
-// found".
+// TestClearAnalysisRules, TestRunAnalysisRulesDeterministicOrder) clear the
+// registry and/or register their own fake single-purpose rules without
+// restoring the original registry afterward. Depending on test ordering
+// (full run, or a narrower -run filter) this can leave the registry either
+// empty or polluted with test-only fake rules for the remainder of a run.
+// This snapshot lets TestRunAnalysisRulesWithContextCST restore the
+// registry to the known-good production state itself, unconditionally,
+// rather than only when it happens to be empty - so it exercises the real
+// production pipeline regardless of what ran before it, instead of either
+// silently degrading to "zero rules registered, zero issues found" or
+// silently running against a polluted registry.
 var analysisRuleRegistrySnapshot map[string]analysisRuleEntry
 
 func TestMain(m *testing.M) {
@@ -35,13 +39,21 @@ func TestMain(m *testing.M) {
 	os.Exit(m.Run())
 }
 
-func restoreAnalysisRuleRegistryIfCleared(t *testing.T) {
+// restoreAnalysisRuleRegistry unconditionally resets the global analysis
+// rule registry to the TestMain-captured production snapshot, discarding
+// anything another test left behind (missing entries from an unrestored
+// ClearAnalysisRules call, or stray fake rules from an unrestored
+// RegisterAnalysisRule call). It is intentionally not gated on "registry is
+// empty" - a non-empty but polluted registry is just as unsafe for this
+// test as an empty one, and gating on emptiness only worked by accident of
+// file-name/test ordering.
+func restoreAnalysisRuleRegistry(t *testing.T) {
 	t.Helper()
-	if len(ListRegisteredAnalysisRuleCodes()) > 0 {
-		return
-	}
 	analysisRuleRegistryLock.Lock()
 	defer analysisRuleRegistryLock.Unlock()
+	for k := range analysisRuleRegistry {
+		delete(analysisRuleRegistry, k)
+	}
 	for k, v := range analysisRuleRegistrySnapshot {
 		analysisRuleRegistry[k] = v
 	}
@@ -69,7 +81,7 @@ func restoreAnalysisRuleRegistryIfCleared(t *testing.T) {
 // (`go test -run TestRunAnalysisRulesWithContextCST`). This is a
 // pre-existing test-isolation hazard, not something introduced here.
 func TestRunAnalysisRulesWithContextCST(t *testing.T) {
-	restoreAnalysisRuleRegistryIfCleared(t)
+	restoreAnalysisRuleRegistry(t)
 
 	cases := map[string]string{
 		"mixedClassAndFunctionIssues": `<?php
