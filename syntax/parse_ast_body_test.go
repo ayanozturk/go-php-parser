@@ -909,7 +909,7 @@ class C {
 
 	level := 0
 	idx := analyse.BuildProjectIndex(map[string][]ast.Node{"c.php": nodes})
-	ctx := &analyse.AnalysisContext{Resolver: idx, AnalysisLevel: &level}
+	ctx := &analyse.AnalysisContext{Resolver: idx, AnalysisLevel: &level, Content: []byte(src)}
 	issues := analyse.RunAnalysisRulesWithContext("c.php", nodes, ctx)
 	want := []string{"MissingAttr", "MissingMethodAttr", "MissingParamAttr"}
 	for _, name := range want {

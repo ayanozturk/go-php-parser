@@ -8,6 +8,7 @@ import (
 
 	"github.com/ayanozturk/go-php-parser/analyse"
 	"github.com/ayanozturk/go-php-parser/ast"
+	"github.com/ayanozturk/go-php-parser/sharedcache"
 	"github.com/ayanozturk/go-php-parser/syntax"
 )
 
@@ -113,10 +114,16 @@ class VendorLib {
 	if len(vendorDiags) > 0 {
 		t.Fatalf("parse vendor: %v", vendorDiags)
 	}
+	hostPath := filepath.Join("src", "app.php")
+	vendorPath := filepath.Join("vendor", "pkg", "Lib.php")
 	parsed := map[string][]ast.Node{
-		filepath.Join("src", "app.php"):           hostNodes,
-		filepath.Join("vendor", "pkg", "Lib.php"): vendorNodes,
+		hostPath:   hostNodes,
+		vendorPath: vendorNodes,
 	}
+	sharedcache.StoreCachedFileContent(hostPath, []byte(hostPHP))
+	sharedcache.StoreCachedFileContent(vendorPath, []byte(vendorPHP))
+	defer sharedcache.DeleteCachedFileContent(hostPath)
+	defer sharedcache.DeleteCachedFileContent(vendorPath)
 	project := analyse.BuildProjectIndex(parsed)
 	level := 10
 	if got := runAnalysis(parsed, project, &level, 2); got != 0 {
@@ -136,6 +143,8 @@ function identifier(): string {
 		t.Fatalf("parse fixture: %v", diags)
 	}
 	parsed := map[string][]ast.Node{"file.php": nodes}
+	sharedcache.StoreCachedFileContent("file.php", []byte(php))
+	defer sharedcache.DeleteCachedFileContent("file.php")
 	project := analyse.BuildProjectIndex(parsed)
 	level := 10
 	if got := runAnalysis(parsed, project, &level, 2); got == 0 {
