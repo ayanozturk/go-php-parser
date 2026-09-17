@@ -325,23 +325,23 @@ diff; a follow-up could refactor the 10 functions to share one
 for the reparse cost to matter in practice (it is currently a purely opt-in
 field — nothing in production sets it in `go-php-parser` itself).
 
-Cross-repo: `vscode-php-strom/server/providers/diagnostics.go`'s
-`runAnalysisRulesForSource` was tried with `ctx.Content = source` set right
+Cross-repo: with explicit user confirmation, go-php-parser's local `main`
+(through `33cd38f7`) was pushed to GitHub, `vscode-php-strom/server/go.mod`'s
+pin was bumped to that commit (`go get .../go-php-parser@33cd38f7...` +
+`go mod tidy`), and `runAnalysisRulesForSource`
+(`server/providers/diagnostics.go`) now sets `ctx.Content = source` right
 before calling `RunAnalysisRulesWithContext` (raw source bytes were already
-computed there for `sharedcache.StoreCachedFileContent`), and validated via
-`make test-server-dev` (that repo's `go.work`-based mechanism for testing
-against an explicit sibling `go-php-parser` checkout) — all packages pass.
-That edit was then **reverted** rather than committed: `server/go.mod`'s
-pin does not yet include this `Content` field, so the change broke
-`make test-server`/`build-server*`'s `GOWORK=off` build against the pinned
-dependency (confirmed directly: `ctx.Content undefined`). Wiring
-`ctx.Content = source` into `diagnostics.go` is therefore a one-line
-follow-up gated on bumping that pin, which itself requires pushing
-go-php-parser's commits to GitHub first — an action needing explicit user
-confirmation per operational safety rules, not yet requested.
+computed there for `sharedcache.StoreCachedFileContent`). Validated via both
+`make test-server-dev` (sibling checkout) and `make test-server`
+(`GOWORK=off` against the bumped pin) — all packages pass. **This completes
+Phase 4 in production**, not just as an opt-in library capability.
 
-Phase 5 (cleanup) remains unstarted and requires explicit user confirmation
-before starting.
+Phase 5 (cleanup — removing the now-unused `ast.Node`/lowering path for the
+13 ported rules) remains unstarted and requires explicit user confirmation
+before starting. The still-unaddressed reparse cost (each of the 10
+`Check*IssuesFromCST` functions independently calls `syntax.Parse`) is now
+live on every diagnostics run through this wiring, not just opt-in test
+paths — worth remeasuring before/if Phase 5 work begins.
 
 ### Perf (not coverage %)
 
