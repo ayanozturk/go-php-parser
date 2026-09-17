@@ -3,23 +3,7 @@ package analyse
 import (
 	"sort"
 	"testing"
-
-	"github.com/ayanozturk/go-php-parser/syntax"
 )
-
-// astLanguageIssues runs the ast.Node-based language checks the same way
-// Level0Rule.CheckIssues does internally (checkLanguageOnNode fed by
-// walkAllWithFileContext, followed by goto/label resolution), without going
-// through the full fused Level0Rule.CheckIssues walk (which also runs
-// symbol/type/class-model checks that are irrelevant to this comparison).
-func astLanguageIssues(t *testing.T, filename, src string) []AnalysisIssue {
-	t.Helper()
-	nodes, diags := syntax.ParseAST([]byte(src))
-	if len(diags) > 0 {
-		t.Fatalf("unexpected parse diagnostics for %s: %v", filename, diags)
-	}
-	return (&Level0Rule{}).checkLanguage(filename, nodes, nil, FileTypeContext{})
-}
 
 func sortIssuesForCompare(issues []AnalysisIssue) []AnalysisIssue {
 	out := make([]AnalysisIssue, len(issues))
@@ -36,7 +20,7 @@ func sortIssuesForCompare(issues []AnalysisIssue) []AnalysisIssue {
 	return out
 }
 
-func TestCheckLanguageIssuesFromCSTMatchesASTPath(t *testing.T) {
+func TestCheckLanguageIssuesFromCST(t *testing.T) {
 	cases := map[string]string{
 		"gotoAndLabel": `<?php
 goto nowhere;
@@ -86,19 +70,56 @@ function f($x) {
 `,
 	}
 
+	type wantIssue struct {
+		Code    string
+		Message string
+		Line    int
+		Column  int
+	}
+
+	want := map[string][]wantIssue{
+		"gotoAndLabel": {
+			{Code: "Level0.Language", Message: "Goto to undefined label nowhere.", Line: 2, Column: 1},
+		},
+		"duplicateArrayKeys": {
+			{Code: "Level0.Language", Message: `Array has "x" duplicate key.`, Line: 2, Column: 17},
+			{Code: "Level0.Language", Message: "Array has 5 duplicate key.", Line: 2, Column: 37},
+		},
+		"voidUnsetCasts": {
+			{Code: "Level0.Language", Message: "Cannot cast to void.", Line: 2, Column: 6},
+			{Code: "Level0.Language", Message: "Cannot cast to unset.", Line: 3, Column: 6},
+		},
+		"incrementNonWritable": {
+			{Code: "Level0.Language", Message: "Cannot use ++ on non-variable expression.", Line: 3, Column: 5},
+			{Code: "Level0.Language", Message: "Cannot use -- on non-variable expression.", Line: 4, Column: 5},
+		},
+		"invalidRegex": {
+			{Code: "Level0.Language", Message: "Regex pattern is invalid: error parsing regexp: missing closing ): `(unclosed`", Line: 2, Column: 1},
+		},
+		"printfPlaceholderMismatch": {
+			{Code: "Level0.Invocation", Message: "Call to function printf contains 2 placeholders, 1 values given.", Line: 2, Column: 1},
+		},
+		"includeMissingFile": {
+			{Code: "Level0.Language", Message: `Path in include() "definitely-does-not-exist-123.php" is not a file or it does not exist.`, Line: 2, Column: 1},
+			{Code: "Level0.Language", Message: `Path in require_once() "also-missing-456.php" is not a file or it does not exist.`, Line: 3, Column: 1},
+		},
+		"clean":                                 {},
+		"switchBodyIsInvisibleToLanguageChecks": {},
+	}
+
 	for name, src := range cases {
 		t.Run(name, func(t *testing.T) {
 			filename := name + ".php"
-			astIssues := sortIssuesForCompare(astLanguageIssues(t, filename, src))
 			cstIssues := sortIssuesForCompare(CheckLanguageIssuesFromCST(filename, []byte(src)))
 
-			if len(astIssues) != len(cstIssues) {
-				t.Fatalf("issue count mismatch: ast=%d cst=%d\nast=%#v\ncst=%#v", len(astIssues), len(cstIssues), astIssues, cstIssues)
+			wantIssues := want[name]
+			if len(cstIssues) != len(wantIssues) {
+				t.Fatalf("issue count mismatch: want=%d got=%d\nwant=%#v\ngot=%#v", len(wantIssues), len(cstIssues), wantIssues, cstIssues)
 			}
-			for i := range astIssues {
-				a, c := astIssues[i], cstIssues[i]
-				if a.Code != c.Code || a.Message != c.Message || a.Line != c.Line || a.Column != c.Column {
-					t.Fatalf("issue %d mismatch:\nast=%#v\ncst=%#v", i, a, c)
+			for i := range wantIssues {
+				w, c := wantIssues[i], cstIssues[i]
+				if w.Code != c.Code || w.Message != c.Message || w.Line != c.Line || w.Column != c.Column {
+					t.Fatalf("issue %d mismatch:\nwant=%#v\ngot=%#v", i, w, c)
 				}
 			}
 		})
