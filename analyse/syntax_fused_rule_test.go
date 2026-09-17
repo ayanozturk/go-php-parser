@@ -1,25 +1,76 @@
 package analyse
 
 import (
+	"os"
 	"testing"
 
 	"github.com/ayanozturk/go-php-parser/ast"
 	"github.com/ayanozturk/go-php-parser/syntax"
 )
 
-// TestRunAnalysisRulesWithContextCSTMatchesASTPath is the Phase 4 parity
-// guard: it drives the WHOLE registered-rule pipeline (RunAnalysisRulesWithContext,
-// not a single rule in isolation) once with ctx.Content unset (ast.Node fused
-// walk, the pre-Phase-4 behavior) and once with ctx.Content set (the new
-// CST-direct fused walk added by ensureSharedFileDiagnosticsFromCST/
-// ensureStructuralIssuesFromCST), across multiple analysis levels, and
-// asserts identical issue sets. Rules outside the fused walk (arg count/
-// type, deprecated calls, level1 variables, level2 method existence/non-
-// object, level6/7/8 method checks, property type, unreachable code, etc.)
-// are exercised too since they're part of the same registry - this proves
-// ctx.Content is a safe, invisible-to-callers opt-in, not just that the 10
-// ported checks individually match in isolation.
-func TestRunAnalysisRulesWithContextCSTMatchesASTPath(t *testing.T) {
+// analysisRuleRegistrySnapshot captures the production rule registry as
+// populated by every rule file's init(). TestMain runs after all init()
+// functions in the test binary have completed (both production rule files'
+// and test files'), so this is guaranteed to see the full registry before
+// any test has a chance to call ClearAnalysisRules().
+//
+// Some tests in rules_test.go (TestListRegisteredAnalysisRuleCodes,
+// TestClearAnalysisRules) clear the registry without restoring it
+// afterward, which leaves it empty for the remainder of a `go test ./...`
+// run depending on test ordering. This snapshot lets
+// TestRunAnalysisRulesWithContextCST restore the registry itself so it
+// exercises the real production pipeline regardless of what ran before it,
+// instead of silently degrading to "zero rules registered, zero issues
+// found".
+var analysisRuleRegistrySnapshot map[string]analysisRuleEntry
+
+func TestMain(m *testing.M) {
+	analysisRuleRegistryLock.RLock()
+	analysisRuleRegistrySnapshot = make(map[string]analysisRuleEntry, len(analysisRuleRegistry))
+	for k, v := range analysisRuleRegistry {
+		analysisRuleRegistrySnapshot[k] = v
+	}
+	analysisRuleRegistryLock.RUnlock()
+
+	os.Exit(m.Run())
+}
+
+func restoreAnalysisRuleRegistryIfCleared(t *testing.T) {
+	t.Helper()
+	if len(ListRegisteredAnalysisRuleCodes()) > 0 {
+		return
+	}
+	analysisRuleRegistryLock.Lock()
+	defer analysisRuleRegistryLock.Unlock()
+	for k, v := range analysisRuleRegistrySnapshot {
+		analysisRuleRegistry[k] = v
+	}
+	sortedRuleCodesDirty = true
+}
+
+// TestRunAnalysisRulesWithContextCST drives the WHOLE registered-rule
+// pipeline (RunAnalysisRulesWithContext, not a single rule in isolation)
+// with ctx.Content set (the CST-direct fused walk added by
+// ensureSharedFileDiagnosticsFromCST/ensureStructuralIssuesFromCST), across
+// multiple analysis levels, and asserts the resulting issue set against
+// golden expected values. Rules outside the fused walk (arg count/type,
+// deprecated calls, level1 variables, level2 method existence/non-object,
+// level6/7/8 method checks, property type, unreachable code, etc.) are
+// exercised too since they're part of the same registry - this proves
+// ctx.Content drives the full production pipeline correctly, not just that
+// the 10 ported checks individually produce correct output in isolation.
+//
+// NOTE: this test depends on the global analysis-rule registry populated by
+// each rule file's init(). Some other tests in this package call
+// ClearAnalysisRules() without restoring the registry afterward
+// (TestListRegisteredAnalysisRuleCodes, TestClearAnalysisRules in
+// rules_test.go), which can make this test fail depending on run order
+// within `go test ./...` even though it passes in isolation
+// (`go test -run TestRunAnalysisRulesWithContextCST`). This is a
+// pre-existing test-isolation hazard, not something introduced here.
+func TestRunAnalysisRulesWithContextCST(t *testing.T) {
+	restoreAnalysisRuleRegistryIfCleared(t)
+
 	cases := map[string]string{
 		"mixedClassAndFunctionIssues": `<?php
 class Base {
@@ -67,6 +118,56 @@ class C {
 `,
 	}
 
+	type wantIssue struct {
+		Code    string
+		Message string
+		Line    int
+		Column  int
+	}
+
+	want := map[string][]wantIssue{
+		"mixedClassAndFunctionIssues/nilLevel": {
+			{Code: "Level6.MissingPropertyType", Message: "Property $field has no type specified.", Line: 6, Column: 5},
+			{Code: "Level6.MissingParameterType", Message: "Parameter $x has no type specified.", Line: 7, Column: 25},
+			{Code: "A.RETURN.TYPE", Message: "Function f: return type mismatch, declared: int, actual: [string] at 14:1", Line: 14, Column: 1},
+		},
+		"mixedClassAndFunctionIssues/level0": {},
+		"mixedClassAndFunctionIssues/level2": {},
+		"mixedClassAndFunctionIssues/level6": {
+			{Code: "Level6.MissingPropertyType", Message: "Property $field has no type specified.", Line: 6, Column: 5},
+			{Code: "Level6.MissingParameterType", Message: "Parameter $x has no type specified.", Line: 7, Column: 25},
+			{Code: "A.RETURN.TYPE", Message: "Function f: return type mismatch, declared: int, actual: [string] at 14:1", Line: 14, Column: 1},
+		},
+		"undefinedClassAndGoto/nilLevel": {
+			{Code: "Level6.MissingReturnType", Message: "Function or method run has no return type specified.", Line: 2, Column: 1},
+			{Code: "Level0.Symbols", Message: "Instantiated class MissingClass not found.", Line: 4, Column: 5},
+		},
+		"undefinedClassAndGoto/level0": {
+			{Code: "Level0.Symbols", Message: "Instantiated class MissingClass not found.", Line: 4, Column: 5},
+		},
+		"undefinedClassAndGoto/level2": {
+			{Code: "Level0.Symbols", Message: "Instantiated class MissingClass not found.", Line: 4, Column: 5},
+		},
+		"undefinedClassAndGoto/level6": {
+			{Code: "Level6.MissingReturnType", Message: "Function or method run has no return type specified.", Line: 2, Column: 1},
+			{Code: "Level0.Symbols", Message: "Instantiated class MissingClass not found.", Line: 4, Column: 5},
+		},
+		"phpDocAndMissingTypes/nilLevel": {
+			{Code: "Level6.MissingPropertyType", Message: "Property $untyped has no type specified.", Line: 3, Column: 5},
+			{Code: "Level6.MissingReturnType", Message: "Function or method run has no return type specified.", Line: 7, Column: 12},
+		},
+		"phpDocAndMissingTypes/level0": {},
+		"phpDocAndMissingTypes/level2": {},
+		"phpDocAndMissingTypes/level6": {
+			{Code: "Level6.MissingPropertyType", Message: "Property $untyped has no type specified.", Line: 3, Column: 5},
+			{Code: "Level6.MissingReturnType", Message: "Function or method run has no return type specified.", Line: 7, Column: 12},
+		},
+		"cleanFile/nilLevel": {},
+		"cleanFile/level0":   {},
+		"cleanFile/level2":   {},
+		"cleanFile/level6":   {},
+	}
+
 	for name, src := range cases {
 		for _, level := range []*int{nil, intLevelPtr(0), intLevelPtr(2), intLevelPtr(6)} {
 			levelName := "nilLevel"
@@ -81,18 +182,16 @@ class C {
 				}
 				project := BuildProjectIndex(map[string][]ast.Node{filename: nodes})
 
-				astCtx := &AnalysisContext{Resolver: project, AnalysisLevel: level}
-				want := sortIssuesForCompare(RunAnalysisRulesWithContext(filename, nodes, astCtx))
-
 				cstCtx := &AnalysisContext{Resolver: project, AnalysisLevel: level, Content: []byte(src)}
 				got := sortIssuesForCompare(RunAnalysisRulesWithContext(filename, nodes, cstCtx))
 
-				if len(want) != len(got) {
-					t.Fatalf("issue count mismatch: ast=%d cst=%d\nast=%+v\ncst=%+v", len(want), len(got), want, got)
+				wantIssues := want[name+"/"+levelName]
+				if len(wantIssues) != len(got) {
+					t.Fatalf("issue count mismatch: want=%d got=%d\nwant=%+v\ngot=%+v", len(wantIssues), len(got), wantIssues, got)
 				}
-				for i := range want {
-					if want[i].Code != got[i].Code || want[i].Line != got[i].Line || want[i].Column != got[i].Column || want[i].Message != got[i].Message {
-						t.Fatalf("issue %d mismatch:\nast=%+v\ncst=%+v", i, want[i], got[i])
+				for i := range wantIssues {
+					if wantIssues[i].Code != got[i].Code || wantIssues[i].Line != got[i].Line || wantIssues[i].Column != got[i].Column || wantIssues[i].Message != got[i].Message {
+						t.Fatalf("issue %d mismatch:\nwant=%+v\ngot=%+v", i, wantIssues[i], got[i])
 					}
 				}
 			})
