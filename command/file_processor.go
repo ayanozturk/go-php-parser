@@ -408,9 +408,6 @@ func ProcessStyleFilesParallelWithCallback(files []string, rules []string, match
 }
 
 func runAnalysis(path string, nodes []ast.Node, content []byte, project *analyse.ProjectIndex) []analyse.AnalysisIssue {
-	if configuredAnalysisLevel == nil && project == nil {
-		return analyse.RunAnalysisRules(path, nodes)
-	}
 	if project == nil {
 		project = analyse.BuildProjectIndex(map[string][]ast.Node{path: nodes})
 	}
