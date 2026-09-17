@@ -24,6 +24,12 @@ cpu.out
 /docs/benchmarks/*wordpress*.json
 php-parser
 tusk
+cover.out
+config.yaml.bak
+
+# ASTCacheManager (analyse/ast_cache.go) writes per-file gob cache blobs;
+# these are runtime cache, not source or test fixtures.
+/ast/*.gob
 
 # Local research clones and generated design reports. Not part of the product.
 .scratch/
