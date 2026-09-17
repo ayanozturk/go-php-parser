@@ -2,22 +2,9 @@ package analyse
 
 import (
 	"testing"
-
-	"github.com/ayanozturk/go-php-parser/ast"
 )
 
-// runReturnTypeOnASTNodes calls appendReturnTypeOnNode directly via
-// walkAllWithFileContext, bypassing ensureStructuralIssues's fused walk so
-// the ast.Node comparison path is isolated to just this rule.
-func runReturnTypeOnASTNodes(filename string, nodes []ast.Node, ctx *AnalysisContext, fileCtx FileTypeContext) []AnalysisIssue {
-	var issues []AnalysisIssue
-	walkAllWithFileContext(nodes, fileCtx, ctx, func(node ast.Node, class *ast.ClassNode, currentFn *ast.FunctionNode, ft FileTypeContext) {
-		appendReturnTypeOnNode(filename, node, class, ft, ctx, &issues)
-	})
-	return issues
-}
-
-func TestCheckReturnTypeIssuesFromCSTMatchesASTPath(t *testing.T) {
+func TestCheckReturnTypeIssuesFromCST(t *testing.T) {
 	cases := map[string]string{
 		"declaredVsActual": `<?php
 function f(): int { return "x"; }
@@ -48,18 +35,48 @@ function n(): never {}
 `,
 	}
 
+	type wantIssue struct {
+		Message string
+		Line    int
+		Column  int
+	}
+
+	want := map[string][]wantIssue{
+		"declaredVsActual": {
+			{Message: "Function f: return type mismatch, declared: int, actual: [string] at 2:1", Line: 2, Column: 1},
+		},
+		"correctReturn": {},
+		"voidReturnsValue": {
+			{Message: "Function f returns void without side effects", Line: 2, Column: 1},
+			{Message: "Function f with return type void should not return a value", Line: 2, Column: 22},
+		},
+		"missingReturnPath": {
+			{Message: "Function partial: declared return type int but not all paths return a value", Line: 2, Column: 1},
+		},
+		"allPathsReturn": {},
+		"methodInClass":  {},
+		"closureMismatch": {
+			{Message: "Function : return type mismatch, declared: int, actual: [string] at 2:7", Line: 2, Column: 7},
+		},
+		"interfaceMethod": {},
+		"neverFallthrough": {
+			{Message: "Function n should always terminate", Line: 2, Column: 1},
+		},
+	}
+
 	for name, src := range cases {
 		t.Run(name, func(t *testing.T) {
 			filename := name + ".php"
-			ctx, fileCtx, nodes := buildStructuralTestContext(t, filename, src)
-			want := sortIssuesForCompare(runReturnTypeOnASTNodes(filename, nodes, ctx, fileCtx))
+			ctx, _, _ := buildStructuralTestContext(t, filename, src)
 			got := sortIssuesForCompare(CheckReturnTypeIssuesFromCST(filename, []byte(src), ctx))
-			if len(want) != len(got) {
-				t.Fatalf("issue count mismatch: ast=%d cst=%d\nast=%+v\ncst=%+v", len(want), len(got), want, got)
+
+			wantIssues := want[name]
+			if len(wantIssues) != len(got) {
+				t.Fatalf("issue count mismatch: want=%d got=%d\nwant=%+v\ngot=%+v", len(wantIssues), len(got), wantIssues, got)
 			}
-			for i := range want {
-				if want[i].Line != got[i].Line || want[i].Column != got[i].Column || want[i].Message != got[i].Message {
-					t.Fatalf("issue %d mismatch:\nast=%+v\ncst=%+v", i, want[i], got[i])
+			for i := range wantIssues {
+				if wantIssues[i].Line != got[i].Line || wantIssues[i].Column != got[i].Column || wantIssues[i].Message != got[i].Message {
+					t.Fatalf("issue %d mismatch:\nwant=%+v\ngot=%+v", i, wantIssues[i], got[i])
 				}
 			}
 		})
