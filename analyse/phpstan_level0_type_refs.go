@@ -6,15 +6,6 @@ import (
 	"strings"
 )
 
-func (r *Level0Rule) checkTypeReferences(filename string, nodes []ast.Node, ctx *AnalysisContext, fileCtx FileTypeContext) []AnalysisIssue {
-	var issues []AnalysisIssue
-	guards := collectReflectionGuards(nodes, ctx, fileCtx)
-	walkAllWithFileContext(nodes, fileCtx, ctx, func(node ast.Node, _ *ast.ClassNode, _ *ast.FunctionNode, ft FileTypeContext) {
-		checkTypeReferenceOnNode(filename, node, ft, ctx, guards, &issues)
-	})
-	return issues
-}
-
 func checkTypeReferenceOnNode(filename string, node ast.Node, ft FileTypeContext, ctx *AnalysisContext, guards reflectionGuards, issues *[]AnalysisIssue) {
 	switch n := node.(type) {
 	case *ast.UseNode:

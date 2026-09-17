@@ -6,15 +6,6 @@ import (
 	"strings"
 )
 
-func (r *Level0Rule) checkSymbolsAndCalls(filename string, nodes []ast.Node, ctx *AnalysisContext, fileCtx FileTypeContext) []AnalysisIssue {
-	var issues []AnalysisIssue
-	guards := collectReflectionGuards(nodes, ctx, fileCtx)
-	walkAllWithFileContext(nodes, fileCtx, ctx, func(node ast.Node, class *ast.ClassNode, currentFn *ast.FunctionNode, ft FileTypeContext) {
-		checkSymbolOnNode(filename, node, class, currentFn, ft, ctx, guards, &issues)
-	})
-	return issues
-}
-
 func checkSymbolOnNode(filename string, node ast.Node, class *ast.ClassNode, currentFn *ast.FunctionNode, ft FileTypeContext, ctx *AnalysisContext, guards reflectionGuards, issues *[]AnalysisIssue) {
 	switch n := node.(type) {
 	case *ast.NewNode:

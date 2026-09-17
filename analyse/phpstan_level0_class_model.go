@@ -6,15 +6,6 @@ import (
 	"strings"
 )
 
-func (r *Level0Rule) checkClassModel(filename string, nodes []ast.Node, ctx *AnalysisContext, fileCtx FileTypeContext) []AnalysisIssue {
-	var issues []AnalysisIssue
-	appendDuplicateClassIssues(filename, ctx, &issues)
-	walkAllWithFileContext(nodes, fileCtx, ctx, func(node ast.Node, _ *ast.ClassNode, _ *ast.FunctionNode, ft FileTypeContext) {
-		appendClassModelOnNode(filename, node, ft, ctx, &issues)
-	})
-	return issues
-}
-
 func appendDuplicateClassIssues(filename string, ctx *AnalysisContext, issues *[]AnalysisIssue) {
 	if ctx == nil || ctx.Resolver == nil {
 		return

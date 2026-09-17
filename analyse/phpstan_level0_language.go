@@ -10,21 +10,6 @@ import (
 	"strings"
 )
 
-func (r *Level0Rule) checkLanguage(filename string, nodes []ast.Node, ctx *AnalysisContext, fileCtx FileTypeContext) []AnalysisIssue {
-	var issues []AnalysisIssue
-	labels := map[string]struct{}{}
-	var gotos []*ast.GotoNode
-	walkAllWithFileContext(nodes, fileCtx, ctx, func(node ast.Node, _ *ast.ClassNode, _ *ast.FunctionNode, ft FileTypeContext) {
-		checkLanguageOnNode(filename, node, ft, labels, &gotos, &issues)
-	})
-	for _, goTo := range gotos {
-		if _, ok := labels[goTo.Label]; !ok {
-			issues = append(issues, issueSpan(filename, goTo, level0LanguageCode, fmt.Sprintf("Goto to undefined label %s.", goTo.Label)))
-		}
-	}
-	return issues
-}
-
 func checkLanguageOnNode(filename string, node ast.Node, _ FileTypeContext, labels map[string]struct{}, gotos *[]*ast.GotoNode, issues *[]AnalysisIssue) {
 	switch n := node.(type) {
 	case *ast.LabelNode:
