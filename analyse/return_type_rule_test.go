@@ -49,6 +49,21 @@ func TestShortArrayLiteralReturnMatchesArrayType(t *testing.T) {
 	}
 }
 
+func TestReturnTypeRuleFallbackHonorsContentContext(t *testing.T) {
+	src := []byte(`<?php function f(): int { return "not an int"; }`)
+	nodes, diags := syntax.ParseAST(src)
+	if len(diags) > 0 {
+		t.Fatalf("parser errors: %v", diags)
+	}
+	rule := &ReturnTypeRule{}
+
+	ctx := &AnalysisContext{Content: src, Resolver: BuildProjectIndex(map[string][]ast.Node{"test.php": nodes})}
+	issues := rule.CheckIssues(nodes, "test.php", ctx)
+	if !hasReturnTypeIssue(issues) {
+		t.Fatalf("expected at least one A.RETURN.TYPE issue, got: %#v", issues)
+	}
+}
+
 func TestBinaryAndUnaryExpressionReturnTypes(t *testing.T) {
 	tests := []struct {
 		name       string

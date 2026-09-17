@@ -267,6 +267,11 @@ func collectReturnTypeIssues(filename string, nodes []ast.Node, ctx *AnalysisCon
 	if ctx.hasReturnTypeIssues {
 		return
 	}
+	if len(ctx.Content) > 0 {
+		ctx.returnTypeIssues = CheckReturnTypeIssuesFromCST(filename, ctx.Content, ctx)
+		ctx.hasReturnTypeIssues = true
+		return
+	}
 	fileCtx := analysisFileTypeContext(ctx, nodes)
 	walkAllWithFileContext(nodes, fileCtx, ctx, func(node ast.Node, class *ast.ClassNode, _ *ast.FunctionNode, fileCtx FileTypeContext) {
 		appendReturnTypeOnNode(filename, node, class, fileCtx, ctx, &ctx.returnTypeIssues)
