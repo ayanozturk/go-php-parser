@@ -22,20 +22,7 @@ func buildStructuralTestContext(t *testing.T, filename, src string) (ctx *Analys
 	return ctx, fileCtx, nodes
 }
 
-// runMethodVisibilityOnASTNodes calls appendMethodVisibilityOnNode directly
-// via walkAllWithFileContext, bypassing ensureStructuralIssues's fused walk
-// (which would also compute throw/phpdoc/missing-type/return-type issues as
-// a side effect) so the ast.Node comparison path is isolated to just this
-// rule, matching the CST-direct port's own scope.
-func runMethodVisibilityOnASTNodes(filename string, nodes []ast.Node, ctx *AnalysisContext, fileCtx FileTypeContext) []AnalysisIssue {
-	var issues []AnalysisIssue
-	walkAllWithFileContext(nodes, fileCtx, ctx, func(node ast.Node, class *ast.ClassNode, currentFn *ast.FunctionNode, ft FileTypeContext) {
-		appendMethodVisibilityOnNode(filename, node, class, currentFn, ft, ctx, &issues)
-	})
-	return issues
-}
-
-func TestCheckMethodVisibilityIssuesFromCSTMatchesASTPath(t *testing.T) {
+func TestCheckMethodVisibilityIssuesFromCST(t *testing.T) {
 	cases := map[string]string{
 		"staticCallToProtectedFromUnrelated": `<?php
 class Base {
@@ -130,18 +117,39 @@ class Caller {
 `,
 	}
 
+	type wantIssue struct {
+		Message string
+		Line    int
+		Column  int
+	}
+
+	want := map[string][]wantIssue{
+		"staticCallToProtectedFromUnrelated": {
+			{Message: "Call to protected method Base::helper().", Line: 7, Column: 9},
+		},
+		"staticCallToProtectedFromSubclass": {},
+		"methodCallOnThisFromStaticMethod":  {},
+		"methodCallOnThisOk":                {},
+		"methodCallOnOtherVarUnrelated":     {},
+		"dynamicClassNameSkipped":           {},
+		"traitUserAllowed":                  {},
+		"chainedMethodCalls":                {},
+		"dynamicMethodCallSkipped":          {},
+	}
+
 	for name, src := range cases {
 		t.Run(name, func(t *testing.T) {
 			filename := name + ".php"
-			ctx, fileCtx, nodes := buildStructuralTestContext(t, filename, src)
-			want := sortIssuesForCompare(runMethodVisibilityOnASTNodes(filename, nodes, ctx, fileCtx))
+			ctx, _, _ := buildStructuralTestContext(t, filename, src)
 			got := sortIssuesForCompare(CheckMethodVisibilityIssuesFromCST(filename, []byte(src), ctx))
-			if len(want) != len(got) {
-				t.Fatalf("issue count mismatch: ast=%d cst=%d\nast=%+v\ncst=%+v", len(want), len(got), want, got)
+
+			wantIssues := want[name]
+			if len(wantIssues) != len(got) {
+				t.Fatalf("issue count mismatch: want=%d got=%d\nwant=%+v\ngot=%+v", len(wantIssues), len(got), wantIssues, got)
 			}
-			for i := range want {
-				if want[i].Line != got[i].Line || want[i].Column != got[i].Column || want[i].Message != got[i].Message {
-					t.Fatalf("issue %d mismatch:\nast=%+v\ncst=%+v", i, want[i], got[i])
+			for i := range wantIssues {
+				if wantIssues[i].Line != got[i].Line || wantIssues[i].Column != got[i].Column || wantIssues[i].Message != got[i].Message {
+					t.Fatalf("issue %d mismatch:\nwant=%+v\ngot=%+v", i, wantIssues[i], got[i])
 				}
 			}
 		})
