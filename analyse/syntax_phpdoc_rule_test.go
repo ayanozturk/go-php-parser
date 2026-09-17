@@ -2,27 +2,9 @@ package analyse
 
 import (
 	"testing"
-
-	"github.com/ayanozturk/go-php-parser/ast"
 )
 
-// runPHPDocOnASTNodes calls appendPHPDocIssuesOnNode directly via
-// walkAllWithFileContext, bypassing ensureStructuralIssues's fused walk so
-// the ast.Node comparison path is isolated to just this rule. Mirrors
-// ensureStructuralIssues's own ctx.phpDocTypeAliases caching (computed once
-// per ctx from the full nodes list, exactly like production).
-func runPHPDocOnASTNodes(filename string, nodes []ast.Node, ctx *AnalysisContext, fileCtx FileTypeContext) []AnalysisIssue {
-	if ctx.phpDocTypeAliases == nil {
-		ctx.phpDocTypeAliases = collectPHPDocTypeAliases(nodes)
-	}
-	var issues []AnalysisIssue
-	walkAllWithFileContext(nodes, fileCtx, ctx, func(node ast.Node, class *ast.ClassNode, currentFn *ast.FunctionNode, ft FileTypeContext) {
-		appendPHPDocIssuesOnNode(filename, node, class, ft, ctx, &issues)
-	})
-	return issues
-}
-
-func TestCheckPHPDocIssuesFromCSTMatchesASTPath(t *testing.T) {
+func TestCheckPHPDocIssuesFromCST(t *testing.T) {
 	cases := map[string]string{
 		"paramTypeMismatch": `<?php
 class C {
@@ -109,21 +91,48 @@ function run() {
 `,
 	}
 
+	type wantIssue struct {
+		Message string
+		Line    int
+		Column  int
+	}
+
+	want := map[string][]wantIssue{
+		"paramTypeMismatch": {
+			{Message: "PHPDoc type int for parameter $x is not compatible with native type string.", Line: 6, Column: 25},
+		},
+		"paramUnknownName": {
+			{Message: "PHPDoc tag @param references unknown parameter $missing.", Line: 6, Column: 12},
+		},
+		"returnTypeMismatch": {
+			{Message: "PHPDoc return type int is not compatible with native return type string.", Line: 5, Column: 1},
+		},
+		"propertyTypeMismatch": {
+			{Message: "PHPDoc type int for property $field is not compatible with native type string.", Line: 6, Column: 5},
+		},
+		"interfaceMethodTypeMismatch": {
+			{Message: "PHPDoc type int for parameter $x is not compatible with native type string.", Line: 6, Column: 25},
+		},
+		"closureParamTypeMismatch":                   {},
+		"templateNameSuppressesMismatch":             {},
+		"okNoIssues":                                 {},
+		"anonClassBehindStaticClassConstUnreachable": {},
+	}
+
 	for name, src := range cases {
 		t.Run(name, func(t *testing.T) {
 			filename := name + ".php"
-			ctx, fileCtx, nodes := buildStructuralTestContext(t, filename, src)
-			want := sortIssuesForCompare(runPHPDocOnASTNodes(filename, nodes, ctx, fileCtx))
-
-			ctx2, _, _ := buildStructuralTestContext(t, filename, src)
+			ctx, _, nodes := buildStructuralTestContext(t, filename, src)
 			aliases := collectPHPDocTypeAliases(nodes)
-			got := sortIssuesForCompare(CheckPHPDocIssuesFromCST(filename, []byte(src), ctx2, aliases))
-			if len(want) != len(got) {
-				t.Fatalf("issue count mismatch: ast=%d cst=%d\nast=%+v\ncst=%+v", len(want), len(got), want, got)
+			got := sortIssuesForCompare(CheckPHPDocIssuesFromCST(filename, []byte(src), ctx, aliases))
+
+			wantIssues := want[name]
+			if len(wantIssues) != len(got) {
+				t.Fatalf("issue count mismatch: want=%d got=%d\nwant=%+v\ngot=%+v", len(wantIssues), len(got), wantIssues, got)
 			}
-			for i := range want {
-				if want[i].Line != got[i].Line || want[i].Column != got[i].Column || want[i].Message != got[i].Message {
-					t.Fatalf("issue %d mismatch:\nast=%+v\ncst=%+v", i, want[i], got[i])
+			for i := range wantIssues {
+				if wantIssues[i].Line != got[i].Line || wantIssues[i].Column != got[i].Column || wantIssues[i].Message != got[i].Message {
+					t.Fatalf("issue %d mismatch:\nwant=%+v\ngot=%+v", i, wantIssues[i], got[i])
 				}
 			}
 		})
