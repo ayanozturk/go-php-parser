@@ -408,6 +408,15 @@ func ProcessStyleFilesParallelWithCallback(files []string, rules []string, match
 }
 
 func runAnalysis(path string, nodes []ast.Node, content []byte, project *analyse.ProjectIndex) []analyse.AnalysisIssue {
+	if configuredAnalysisLevel == nil && project == nil {
+		// Preserve the historic nil-Resolver semantics for the no-level style
+		// path: only ctx.Content is newly threaded through (so the CST-direct
+		// Level0/structural/return walks match the old ast fallback). Building a
+		// Resolver here would eagerly activate resolver-dependent rules
+		// (A.DEPRECATED.CALL, A.ARG.COUNT, A.PROP.TYPE, ...) that previously
+		// stayed suppressed because ctx.Resolver was nil.
+		return analyse.RunAnalysisRulesWithContext(path, nodes, &analyse.AnalysisContext{Content: content})
+	}
 	if project == nil {
 		project = analyse.BuildProjectIndex(map[string][]ast.Node{path: nodes})
 	}

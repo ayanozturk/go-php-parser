@@ -3,10 +3,58 @@ package command
 import (
 	"fmt"
 	"sort"
+	"strings"
 	"testing"
 
 	"github.com/ayanozturk/go-php-parser/syntax"
 )
+
+// TestNoLevelStylePathSuppressesResolverDependentRules is the regression lock
+// for the resolver-semantics finding: the no-`--level` style path
+// (runAnalysis with configuredAnalysisLevel==nil and project==nil) must leave
+// ctx.Resolver nil, exactly as the historic RunAnalysisRules(...) call did.
+// Building a Resolver there eagerly activates resolver-dependent rules
+// (A.DEPRECATED.CALL, A.ARG.TYPE, A.PROP.TYPE, ...) that previously stayed
+// suppressed. Each fixture is same-file resolvable, so with a Resolver present
+// the named rule WOULD fire (verified out of band against the resolver-present
+// branch); with the correct nil-Resolver semantics it must not.
+func TestNoLevelStylePathSuppressesResolverDependentRules(t *testing.T) {
+	prev := configuredAnalysisLevel
+	configuredAnalysisLevel = nil
+	defer func() { configuredAnalysisLevel = prev }()
+
+	cases := []struct {
+		name       string
+		src        string
+		absentCode string
+	}{
+		{"deprecated_fn.php", "<?php\n/** @deprecated use bar */\nfunction foo() {}\nfoo();\n", "A.DEPRECATED.CALL"},
+		{"arg_type_fn.php", "<?php\nfunction takesInt(int $x) {}\ntakesInt('str');\n", "A.ARG.TYPE"},
+		{"prop_type_obj.php", "<?php\nclass A { public int $n; }\nfunction f(A $a) { $a->n = 'x'; }\n", "A.PROP.TYPE"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			content := []byte(tc.src)
+			nodes, diags := syntax.ParseAST(content)
+			if len(diags) > 0 {
+				t.Fatalf("parse: %v", diags)
+			}
+			issues := runAnalysis(tc.name, nodes, content, nil)
+			ran := false
+			for _, is := range issues {
+				if is.Code == tc.absentCode {
+					t.Fatalf("%s: resolver-dependent rule %s must stay suppressed on the no-level style path (nil Resolver); got issues=%+v", tc.name, tc.absentCode, issues)
+				}
+				if strings.HasPrefix(is.Code, "Level6.") || is.Code == "PSR1.Files.SideEffects" {
+					ran = true
+				}
+			}
+			if !ran {
+				t.Fatalf("%s: expected in-file diagnostics proving analysis ran, got none: %+v", tc.name, issues)
+			}
+		})
+	}
+}
 
 // TestNoLevelStylePathProducesLevelDiagnostics exercises the no-`--level`
 // `style` command path end-to-end: runAnalysis with configuredAnalysisLevel==nil
