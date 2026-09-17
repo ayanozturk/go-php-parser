@@ -17,11 +17,23 @@ func appendEmptyStatementIssue(filename string, node ast.Node, issues *[]Analysi
 	*issues = append(*issues, issueSpan(filename, empty, emptyStatementCode, "Empty statement detected"))
 }
 
+// CheckIssuesWithSource detects empty statements (bare `;`). When raw source
+// is available it walks the syntax CST directly (see syntax.Walk) rather than
+// lowering to []ast.Node first, avoiding the extra conversion pass for this
+// self-contained check. When pre-lowered nodes are supplied (fused walk from
+// ensureSharedFileDiagnostics), it dispatches on ast.Node as before.
 func (r *EmptyStatementRule) CheckIssuesWithSource(filename string, content []byte, nodes []ast.Node) []AnalysisIssue {
-	if len(nodes) == 0 && len(content) > 0 {
-		nodes, _ = syntax.ParseAST(content)
-	}
 	var issues []AnalysisIssue
+	if len(nodes) == 0 && len(content) > 0 {
+		res := syntax.Parse(content)
+		syntax.Walk(res.File.Root, func(n *syntax.RedNode) bool {
+			if n.Kind() == syntax.KindEmptyStmt {
+				issues = append(issues, issueSpanRed(filename, n, emptyStatementCode, "Empty statement detected"))
+			}
+			return true
+		})
+		return issues
+	}
 	walkAllWithoutTypeContext(nodes, func(node ast.Node) {
 		appendEmptyStatementIssue(filename, node, &issues)
 	})

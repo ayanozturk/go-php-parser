@@ -23,6 +23,18 @@ Do **not** chase a single line-% on the whole repo. Use layered targets.
 - Prefer **behavioral coverage**: binding, rename/refs, format identity, type-from-syntax — not line % on giant rule files.
 - Keep differential/level fixtures green; add cases when string→syntax edges move.
 
+### CST-direct migration (retiring the ast.Node double-representation)
+
+`analyse/` mostly walks `[]ast.Node` lowered from the `syntax` CST
+(`syntax/lower`), which is an intentional interim state, not the target
+architecture — the goal is for rules to walk `*syntax.RedNode` directly and
+drop the lowering pass for the analysis path. `analyse/syntax_binder.go` is
+the original CST-native template; `syntax.RedNode.Pos()`/`EndPos()` and
+`syntax.Walk` are the shared contract for new CST-native rules (see
+`analyse/empty_statement_rule.go` for the first migrated rule). Migrate rules
+incrementally behind the differential/gold suites — do not attempt a bulk
+rewrite of `analyse/phpstan_level0_walk.go`'s dispatcher in one pass.
+
 ### Perf (not coverage %)
 
 - Bench gates: allocs/op, tokens/KB on Symfony/WordPress-sized inputs — regressions fail CI even if coverage is high.

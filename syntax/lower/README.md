@@ -3,6 +3,12 @@
 Lowers a `syntax` red tree to classic `[]ast.Node` for project indexing
 (`analyse.BuildProjectIndex`) without calling the classic `parser` package.
 
+This is a transitional bridge, not a permanent layer: `analyse/` rules are
+being migrated one at a time to walk the CST directly (via `syntax.Walk` +
+`RedNode.Pos()`/`EndPos()`) and skip lowering entirely. See `AGENTS.md`
+"CST-direct migration" for status; `analyse/empty_statement_rule.go` is the
+first rule migrated off this path when raw source is available.
+
 ## Coverage
 
 - File / namespace / use / class / interface / trait / enum

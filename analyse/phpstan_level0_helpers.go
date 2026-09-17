@@ -4,6 +4,7 @@ import (
 	"strings"
 
 	"github.com/ayanozturk/go-php-parser/ast"
+	"github.com/ayanozturk/go-php-parser/syntax"
 )
 
 func functionCallName(call *ast.FunctionCallNode) string {
@@ -210,6 +211,22 @@ func issueSpanWarning(filename string, n ast.Node, code, message string) Analysi
 	iss := issueSpan(filename, n, code, message)
 	iss.Severity = "warning"
 	return iss
+}
+
+// issueSpanRed is like issueSpan but for a CST node, letting rules that walk
+// the syntax tree directly report diagnostics without lowering to ast.Node.
+func issueSpanRed(filename string, n *syntax.RedNode, code, message string) AnalysisIssue {
+	start := n.Pos()
+	end := n.EndPos()
+	return AnalysisIssue{
+		Filename:  filename,
+		Line:      start.Line,
+		Column:    start.Column,
+		EndLine:   end.Line,
+		EndColumn: end.Column,
+		Code:      code,
+		Message:   message,
+	}
 }
 
 func resolveThrownClassName(node ast.Node, ft FileTypeContext) string {

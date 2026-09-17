@@ -87,6 +87,21 @@ func trimOuterWS(s string) string {
 	return s[i:j]
 }
 
+// Walk performs a pre-order traversal of the CST rooted at root, calling fn
+// for each node. If fn returns false, that node's children are skipped
+// (unlike the lowered ast.Node walkers, this supports early subtree exit).
+func Walk(root *RedNode, fn func(*RedNode) bool) {
+	if root == nil || fn == nil {
+		return
+	}
+	if !fn(root) {
+		return
+	}
+	for _, c := range root.Children() {
+		Walk(c, fn)
+	}
+}
+
 // FirstChildOfKind returns the first direct child with the given kind.
 func (r *RedNode) FirstChildOfKind(k Kind) *RedNode {
 	for _, c := range r.Children() {

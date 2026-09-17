@@ -1,6 +1,7 @@
 package syntax
 
 import (
+	"github.com/ayanozturk/go-php-parser/ast"
 	"github.com/ayanozturk/go-php-parser/token"
 )
 
@@ -67,6 +68,20 @@ func (r *RedNode) Child(i int) *RedNode {
 		return nil
 	}
 	return ch[i]
+}
+
+// Pos returns the 1-based start position of the node's content, skipping
+// leading trivia so it matches classic ast.Node.GetPos() coordinates.
+func (r *RedNode) Pos() ast.Position {
+	start, _ := nodePos(r.File, r)
+	return start
+}
+
+// EndPos returns the 1-based end position of the node's content, excluding
+// trailing trivia so it matches classic ast.Node.GetEndPos() coordinates.
+func (r *RedNode) EndPos() ast.Position {
+	_, end := nodePos(r.File, r)
+	return end
 }
 
 // Tokens returns lexer tokens under this red node with absolute positions
