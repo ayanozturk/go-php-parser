@@ -33,3 +33,4 @@ config.yaml.bak
 
 # Local research clones and generated design reports. Not part of the product.
 .scratch/
+.worktrees/
