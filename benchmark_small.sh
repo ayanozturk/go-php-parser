@@ -1,7 +1,12 @@
 #!/bin/bash
 # Quick benchmark on small subset - finishes in ~30s
+# The directory to sample from can be overridden with the BENCHMARK_TARGET
+# env var; it defaults to the bundled test_projects corpus so this is
+# CI-portable.
 
 set -e
+
+TARGET_DIR=${BENCHMARK_TARGET:-test_projects}
 
 echo "Building..."
 go build -o php-parser ./main.go
@@ -12,7 +17,7 @@ SAMPLE_DIR="/tmp/php_sample"
 rm -rf "$SAMPLE_DIR"
 mkdir -p "$SAMPLE_DIR"
 
-find /Volumes/RG-DOCK/rg_core -name "*.php" -type f 2>/dev/null | head -1000 | while read f; do
+find "$TARGET_DIR" -name "*.php" -type f 2>/dev/null | head -1000 | while read f; do
 	mkdir -p "$SAMPLE_DIR/$(dirname "$f" | md5 -q | head -c 4)"
 	cp "$f" "$SAMPLE_DIR/$(dirname "$f" | md5 -q | head -c 4)/"
 done

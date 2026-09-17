@@ -2,21 +2,24 @@
 
 # Benchmark script: measure analysis performance
 # Usage: ./benchmark.sh [cold|warm|both] [output-file]
+# The directory to scan can be overridden with the BENCHMARK_TARGET env var;
+# it defaults to the bundled test_projects corpus so this is CI-portable.
 
 set -e
 
 MODE=${1:-both}
 OUTPUT_FILE=${2:-benchmarks.json}
+TARGET_DIR=${BENCHMARK_TARGET:-test_projects}
 
 # Build binary
 echo "Building..."
 go build -o php-parser ./main.go
 
-echo "Running benchmark ($MODE)..."
+echo "Running benchmark ($MODE) against $TARGET_DIR..."
 
 TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
-FILES=$(find /Volumes/RG-DOCK/rg_core -name "*.php" 2>/dev/null | wc -l)
-LINES=$(find /Volumes/RG-DOCK/rg_core -name "*.php" 2>/dev/null -exec wc -l {} \; 2>/dev/null | awk '{sum+=$1} END {print sum}')
+FILES=$(find "$TARGET_DIR" -name "*.php" 2>/dev/null | wc -l)
+LINES=$(find "$TARGET_DIR" -name "*.php" 2>/dev/null -exec wc -l {} \; 2>/dev/null | awk '{sum+=$1} END {print sum}')
 
 if [[ "$MODE" == "cold" || "$MODE" == "both" ]]; then
 	echo "Cold run (no cache)..."
