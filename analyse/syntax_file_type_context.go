@@ -41,6 +41,36 @@ func CollectFileTypeContextFromSyntax(root *syntax.RedNode) FileTypeContext {
 	return ctx
 }
 
+// namespaceSyntaxTypeContext is the CST-direct analogue of
+// namespaceTypeContext (phpstan_level0_walk.go): a fresh FileTypeContext
+// derived from just one namespace declaration's body, cached by node
+// pointer. body is the namespace's already-resolved body (see
+// syntax.NamespaceBody) — used by walkSyntaxConfigured to re-derive ft at
+// namespace boundaries, mirroring walkAllConfigured's *ast.NamespaceNode
+// case.
+func namespaceSyntaxTypeContext(n *syntax.RedNode, body []*syntax.RedNode, cache map[*syntax.RedNode]FileTypeContext) FileTypeContext {
+	if cached, ok := cache[n]; ok {
+		return cached
+	}
+	nft := FileTypeContext{
+		Aliases:         make(map[string]string),
+		FunctionAliases: make(map[string]string),
+		ConstAliases:    make(map[string]string),
+		Classes:         make(map[string]ResolvedClass),
+		ClassNodes:      make(map[string]*ast.ClassNode),
+		Constants:       make(map[string]string),
+	}
+	nsName := syntaxNamespaceDeclName(n)
+	collectSyntaxFileTypeContext(body, nsName, &nft)
+	if nft.Namespace == "" {
+		nft.Namespace = nsName
+	}
+	if cache != nil {
+		cache[n] = nft
+	}
+	return nft
+}
+
 func collectSyntaxFileTypeContext(children []*syntax.RedNode, currentNS string, ctx *FileTypeContext) {
 	namespace := currentNS
 	for i := 0; i < len(children); i++ {

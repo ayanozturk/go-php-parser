@@ -38,7 +38,7 @@ class Foo {
 		fnText    string
 	}
 	captured := map[string]ctxCapture{}
-	walkSyntaxConfigured(res.File.Root, FileTypeContext{}, func(n, class, currentFn *syntax.RedNode, ft FileTypeContext) {
+	walkSyntaxConfigured(res.File.Root, FileTypeContext{}, func(n, class, currentFn *syntax.RedNode, ft FileTypeContext, inStatementBody bool) {
 		text := strings.TrimSpace(n.Text())
 		key := ""
 		switch {
@@ -118,7 +118,7 @@ class Foo {
 }
 `
 	res := syntax.Parse([]byte(src))
-	walkSyntaxConfigured(res.File.Root, FileTypeContext{}, func(n, class, currentFn *syntax.RedNode, ft FileTypeContext) {
+	walkSyntaxConfigured(res.File.Root, FileTypeContext{}, func(n, class, currentFn *syntax.RedNode, ft FileTypeContext, inStatementBody bool) {
 		if syntaxContainerOnlyKinds[n.Kind()] {
 			t.Fatalf("container-only kind %v reached fn (text %q)", n.Kind(), n.Text())
 		}
@@ -127,7 +127,86 @@ class Foo {
 
 // TestWalkSyntaxConfiguredNilRoot ensures the nil-root guard doesn't panic.
 func TestWalkSyntaxConfiguredNilRoot(t *testing.T) {
-	walkSyntaxConfigured(nil, FileTypeContext{}, func(n, class, currentFn *syntax.RedNode, ft FileTypeContext) {
+	walkSyntaxConfigured(nil, FileTypeContext{}, func(n, class, currentFn *syntax.RedNode, ft FileTypeContext, inStatementBody bool) {
 		t.Fatal("fn should never be called for a nil root")
 	})
+}
+
+// TestWalkSyntaxConfiguredNamespaceRederivesFileTypeContext asserts that
+// walkSyntaxConfigured re-derives ft at each namespace boundary (mirroring
+// walkAllConfigured's *ast.NamespaceNode case + namespaceTypeContext),
+// rather than threading a single root ft through unchanged. This matters for
+// any multi-namespace file where each namespace has its own `use` aliases —
+// checkTypeReferenceOnNode and later Phase 3 ports depend on ft.Aliases
+// being scoped correctly per namespace, not merged/leaked across them.
+func TestWalkSyntaxConfiguredNamespaceRederivesFileTypeContext(t *testing.T) {
+	src := `<?php
+namespace App\First;
+
+use App\First\Dep as Shared;
+
+echo Shared::class;
+
+namespace App\Second;
+
+use App\Second\Dep as Shared;
+
+echo Shared::class;
+`
+	res := syntax.Parse([]byte(src))
+
+	type capture struct {
+		namespace string
+		alias     string
+	}
+	var captures []capture
+	walkSyntaxConfigured(res.File.Root, FileTypeContext{}, func(n, class, currentFn *syntax.RedNode, ft FileTypeContext, inStatementBody bool) {
+		if n.Kind() != syntax.KindEchoStmt {
+			return
+		}
+		captures = append(captures, capture{namespace: ft.Namespace, alias: ft.Aliases["shared"]})
+	})
+
+	if len(captures) != 2 {
+		t.Fatalf("expected 2 echo statements captured, got %d: %+v", len(captures), captures)
+	}
+	if captures[0].namespace != `App\First` {
+		t.Fatalf("expected first echo to see namespace App\\First, got %q", captures[0].namespace)
+	}
+	if captures[0].alias != `App\First\Dep` {
+		t.Fatalf("expected first echo to see Shared aliased to App\\First\\Dep, got %q", captures[0].alias)
+	}
+	if captures[1].namespace != `App\Second` {
+		t.Fatalf("expected second echo to see namespace App\\Second, got %q", captures[1].namespace)
+	}
+	if captures[1].alias != `App\Second\Dep` {
+		t.Fatalf("expected second echo to see Shared aliased to App\\Second\\Dep (not leaked from the first namespace), got %q", captures[1].alias)
+	}
+}
+
+// TestWalkSyntaxConfiguredBracedNamespaceRederivesFileTypeContext covers the
+// braced namespace form, where the body is a KindStatementList child of the
+// namespace decl itself rather than following top-level siblings.
+func TestWalkSyntaxConfiguredBracedNamespaceRederivesFileTypeContext(t *testing.T) {
+	src := `<?php
+namespace App\Braced {
+    use App\Braced\Dep as Shared;
+    echo Shared::class;
+}
+`
+	res := syntax.Parse([]byte(src))
+	var sawNamespace, sawAlias string
+	walkSyntaxConfigured(res.File.Root, FileTypeContext{}, func(n, class, currentFn *syntax.RedNode, ft FileTypeContext, inStatementBody bool) {
+		if n.Kind() != syntax.KindEchoStmt {
+			return
+		}
+		sawNamespace = ft.Namespace
+		sawAlias = ft.Aliases["shared"]
+	})
+	if sawNamespace != `App\Braced` {
+		t.Fatalf("expected namespace App\\Braced, got %q", sawNamespace)
+	}
+	if sawAlias != `App\Braced\Dep` {
+		t.Fatalf("expected Shared aliased to App\\Braced\\Dep, got %q", sawAlias)
+	}
 }

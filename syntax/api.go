@@ -122,6 +122,86 @@ func LowerParamNode(n *RedNode, file *File) *ast.ParamNode {
 	return lowerParam(n, file)
 }
 
+// LowerUseDeclNode lowers a single KindUseDecl CST node (a top-level `use
+// ...;` import declaration, possibly with multiple comma-separated/grouped
+// clauses) to its classic []ast.Node ([]*ast.UseNode). Returns nil for a nil
+// or non-KindUseDecl node.
+func LowerUseDeclNode(n *RedNode, file *File) []ast.Node {
+	if n == nil || n.Kind() != KindUseDecl {
+		return nil
+	}
+	return lowerUseDecl(n, file)
+}
+
+// LowerFunctionDeclNode lowers a single KindFunctionDecl or KindMethodDecl
+// CST node to its classic *ast.FunctionNode. Returns nil for a nil or
+// unsupported-kind node.
+func LowerFunctionDeclNode(n *RedNode, file *File) *ast.FunctionNode {
+	if n == nil || (n.Kind() != KindFunctionDecl && n.Kind() != KindMethodDecl) {
+		return nil
+	}
+	return lowerFunction(n, file)
+}
+
+// LowerInterfaceMethodDeclNode lowers a single KindFunctionDecl or
+// KindMethodDecl CST node representing an interface method signature to its
+// classic *ast.InterfaceMethodNode. Interface methods reuse the same CST
+// kinds as class methods (distinguished only by which declaration kind
+// contains them) — callers must decide which of LowerFunctionDeclNode /
+// LowerInterfaceMethodDeclNode to use based on the enclosing class-like's
+// kind. Returns nil for a nil or unsupported-kind node.
+func LowerInterfaceMethodDeclNode(n *RedNode, file *File) *ast.InterfaceMethodNode {
+	if n == nil || (n.Kind() != KindFunctionDecl && n.Kind() != KindMethodDecl) {
+		return nil
+	}
+	return lowerInterfaceMethod(n, file)
+}
+
+// LowerClassConstDeclNode lowers a single KindClassConstDecl or KindConstDecl
+// CST node (possibly with multiple comma-separated const names) to its
+// classic []ast.Node ([]*ast.ConstantNode). KindConstDecl (a global,
+// non-class-member `const` declaration) is lowered the same way (see
+// lowerTopLevel's KindConstDecl case). Returns nil for a nil or
+// unsupported-kind node.
+func LowerClassConstDeclNode(n *RedNode, file *File) []ast.Node {
+	if n == nil || (n.Kind() != KindClassConstDecl && n.Kind() != KindConstDecl) {
+		return nil
+	}
+	return lowerClassConsts(n, file)
+}
+
+// LowerCatchClauseNode lowers a single KindCatchClause CST node to its
+// classic *ast.CatchNode (including its body). Returns nil for a nil or
+// non-KindCatchClause node.
+func LowerCatchClauseNode(n *RedNode, file *File) *ast.CatchNode {
+	if n == nil || n.Kind() != KindCatchClause {
+		return nil
+	}
+	return lowerCatchClause(n, file)
+}
+
+// LowerAttributeNode lowers a single KindAttribute CST node (one entry of an
+// attribute group, e.g. the `Foo(1)` in `#[Foo(1), Bar]`) to its classic
+// ast.Node (*ast.AttributeNode). Returns nil for a nil or non-KindAttribute
+// node.
+func LowerAttributeNode(n *RedNode, file *File) ast.Node {
+	if n == nil || n.Kind() != KindAttribute {
+		return nil
+	}
+	return lowerAttribute(n, file)
+}
+
+// IsStatementKind reports whether k is one of the statement kinds lowered
+// via lowerStmt (as opposed to a declaration, expression, or grouping/
+// container kind). Exported for CST-direct rule ports that need to detect
+// "are we inside a statement's own subtree" (e.g. to decide whether a
+// KindAttribute is reachable from the ast.Node side at all - see
+// walkSyntaxConfigured's inStatementBody and
+// /memories/repo/cst-direct-migration.md).
+func IsStatementKind(k Kind) bool {
+	return isStmtKind(k)
+}
+
 // Walk performs a pre-order traversal of the CST rooted at root, calling fn
 // for each node. If fn returns false, that node's children are skipped
 // (unlike the lowered ast.Node walkers, this supports early subtree exit).
