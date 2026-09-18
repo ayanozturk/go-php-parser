@@ -27,8 +27,68 @@ func positionAt(file *File, offset int) ast.Position {
 	if lineStart > offset {
 		lineStart = offset
 	}
-	runeCol := utf8.RuneCount(file.Source[lineStart:offset])
+	runeCol := runeColumnAt(file, line, lineStart, offset)
 	return ast.Position{Line: line + 1, Column: runeCol + 1, Offset: offset}
+}
+
+// runeColumnAt returns the 0-based rune column at offset (relative to
+// lineStart) on the given 0-based line, exploiting the common case where
+// callers query positions in roughly increasing offset order on the same
+// line (e.g. lowering array elements left to right on one very long line).
+// A cache hit rune-counts only the delta since the last call instead of
+// rescanning from lineStart every time - the difference between O(N) and
+// O(N^2) total cost across N calls on the same long line.
+func runeColumnAt(file *File, line, lineStart, offset int) int {
+	c := &file.runeColCache
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	// Splitting a rune-count into forward/backward deltas is only valid when
+	// both the cached offset and the new offset sit on rune boundaries. Real
+	// callers always pass lexer token-boundary offsets, which is guaranteed
+	// for valid UTF-8 source; but PHP source is frequently not valid UTF-8
+	// (legacy Latin-1/Windows-1252 string literals are common), and for such
+	// files a byte can look like a UTF-8 continuation byte without actually
+	// being part of a rune the lexer treated specially. Falling back to a
+	// direct scan whenever either boundary isn't unambiguously safe keeps the
+	// fast path exact instead of merely fast.
+	if c.valid && c.line == line && isRuneBoundary(file.Source, c.offset) && isRuneBoundary(file.Source, offset) {
+		if offset >= c.offset {
+			delta := utf8.RuneCount(file.Source[c.offset:offset])
+			col := c.col + delta
+			c.offset, c.col = offset, col
+			return col
+		}
+		// Lowering a nested container computes its own (start, end) before
+		// descending into children, then each child's (start, end) before its
+		// own children - so offset routinely jumps backward onto a position
+		// closer to lineStart than to the cache. Scan whichever gap is
+		// smaller instead of always rescanning from lineStart.
+		if offset-lineStart < c.offset-offset {
+			col := utf8.RuneCount(file.Source[lineStart:offset])
+			c.offset, c.col = offset, col
+			return col
+		}
+		delta := utf8.RuneCount(file.Source[offset:c.offset])
+		col := c.col - delta
+		c.offset, c.col = offset, col
+		return col
+	}
+
+	col := utf8.RuneCount(file.Source[lineStart:offset])
+	c.valid, c.line, c.offset, c.col = true, line, offset, col
+	return col
+}
+
+// isRuneBoundary reports whether pos is not in the middle of a UTF-8 encoded
+// rune - true for the start of a rune, EOF, and (importantly) any byte that
+// isn't valid UTF-8 at all, since a non-UTF-8 byte is decoded as its own
+// single-byte RuneError rather than a continuation.
+func isRuneBoundary(src []byte, pos int) bool {
+	if pos <= 0 || pos >= len(src) {
+		return true
+	}
+	return utf8.RuneStart(src[pos])
 }
 
 func spanStart(file *File, s Span) ast.Position {

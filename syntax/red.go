@@ -1,6 +1,8 @@
 package syntax
 
 import (
+	"sync"
+
 	"github.com/ayanozturk/go-php-parser/ast"
 	"github.com/ayanozturk/go-php-parser/token"
 )
@@ -12,6 +14,23 @@ type File struct {
 	Green  *GreenNode
 	Tokens []token.Token
 	Root   *RedNode
+
+	// runeColCache memoizes the last (line, byteOffsetWithinLine, runeColumn)
+	// computed by positionAt, so a forward pass over many nodes on the same
+	// line (e.g. lowering a huge single-line array literal) only rune-counts
+	// the delta since the last call instead of re-scanning from the start of
+	// the line every time. Without this, a file with N nodes packed onto one
+	// very long line costs O(N^2) instead of O(N) to position (each call
+	// rescans from lineStart, and lineStart never advances within the line).
+	// Mutex-protected because multiple rules may query positions on the same
+	// *File concurrently.
+	runeColCache struct {
+		mu     sync.Mutex
+		valid  bool
+		line   int // 0-based line the cache applies to
+		offset int // byte offset within Source the cached column ends at
+		col    int // 0-based rune column at `offset`
+	}
 }
 
 // RedNode is a typed view over a green node with parent and absolute span.
