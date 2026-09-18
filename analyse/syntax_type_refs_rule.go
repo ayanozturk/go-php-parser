@@ -19,8 +19,10 @@ import (
 // re-derivation (see syntax_walk.go/syntax_file_type_context.go). ctx and
 // guards are supplied by the caller (a resolver can't be derived from a
 // single file's content alone, and reflectionGuards needs a full-file
-// ast.Node scan, matching how checkTypeReferences (the ast.Node path)
-// itself computes guards up front rather than per-node).
+// ast.Node scan, matching how collectReflectionGuards computes guards up
+// front — see syntax_fused_rule.go, which calls collectReflectionGuards
+// once and passes the result in, rather than checkTypeReferenceOnNode
+// recomputing guards per node).
 func CheckTypeReferenceIssuesFromCST(filename string, content []byte, ctx *AnalysisContext, guards reflectionGuards) []AnalysisIssue {
 	res := syntax.Parse(content)
 	if res.File == nil || res.File.Root == nil {

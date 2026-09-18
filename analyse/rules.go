@@ -129,6 +129,14 @@ func ClearAnalysisRules() {
 	sortedRuleCodesDirty = true
 }
 
+// RunAnalysisRules runs all registered analysis rules with an empty
+// AnalysisContext (ctx.Content == ""). Level0, structural, and return-type
+// diagnostics are produced by Check*IssuesFromCST functions that parse
+// ctx.Content directly rather than walking nodes; with no content, those
+// functions see no source and silently return zero issues. Callers that
+// need those diagnostics must call RunAnalysisRulesWithContext directly
+// with a populated AnalysisContext{Content: ...} — this 2-arg wrapper alone
+// will not surface them.
 func RunAnalysisRules(filename string, nodes []ast.Node) []AnalysisIssue {
 	return RunAnalysisRulesWithContext(filename, nodes, nil)
 }

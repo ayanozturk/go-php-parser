@@ -387,13 +387,15 @@ re-attempts the original framing:
    `TestNoLevelStylePathSuppressesResolverDependentRules`, which was
    verified adversarially (fails under the buggy merged form, passes under
    the fix).
-4. **The 2 pilot rules (`AssignmentInConditionRule`, `SideEffectsRule`)
-   were deliberately left untouched** — their differential and
-   `*HonorsContentContext` tests still exercise the empty-`Content`
-   fallback on purpose and were never migrated off it; deleting their
-   `ast.Node` `CheckIssues` paths is out of scope for this cleanup and
-   remains genuinely future work if anyone wants full CST-only cutover for
-   those two.
+4. **The 2 pilot rules' (`AssignmentInConditionRule`, `SideEffectsRule`)
+   `ast.Node` `CheckIssues` methods and their differential/
+   `*HonorsContentContext` tests were left in place** — only their
+   registered callbacks were wired onto `ctx.Content` (in an earlier task
+   in this same plan, via `RegisterAnalysisRuleWithContext` and new
+   `runRegistered*Rule` functions), not their underlying `CheckIssues`
+   implementations; deleting those `ast.Node` paths is out of scope for
+   this cleanup and remains genuinely future work if anyone wants full
+   CST-only cutover for those two.
 
 Corpus-diff (composer-src 532 files, symfony 10016 files) is 0 mismatches
 against pre-cleanup baselines throughout. The still-unaddressed reparse

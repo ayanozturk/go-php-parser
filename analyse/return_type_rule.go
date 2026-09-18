@@ -258,12 +258,12 @@ func (r *ReturnTypeRule) CheckIssues(nodes []ast.Node, filename string, ctx *Ana
 func returnTypeIssuesForFile(filename string, nodes []ast.Node, ctx *AnalysisContext) []AnalysisIssue {
 	ctx = ensureStructuralIssues(filename, nodes, ctx)
 	if !ctx.hasReturnTypeIssues {
-		collectReturnTypeIssues(filename, nodes, ctx)
+		collectReturnTypeIssues(filename, ctx)
 	}
 	return ctx.returnTypeIssues
 }
 
-func collectReturnTypeIssues(filename string, nodes []ast.Node, ctx *AnalysisContext) {
+func collectReturnTypeIssues(filename string, ctx *AnalysisContext) {
 	if ctx.hasReturnTypeIssues {
 		return
 	}
