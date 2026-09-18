@@ -424,11 +424,14 @@ func TestMemberAccessMethodCall(t *testing.T) {
 
 func TestDynamicBracedStaticMemberWalksNestedPropertyRef(t *testing.T) {
 	// Foo::{$m->p} must bind nested property p (same as a bare $m->p).
+	// $m is typed Foo so the property use's owner resolves to App\Foo,
+	// matching what a bare (typed-receiver) $m->p would resolve to; an
+	// untyped $m has no owner to resolve regardless of the outer expression.
 	src := `<?php
 namespace App;
 class Foo {
     public string $p;
-    public function m($m) { return Foo::{$m->p}; }
+    public function m(Foo $m) { return Foo::{$m->p}; }
 }
 `
 	graph := BindFile("file://dyn-static.php", []byte(src), BindModeReferences)

@@ -810,8 +810,29 @@ func (w *binderWalk) walkPropertyDecl(n *syntax.RedNode) {
 			w.b.BindPropertyDecl(c)
 			continue
 		}
+		if c.Kind() == syntax.KindPropertyHookList {
+			w.walkPropertyHookList(c)
+			continue
+		}
 		w.walk(c)
 	}
+}
+
+// walkPropertyHookList walks a property's `{ get => ...; set => ... }` hooks
+// with $this bound to the enclosing class, mirroring walkFunctionLike:
+// hook bodies are not KindFunctionDecl/KindMethodDecl nodes, so without this
+// $this->x inside get/set never resolves an owner (member uses on $this
+// bind with Owner="").
+func (w *binderWalk) walkPropertyHookList(n *syntax.RedNode) {
+	previousTypes := w.varTypes
+	w.varTypes = map[string]string{}
+	if w.b.Owner != "" {
+		w.varTypes["$this"] = w.b.Owner
+	}
+	for _, c := range n.Children() {
+		w.walk(c)
+	}
+	w.varTypes = previousTypes
 }
 
 func (w *binderWalk) walkMemberAccess(n *syntax.RedNode, kindFor func(mem, access *syntax.RedNode) string) {
