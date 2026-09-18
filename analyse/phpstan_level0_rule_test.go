@@ -1426,6 +1426,35 @@ enum ValidBacked: string {
 	}
 }
 
+// TestLevel0EnumCaseValueFromNonLiteralExpressionNotFlagged is a regression
+// test for a real false positive: enumCaseValueMatchesBacking treated any
+// enum case value it couldn't statically evaluate to a literal (only
+// IntegerNode/StringNode were recognized) as a backing-type mismatch.
+// PHP 8.1+ allows any constant expression as an enum case value, including
+// a property fetch on another enum case's ->value - a real, valid pattern
+// for re-exporting one enum's values as another (e.g. across a module
+// boundary). This must not be flagged just because we can't verify it.
+func TestLevel0EnumCaseValueFromNonLiteralExpressionNotFlagged(t *testing.T) {
+	issues := runLevel0OnFiles(t, map[string]string{
+		"test.php": `<?php
+namespace Other;
+enum SourceType: int {
+    case A = 1;
+    case B = 2;
+}
+namespace App;
+use Other\SourceType;
+enum MirroredType: int {
+    case A = SourceType::A->value;
+    case B = SourceType::B->value;
+}
+`,
+	})
+	if hasIssueContaining(issues, level0ClassModelCode, "MirroredType") {
+		t.Fatalf("enum case value from another enum's ->value must not be flagged: %#v", issues)
+	}
+}
+
 func TestLevel0FinalMethodOverride(t *testing.T) {
 	issues := runLevel0OnFiles(t, map[string]string{
 		"test.php": `<?php

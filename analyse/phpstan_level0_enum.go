@@ -129,7 +129,12 @@ func enumCaseScalarValue(node ast.Node) (interface{}, bool) {
 func enumCaseValueMatchesBacking(backing string, node ast.Node) bool {
 	value, ok := enumCaseScalarValue(node)
 	if !ok {
-		return false
+		// Not a literal we can statically evaluate - e.g. a property fetch on
+		// another enum case (`OtherEnum::CASE->value`), a class constant, or
+		// any other PHP 8.1+ constant expression valid as an enum case value.
+		// We can't verify the resulting type, so assume it matches rather
+		// than reporting a mismatch we haven't actually proven.
+		return true
 	}
 	switch asciiLowerIdent(strings.TrimSpace(backing)) {
 	case "int":
