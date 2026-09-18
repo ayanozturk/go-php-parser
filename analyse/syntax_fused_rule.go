@@ -5,13 +5,6 @@ import (
 	"github.com/ayanozturk/go-php-parser/syntax"
 )
 
-// checkEmptyStatementIssuesFromCST is the CST-direct analogue of
-// appendEmptyStatementIssue, mirroring EmptyStatementRule.CheckIssuesWithSource's
-// raw-content branch.
-func checkEmptyStatementIssuesFromCST(filename string, content []byte) []AnalysisIssue {
-	return checkEmptyStatementIssuesFromParsed(filename, syntax.Parse(content))
-}
-
 func checkEmptyStatementIssuesFromParsed(filename string, res *syntax.ParseResult) []AnalysisIssue {
 	if res == nil || res.File == nil || res.File.Root == nil {
 		return nil
