@@ -925,14 +925,34 @@ func memberNameToken(n *syntax.RedNode) *syntax.RedNode {
 	if m == nil || m.Kind() != syntax.KindToken || m.Green == nil {
 		return nil
 	}
-	switch m.Green.TokenType() {
-	case token.T_STRING, token.T_VARIABLE:
+	tt := m.Green.TokenType()
+	switch tt {
+	case token.T_VARIABLE:
 		return m
 	case token.T_CLASS:
 		return nil // Foo::class
-	default:
+	}
+	// PHP allows most reserved words as method/property names after ->/::
+	// (e.g. `$obj->declare()`, `$obj->list`) - token_get_all still emits the
+	// keyword's own token kind, not T_STRING, so this must accept the same
+	// tokens the parser's own parseIdentName does or a reserved-word member
+	// name silently fails to bind.
+	tok, ok := m.Green.Token()
+	if !ok {
 		return nil
 	}
+	// IsContextualIdent only needs a non-empty literal to sanity-check the
+	// first byte is alphabetic; a shared/interned green node can have an
+	// empty Literal even for a real keyword token (see NameText's identical
+	// handling), so a placeholder stands in for classification purposes.
+	classifyLit := tok.Literal
+	if classifyLit == "" {
+		classifyLit = "x"
+	}
+	if syntax.IsContextualIdent(tt, classifyLit) {
+		return m
+	}
+	return nil
 }
 
 func isCalleeExpr(access *syntax.RedNode) bool {

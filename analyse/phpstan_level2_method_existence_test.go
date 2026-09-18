@@ -62,6 +62,33 @@ function run(ParamService $param, PropertyHolder $holder, KnownService $known, M
 	}
 }
 
+// TestLevel2ReservedWordMethodNameNotFlagged is a regression test: PHP
+// allows most reserved words as method names (e.g. `function declare()`),
+// but NameText's stale token-type allowlist made such a declaration bind
+// with an empty name during project-index construction, so a real,
+// existing method like QueueManager::declare() was reported as undefined
+// on every call site - a real false positive on ordinary code, not a
+// synthetic edge case.
+func TestLevel2ReservedWordMethodNameNotFlagged(t *testing.T) {
+	files := map[string]string{
+		"test.php": `<?php
+class QueueManager {
+    public function declare(string $name): string { return $name; }
+}
+class Consumer {
+    private QueueManager $qm;
+    public function m(): void {
+        $this->qm->declare('x');
+    }
+}
+`,
+	}
+	issues := runAnalysisLevelOnFiles(t, files, 2)
+	if hasIssueContaining(issues, level2MethodExistenceCode, "declare()") {
+		t.Fatalf("declare() is a real declared method, must not be flagged as undefined: %#v", issues)
+	}
+}
+
 func TestLevel2UnknownMethodsOnFunctionAndConditionalReceivers(t *testing.T) {
 	issues := runAnalysisLevelOnFiles(t, map[string]string{
 		"test.php": `<?php

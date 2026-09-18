@@ -34,9 +34,25 @@ func NameText(n *RedNode) string {
 				if !ok {
 					continue
 				}
-				if tok.Type == token.T_STRING || tok.Type == token.T_NS_SEPARATOR ||
-					tok.Type == token.T_NAMESPACE || tok.Type == token.T_SELF ||
-					tok.Type == token.T_PARENT || tok.Type == token.T_STATIC {
+				// isContextualIdent is the parser's own "is this token usable as
+				// an identifier here" check (parseIdentName uses it to accept
+				// reserved words like `declare`, `list`, `default` as method/
+				// function/const names). NameText must recognize every token
+				// parseIdentName can produce, or a reserved-word name silently
+				// reconstructs as "" here even though the CST correctly holds
+				// it - T_NS_SEPARATOR is added back explicitly since it's a
+				// separator between name segments, not an identifier itself,
+				// but still belongs in the reconstructed text. A non-empty
+				// placeholder stands in for classification when a
+				// position-independent green node has no literal yet:
+				// isContextualIdent only needs literal text to sanity-check
+				// the first byte is alphabetic, which holds for every real
+				// token type reaching this branch.
+				classifyLit := tok.Literal
+				if classifyLit == "" {
+					classifyLit = "x"
+				}
+				if tok.Type == token.T_NS_SEPARATOR || isContextualIdent(tok.Type, classifyLit) {
 					if tok.Literal != "" {
 						b = append(b, tok.Literal...)
 					} else {
@@ -67,6 +83,18 @@ func NameText(n *RedNode) string {
 	default:
 		return n.Text()
 	}
+}
+
+// IsContextualIdent reports whether a token is usable as a PHP identifier in
+// contextual positions - decl names, member names after ->/::, named
+// arguments. PHP treats most reserved words as valid here (e.g. a method can
+// be named `declare`, `list`, or `default`), and token_get_all still emits
+// the keyword's own token kind rather than T_STRING. Exported for callers
+// outside this package (e.g. analyse's binder) that need to classify a
+// member-access name token the same way the parser does when deciding
+// whether to wrap it in an UnqualifiedName.
+func IsContextualIdent(tt token.TokenType, lit string) bool {
+	return isContextualIdent(tt, lit)
 }
 
 // TypeText reconstructs a type node's source without leading/trailing trivia gaps.

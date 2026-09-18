@@ -422,6 +422,35 @@ func TestMemberAccessMethodCall(t *testing.T) {
 	}
 }
 
+// TestReservedWordMethodDeclAndCallBind is a regression test for a real bug:
+// PHP allows most reserved words as method names (e.g. `function declare()`),
+// and the parser correctly wraps such names in UnqualifiedName - but
+// NameText's token-type allowlist didn't recognize the keyword's own token
+// kind (T_DECLARE, not T_STRING), so the method decl silently bound with an
+// empty name. The call site (`$obj->declare()`) had the same bug one level
+// down, in the binder's memberNameToken. Together these caused a real false
+// "Call to an undefined method" diagnostic on ordinary code.
+func TestReservedWordMethodDeclAndCallBind(t *testing.T) {
+	src := "<?php\nnamespace App;\nclass Foo {\n    public function declare(string $n): string { return $n; }\n}\nclass Bar {\n    public function m(Foo $f) { $f->declare('x'); }\n}\n"
+	graph := BindFile("file://reserved.php", []byte(src), BindModeReferences)
+	decl, ok := findUse(graph.Uses, "method", "declare", `App\Foo`)
+	if !ok || !decl.Declaration {
+		t.Fatalf("missing method decl for declare(): %+v", graph.Uses)
+	}
+	calls := 0
+	for _, u := range graph.Uses {
+		if u.Kind == "method" && u.Written == "declare" && !u.Declaration {
+			calls++
+			if u.Owner != `App\Foo` {
+				t.Fatalf("call to declare() has wrong owner %q, want App\\Foo: %+v", u.Owner, u)
+			}
+		}
+	}
+	if calls != 1 {
+		t.Fatalf("want exactly 1 call use for declare(), got %d: %+v", calls, graph.Uses)
+	}
+}
+
 func TestDynamicBracedStaticMemberWalksNestedPropertyRef(t *testing.T) {
 	// Foo::{$m->p} must bind nested property p (same as a bare $m->p).
 	// $m is typed Foo so the property use's owner resolves to App\Foo,
