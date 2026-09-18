@@ -1,6 +1,7 @@
 package analyse
 
 import (
+	"github.com/ayanozturk/go-php-parser/ast"
 	"github.com/ayanozturk/go-php-parser/syntax"
 )
 
@@ -30,22 +31,40 @@ func checkReturnTypeIssuesFromParsed(filename string, res *syntax.ParseResult, c
 	}
 	rootFt := CollectFileTypeContextFromSyntax(res.File.Root)
 
+	// lowerClassCache memoizes LowerClassLikeContextNode per class within this
+	// single walk: the walker passes the same *syntax.RedNode class pointer to
+	// every member of that class, so without this cache a class with N members
+	// re-lowers its entire body (all N members) on each of the N member visits
+	// - O(N^2) work per class instead of O(N).
+	lowerClassCache := map[*syntax.RedNode]*ast.ClassNode{}
+	lowerClass := func(class *syntax.RedNode) *ast.ClassNode {
+		if class == nil {
+			return nil
+		}
+		if cls, ok := lowerClassCache[class]; ok {
+			return cls
+		}
+		cls := syntax.LowerClassLikeContextNode(class, res.File)
+		lowerClassCache[class] = cls
+		return cls
+	}
+
 	var issues []AnalysisIssue
 	walkSyntaxConfigured(res.File.Root, rootFt, func(n, class, currentFn *syntax.RedNode, ft FileTypeContext, inStatementBody bool) {
 		switch n.Kind() {
 		case syntax.KindFunctionDecl, syntax.KindMethodDecl:
 			if class != nil && class.Kind() == syntax.KindInterfaceDecl {
 				if im := syntax.LowerInterfaceMethodDeclNode(n, res.File); im != nil {
-					appendReturnTypeOnNode(filename, im, syntax.LowerClassLikeContextNode(class, res.File), ft, ctx, &issues)
+					appendReturnTypeOnNode(filename, im, lowerClass(class), ft, ctx, &issues)
 				}
 				return
 			}
 			if fn := syntax.LowerFunctionDeclNode(n, res.File); fn != nil {
-				appendReturnTypeOnNode(filename, fn, syntax.LowerClassLikeContextNode(class, res.File), ft, ctx, &issues)
+				appendReturnTypeOnNode(filename, fn, lowerClass(class), ft, ctx, &issues)
 			}
 		case syntax.KindClosureExpr:
 			if fn := syntax.LowerExprNode(n, res.File); fn != nil {
-				appendReturnTypeOnNode(filename, fn, syntax.LowerClassLikeContextNode(class, res.File), ft, ctx, &issues)
+				appendReturnTypeOnNode(filename, fn, lowerClass(class), ft, ctx, &issues)
 			}
 		}
 	})
