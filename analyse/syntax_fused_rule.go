@@ -36,6 +36,7 @@ func checkEmptyStatementIssuesFromParsed(filename string, res *syntax.ParseResul
 // required parameter here even though issue collection itself no longer
 // walks it.
 func ensureSharedFileDiagnosticsFromCST(filename string, content []byte, nodes []ast.Node, ctx *AnalysisContext) *AnalysisContext {
+	res := syntax.Parse(content)
 	fileCtx := analysisFileTypeContext(ctx, nodes)
 	guards := collectReflectionGuards(nodes, ctx, fileCtx)
 
@@ -47,22 +48,22 @@ func ensureSharedFileDiagnosticsFromCST(filename string, content []byte, nodes [
 	}
 
 	var issues []AnalysisIssue
-	issues = append(issues, CheckClassModelIssuesFromCST(filename, content, ctx)...)
-	issues = append(issues, CheckTypeReferenceIssuesFromCST(filename, content, ctx, guards)...)
-	issues = append(issues, CheckSymbolIssuesFromCST(filename, content, ctx, guards)...)
-	issues = append(issues, CheckLanguageIssuesFromCST(filename, content)...)
-	ctx.level0PropertyCallableIssues = CheckPropertyCallableTypeIssuesFromCST(filename, content)
-	ctx.emptyStatementIssues = checkEmptyStatementIssuesFromCST(filename, content)
+	issues = append(issues, checkClassModelIssuesFromParsed(filename, res, ctx)...)
+	issues = append(issues, checkTypeReferenceIssuesFromParsed(filename, res, ctx, guards)...)
+	issues = append(issues, checkSymbolIssuesFromParsed(filename, res, ctx, guards)...)
+	issues = append(issues, checkLanguageIssuesFromParsed(filename, res)...)
+	ctx.level0PropertyCallableIssues = checkPropertyCallableTypeIssuesFromParsed(filename, res)
+	ctx.emptyStatementIssues = checkEmptyStatementIssuesFromParsed(filename, res)
 
 	if collectStructural {
-		ctx.methodVisibilityIssues = CheckMethodVisibilityIssuesFromCST(filename, content, ctx)
-		ctx.throwTypeIssues = CheckThrowTypeIssuesFromCST(filename, content, ctx)
-		ctx.phpDocIssues = CheckPHPDocIssuesFromCST(filename, content, ctx, ctx.phpDocTypeAliases)
+		ctx.methodVisibilityIssues = checkMethodVisibilityIssuesFromParsed(filename, res, ctx)
+		ctx.throwTypeIssues = checkThrowTypeIssuesFromParsed(filename, res, ctx)
+		ctx.phpDocIssues = checkPHPDocIssuesFromParsed(filename, res, ctx, ctx.phpDocTypeAliases)
 		if collectMissingTypes {
-			ctx.missingTypeIssues = CheckMissingTypeIssuesFromCST(filename, content, ctx)
+			ctx.missingTypeIssues = checkMissingTypeIssuesFromParsed(filename, res, ctx)
 		}
 		if collectReturn {
-			ctx.returnTypeIssues = CheckReturnTypeIssuesFromCST(filename, content, ctx)
+			ctx.returnTypeIssues = checkReturnTypeIssuesFromParsed(filename, res, ctx)
 		}
 	}
 
@@ -82,6 +83,7 @@ func ensureSharedFileDiagnosticsFromCST(filename string, content []byte, nodes [
 // weren't already collected by ensureSharedFileDiagnostics, e.g. because
 // ctx.AnalysisLevel was raised between calls).
 func ensureStructuralIssuesFromCST(filename string, content []byte, nodes []ast.Node, ctx *AnalysisContext) *AnalysisContext {
+	res := syntax.Parse(content)
 	if ctx.phpDocTypeAliases == nil {
 		ctx.phpDocTypeAliases = collectPHPDocTypeAliases(nodes)
 	}
@@ -89,14 +91,14 @@ func ensureStructuralIssuesFromCST(filename string, content []byte, nodes []ast.
 	collectReturn := analysisLevelAtLeast(ctx, 2)
 	collectMissingTypes := analysisLevelAtLeast(ctx, 6)
 
-	ctx.methodVisibilityIssues = CheckMethodVisibilityIssuesFromCST(filename, content, ctx)
-	ctx.throwTypeIssues = CheckThrowTypeIssuesFromCST(filename, content, ctx)
-	ctx.phpDocIssues = CheckPHPDocIssuesFromCST(filename, content, ctx, ctx.phpDocTypeAliases)
+	ctx.methodVisibilityIssues = checkMethodVisibilityIssuesFromParsed(filename, res, ctx)
+	ctx.throwTypeIssues = checkThrowTypeIssuesFromParsed(filename, res, ctx)
+	ctx.phpDocIssues = checkPHPDocIssuesFromParsed(filename, res, ctx, ctx.phpDocTypeAliases)
 	if collectMissingTypes {
-		ctx.missingTypeIssues = CheckMissingTypeIssuesFromCST(filename, content, ctx)
+		ctx.missingTypeIssues = checkMissingTypeIssuesFromParsed(filename, res, ctx)
 	}
 	if collectReturn {
-		ctx.returnTypeIssues = CheckReturnTypeIssuesFromCST(filename, content, ctx)
+		ctx.returnTypeIssues = checkReturnTypeIssuesFromParsed(filename, res, ctx)
 	}
 
 	ctx.hasStructuralIssues = true
