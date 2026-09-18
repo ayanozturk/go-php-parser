@@ -316,14 +316,32 @@ not just per-rule. A throwaway corpus-diff harness (deleted after use, per
 its own header comment) additionally corpus-validated the full pipeline to
 **0 mismatches** on composer-src (532 files) and symfony (10027 files, 177s
 runtime). The re-parse-cost question (each of the 10 `Check*IssuesFromCST`
-functions independently calls `syntax.Parse`/`syntax.ParseAST`, so the
-CST-direct branch reparses the file up to ~11 times instead of the
-ast.Node path's single walk) was deliberately deferred rather than
-resolved: this increment prioritizes correctness and a minimal, reviewable
-diff; a follow-up could refactor the 10 functions to share one
-`walkSyntaxConfigured` traversal if `ctx.Content` is enabled broadly enough
-for the reparse cost to matter in practice (it is currently a purely opt-in
-field — nothing in production sets it in `go-php-parser` itself).
+functions independently called `syntax.Parse`/`syntax.ParseAST`, so the
+CST-direct branch reparsed the file up to ~11 times instead of the
+ast.Node path's single walk) has since been fixed: the 10 `Check*IssuesFromCST`
+functions were split into thin `Check*IssuesFromCST` wrappers plus
+`check*IssuesFromParsed(filename string, res *syntax.ParseResult, ...)`
+counterparts, and both `ensureSharedFileDiagnosticsFromCST` and
+`ensureStructuralIssuesFromCST` (`analyse/syntax_fused_rule.go`) now call
+`syntax.Parse` exactly once per file and pass the shared `*syntax.ParseResult`
+to every `*FromParsed` call. A new benchmark
+(`BenchmarkEnsureSharedFileDiagnosticsFromCST`,
+`analyse/syntax_fused_rule_bench_test.go`) measured the real effect on a
+fixture exercising all 10 check families at analysis level 6: before the fix,
+~3.25ms/op, ~2.44MB/op, ~38,578 allocs/op; after, ~2.06ms/op, ~1.21MB/op,
+~26,545 allocs/op — roughly a 1.6x speedup on `ns/op` (and ~1.45x fewer
+allocations), notably below the naively-expected ~11x from parse-count alone
+because `syntax.Parse` is not the dominant cost relative to the checks' own
+tree walks. Numbers were captured via `go test ./analyse/ -bench
+BenchmarkEnsureSharedFileDiagnosticsFromCST -benchtime=3x -benchmem -run '^$'`
+on both the current tree and a temporary revert to the pre-fix shape
+(`git checkout 33b6ba4b -- analyse/syntax_fused_rule.go
+analyse/syntax_class_model_rule.go analyse/syntax_language_rule.go
+analyse/syntax_method_visibility_rule.go analyse/syntax_missing_types_rule.go
+analyse/syntax_phpdoc_rule.go analyse/syntax_property_callable_rule.go
+analyse/syntax_return_type_rule.go analyse/syntax_symbols_rule.go
+analyse/syntax_throw_type_rule.go analyse/syntax_type_refs_rule.go`, restored
+afterward).
 
 Cross-repo: with explicit user confirmation, go-php-parser's local `main`
 (through `33cd38f7`) was pushed to GitHub, `vscode-php-strom/server/go.mod`'s
