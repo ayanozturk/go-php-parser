@@ -15,8 +15,11 @@ import (
 // syntax.LowerPropertyDeclNode/syntax.LowerParamNode) and fed unchanged into
 // appendPropertyCallableTypeIssue.
 func CheckPropertyCallableTypeIssuesFromCST(filename string, content []byte) []AnalysisIssue {
-	res := syntax.Parse(content)
-	if res.File == nil || res.File.Root == nil {
+	return checkPropertyCallableTypeIssuesFromParsed(filename, syntax.Parse(content))
+}
+
+func checkPropertyCallableTypeIssuesFromParsed(filename string, res *syntax.ParseResult) []AnalysisIssue {
+	if res == nil || res.File == nil || res.File.Root == nil {
 		return nil
 	}
 

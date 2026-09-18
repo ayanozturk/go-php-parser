@@ -21,8 +21,11 @@ import (
 // needed. No KindPropertyDecl case: return-type checking never applies to
 // properties.
 func CheckReturnTypeIssuesFromCST(filename string, content []byte, ctx *AnalysisContext) []AnalysisIssue {
-	res := syntax.Parse(content)
-	if res.File == nil || res.File.Root == nil {
+	return checkReturnTypeIssuesFromParsed(filename, syntax.Parse(content), ctx)
+}
+
+func checkReturnTypeIssuesFromParsed(filename string, res *syntax.ParseResult, ctx *AnalysisContext) []AnalysisIssue {
+	if res == nil || res.File == nil || res.File.Root == nil {
 		return nil
 	}
 	rootFt := CollectFileTypeContextFromSyntax(res.File.Root)

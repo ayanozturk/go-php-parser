@@ -19,8 +19,11 @@ import (
 // purely for its namespace-boundary-aware FileTypeContext re-derivation -
 // class/currentFn/inStatementBody are all ignored.
 func CheckThrowTypeIssuesFromCST(filename string, content []byte, ctx *AnalysisContext) []AnalysisIssue {
-	res := syntax.Parse(content)
-	if res.File == nil || res.File.Root == nil {
+	return checkThrowTypeIssuesFromParsed(filename, syntax.Parse(content), ctx)
+}
+
+func checkThrowTypeIssuesFromParsed(filename string, res *syntax.ParseResult, ctx *AnalysisContext) []AnalysisIssue {
+	if res == nil || res.File == nil || res.File.Root == nil {
 		return nil
 	}
 	rootFt := CollectFileTypeContextFromSyntax(res.File.Root)

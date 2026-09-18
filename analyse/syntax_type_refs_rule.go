@@ -24,8 +24,11 @@ import (
 // once and passes the result in, rather than checkTypeReferenceOnNode
 // recomputing guards per node).
 func CheckTypeReferenceIssuesFromCST(filename string, content []byte, ctx *AnalysisContext, guards reflectionGuards) []AnalysisIssue {
-	res := syntax.Parse(content)
-	if res.File == nil || res.File.Root == nil {
+	return checkTypeReferenceIssuesFromParsed(filename, syntax.Parse(content), ctx, guards)
+}
+
+func checkTypeReferenceIssuesFromParsed(filename string, res *syntax.ParseResult, ctx *AnalysisContext, guards reflectionGuards) []AnalysisIssue {
+	if res == nil || res.File == nil || res.File.Root == nil {
 		return nil
 	}
 	rootFt := CollectFileTypeContextFromSyntax(res.File.Root)
