@@ -92,6 +92,51 @@ func TestProjectUsageGraphCrossFile(t *testing.T) {
 	}
 }
 
+// TestProjectUsageGraphRemoveFileOnlyTouchesItsOwnResolvedEntries is a
+// regression test for a real O(N^2) bug: byResolve used to be a flat
+// map[string][]NameUse, so removing one file's uses of a popular resolved
+// name (e.g. a base class referenced from thousands of files) required
+// scanning and copying every use of that name across the whole project.
+// Re-indexing N files each referencing the same popular name cost O(N^2)
+// project-wide - measured at 2m34s to re-index a real 10k-file workspace,
+// versus 2.6s to index it cold. byResolve is now partitioned by URI so
+// removal is an O(1) map delete; this test locks in that re-adding one
+// file must not perturb another file's recorded uses of the same name.
+func TestProjectUsageGraphRemoveFileOnlyTouchesItsOwnResolvedEntries(t *testing.T) {
+	g := NewProjectUsageGraph()
+	a := BindSyntaxFile("file://a.php", []byte("<?php\nfunction f(Foo $x) {}\n"), "", nil)
+	b := BindSyntaxFile("file://b.php", []byte("<?php\nfunction g(Foo $y) {}\n"), "", nil)
+	g.PutFile("file://a.php", a.Uses)
+	g.PutFile("file://b.php", b.Uses)
+
+	// Re-index a.php (as a full re-index does for every file): must not
+	// drop b.php's own uses of the same resolved name Foo.
+	g.PutFile("file://a.php", a.Uses)
+
+	hits := g.FindByResolved("Foo")
+	uris := map[string]bool{}
+	for _, h := range hits {
+		uris[h.URI] = true
+	}
+	if !uris["file://a.php"] || !uris["file://b.php"] {
+		t.Fatalf("re-indexing a.php must not affect b.php's uses of Foo, got %v", uris)
+	}
+
+	g.RemoveFile("file://a.php")
+	hits = g.FindByResolved("Foo")
+	for _, h := range hits {
+		if h.URI == "file://a.php" {
+			t.Fatal("expected a.php uses removed")
+		}
+		if h.URI != "file://b.php" {
+			t.Fatalf("unexpected URI in hits: %+v", h)
+		}
+	}
+	if len(hits) == 0 {
+		t.Fatal("expected b.php's uses of Foo to survive a.php's removal")
+	}
+}
+
 func TestMultiNamespaceScopesDoNotShareAliases(t *testing.T) {
 	src := `<?php
 namespace A {

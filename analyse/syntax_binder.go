@@ -46,15 +46,23 @@ type UsageGraph struct {
 // reverse lookup by resolved FQN (+ kind/owner). Unqualified spelling maps are
 // not used for project rename/refs (avoids A\Foo vs B\Foo collisions — R2).
 type ProjectUsageGraph struct {
-	mu        sync.RWMutex
-	byURI     map[string][]NameUse
-	byResolve map[string][]NameUse // lower(resolved) → uses
+	mu    sync.RWMutex
+	byURI map[string][]NameUse
+	// byResolve is lower(resolved) -> URI -> uses in that file. Partitioning
+	// by URI makes PutFile/RemoveFile's per-file removal an O(1) map delete
+	// instead of a full scan-and-copy of every use ever recorded for that
+	// resolved name across the whole project: a popular symbol (a common
+	// base class, a widely-used interface) can accumulate uses from
+	// thousands of files, and a flat []NameUse bucket made removing one
+	// file's uses cost O(project-wide uses of that symbol) - repeated once
+	// per file on every re-index, which is O(n^2) over the whole workspace.
+	byResolve map[string]map[string][]NameUse
 }
 
 func NewProjectUsageGraph() *ProjectUsageGraph {
 	return &ProjectUsageGraph{
 		byURI:     make(map[string][]NameUse),
-		byResolve: make(map[string][]NameUse),
+		byResolve: make(map[string]map[string][]NameUse),
 	}
 }
 
@@ -76,7 +84,12 @@ func (g *ProjectUsageGraph) PutFile(uri string, uses []NameUse) {
 	g.byURI[uri] = copied
 	for _, u := range copied {
 		if r := strings.ToLower(strings.TrimPrefix(u.Resolved, `\`)); r != "" {
-			g.byResolve[r] = append(g.byResolve[r], u)
+			byURI := g.byResolve[r]
+			if byURI == nil {
+				byURI = make(map[string][]NameUse)
+				g.byResolve[r] = byURI
+			}
+			byURI[uri] = append(byURI[uri], u)
 		}
 	}
 }
@@ -97,27 +110,22 @@ func (g *ProjectUsageGraph) removeFileLocked(uri string) {
 	if len(old) == 0 {
 		return
 	}
+	seen := make(map[string]struct{}, len(old))
 	for _, u := range old {
-		if r := strings.ToLower(strings.TrimPrefix(u.Resolved, `\`)); r != "" {
-			g.byResolve[r] = filterUsesURI(g.byResolve[r], uri)
-			if len(g.byResolve[r]) == 0 {
-				delete(g.byResolve, r)
-			}
+		r := strings.ToLower(strings.TrimPrefix(u.Resolved, `\`))
+		if r == "" {
+			continue
+		}
+		if _, ok := seen[r]; ok {
+			continue
+		}
+		seen[r] = struct{}{}
+		byURI := g.byResolve[r]
+		delete(byURI, uri)
+		if len(byURI) == 0 {
+			delete(g.byResolve, r)
 		}
 	}
-}
-
-func filterUsesURI(in []NameUse, uri string) []NameUse {
-	out := in[:0]
-	for _, u := range in {
-		if u.URI != uri {
-			out = append(out, u)
-		}
-	}
-	if len(out) == 0 {
-		return nil
-	}
-	return append([]NameUse(nil), out...)
 }
 
 // UsesForURI returns a copy of uses currently stored for uri.
@@ -138,7 +146,11 @@ func (g *ProjectUsageGraph) FindByResolved(name string) []NameUse {
 	g.mu.RLock()
 	defer g.mu.RUnlock()
 	key := strings.ToLower(strings.TrimPrefix(name, `\`))
-	return append([]NameUse(nil), g.byResolve[key]...)
+	var out []NameUse
+	for _, uses := range g.byResolve[key] {
+		out = append(out, uses...)
+	}
+	return out
 }
 
 // FindMatching returns project uses matching the bound symbol identity at the cursor:
@@ -157,14 +169,16 @@ func (g *ProjectUsageGraph) FindMatching(needle NameUse) []NameUse {
 	g.mu.RLock()
 	defer g.mu.RUnlock()
 	var out []NameUse
-	for _, u := range g.byResolve[resolved] {
-		if needle.Kind != "" && u.Kind != "" && !kindsCompatible(needle.Kind, u.Kind) {
-			continue
+	for _, uses := range g.byResolve[resolved] {
+		for _, u := range uses {
+			if needle.Kind != "" && u.Kind != "" && !kindsCompatible(needle.Kind, u.Kind) {
+				continue
+			}
+			if !ownersCompatible(needle, u) {
+				continue
+			}
+			out = append(out, u)
 		}
-		if !ownersCompatible(needle, u) {
-			continue
-		}
-		out = append(out, u)
 	}
 	return out
 }
