@@ -336,12 +336,71 @@ computed there for `sharedcache.StoreCachedFileContent`). Validated via both
 (`GOWORK=off` against the bumped pin) — all packages pass. **This completes
 Phase 4 in production**, not just as an opt-in library capability.
 
-Phase 5 (cleanup — removing the now-unused `ast.Node`/lowering path for the
-13 ported rules) remains unstarted and requires explicit user confirmation
-before starting. The still-unaddressed reparse cost (each of the 10
-`Check*IssuesFromCST` functions independently calls `syntax.Parse`) is now
-live on every diagnostics run through this wiring, not just opt-in test
-paths — worth remeasuring before/if Phase 5 work begins.
+Phase 5 (cleanup) is done, but landed materially narrower than originally
+scoped — the plan that kicked it off
+(`docs/superpowers/plans/2026-09-17-cst-direct-phase5-cleanup.md`) assumed
+the 13 ported rules' old `ast.Node` implementations were dead code once
+every caller set `ctx.Content`. Two rounds of investigation during
+execution found that assumption wrong in ways worth recording so nobody
+re-attempts the original framing:
+
+1. **The 10 `*OnNode`/`append*OnNode` functions (`checkLanguageOnNode`,
+   `appendPropertyCallableTypeIssue`, `checkTypeReferenceOnNode`,
+   `checkSymbolOnNode`, `appendClassModelOnNode`,
+   `appendMethodVisibilityOnNode`, `appendThrowTypeOnNode`,
+   `appendPHPDocIssuesOnNode`, `appendMissingTypeIssuesOnNode`,
+   `appendReturnTypeOnNode`) are not dead — they never were the "old ast
+   path" to retire.** Every `analyse/syntax_*_rule.go` CST-direct file
+   lowers its individual matched CST nodes back to `ast.Node` (via
+   `syntax.LowerStmtNode`/`syntax.LowerExprNode`) and calls these same,
+   unmodified functions as its own leaf-level implementation — see
+   `analyse/syntax_language_rule.go`'s doc comment, which says so
+   explicitly ("the existing, unmodified checkLanguageOnNode logic can run
+   unchanged on each one"). These functions are permanent shared logic
+   between both the CST walker and the (now-removed) old fused walk, and
+   must not be deleted.
+2. **What actually was dead and got removed:** the 4 zero-caller
+   `Level0Rule` wrapper methods (`checkLanguage`, `checkClassModel`,
+   `checkSymbolsAndCalls`, `checkTypeReferences` — the fused walk never
+   called these, it called the `*OnNode` functions directly), and the 3 old
+   fused-walk *driver* loops themselves: `ensureSharedFileDiagnostics`
+   (`phpstan_level0_rule.go`), `ensureStructuralIssues`
+   (`phpstan_structural_walk.go`), and `collectReturnTypeIssues`
+   (`return_type_rule.go`) each now unconditionally call their existing
+   `FromCST` sibling instead of branching on `ctx.Content`.
+3. **A real caller was still reaching these with empty `Content`**:
+   `command/file_processor.go`'s `runAnalysis` had an early-return special
+   case (`configuredAnalysisLevel == nil && project == nil`, the `style`
+   command's default/no-`--level` invocation) that called the nil-context
+   `analyse.RunAnalysisRules` wrapper, never populating `Content`. Fixing
+   this naively (folding it into the general branch) introduced a second,
+   subtler bug — it also started eagerly building `ctx.Resolver` where the
+   old path left it `nil`, silently activating resolver-dependent rules
+   (`A.DEPRECATED.CALL`, `A.ARG.TYPE`, cross-object `A.PROP.TYPE`, etc.)
+   that read `ctx.Resolver` without building it and had relied on it
+   staying unset. The corpus-diff tool couldn't catch this (it always sets
+   both `Content` and a resolver). Fixed by keeping the early-return
+   special case but changing what it calls to
+   `RunAnalysisRulesWithContext(path, nodes, &analyse.AnalysisContext{Content: content})`
+   — `Resolver` stays nil exactly as before, only `Content` is new. Locked
+   with `command/nolevel_style_path_test.go`'s
+   `TestNoLevelStylePathSuppressesResolverDependentRules`, which was
+   verified adversarially (fails under the buggy merged form, passes under
+   the fix).
+4. **The 2 pilot rules (`AssignmentInConditionRule`, `SideEffectsRule`)
+   were deliberately left untouched** — their differential and
+   `*HonorsContentContext` tests still exercise the empty-`Content`
+   fallback on purpose and were never migrated off it; deleting their
+   `ast.Node` `CheckIssues` paths is out of scope for this cleanup and
+   remains genuinely future work if anyone wants full CST-only cutover for
+   those two.
+
+Corpus-diff (composer-src 532 files, symfony 10016 files) is 0 mismatches
+against pre-cleanup baselines throughout. The still-unaddressed reparse
+cost (each of the 10 `Check*IssuesFromCST` functions independently calls
+`syntax.Parse`) remains live on every diagnostics run and is unaffected by
+this cleanup — worth remeasuring as a separate follow-up if it matters in
+practice.
 
 ### Perf (not coverage %)
 
