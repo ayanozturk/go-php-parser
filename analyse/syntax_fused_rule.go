@@ -9,8 +9,11 @@ import (
 // appendEmptyStatementIssue, mirroring EmptyStatementRule.CheckIssuesWithSource's
 // raw-content branch.
 func checkEmptyStatementIssuesFromCST(filename string, content []byte) []AnalysisIssue {
-	res := syntax.Parse(content)
-	if res.File == nil || res.File.Root == nil {
+	return checkEmptyStatementIssuesFromParsed(filename, syntax.Parse(content))
+}
+
+func checkEmptyStatementIssuesFromParsed(filename string, res *syntax.ParseResult) []AnalysisIssue {
+	if res == nil || res.File == nil || res.File.Root == nil {
 		return nil
 	}
 	var issues []AnalysisIssue
