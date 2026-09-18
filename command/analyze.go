@@ -353,8 +353,9 @@ func syntaxDiagnosticStrings(src []byte, diags []syntax.Diagnostic) []string {
 		return nil
 	}
 	out := make([]string, len(diags))
+	lines := token.NewLineTable(src)
 	for i, d := range diags {
-		pe := diag.ParseErrorFromOffsets(src, d.Span.Start, d.Span.End, d.Message)
+		pe := diag.ParseErrorFromOffsetsWithLines(src, lines, d.Span.Start, d.Span.End, d.Message)
 		out[i] = pe.Error()
 	}
 	return out

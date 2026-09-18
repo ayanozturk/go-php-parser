@@ -8,11 +8,21 @@ import (
 
 // ParseErrorFromOffsets builds a structured ParseError from a byte span and
 // bare message. Line/column use 1-based rune coordinates matching the lexer.
+//
+// Building a fresh LineTable is an O(file size) scan; a caller converting
+// several diagnostics for the same file should use ParseErrorFromOffsetsWithLines
+// instead and build the table once, not once per diagnostic.
 func ParseErrorFromOffsets(src []byte, start, end int, message string) ParseError {
+	return ParseErrorFromOffsetsWithLines(src, token.NewLineTable(src), start, end, message)
+}
+
+// ParseErrorFromOffsetsWithLines is ParseErrorFromOffsets for a caller that
+// already has (or is converting multiple diagnostics against) the same
+// file's LineTable, avoiding an O(file size) rebuild per diagnostic.
+func ParseErrorFromOffsetsWithLines(src []byte, lines token.LineTable, start, end int, message string) ParseError {
 	if end < start {
 		end = start
 	}
-	lines := token.NewLineTable(src)
 	startLine, startCol := offsetRuneLineCol(src, lines, start)
 	endLine, endCol := offsetRuneLineCol(src, lines, end)
 	return ParseError{

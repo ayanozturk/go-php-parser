@@ -1,5 +1,7 @@
 package token
 
+import "bytes"
+
 type TokenType uint16
 
 const (
@@ -451,7 +453,13 @@ func (t Token) EndPos() Position {
 type LineTable []int
 
 func NewLineTable(src []byte) LineTable {
-	starts := LineTable{0}
+	// Pre-size to the exact line count (bytes.Count is SIMD-accelerated) so
+	// the loop below never triggers a growslice reallocation+copy - every
+	// parse of every file builds one of these, so the append-without-
+	// pre-sizing cost was measured as a meaningful share of total parse time
+	// on real workloads.
+	starts := make(LineTable, 1, bytes.Count(src, newlineBytes)+1)
+	starts[0] = 0
 	for i, b := range src {
 		if b == '\n' {
 			starts = append(starts, i+1)
@@ -459,6 +467,8 @@ func NewLineTable(src []byte) LineTable {
 	}
 	return starts
 }
+
+var newlineBytes = []byte{'\n'}
 
 // LineBytes returns the 1-indexed line without its terminating newline.
 func (t LineTable) LineBytes(src []byte, line int) []byte {
