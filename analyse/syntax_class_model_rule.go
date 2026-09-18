@@ -35,13 +35,13 @@ import (
 // KindUseTraitClause directly; it extracts *ast.TraitUseNode entries from
 // the already-lowered ClassNode.Properties / TraitNode.Body slices instead.
 func CheckClassModelIssuesFromCST(filename string, content []byte, ctx *AnalysisContext) []AnalysisIssue {
+	return checkClassModelIssuesFromParsed(filename, syntax.Parse(content), ctx)
+}
+
+func checkClassModelIssuesFromParsed(filename string, res *syntax.ParseResult, ctx *AnalysisContext) []AnalysisIssue {
 	var issues []AnalysisIssue
 	appendDuplicateClassIssues(filename, ctx, &issues)
-	if ctx == nil || ctx.Resolver == nil || len(content) == 0 {
-		return issues
-	}
-	res := syntax.Parse(content)
-	if res.File == nil || res.File.Root == nil {
+	if ctx == nil || ctx.Resolver == nil || res == nil || res.File == nil || res.File.Root == nil {
 		return issues
 	}
 	rootFt := CollectFileTypeContextFromSyntax(res.File.Root)

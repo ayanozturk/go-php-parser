@@ -27,8 +27,11 @@ import (
 // KindSwitchStmt subtrees entirely to match that gap; see
 // /memories/repo/cst-direct-migration.md for the full writeup.
 func CheckLanguageIssuesFromCST(filename string, content []byte) []AnalysisIssue {
-	res := syntax.Parse(content)
-	if res.File == nil || res.File.Root == nil {
+	return checkLanguageIssuesFromParsed(filename, syntax.Parse(content))
+}
+
+func checkLanguageIssuesFromParsed(filename string, res *syntax.ParseResult) []AnalysisIssue {
+	if res == nil || res.File == nil || res.File.Root == nil {
 		return nil
 	}
 

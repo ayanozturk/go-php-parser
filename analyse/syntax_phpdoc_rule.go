@@ -25,11 +25,14 @@ import (
 // reused across multiple CST-direct rule calls for the same file only pays
 // for this once).
 func CheckPHPDocIssuesFromCST(filename string, content []byte, ctx *AnalysisContext, phpDocAliases map[string]struct{}) []AnalysisIssue {
+	return checkPHPDocIssuesFromParsed(filename, syntax.Parse(content), ctx, phpDocAliases)
+}
+
+func checkPHPDocIssuesFromParsed(filename string, res *syntax.ParseResult, ctx *AnalysisContext, phpDocAliases map[string]struct{}) []AnalysisIssue {
 	if ctx == nil {
 		return nil
 	}
-	res := syntax.Parse(content)
-	if res.File == nil || res.File.Root == nil {
+	if res == nil || res.File == nil || res.File.Root == nil {
 		return nil
 	}
 	if ctx.phpDocTypeAliases == nil {
