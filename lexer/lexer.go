@@ -785,7 +785,11 @@ func LexAll(src []byte) []token.Token {
 // cancellation checks and preserves LexAll's existing behavior.
 func LexAllContext(ctx context.Context, src []byte) ([]token.Token, error) {
 	l := NewFileBytes(src)
-	var toks []token.Token
+	// Pre-size to a conservative estimate (real PHP source averages well
+	// under 8 bytes/token including trivia-carrying tokens) so the common
+	// case never triggers a growslice reallocation+copy of the accumulated
+	// token.Token structs - this runs once per file on every parse.
+	toks := make([]token.Token, 0, len(src)/8+16)
 	for {
 		if ctx != nil {
 			if err := ctx.Err(); err != nil {
