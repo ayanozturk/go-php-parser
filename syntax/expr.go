@@ -1,6 +1,10 @@
 package syntax
 
-import "github.com/ayanozturk/go-php-parser/token"
+import (
+	"strings"
+
+	"github.com/ayanozturk/go-php-parser/token"
+)
 
 // Expression precedence (higher binds tighter). Mirrors parser/operator.go.
 const (
@@ -179,6 +183,23 @@ func (p *Parser) parsePrefixExpr() *GreenNode {
 func (p *Parser) parseYieldExpr() *GreenNode {
 	var parts []*GreenNode
 	parts = append(parts, p.bump())
+	// The lexer has no combined T_YIELD_FROM token (nothing ever produces
+	// one - it exists in the token package but no keyword table maps to
+	// it): PHP's "yield from" is lexed as plain T_YIELD followed by a
+	// separate T_STRING("from") identifier token. Without this check,
+	// "from" parsed as the yield's own value (a bare name expression) and
+	// whatever followed it was left dangling, breaking the surrounding
+	// grammar - e.g. `$x = yield from gen()` nested in a condition failed
+	// with "expected T_RPAREN, got T_STRING", and even the cases that
+	// didn't produce a visible parse error silently built the wrong tree
+	// (two statements instead of one delegated yield).
+	if p.at(token.T_STRING) && strings.EqualFold(p.tok().Literal, "from") {
+		parts = append(parts, p.bump())
+		if val := p.parseExprBp(precAssign); val != nil {
+			parts = append(parts, val)
+		}
+		return p.intern.Node(KindYieldExpr, parts...)
+	}
 	if p.at(token.T_SEMICOLON) || p.at(token.T_COMMA) || p.at(token.T_RPAREN) ||
 		p.at(token.T_RBRACKET) || p.at(token.T_RBRACE) || p.at(token.T_COLON) ||
 		p.at(token.T_DOUBLE_ARROW) || p.at(token.T_EOF) {
@@ -372,6 +393,15 @@ func (p *Parser) parseStaticMemberAccess(expr *GreenNode) *GreenNode {
 		}
 	case p.at(token.T_DOLLAR_OPEN_CURLY_BRACES), p.at(token.T_CURLY_OPEN):
 		parts = append(parts, p.parseEncapsulatedExpr())
+	case p.at(token.T_ILLEGAL) && p.tok().Literal == "$":
+		// self::$$payload - a dynamic static property whose *name* is itself
+		// a variable, e.g. `self::$$payload` accesses the static property
+		// named by the runtime value of $payload. Same lexer shape as a
+		// plain variable-variable ($$var): T_ILLEGAL("$") then the inner
+		// variable/expr.
+		if v := p.parseVariableVariable(); v != nil {
+			parts = append(parts, v)
+		}
 	default:
 		if p.atIdentName() {
 			parts = append(parts, p.bump())

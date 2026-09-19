@@ -615,6 +615,7 @@ $p = foo(...);
 print $a;
 yield $a;
 yield $k => $v;
+yield from gen();
 include 'f.php';
 $r = throw $e;
 isset($a);

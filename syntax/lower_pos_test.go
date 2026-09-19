@@ -149,3 +149,136 @@ func TestLowerASTFastOnLongSingleLineArray(t *testing.T) {
 		t.Fatalf("lowering a 20000-element single-line array took %s, want well under 2s (O(N^2) regression?)", elapsed)
 	}
 }
+
+// TestReservedWordClassNameParsesAsExpression is a regression test for a
+// real bug: isNameStart (which decides whether the current token can start
+// a name reference in expression position) only recognized a narrow,
+// hardcoded set of token types, missing most PHP reserved words. PHP
+// allows a reserved word as a class/constant name reference outside
+// declaration position - e.g. doctrine/annotations ships a real class
+// literally named Enum (Doctrine\Common\Annotations\Annotation\Enum),
+// referenced elsewhere as `Enum::class`. That reference failed to parse
+// specifically inside a short array literal ("expected T_RBRACKET, got
+// T_ENUM"), even though the identical expression parsed fine as a bare
+// statement - isNameStart is only consulted once parsePrimaryExpr's
+// explicit per-token cases are exhausted, so the array-element parsing
+// path (which reaches the same default branch) was affected the same way
+// any other unhandled reserved word would be.
+func TestReservedWordClassNameParsesAsExpression(t *testing.T) {
+	src := []byte(`<?php
+$x = ['enum' => Enum::class, 'target' => Target::class];
+`)
+	res := Parse(src)
+	if len(res.Diagnostics) != 0 {
+		t.Fatalf("expected no diagnostics, got %v", res.Diagnostics)
+	}
+	if got := Print(res.File.Root); got != string(src) {
+		t.Fatalf("round-trip identity failed\nwant %q\ngot  %q", src, got)
+	}
+}
+
+// TestDynamicStaticPropertyAccessParses is a regression test for a real
+// bug: parseStaticMemberAccess's switch had no case for a dynamic property
+// name after `::` (`self::$$payload`, accessing the static property whose
+// *name* is the runtime value of $payload) - only plain `self::$payload`
+// was handled. This is the same lexer shape as an ordinary variable
+// variable ($$var: T_ILLEGAL("$") then the inner variable), just after
+// `::` instead of standalone.
+func TestDynamicStaticPropertyAccessParses(t *testing.T) {
+	src := []byte(`<?php
+class Foo {
+    public static $bar = 1;
+    public function m($payload) {
+        if (isset(self::$$payload)) {
+            return self::$$payload;
+        }
+    }
+}
+`)
+	res := Parse(src)
+	if len(res.Diagnostics) != 0 {
+		t.Fatalf("expected no diagnostics, got %v", res.Diagnostics)
+	}
+	if got := Print(res.File.Root); got != string(src) {
+		t.Fatalf("round-trip identity failed\nwant %q\ngot  %q", src, got)
+	}
+}
+
+// TestYieldFromParsesInNestedExpressionContext is a regression test for a
+// real bug: T_YIELD_FROM is defined in the token package and referenced in
+// the parser's dispatch tables, but no keyword table entry ever produces
+// it - the lexer always tokenizes "yield from" as plain T_YIELD followed by
+// a separate T_STRING("from") token. parseYieldExpr only consumed the
+// first token, so "from" was parsed as the yield's own (bare-name) value
+// and whatever followed it was left dangling. Standalone `yield from x();`
+// happened to still "work" (both fragments were independently valid
+// statements, silently producing the wrong tree - two statements instead
+// of one delegated yield), but nesting it inside an expression - e.g. an
+// if-condition's assignment, a real pattern in generator-based async code
+// (amphp/ReactPHP-style `if (null === $x = yield from gen())`) - surfaced
+// a real parse error: "expected T_RPAREN, got T_STRING".
+func TestYieldFromParsesInNestedExpressionContext(t *testing.T) {
+	src := []byte(`<?php
+function gen() {
+    if (null === $response = yield from other()) {
+        return 1;
+    }
+}
+`)
+	res := Parse(src)
+	if len(res.Diagnostics) != 0 {
+		t.Fatalf("expected no diagnostics, got %v", res.Diagnostics)
+	}
+	if got := Print(res.File.Root); got != string(src) {
+		t.Fatalf("round-trip identity failed\nwant %q\ngot  %q", src, got)
+	}
+}
+
+// TestYieldFromLowersWithCorrectShape locks in the AST shape a correctly
+// parsed "yield from" must produce: From=true, no Key, and Value set to the
+// delegated expression - as opposed to the pre-fix behavior of silently
+// splitting into two separate statements.
+func TestYieldFromLowersWithCorrectShape(t *testing.T) {
+	src := []byte(`<?php
+function gen() {
+    yield from other();
+    yield $k => $v;
+}
+`)
+	nodes, diags := ParseAST(src)
+	if len(diags) != 0 {
+		t.Fatalf("expected no diagnostics, got %v", diags)
+	}
+	fn, ok := nodes[0].(*ast.FunctionNode)
+	if !ok {
+		t.Fatalf("expected *ast.FunctionNode, got %T", nodes[0])
+	}
+	if len(fn.Body) != 2 {
+		t.Fatalf("expected 2 statements in the function body (one yield from, one yield), got %d: %#v", len(fn.Body), fn.Body)
+	}
+
+	yieldFrom, ok := fn.Body[0].(*ast.ExpressionStmt).Expr.(*ast.YieldNode)
+	if !ok {
+		t.Fatalf("expected *ast.YieldNode, got %T", fn.Body[0].(*ast.ExpressionStmt).Expr)
+	}
+	if !yieldFrom.From {
+		t.Fatal("expected From=true for yield from")
+	}
+	if yieldFrom.Key != nil {
+		t.Fatalf("yield from must not have a key, got %#v", yieldFrom.Key)
+	}
+	if _, ok := yieldFrom.Value.(*ast.FunctionCallNode); !ok {
+		t.Fatalf("expected yield from's Value to be the delegated call, got %T", yieldFrom.Value)
+	}
+
+	plainYield, ok := fn.Body[1].(*ast.ExpressionStmt).Expr.(*ast.YieldNode)
+	if !ok {
+		t.Fatalf("expected *ast.YieldNode, got %T", fn.Body[1].(*ast.ExpressionStmt).Expr)
+	}
+	if plainYield.From {
+		t.Fatal("expected From=false for a plain yield $k => $v")
+	}
+	if plainYield.Key == nil {
+		t.Fatal("expected a key for yield $k => $v")
+	}
+}

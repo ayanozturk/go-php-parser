@@ -317,13 +317,24 @@ func (p *Parser) parseModifierList() *GreenNode {
 	return p.intern.Node(KindModifierList, parts...)
 }
 
+// isNameStart reports whether the current token can start a name reference
+// in expression position (a class/constant/function name, not a
+// declaration). Must accept every token isContextualIdent does - PHP allows
+// most reserved words as identifiers outside declaration position, e.g. a
+// real class literally named Enum (doctrine/annotations' own
+// Annotation\Enum) referenced as `Enum::class` inside an array literal.
+// A narrower hardcoded allowlist here previously meant such a reference
+// failed to parse at all ("expected T_RBRACKET, got T_ENUM").
 func (p *Parser) isNameStart() bool {
-	switch p.tok().Type {
-	case token.T_STRING, token.T_NS_SEPARATOR, token.T_NAMESPACE, token.T_SELF, token.T_PARENT, token.T_STATIC:
+	tt := p.tok().Type
+	if tt == token.T_NS_SEPARATOR || tt == token.T_NAMESPACE {
 		return true
-	default:
-		return false
 	}
+	lit := p.tok().Literal
+	if lit == "" {
+		lit = "x"
+	}
+	return isContextualIdent(tt, lit)
 }
 
 // ParseName parses Unqualified / Qualified / FullyQualified / Relative names.

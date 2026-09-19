@@ -610,8 +610,22 @@ func lowerYieldExpr(n *RedNode, file *File) ast.Node {
 			if !ok {
 				continue
 			}
+			// T_YIELD_FROM is never actually produced by the lexer (no
+			// keyword table entry maps to it) - real "yield from" lexes as
+			// plain T_YIELD followed by a separate T_STRING("from") token,
+			// which is what the parser now appends as a child here. The
+			// T_YIELD_FROM check is kept in case that ever changes.
 			if tt.Type == token.T_YIELD_FROM {
 				from = true
+			}
+			if tt.Type == token.T_STRING {
+				lit := tt.Literal
+				if lit == "" {
+					lit = strings.TrimSpace(c.Text())
+				}
+				if strings.EqualFold(lit, "from") {
+					from = true
+				}
 			}
 			if tt.Type == token.T_DOUBLE_ARROW {
 				hasArrow = true
