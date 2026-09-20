@@ -42,4 +42,18 @@ The raw JSON reports are retained outside the repository at:
 
 ## Interpretation
 
-Both corpora have complete discovered/passing file accounting, zero syntax-metrics failures, and 100% source identity at this commit. This is a correctness baseline, not a process-cold performance baseline and not evidence of static-analysis diagnostic parity. The dedicated identity-gate commands, recovery coverage audit, cancellation/robustness validation, and stable split parser benchmarks remain open in `plan.MD`.
+Both corpora have complete discovered/passing file accounting, zero syntax-metrics failures, and 100% source identity at this commit. This is a correctness baseline, not a process-cold performance baseline and not evidence of static-analysis diagnostic parity. The recovery coverage audit, cancellation/robustness validation, and stable split parser benchmarks remain open in `plan.MD`.
+
+## Dedicated identity gates
+
+The explicit corpus identity tests were run after the metrics capture with absolute corpus paths:
+
+```text
+SYNTAX_CORPUS_DIR="$PWD/test_projects/symfony" GOWORK=off go test ./syntax -run TestSyntaxCorpusIdentityGate -count=1 -timeout 30m
+ok github.com/ayanozturk/go-php-parser/syntax  6.588s
+
+SYNTAX_CORPUS_DIR="$PWD/test_projects/wordpress-develop" GOWORK=off go test ./syntax -run TestSyntaxCorpusIdentityGate -count=1 -timeout 30m
+ok github.com/ayanozturk/go-php-parser/syntax  4.693s
+```
+
+Both gates passed without exposing an identity or recovery failure. The conditional failure-reduction steps in `plan.MD` were therefore not exercised and are not recorded as completed work.

@@ -33,13 +33,15 @@ GOWORK=off go run ./cmd/syntax-metrics --root "$PWD/test_projects/wordpress-deve
 
 ### 2. Close identity, diagnostic, and recovery failures
 
-- [ ] Run the lossless identity gate on Symfony with an absolute corpus path.
-- [ ] Run the lossless identity gate on WordPress with an absolute corpus path.
+- [x] Run the lossless identity gate on Symfony with an absolute corpus path.
+- [x] Run the lossless identity gate on WordPress with an absolute corpus path.
 - [ ] Reduce every failing file to a neutral fixture with a clean control.
 - [ ] Classify each failure as lexing, grammar, recovery/progress, lowering, or diagnostic-only.
 - [ ] Fix shared grammar/recovery logic rather than adding corpus-specific exceptions.
 - [ ] Add an explicit token-progress assertion or guard for every recovered non-progress class.
 - [ ] Re-run both full corpus gates after isolated failures pass.
+
+Gate result: both corpora passed on 2026-09-20. No failing file was exposed, so the reduction, classification, fix, progress-guard, and post-fix rerun steps above remain conditional rather than being marked as work performed. Evidence: `docs/benchmarks/2026-09-20-syntax-corpus-baseline.md`.
 
 Commands:
 
