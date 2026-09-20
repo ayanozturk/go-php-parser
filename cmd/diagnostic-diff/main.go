@@ -214,8 +214,8 @@ func runEngine(path string, level int) ([]string, error) {
 	if err != nil {
 		return nil, fmt.Errorf("read fixture: %w", err)
 	}
-	nodes, diags := syntax.ParseAST(content)
-	if parseErrors := diagStrings(content, diags); len(parseErrors) > 0 {
+	nodes, res := syntax.ParseAndLower(content)
+	if parseErrors := diagStrings(content, res.Diagnostics); len(parseErrors) > 0 {
 		return nil, fmt.Errorf("parse fixture: %s", strings.Join(parseErrors, "; "))
 	}
 	snapshot, err := analyse.NewSemanticSnapshot(map[string][]ast.Node{path: nodes}, nil)
@@ -225,6 +225,7 @@ func runEngine(path string, level int) ([]string, error) {
 	ctx := snapshot.NewAnalysisContext()
 	ctx.AnalysisLevel = &level
 	ctx.Content = content
+	ctx.Parsed = res
 	issues := analyse.RunAnalysisRulesWithContext(path, nodes, ctx)
 	codes := make([]string, 0, len(issues))
 	for _, issue := range issues {

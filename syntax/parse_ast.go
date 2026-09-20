@@ -31,6 +31,13 @@ func ParseASTWithContext(ctx context.Context, src []byte) ([]ast.Node, []Diagnos
 	return lowerFromResult(res), res.Diagnostics
 }
 
+// ParseAndLower returns the ParseResult and lowered AST so callers can share
+// one CST across lowering and CST-direct analysis.
+func ParseAndLower(src []byte) (nodes []ast.Node, res *ParseResult) {
+	res = Parse(src)
+	return lowerFromResult(res), res
+}
+
 // LowerAST lowers an existing syntax ParseResult to classic AST nodes.
 // Share one ParseForIndex/Parse result with BindSyntaxResult / symbol extractors.
 func LowerAST(res *ParseResult) []ast.Node {

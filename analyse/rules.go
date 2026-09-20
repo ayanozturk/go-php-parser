@@ -145,6 +145,9 @@ func RunAnalysisRulesWithContext(filename string, nodes []ast.Node, ctx *Analysi
 	if ctx == nil {
 		ctx = &AnalysisContext{}
 	}
+	if len(ctx.Content) > 0 {
+		_ = sharedParseResult(ctx, ctx.Content)
+	}
 	// Populate file type context once; reuse across all rules for this file
 	_ = analysisFileTypeContext(ctx, nodes)
 

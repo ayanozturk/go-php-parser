@@ -29,7 +29,7 @@ func checkEmptyStatementIssuesFromParsed(filename string, res *syntax.ParseResul
 // required parameter here even though issue collection itself no longer
 // walks it.
 func ensureSharedFileDiagnosticsFromCST(filename string, content []byte, nodes []ast.Node, ctx *AnalysisContext) *AnalysisContext {
-	res := syntax.Parse(content)
+	res := sharedParseResult(ctx, content)
 	fileCtx := analysisFileTypeContext(ctx, nodes)
 	guards := collectReflectionGuards(nodes, ctx, fileCtx)
 
@@ -76,7 +76,7 @@ func ensureSharedFileDiagnosticsFromCST(filename string, content []byte, nodes [
 // weren't already collected by ensureSharedFileDiagnostics, e.g. because
 // ctx.AnalysisLevel was raised between calls).
 func ensureStructuralIssuesFromCST(filename string, content []byte, nodes []ast.Node, ctx *AnalysisContext) *AnalysisContext {
-	res := syntax.Parse(content)
+	res := sharedParseResult(ctx, content)
 	if ctx.phpDocTypeAliases == nil {
 		ctx.phpDocTypeAliases = collectPHPDocTypeAliases(nodes)
 	}

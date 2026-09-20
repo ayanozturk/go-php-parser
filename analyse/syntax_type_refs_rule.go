@@ -24,7 +24,7 @@ import (
 // once and passes the result in, rather than checkTypeReferenceOnNode
 // recomputing guards per node).
 func CheckTypeReferenceIssuesFromCST(filename string, content []byte, ctx *AnalysisContext, guards reflectionGuards) []AnalysisIssue {
-	return checkTypeReferenceIssuesFromParsed(filename, syntax.Parse(content), ctx, guards)
+	return checkTypeReferenceIssuesFromParsed(filename, sharedParseResult(ctx, content), ctx, guards)
 }
 
 func checkTypeReferenceIssuesFromParsed(filename string, res *syntax.ParseResult, ctx *AnalysisContext, guards reflectionGuards) []AnalysisIssue {

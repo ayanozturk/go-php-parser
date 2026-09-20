@@ -39,7 +39,7 @@ func TestNoLevelStylePathSuppressesResolverDependentRules(t *testing.T) {
 			if len(diags) > 0 {
 				t.Fatalf("parse: %v", diags)
 			}
-			issues := runAnalysis(tc.name, nodes, content, nil)
+			issues := runAnalysis(tc.name, nodes, content, nil, nil)
 			ran := false
 			for _, is := range issues {
 				if is.Code == tc.absentCode {
@@ -100,7 +100,7 @@ func TestNoLevelStylePathProducesLevelDiagnostics(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			content := []byte(tc.src)
 			nodes, _ := syntax.ParseAST(content)
-			issues := runAnalysis(tc.name, nodes, content, nil)
+			issues := runAnalysis(tc.name, nodes, content, nil, nil)
 			got := make([]string, 0, len(issues))
 			for _, is := range issues {
 				got = append(got, fmt.Sprintf("%s|%d:%d|%s", is.Code, is.Line, is.Column, is.Message))

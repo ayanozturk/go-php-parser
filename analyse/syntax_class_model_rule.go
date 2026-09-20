@@ -35,7 +35,7 @@ import (
 // KindUseTraitClause directly; it extracts *ast.TraitUseNode entries from
 // the already-lowered ClassNode.Properties / TraitNode.Body slices instead.
 func CheckClassModelIssuesFromCST(filename string, content []byte, ctx *AnalysisContext) []AnalysisIssue {
-	return checkClassModelIssuesFromParsed(filename, syntax.Parse(content), ctx)
+	return checkClassModelIssuesFromParsed(filename, sharedParseResult(ctx, content), ctx)
 }
 
 func checkClassModelIssuesFromParsed(filename string, res *syntax.ParseResult, ctx *AnalysisContext) []AnalysisIssue {

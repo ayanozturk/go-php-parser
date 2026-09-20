@@ -66,6 +66,7 @@ func ParseWith(src []byte, opts ParseOptions) *ParseResult {
 // ParseWithContext parses with cooperative cancellation during lexing and
 // parsing. A nil context disables cancellation checks.
 func ParseWithContext(ctx context.Context, src []byte, opts ParseOptions) *ParseResult {
+	noteParseInvocation()
 	tokens, lexErr := lexer.LexAllContext(ctx, src)
 	p := &Parser{
 		src:                src,

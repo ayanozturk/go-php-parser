@@ -14,7 +14,13 @@ type SideEffectsRule struct{}
 // without lowering to []ast.Node first. Mirrors CheckIssuesWithSource's
 // isSideEffectNode/isDeclaration logic node-kind-by-node-kind.
 func (r *SideEffectsRule) CheckIssuesFromCST(filename string, content []byte) []AnalysisIssue {
-	res := syntax.Parse(content)
+	return r.checkIssuesFromParsedCST(filename, syntax.Parse(content))
+}
+
+func (r *SideEffectsRule) checkIssuesFromParsedCST(filename string, res *syntax.ParseResult) []AnalysisIssue {
+	if res == nil || res.File == nil || res.File.Root == nil {
+		return nil
+	}
 	top := flattenTopLevelForSideEffects(res.File.Root)
 
 	hasSideEffects := false
@@ -243,7 +249,8 @@ func (r *SideEffectsRule) isDeclaration(node ast.Node) bool {
 func runRegisteredSideEffectsRule(filename string, nodes []ast.Node, ctx *AnalysisContext) []AnalysisIssue {
 	rule := &SideEffectsRule{}
 	if len(ctx.Content) > 0 {
-		return rule.CheckIssuesFromCST(filename, ctx.Content)
+		res := sharedParseResult(ctx, ctx.Content)
+		return rule.checkIssuesFromParsedCST(filename, res)
 	}
 	return rule.CheckIssues(nodes, filename)
 }

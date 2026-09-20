@@ -22,7 +22,7 @@ import (
 // needed. No KindPropertyDecl case: return-type checking never applies to
 // properties.
 func CheckReturnTypeIssuesFromCST(filename string, content []byte, ctx *AnalysisContext) []AnalysisIssue {
-	return checkReturnTypeIssuesFromParsed(filename, syntax.Parse(content), ctx)
+	return checkReturnTypeIssuesFromParsed(filename, sharedParseResult(ctx, content), ctx)
 }
 
 func checkReturnTypeIssuesFromParsed(filename string, res *syntax.ParseResult, ctx *AnalysisContext) []AnalysisIssue {

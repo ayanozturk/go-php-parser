@@ -26,7 +26,7 @@ import (
 // reused across multiple CST-direct rule calls for the same file only pays
 // for this once).
 func CheckPHPDocIssuesFromCST(filename string, content []byte, ctx *AnalysisContext, phpDocAliases map[string]struct{}) []AnalysisIssue {
-	return checkPHPDocIssuesFromParsed(filename, syntax.Parse(content), ctx, phpDocAliases)
+	return checkPHPDocIssuesFromParsed(filename, sharedParseResult(ctx, content), ctx, phpDocAliases)
 }
 
 func checkPHPDocIssuesFromParsed(filename string, res *syntax.ParseResult, ctx *AnalysisContext, phpDocAliases map[string]struct{}) []AnalysisIssue {

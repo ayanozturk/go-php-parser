@@ -25,7 +25,7 @@ import (
 // call and any nested args are invisible ast-side too, so the CST port
 // marks that entire subtree suppressed rather than over-detecting into it.
 func CheckMethodVisibilityIssuesFromCST(filename string, content []byte, ctx *AnalysisContext) []AnalysisIssue {
-	return checkMethodVisibilityIssuesFromParsed(filename, syntax.Parse(content), ctx)
+	return checkMethodVisibilityIssuesFromParsed(filename, sharedParseResult(ctx, content), ctx)
 }
 
 func checkMethodVisibilityIssuesFromParsed(filename string, res *syntax.ParseResult, ctx *AnalysisContext) []AnalysisIssue {

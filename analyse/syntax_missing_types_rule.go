@@ -21,7 +21,7 @@ import (
 // via phpDocTypeAliasBindings(classDoc, doc)), so no extra caller-supplied
 // alias parameter is needed here.
 func CheckMissingTypeIssuesFromCST(filename string, content []byte, ctx *AnalysisContext) []AnalysisIssue {
-	return checkMissingTypeIssuesFromParsed(filename, syntax.Parse(content), ctx)
+	return checkMissingTypeIssuesFromParsed(filename, sharedParseResult(ctx, content), ctx)
 }
 
 func checkMissingTypeIssuesFromParsed(filename string, res *syntax.ParseResult, ctx *AnalysisContext) []AnalysisIssue {

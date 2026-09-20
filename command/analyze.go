@@ -37,6 +37,7 @@ type parsedAnalysisFile struct {
 	path        string
 	content     []byte
 	nodes       []ast.Node
+	parsed      *syntax.ParseResult
 	lines       int
 	parseErrors []string
 	readError   string
@@ -137,6 +138,7 @@ func analyzeWithCachedIndex(files []string, targets []string, level *int, matche
 
 	parsed := make(map[string][]ast.Node, len(parseSet))
 	contents := make(map[string][]byte, len(parseSet))
+	parsedResults := make(map[string]*syntax.ParseResult, len(parseSet))
 	for file := range parsedFiles {
 		result.TotalLines += CountLines(file.content)
 		if file.readError != "" {
@@ -150,6 +152,7 @@ func analyzeWithCachedIndex(files []string, targets []string, level *int, matche
 			continue
 		}
 		parsed[file.path] = file.nodes
+		parsedResults[file.path] = file.parsed
 	}
 	defer func() {
 		for path, content := range contents {
@@ -178,6 +181,7 @@ func analyzeWithCachedIndex(files []string, targets []string, level *int, matche
 				ctx := snapshot.NewAnalysisContext()
 				ctx.AnalysisLevel = level
 				ctx.Content = contents[path]
+				ctx.Parsed = parsedResults[path]
 				issueResults <- analyse.FilterIssues(analyse.RunAnalysisRulesWithContext(path, parsed[path], ctx), matcher)
 			}
 		}()
@@ -193,6 +197,7 @@ func analyzeWithCachedIndex(files []string, targets []string, level *int, matche
 	for issues := range issueResults {
 		result.Issues = append(result.Issues, issues...)
 	}
+	clear(parsedResults)
 
 	return sortedAnalyzeResult(result)
 }
@@ -252,6 +257,7 @@ func analyzeFilesWithCache(files []string, targets []string, level *int, matcher
 
 	parsed := make(map[string][]ast.Node, len(files))
 	contents := make(map[string][]byte, len(files))
+	parsedResults := make(map[string]*syntax.ParseResult, len(files))
 	for file := range parsedFiles {
 		result.TotalLines += file.lines
 		if file.readError != "" {
@@ -265,6 +271,7 @@ func analyzeFilesWithCache(files []string, targets []string, level *int, matcher
 			continue
 		}
 		parsed[file.path] = file.nodes
+		parsedResults[file.path] = file.parsed
 	}
 	defer func() {
 		for path, content := range contents {
@@ -312,6 +319,7 @@ func analyzeFilesWithCache(files []string, targets []string, level *int, matcher
 				ctx := snapshot.NewAnalysisContext()
 				ctx.AnalysisLevel = level
 				ctx.Content = contents[path]
+				ctx.Parsed = parsedResults[path]
 				issueResults <- analyse.FilterIssues(analyse.RunAnalysisRulesWithContext(path, parsed[path], ctx), matcher)
 			}
 		}()
@@ -327,24 +335,26 @@ func analyzeFilesWithCache(files []string, targets []string, level *int, matcher
 	for issues := range issueResults {
 		result.Issues = append(result.Issues, issues...)
 	}
+	clear(parsedResults)
 	result.FilesAnalyzed = len(snapshot.Files())
 	return sortedAnalyzeResult(result)
 }
 
-// parseAnalysisFile reads and parses one PHP file for analyse via syntax.ParseAST
+// parseAnalysisFile reads and parses one PHP file for analyse via syntax.ParseAndLower
 // (CST → classic IR). Parse diagnostics map to legacy Errors() strings.
 func parseAnalysisFile(path string) parsedAnalysisFile {
 	content, err := os.ReadFile(path)
 	if err != nil {
 		return parsedAnalysisFile{path: path, readError: err.Error()}
 	}
-	nodes, diags := syntax.ParseAST(content)
+	nodes, res := syntax.ParseAndLower(content)
 	return parsedAnalysisFile{
 		path:        path,
 		content:     content,
 		nodes:       nodes,
+		parsed:      res,
 		lines:       CountLines(content),
-		parseErrors: syntaxDiagnosticStrings(content, diags),
+		parseErrors: syntaxDiagnosticStrings(content, res.Diagnostics),
 	}
 }
 

@@ -181,7 +181,13 @@ func (r *AssignmentInConditionRule) findAssignmentsInExpression(expr ast.Node) [
 // Wired into the registered rule when ctx.Content is present; otherwise the
 // registered rule falls back to CheckIssues (the ast.Node path).
 func (r *AssignmentInConditionRule) CheckIssuesWithSource(filename string, content []byte) []AnalysisIssue {
-	res := syntax.Parse(content)
+	return r.checkIssuesFromParsedCST(filename, syntax.Parse(content))
+}
+
+func (r *AssignmentInConditionRule) checkIssuesFromParsedCST(filename string, res *syntax.ParseResult) []AnalysisIssue {
+	if res == nil || res.File == nil || res.File.Root == nil {
+		return nil
+	}
 	var issues []AnalysisIssue
 	addCond := func(cond *syntax.RedNode) {
 		for _, assign := range findAssignmentsInCST(cond) {
@@ -292,7 +298,8 @@ func findAssignmentsInCST(expr *syntax.RedNode) []*syntax.RedNode {
 func runRegisteredAssignmentInConditionRule(filename string, nodes []ast.Node, ctx *AnalysisContext) []AnalysisIssue {
 	rule := &AssignmentInConditionRule{}
 	if len(ctx.Content) > 0 {
-		return rule.CheckIssuesWithSource(filename, ctx.Content)
+		res := sharedParseResult(ctx, ctx.Content)
+		return rule.checkIssuesFromParsedCST(filename, res)
 	}
 	return rule.CheckIssues(nodes, filename)
 }

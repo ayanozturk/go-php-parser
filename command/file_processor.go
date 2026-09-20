@@ -98,13 +98,13 @@ func ProcessFileWithErrors(filePath, commandName string, debug bool, rules []str
 		return nil, 0
 	}
 	lineCount := CountLines(input)
-	nodes, diags := syntax.ParseAST(input)
-	errList := syntaxDiagnosticStrings(input, diags)
+	nodes, res := syntax.ParseAndLower(input)
+	errList := syntaxDiagnosticStrings(input, res.Diagnostics)
 	if len(errList) > 0 {
 		return errList, lineCount
 	}
 	if commandName == "style" {
-		analysisIssues := analyse.FilterIssues(runAnalysis(filePath, nodes, input, nil), matcher)
+		analysisIssues := analyse.FilterIssues(runAnalysis(filePath, nodes, input, res, nil), matcher)
 		for _, iss := range analysisIssues {
 			style.PrintPHPCSStyleIssueToWriter(w, style.StyleIssue{
 				Filename: iss.Filename,
@@ -191,8 +191,8 @@ func processFileForStyle(file string, rules []string, matcher *overrides.Compile
 		return
 	}
 	lines := CountLines(input)
-	nodes, diags := syntax.ParseAST(input)
-	parseErrors := syntaxDiagnosticStrings(input, diags)
+	nodes, res := syntax.ParseAndLower(input)
+	parseErrors := syntaxDiagnosticStrings(input, res.Diagnostics)
 	if len(parseErrors) > 0 {
 		resultCh <- fileResult{lines: lines, errors: len(parseErrors)}
 		if callback != nil {
@@ -201,7 +201,7 @@ func processFileForStyle(file string, rules []string, matcher *overrides.Compile
 		return
 	}
 	// Run analysis rules on the parsed AST and collect issues
-	analysisIssues := analyse.FilterIssues(runAnalysis(file, nodes, input, nil), matcher)
+	analysisIssues := analyse.FilterIssues(runAnalysis(file, nodes, input, res, nil), matcher)
 	var fileIssues []style.StyleIssue
 	for _, iss := range analysisIssues {
 		// Convert AnalysisIssue to StyleIssue for unified reporting
@@ -224,13 +224,13 @@ func processFileForStyle(file string, rules []string, matcher *overrides.Compile
 }
 
 func parseAndAnalyzeStyleFile(path string, content []byte, rules []string, matcher *overrides.Compiled, project *analyse.ProjectIndex) parseAnalysisResult {
-	nodes, diags := syntax.ParseAST(content)
-	parseErrors := syntaxDiagnosticStrings(content, diags)
+	nodes, res := syntax.ParseAndLower(content)
+	parseErrors := syntaxDiagnosticStrings(content, res.Diagnostics)
 	if len(parseErrors) > 0 {
 		return parseAnalysisResult{errors: len(parseErrors)}
 	}
 
-	analysisIssues := analyse.FilterIssues(runAnalysis(path, nodes, content, project), matcher)
+	analysisIssues := analyse.FilterIssues(runAnalysis(path, nodes, content, res, project), matcher)
 	fileIssues := make([]style.StyleIssue, 0, len(analysisIssues))
 	for _, iss := range analysisIssues {
 		fileIssues = append(fileIssues, style.StyleIssue{
@@ -407,7 +407,7 @@ func ProcessStyleFilesParallelWithCallback(files []string, rules []string, match
 	return allIssues, totalParseErrors, totalLines
 }
 
-func runAnalysis(path string, nodes []ast.Node, content []byte, project *analyse.ProjectIndex) []analyse.AnalysisIssue {
+func runAnalysis(path string, nodes []ast.Node, content []byte, parsed *syntax.ParseResult, project *analyse.ProjectIndex) []analyse.AnalysisIssue {
 	if configuredAnalysisLevel == nil && project == nil {
 		// Preserve the historic nil-Resolver semantics for the no-level style
 		// path: only ctx.Content is newly threaded through (so the CST-direct
@@ -415,12 +415,12 @@ func runAnalysis(path string, nodes []ast.Node, content []byte, project *analyse
 		// Resolver here would eagerly activate resolver-dependent rules
 		// (A.DEPRECATED.CALL, A.ARG.COUNT, A.PROP.TYPE, ...) that previously
 		// stayed suppressed because ctx.Resolver was nil.
-		return analyse.RunAnalysisRulesWithContext(path, nodes, &analyse.AnalysisContext{Content: content})
+		return analyse.RunAnalysisRulesWithContext(path, nodes, &analyse.AnalysisContext{Content: content, Parsed: parsed})
 	}
 	if project == nil {
 		project = analyse.BuildProjectIndex(map[string][]ast.Node{path: nodes})
 	}
-	ctx := &analyse.AnalysisContext{Resolver: project, AnalysisLevel: configuredAnalysisLevel, Content: content}
+	ctx := &analyse.AnalysisContext{Resolver: project, AnalysisLevel: configuredAnalysisLevel, Content: content, Parsed: parsed}
 	return analyse.RunAnalysisRulesWithContext(path, nodes, ctx)
 }
 

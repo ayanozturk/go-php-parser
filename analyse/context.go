@@ -4,6 +4,7 @@ import (
 	"strings"
 
 	"github.com/ayanozturk/go-php-parser/ast"
+	"github.com/ayanozturk/go-php-parser/syntax"
 )
 
 // GenericInstance represents a concrete instantiation of a generic class.
@@ -238,6 +239,12 @@ type AnalysisContext struct {
 	// keep using nodes regardless of Content. Left nil, behavior is
 	// identical to before this field existed.
 	Content []byte
+
+	// Parsed is an optional shared *syntax.ParseResult for this file.
+	// When set (or filled by sharedParseResult), CST-direct rules must
+	// reuse it instead of calling syntax.Parse again. Callers that already
+	// parsed for LowerAST should set Parsed to avoid a second parse.
+	Parsed *syntax.ParseResult
 
 	FileTypeContext     FileTypeContext
 	hasFileTypeContext  bool

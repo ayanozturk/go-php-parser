@@ -61,7 +61,7 @@ import (
 // mirrors that blindness instead of over-detecting into the dropped
 // subtree. See /memories/repo/cst-direct-migration.md for the full writeup.
 func CheckSymbolIssuesFromCST(filename string, content []byte, ctx *AnalysisContext, guards reflectionGuards) []AnalysisIssue {
-	return checkSymbolIssuesFromParsed(filename, syntax.Parse(content), ctx, guards)
+	return checkSymbolIssuesFromParsed(filename, sharedParseResult(ctx, content), ctx, guards)
 }
 
 func checkSymbolIssuesFromParsed(filename string, res *syntax.ParseResult, ctx *AnalysisContext, guards reflectionGuards) []AnalysisIssue {

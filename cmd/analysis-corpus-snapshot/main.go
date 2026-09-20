@@ -135,6 +135,7 @@ func collectPHPFiles(root string) ([]string, error) {
 func buildSnapshot(root string, files []string, workers, level int) (*snapshot, error) {
 	parsed := make(map[string][]ast.Node, len(files))
 	contents := make(map[string][]byte, len(files))
+	parsedResults := make(map[string]*syntax.ParseResult, len(files))
 	var parseErrors []string
 	var mu sync.Mutex
 
@@ -152,13 +153,14 @@ func buildSnapshot(root string, files []string, workers, level int) (*snapshot, 
 					mu.Unlock()
 					continue
 				}
-				nodes, diags := syntax.ParseAST(content)
+				nodes, res := syntax.ParseAndLower(content)
 				mu.Lock()
-				if len(diags) > 0 {
-					parseErrors = append(parseErrors, fmt.Sprintf("%s: %d parse diagnostic(s)", path, len(diags)))
+				if len(res.Diagnostics) > 0 {
+					parseErrors = append(parseErrors, fmt.Sprintf("%s: %d parse diagnostic(s)", path, len(res.Diagnostics)))
 				} else {
 					parsed[path] = nodes
 					contents[path] = content
+					parsedResults[path] = res
 				}
 				mu.Unlock()
 			}
@@ -192,6 +194,7 @@ func buildSnapshot(root string, files []string, workers, level int) (*snapshot, 
 					ctx.AnalysisLevel = &l
 				}
 				ctx.Content = contents[path]
+				ctx.Parsed = parsedResults[path]
 				issues := analyse.RunAnalysisRulesWithContext(path, parsed[path], ctx)
 				codes := make([]string, len(issues))
 				for i, issue := range issues {
@@ -209,6 +212,7 @@ func buildSnapshot(root string, files []string, workers, level int) (*snapshot, 
 	}
 	close(targetJobs)
 	runWg.Wait()
+	clear(parsedResults)
 
 	return &snapshot{
 		SchemaVersion: reportSchemaVersion,
