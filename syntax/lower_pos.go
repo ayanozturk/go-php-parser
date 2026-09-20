@@ -121,12 +121,6 @@ func contentStartOffset(n *RedNode) int {
 	if n == nil {
 		return 0
 	}
-	key := redNodeKey{green: n.Green, offset: n.Offset}
-	if n.File != nil {
-		if start, ok := n.File.cachedContentStart(key); ok {
-			return start
-		}
-	}
 	sp := n.Span()
 	var start int
 	if n.Green != nil && n.Green.IsToken() {
@@ -139,9 +133,6 @@ func contentStartOffset(n *RedNode) int {
 		start = contentStartOffset(t)
 	} else {
 		start = sp.Start
-	}
-	if n.File != nil {
-		n.File.storeContentStart(key, start)
 	}
 	return start
 }
@@ -192,17 +183,19 @@ func firstTokenDescendant(n *RedNode) *RedNode {
 	if n.Green != nil && n.Green.IsToken() {
 		return n
 	}
-	var descs []redChildDesc
-	if n.File != nil {
-		descs = n.File.childDescs(n.Green, n.Offset)
-	} else if n.Green != nil {
-		descs = buildChildDescs(n.Green, n.Offset)
+	if n.Green == nil {
+		return nil
 	}
-	for _, d := range descs {
-		child := &RedNode{File: n.File, Parent: n, Green: d.green, Offset: d.offset}
+	off := n.Offset
+	for _, g := range n.Green.children {
+		if g == nil {
+			continue
+		}
+		child := &RedNode{File: n.File, Parent: n, Green: g, Offset: off}
 		if t := firstTokenDescendant(child); t != nil {
 			return t
 		}
+		off += g.width
 	}
 	return nil
 }

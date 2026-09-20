@@ -2,6 +2,38 @@ package analyse
 
 import "github.com/ayanozturk/go-php-parser/syntax"
 
+// syntaxChildRef is a green child descriptor with its absolute source offset
+// (same shape as syntax's internal redChildDesc). Used to walk children
+// without allocating a []*syntax.RedNode slice via RedNode.Children().
+type syntaxChildRef struct {
+	green  *syntax.GreenNode
+	offset int
+}
+
+func syntaxChildRefs(n *syntax.RedNode) []syntaxChildRef {
+	if n == nil || n.Green == nil {
+		return nil
+	}
+	greens := n.Green.Children()
+	if len(greens) == 0 {
+		return nil
+	}
+	out := make([]syntaxChildRef, 0, len(greens))
+	off := n.Offset
+	for _, g := range greens {
+		if g == nil {
+			continue
+		}
+		out = append(out, syntaxChildRef{green: g, offset: off})
+		off += g.Width()
+	}
+	return out
+}
+
+func syntaxRedChild(parent *syntax.RedNode, ref syntaxChildRef) *syntax.RedNode {
+	return &syntax.RedNode{File: parent.File, Parent: parent, Green: ref.green, Offset: ref.offset}
+}
+
 // walkSyntaxConfigured is the CST-direct analogue of walkAllConfigured
 // (phpstan_level0_walk.go): a pre-order traversal over *syntax.RedNode that
 // threads the enclosing class/function declaration and a FileTypeContext
@@ -109,15 +141,21 @@ func walkSyntaxConfigured(root *syntax.RedNode, ft FileTypeContext, fn func(n, c
 		if n.Kind() == syntax.KindParam {
 			nextInStatementBody = false
 		}
-		children := n.Children()
-		elvisCond := syntax.TernaryElvisCondition(n)
-		paramDefault := syntax.ParamDefaultValue(n)
+		descs := syntaxChildRefs(n)
+		var elvisCond *syntax.RedNode
+		if n.Kind() == syntax.KindTernaryExpr {
+			elvisCond = syntax.TernaryElvisCondition(n)
+		}
+		var paramDefault *syntax.RedNode
+		if n.Kind() == syntax.KindParam {
+			paramDefault = syntax.ParamDefaultValue(n)
+		}
 		var dynamicClassPart *syntax.RedNode
 		if n.Kind() == syntax.KindStaticMemberAccessExpr {
-			dynamicClassPart = staticMemberAccessDynamicClassPart(n)
+			dynamicClassPart = staticMemberAccessDynamicClassPartFromDescs(n, descs)
 		}
-		for i := 0; i < len(children); i++ {
-			c := children[i]
+		for i := 0; i < len(descs); i++ {
+			c := syntaxRedChild(n, descs[i])
 			if nextInStatementBody {
 				switch c.Kind() {
 				case syntax.KindClassDecl, syntax.KindInterfaceDecl, syntax.KindTraitDecl,
@@ -192,11 +230,14 @@ func walkSyntaxConfigured(root *syntax.RedNode, ft FileTypeContext, fn func(n, c
 			// /memories/repo/cst-direct-migration.md for the full writeup.
 			if c.Kind() == syntax.KindAttributeList {
 				j := i + 1
-				for j < len(children) && children[j].Kind() == syntax.KindAttributeList {
+				for j < len(descs) && descs[j].green.Kind() == syntax.KindAttributeList {
 					j++
 				}
-				if j < len(children) && (children[j].Kind() == syntax.KindEnumCase || children[j].Kind() == syntax.KindClassConstDecl) {
-					continue
+				if j < len(descs) {
+					nk := descs[j].green.Kind()
+					if nk == syntax.KindEnumCase || nk == syntax.KindClassConstDecl {
+						continue
+					}
 				}
 			}
 			// walkAllConfigured (the ast.Node dispatcher) calls fn on every
@@ -330,7 +371,11 @@ func walkSyntaxConfigured(root *syntax.RedNode, ft FileTypeContext, fn func(n, c
 				if !syntaxContainerOnlyKinds[c.Kind()] {
 					fn(c, nextClass, nextFn, ft, nextInStatementBody)
 				}
-				body, consumed := syntax.NamespaceBody(c, children, i)
+				siblings := make([]*syntax.RedNode, len(descs))
+				for j, d := range descs {
+					siblings[j] = syntaxRedChild(n, d)
+				}
+				body, consumed := syntax.NamespaceBody(c, siblings, i)
 				nft := namespaceSyntaxTypeContext(c, body, nsCache)
 				for _, b := range body {
 					walk(b, nextClass, nextFn, nft, nextInStatementBody)
@@ -344,21 +389,22 @@ func walkSyntaxConfigured(root *syntax.RedNode, ft FileTypeContext, fn func(n, c
 	walk(root, nil, nil, ft, false)
 }
 
-// staticMemberAccessDynamicClassPart returns the class-part child of a
+// staticMemberAccessDynamicClassPartFromDescs returns the class-part child of a
 // KindStaticMemberAccessExpr node when it's a complex expression rather
 // than a plain name (e.g. `(new class {...})::class`, `$cls::CONST`).
 // Returns nil when the class part is a name (isNameKind), which is safely
 // walked normally since a Name node has no meaningful sub-expression
 // content to miss.
-func staticMemberAccessDynamicClassPart(n *syntax.RedNode) *syntax.RedNode {
-	for _, c := range n.Children() {
-		if c.Kind() == syntax.KindToken || c.Kind() == syntax.KindTokenList {
+func staticMemberAccessDynamicClassPartFromDescs(n *syntax.RedNode, descs []syntaxChildRef) *syntax.RedNode {
+	for _, d := range descs {
+		k := d.green.Kind()
+		if k == syntax.KindToken || k == syntax.KindTokenList {
 			continue
 		}
-		if syntax.IsNameKind(c.Kind()) {
+		if syntax.IsNameKind(k) {
 			return nil
 		}
-		return c
+		return syntaxRedChild(n, d)
 	}
 	return nil
 }
