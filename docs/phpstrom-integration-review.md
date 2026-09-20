@@ -68,7 +68,7 @@ Status: snapshot consumption was implemented in PHP Strom commit `15abf7a`; incr
 
 ## Suggested implementation order
 
-Historical review order; most items below are done. Current ranked work is in `docs/full-static-analyser-target.md`.
+Historical review order; most items below are done. Current ranked work is in `../roadmap.md`.
 
 1. Always collect parser errors and add malformed-input integration tests. Done.
 2. Correct lexer coordinates and add Unicode position contract tests. Done for analysis spans; parser-error strings and style-rule points remain.

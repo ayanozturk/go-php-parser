@@ -5,8 +5,8 @@ alwaysApply: true
 
 # Correctness over performance
 
-The active implementation stream is diagnostic correctness and false-positive reduction. Do not start Mago comparisons, isolated-host reruns, allocation/GC batches, duplicate-walk audits, or editor-latency stretch work unless the user explicitly asks.
+Read `plan.MD` before making changes. It is the authoritative current implementation plan; `roadmap.md` contains future work and must not be used as an alternative active queue.
 
-Fix false positives with failing and clean differential controls. Do not add production file walks to silence a diagnostic. Do not copy private corpus source into the repo.
+The active stream is the lossless syntax-cutover stabilization described in `plan.MD`. Correctness, full file accounting, recovery safety, and reproducible evidence precede optimization. Do not start later CST-analysis, PHPStan-coverage, CLI, editor-latency, or comparable-performance roadmap work unless the user explicitly changes priority.
 
-Ranked next actions live in `docs/full-static-analyser-target.md`. The existing benchmark harness is historical evidence, not a queue.
+Use neutral reduced fixtures and clean controls for every correction. Do not copy private corpus source into the repository. Update `plan.MD` status only after the relevant validation exists.

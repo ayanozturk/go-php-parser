@@ -1,5 +1,5 @@
 {
-  "$schema": "https://github.com/ayanozturk/go-php-parser (see docs/full-static-analyser-target.md#comparable-performance-contract)",
+  "$schema": "https://github.com/ayanozturk/go-php-parser (see roadmap.md#8-reach-comparable-full-analysis-performance)",
   "description": "Pinned corpora for compat-metrics and cmd/benchmark. Each project is fetched on demand into test_projects/<name> by `go run ./cmd/fetch-test-projects`; the checked-out sources are not committed to this repository (see .gitignore). `commit` is the exact pinned revision every reproducible run must use; `ref` is a human-readable tag/branch recorded for convenience and is re-resolved to `commit` at fetch time, never trusted on its own.",
   "projects": [
     {

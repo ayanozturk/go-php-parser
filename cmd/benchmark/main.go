@@ -1,5 +1,5 @@
 // Command benchmark is the checked-in cold/full/incremental benchmark
-// harness required by docs/full-static-analyser-target.md's M0 exit
+// harness required by roadmap.md's full-analysis performance gate
 // criteria ("Add the external three-project benchmark harness ... Measure
 // index-only, cold full analysis, warm full analysis, and incremental edits
 // separately ... Account for every discovered file and classify parser

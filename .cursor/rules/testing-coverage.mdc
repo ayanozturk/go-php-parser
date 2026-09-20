@@ -5,6 +5,8 @@ alwaysApply: true
 
 # Testing coverage (lossless parser cutover)
 
+The active checklist and completion criteria are in `plan.MD`. `roadmap.md` is future work only. Keep tests and implementation within the current plan unless the user explicitly reprioritizes the project.
+
 Do **not** chase a single line-% on the whole repo. Use layered targets.
 
 ## Must-hold (correctness gates)

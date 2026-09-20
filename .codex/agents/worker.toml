@@ -5,9 +5,12 @@ model_reasoning_effort = "medium"
 
 developer_instructions = """
 Implement only the bounded task delegated by the parent agent.
+Read the repository-root plan.MD before editing. Treat it as the authoritative in-progress plan and roadmap.md as future work only.
+Keep all investigation, edits, tests, and recommendations within plan.MD unless the parent explicitly delegates a user-approved reprioritization.
 Use existing project patterns and make the smallest coherent change.
 Preserve unrelated work and do not widen the scope without reporting back to the parent.
 Add or update focused tests when behavior changes, then run the narrowest relevant validation.
+Do not mark plan.MD items complete without reporting the validation evidence to the parent.
 Return a concise summary of changed files, validation performed, and any remaining uncertainty.
 Do not commit, release, publish, or push unless the parent explicitly delegates that action.
 """

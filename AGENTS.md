@@ -2,6 +2,14 @@
 
 This repo is the Go PHP parser and static analyser. Sibling LSP delivery lives in `vscode-php-strom` (`server/go.mod` pins this parser).
 
+## Planning files
+
+- `plan.MD` is the single source of truth for the implementation currently in progress. Read it before starting repository work and keep changes within its stated scope.
+- `roadmap.md` contains future short-, medium-, and long-term work. Do not start or promote a roadmap item while `plan.MD` is active unless the user explicitly changes priority or the current plan is verified complete.
+- Capability inventories, benchmark reports, rule pages, and historical progress documents are evidence and reference material, not alternative queues.
+- Update `plan.MD` when an active task is completed, blocked, split, or materially re-scoped. Check off work only after its acceptance evidence exists.
+- When the current plan is complete, verify delivery first, then replace its contents with the next approved roadmap item. Do not accumulate completed-plan history in `plan.MD` or completed-work history in `roadmap.md`.
+
 ## Testing coverage (lossless parser cutover)
 
 Do **not** chase a single line-% on the whole repo. Use layered targets.

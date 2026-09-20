@@ -1,5 +1,13 @@
 # Subagent delegation
 
+## Planning files
+
+- Read the repository-root `plan.MD` before implementing or delegating work. It is the authoritative in-progress plan.
+- Treat the repository-root `roadmap.md` as future sequencing only. Do not pull later roadmap work into the active task unless the user explicitly reprioritizes it or `plan.MD` is verified complete.
+- Keep delegated tasks within the active plan's scope and acceptance gates.
+- Update `plan.MD` only when task status or scope actually changes, and never mark an item complete without validation evidence.
+- Historical progress, benchmark, capability, and rule documents are references rather than competing plans.
+
 Proactively delegate bounded, low-risk work to the `worker` subagent when it can complete the task independently and doing so keeps the main agent focused or reduces expensive main-agent usage.
 
 Prefer the `worker` for:
