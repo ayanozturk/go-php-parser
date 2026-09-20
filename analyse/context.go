@@ -291,6 +291,55 @@ type AnalysisContext struct {
 	hasAssignmentTypeIssues bool
 }
 
+// releaseEphemeralAnalysisState clears per-file caches populated during
+// RunAnalysisRulesWithContext so callers can reuse a long-lived AnalysisContext
+// shell (Resolver, Facts, Flow, etc.) without retaining parse trees or issue slices.
+func releaseEphemeralAnalysisState(ctx *AnalysisContext) {
+	if ctx == nil {
+		return
+	}
+	ctx.Content = nil
+	ctx.Parsed = nil
+	ctx.syntaxLower = nil
+	ctx.preLowered = nil
+	ctx.hasSyntaxRootFt = false
+	ctx.syntaxRootFt = FileTypeContext{}
+	ctx.hasFileTypeContext = false
+	ctx.FileTypeContext = FileTypeContext{}
+	ctx.phpDocTypeAliases = nil
+	ctx.functionScopeByNode = nil
+	ctx.classScopeByNode = nil
+	ctx.namespaceContextByNode = nil
+
+	ctx.methodReceiverIssues = nil
+	ctx.hasMethodReceiverIssues = false
+	ctx.argTypeIssues = nil
+	ctx.argCountIssues = nil
+	ctx.argCountSink = nil
+	ctx.deprecatedCallIssues = nil
+	ctx.deprecatedCallSink = nil
+	ctx.deprecatedCallSeen = nil
+	ctx.hasArgCallDiagnostics = false
+
+	ctx.reflectionGuards = reflectionGuards{}
+	ctx.hasReflectionGuards = false
+	ctx.level0Issues = nil
+	ctx.level0PropertyCallableIssues = nil
+	ctx.hasLevel0Issues = false
+	ctx.emptyStatementIssues = nil
+
+	ctx.methodVisibilityIssues = nil
+	ctx.throwTypeIssues = nil
+	ctx.returnTypeIssues = nil
+	ctx.phpDocIssues = nil
+	ctx.missingTypeIssues = nil
+	ctx.hasStructuralIssues = false
+	ctx.hasReturnTypeIssues = false
+	ctx.assignmentTypeIssues = nil
+	ctx.assignmentTypeSink = nil
+	ctx.hasAssignmentTypeIssues = false
+}
+
 func analysisLevelAtLeast(ctx *AnalysisContext, level int) bool {
 	if ctx == nil || ctx.AnalysisLevel == nil {
 		return true

@@ -8,7 +8,6 @@ import (
 
 	"github.com/ayanozturk/go-php-parser/analyse"
 	"github.com/ayanozturk/go-php-parser/ast"
-	"github.com/ayanozturk/go-php-parser/sharedcache"
 	"github.com/ayanozturk/go-php-parser/syntax"
 )
 
@@ -120,13 +119,13 @@ class VendorLib {
 		hostPath:   hostNodes,
 		vendorPath: vendorNodes,
 	}
-	sharedcache.StoreCachedFileContent(hostPath, []byte(hostPHP))
-	sharedcache.StoreCachedFileContent(vendorPath, []byte(vendorPHP))
-	defer sharedcache.DeleteCachedFileContent(hostPath)
-	defer sharedcache.DeleteCachedFileContent(vendorPath)
+	contents := map[string][]byte{
+		hostPath:   []byte(hostPHP),
+		vendorPath: []byte(vendorPHP),
+	}
 	project := analyse.BuildProjectIndex(parsed)
 	level := 10
-	if got := runAnalysis(parsed, project, &level, 2); got != 0 {
+	if got := runAnalysis(parsed, contents, project, &level, 2); got != 0 {
 		t.Fatalf("vendored type errors should not be counted, got %d diagnostics", got)
 	}
 }
@@ -143,11 +142,10 @@ function identifier(): string {
 		t.Fatalf("parse fixture: %v", diags)
 	}
 	parsed := map[string][]ast.Node{"file.php": nodes}
-	sharedcache.StoreCachedFileContent("file.php", []byte(php))
-	defer sharedcache.DeleteCachedFileContent("file.php")
+	contents := map[string][]byte{"file.php": []byte(php)}
 	project := analyse.BuildProjectIndex(parsed)
 	level := 10
-	if got := runAnalysis(parsed, project, &level, 2); got == 0 {
+	if got := runAnalysis(parsed, contents, project, &level, 2); got == 0 {
 		t.Fatal("expected snapshot-backed return-type diagnostics")
 	}
 }

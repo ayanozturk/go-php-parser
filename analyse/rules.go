@@ -145,6 +145,7 @@ func RunAnalysisRulesWithContext(filename string, nodes []ast.Node, ctx *Analysi
 	if ctx == nil {
 		ctx = &AnalysisContext{}
 	}
+	defer releaseEphemeralAnalysisState(ctx)
 	if len(ctx.Content) > 0 {
 		_ = sharedParseResult(ctx, ctx.Content)
 	}

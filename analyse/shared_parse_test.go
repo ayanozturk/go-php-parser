@@ -81,7 +81,43 @@ func TestSharedParseResultLazyFromContent(t *testing.T) {
 	if got := syntax.ParseInvocationCount(); got != want {
 		t.Fatalf("parse invocations: got %d want %d (exactly one shared re-parse for CST rules)", got, want)
 	}
-	if ctx.Parsed == nil {
-		t.Fatal("expected RunAnalysisRulesWithContext to populate ctx.Parsed")
+	if ctx.Parsed != nil {
+		t.Fatal("expected RunAnalysisRulesWithContext to release ctx.Parsed after return")
+	}
+}
+
+func TestReleaseEphemeralAnalysisState(t *testing.T) {
+	warmProjectStubIndex()
+
+	src := []byte(sharedParseFixture)
+	nodes, diags := syntax.ParseAST(src)
+	if len(diags) > 0 {
+		t.Fatalf("unexpected parse diagnostics: %v", diags)
+	}
+
+	level := 8
+	project := BuildProjectIndex(map[string][]ast.Node{"t.php": nodes})
+	resolver := project
+	ctx := &AnalysisContext{
+		Content:       src,
+		AnalysisLevel: &level,
+		Resolver:      resolver,
+	}
+	_ = RunAnalysisRulesWithContext("t.php", nodes, ctx)
+
+	if ctx.Content != nil {
+		t.Fatal("expected Content cleared after RunAnalysisRulesWithContext")
+	}
+	if ctx.Parsed != nil {
+		t.Fatal("expected Parsed cleared after RunAnalysisRulesWithContext")
+	}
+	if ctx.syntaxLower != nil {
+		t.Fatal("expected syntaxLower cleared after RunAnalysisRulesWithContext")
+	}
+	if ctx.preLowered != nil {
+		t.Fatal("expected preLowered cleared after RunAnalysisRulesWithContext")
+	}
+	if ctx.Resolver == nil {
+		t.Fatal("expected Resolver preserved on AnalysisContext")
 	}
 }

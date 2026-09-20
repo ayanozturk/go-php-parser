@@ -165,20 +165,31 @@ func analyzeWithCachedIndex(files []string, targets []string, level *int, matche
 		result.ReadErrors = append(result.ReadErrors, FileReadError{File: "<project>", Message: err.Error()})
 		return sortedAnalyzeResult(result)
 	}
+	cachedIdx.DropSourceFiles()
 
 	// Run analysis using cached symbols
 	analysisJobs := make(chan string)
 	issueResults := make(chan []analyse.AnalysisIssue, parallelism)
+	var contentsMu sync.Mutex
 	var analysisWorkers sync.WaitGroup
 	for i := 0; i < parallelism; i++ {
 		analysisWorkers.Add(1)
 		go func() {
 			defer analysisWorkers.Done()
 			for path := range analysisJobs {
+				contentsMu.Lock()
+				content := contents[path]
+				contentsMu.Unlock()
 				ctx := snapshot.NewAnalysisContext()
 				ctx.AnalysisLevel = level
-				ctx.Content = contents[path]
-				issueResults <- analyse.FilterIssues(analyse.RunAnalysisRulesWithContext(path, parsed[path], ctx), matcher)
+				ctx.Content = content
+				issues := analyse.FilterIssues(analyse.RunAnalysisRulesWithContext(path, parsed[path], ctx), matcher)
+				contentsMu.Lock()
+				sharedcache.DeleteCachedFileContent(path)
+				sharedcache.DeleteCachedLines(content)
+				contents[path] = nil
+				contentsMu.Unlock()
+				issueResults <- issues
 			}
 		}()
 	}
@@ -300,19 +311,30 @@ func analyzeFilesWithCache(files []string, targets []string, level *int, matcher
 		result.ReadErrors = append(result.ReadErrors, FileReadError{File: "<project>", Message: err.Error()})
 		return sortedAnalyzeResult(result)
 	}
+	idx.DropSourceFiles()
 
 	analysisJobs := make(chan string)
 	issueResults := make(chan []analyse.AnalysisIssue, parallelism)
+	var contentsMu sync.Mutex
 	var analysisWorkers sync.WaitGroup
 	for i := 0; i < parallelism; i++ {
 		analysisWorkers.Add(1)
 		go func() {
 			defer analysisWorkers.Done()
 			for path := range analysisJobs {
+				contentsMu.Lock()
+				content := contents[path]
+				contentsMu.Unlock()
 				ctx := snapshot.NewAnalysisContext()
 				ctx.AnalysisLevel = level
-				ctx.Content = contents[path]
-				issueResults <- analyse.FilterIssues(analyse.RunAnalysisRulesWithContext(path, parsed[path], ctx), matcher)
+				ctx.Content = content
+				issues := analyse.FilterIssues(analyse.RunAnalysisRulesWithContext(path, parsed[path], ctx), matcher)
+				contentsMu.Lock()
+				sharedcache.DeleteCachedFileContent(path)
+				sharedcache.DeleteCachedLines(content)
+				contents[path] = nil
+				contentsMu.Unlock()
+				issueResults <- issues
 			}
 		}()
 	}

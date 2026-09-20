@@ -92,6 +92,17 @@ func newProjectIndex() *ProjectIndex {
 	return idx
 }
 
+// DropSourceFiles releases the parsed AST inputs retained on the index after
+// BuildProjectIndex. Resolved symbol maps and FileTypes remain valid for
+// snapshot-backed rule runs that use the separate parsed map, but incremental
+// updates that depend on sourceFiles may be incomplete until the index is rebuilt.
+func (idx *ProjectIndex) DropSourceFiles() {
+	if idx == nil {
+		return
+	}
+	idx.sourceFiles = nil
+}
+
 // BuildProjectIndex indexes every parsed file into a single ProjectIndex.
 // Files are processed in sorted filename order rather than native Go map
 // iteration order (which is randomized per run): symbol registration below

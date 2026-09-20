@@ -65,7 +65,6 @@ import (
 
 	"github.com/ayanozturk/go-php-parser/analyse"
 	"github.com/ayanozturk/go-php-parser/ast"
-	"github.com/ayanozturk/go-php-parser/sharedcache"
 	"github.com/ayanozturk/go-php-parser/syntax"
 )
 
@@ -693,8 +692,8 @@ func runWorker(phase, root string, paths, excludes []string, level, workers, rep
 		levelPtr = &level
 	}
 
-	parsed, parseMetrics := parseFiles(files, workers)
-	defer releaseBenchmarkSourceCache(parsed)
+	parsed, contents, parseMetrics := parseFiles(files, workers)
+	defer releaseBenchmarkContents(contents)
 
 	switch phase {
 	case "index":
@@ -715,7 +714,7 @@ func runWorker(phase, root string, paths, excludes []string, level, workers, rep
 			peakSys := startMemSampler()
 			start := time.Now()
 			project := analyse.BuildProjectIndex(parsed)
-			diagnostics := runAnalysis(parsed, project, levelPtr, workers)
+			diagnostics := runAnalysis(parsed, contents, project, levelPtr, workers)
 			iter := parseMetrics
 			iter.DurationMs = time.Since(start).Milliseconds()
 			iter.DiagnosticsEmitted = diagnostics
@@ -763,13 +762,13 @@ func runProfile(root string, paths, excludes []string, level, workers, iteration
 		defer pprof.StopCPUProfile()
 	}
 
-	parsed, parseMetrics := parseFiles(files, workers)
-	defer releaseBenchmarkSourceCache(parsed)
+	parsed, contents, parseMetrics := parseFiles(files, workers)
+	defer releaseBenchmarkContents(contents)
 	var diagnostics int
 	for i := 0; i < iterations; i++ {
 		start := time.Now()
 		project := analyse.BuildProjectIndex(parsed)
-		diagnostics = runAnalysis(parsed, project, levelPtr, workers)
+		diagnostics = runAnalysis(parsed, contents, project, levelPtr, workers)
 		fmt.Fprintf(os.Stderr, "  iteration %d/%d: %s, %d diagnostics\n", i+1, iterations, time.Since(start), diagnostics)
 	}
 	fmt.Fprintf(os.Stderr, "benchmark: parsed %d/%d files, %d diagnostics on the final iteration\n", parseMetrics.FilesParsed, parseMetrics.FilesDiscovered, diagnostics)
@@ -885,18 +884,16 @@ func benchmarkPathsContain(paths []string, want string) bool {
 const maxReportedParseFailures = 20
 
 // parseFiles reads and parses every discovered file concurrently, returning
-// the successfully parsed ASTs keyed by path plus file-accounting metrics.
-// Files that fail to read or that the parser reports errors for are counted
-// as failed and excluded from project-index construction and analysis, but
-// every discovered file is accounted for in FilesDiscovered per the
-// contract's "account for every discovered file" requirement.
-func parseFiles(files []string, workers int) (map[string][]ast.Node, runMetrics) {
+// the successfully parsed ASTs keyed by path, matching source bytes for
+// analysis, plus file-accounting metrics.
+func parseFiles(files []string, workers int) (map[string][]ast.Node, map[string][]byte, runMetrics) {
 	type parseOutcome struct {
-		path   string
-		nodes  []ast.Node
-		loc    int
-		bytes  int64
-		failed bool
+		path    string
+		nodes   []ast.Node
+		content []byte
+		loc     int
+		bytes   int64
+		failed  bool
 	}
 
 	n := len(files)
@@ -929,12 +926,12 @@ func parseFiles(files []string, workers int) (map[string][]ast.Node, runMetrics)
 					outcomes[idx] = parseOutcome{path: path, failed: true, bytes: int64(len(content))}
 					continue
 				}
-				sharedcache.StoreCachedFileContent(path, content)
 				outcomes[idx] = parseOutcome{
-					path:  path,
-					nodes: nodes,
-					loc:   countLines(content),
-					bytes: int64(len(content)),
+					path:    path,
+					nodes:   nodes,
+					content: content,
+					loc:     countLines(content),
+					bytes:   int64(len(content)),
 				}
 			}
 		}()
@@ -942,6 +939,7 @@ func parseFiles(files []string, workers int) (map[string][]ast.Node, runMetrics)
 	wg.Wait()
 
 	parsed := make(map[string][]ast.Node, n)
+	contents := make(map[string][]byte, n)
 	metrics := runMetrics{FilesDiscovered: n}
 	failed := make([]string, 0)
 	for _, outcome := range outcomes {
@@ -954,6 +952,7 @@ func parseFiles(files []string, workers int) (map[string][]ast.Node, runMetrics)
 			continue
 		}
 		parsed[outcome.path] = outcome.nodes
+		contents[outcome.path] = outcome.content
 		metrics.FilesParsed++
 		metrics.TotalLOC += outcome.loc
 		metrics.TotalBytes += outcome.bytes
@@ -964,7 +963,7 @@ func parseFiles(files []string, workers int) (map[string][]ast.Node, runMetrics)
 			fmt.Fprintf(os.Stderr, "  %s\n", path)
 		}
 	}
-	return parsed, metrics
+	return parsed, contents, metrics
 }
 
 func countLines(content []byte) int {
@@ -985,23 +984,19 @@ func countLines(content []byte) int {
 // Vendored paths are indexed and skipped, matching Mago's FileType::Vendored.
 // This is the same snapshot-backed path as command.AnalyzeFiles and PHP Strom,
 // so benchmark timings include fact, CFG, and variable-flow construction.
-func releaseBenchmarkSourceCache(parsed map[string][]ast.Node) {
-	for path := range parsed {
-		content, err := sharedcache.GetCachedFileContent(path)
-		if err != nil {
-			continue
-		}
-		sharedcache.DeleteCachedLines(content)
-		sharedcache.DeleteCachedFileContent(path)
+func releaseBenchmarkContents(contents map[string][]byte) {
+	for path := range contents {
+		delete(contents, path)
 	}
 }
 
-func runAnalysis(parsed map[string][]ast.Node, project *analyse.ProjectIndex, level *int, workers int) int {
+func runAnalysis(parsed map[string][]ast.Node, contents map[string][]byte, project *analyse.ProjectIndex, level *int, workers int) int {
 	snapshot, err := analyse.NewSemanticSnapshotWithIndex(project, parsed, nil, nil)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "benchmark: semantic snapshot: %v\n", err)
 		os.Exit(1)
 	}
+	project.DropSourceFiles()
 	type job struct {
 		path    string
 		nodes   []ast.Node
@@ -1024,8 +1019,7 @@ func runAnalysis(parsed map[string][]ast.Node, project *analyse.ProjectIndex, le
 		}()
 	}
 	for _, path := range snapshot.Files() {
-		content, _ := sharedcache.GetCachedFileContent(path)
-		jobCh <- job{path: path, nodes: parsed[path], content: content}
+		jobCh <- job{path: path, nodes: parsed[path], content: contents[path]}
 	}
 	close(jobCh)
 	wg.Wait()
