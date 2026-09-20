@@ -31,7 +31,7 @@ func (l *Lexer) checkCancel() bool {
 }
 
 // noteCancelProgress is like checkCancel but for scanners that walk a local
-// offset without advancing l.pos (e.g. lookDoubleQuoteConstant).
+// offset without advancing l.pos (e.g. mid-string classification probes).
 func (l *Lexer) noteCancelProgress(offset int) bool {
 	if l.ctx == nil || l.cancelErr != nil {
 		return l.cancelErr != nil

@@ -161,32 +161,8 @@ func (l *Lexer) lexDot(pos token.Position) token.Token {
 }
 
 func (l *Lexer) lexDoubleQuote(pos token.Position) token.Token {
-	if l.lookDoubleQuoteConstant() {
-		start := l.pos
-		l.readChar() // opening "
-		for !l.atEOF() && l.char != '"' {
-			if l.checkCancel() {
-				break
-			}
-			if l.char == '\\' {
-				l.readChar()
-				if !l.atEOF() {
-					l.readChar()
-				}
-				continue
-			}
-			l.readChar()
-		}
-		if l.char == '"' {
-			l.readChar()
-		}
-		lit := l.text(start, l.pos)
-		return token.Token{
-			Type:    token.T_CONSTANT_ENCAPSED_STRING,
-			Literal: lit,
-			Pos:     pos,
-			End:     token.Position{Line: l.line, Column: l.column, Offset: l.pos},
-		}
+	if tok, ok := l.commitConstantDoubleQuote(pos); ok {
+		return tok
 	}
 	// Interpolating string: emit opening quote; body + closing quote follow
 	// incrementally via queueEncapsedStep on subsequent NextToken calls.

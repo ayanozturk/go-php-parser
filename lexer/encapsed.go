@@ -32,36 +32,51 @@ func (l *Lexer) lexAttribute(pos token.Position) token.Token {
 	}
 }
 
-// lookDoubleQuoteConstant reports whether the double-quoted string starting at
-// the current '"' has no interpolations and can be a single
-// T_CONSTANT_ENCAPSED_STRING (including the quotes).
-func (l *Lexer) lookDoubleQuoteConstant() bool {
-	i := l.pos + 1
-	for i < len(l.input) {
-		if l.noteCancelProgress(i) {
-			return true // abort into the constant scan path; it also checks cancel
+// commitConstantDoubleQuote scans a plain "..." once and, when there is no
+// interpolation, advances the lexer and returns T_CONSTANT_ENCAPSED_STRING.
+// When $ or {$ is found it restores the opening '"' and returns ok=false so
+// the caller can take the encapsed path — avoiding the old look-then-
+// retokenize double traversal of large constant strings.
+func (l *Lexer) commitConstantDoubleQuote(pos token.Position) (token.Token, bool) {
+	start := l.pos
+	snapPos, snapReadPos, snapChar, snapSize := l.pos, l.readPos, l.char, l.size
+	snapLine, snapCol := l.line, l.column
+
+	l.readChar() // opening "
+	for !l.atEOF() && l.char != '"' {
+		if l.checkCancel() {
+			lit := l.text(start, l.pos)
+			return token.Token{
+				Type:    token.T_CONSTANT_ENCAPSED_STRING,
+				Literal: lit,
+				Pos:     pos,
+				End:     token.Position{Line: l.line, Column: l.column, Offset: l.pos},
+			}, true
 		}
-		c := l.input[i]
-		switch c {
-		case '\\':
-			i++
-			if i < len(l.input) {
-				i++
+		if l.char == '\\' {
+			l.readChar()
+			if !l.atEOF() {
+				l.readChar()
 			}
-		case '"':
-			return true
-		case '$':
-			return false
-		case '{':
-			if i+1 < len(l.input) && l.input[i+1] == '$' {
-				return false
-			}
-			i++
-		default:
-			i++
+			continue
 		}
+		if l.char == '$' || (l.char == '{' && l.peekChar() == '$') {
+			l.pos, l.readPos, l.char, l.size = snapPos, snapReadPos, snapChar, snapSize
+			l.line, l.column = snapLine, snapCol
+			return token.Token{}, false
+		}
+		l.readChar()
 	}
-	return true // unclosed — treat as constant scan path
+	if l.char == '"' {
+		l.readChar()
+	}
+	lit := l.text(start, l.pos)
+	return token.Token{
+		Type:    token.T_CONSTANT_ENCAPSED_STRING,
+		Literal: lit,
+		Pos:     pos,
+		End:     token.Position{Line: l.line, Column: l.column, Offset: l.pos},
+	}, true
 }
 
 // queueEncapsedStep emits the next encapsed/heredoc unit into the pending
