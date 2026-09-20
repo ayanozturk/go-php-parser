@@ -163,7 +163,7 @@ func analyzeWithCachedIndex(files []string, targets []string, level *int, matche
 	cachedIdx.DropSourceFiles()
 	cachedIdx.DropFileTypeASTRefs()
 	analyse.DropNonHostParsedTrees(parsed)
-	snapshot, err := analyse.NewSemanticSnapshotWithIndex(cachedIdx, parsed, nil, parseSet)
+	snapshot, err := analyse.NewSemanticSnapshotWithIndexReleasingParsed(cachedIdx, parsed, nil, parseSet)
 	if err != nil {
 		result.ReadErrors = append(result.ReadErrors, FileReadError{File: "<project>", Message: err.Error()})
 		return sortedAnalyzeResult(result)
@@ -321,7 +321,7 @@ func analyzeFilesWithCache(files []string, targets []string, level *int, matcher
 			contents[path] = nil
 		}
 	}
-	snapshot, err := analyse.NewSemanticSnapshotWithIndex(idx, parsed, nil, targets)
+	snapshot, err := analyse.NewSemanticSnapshotWithIndexReleasingParsed(idx, parsed, nil, targets)
 	if err != nil {
 		result.ReadErrors = append(result.ReadErrors, FileReadError{File: "<project>", Message: err.Error()})
 		return sortedAnalyzeResult(result)

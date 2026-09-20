@@ -306,7 +306,7 @@ func NewSemanticSnapshot(parsed map[string][]ast.Node, facts []SemanticFact) (*S
 // or empty targets analyses every non-vendored parsed file. Paths under a
 // `vendor` directory are never type-checked, matching Mago's vendored files.
 func NewSemanticSnapshotScoped(parsed map[string][]ast.Node, facts []SemanticFact, targets []string) (*SemanticSnapshot, error) {
-	return newSemanticSnapshot(BuildProjectIndex(parsed), parsed, facts, targets)
+	return newSemanticSnapshot(BuildProjectIndex(parsed), parsed, facts, targets, false)
 }
 
 // NewSemanticSnapshotWithIndex is like NewSemanticSnapshotScoped, but reuses
@@ -317,10 +317,19 @@ func NewSemanticSnapshotScoped(parsed map[string][]ast.Node, facts []SemanticFac
 // contain the target files themselves, since idx already carries the full
 // project's classes/methods/properties/functions for cross-file resolution.
 func NewSemanticSnapshotWithIndex(idx *ProjectIndex, parsed map[string][]ast.Node, facts []SemanticFact, targets []string) (*SemanticSnapshot, error) {
-	return newSemanticSnapshot(idx, parsed, facts, targets)
+	return newSemanticSnapshot(idx, parsed, facts, targets, false)
 }
 
-func newSemanticSnapshot(idx *ProjectIndex, parsed map[string][]ast.Node, facts []SemanticFact, targets []string) (*SemanticSnapshot, error) {
+// NewSemanticSnapshotWithIndexReleasingParsed is like NewSemanticSnapshotWithIndex
+// but nils each host entry in parsed (and lazy variable-flow AST pins) after that
+// file's semantics are built. This cuts the host-AST × snapshot peak RSS.
+// Callers must pass Content into RunAnalysisRulesWithContext so ingest AST is
+// rebuilt via ParseAndLower, or supply nodes themselves.
+func NewSemanticSnapshotWithIndexReleasingParsed(idx *ProjectIndex, parsed map[string][]ast.Node, facts []SemanticFact, targets []string) (*SemanticSnapshot, error) {
+	return newSemanticSnapshot(idx, parsed, facts, targets, true)
+}
+
+func newSemanticSnapshot(idx *ProjectIndex, parsed map[string][]ast.Node, facts []SemanticFact, targets []string, releaseParsed bool) (*SemanticSnapshot, error) {
 	filenames := hostSnapshotTargets(parsed, targets)
 	sort.Strings(filenames)
 
@@ -342,7 +351,7 @@ func newSemanticSnapshot(idx *ProjectIndex, parsed map[string][]ast.Node, facts 
 		facts:     store,
 		filenames: filenames,
 	}
-	snapshot.generateScopedSemantics(parsed)
+	snapshot.generateScopedSemantics(parsed, releaseParsed)
 	return snapshot, nil
 }
 
@@ -367,7 +376,7 @@ func snapshotSemanticsWorkers(fileCount int) int {
 	return workers
 }
 
-func (s *SemanticSnapshot) generateScopedSemantics(parsed map[string][]ast.Node) {
+func (s *SemanticSnapshot) generateScopedSemantics(parsed map[string][]ast.Node, releaseParsed bool) {
 	n := len(s.filenames)
 	s.flow = make(map[string]*flowFileStore, n)
 	s.variableReads = make(map[string][]variableReadFact, n)
@@ -381,9 +390,16 @@ func (s *SemanticSnapshot) generateScopedSemantics(parsed map[string][]ast.Node)
 	if workers == 1 {
 		for i, filename := range s.filenames {
 			results[i] = s.buildFileSemantics(filename, parsed[filename])
+			if releaseParsed {
+				if results[i].complete != nil {
+					results[i].complete.nodes = nil
+				}
+				parsed[filename] = nil
+			}
 		}
 	} else {
 		var next atomic.Int64
+		var parsedMu sync.Mutex
 		var wg sync.WaitGroup
 		wg.Add(workers)
 		for i := 0; i < workers; i++ {
@@ -395,7 +411,24 @@ func (s *SemanticSnapshot) generateScopedSemantics(parsed map[string][]ast.Node)
 						return
 					}
 					filename := s.filenames[index]
-					results[index] = s.buildFileSemantics(filename, parsed[filename])
+					var nodes []ast.Node
+					if releaseParsed {
+						parsedMu.Lock()
+						nodes = parsed[filename]
+						parsedMu.Unlock()
+					} else {
+						nodes = parsed[filename]
+					}
+					sem := s.buildFileSemantics(filename, nodes)
+					if releaseParsed {
+						if sem.complete != nil {
+							sem.complete.nodes = nil
+						}
+						parsedMu.Lock()
+						parsed[filename] = nil
+						parsedMu.Unlock()
+					}
+					results[index] = sem
 				}
 			}()
 		}

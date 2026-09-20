@@ -1,9 +1,11 @@
 package analyse
 
 import (
-	"github.com/ayanozturk/go-php-parser/ast"
 	"sort"
 	"sync"
+
+	"github.com/ayanozturk/go-php-parser/ast"
+	"github.com/ayanozturk/go-php-parser/syntax"
 )
 
 type AnalysisIssue struct {
@@ -146,6 +148,17 @@ func RunAnalysisRulesWithContext(filename string, nodes []ast.Node, ctx *Analysi
 		ctx = &AnalysisContext{}
 	}
 	defer releaseEphemeralAnalysisState(ctx)
+	// Snapshot construction may release host ingest AST for RSS. When Content
+	// is present but nodes were cleared, rebuild one shared CST+AST so
+	// ingest-walk rules (arg/unreachable/…) keep parity without a second parse.
+	if len(nodes) == 0 && len(ctx.Content) > 0 && ctx.Parsed == nil {
+		var res *syntax.ParseResult
+		nodes, res = syntax.ParseAndLower(ctx.Content)
+		ctx.Parsed = res
+		ctx.syntaxLower = nil
+		ctx.preLowered = nil
+		ctx.hasSyntaxRootFt = false
+	}
 	if len(ctx.Content) > 0 {
 		_ = sharedParseResult(ctx, ctx.Content)
 	}
