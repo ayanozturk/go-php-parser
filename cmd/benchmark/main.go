@@ -693,7 +693,7 @@ func runWorker(phase, root string, paths, excludes []string, level, workers, rep
 		levelPtr = &level
 	}
 
-	parsed, parsedByPath, parseMetrics := parseFiles(files, workers)
+	parsed, parseMetrics := parseFiles(files, workers)
 	defer releaseBenchmarkSourceCache(parsed)
 
 	switch phase {
@@ -715,7 +715,7 @@ func runWorker(phase, root string, paths, excludes []string, level, workers, rep
 			peakSys := startMemSampler()
 			start := time.Now()
 			project := analyse.BuildProjectIndex(parsed)
-			diagnostics := runAnalysis(parsed, cloneParseResults(parsedByPath), project, levelPtr, workers)
+			diagnostics := runAnalysis(parsed, project, levelPtr, workers)
 			iter := parseMetrics
 			iter.DurationMs = time.Since(start).Milliseconds()
 			iter.DiagnosticsEmitted = diagnostics
@@ -763,13 +763,13 @@ func runProfile(root string, paths, excludes []string, level, workers, iteration
 		defer pprof.StopCPUProfile()
 	}
 
-	parsed, parsedByPath, parseMetrics := parseFiles(files, workers)
+	parsed, parseMetrics := parseFiles(files, workers)
 	defer releaseBenchmarkSourceCache(parsed)
 	var diagnostics int
 	for i := 0; i < iterations; i++ {
 		start := time.Now()
 		project := analyse.BuildProjectIndex(parsed)
-		diagnostics = runAnalysis(parsed, cloneParseResults(parsedByPath), project, levelPtr, workers)
+		diagnostics = runAnalysis(parsed, project, levelPtr, workers)
 		fmt.Fprintf(os.Stderr, "  iteration %d/%d: %s, %d diagnostics\n", i+1, iterations, time.Since(start), diagnostics)
 	}
 	fmt.Fprintf(os.Stderr, "benchmark: parsed %d/%d files, %d diagnostics on the final iteration\n", parseMetrics.FilesParsed, parseMetrics.FilesDiscovered, diagnostics)
@@ -890,11 +890,10 @@ const maxReportedParseFailures = 20
 // as failed and excluded from project-index construction and analysis, but
 // every discovered file is accounted for in FilesDiscovered per the
 // contract's "account for every discovered file" requirement.
-func parseFiles(files []string, workers int) (map[string][]ast.Node, map[string]*syntax.ParseResult, runMetrics) {
+func parseFiles(files []string, workers int) (map[string][]ast.Node, runMetrics) {
 	type parseOutcome struct {
 		path   string
 		nodes  []ast.Node
-		parsed *syntax.ParseResult
 		loc    int
 		bytes  int64
 		failed bool
@@ -925,18 +924,17 @@ func parseFiles(files []string, workers int) (map[string][]ast.Node, map[string]
 					outcomes[idx] = parseOutcome{path: path, failed: true}
 					continue
 				}
-				nodes, res := syntax.ParseAndLower(content)
-				if len(res.Diagnostics) > 0 {
+				nodes, diags := syntax.ParseAST(content)
+				if len(diags) > 0 {
 					outcomes[idx] = parseOutcome{path: path, failed: true, bytes: int64(len(content))}
 					continue
 				}
 				sharedcache.StoreCachedFileContent(path, content)
 				outcomes[idx] = parseOutcome{
-					path:   path,
-					nodes:  nodes,
-					parsed: res,
-					loc:    countLines(content),
-					bytes:  int64(len(content)),
+					path:  path,
+					nodes: nodes,
+					loc:   countLines(content),
+					bytes: int64(len(content)),
 				}
 			}
 		}()
@@ -944,7 +942,6 @@ func parseFiles(files []string, workers int) (map[string][]ast.Node, map[string]
 	wg.Wait()
 
 	parsed := make(map[string][]ast.Node, n)
-	parsedByPath := make(map[string]*syntax.ParseResult, n)
 	metrics := runMetrics{FilesDiscovered: n}
 	failed := make([]string, 0)
 	for _, outcome := range outcomes {
@@ -957,7 +954,6 @@ func parseFiles(files []string, workers int) (map[string][]ast.Node, map[string]
 			continue
 		}
 		parsed[outcome.path] = outcome.nodes
-		parsedByPath[outcome.path] = outcome.parsed
 		metrics.FilesParsed++
 		metrics.TotalLOC += outcome.loc
 		metrics.TotalBytes += outcome.bytes
@@ -968,18 +964,7 @@ func parseFiles(files []string, workers int) (map[string][]ast.Node, map[string]
 			fmt.Fprintf(os.Stderr, "  %s\n", path)
 		}
 	}
-	return parsed, parsedByPath, metrics
-}
-
-func cloneParseResults(src map[string]*syntax.ParseResult) map[string]*syntax.ParseResult {
-	if len(src) == 0 {
-		return nil
-	}
-	out := make(map[string]*syntax.ParseResult, len(src))
-	for k, v := range src {
-		out[k] = v
-	}
-	return out
+	return parsed, metrics
 }
 
 func countLines(content []byte) int {
@@ -1011,7 +996,7 @@ func releaseBenchmarkSourceCache(parsed map[string][]ast.Node) {
 	}
 }
 
-func runAnalysis(parsed map[string][]ast.Node, parsedByPath map[string]*syntax.ParseResult, project *analyse.ProjectIndex, level *int, workers int) int {
+func runAnalysis(parsed map[string][]ast.Node, project *analyse.ProjectIndex, level *int, workers int) int {
 	snapshot, err := analyse.NewSemanticSnapshotWithIndex(project, parsed, nil, nil)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "benchmark: semantic snapshot: %v\n", err)
@@ -1023,7 +1008,6 @@ func runAnalysis(parsed map[string][]ast.Node, parsedByPath map[string]*syntax.P
 		content []byte
 	}
 	jobCh := make(chan job, workers*2)
-	var parsedMu sync.Mutex
 	var total atomic.Int64
 	var wg sync.WaitGroup
 	for i := 0; i < workers; i++ {
@@ -1034,13 +1018,7 @@ func runAnalysis(parsed map[string][]ast.Node, parsedByPath map[string]*syntax.P
 				ctx := snapshot.NewAnalysisContext()
 				ctx.AnalysisLevel = level
 				ctx.Content = j.content
-				parsedMu.Lock()
-				ctx.Parsed = parsedByPath[j.path]
-				parsedMu.Unlock()
 				issues := analyse.RunAnalysisRulesWithContext(j.path, j.nodes, ctx)
-				parsedMu.Lock()
-				delete(parsedByPath, j.path)
-				parsedMu.Unlock()
 				total.Add(int64(len(issues)))
 			}
 		}()

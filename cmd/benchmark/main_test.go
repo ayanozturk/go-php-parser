@@ -126,7 +126,7 @@ class VendorLib {
 	defer sharedcache.DeleteCachedFileContent(vendorPath)
 	project := analyse.BuildProjectIndex(parsed)
 	level := 10
-	if got := runAnalysis(parsed, nil, project, &level, 2); got != 0 {
+	if got := runAnalysis(parsed, project, &level, 2); got != 0 {
 		t.Fatalf("vendored type errors should not be counted, got %d diagnostics", got)
 	}
 }
@@ -147,7 +147,7 @@ function identifier(): string {
 	defer sharedcache.DeleteCachedFileContent("file.php")
 	project := analyse.BuildProjectIndex(parsed)
 	level := 10
-	if got := runAnalysis(parsed, nil, project, &level, 2); got == 0 {
+	if got := runAnalysis(parsed, project, &level, 2); got == 0 {
 		t.Fatal("expected snapshot-backed return-type diagnostics")
 	}
 }
