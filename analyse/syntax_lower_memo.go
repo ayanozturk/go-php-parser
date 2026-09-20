@@ -14,6 +14,7 @@ type syntaxLowerMemo struct {
 	classLike map[redIdentity]*ast.ClassNode
 	fnDecl    map[redIdentity]*ast.FunctionNode
 	fnLike    map[redIdentity]*ast.FunctionNode
+	expr      map[redIdentity]ast.Node
 }
 
 func ensureSyntaxLowerMemo(ctx *AnalysisContext) *syntaxLowerMemo {
@@ -25,6 +26,7 @@ func ensureSyntaxLowerMemo(ctx *AnalysisContext) *syntaxLowerMemo {
 			classLike: make(map[redIdentity]*ast.ClassNode),
 			fnDecl:    make(map[redIdentity]*ast.FunctionNode),
 			fnLike:    make(map[redIdentity]*ast.FunctionNode),
+			expr:      make(map[redIdentity]ast.Node),
 		}
 	}
 	return ctx.syntaxLower
@@ -83,4 +85,20 @@ func memoLowerFunctionLike(ctx *AnalysisContext, n *syntax.RedNode, file *syntax
 		return fn
 	}
 	return syntax.LowerFunctionLikeContextNode(n, file)
+}
+
+func memoLowerExpr(ctx *AnalysisContext, n *syntax.RedNode, file *syntax.File) ast.Node {
+	if n == nil {
+		return nil
+	}
+	if memo := ensureSyntaxLowerMemo(ctx); memo != nil {
+		id := redID(n)
+		if v, ok := memo.expr[id]; ok {
+			return v
+		}
+		v := syntax.LowerExprNode(n, file)
+		memo.expr[id] = v
+		return v
+	}
+	return syntax.LowerExprNode(n, file)
 }

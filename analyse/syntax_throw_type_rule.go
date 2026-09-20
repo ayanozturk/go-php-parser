@@ -36,7 +36,7 @@ func checkThrowTypeIssuesFromParsed(filename string, res *syntax.ParseResult, ct
 				appendThrowTypeOnNode(filename, node, ft, ctx, &issues)
 			}
 		case syntax.KindThrowExpr:
-			if node := syntax.LowerExprNode(n, res.File); node != nil {
+			if node := memoLowerExpr(ctx, n, res.File); node != nil {
 				appendThrowTypeOnNode(filename, node, ft, ctx, &issues)
 			}
 		}

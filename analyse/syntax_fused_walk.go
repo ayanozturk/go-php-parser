@@ -154,7 +154,7 @@ func runFusedConfiguredCSTWalk(root *syntax.RedNode, rootFt FileTypeContext, o f
 					checkTypeReferenceOnNode(o.filename, fn, ft, ctx, o.guards, o.level0)
 				}
 			case syntax.KindClosureExpr:
-				if fn := syntax.LowerExprNode(n, res.File); fn != nil {
+				if fn := memoLowerExpr(ctx, n, res.File); fn != nil {
 					checkTypeReferenceOnNode(o.filename, fn, ft, ctx, o.guards, o.level0)
 				}
 			case syntax.KindPropertyDecl:
@@ -187,7 +187,7 @@ func runFusedConfiguredCSTWalk(root *syntax.RedNode, rootFt FileTypeContext, o f
 						callCallees[cstKeyOf(c)] = true
 					}
 				}
-				node := syntax.LowerExprNode(n, res.File)
+				node := memoLowerExpr(ctx, n, res.File)
 				if node == nil {
 					syntax.Walk(n, func(d *syntax.RedNode) bool {
 						symbolSuppressed[cstKeyOf(d)] = true
@@ -202,12 +202,12 @@ func runFusedConfiguredCSTWalk(root *syntax.RedNode, rootFt FileTypeContext, o f
 					}
 				}
 			case syntax.KindNewExpr:
-				if node := syntax.LowerExprNode(n, res.File); node != nil {
+				if node := memoLowerExpr(ctx, n, res.File); node != nil {
 					checkSymbolOnNode(o.filename, node, classCtx(class), fnCtx(currentFn), ft, ctx, o.guards, o.level0)
 				}
 			case syntax.KindMemberAccessExpr, syntax.KindNullsafeMemberAccessExpr, syntax.KindStaticMemberAccessExpr:
 				if !callCallees[cstKeyOf(n)] {
-					if node := syntax.LowerExprNode(n, res.File); node != nil {
+					if node := memoLowerExpr(ctx, n, res.File); node != nil {
 						checkSymbolOnNode(o.filename, node, classCtx(class), fnCtx(currentFn), ft, ctx, o.guards, o.level0)
 					}
 				}
@@ -219,7 +219,7 @@ func runFusedConfiguredCSTWalk(root *syntax.RedNode, rootFt FileTypeContext, o f
 		}
 
 		if n.Kind() == syntax.KindCallExpr && !visibilitySuppressed[cstKeyOf(n)] {
-			node := syntax.LowerExprNode(n, res.File)
+			node := memoLowerExpr(ctx, n, res.File)
 			if node == nil {
 				syntax.Walk(n, func(d *syntax.RedNode) bool {
 					visibilitySuppressed[cstKeyOf(d)] = true
@@ -236,7 +236,7 @@ func runFusedConfiguredCSTWalk(root *syntax.RedNode, rootFt FileTypeContext, o f
 				appendThrowTypeOnNode(o.filename, node, ft, ctx, o.throwType)
 			}
 		case syntax.KindThrowExpr:
-			if node := syntax.LowerExprNode(n, res.File); node != nil {
+			if node := memoLowerExpr(ctx, n, res.File); node != nil {
 				appendThrowTypeOnNode(o.filename, node, ft, ctx, o.throwType)
 			}
 		case syntax.KindFunctionDecl, syntax.KindMethodDecl:
@@ -262,7 +262,7 @@ func runFusedConfiguredCSTWalk(root *syntax.RedNode, rootFt FileTypeContext, o f
 				}
 			}
 		case syntax.KindClosureExpr:
-			if fn := syntax.LowerExprNode(n, res.File); fn != nil {
+			if fn := memoLowerExpr(ctx, n, res.File); fn != nil {
 				appendPHPDocIssuesOnNode(o.filename, fn, lowerClass(class), ft, ctx, o.phpDoc)
 				if o.collectMissingTypes {
 					appendMissingTypeIssuesOnNode(o.filename, fn, lowerClass(class), ft, ctx, o.missingType)

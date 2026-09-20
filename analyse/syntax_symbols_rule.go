@@ -99,7 +99,7 @@ func checkSymbolIssuesFromParsed(filename string, res *syntax.ParseResult, ctx *
 					callCallees[keyOf(c)] = true
 				}
 			}
-			node := syntax.LowerExprNode(n, res.File)
+			node := memoLowerExpr(ctx, n, res.File)
 			if node == nil {
 				syntax.Walk(n, func(d *syntax.RedNode) bool {
 					suppressed[keyOf(d)] = true
@@ -114,14 +114,14 @@ func checkSymbolIssuesFromParsed(filename string, res *syntax.ParseResult, ctx *
 				}
 			}
 		case syntax.KindNewExpr:
-			if node := syntax.LowerExprNode(n, res.File); node != nil {
+			if node := memoLowerExpr(ctx, n, res.File); node != nil {
 				checkSymbolOnNode(filename, node, classCtx(class), fnCtx(currentFn), ft, ctx, guards, &issues)
 			}
 		case syntax.KindMemberAccessExpr, syntax.KindNullsafeMemberAccessExpr, syntax.KindStaticMemberAccessExpr:
 			if callCallees[keyOf(n)] {
 				return
 			}
-			if node := syntax.LowerExprNode(n, res.File); node != nil {
+			if node := memoLowerExpr(ctx, n, res.File); node != nil {
 				checkSymbolOnNode(filename, node, classCtx(class), fnCtx(currentFn), ft, ctx, guards, &issues)
 			}
 		}

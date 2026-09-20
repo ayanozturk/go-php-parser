@@ -58,7 +58,7 @@ func checkMethodVisibilityIssuesFromParsed(filename string, res *syntax.ParseRes
 		if n.Kind() != syntax.KindCallExpr {
 			return
 		}
-		node := syntax.LowerExprNode(n, res.File)
+		node := memoLowerExpr(ctx, n, res.File)
 		if node == nil {
 			syntax.Walk(n, func(d *syntax.RedNode) bool {
 				suppressed[keyOf(d)] = true

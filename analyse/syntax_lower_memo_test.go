@@ -6,6 +6,34 @@ import (
 	"github.com/ayanozturk/go-php-parser/syntax"
 )
 
+func TestMemoLowerExprCrossWrapper(t *testing.T) {
+	src := []byte(`<?php function f() { strlen('x'); }`)
+	res := syntax.Parse(src)
+	ctx := &AnalysisContext{Content: src, Parsed: res}
+
+	var callExpr *syntax.RedNode
+	syntax.Walk(res.File.Root, func(n *syntax.RedNode) bool {
+		if n.Kind() == syntax.KindCallExpr {
+			callExpr = n
+			return false
+		}
+		return true
+	})
+	if callExpr == nil {
+		t.Fatal("expected a call expr in fixture")
+	}
+
+	e1 := memoLowerExpr(ctx, callExpr, res.File)
+	callExpr2 := &syntax.RedNode{File: res.File, Green: callExpr.Green, Offset: callExpr.Offset}
+	e2 := memoLowerExpr(ctx, callExpr2, res.File)
+	if e1 != e2 {
+		t.Fatal("expected memo hit across RedNode wrappers with same green+offset")
+	}
+	if e1 == nil {
+		t.Fatal("expected lowered expr node")
+	}
+}
+
 func TestMemoLowerFunctionDeclCrossWalk(t *testing.T) {
 	src := []byte(`<?php class C { function a(){ return 1; } function b(){ return 2; } }`)
 	res := syntax.Parse(src)
