@@ -56,3 +56,19 @@ func hostSnapshotTargets(parsed map[string][]ast.Node, targets []string) []strin
 	}
 	return host
 }
+
+// DropNonHostParsedTrees nils vendored entries in parsed after the project
+// index has absorbed their symbols. Snapshot construction and rule execution
+// only need host-file ASTs; leaving vendor trees live beside the snapshot is
+// pure RSS on WordPress-scale corpora.
+func DropNonHostParsedTrees(parsed map[string][]ast.Node) {
+	if parsed == nil {
+		return
+	}
+	for path, nodes := range parsed {
+		if nodes == nil || !IsVendoredPath(path) {
+			continue
+		}
+		parsed[path] = nil
+	}
+}

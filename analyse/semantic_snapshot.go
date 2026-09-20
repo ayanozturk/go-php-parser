@@ -272,6 +272,21 @@ func (f *lazyVariableReadFacts) complete() []variableReadFact {
 	return f.reads
 }
 
+// ReleaseVariableFlowAST drops the AST slices retained for lazy complete
+// variable-flow materialization. Production diagnostics use the partial
+// variableReads via rangeVariableReadsForFile; VariableReadsForFile still
+// works if complete() ran before this release, otherwise returns empty.
+func (s *SemanticSnapshot) ReleaseVariableFlowAST() {
+	if s == nil {
+		return
+	}
+	for _, f := range s.completeVariableReads {
+		if f != nil {
+			f.nodes = nil
+		}
+	}
+}
+
 // NewSemanticSnapshot builds a project graph, derives reusable semantic facts,
 // and freezes the result. Duplicate explicit fact keys are rejected; explicit
 // facts take precedence over generated facts at the same exact source span.

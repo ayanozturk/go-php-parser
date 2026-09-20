@@ -103,6 +103,23 @@ func (idx *ProjectIndex) DropSourceFiles() {
 	idx.sourceFiles = nil
 }
 
+// DropFileTypeASTRefs clears ClassNodes maps retained on FileTypes after index
+// build. Analysis rules rebuild ClassNodes from the current file's nodes via
+// CollectFileTypeContext; the index copies are write-only for the full-analyse
+// path and otherwise keep corpus AST reachable after DropSourceFiles.
+func (idx *ProjectIndex) DropFileTypeASTRefs() {
+	if idx == nil {
+		return
+	}
+	for filename, ft := range idx.FileTypes {
+		if ft.ClassNodes == nil {
+			continue
+		}
+		ft.ClassNodes = nil
+		idx.FileTypes[filename] = ft
+	}
+}
+
 // BuildProjectIndex indexes every parsed file into a single ProjectIndex.
 // Files are processed in sorted filename order rather than native Go map
 // iteration order (which is randomized per run): symbol registration below

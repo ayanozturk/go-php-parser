@@ -711,6 +711,11 @@ func runWorker(phase, root string, paths, excludes []string, level, workers, rep
 			// A fresh sampler per iteration: startMemSampler's stop channel
 			// is one-shot, and each warm-loop iteration is its own
 			// measured "run" that should report its own memory peak.
+			if i > 0 {
+				// runAnalysis drops vendored/host trees for RSS; rebuild
+				// the corpus AST before the next warm index+analyse pass.
+				parsed, contents, parseMetrics = parseFiles(files, workers)
+			}
 			peakSys := startMemSampler()
 			start := time.Now()
 			project := analyse.BuildProjectIndex(parsed)
@@ -767,6 +772,9 @@ func runProfile(root string, paths, excludes []string, level, workers, iteration
 	var diagnostics int
 	for i := 0; i < iterations; i++ {
 		start := time.Now()
+		if i > 0 {
+			parsed, contents, parseMetrics = parseFiles(files, workers)
+		}
 		project := analyse.BuildProjectIndex(parsed)
 		diagnostics = runAnalysis(parsed, contents, project, levelPtr, workers)
 		fmt.Fprintf(os.Stderr, "  iteration %d/%d: %s, %d diagnostics\n", i+1, iterations, time.Since(start), diagnostics)
@@ -921,18 +929,32 @@ func parseFiles(files []string, workers int) (map[string][]ast.Node, map[string]
 					outcomes[idx] = parseOutcome{path: path, failed: true}
 					continue
 				}
-				nodes, diags := syntax.ParseAST(content)
+				var nodes []ast.Node
+				var diags []syntax.Diagnostic
+				if analyse.IsVendoredPath(path) {
+					// Vendored files are indexed for symbols only (never
+					// type-checked). Declaration-tier AST cuts body retention
+					// at the parse peak; DropNonHostParsedTrees frees them
+					// before snapshot. Host files stay on full ParseAST.
+					nodes, diags = syntax.ParseASTForIndex(content)
+				} else {
+					nodes, diags = syntax.ParseAST(content)
+				}
 				if len(diags) > 0 {
 					outcomes[idx] = parseOutcome{path: path, failed: true, bytes: int64(len(content))}
 					continue
 				}
-				outcomes[idx] = parseOutcome{
-					path:    path,
-					nodes:   nodes,
-					content: content,
-					loc:     countLines(content),
-					bytes:   int64(len(content)),
+				out := parseOutcome{
+					path:  path,
+					nodes: nodes,
+					loc:   countLines(content),
+					bytes: int64(len(content)),
 				}
+				// Rules never run on vendored paths; skip retaining source bytes.
+				if !analyse.IsVendoredPath(path) {
+					out.content = content
+				}
+				outcomes[idx] = out
 			}
 		}()
 	}
@@ -991,19 +1013,37 @@ func releaseBenchmarkContents(contents map[string][]byte) {
 }
 
 func runAnalysis(parsed map[string][]ast.Node, contents map[string][]byte, project *analyse.ProjectIndex, level *int, workers int) int {
+	// Free index-retained AST pins and vendored trees before snapshot/rules so
+	// peak RSS is host AST + snapshot rather than full corpus AST + snapshot.
+	project.DropSourceFiles()
+	project.DropFileTypeASTRefs()
+	analyse.DropNonHostParsedTrees(parsed)
+	for path := range contents {
+		if analyse.IsVendoredPath(path) {
+			delete(contents, path)
+		}
+	}
+
 	snapshot, err := analyse.NewSemanticSnapshotWithIndex(project, parsed, nil, nil)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "benchmark: semantic snapshot: %v\n", err)
 		os.Exit(1)
 	}
-	project.DropSourceFiles()
+	snapshot.ReleaseVariableFlowAST()
+
 	type job struct {
 		path    string
 		nodes   []ast.Node
 		content []byte
 	}
+	files := snapshot.Files()
+	jobs := make([]job, 0, len(files))
+	for _, path := range files {
+		jobs = append(jobs, job{path: path, nodes: parsed[path], content: contents[path]})
+	}
 	jobCh := make(chan job, workers*2)
 	var total atomic.Int64
+	var parsedMu sync.Mutex
 	var wg sync.WaitGroup
 	for i := 0; i < workers; i++ {
 		wg.Add(1)
@@ -1015,11 +1055,15 @@ func runAnalysis(parsed map[string][]ast.Node, contents map[string][]byte, proje
 				ctx.Content = j.content
 				issues := analyse.RunAnalysisRulesWithContext(j.path, j.nodes, ctx)
 				total.Add(int64(len(issues)))
+				parsedMu.Lock()
+				parsed[j.path] = nil
+				delete(contents, j.path)
+				parsedMu.Unlock()
 			}
 		}()
 	}
-	for _, path := range snapshot.Files() {
-		jobCh <- job{path: path, nodes: parsed[path], content: contents[path]}
+	for _, j := range jobs {
+		jobCh <- j
 	}
 	close(jobCh)
 	wg.Wait()
