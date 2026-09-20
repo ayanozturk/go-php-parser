@@ -39,7 +39,7 @@ func checkPHPDocIssuesFromParsed(filename string, res *syntax.ParseResult, ctx *
 	if ctx.phpDocTypeAliases == nil {
 		ctx.phpDocTypeAliases = phpDocAliases
 	}
-	rootFt := CollectFileTypeContextFromSyntax(res.File.Root)
+	rootFt := ensureSyntaxRootFileTypeContext(ctx, res.File.Root)
 
 	lowerClass := func(class *syntax.RedNode) *ast.ClassNode {
 		return memoLowerClassLike(ctx, class, res.File)

@@ -28,7 +28,7 @@ func checkMissingTypeIssuesFromParsed(filename string, res *syntax.ParseResult, 
 	if res == nil || res.File == nil || res.File.Root == nil {
 		return nil
 	}
-	rootFt := CollectFileTypeContextFromSyntax(res.File.Root)
+	rootFt := ensureSyntaxRootFileTypeContext(ctx, res.File.Root)
 
 	lowerClass := func(class *syntax.RedNode) *ast.ClassNode {
 		return memoLowerClassLike(ctx, class, res.File)

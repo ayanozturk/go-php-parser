@@ -29,7 +29,7 @@ func checkReturnTypeIssuesFromParsed(filename string, res *syntax.ParseResult, c
 	if res == nil || res.File == nil || res.File.Root == nil {
 		return nil
 	}
-	rootFt := CollectFileTypeContextFromSyntax(res.File.Root)
+	rootFt := ensureSyntaxRootFileTypeContext(ctx, res.File.Root)
 
 	lowerClass := func(class *syntax.RedNode) *ast.ClassNode {
 		return memoLowerClassLike(ctx, class, res.File)

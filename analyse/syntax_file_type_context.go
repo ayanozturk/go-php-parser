@@ -161,3 +161,16 @@ func registerSyntaxInterface(n *syntax.RedNode, namespace string, ctx *FileTypeC
 	}
 	ctx.Classes[asciiLowerIdent(strings.TrimPrefix(interfaceName, `\`))] = resolved
 }
+
+// ensureSyntaxRootFileTypeContext caches CollectFileTypeContextFromSyntax(root)
+// on ctx for the lifetime of the current ctx.Parsed (cleared in sharedParseResult).
+func ensureSyntaxRootFileTypeContext(ctx *AnalysisContext, root *syntax.RedNode) FileTypeContext {
+	if ctx == nil {
+		return CollectFileTypeContextFromSyntax(root)
+	}
+	if !ctx.hasSyntaxRootFt {
+		ctx.syntaxRootFt = CollectFileTypeContextFromSyntax(root)
+		ctx.hasSyntaxRootFt = true
+	}
+	return ctx.syntaxRootFt
+}

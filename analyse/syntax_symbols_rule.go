@@ -68,7 +68,7 @@ func checkSymbolIssuesFromParsed(filename string, res *syntax.ParseResult, ctx *
 	if res == nil || res.File == nil || res.File.Root == nil {
 		return nil
 	}
-	rootFt := CollectFileTypeContextFromSyntax(res.File.Root)
+	rootFt := ensureSyntaxRootFileTypeContext(ctx, res.File.Root)
 
 	type redNodeKey struct {
 		green  *syntax.GreenNode

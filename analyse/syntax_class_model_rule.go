@@ -44,7 +44,7 @@ func checkClassModelIssuesFromParsed(filename string, res *syntax.ParseResult, c
 	if ctx == nil || ctx.Resolver == nil || res == nil || res.File == nil || res.File.Root == nil {
 		return issues
 	}
-	rootFt := CollectFileTypeContextFromSyntax(res.File.Root)
+	rootFt := ensureSyntaxRootFileTypeContext(ctx, res.File.Root)
 	walkSyntaxConfigured(res.File.Root, rootFt, func(n, class, currentFn *syntax.RedNode, ft FileTypeContext, inStatementBody bool) {
 		switch n.Kind() {
 		case syntax.KindClassDecl, syntax.KindAnonymousClass:

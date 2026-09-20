@@ -32,7 +32,7 @@ func checkMethodVisibilityIssuesFromParsed(filename string, res *syntax.ParseRes
 	if res == nil || res.File == nil || res.File.Root == nil {
 		return nil
 	}
-	rootFt := CollectFileTypeContextFromSyntax(res.File.Root)
+	rootFt := ensureSyntaxRootFileTypeContext(ctx, res.File.Root)
 
 	type redNodeKey struct {
 		green  *syntax.GreenNode

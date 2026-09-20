@@ -31,7 +31,7 @@ func checkTypeReferenceIssuesFromParsed(filename string, res *syntax.ParseResult
 	if res == nil || res.File == nil || res.File.Root == nil {
 		return nil
 	}
-	rootFt := CollectFileTypeContextFromSyntax(res.File.Root)
+	rootFt := ensureSyntaxRootFileTypeContext(ctx, res.File.Root)
 
 	var issues []AnalysisIssue
 	walkSyntaxConfigured(res.File.Root, rootFt, func(n, class, currentFn *syntax.RedNode, ft FileTypeContext, inStatementBody bool) {

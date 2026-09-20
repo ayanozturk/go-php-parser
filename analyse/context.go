@@ -248,6 +248,9 @@ type AnalysisContext struct {
 
 	syntaxLower *syntaxLowerMemo // cross-walk CST Lower* memo for this file
 
+	syntaxRootFt     FileTypeContext // CollectFileTypeContextFromSyntax(root), once per parse
+	hasSyntaxRootFt  bool
+
 	FileTypeContext     FileTypeContext
 	hasFileTypeContext  bool
 	phpDocTypeAliases   map[string]struct{}
