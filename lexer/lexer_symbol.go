@@ -165,6 +165,9 @@ func (l *Lexer) lexDoubleQuote(pos token.Position) token.Token {
 		start := l.pos
 		l.readChar() // opening "
 		for !l.atEOF() && l.char != '"' {
+			if l.checkCancel() {
+				break
+			}
 			if l.char == '\\' {
 				l.readChar()
 				if !l.atEOF() {
@@ -204,6 +207,9 @@ func (l *Lexer) lexSingleQuote(pos token.Position) token.Token {
 	start := l.pos
 	l.readChar() // opening '
 	for !l.atEOF() && l.char != '\'' {
+		if l.checkCancel() {
+			break
+		}
 		if l.char == '\\' {
 			l.readChar()
 			if !l.atEOF() {

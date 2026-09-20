@@ -38,6 +38,9 @@ func (l *Lexer) lexAttribute(pos token.Position) token.Token {
 func (l *Lexer) lookDoubleQuoteConstant() bool {
 	i := l.pos + 1
 	for i < len(l.input) {
+		if l.noteCancelProgress(i) {
+			return true // abort into the constant scan path; it also checks cancel
+		}
 		c := l.input[i]
 		switch c {
 		case '\\':
@@ -65,6 +68,10 @@ func (l *Lexer) lookDoubleQuoteConstant() bool {
 // heredoc until the terminator. nowdoc=false enables interpolation.
 func (l *Lexer) queueEncapsedBody(nowdoc bool) {
 	for !l.atEOF() {
+		if l.checkCancel() {
+			l.encapsed = encapsedNone
+			return
+		}
 		if l.encapsed == encapsedDoubleQuote && l.char == '"' {
 			pos := token.Position{Line: l.line, Column: l.column, Offset: l.pos}
 			l.readChar()
@@ -138,6 +145,10 @@ func (l *Lexer) queueEncapsedBody(nowdoc bool) {
 			// handled above
 		}
 		l.lexEncapsedChunk(nowdoc)
+		if l.cancelErr != nil {
+			l.encapsed = encapsedNone
+			return
+		}
 	}
 	l.encapsed = encapsedNone
 }
@@ -148,6 +159,9 @@ func (l *Lexer) lexEncapsedChunk(nowdoc bool) {
 	pos := token.Position{Line: l.line, Column: l.column, Offset: l.pos}
 	start := l.pos
 	for !l.atEOF() {
+		if l.checkCancel() {
+			break
+		}
 		if l.encapsed == encapsedDoubleQuote && l.char == '"' {
 			break
 		}

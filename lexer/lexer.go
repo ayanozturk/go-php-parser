@@ -59,6 +59,13 @@ type Lexer struct {
 	// lastSignificant is the previous non-trivia token type, used so
 	// semi-reserved words (enum, ...) stay T_STRING after \\ / class / etc.
 	lastSignificant token.TokenType
+
+	// Cooperative cancellation for LexAllContext. Long scanners check
+	// periodically via checkCancel so a single NextToken cannot scan an
+	// entire multi-megabyte heredoc/string/comment without observing ctx.
+	ctx           context.Context
+	cancelErr     error
+	cancelCheckAt int
 }
 
 // inStringMode returns whether the lexer is currently inside a string.
@@ -303,6 +310,9 @@ func (l *Lexer) SkipBalancedCurlyBlockWithEnd() (token.Position, bool) {
 func (l *Lexer) skipQuotedString(quote rune) {
 	l.readChar()
 	for !l.atEOF() {
+		if l.checkCancel() {
+			return
+		}
 		if l.char == '\\' {
 			l.readChar()
 			if !l.atEOF() {
@@ -328,6 +338,9 @@ func (l *Lexer) skipBlockComment() {
 	l.readChar()
 	l.readChar()
 	for !l.atEOF() {
+		if l.checkCancel() {
+			return
+		}
 		if l.char == '*' && l.peekChar() == '/' {
 			l.readChar()
 			l.readChar()
@@ -348,6 +361,9 @@ func (l *Lexer) readString(quote byte) string {
 	hasEscapesOrNewlines := false
 	end := l.pos
 	for end < len(l.input) {
+		if l.noteCancelProgress(end) {
+			break
+		}
 		c := l.input[end]
 		if c == quote {
 			break
@@ -359,7 +375,7 @@ func (l *Lexer) readString(quote byte) string {
 		end++
 	}
 
-	if !hasEscapesOrNewlines && end < len(l.input) && l.input[end] == quote {
+	if !hasEscapesOrNewlines && end < len(l.input) && l.input[end] == quote && l.cancelErr == nil {
 		str := l.text(l.pos, end)
 		l.column += utf8.RuneCountInString(str)
 		l.pos = end
@@ -371,6 +387,9 @@ func (l *Lexer) readString(quote byte) string {
 
 	var out strings.Builder
 	for l.char != rune(quote) && !l.atEOF() {
+		if l.checkCancel() {
+			break
+		}
 		if l.char == '\\' {
 			l.readChar()
 			switch l.char {
@@ -592,6 +611,9 @@ func (l *Lexer) lexInlineHTML() token.Token {
 	}
 	start := l.pos
 	for !l.atEOF() {
+		if l.checkCancel() {
+			break
+		}
 		if l.char == '<' && l.atOpenTag() {
 			break
 		}
@@ -788,22 +810,33 @@ func LexAll(src []byte) []token.Token {
 }
 
 // LexAllContext returns every significant token with trivia attached, through
-// T_EOF, while allowing callers to stop between tokens. A nil context disables
-// cancellation checks and preserves LexAll's existing behavior.
+// T_EOF, while allowing callers to cancel between tokens and inside long
+// single-token scanners (heredoc/encapsed bodies, large strings, block
+// comments, inline HTML). A nil context disables cancellation checks and
+// preserves LexAll's existing behavior.
 func LexAllContext(ctx context.Context, src []byte) ([]token.Token, error) {
 	l := NewFileBytes(src)
+	l.setCancelContext(ctx)
 	// Pre-size to a conservative estimate (real PHP source averages well
 	// under 8 bytes/token including trivia-carrying tokens) so the common
 	// case never triggers a growslice reallocation+copy of the accumulated
 	// token.Token structs - this runs once per file on every parse.
 	toks := make([]token.Token, 0, len(src)/8+16)
 	for {
+		if err := l.cancelled(); err != nil {
+			return toks, err
+		}
 		if ctx != nil {
 			if err := ctx.Err(); err != nil {
 				return toks, err
 			}
 		}
 		tok := l.NextToken()
+		if err := l.cancelled(); err != nil {
+			// Drop the in-flight token: scanners may have emitted a partial
+			// chunk before observing cancellation.
+			return toks, err
+		}
 		toks = append(toks, tok)
 		if tok.Type == token.T_EOF {
 			return toks, nil
