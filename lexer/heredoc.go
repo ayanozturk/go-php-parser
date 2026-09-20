@@ -66,10 +66,10 @@ func (l *Lexer) queueHeredocTokens(pos token.Position) {
 	l.heredocLabel = label
 	l.heredocNowdoc = isNowdoc
 	l.encapsed = encapsedHeredoc
-	// Emit start first via return path: caller does nextHeredocToken after queue.
-	// We return start via queue then body.
+	// Queue only the start token. Body tokens are emitted one step at a time
+	// from scanToken via queueEncapsedStep so peak pending-queue memory stays
+	// bounded for large interpolated heredocs.
 	l.heredocTokens = []token.Token{startTok}
-	l.queueEncapsedBody(isNowdoc)
 }
 
 func (l *Lexer) readHeredocIdentifier() (string, bool) {

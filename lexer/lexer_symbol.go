@@ -188,7 +188,8 @@ func (l *Lexer) lexDoubleQuote(pos token.Position) token.Token {
 			End:     token.Position{Line: l.line, Column: l.column, Offset: l.pos},
 		}
 	}
-	// Interpolating string: emit opening quote, queue body + closing quote.
+	// Interpolating string: emit opening quote; body + closing quote follow
+	// incrementally via queueEncapsedStep on subsequent NextToken calls.
 	l.readChar() // consume "
 	open := token.Token{
 		Type:    token.T_CONSTANT_STRING,
@@ -199,7 +200,6 @@ func (l *Lexer) lexDoubleQuote(pos token.Position) token.Token {
 	l.encapsed = encapsedDoubleQuote
 	l.heredocLabel = ""
 	l.heredocNowdoc = false
-	l.queueEncapsedBody(false)
 	return open
 }
 

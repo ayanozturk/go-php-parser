@@ -39,7 +39,9 @@ type Lexer struct {
 	line     int
 	column   int
 	inString bool // Tracks if currently inside a string
-	// Pending significant tokens (heredoc/encapsed/<?= echo expansion).
+	// Pending significant tokens: short bursts from encapsed/heredoc steps
+	// (e.g. $var[0] → several tokens) and <?= echo expansion. Never holds an
+	// entire heredoc/encapsed body.
 	heredocTokens []token.Token
 	// Lookahead cache: avoids state save/restore on PeekToken
 	hasPeeked   bool
@@ -523,7 +525,7 @@ func (l *Lexer) scanToken() token.Token {
 		return l.nextHeredocToken()
 	}
 	if l.encapsed != encapsedNone {
-		l.queueEncapsedBody(l.heredocNowdoc)
+		l.queueEncapsedStep(l.heredocNowdoc)
 		if len(l.heredocTokens) > 0 {
 			return l.nextHeredocToken()
 		}
@@ -575,9 +577,8 @@ func (l *Lexer) scanToken() token.Token {
 		case token.T_RBRACE:
 			l.braceExprDepth--
 			if l.braceExprDepth <= 0 {
-				// finishToken fills End from l.pos when unset. resumeEncapsedAfterBrace
-				// advances the lexer to queue the rest of the encapsed/heredoc body,
-				// so capture End for '}' before that scan or Width() swallows body bytes.
+				// finishToken fills End from l.pos when unset. Capture End for '}'
+				// before restoring encapsed mode so Width() stays exact.
 				if tok.End.Line == 0 && tok.End.Column == 0 && tok.End.Offset == 0 {
 					tok.End = token.Position{Line: l.line, Column: l.column, Offset: l.pos}
 				}

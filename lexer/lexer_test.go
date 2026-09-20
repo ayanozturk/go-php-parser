@@ -588,11 +588,19 @@ func TestLexerHeredocQueueAndNext(t *testing.T) {
 	lex := New("<<<EOD\nhello\nEOD\n")
 	lex.queueHeredocTokens(token.Position{Line: 1, Column: 1, Offset: 0})
 	t1 := lex.nextHeredocToken()
-	t2 := lex.nextHeredocToken()
-	t3 := lex.nextHeredocToken()
 	if t1.Type != token.T_START_HEREDOC {
 		t.Errorf("expected T_START_HEREDOC, got %v", t1.Type)
 	}
+	if n := len(lex.heredocTokens); n != 0 {
+		t.Fatalf("start should not eagerly queue body; pending=%d", n)
+	}
+	if lex.encapsed != encapsedHeredoc {
+		t.Fatalf("expected encapsedHeredoc after start, got %v", lex.encapsed)
+	}
+	lex.queueEncapsedStep(false)
+	t2 := lex.nextHeredocToken()
+	lex.queueEncapsedStep(false)
+	t3 := lex.nextHeredocToken()
 	if t2.Type != token.T_ENCAPSED_AND_WHITESPACE {
 		t.Errorf("expected T_ENCAPSED_AND_WHITESPACE, got %v", t2.Type)
 	}

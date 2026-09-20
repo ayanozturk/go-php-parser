@@ -64,93 +64,92 @@ func (l *Lexer) lookDoubleQuoteConstant() bool {
 	return true // unclosed — treat as constant scan path
 }
 
-// queueEncapsedBody tokenizes the interior of a double-quoted string or
-// heredoc until the terminator. nowdoc=false enables interpolation.
-func (l *Lexer) queueEncapsedBody(nowdoc bool) {
-	for !l.atEOF() {
-		if l.checkCancel() {
-			l.encapsed = encapsedNone
-			return
-		}
-		if l.encapsed == encapsedDoubleQuote && l.char == '"' {
+// queueEncapsedStep emits the next encapsed/heredoc unit into the pending
+// queue: one T_ENCAPSED_AND_WHITESPACE chunk, one interpolation burst
+// ($var / $var[…] / ${…}), a terminator, or a {$ handoff. Callers drain via
+// nextHeredocToken; scanToken invokes this once per NextToken so peak queue
+// length stays bounded instead of materializing the whole body up front.
+// nowdoc=false enables interpolation.
+func (l *Lexer) queueEncapsedStep(nowdoc bool) {
+	if l.atEOF() {
+		l.encapsed = encapsedNone
+		return
+	}
+	if l.checkCancel() {
+		l.encapsed = encapsedNone
+		return
+	}
+	if l.encapsed == encapsedDoubleQuote && l.char == '"' {
+		pos := token.Position{Line: l.line, Column: l.column, Offset: l.pos}
+		l.readChar()
+		l.queueToken(token.Token{
+			Type:    token.T_CONSTANT_STRING,
+			Literal: "\"",
+			Pos:     pos,
+			End:     token.Position{Line: l.line, Column: l.column, Offset: l.pos},
+		})
+		l.encapsed = encapsedNone
+		return
+	}
+	if l.encapsed == encapsedHeredoc {
+		if indent, label, ok := l.matchHeredocTerminator(); ok {
 			pos := token.Position{Line: l.line, Column: l.column, Offset: l.pos}
-			l.readChar()
+			start := l.pos
+			// consume indent + label
+			endOff := l.pos + len(indent) + len(label)
+			for l.pos < endOff {
+				l.readChar()
+			}
+			endType := token.T_END_HEREDOC
+			if nowdoc {
+				endType = token.T_END_NOWDOC
+			}
 			l.queueToken(token.Token{
-				Type:    token.T_CONSTANT_STRING,
-				Literal: "\"",
+				Type:    endType,
+				Literal: l.text(start, l.pos),
 				Pos:     pos,
 				End:     token.Position{Line: l.line, Column: l.column, Offset: l.pos},
 			})
 			l.encapsed = encapsedNone
-			return
-		}
-		if l.encapsed == encapsedHeredoc {
-			if indent, label, ok := l.matchHeredocTerminator(); ok {
-				pos := token.Position{Line: l.line, Column: l.column, Offset: l.pos}
-				start := l.pos
-				// consume indent + label
-				endOff := l.pos + len(indent) + len(label)
-				for l.pos < endOff {
-					l.readChar()
-				}
-				endType := token.T_END_HEREDOC
-				if nowdoc {
-					endType = token.T_END_NOWDOC
-				}
-				l.queueToken(token.Token{
-					Type:    endType,
-					Literal: l.text(start, l.pos),
-					Pos:     pos,
-					End:     token.Position{Line: l.line, Column: l.column, Offset: l.pos},
-				})
-				l.encapsed = encapsedNone
-				l.heredocLabel = ""
-				l.heredocNowdoc = false
-				return
-			}
-		}
-		if !nowdoc && l.char == '\\' {
-			// escaped char stays in encapsed whitespace chunk
-			l.lexEncapsedChunk(nowdoc)
-			continue
-		}
-		if !nowdoc && l.char == '$' && (isLetter(l.peekChar()) || l.peekChar() == '{') {
-			l.lexEncapsedVariable()
-			// ${...} switches to normal mode until '}' (afterCurlyOpen), matching
-			// the {$...} path which returns from this function. Continuing the
-			// encapsed loop would swallow "}..." into T_ENCAPSED_AND_WHITESPACE.
-			if l.afterCurlyOpen {
-				return
-			}
-			continue
-		}
-		if !nowdoc && l.char == '{' && l.peekChar() == '$' {
-			pos := token.Position{Line: l.line, Column: l.column, Offset: l.pos}
-			l.readChar() // '{'
-			l.queueToken(token.Token{
-				Type:    token.T_CURLY_OPEN,
-				Literal: "{",
-				Pos:     pos,
-				End:     token.Position{Line: l.line, Column: l.column, Offset: l.pos},
-			})
-			// Remaining "$var...}" is lexed by normal PHP mode until '}'.
-			// Push a marker by temporarily leaving encapsed mode for the
-			// braced expression; queue the closing brace when seen at depth 0.
-			l.braceExprDepth = 1
-			l.encapsed = encapsedNone
-			l.afterCurlyOpen = true
-			return
-		}
-		if !nowdoc && l.char == '$' && false {
-			// handled above
-		}
-		l.lexEncapsedChunk(nowdoc)
-		if l.cancelErr != nil {
-			l.encapsed = encapsedNone
+			l.heredocLabel = ""
+			l.heredocNowdoc = false
 			return
 		}
 	}
-	l.encapsed = encapsedNone
+	if !nowdoc && l.char == '\\' {
+		// escaped char stays in encapsed whitespace chunk
+		l.lexEncapsedChunk(nowdoc)
+		if l.cancelErr != nil {
+			l.encapsed = encapsedNone
+		}
+		return
+	}
+	if !nowdoc && l.char == '$' && (isLetter(l.peekChar()) || l.peekChar() == '{') {
+		l.lexEncapsedVariable()
+		// ${...} switches to normal mode until '}' (afterCurlyOpen).
+		// Simple $var / $var[…] leave a short burst on the queue; scanToken
+		// drains it before the next step.
+		return
+	}
+	if !nowdoc && l.char == '{' && l.peekChar() == '$' {
+		pos := token.Position{Line: l.line, Column: l.column, Offset: l.pos}
+		l.readChar() // '{'
+		l.queueToken(token.Token{
+			Type:    token.T_CURLY_OPEN,
+			Literal: "{",
+			Pos:     pos,
+			End:     token.Position{Line: l.line, Column: l.column, Offset: l.pos},
+		})
+		// Remaining "$var...}" is lexed by normal PHP mode until '}'.
+		l.braceExprDepth = 1
+		l.encapsed = encapsedNone
+		l.afterCurlyOpen = true
+		return
+	}
+	l.lexEncapsedChunk(nowdoc)
+	if l.cancelErr != nil {
+		l.encapsed = encapsedNone
+	}
 }
 
 // lexEncapsedChunk emits T_ENCAPSED_AND_WHITESPACE up to the next
@@ -310,7 +309,8 @@ func (l *Lexer) lexEncapsedVariable() {
 }
 
 // resumeEncapsedAfterBrace is called when a '}' closes an interpolation
-// expression that was started with {$ or ${.
+// expression that was started with {$ or ${. Restores encapsed mode only;
+// the next scanToken step emits the following body token.
 func (l *Lexer) resumeEncapsedAfterBrace() {
 	if l.heredocLabel != "" {
 		l.encapsed = encapsedHeredoc
@@ -318,5 +318,4 @@ func (l *Lexer) resumeEncapsedAfterBrace() {
 		l.encapsed = encapsedDoubleQuote
 	}
 	l.afterCurlyOpen = false
-	l.queueEncapsedBody(l.heredocNowdoc)
 }
