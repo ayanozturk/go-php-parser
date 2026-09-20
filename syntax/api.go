@@ -437,9 +437,10 @@ func Walk(root *RedNode, fn func(*RedNode) bool) {
 	if !fn(root) {
 		return
 	}
-	for _, c := range root.Children() {
+	root.ForEachChild(func(c *RedNode) bool {
 		Walk(c, fn)
-	}
+		return true
+	})
 }
 
 // FirstChildOfKind returns the first direct child with the given kind.

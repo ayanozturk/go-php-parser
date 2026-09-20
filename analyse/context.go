@@ -246,6 +246,8 @@ type AnalysisContext struct {
 	// parsed for LowerAST should set Parsed to avoid a second parse.
 	Parsed *syntax.ParseResult
 
+	syntaxLower *syntaxLowerMemo // cross-walk CST Lower* memo for this file
+
 	FileTypeContext     FileTypeContext
 	hasFileTypeContext  bool
 	phpDocTypeAliases   map[string]struct{}

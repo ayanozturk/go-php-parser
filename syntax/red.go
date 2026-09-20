@@ -31,6 +31,25 @@ type File struct {
 		offset int // byte offset within Source the cached column ends at
 		col    int // 0-based rune column at `offset`
 	}
+
+	childDescCache struct {
+		mu    sync.Mutex
+		byKey map[redNodeKey][]redChildDesc
+	}
+	contentStartCache struct {
+		mu    sync.Mutex
+		byKey map[redNodeKey]int
+	}
+}
+
+type redChildDesc struct {
+	green  *GreenNode
+	offset int
+}
+
+type redNodeKey struct {
+	green  *GreenNode
+	offset int
 }
 
 // RedNode is a typed view over a green node with parent and absolute span.
@@ -64,21 +83,99 @@ func (r *RedNode) Text() string {
 	return string(r.File.Source[s.Start:s.End])
 }
 
+func buildChildDescs(green *GreenNode, offset int) []redChildDesc {
+	if green == nil || len(green.children) == 0 {
+		return nil
+	}
+	out := make([]redChildDesc, 0, len(green.children))
+	off := offset
+	for _, g := range green.children {
+		if g == nil {
+			continue
+		}
+		out = append(out, redChildDesc{green: g, offset: off})
+		off += g.width
+	}
+	return out
+}
+
+func (f *File) childDescs(parentGreen *GreenNode, parentOff int) []redChildDesc {
+	if parentGreen == nil || len(parentGreen.children) == 0 {
+		return nil
+	}
+	key := redNodeKey{green: parentGreen, offset: parentOff}
+	f.childDescCache.mu.Lock()
+	if f.childDescCache.byKey == nil {
+		f.childDescCache.byKey = make(map[redNodeKey][]redChildDesc)
+	}
+	if descs, ok := f.childDescCache.byKey[key]; ok {
+		f.childDescCache.mu.Unlock()
+		return descs
+	}
+	f.childDescCache.mu.Unlock()
+
+	descs := buildChildDescs(parentGreen, parentOff)
+
+	f.childDescCache.mu.Lock()
+	f.childDescCache.byKey[key] = descs
+	f.childDescCache.mu.Unlock()
+	return descs
+}
+
+func (f *File) cachedContentStart(key redNodeKey) (int, bool) {
+	f.contentStartCache.mu.Lock()
+	defer f.contentStartCache.mu.Unlock()
+	if f.contentStartCache.byKey == nil {
+		return 0, false
+	}
+	v, ok := f.contentStartCache.byKey[key]
+	return v, ok
+}
+
+func (f *File) storeContentStart(key redNodeKey, start int) {
+	f.contentStartCache.mu.Lock()
+	if f.contentStartCache.byKey == nil {
+		f.contentStartCache.byKey = make(map[redNodeKey]int)
+	}
+	f.contentStartCache.byKey[key] = start
+	f.contentStartCache.mu.Unlock()
+}
+
 func (r *RedNode) Children() []*RedNode {
 	if r == nil || r.Green == nil || len(r.Green.children) == 0 {
 		return nil
 	}
-	out := make([]*RedNode, 0, len(r.Green.children))
-	off := r.Offset
-	for _, g := range r.Green.children {
-		if g == nil {
-			continue
-		}
-		child := &RedNode{File: r.File, Parent: r, Green: g, Offset: off}
-		out = append(out, child)
-		off += g.width
+	var descs []redChildDesc
+	if r.File != nil {
+		descs = r.File.childDescs(r.Green, r.Offset)
+	} else {
+		descs = buildChildDescs(r.Green, r.Offset)
+	}
+	out := make([]*RedNode, 0, len(descs))
+	for _, d := range descs {
+		out = append(out, &RedNode{File: r.File, Parent: r, Green: d.green, Offset: d.offset})
 	}
 	return out
+}
+
+// ForEachChild visits each child without allocating a []*RedNode slice.
+// If fn returns false, iteration stops.
+func (r *RedNode) ForEachChild(fn func(*RedNode) bool) {
+	if r == nil || r.Green == nil || len(r.Green.children) == 0 || fn == nil {
+		return
+	}
+	var descs []redChildDesc
+	if r.File != nil {
+		descs = r.File.childDescs(r.Green, r.Offset)
+	} else {
+		descs = buildChildDescs(r.Green, r.Offset)
+	}
+	for _, d := range descs {
+		child := &RedNode{File: r.File, Parent: r, Green: d.green, Offset: d.offset}
+		if !fn(child) {
+			return
+		}
+	}
 }
 
 func (r *RedNode) Child(i int) *RedNode {

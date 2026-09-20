@@ -48,7 +48,7 @@ func checkClassModelIssuesFromParsed(filename string, res *syntax.ParseResult, c
 	walkSyntaxConfigured(res.File.Root, rootFt, func(n, class, currentFn *syntax.RedNode, ft FileTypeContext, inStatementBody bool) {
 		switch n.Kind() {
 		case syntax.KindClassDecl, syntax.KindAnonymousClass:
-			cls := syntax.LowerClassLikeContextNode(n, res.File)
+			cls := memoLowerClassLike(ctx, n, res.File)
 			if cls == nil {
 				return
 			}

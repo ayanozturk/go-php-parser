@@ -42,29 +42,11 @@ func checkMethodVisibilityIssuesFromParsed(filename string, res *syntax.ParseRes
 		return redNodeKey{green: n.Green, offset: n.Offset}
 	}
 
-	classCache := map[*syntax.RedNode]*ast.ClassNode{}
-	fnCache := map[*syntax.RedNode]*ast.FunctionNode{}
 	classCtx := func(n *syntax.RedNode) *ast.ClassNode {
-		if n == nil {
-			return nil
-		}
-		if v, ok := classCache[n]; ok {
-			return v
-		}
-		v := syntax.LowerClassLikeContextNode(n, res.File)
-		classCache[n] = v
-		return v
+		return memoLowerClassLike(ctx, n, res.File)
 	}
 	fnCtx := func(n *syntax.RedNode) *ast.FunctionNode {
-		if n == nil {
-			return nil
-		}
-		if v, ok := fnCache[n]; ok {
-			return v
-		}
-		v := syntax.LowerFunctionLikeContextNode(n, res.File)
-		fnCache[n] = v
-		return v
+		return memoLowerFunctionLike(ctx, n, res.File)
 	}
 
 	var issues []AnalysisIssue

@@ -81,29 +81,11 @@ func checkSymbolIssuesFromParsed(filename string, res *syntax.ParseResult, ctx *
 	var issues []AnalysisIssue
 	callCallees := map[redNodeKey]bool{}
 	suppressed := map[redNodeKey]bool{}
-	classCache := map[*syntax.RedNode]*ast.ClassNode{}
-	fnCache := map[*syntax.RedNode]*ast.FunctionNode{}
 	classCtx := func(n *syntax.RedNode) *ast.ClassNode {
-		if n == nil {
-			return nil
-		}
-		if c, ok := classCache[n]; ok {
-			return c
-		}
-		c := syntax.LowerClassLikeContextNode(n, res.File)
-		classCache[n] = c
-		return c
+		return memoLowerClassLike(ctx, n, res.File)
 	}
 	fnCtx := func(n *syntax.RedNode) *ast.FunctionNode {
-		if n == nil {
-			return nil
-		}
-		if f, ok := fnCache[n]; ok {
-			return f
-		}
-		f := syntax.LowerFunctionLikeContextNode(n, res.File)
-		fnCache[n] = f
-		return f
+		return memoLowerFunctionLike(ctx, n, res.File)
 	}
 	walkSyntaxConfigured(res.File.Root, rootFt, func(n, class, currentFn *syntax.RedNode, ft FileTypeContext, inStatementBody bool) {
 		if suppressed[keyOf(n)] {

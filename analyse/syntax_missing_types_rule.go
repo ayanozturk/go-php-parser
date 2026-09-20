@@ -30,22 +30,8 @@ func checkMissingTypeIssuesFromParsed(filename string, res *syntax.ParseResult, 
 	}
 	rootFt := CollectFileTypeContextFromSyntax(res.File.Root)
 
-	// lowerClassCache memoizes LowerClassLikeContextNode per class within this
-	// single walk: the walker passes the same *syntax.RedNode class pointer to
-	// every member of that class, so without this cache a class with N members
-	// re-lowers its entire body (all N members) on each of the N member visits
-	// - O(N^2) work per class instead of O(N).
-	lowerClassCache := map[*syntax.RedNode]*ast.ClassNode{}
 	lowerClass := func(class *syntax.RedNode) *ast.ClassNode {
-		if class == nil {
-			return nil
-		}
-		if cls, ok := lowerClassCache[class]; ok {
-			return cls
-		}
-		cls := syntax.LowerClassLikeContextNode(class, res.File)
-		lowerClassCache[class] = cls
-		return cls
+		return memoLowerClassLike(ctx, class, res.File)
 	}
 
 	var issues []AnalysisIssue
@@ -58,7 +44,7 @@ func checkMissingTypeIssuesFromParsed(filename string, res *syntax.ParseResult, 
 				}
 				return
 			}
-			if fn := syntax.LowerFunctionDeclNode(n, res.File); fn != nil {
+			if fn := memoLowerFunctionDecl(ctx, n, res.File); fn != nil {
 				appendMissingTypeIssuesOnNode(filename, fn, lowerClass(class), ft, ctx, &issues)
 			}
 		case syntax.KindClosureExpr:

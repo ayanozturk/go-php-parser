@@ -47,7 +47,7 @@ func checkTypeReferenceIssuesFromParsed(filename string, res *syntax.ParseResult
 				}
 				return
 			}
-			if fn := syntax.LowerFunctionDeclNode(n, res.File); fn != nil {
+			if fn := memoLowerFunctionDecl(ctx, n, res.File); fn != nil {
 				checkTypeReferenceOnNode(filename, fn, ft, ctx, guards, &issues)
 			}
 		case syntax.KindClosureExpr:
