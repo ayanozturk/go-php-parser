@@ -20,6 +20,7 @@ func sharedParseResult(ctx *AnalysisContext, content []byte) *syntax.ParseResult
 	if ctx != nil {
 		ctx.Parsed = res
 		ctx.syntaxLower = nil
+		ctx.preLowered = nil
 		ctx.hasSyntaxRootFt = false
 		if len(ctx.Content) == 0 {
 			ctx.Content = src

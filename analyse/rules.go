@@ -148,6 +148,7 @@ func RunAnalysisRulesWithContext(filename string, nodes []ast.Node, ctx *Analysi
 	if len(ctx.Content) > 0 {
 		_ = sharedParseResult(ctx, ctx.Content)
 	}
+	ensurePreLoweredIndex(ctx, nodes)
 	// Populate file type context once; reuse across all rules for this file
 	_ = analysisFileTypeContext(ctx, nodes)
 

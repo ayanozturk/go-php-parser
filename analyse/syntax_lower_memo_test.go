@@ -3,6 +3,7 @@ package analyse
 import (
 	"testing"
 
+	"github.com/ayanozturk/go-php-parser/ast"
 	"github.com/ayanozturk/go-php-parser/syntax"
 )
 
@@ -116,5 +117,97 @@ func TestMemoLowerClearedOnSharedReParse(t *testing.T) {
 	}
 	if ctx.syntaxLower != nil {
 		t.Fatal("expected syntaxLower cleared when ctx.Parsed is replaced")
+	}
+	if ctx.preLowered != nil {
+		t.Fatal("expected preLowered cleared when ctx.Parsed is replaced")
+	}
+}
+
+func TestPreLoweredBridgeAvoidsRelower(t *testing.T) {
+	src := []byte(`<?php class C { function m(): int { return strlen('hello'); } }`)
+	nodes, res := syntax.ParseAndLower(src)
+	ctx := &AnalysisContext{Content: src, Parsed: res}
+	ensurePreLoweredIndex(ctx, nodes)
+
+	var ingestFn *ast.FunctionNode
+	for _, top := range nodes {
+		cls, ok := top.(*ast.ClassNode)
+		if !ok {
+			continue
+		}
+		for _, m := range cls.Methods {
+			if fn, ok := m.(*ast.FunctionNode); ok && fn.Name == "m" {
+				ingestFn = fn
+				break
+			}
+		}
+	}
+	if ingestFn == nil {
+		t.Fatal("expected ingest function m")
+	}
+
+	var methodRed *syntax.RedNode
+	syntax.Walk(res.File.Root, func(n *syntax.RedNode) bool {
+		switch n.Kind() {
+		case syntax.KindFunctionDecl, syntax.KindMethodDecl:
+			if methodRed == nil {
+				methodRed = n
+			}
+		}
+		return true
+	})
+	if methodRed == nil {
+		t.Fatal("expected method decl RedNode for m")
+	}
+
+	f1 := memoLowerFunctionDecl(ctx, methodRed, res.File)
+	if f1 != ingestFn {
+		t.Fatal("expected pre-lowered bridge to return ingest FunctionNode pointer")
+	}
+	f2 := memoLowerFunctionDecl(ctx, methodRed, res.File)
+	if f2 != f1 {
+		t.Fatal("expected memo hit on second call")
+	}
+	memo := ensureSyntaxLowerMemo(ctx)
+	if memo.fnDecl[redID(methodRed)] != ingestFn {
+		t.Fatal("expected fnDecl memo to store bridged node")
+	}
+}
+
+func TestPreLoweredBridgeClass(t *testing.T) {
+	src := []byte(`<?php class C { public int $x = 1; function m() {} }`)
+	nodes, res := syntax.ParseAndLower(src)
+	ctx := &AnalysisContext{Content: src, Parsed: res}
+	ensurePreLoweredIndex(ctx, nodes)
+
+	var ingestCls *ast.ClassNode
+	walkAllWithoutTypeContext(nodes, func(node ast.Node) {
+		if cls, ok := node.(*ast.ClassNode); ok && cls.Name == "C" {
+			ingestCls = cls
+		}
+	})
+	if ingestCls == nil {
+		t.Fatal("expected ingest class C")
+	}
+
+	var classRed *syntax.RedNode
+	syntax.Walk(res.File.Root, func(n *syntax.RedNode) bool {
+		if n.Kind() == syntax.KindClassDecl {
+			classRed = n
+			return false
+		}
+		return true
+	})
+	if classRed == nil {
+		t.Fatal("expected class decl RedNode")
+	}
+
+	c1 := memoLowerClassLike(ctx, classRed, res.File)
+	if c1 != ingestCls {
+		t.Fatal("expected pre-lowered bridge to return ingest ClassNode pointer")
+	}
+	c2 := memoLowerClassLike(ctx, classRed, res.File)
+	if c2 != c1 {
+		t.Fatal("expected memo hit on second call")
 	}
 }

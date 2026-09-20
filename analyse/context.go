@@ -247,6 +247,7 @@ type AnalysisContext struct {
 	Parsed *syntax.ParseResult
 
 	syntaxLower *syntaxLowerMemo // cross-walk CST Lower* memo for this file
+	preLowered  *preLoweredIndex // ingest []ast.Node span index for CST Lower* reuse
 
 	syntaxRootFt     FileTypeContext // CollectFileTypeContextFromSyntax(root), once per parse
 	hasSyntaxRootFt  bool

@@ -48,6 +48,16 @@ func memoLowerClassLike(ctx *AnalysisContext, n *syntax.RedNode, file *syntax.Fi
 		if cls, ok := memo.classLike[id]; ok {
 			return cls
 		}
+		if idx := ctx.preLowered; idx != nil {
+			switch n.Kind() {
+			case syntax.KindClassDecl, syntax.KindAnonymousClass:
+				start, end := syntax.ClassDeclSpanOffsets(n, file)
+				if cls, ok := idx.class[byteSpan{start, end}]; ok {
+					memo.classLike[id] = cls
+					return cls
+				}
+			}
+		}
 		cls := syntax.LowerClassLikeContextNode(n, file)
 		memo.classLike[id] = cls
 		return cls
@@ -63,6 +73,13 @@ func memoLowerFunctionDecl(ctx *AnalysisContext, n *syntax.RedNode, file *syntax
 		id := redID(n)
 		if fn, ok := memo.fnDecl[id]; ok {
 			return fn
+		}
+		if idx := ctx.preLowered; idx != nil {
+			start, end := syntax.FunctionDeclSpanOffsets(n, file)
+			if fn, ok := idx.fn[byteSpan{start, end}]; ok {
+				memo.fnDecl[id] = fn
+				return fn
+			}
 		}
 		fn := syntax.LowerFunctionDeclNode(n, file)
 		memo.fnDecl[id] = fn
@@ -80,6 +97,13 @@ func memoLowerFunctionLike(ctx *AnalysisContext, n *syntax.RedNode, file *syntax
 		if fn, ok := memo.fnLike[id]; ok {
 			return fn
 		}
+		if idx := ctx.preLowered; idx != nil {
+			start, end := syntax.FunctionDeclSpanOffsets(n, file)
+			if fn, ok := idx.fn[byteSpan{start, end}]; ok {
+				memo.fnLike[id] = fn
+				return fn
+			}
+		}
 		fn := syntax.LowerFunctionLikeContextNode(n, file)
 		memo.fnLike[id] = fn
 		return fn
@@ -95,6 +119,13 @@ func memoLowerExpr(ctx *AnalysisContext, n *syntax.RedNode, file *syntax.File) a
 		id := redID(n)
 		if v, ok := memo.expr[id]; ok {
 			return v
+		}
+		if idx := ctx.preLowered; idx != nil && n.Kind() == syntax.KindCallExpr {
+			start, end := syntax.ContentSpanOffsets(n, file)
+			if mc, ok := idx.methodCall[byteSpan{start, end}]; ok {
+				memo.expr[id] = mc
+				return mc
+			}
 		}
 		v := syntax.LowerExprNode(n, file)
 		memo.expr[id] = v
