@@ -20,7 +20,7 @@ func lowerClosureExpr(n *RedNode, file *File) ast.Node {
 	}
 	seenColon := false
 	headerEnd := pos
-	for _, c := range n.Children() {
+	n.ForEachChild(func(c *RedNode) bool {
 		switch c.Kind() {
 		case KindParamList:
 			fn.Params = lowerParamList(c, file)
@@ -35,11 +35,11 @@ func lowerClosureExpr(n *RedNode, file *File) ast.Node {
 		default:
 			if isTokenType(c, token.T_STATIC) {
 				fn.Modifiers = append(fn.Modifiers, ast.Modifier{Tok: token.T_STATIC, Text: "static"})
-				continue
+				return true
 			}
 			if isTokenType(c, token.T_COLON) {
 				seenColon = true
-				continue
+				return true
 			}
 			if seenColon && isTypeKind(c.Kind()) {
 				fn.ReturnType = lowerType(c, file)
@@ -47,7 +47,8 @@ func lowerClosureExpr(n *RedNode, file *File) ast.Node {
 				seenColon = false
 			}
 		}
-	}
+		return true
+	})
 	fn.HeaderEndPos = headerEnd
 	return fn
 }
@@ -58,10 +59,10 @@ func lowerClosureUses(n *RedNode, file *File) []ast.ClosureUse {
 	}
 	var out []ast.ClosureUse
 	byRef := false
-	for _, c := range n.Children() {
+	n.ForEachChild(func(c *RedNode) bool {
 		if isTokenType(c, token.T_AMPERSAND) {
 			byRef = true
-			continue
+			return true
 		}
 		if isTokenType(c, token.T_VARIABLE) {
 			p, e := nodePos(file, c)
@@ -73,7 +74,8 @@ func lowerClosureUses(n *RedNode, file *File) []ast.ClosureUse {
 			})
 			byRef = false
 		}
-	}
+		return true
+	})
 	return out
 }
 
@@ -84,29 +86,30 @@ func lowerArrowFunctionExpr(n *RedNode, file *File) ast.Node {
 	pos, end := nodePos(file, n)
 	af := &ast.ArrowFunctionNode{Pos: pos, EndPos: end}
 	seenColon, seenArrow := false, false
-	for _, c := range n.Children() {
+	n.ForEachChild(func(c *RedNode) bool {
 		switch c.Kind() {
 		case KindParamList:
 			af.Params = lowerParamList(c, file)
 		default:
 			if isTokenType(c, token.T_COLON) {
 				seenColon = true
-				continue
+				return true
 			}
 			if seenColon && isTypeKind(c.Kind()) {
 				af.ReturnType = lowerType(c, file)
 				seenColon = false
-				continue
+				return true
 			}
 			if isTokenType(c, token.T_DOUBLE_ARROW) {
 				seenArrow = true
-				continue
+				return true
 			}
 			if seenArrow && (isExprKind(c.Kind()) || isNameKind(c.Kind())) {
 				af.Expr = lowerExpr(c, file)
 			}
 		}
-	}
+		return true
+	})
 	return af
 }
 
@@ -122,15 +125,16 @@ func lowerAnonymousClass(n *RedNode, file *File) (ast.Node, []ast.Node) {
 		PHPDoc:    leadingDocFromNode(n),
 	}
 	// Readonly may appear as a bare token before T_CLASS on anonymous classes.
-	for _, c := range n.Children() {
+	n.ForEachChild(func(c *RedNode) bool {
 		if isTokenType(c, token.T_READONLY) {
 			cls.Modifiers = append(cls.Modifiers, ast.Modifier{Tok: token.T_READONLY, Text: "readonly"})
 		}
-	}
+		return true
+	})
 	var ctorArgs []ast.Node
 	var members *RedNode
 	headerEnd := pos
-	for _, c := range n.Children() {
+	n.ForEachChild(func(c *RedNode) bool {
 		switch c.Kind() {
 		case KindArgList:
 			ctorArgs = lowerArgList(c, file)
@@ -149,7 +153,8 @@ func lowerAnonymousClass(n *RedNode, file *File) (ast.Node, []ast.Node) {
 		case KindModifierList:
 			headerEnd = spanEnd(file, c.Span())
 		}
-	}
+		return true
+	})
 	cls.HeaderEndPos = headerEnd
 	if members != nil {
 		lowerClassMembers(members, file, cls)
@@ -164,22 +169,23 @@ func lowerMatchExpr(n *RedNode, file *File) ast.Node {
 	pos, end := nodePos(file, n)
 	m := &ast.MatchNode{Pos: pos, EndPos: end}
 	seenLParen, seenCond := false, false
-	for _, c := range n.Children() {
+	n.ForEachChild(func(c *RedNode) bool {
 		if isTokenType(c, token.T_LPAREN) {
 			seenLParen = true
-			continue
+			return true
 		}
 		if seenLParen && !seenCond && (isExprKind(c.Kind()) || isNameKind(c.Kind())) {
 			m.Condition = lowerExpr(c, file)
 			seenCond = true
-			continue
+			return true
 		}
 		if c.Kind() == KindMatchArm {
 			if arm := lowerMatchArm(c, file); arm != nil {
 				m.Arms = append(m.Arms, *arm)
 			}
 		}
-	}
+		return true
+	})
 	return m
 }
 
@@ -190,39 +196,41 @@ func lowerMatchArm(n *RedNode, file *File) *ast.MatchArmNode {
 	pos, end := nodePos(file, n)
 	arm := &ast.MatchArmNode{Pos: pos, EndPos: end}
 	seenArrow := false
-	for _, c := range n.Children() {
+	n.ForEachChild(func(c *RedNode) bool {
 		if isTokenType(c, token.T_DEFAULT) {
 			dp, de := nodePos(file, c)
 			arm.Conditions = []ast.Node{&ast.IdentifierNode{Value: "default", Pos: dp, EndPos: de}}
-			continue
+			return true
 		}
 		if isTokenType(c, token.T_DOUBLE_ARROW) {
 			seenArrow = true
-			continue
+			return true
 		}
 		if isTokenType(c, token.T_COMMA) {
-			continue
+			return true
 		}
 		if !seenArrow && (isExprKind(c.Kind()) || isNameKind(c.Kind())) {
 			arm.Conditions = append(arm.Conditions, lowerExpr(c, file))
-			continue
+			return true
 		}
 		if seenArrow && (isExprKind(c.Kind()) || isNameKind(c.Kind())) {
 			arm.Body = lowerExpr(c, file)
 		}
-	}
+		return true
+	})
 	return arm
 }
 
 func lowerCloneExpr(n *RedNode, file *File) ast.Node {
 	pos, end := nodePos(file, n)
 	var operand *RedNode
-	for _, c := range n.Children() {
+	n.ForEachChild(func(c *RedNode) bool {
 		if isExprKind(c.Kind()) || isNameKind(c.Kind()) {
 			operand = c
-			break
+			return false
 		}
-	}
+		return true
+	})
 	if operand == nil {
 		return nil
 	}
@@ -237,14 +245,15 @@ func lowerCloneExpr(n *RedNode, file *File) ast.Node {
 func lowerListExpr(n *RedNode, file *File) ast.Node {
 	pos, end := nodePos(file, n)
 	var elements []ast.Node
-	for _, c := range n.Children() {
+	n.ForEachChild(func(c *RedNode) bool {
 		if c.Kind() != KindArrayElement {
-			continue
+			return true
 		}
 		if item := lowerArrayElement(c, file); item != nil {
 			elements = append(elements, item)
 		}
-	}
+		return true
+	})
 	return &ast.ArrayNode{Elements: elements, Pos: pos, EndPos: end}
 }
 
@@ -252,18 +261,19 @@ func lowerKeywordUnaryExpr(n *RedNode, file *File) ast.Node {
 	pos, end := nodePos(file, n)
 	var op string
 	var operand *RedNode
-	for _, c := range n.Children() {
+	n.ForEachChild(func(c *RedNode) bool {
 		if c.Green != nil && c.Green.IsToken() {
 			lit := strings.TrimSpace(tokenLiteral(c))
 			if lit != "" && op == "" {
 				op = lit
 			}
-			continue
+			return true
 		}
 		if isExprKind(c.Kind()) || isNameKind(c.Kind()) {
 			operand = c
 		}
-	}
+		return true
+	})
 	if op == "" || operand == nil {
 		return nil
 	}
@@ -290,19 +300,20 @@ func lowerInterpolatedStringLiteral(n *RedNode, file *File) ast.Node {
 func lowerHeredoc(n *RedNode, file *File) ast.Node {
 	pos, end := nodePos(file, n)
 	ident := ""
-	for _, c := range n.Children() {
+	n.ForEachChild(func(c *RedNode) bool {
 		if c.Green == nil || !c.Green.IsToken() {
-			continue
+			return true
 		}
 		tt, ok := tokenOf(c)
 		if !ok {
-			continue
+			return true
 		}
 		if tt.Type == token.T_START_HEREDOC || tt.Type == token.T_START_NOWDOC {
 			ident = heredocIdentifier(tt.Literal)
-			break
+			return false
 		}
-	}
+		return true
+	})
 	return &ast.HeredocNode{
 		Identifier: ident,
 		Parts:      lowerStringParts(n, file),
@@ -316,7 +327,7 @@ func lowerStringParts(n *RedNode, file *File) []ast.Node {
 		return nil
 	}
 	var parts []ast.Node
-	for _, c := range n.Children() {
+	n.ForEachChild(func(c *RedNode) bool {
 		switch c.Kind() {
 		case KindStringPart:
 			p, e := nodePos(file, c)
@@ -337,7 +348,8 @@ func lowerStringParts(n *RedNode, file *File) []ast.Node {
 				parts = append(parts, e)
 			}
 		}
-	}
+		return true
+	})
 	return parts
 }
 
@@ -345,10 +357,16 @@ func firstTokenChild(n *RedNode) *RedNode {
 	if n == nil {
 		return nil
 	}
-	for _, c := range n.Children() {
+	var found *RedNode
+	n.ForEachChild(func(c *RedNode) bool {
 		if c.Green != nil && c.Green.IsToken() {
-			return c
+			found = c
+			return false
 		}
+		return true
+	})
+	if found != nil {
+		return found
 	}
 	if n.Green != nil && n.Green.IsToken() {
 		return n
@@ -363,26 +381,37 @@ func lowerEncapsulatedExpr(n *RedNode, file *File) ast.Node {
 	if n == nil {
 		return nil
 	}
-	for _, c := range n.Children() {
+	var structured ast.Node
+	n.ForEachChild(func(c *RedNode) bool {
 		if isExprKind(c.Kind()) || isNameKind(c.Kind()) {
-			return lowerExpr(c, file)
+			structured = lowerExpr(c, file)
+			return false
 		}
+		return true
+	})
+	if structured != nil {
+		return structured
 	}
 	// Token-blob fallback: ${name} / {$var} before structured parse.
 	var varname string
-	for _, c := range n.Children() {
+	n.ForEachChild(func(c *RedNode) bool {
 		if isTokenType(c, token.T_VARIABLE) {
-			return &ast.VariableNode{
+			structured = &ast.VariableNode{
 				Name:   stripVarDollar(tokenLiteral(c)),
 				Pos:    spanStart(file, c.Span()),
 				EndPos: spanEnd(file, c.Span()),
 			}
+			return false
 		}
 		if isTokenType(c, token.T_STRING_VARNAME) || isTokenType(c, token.T_STRING) {
 			if varname == "" {
 				varname = tokenLiteral(c)
 			}
 		}
+		return true
+	})
+	if structured != nil {
+		return structured
 	}
 	if varname != "" {
 		pos, end := nodePos(file, n)

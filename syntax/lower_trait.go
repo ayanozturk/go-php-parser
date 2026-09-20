@@ -15,7 +15,7 @@ func lowerTrait(n *RedNode, file *File) *ast.TraitNode {
 	var name string
 	var namePos, nameEnd ast.Position
 	var members *RedNode
-	for _, c := range n.Children() {
+	n.ForEachChild(func(c *RedNode) bool {
 		switch c.Kind() {
 		case KindUnqualifiedName, KindQualifiedName,
 			KindFullyQualifiedName, KindRelativeName:
@@ -26,7 +26,8 @@ func lowerTrait(n *RedNode, file *File) *ast.TraitNode {
 		case KindMemberList:
 			members = c
 		}
-	}
+		return true
+	})
 	if name == "" {
 		return nil
 	}
@@ -46,7 +47,7 @@ func lowerTrait(n *RedNode, file *File) *ast.TraitNode {
 func lowerTraitMembers(members *RedNode, file *File) []ast.Node {
 	var body []ast.Node
 	var pendingAttrs []ast.Node
-	for _, m := range members.Children() {
+	members.ForEachChild(func(m *RedNode) bool {
 		switch m.Kind() {
 		case KindAttributeList:
 			pendingAttrs = append(pendingAttrs, lowerAttributeList(m, file)...)
@@ -88,7 +89,8 @@ func lowerTraitMembers(members *RedNode, file *File) []ast.Node {
 		default:
 			pendingAttrs = nil
 		}
-	}
+		return true
+	})
 	return body
 }
 
@@ -99,14 +101,15 @@ func lowerUseTraitClause(n *RedNode, file *File) *ast.TraitUseNode {
 	pos, end := nodePos(file, n)
 	var traits []string
 	var adaptations []ast.TraitAdaptation
-	for _, c := range n.Children() {
+	n.ForEachChild(func(c *RedNode) bool {
 		switch {
 		case isNameKind(c.Kind()):
 			traits = append(traits, NameText(c))
 		case c.Kind() == KindTraitAdaptationList:
 			adaptations = lowerTraitAdaptations(c)
 		}
-	}
+		return true
+	})
 	if len(traits) == 0 {
 		return nil
 	}
@@ -123,20 +126,25 @@ func lowerTraitAdaptations(list *RedNode) []ast.TraitAdaptation {
 		return nil
 	}
 	var out []ast.TraitAdaptation
-	for _, c := range list.Children() {
+	list.ForEachChild(func(c *RedNode) bool {
 		if c.Kind() != KindTraitAdaptation {
-			continue
+			return true
 		}
 		if a, ok := lowerTraitAdaptation(c); ok {
 			out = append(out, a)
 		}
-	}
+		return true
+	})
 	return out
 }
 
 func lowerTraitAdaptation(n *RedNode) (ast.TraitAdaptation, bool) {
 	var a ast.TraitAdaptation
-	children := n.Children()
+	var children []*RedNode
+	n.ForEachChild(func(c *RedNode) bool {
+		children = append(children, c)
+		return true
+	})
 	i := 0
 	// Optional Trait::Method or bare Method.
 	if i < len(children) && isNameKind(children[i].Kind()) {
@@ -204,13 +212,13 @@ func lowerModifiersFromList(list *RedNode) ast.ModifierList {
 		return nil
 	}
 	var out ast.ModifierList
-	for _, c := range list.Children() {
+	list.ForEachChild(func(c *RedNode) bool {
 		if c.Green == nil || !c.Green.IsToken() {
-			continue
+			return true
 		}
 		tok, ok := c.Green.Token()
 		if !ok {
-			continue
+			return true
 		}
 		switch tok.Type {
 		case token.T_PUBLIC, token.T_PROTECTED, token.T_PRIVATE:
@@ -222,6 +230,7 @@ func lowerModifiersFromList(list *RedNode) ast.ModifierList {
 				out = append(out, ast.ModifierFromText(tok.Literal))
 			}
 		}
-	}
+		return true
+	})
 	return out
 }

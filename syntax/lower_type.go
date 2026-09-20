@@ -14,13 +14,13 @@ func lowerType(n *RedNode, file *File) ast.Node {
 	switch n.Kind() {
 	case KindNullableType:
 		var inner ast.Node
-		for _, c := range n.Children() {
+		n.ForEachChild(func(c *RedNode) bool {
 			if c.Kind() == KindToken {
-				continue
+				return true
 			}
 			inner = lowerType(c, file)
-			break
-		}
+			return false
+		})
 		return &ast.NullableTypeNode{Inner: inner, Pos: pos, EndPos: end}
 	case KindUnionType:
 		return &ast.UnionTypeNode{Types: lowerTypeParts(n, file), Pos: pos, EndPos: end}
@@ -28,13 +28,13 @@ func lowerType(n *RedNode, file *File) ast.Node {
 		return &ast.IntersectionTypeNode{Types: lowerTypeParts(n, file), Pos: pos, EndPos: end}
 	case KindParenthesizedType:
 		var inner ast.Node
-		for _, c := range n.Children() {
+		n.ForEachChild(func(c *RedNode) bool {
 			if c.Kind() == KindToken {
-				continue
+				return true
 			}
 			inner = lowerType(c, file)
-			break
-		}
+			return false
+		})
 		return &ast.ParenthesizedTypeNode{Inner: inner, Pos: pos, EndPos: end}
 	case KindNamedType:
 		name := firstNameChild(n)
@@ -71,14 +71,15 @@ func lowerType(n *RedNode, file *File) ast.Node {
 
 func lowerTypeParts(n *RedNode, file *File) []ast.Node {
 	var parts []ast.Node
-	for _, c := range n.Children() {
+	n.ForEachChild(func(c *RedNode) bool {
 		if c.Kind() == KindToken {
-			continue
+			return true
 		}
 		if t := lowerType(c, file); t != nil {
 			parts = append(parts, t)
 		}
-	}
+		return true
+	})
 	return parts
 }
 

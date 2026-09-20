@@ -122,13 +122,10 @@ func (r *RedNode) ForEachChild(fn func(*RedNode) bool) {
 	if r == nil || r.Green == nil || len(r.Green.children) == 0 || fn == nil {
 		return
 	}
-	descs := buildChildDescs(r.Green, r.Offset)
-	for _, d := range descs {
-		child := &RedNode{File: r.File, Parent: r, Green: d.green, Offset: d.offset}
-		if !fn(child) {
-			return
-		}
-	}
+	r.ForEachChildDesc(func(green *GreenNode, offset int) bool {
+		child := &RedNode{File: r.File, Parent: r, Green: green, Offset: offset}
+		return fn(child)
+	})
 }
 
 func (r *RedNode) Child(i int) *RedNode {

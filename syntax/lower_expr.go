@@ -14,13 +14,13 @@ func lowerExpr(n *RedNode, file *File) ast.Node {
 	if n == nil {
 		return nil
 	}
-	pos, end := nodePos(file, n)
 	switch n.Kind() {
 	case KindVariableExpr:
 		return lowerVariableExpr(n, file)
 	case KindLiteralExpr:
 		return lowerLiteralExpr(n, file)
 	case KindUnqualifiedName, KindQualifiedName, KindFullyQualifiedName, KindRelativeName, KindName:
+		pos, end := nodePos(file, n)
 		return &ast.IdentifierNode{Value: NameText(n), Pos: pos, EndPos: end}
 	case KindBinaryExpr:
 		return lowerBinaryExpr(n, file)
@@ -78,12 +78,13 @@ func lowerExpr(n *RedNode, file *File) ast.Node {
 func lowerVariableExpr(n *RedNode, file *File) ast.Node {
 	pos, end := nodePos(file, n)
 	name := ""
-	for _, c := range n.Children() {
+	n.ForEachChild(func(c *RedNode) bool {
 		if isTokenType(c, token.T_VARIABLE) {
 			name = stripVarDollar(tokenLiteral(c))
-			break
+			return false
 		}
-	}
+		return true
+	})
 	if name == "" {
 		name = stripVarDollar(strings.TrimSpace(n.Text()))
 	}
@@ -96,15 +97,21 @@ func lowerVariableExpr(n *RedNode, file *File) ast.Node {
 func lowerLiteralExpr(n *RedNode, file *File) ast.Node {
 	pos, end := nodePos(file, n)
 	var tokNode *RedNode
-	for _, c := range n.Children() {
+	var nameLit ast.Node
+	n.ForEachChild(func(c *RedNode) bool {
 		if c.Green != nil && c.Green.IsToken() {
 			tokNode = c
-			break
+			return false
 		}
 		if isNameKind(c.Kind()) {
 			// bare name used as literal-ish (e.g. array keyword path)
-			return &ast.IdentifierNode{Value: NameText(c), Pos: pos, EndPos: end}
+			nameLit = &ast.IdentifierNode{Value: NameText(c), Pos: pos, EndPos: end}
+			return false
 		}
+		return true
+	})
+	if nameLit != nil {
+		return nameLit
 	}
 	if tokNode == nil {
 		return nil
@@ -145,13 +152,12 @@ func lowerLiteralExpr(n *RedNode, file *File) ast.Node {
 
 func lowerBinaryExpr(n *RedNode, file *File) ast.Node {
 	pos, end := nodePos(file, n)
-	children := n.Children()
 	var left, right *RedNode
 	var op string
-	for _, c := range children {
+	n.ForEachChild(func(c *RedNode) bool {
 		if c.Green != nil && c.Green.IsToken() {
 			op = strings.TrimSpace(tokenLiteral(c))
-			continue
+			return true
 		}
 		if isExprKind(c.Kind()) || isNameKind(c.Kind()) {
 			if left == nil {
@@ -160,7 +166,8 @@ func lowerBinaryExpr(n *RedNode, file *File) ast.Node {
 				right = c
 			}
 		}
-	}
+		return true
+	})
 	if left == nil || op == "" {
 		return nil
 	}
@@ -175,13 +182,12 @@ func lowerBinaryExpr(n *RedNode, file *File) ast.Node {
 
 func lowerAssignExpr(n *RedNode, file *File) ast.Node {
 	pos, end := nodePos(file, n)
-	children := n.Children()
 	var left, right *RedNode
 	var op string
-	for _, c := range children {
+	n.ForEachChild(func(c *RedNode) bool {
 		if c.Green != nil && c.Green.IsToken() {
 			op = strings.TrimSpace(tokenLiteral(c))
-			continue
+			return true
 		}
 		if isExprKind(c.Kind()) || isNameKind(c.Kind()) {
 			if left == nil {
@@ -190,7 +196,8 @@ func lowerAssignExpr(n *RedNode, file *File) ast.Node {
 				right = c
 			}
 		}
-	}
+		return true
+	})
 	if left == nil || op == "" {
 		return nil
 	}
@@ -214,7 +221,7 @@ func lowerAssignExpr(n *RedNode, file *File) ast.Node {
 func lowerCallExpr(n *RedNode, file *File) ast.Node {
 	pos, end := nodePos(file, n)
 	var callee, args, builtinTok, loneArg *RedNode
-	for _, c := range n.Children() {
+	n.ForEachChild(func(c *RedNode) bool {
 		switch {
 		case c.Kind() == KindArgList:
 			args = c
@@ -227,7 +234,8 @@ func lowerCallExpr(n *RedNode, file *File) ast.Node {
 				callee = c
 			}
 		}
-	}
+		return true
+	})
 	if builtinTok != nil {
 		tt, ok := tokenOf(builtinTok)
 		if !ok {
@@ -324,7 +332,7 @@ func lowerArgList(list *RedNode, file *File) []ast.Node {
 		return nil
 	}
 	var out []ast.Node
-	for _, c := range list.Children() {
+	list.ForEachChild(func(c *RedNode) bool {
 		switch c.Kind() {
 		case KindArg:
 			if a := lowerArg(c, file); a != nil {
@@ -335,7 +343,8 @@ func lowerArgList(list *RedNode, file *File) []ast.Node {
 				out = append(out, a)
 			}
 		}
-	}
+		return true
+	})
 	return out
 }
 
@@ -343,15 +352,16 @@ func lowerArg(n *RedNode, file *File) ast.Node {
 	pos, end := nodePos(file, n)
 	unpacked := false
 	var expr *RedNode
-	for _, c := range n.Children() {
+	n.ForEachChild(func(c *RedNode) bool {
 		if isTokenType(c, token.T_ELLIPSIS) {
 			unpacked = true
-			continue
+			return true
 		}
 		if isExprKind(c.Kind()) || isNameKind(c.Kind()) {
 			expr = c
 		}
-	}
+		return true
+	})
 	if expr == nil {
 		return nil
 	}
@@ -369,23 +379,24 @@ func lowerNamedArg(n *RedNode, file *File) ast.Node {
 	pos, end := nodePos(file, n)
 	name := ""
 	var expr *RedNode
-	for _, c := range n.Children() {
+	n.ForEachChild(func(c *RedNode) bool {
 		if c.Green != nil && c.Green.IsToken() {
 			tt, ok := c.Green.Token()
 			if !ok {
-				continue
+				return true
 			}
 			if tt.Type == token.T_STRING || tt.Type == token.T_CLASS {
 				if name == "" {
 					name = tt.Literal
 				}
 			}
-			continue
+			return true
 		}
 		if isExprKind(c.Kind()) || isNameKind(c.Kind()) {
 			expr = c
 		}
-	}
+		return true
+	})
 	if name == "" || expr == nil {
 		return nil
 	}
@@ -414,15 +425,15 @@ func lowerMemberAccessExpr(n *RedNode, file *File) ast.Node {
 
 func splitMemberAccess(n *RedNode, file *File) (object ast.Node, member string) {
 	var objNode *RedNode
-	for _, c := range n.Children() {
+	n.ForEachChild(func(c *RedNode) bool {
 		if c.Kind() == KindToken {
 			tt, ok := tokenOf(c)
 			if !ok {
-				continue
+				return true
 			}
 			switch tt.Type {
 			case token.T_OBJECT_OPERATOR, token.T_NULLSAFE_OBJECT_OPERATOR:
-				continue
+				return true
 			case token.T_STRING, token.T_VARIABLE:
 				member = strings.TrimSpace(tt.Literal)
 			default:
@@ -430,14 +441,15 @@ func splitMemberAccess(n *RedNode, file *File) (object ast.Node, member string) 
 					member = strings.TrimSpace(tt.Literal)
 				}
 			}
-			continue
+			return true
 		}
 		if isExprKind(c.Kind()) || isNameKind(c.Kind()) {
 			if objNode == nil {
 				objNode = c
 			}
 		}
-	}
+		return true
+	})
 	if objNode != nil {
 		object = lowerExpr(objNode, file)
 	}
@@ -445,27 +457,31 @@ func splitMemberAccess(n *RedNode, file *File) (object ast.Node, member string) 
 }
 
 func lowerParenExpr(n *RedNode, file *File) ast.Node {
-	for _, c := range n.Children() {
+	var found ast.Node
+	n.ForEachChild(func(c *RedNode) bool {
 		if isExprKind(c.Kind()) || isNameKind(c.Kind()) {
-			return lowerExpr(c, file)
+			found = lowerExpr(c, file)
+			return false
 		}
-	}
-	return nil
+		return true
+	})
+	return found
 }
 
 func lowerUnaryExpr(n *RedNode, file *File) ast.Node {
 	pos, end := nodePos(file, n)
 	var op string
 	var operand *RedNode
-	for _, c := range n.Children() {
+	n.ForEachChild(func(c *RedNode) bool {
 		if c.Green != nil && c.Green.IsToken() {
 			op = strings.TrimSpace(tokenLiteral(c))
-			continue
+			return true
 		}
 		if isExprKind(c.Kind()) || isNameKind(c.Kind()) {
 			operand = c
 		}
-	}
+		return true
+	})
 	if op == "" || operand == nil {
 		return nil
 	}
@@ -482,11 +498,11 @@ func lowerCastExpr(n *RedNode, file *File) ast.Node {
 	castType := ""
 	var operand *RedNode
 	seenOpen := false
-	for _, c := range n.Children() {
+	n.ForEachChild(func(c *RedNode) bool {
 		if c.Green != nil && c.Green.IsToken() {
 			tt, ok := tokenOf(c)
 			if !ok {
-				continue
+				return true
 			}
 			switch tt.Type {
 			case token.T_LPAREN:
@@ -498,12 +514,13 @@ func lowerCastExpr(n *RedNode, file *File) ast.Node {
 					castType = strings.TrimSpace(tt.Literal)
 				}
 			}
-			continue
+			return true
 		}
 		if isExprKind(c.Kind()) || isNameKind(c.Kind()) {
 			operand = c
 		}
-	}
+		return true
+	})
 	if castType == "" || operand == nil {
 		return nil
 	}
@@ -552,15 +569,16 @@ func splitStaticMemberAccessParts(n *RedNode, file *File) (class, member string,
 		return "", "", nil
 	}
 	seenColon := false
-	for _, c := range n.Children() {
+	done := false
+	n.ForEachChild(func(c *RedNode) bool {
 		if isTokenType(c, token.T_DOUBLE_COLON) {
 			seenColon = true
-			continue
+			return true
 		}
 		if !seenColon {
 			if isNameKind(c.Kind()) && class == "" {
 				class = NameText(c)
-				continue
+				return true
 			}
 			if (isExprKind(c.Kind()) || isNameKind(c.Kind())) && class == "" {
 				// Dynamic class expr — classic ClassConstFetch only stores string.
@@ -568,27 +586,33 @@ func splitStaticMemberAccessParts(n *RedNode, file *File) (class, member string,
 					class = e.TokenLiteral()
 				}
 			}
-			continue
+			return true
 		}
 		// After :: — member name (literal token) or dynamic expr.
 		switch c.Kind() {
 		case KindParenExpr:
 			constExpr = lowerParenExpr(c, file)
 			member = "$"
-			return class, member, constExpr
+			done = true
+			return false
 		case KindEncapsulatedExpr:
 			constExpr = lowerEncapsulatedExpr(c, file)
 			member = "$"
-			return class, member, constExpr
+			done = true
+			return false
 		default:
 			if c.Green != nil && c.Green.IsToken() {
 				tt, ok := tokenOf(c)
 				if !ok {
-					continue
+					return true
 				}
 				member = strings.TrimSpace(tt.Literal)
 			}
 		}
+		return true
+	})
+	if done {
+		return class, member, constExpr
 	}
 	return class, member, nil
 }
@@ -604,11 +628,11 @@ func lowerYieldExpr(n *RedNode, file *File) ast.Node {
 	from := false
 	hasArrow := false
 	var exprs []*RedNode
-	for _, c := range n.Children() {
+	n.ForEachChild(func(c *RedNode) bool {
 		if c.Green != nil && c.Green.IsToken() {
 			tt, ok := tokenOf(c)
 			if !ok {
-				continue
+				return true
 			}
 			// T_YIELD_FROM is never actually produced by the lexer (no
 			// keyword table entry maps to it) - real "yield from" lexes as
@@ -630,12 +654,13 @@ func lowerYieldExpr(n *RedNode, file *File) ast.Node {
 			if tt.Type == token.T_DOUBLE_ARROW {
 				hasArrow = true
 			}
-			continue
+			return true
 		}
 		if isExprKind(c.Kind()) || isNameKind(c.Kind()) {
 			exprs = append(exprs, c)
 		}
-	}
+		return true
+	})
 	if len(exprs) == 0 {
 		return &ast.YieldNode{From: from, Pos: pos, EndPos: end}
 	}
@@ -666,7 +691,7 @@ func lowerYieldExpr(n *RedNode, file *File) ast.Node {
 func lowerArrayAccessExpr(n *RedNode, file *File) ast.Node {
 	pos, end := nodePos(file, n)
 	var arr, idx *RedNode
-	for _, c := range n.Children() {
+	n.ForEachChild(func(c *RedNode) bool {
 		if isExprKind(c.Kind()) || isNameKind(c.Kind()) {
 			if arr == nil {
 				arr = c
@@ -674,7 +699,8 @@ func lowerArrayAccessExpr(n *RedNode, file *File) ast.Node {
 				idx = c
 			}
 		}
-	}
+		return true
+	})
 	if arr == nil {
 		return nil
 	}
@@ -693,28 +719,37 @@ func lowerArrayAccessExpr(n *RedNode, file *File) ast.Node {
 func lowerNewExpr(n *RedNode, file *File) ast.Node {
 	pos, end := nodePos(file, n)
 	var classTarget, args *RedNode
-	for _, c := range n.Children() {
+	var anonNew ast.Node
+	var anonDone bool
+	n.ForEachChild(func(c *RedNode) bool {
 		switch c.Kind() {
 		case KindArgList:
 			args = c
 		case KindAttributeList:
-			continue
+			return true
 		case KindAnonymousClass:
 			cls, ctorArgs := lowerAnonymousClass(c, file)
 			if cls == nil {
-				return nil
+				anonDone = true
+				return false
 			}
-			return &ast.NewNode{
+			anonNew = &ast.NewNode{
 				ClassExpr: cls,
 				Args:      ctorArgs,
 				Pos:       pos,
 				EndPos:    end,
 			}
+			anonDone = true
+			return false
 		default:
 			if (isExprKind(c.Kind()) || isNameKind(c.Kind())) && classTarget == nil {
 				classTarget = c
 			}
 		}
+		return true
+	})
+	if anonDone {
+		return anonNew
 	}
 	if classTarget == nil {
 		return nil
@@ -758,14 +793,15 @@ func lowerNewExpr(n *RedNode, file *File) ast.Node {
 func lowerArrayExpr(n *RedNode, file *File) ast.Node {
 	pos, end := nodePos(file, n)
 	var elements []ast.Node
-	for _, c := range n.Children() {
+	n.ForEachChild(func(c *RedNode) bool {
 		if c.Kind() != KindArrayElement {
-			continue
+			return true
 		}
 		if item := lowerArrayElement(c, file); item != nil {
 			elements = append(elements, item)
 		}
-	}
+		return true
+	})
 	return &ast.ArrayNode{Elements: elements, Pos: pos, EndPos: end}
 }
 
@@ -774,19 +810,33 @@ func lowerArrayElement(n *RedNode, file *File) ast.Node {
 		return nil
 	}
 	pos, end := nodePos(file, n)
-	children := n.Children()
-	if len(children) == 0 {
+	childCount := 0
+	n.ForEachChild(func(c *RedNode) bool {
+		childCount++
+		return true
+	})
+	if childCount == 0 {
 		return nil
 	}
-	i := 0
-	if isTokenType(children[0], token.T_ELLIPSIS) {
+	var child0 *RedNode
+	n.ForEachChild(func(c *RedNode) bool {
+		child0 = c
+		return false
+	})
+	if isTokenType(child0, token.T_ELLIPSIS) {
 		var val *RedNode
-		for _, c := range children[1:] {
+		skip := true
+		n.ForEachChild(func(c *RedNode) bool {
+			if skip {
+				skip = false
+				return true
+			}
 			if isExprKind(c.Kind()) || isNameKind(c.Kind()) {
 				val = c
-				break
+				return false
 			}
-		}
+			return true
+		})
 		if val == nil {
 			return nil
 		}
@@ -798,33 +848,47 @@ func lowerArrayElement(n *RedNode, file *File) ast.Node {
 		}
 	}
 
+	i := 0
 	byRefBeforeFirst := false
-	if isTokenType(children[i], token.T_AMPERSAND) {
+	if isTokenType(child0, token.T_AMPERSAND) {
 		byRefBeforeFirst = true
-		i++
+		i = 1
 	}
 	var first *RedNode
-	for ; i < len(children); i++ {
-		c := children[i]
-		if isExprKind(c.Kind()) || isNameKind(c.Kind()) {
-			first = c
-			i++
-			break
+	idx := 0
+	n.ForEachChild(func(c *RedNode) bool {
+		if idx < i {
+			idx++
+			return true
 		}
-	}
+		if first == nil && (isExprKind(c.Kind()) || isNameKind(c.Kind())) {
+			first = c
+			i = idx + 1
+			return false
+		}
+		idx++
+		return true
+	})
 	if first == nil {
 		return nil
 	}
 
 	// Look for => after first expr.
 	hasArrow := false
-	for j := i; j < len(children); j++ {
-		if isTokenType(children[j], token.T_DOUBLE_ARROW) {
-			hasArrow = true
-			i = j + 1
-			break
+	idx = 0
+	n.ForEachChild(func(c *RedNode) bool {
+		if idx < i {
+			idx++
+			return true
 		}
-	}
+		if isTokenType(c, token.T_DOUBLE_ARROW) {
+			hasArrow = true
+			i = idx + 1
+			return false
+		}
+		idx++
+		return true
+	})
 	if !hasArrow {
 		return &ast.ArrayItemNode{
 			Value:  lowerExpr(first, file),
@@ -840,18 +904,32 @@ func lowerArrayElement(n *RedNode, file *File) ast.Node {
 		key = &ast.UnaryExpr{Operator: "&", Operand: key, Pos: kp, EndPos: ke}
 	}
 	byRefValue := false
-	if i < len(children) && isTokenType(children[i], token.T_AMPERSAND) {
-		byRefValue = true
-		i++
-	}
+	idx = 0
+	n.ForEachChild(func(c *RedNode) bool {
+		if idx < i {
+			idx++
+			return true
+		}
+		if isTokenType(c, token.T_AMPERSAND) {
+			byRefValue = true
+			i = idx + 1
+		}
+		return false
+	})
 	var val *RedNode
-	for ; i < len(children); i++ {
-		c := children[i]
+	idx = 0
+	n.ForEachChild(func(c *RedNode) bool {
+		if idx < i {
+			idx++
+			return true
+		}
 		if isExprKind(c.Kind()) || isNameKind(c.Kind()) {
 			val = c
-			break
+			return false
 		}
-	}
+		idx++
+		return true
+	})
 	var value ast.Node
 	if val != nil {
 		value = lowerExpr(val, file)
@@ -867,16 +945,15 @@ func lowerArrayElement(n *RedNode, file *File) ast.Node {
 
 func lowerTernaryExpr(n *RedNode, file *File) ast.Node {
 	pos, end := nodePos(file, n)
-	children := n.Children()
 	var cond *RedNode
 	seenQ := false
 	seenColon := false
 	var thenChild, elseChild *RedNode
-	for _, c := range children {
+	n.ForEachChild(func(c *RedNode) bool {
 		if c.Green != nil && c.Green.IsToken() {
 			tt, ok := tokenOf(c)
 			if !ok {
-				continue
+				return true
 			}
 			switch tt.Type {
 			case token.T_QUESTION:
@@ -884,23 +961,24 @@ func lowerTernaryExpr(n *RedNode, file *File) ast.Node {
 			case token.T_COLON:
 				seenColon = true
 			}
-			continue
+			return true
 		}
 		if !(isExprKind(c.Kind()) || isNameKind(c.Kind())) {
-			continue
+			return true
 		}
 		if cond == nil {
 			cond = c
-			continue
+			return true
 		}
 		if seenQ && !seenColon && thenChild == nil {
 			thenChild = c
-			continue
+			return true
 		}
 		if seenColon && elseChild == nil {
 			elseChild = c
 		}
-	}
+		return true
+	})
 	if cond == nil {
 		return nil
 	}
@@ -1019,12 +1097,13 @@ func unescapeLowerDoubleQuoted(s string) string {
 func lowerVariableVariableExpr(n *RedNode, file *File) ast.Node {
 	pos, end := nodePos(file, n)
 	var inner *RedNode
-	for _, c := range n.Children() {
+	n.ForEachChild(func(c *RedNode) bool {
 		if isExprKind(c.Kind()) || isNameKind(c.Kind()) {
 			inner = c
-			break
+			return false
 		}
-	}
+		return true
+	})
 	if inner == nil {
 		return nil
 	}

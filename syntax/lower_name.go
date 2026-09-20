@@ -16,7 +16,11 @@ func lowerModifiers(n *RedNode) ast.ModifierList {
 		return nil
 	}
 	var out ast.ModifierList
-	children := list.Children()
+	var children []*RedNode
+	list.ForEachChild(func(c *RedNode) bool {
+		children = append(children, c)
+		return true
+	})
 	for i := 0; i < len(children); i++ {
 		c := children[i]
 		if c.Green == nil || !c.Green.IsToken() {
@@ -87,12 +91,15 @@ func firstNameChild(n *RedNode) *RedNode {
 	if n == nil {
 		return nil
 	}
-	for _, c := range n.Children() {
+	var found *RedNode
+	n.ForEachChild(func(c *RedNode) bool {
 		if isNameKind(c.Kind()) {
-			return c
+			found = c
+			return false
 		}
-	}
-	return nil
+		return true
+	})
+	return found
 }
 
 func clauseNames(clause *RedNode) []string {
@@ -100,11 +107,12 @@ func clauseNames(clause *RedNode) []string {
 		return nil
 	}
 	var out []string
-	for _, c := range clause.Children() {
+	clause.ForEachChild(func(c *RedNode) bool {
 		if isNameKind(c.Kind()) {
 			out = append(out, NameText(c))
 		}
-	}
+		return true
+	})
 	return out
 }
 

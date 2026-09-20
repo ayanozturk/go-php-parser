@@ -14,7 +14,7 @@ func lowerEnum(n *RedNode, file *File) *ast.EnumNode {
 	var members *RedNode
 	headerEnd := pos
 	seenColon := false
-	for _, c := range n.Children() {
+	n.ForEachChild(func(c *RedNode) bool {
 		switch c.Kind() {
 		case KindUnqualifiedName, KindQualifiedName,
 			KindFullyQualifiedName, KindRelativeName:
@@ -31,7 +31,7 @@ func lowerEnum(n *RedNode, file *File) *ast.EnumNode {
 			if isTokenType(c, token.T_COLON) {
 				seenColon = true
 				headerEnd = spanEnd(file, c.Span())
-				continue
+				return true
 			}
 			if seenColon && isTypeKind(c.Kind()) {
 				en.BackedBy = TypeText(c)
@@ -39,11 +39,12 @@ func lowerEnum(n *RedNode, file *File) *ast.EnumNode {
 				seenColon = false
 			}
 		}
-	}
+		return true
+	})
 	en.HeaderEndPos = headerEnd
 	if members != nil {
 		var pendingAttrs []ast.Node
-		for _, m := range members.Children() {
+		members.ForEachChild(func(m *RedNode) bool {
 			switch m.Kind() {
 			case KindAttributeList:
 				pendingAttrs = append(pendingAttrs, lowerAttributeList(m, file)...)
@@ -65,7 +66,8 @@ func lowerEnum(n *RedNode, file *File) *ast.EnumNode {
 			default:
 				pendingAttrs = nil
 			}
-		}
+			return true
+		})
 	}
 	return en
 }
@@ -77,25 +79,26 @@ func lowerEnumCase(n *RedNode, file *File) *ast.EnumCaseNode {
 	pos, end := nodePos(file, n)
 	ec := &ast.EnumCaseNode{Pos: pos, EndPos: end}
 	seenAssign := false
-	for _, c := range n.Children() {
+	n.ForEachChild(func(c *RedNode) bool {
 		if isTokenType(c, token.T_CASE) {
 			pos, _ = nodePos(file, c)
 			ec.Pos = pos
-			continue
+			return true
 		}
 		if isNameKind(c.Kind()) && ec.Name == "" {
 			ec.Name = NameText(c)
-			continue
+			return true
 		}
 		if isTokenType(c, token.T_ASSIGN) {
 			seenAssign = true
-			continue
+			return true
 		}
 		if seenAssign && (isExprKind(c.Kind()) || isNameKind(c.Kind())) {
 			ec.Value = lowerExpr(c, file)
 			seenAssign = false
 		}
-	}
+		return true
+	})
 	if ec.Name == "" {
 		return nil
 	}

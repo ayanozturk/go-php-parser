@@ -18,7 +18,11 @@ func LowerFile(root *RedNode, file *File) []ast.Node {
 		nodes, _ := lowerTopLevel(root, file)
 		return nodes
 	}
-	children := root.Children()
+	var children []*RedNode
+	root.ForEachChild(func(c *RedNode) bool {
+		children = append(children, c)
+		return true
+	})
 	var out []ast.Node
 	for i := 0; i < len(children); i++ {
 		c := children[i]
@@ -109,19 +113,21 @@ func lowerAttributeList(n *RedNode, file *File) []ast.Node {
 		return nil
 	}
 	var out []ast.Node
-	for _, group := range n.Children() {
+	n.ForEachChild(func(group *RedNode) bool {
 		if group.Kind() != KindAttributeGroup {
-			continue
+			return true
 		}
-		for _, attr := range group.Children() {
+		group.ForEachChild(func(attr *RedNode) bool {
 			if attr.Kind() != KindAttribute {
-				continue
+				return true
 			}
 			if node := lowerAttribute(attr, file); node != nil {
 				out = append(out, node)
 			}
-		}
-	}
+			return true
+		})
+		return true
+	})
 	return out
 }
 
@@ -132,15 +138,16 @@ func lowerAttribute(n *RedNode, file *File) ast.Node {
 	pos, end := nodePos(file, n)
 	var name string
 	var args *RedNode
-	for _, c := range n.Children() {
+	n.ForEachChild(func(c *RedNode) bool {
 		if c.Kind() == KindArgList {
 			args = c
-			continue
+			return true
 		}
 		if isNameKind(c.Kind()) && name == "" {
 			name = NameText(c)
 		}
-	}
+		return true
+	})
 	if name == "" {
 		return nil
 	}

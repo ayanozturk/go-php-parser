@@ -15,14 +15,15 @@ func lowerStatements(list *RedNode, file *File) []ast.Node {
 		return nil
 	}
 	var out []ast.Node
-	for _, c := range list.Children() {
+	list.ForEachChild(func(c *RedNode) bool {
 		if c == nil || c.Kind() == KindToken {
-			continue
+			return true
 		}
 		if stmt := lowerStmt(c, file); stmt != nil {
 			out = append(out, stmt)
 		}
-	}
+		return true
+	})
 	return out
 }
 
@@ -42,7 +43,7 @@ func lowerStmt(n *RedNode, file *File) ast.Node {
 		if lowered == nil {
 			return nil
 		}
-		pos, end := nodePos(file, n)
+		// Reuse outer nodePos; override from lowered expr when classic coords are set.
 		if p := lowered.GetPos(); p.Line > 0 {
 			pos = p
 		}
@@ -95,24 +96,26 @@ func lowerStmt(n *RedNode, file *File) ast.Node {
 		return lowerDeclareStmt(n, file)
 	case KindGotoStmt:
 		label := ""
-		for _, c := range n.Children() {
+		n.ForEachChild(func(c *RedNode) bool {
 			if isTokenType(c, token.T_STRING) {
 				label = strings.TrimSpace(tokenLiteral(c))
-				break
+				return false
 			}
-		}
+			return true
+		})
 		if label == "" {
 			return nil
 		}
 		return &ast.GotoNode{Label: label, Pos: pos, EndPos: end}
 	case KindLabelStmt:
 		name := ""
-		for _, c := range n.Children() {
+		n.ForEachChild(func(c *RedNode) bool {
 			if isTokenType(c, token.T_STRING) {
 				name = strings.TrimSpace(tokenLiteral(c))
-				break
+				return false
 			}
-		}
+			return true
+		})
 		if name == "" {
 			return nil
 		}
@@ -129,7 +132,7 @@ func lowerIfStmt(n *RedNode, file *File) *ast.IfNode {
 	pos, end := nodePos(file, n)
 	iff := &ast.IfNode{Pos: pos, EndPos: end}
 	seenCond := false
-	for _, c := range n.Children() {
+	n.ForEachChild(func(c *RedNode) bool {
 		switch c.Kind() {
 		case KindElseIfClause:
 			if ei := lowerElseIfClause(c, file); ei != nil {
@@ -138,12 +141,12 @@ func lowerIfStmt(n *RedNode, file *File) *ast.IfNode {
 		case KindElseClause:
 			iff.Else = lowerElseClause(c, file)
 		case KindToken:
-			continue
+			return true
 		default:
 			if isExprKind(c.Kind()) && !seenCond {
 				iff.Condition = lowerExpr(c, file)
 				seenCond = true
-				continue
+				return true
 			}
 			if c.Kind() == KindStatementList || isStmtKind(c.Kind()) {
 				if iff.Body == nil && seenCond {
@@ -151,7 +154,8 @@ func lowerIfStmt(n *RedNode, file *File) *ast.IfNode {
 				}
 			}
 		}
-	}
+		return true
+	})
 	return iff
 }
 
@@ -162,20 +166,21 @@ func lowerElseIfClause(n *RedNode, file *File) *ast.ElseIfNode {
 	pos, end := nodePos(file, n)
 	ei := &ast.ElseIfNode{Pos: pos, EndPos: end}
 	seenCond := false
-	for _, c := range n.Children() {
+	n.ForEachChild(func(c *RedNode) bool {
 		if c.Kind() == KindToken {
-			continue
+			return true
 		}
 		if isExprKind(c.Kind()) && !seenCond {
 			ei.Condition = lowerExpr(c, file)
 			seenCond = true
-			continue
+			return true
 		}
 		if c.Kind() == KindStatementList || isStmtKind(c.Kind()) {
 			ei.Body = lowerControlBody(c, file)
-			break
+			return false
 		}
-	}
+		return true
+	})
 	return ei
 }
 
@@ -185,15 +190,16 @@ func lowerElseClause(n *RedNode, file *File) *ast.ElseNode {
 	}
 	pos, end := nodePos(file, n)
 	els := &ast.ElseNode{Pos: pos, EndPos: end}
-	for _, c := range n.Children() {
+	n.ForEachChild(func(c *RedNode) bool {
 		if c.Kind() == KindToken {
-			continue
+			return true
 		}
 		if c.Kind() == KindStatementList || isStmtKind(c.Kind()) {
 			els.Body = lowerControlBody(c, file)
-			break
+			return false
 		}
-	}
+		return true
+	})
 	return els
 }
 
@@ -215,12 +221,15 @@ func firstExprChild(n *RedNode) *RedNode {
 	if n == nil {
 		return nil
 	}
-	for _, c := range n.Children() {
-		if isExprKind(c.Kind()) {
-			return c
+	var found *RedNode
+	n.ForEachChildDesc(func(green *GreenNode, offset int) bool {
+		if isExprKind(green.Kind()) {
+			found = &RedNode{File: n.File, Parent: n, Green: green, Offset: offset}
+			return false
 		}
-	}
-	return nil
+		return true
+	})
+	return found
 }
 
 func lowerEchoStmt(n *RedNode, file *File) ast.Node {
@@ -229,13 +238,14 @@ func lowerEchoStmt(n *RedNode, file *File) ast.Node {
 	}
 	pos, end := nodePos(file, n)
 	var exprs []ast.Node
-	for _, c := range n.Children() {
+	n.ForEachChild(func(c *RedNode) bool {
 		if isExprKind(c.Kind()) || isNameKind(c.Kind()) {
 			if e := lowerExpr(c, file); e != nil {
 				exprs = append(exprs, e)
 			}
 		}
-	}
+		return true
+	})
 	if len(exprs) == 0 {
 		return nil
 	}
@@ -267,138 +277,150 @@ func lowerWhileStmt(n *RedNode, file *File) ast.Node {
 	pos, end := nodePos(file, n)
 	w := &ast.WhileNode{Pos: pos, EndPos: end}
 	seenCond := false
-	for _, c := range n.Children() {
+	n.ForEachChild(func(c *RedNode) bool {
 		if c.Kind() == KindToken {
-			continue
+			return true
 		}
 		if (isExprKind(c.Kind()) || isNameKind(c.Kind())) && !seenCond {
 			w.Condition = lowerExpr(c, file)
 			seenCond = true
-			continue
+			return true
 		}
 		if c.Kind() == KindStatementList || isStmtKind(c.Kind()) {
 			w.Body = lowerControlBody(c, file)
-			break
+			return false
 		}
-	}
+		return true
+	})
 	return w
 }
 
 func lowerDoWhileStmt(n *RedNode, file *File) ast.Node {
 	pos, end := nodePos(file, n)
 	d := &ast.DoWhileNode{Pos: pos, EndPos: end}
-	for _, c := range n.Children() {
+	n.ForEachChild(func(c *RedNode) bool {
 		if c.Kind() == KindToken {
-			continue
+			return true
 		}
 		if d.Body == nil && (c.Kind() == KindStatementList || isStmtKind(c.Kind())) {
 			d.Body = lowerControlBody(c, file)
-			continue
+			return true
 		}
 		if isExprKind(c.Kind()) || isNameKind(c.Kind()) {
 			d.Condition = lowerExpr(c, file)
 		}
-	}
+		return true
+	})
 	return d
+}
+
+// walkRedChildrenFrom visits children at indices >= start. fn returns the next
+// index to resume from, or -1 to continue with the following child.
+func walkRedChildrenFrom(children []*RedNode, start int, fn func(c *RedNode, i int) int) int {
+	for i := start; i < len(children); i++ {
+		if n := fn(children[i], i); n >= 0 {
+			return n
+		}
+	}
+	return len(children)
 }
 
 func lowerForStmt(n *RedNode, file *File) ast.Node {
 	pos, end := nodePos(file, n)
 	f := &ast.ForNode{Pos: pos, EndPos: end}
 	children := n.Children()
-	i := 0
 	// Skip to '(' after for.
-	for ; i < len(children); i++ {
-		if isTokenType(children[i], token.T_LPAREN) {
-			i++
-			break
+	i := walkRedChildrenFrom(children, 0, func(c *RedNode, idx int) int {
+		if isTokenType(c, token.T_LPAREN) {
+			return idx + 1
 		}
-	}
+		return -1
+	})
 	f.Init, i = collectForClause(children, i, file)
 	f.Conditions, i = collectForClause(children, i, file)
 	f.Updates, i = collectForClause(children, i, file)
-	for ; i < len(children); i++ {
-		c := children[i]
+	walkRedChildrenFrom(children, i, func(c *RedNode, idx int) int {
 		if c.Kind() == KindToken {
-			continue
+			return -1
 		}
 		if c.Kind() == KindStatementList || isStmtKind(c.Kind()) {
 			f.Body = lowerControlBody(c, file)
-			break
+			return idx
 		}
-	}
+		return -1
+	})
 	return f
 }
 
 func collectForClause(children []*RedNode, start int, file *File) ([]ast.Node, int) {
 	var exprs []ast.Node
-	for i := start; i < len(children); i++ {
-		c := children[i]
+	next := walkRedChildrenFrom(children, start, func(c *RedNode, idx int) int {
 		if isTokenType(c, token.T_SEMICOLON) || isTokenType(c, token.T_RPAREN) {
-			return exprs, i + 1
+			return idx + 1
 		}
 		if isTokenType(c, token.T_COMMA) {
-			continue
+			return -1
 		}
 		if isExprKind(c.Kind()) || isNameKind(c.Kind()) {
 			if e := lowerExpr(c, file); e != nil {
 				exprs = append(exprs, e)
 			}
 		}
-	}
-	return exprs, len(children)
+		return -1
+	})
+	return exprs, next
 }
 
 func lowerForeachStmt(n *RedNode, file *File) ast.Node {
 	pos, end := nodePos(file, n)
 	fe := &ast.ForeachNode{Pos: pos, EndPos: end}
 	children := n.Children()
-	i := 0
-	for ; i < len(children); i++ {
-		if isTokenType(children[i], token.T_LPAREN) {
-			i++
-			break
+	i := walkRedChildrenFrom(children, 0, func(c *RedNode, idx int) int {
+		if isTokenType(c, token.T_LPAREN) {
+			return idx + 1
 		}
-	}
+		return -1
+	})
 	// Iterated expression.
-	for ; i < len(children); i++ {
-		c := children[i]
+	i = walkRedChildrenFrom(children, i, func(c *RedNode, idx int) int {
 		if isTokenType(c, token.T_AS) {
-			i++
-			break
+			return idx + 1
 		}
 		if isExprKind(c.Kind()) || isNameKind(c.Kind()) {
 			fe.Expr = lowerExpr(c, file)
 		}
-	}
+		return -1
+	})
 	refBeforeFirst := false
-	if i < len(children) && isTokenType(children[i], token.T_AMPERSAND) {
-		refBeforeFirst = true
-		i++
-	}
+	i = walkRedChildrenFrom(children, i, func(c *RedNode, idx int) int {
+		if isTokenType(c, token.T_AMPERSAND) {
+			refBeforeFirst = true
+			return idx + 1
+		}
+		return idx
+	})
 	var first *RedNode
-	for ; i < len(children); i++ {
-		c := children[i]
+	i = walkRedChildrenFrom(children, i, func(c *RedNode, idx int) int {
 		if isExprKind(c.Kind()) || isNameKind(c.Kind()) {
 			first = c
-			i++
-			break
+			return idx + 1
 		}
 		if isTokenType(c, token.T_RPAREN) {
-			break
+			return idx
 		}
-	}
+		return -1
+	})
 	hasArrow := false
-	for j := i; j < len(children); j++ {
-		if isTokenType(children[j], token.T_DOUBLE_ARROW) {
+	i = walkRedChildrenFrom(children, i, func(c *RedNode, idx int) int {
+		if isTokenType(c, token.T_DOUBLE_ARROW) {
 			hasArrow = true
-			i = j + 1
-			break
+			return idx + 1
 		}
-		if isTokenType(children[j], token.T_RPAREN) {
-			break
+		if isTokenType(c, token.T_RPAREN) {
+			return idx
 		}
-	}
+		return -1
+	})
 	if first != nil {
 		if hasArrow {
 			key := lowerExpr(first, file)
@@ -407,36 +429,38 @@ func lowerForeachStmt(n *RedNode, file *File) ast.Node {
 				key = &ast.UnaryExpr{Operator: "&", Operand: key, Pos: kp, EndPos: ke}
 			}
 			fe.KeyVar = key
-			if i < len(children) && isTokenType(children[i], token.T_AMPERSAND) {
-				fe.ByRef = true
-				i++
-			}
-			for ; i < len(children); i++ {
-				c := children[i]
+			i = walkRedChildrenFrom(children, i, func(c *RedNode, idx int) int {
+				if isTokenType(c, token.T_AMPERSAND) {
+					fe.ByRef = true
+					return idx + 1
+				}
+				return idx
+			})
+			i = walkRedChildrenFrom(children, i, func(c *RedNode, idx int) int {
 				if isExprKind(c.Kind()) || isNameKind(c.Kind()) {
 					fe.ValueVar = lowerExpr(c, file)
-					i++
-					break
+					return idx + 1
 				}
 				if isTokenType(c, token.T_RPAREN) {
-					break
+					return idx
 				}
-			}
+				return -1
+			})
 		} else {
 			fe.ValueVar = lowerExpr(first, file)
 			fe.ByRef = refBeforeFirst
 		}
 	}
-	for ; i < len(children); i++ {
-		c := children[i]
+	walkRedChildrenFrom(children, i, func(c *RedNode, idx int) int {
 		if c.Kind() == KindToken {
-			continue
+			return -1
 		}
 		if c.Kind() == KindStatementList || isStmtKind(c.Kind()) {
 			fe.Body = lowerControlBody(c, file)
-			break
+			return idx
 		}
-	}
+		return -1
+	})
 	return fe
 }
 
@@ -461,7 +485,7 @@ func lowerContinueStmt(n *RedNode, file *File) ast.Node {
 func lowerTryStmt(n *RedNode, file *File) ast.Node {
 	pos, end := nodePos(file, n)
 	tr := &ast.TryNode{Pos: pos, EndPos: end}
-	for _, c := range n.Children() {
+	n.ForEachChild(func(c *RedNode) bool {
 		switch c.Kind() {
 		case KindStatementList:
 			if tr.Body == nil {
@@ -474,7 +498,8 @@ func lowerTryStmt(n *RedNode, file *File) ast.Node {
 		case KindFinallyClause:
 			tr.Finally = lowerFinallyClause(c, file)
 		}
-	}
+		return true
+	})
 	return tr
 }
 
@@ -484,7 +509,7 @@ func lowerCatchClause(n *RedNode, file *File) *ast.CatchNode {
 	}
 	pos, end := nodePos(file, n)
 	catch := &ast.CatchNode{Pos: pos, EndPos: end}
-	for _, c := range n.Children() {
+	n.ForEachChild(func(c *RedNode) bool {
 		switch {
 		case isTypeKind(c.Kind()):
 			catch.Types = catchTypeNames(c, file)
@@ -498,7 +523,8 @@ func lowerCatchClause(n *RedNode, file *File) *ast.CatchNode {
 				catch.Types = []string{text}
 			}
 		}
-	}
+		return true
+	})
 	return catch
 }
 
@@ -526,32 +552,36 @@ func lowerFinallyClause(n *RedNode, file *File) []ast.Node {
 	if n == nil {
 		return nil
 	}
-	for _, c := range n.Children() {
+	var body []ast.Node
+	n.ForEachChild(func(c *RedNode) bool {
 		if c.Kind() == KindStatementList {
-			return lowerStatements(c, file)
+			body = lowerStatements(c, file)
+			return false
 		}
-	}
-	return nil
+		return true
+	})
+	return body
 }
 
 func lowerSwitchStmt(n *RedNode, file *File) ast.Node {
 	pos, end := nodePos(file, n)
 	sw := &ast.SwitchNode{Pos: pos, EndPos: end}
 	seenExpr := false
-	for _, c := range n.Children() {
+	n.ForEachChild(func(c *RedNode) bool {
 		if c.Kind() == KindToken {
-			continue
+			return true
 		}
 		if (isExprKind(c.Kind()) || isNameKind(c.Kind())) && !seenExpr {
 			sw.Expr = lowerExpr(c, file)
 			seenExpr = true
-			continue
+			return true
 		}
 		if c.Kind() == KindStatementList {
 			sw.Cases = lowerSwitchCases(c, file)
-			break
+			return false
 		}
-	}
+		return true
+	})
 	return sw
 }
 
@@ -561,20 +591,22 @@ func lowerUnsetStmt(n *RedNode, file *File) ast.Node {
 	}
 	pos, end := nodePos(file, n)
 	var args []ast.Node
-	for _, c := range n.Children() {
+	n.ForEachChild(func(c *RedNode) bool {
 		if c.Kind() == KindArgList {
 			args = lowerArgList(c, file)
-			break
+			return false
 		}
-	}
+		return true
+	})
 	if len(args) == 0 {
-		for _, c := range n.Children() {
+		n.ForEachChild(func(c *RedNode) bool {
 			if isExprKind(c.Kind()) || isNameKind(c.Kind()) {
 				if e := lowerExpr(c, file); e != nil {
 					args = append(args, e)
 				}
 			}
-		}
+			return true
+		})
 	}
 	if len(args) == 0 {
 		return nil
@@ -590,7 +622,7 @@ func lowerDeclareStmt(n *RedNode, file *File) ast.Node {
 	}
 	pos, end := nodePos(file, n)
 	decl := &ast.DeclareNode{Directives: map[string]ast.Node{}, Pos: pos, EndPos: end}
-	for _, c := range n.Children() {
+	n.ForEachChild(func(c *RedNode) bool {
 		switch c.Kind() {
 		case KindTokenList:
 			if len(decl.Directives) == 0 {
@@ -603,7 +635,8 @@ func lowerDeclareStmt(n *RedNode, file *File) ast.Node {
 				decl.Body = &ast.BlockNode{Statements: stmts, Pos: bp, EndPos: be}
 			}
 		}
-	}
+		return true
+	})
 	if len(decl.Directives) == 0 {
 		return nil
 	}
@@ -615,11 +648,12 @@ func lowerDeclareDirectives(list *RedNode, file *File) map[string]ast.Node {
 		return nil
 	}
 	var tokens []*RedNode
-	for _, c := range list.Children() {
+	list.ForEachChild(func(c *RedNode) bool {
 		if c.Kind() == KindToken {
 			tokens = append(tokens, c)
 		}
-	}
+		return true
+	})
 	out := make(map[string]ast.Node)
 	for i := 0; i < len(tokens); i++ {
 		if !isTokenType(tokens[i], token.T_STRING) {
@@ -678,9 +712,9 @@ func lowerGlobalStmt(n *RedNode, file *File) ast.Node {
 	}
 	pos, end := nodePos(file, n)
 	var vars []ast.GlobalVarEntry
-	for _, c := range n.Children() {
+	n.ForEachChild(func(c *RedNode) bool {
 		if !isTokenType(c, token.T_VARIABLE) {
-			continue
+			return true
 		}
 		vp, ve := nodePos(file, c)
 		vars = append(vars, ast.GlobalVarEntry{
@@ -688,7 +722,8 @@ func lowerGlobalStmt(n *RedNode, file *File) ast.Node {
 			Pos:    vp,
 			EndPos: ve,
 		})
-	}
+		return true
+	})
 	if len(vars) == 0 {
 		return nil
 	}
@@ -717,7 +752,7 @@ func lowerStaticVarStmt(n *RedNode, file *File) ast.Node {
 		curName = ""
 		curInit = nil
 	}
-	for _, c := range n.Children() {
+	n.ForEachChild(func(c *RedNode) bool {
 		switch {
 		case isTokenType(c, token.T_VARIABLE):
 			flush()
@@ -726,13 +761,14 @@ func lowerStaticVarStmt(n *RedNode, file *File) ast.Node {
 		case isTokenType(c, token.T_COMMA), isTokenType(c, token.T_SEMICOLON):
 			flush()
 		case isTokenType(c, token.T_ASSIGN):
-			continue
+			return true
 		default:
 			if curName != "" && (isExprKind(c.Kind()) || isNameKind(c.Kind())) {
 				curInit = lowerExpr(c, file)
 			}
 		}
-	}
+		return true
+	})
 	flush()
 	if len(vars) == 0 {
 		return nil
@@ -745,7 +781,7 @@ func lowerSwitchCases(block *RedNode, file *File) []*ast.SwitchCaseNode {
 		return nil
 	}
 	var cases []*ast.SwitchCaseNode
-	for _, c := range block.Children() {
+	block.ForEachChild(func(c *RedNode) bool {
 		switch c.Kind() {
 		case KindCaseClause:
 			if sc := lowerCaseClause(c, file, false); sc != nil {
@@ -756,7 +792,8 @@ func lowerSwitchCases(block *RedNode, file *File) []*ast.SwitchCaseNode {
 				cases = append(cases, sc)
 			}
 		}
-	}
+		return true
+	})
 	return cases
 }
 
@@ -766,18 +803,19 @@ func lowerCaseClause(n *RedNode, file *File, isDefault bool) *ast.SwitchCaseNode
 	}
 	pos, end := nodePos(file, n)
 	sc := &ast.SwitchCaseNode{IsDefault: isDefault, Pos: pos, EndPos: end}
-	for _, c := range n.Children() {
+	n.ForEachChild(func(c *RedNode) bool {
 		if c.Kind() == KindToken {
-			continue
+			return true
 		}
 		if !isDefault && sc.Expr == nil && (isExprKind(c.Kind()) || isNameKind(c.Kind())) {
 			sc.Expr = lowerExpr(c, file)
-			continue
+			return true
 		}
 		if c.Kind() == KindStatementList {
 			sc.Body = lowerStatements(c, file)
 		}
-	}
+		return true
+	})
 	return sc
 }
 

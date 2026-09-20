@@ -17,14 +17,15 @@ func lowerParamList(n *RedNode, file *File) []ast.Node {
 		return nil
 	}
 	var out []ast.Node
-	for _, c := range list.Children() {
+	list.ForEachChild(func(c *RedNode) bool {
 		if c.Kind() != KindParam {
-			continue
+			return true
 		}
 		if p := lowerParam(c, file); p != nil {
 			out = append(out, p)
 		}
-	}
+		return true
+	})
 	return out
 }
 
@@ -46,7 +47,7 @@ func lowerParam(n *RedNode, file *File) *ast.ParamNode {
 		p.IsReadonly = true
 	}
 	seenAssign := false
-	for _, c := range n.Children() {
+	n.ForEachChild(func(c *RedNode) bool {
 		switch {
 		case c.Kind() == KindAttributeList:
 			p.Attributes = append(p.Attributes, lowerAttributeList(c, file)...)
@@ -64,6 +65,7 @@ func lowerParam(n *RedNode, file *File) *ast.ParamNode {
 			p.DefaultValue = lowerExpr(c, file)
 			seenAssign = false
 		}
-	}
+		return true
+	})
 	return p
 }
