@@ -139,7 +139,6 @@ func New(input string) *Lexer {
 func NewBytes(input []byte) *Lexer {
 	l := &Lexer{
 		input:  input,
-		lines:  token.NewLineTable(input),
 		line:   1,
 		column: 0,
 	}
@@ -170,7 +169,15 @@ func (l *Lexer) Source() []byte {
 	return l.input
 }
 
+// LineTable returns the source line-start offsets for this lexer's input.
+// The table is built lazily: New/NewBytes/NewFile/NewFileBytes no longer
+// scan the input for newlines up front, because the production syntax parse
+// path builds its own File.Lines table and nothing in-repo consumed the
+// eager lexer copy.
 func (l *Lexer) LineTable() token.LineTable {
+	if l.lines == nil {
+		l.lines = token.NewLineTable(l.input)
+	}
 	return l.lines
 }
 

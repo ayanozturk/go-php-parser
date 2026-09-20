@@ -1,10 +1,35 @@
 package lexer
 
 import (
+	"reflect"
 	"testing"
 
 	"github.com/ayanozturk/go-php-parser/token"
 )
+
+func TestLineTableIsLazy(t *testing.T) {
+	src := []byte("<?php\necho 1;\necho 2;\n")
+	l := NewBytes(src)
+	if l.lines != nil {
+		t.Fatalf("NewBytes eagerly built LineTable: %v", l.lines)
+	}
+	l2 := NewFileBytes(src)
+	if l2.lines != nil {
+		t.Fatalf("NewFileBytes eagerly built LineTable: %v", l2.lines)
+	}
+
+	got := l.LineTable()
+	want := token.NewLineTable(src)
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("LineTable() = %v, want %v", got, want)
+	}
+	if l.lines == nil {
+		t.Fatal("LineTable() did not cache the built table")
+	}
+	if &l.LineTable()[0] != &got[0] {
+		t.Fatal("second LineTable() call rebuilt instead of reusing cached table")
+	}
+}
 
 // TestNewFileStartsInHTMLModeWithoutLeadingOpenTag verifies that NewFile
 // (used for real source files) treats content before the first "<?php"/"<?="

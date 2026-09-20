@@ -1,10 +1,47 @@
 package syntax
 
 import (
+	"reflect"
 	"testing"
 
 	"github.com/ayanozturk/go-php-parser/token"
 )
+
+func TestParseFileLinesMatchesNewLineTable(t *testing.T) {
+	src := []byte("<?php\nfunction value(): int\n{\n    return 1;\n}\n")
+	res := Parse(src)
+	want := token.NewLineTable(src)
+	if !reflect.DeepEqual([]int(res.File.Lines), []int(want)) {
+		t.Fatalf("File.Lines = %v, want %v", res.File.Lines, want)
+	}
+	// Spans must still resolve against the syntax-owned table after the
+	// lexer stopped eagerly building its own copy.
+	var fnTok *RedNode
+	var find func(*RedNode)
+	find = func(n *RedNode) {
+		if n == nil || fnTok != nil {
+			return
+		}
+		if n.Green != nil && n.Green.IsToken() {
+			tok, _ := n.Green.Token()
+			if tok.Type == token.T_FUNCTION {
+				fnTok = n
+				return
+			}
+		}
+		for _, c := range n.Children() {
+			find(c)
+		}
+	}
+	find(res.File.Root)
+	if fnTok == nil {
+		t.Fatal("T_FUNCTION token not found")
+	}
+	pos, _ := nodePos(res.File, fnTok)
+	if pos.Line != 2 || pos.Column != 1 {
+		t.Fatalf("function pos=%d:%d want 2:1", pos.Line, pos.Column)
+	}
+}
 
 func TestParseNameKinds(t *testing.T) {
 	cases := []struct {
