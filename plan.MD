@@ -16,10 +16,12 @@ Turn the completed syntax-parser cutover into a release-quality baseline with co
 
 ### 1. Capture the exact baseline
 
-- [ ] Record the parser commit, Go version, machine, corpus revisions, and clean/dirty worktree state.
-- [ ] Run focused `syntax`, `lexer`, and binder tests before corpus work.
-- [ ] Run `syntax-metrics` for Symfony and WordPress and retain machine-readable output outside the repository.
-- [ ] Record discovered, parsed, diagnostic-failure, byte, token, and identity counts for both corpora.
+- [x] Record the parser commit, Go version, machine, corpus revisions, and clean/dirty worktree state.
+- [x] Run focused `syntax`, `lexer`, and binder tests before corpus work.
+- [x] Run `syntax-metrics` for Symfony and WordPress and retain machine-readable output outside the repository.
+- [x] Record discovered, parsed, diagnostic-failure, byte, token, and identity counts for both corpora.
+
+Baseline evidence: `docs/benchmarks/2026-09-20-syntax-corpus-baseline.md`.
 
 Commands:
 
