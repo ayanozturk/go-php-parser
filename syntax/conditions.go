@@ -45,7 +45,7 @@ func MatchCondition(n *RedNode) *RedNode {
 		}
 		k := green.Kind()
 		if seenLParen && cond == nil && (isExprKind(k) || isNameKind(k)) {
-			cond = n.bindChild(green, offset)
+			cond = &RedNode{File: n.File, Green: green, Offset: offset}
 			return false
 		}
 		return true
@@ -85,7 +85,7 @@ func forClauseChildrenAt(n *RedNode, start int) ([]*RedNode, int) {
 		}
 		k := green.Kind()
 		if isExprKind(k) || isNameKind(k) {
-			exprs = append(exprs, n.bindChild(green, offset))
+			exprs = append(exprs, &RedNode{File: n.File, Green: green, Offset: offset})
 		}
 		i++
 		return true
@@ -182,7 +182,7 @@ func IfElseIfs(n *RedNode) []*RedNode {
 	var out []*RedNode
 	n.ForEachChildDesc(func(green *GreenNode, offset int) bool {
 		if green.Kind() == KindElseIfClause {
-			out = append(out, n.bindChild(green, offset))
+			out = append(out, &RedNode{File: n.File, Green: green, Offset: offset})
 		}
 		return true
 	})
@@ -344,7 +344,7 @@ func StatementBodyList(n *RedNode) []*RedNode {
 			if green == nil || green.Kind() == KindToken {
 				return true
 			}
-			out = append(out, n.bindChild(green, offset))
+			out = append(out, &RedNode{File: n.File, Green: green, Offset: offset})
 			return true
 		})
 		return out

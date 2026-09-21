@@ -21,7 +21,8 @@ func lowerParamList(n *RedNode, file *File) []ast.Node {
 		if green.Kind() != KindParam {
 			return true
 		}
-		if p := lowerParam(list.bindChild(green, offset), file); p != nil {
+		param := RedNode{File: list.File, Green: green, Offset: offset}
+		if p := lowerParam(&param, file); p != nil {
 			out = append(out, p)
 		}
 		return true
@@ -49,22 +50,23 @@ func lowerParam(n *RedNode, file *File) *ast.ParamNode {
 	seenAssign := false
 	n.ForEachChildDesc(func(green *GreenNode, offset int) bool {
 		k := green.Kind()
-		c := n.bindChild(green, offset)
 		switch {
 		case k == KindAttributeList:
-			p.Attributes = append(p.Attributes, lowerAttributeList(c, file)...)
+			attrList := RedNode{File: n.File, Green: green, Offset: offset}
+			p.Attributes = append(p.Attributes, lowerAttributeList(&attrList, file)...)
 		case isTypeKind(k):
-			p.TypeHint = lowerType(c, file)
+			typeNode := RedNode{File: n.File, Green: green, Offset: offset}
+			p.TypeHint = lowerType(&typeNode, file)
 		case k == KindToken && green.TokenType() == token.T_AMPERSAND:
 			p.IsByRef = true
 		case k == KindToken && green.TokenType() == token.T_ELLIPSIS:
 			p.IsVariadic = true
 		case k == KindToken && green.TokenType() == token.T_VARIABLE:
-			p.Name = stripVarDollar(tokenLiteral(c))
+			p.Name = stripVarDollar(greenTokenLiteral(green))
 		case k == KindToken && green.TokenType() == token.T_ASSIGN:
 			seenAssign = true
 		case seenAssign && (isExprKind(k) || isNameKind(k)):
-			p.DefaultValue = lowerExpr(c, file)
+			p.DefaultValue = lowerExprAt(file, green, offset)
 			seenAssign = false
 		}
 		return true

@@ -8,6 +8,33 @@ import (
 	"github.com/ayanozturk/go-php-parser/token"
 )
 
+// lowerStmtAt lowers one statement child from green+offset without bindChild.
+func lowerStmtAt(file *File, green *GreenNode, offset int) ast.Node {
+	if file == nil || green == nil || green.Kind() == KindToken {
+		return nil
+	}
+	n := RedNode{File: file, Green: green, Offset: offset}
+	return lowerStmt(&n, file)
+}
+
+// lowerControlBodyAt lowers a statement-list or single statement child without bindChild.
+func lowerControlBodyAt(file *File, green *GreenNode, offset int) []ast.Node {
+	if file == nil || green == nil || green.Kind() == KindToken {
+		return nil
+	}
+	k := green.Kind()
+	if k == KindStatementList {
+		n := RedNode{File: file, Green: green, Offset: offset}
+		return lowerStatements(&n, file)
+	}
+	if isStmtKind(k) {
+		if stmt := lowerStmtAt(file, green, offset); stmt != nil {
+			return []ast.Node{stmt}
+		}
+	}
+	return nil
+}
+
 // lowerStatements lowers a KindStatementList (or similar list) to classic body nodes.
 // Unsupported children are skipped without panicking.
 func lowerStatements(list *RedNode, file *File) []ast.Node {
@@ -19,8 +46,7 @@ func lowerStatements(list *RedNode, file *File) []ast.Node {
 		if green.Kind() == KindToken {
 			return true
 		}
-		c := list.bindChild(green, offset)
-		if stmt := lowerStmt(c, file); stmt != nil {
+		if stmt := lowerStmtAt(file, green, offset); stmt != nil {
 			out = append(out, stmt)
 		}
 		return true
@@ -101,7 +127,7 @@ func lowerStmt(n *RedNode, file *File) ast.Node {
 			if !isGreenTokenType(green, token.T_STRING) {
 				return true
 			}
-			label = strings.TrimSpace(tokenLiteral(n.bindChild(green, offset)))
+			label = strings.TrimSpace(greenTokenLiteral(green))
 			return false
 		})
 		if label == "" {
@@ -114,7 +140,7 @@ func lowerStmt(n *RedNode, file *File) ast.Node {
 			if !isGreenTokenType(green, token.T_STRING) {
 				return true
 			}
-			name = strings.TrimSpace(tokenLiteral(n.bindChild(green, offset)))
+			name = strings.TrimSpace(greenTokenLiteral(green))
 			return false
 		})
 		if name == "" {
@@ -138,23 +164,24 @@ func lowerIfStmt(n *RedNode, file *File) *ast.IfNode {
 		if k == KindToken {
 			return true
 		}
-		c := n.bindChild(green, offset)
 		switch k {
 		case KindElseIfClause:
-			if ei := lowerElseIfClause(c, file); ei != nil {
+			clause := RedNode{File: n.File, Green: green, Offset: offset}
+			if ei := lowerElseIfClause(&clause, file); ei != nil {
 				iff.ElseIfs = append(iff.ElseIfs, ei)
 			}
 		case KindElseClause:
-			iff.Else = lowerElseClause(c, file)
+			clause := RedNode{File: n.File, Green: green, Offset: offset}
+			iff.Else = lowerElseClause(&clause, file)
 		default:
 			if isExprKind(k) && !seenCond {
-				iff.Condition = lowerExpr(c, file)
+				iff.Condition = lowerExprAt(file, green, offset)
 				seenCond = true
 				return true
 			}
 			if k == KindStatementList || isStmtKind(k) {
 				if iff.Body == nil && seenCond {
-					iff.Body = lowerControlBody(c, file)
+					iff.Body = lowerControlBodyAt(file, green, offset)
 				}
 			}
 		}
@@ -175,14 +202,13 @@ func lowerElseIfClause(n *RedNode, file *File) *ast.ElseIfNode {
 		if k == KindToken {
 			return true
 		}
-		c := n.bindChild(green, offset)
 		if isExprKind(k) && !seenCond {
-			ei.Condition = lowerExpr(c, file)
+			ei.Condition = lowerExprAt(file, green, offset)
 			seenCond = true
 			return true
 		}
 		if k == KindStatementList || isStmtKind(k) {
-			ei.Body = lowerControlBody(c, file)
+			ei.Body = lowerControlBodyAt(file, green, offset)
 			return false
 		}
 		return true
@@ -201,9 +227,8 @@ func lowerElseClause(n *RedNode, file *File) *ast.ElseNode {
 		if k == KindToken {
 			return true
 		}
-		c := n.bindChild(green, offset)
 		if k == KindStatementList || isStmtKind(k) {
-			els.Body = lowerControlBody(c, file)
+			els.Body = lowerControlBodyAt(file, green, offset)
 			return false
 		}
 		return true
@@ -251,7 +276,7 @@ func lowerEchoStmt(n *RedNode, file *File) ast.Node {
 		if !isExprKind(k) && !isNameKind(k) {
 			return true
 		}
-		if e := lowerExpr(n.bindChild(green, offset), file); e != nil {
+		if e := lowerExprAt(file, green, offset); e != nil {
 			exprs = append(exprs, e)
 		}
 		return true
@@ -292,14 +317,13 @@ func lowerWhileStmt(n *RedNode, file *File) ast.Node {
 		if k == KindToken {
 			return true
 		}
-		c := n.bindChild(green, offset)
 		if (isExprKind(k) || isNameKind(k)) && !seenCond {
-			w.Condition = lowerExpr(c, file)
+			w.Condition = lowerExprAt(file, green, offset)
 			seenCond = true
 			return true
 		}
 		if k == KindStatementList || isStmtKind(k) {
-			w.Body = lowerControlBody(c, file)
+			w.Body = lowerControlBodyAt(file, green, offset)
 			return false
 		}
 		return true
@@ -315,13 +339,12 @@ func lowerDoWhileStmt(n *RedNode, file *File) ast.Node {
 		if k == KindToken {
 			return true
 		}
-		c := n.bindChild(green, offset)
 		if d.Body == nil && (k == KindStatementList || isStmtKind(k)) {
-			d.Body = lowerControlBody(c, file)
+			d.Body = lowerControlBodyAt(file, green, offset)
 			return true
 		}
 		if isExprKind(k) || isNameKind(k) {
-			d.Condition = lowerExpr(c, file)
+			d.Condition = lowerExprAt(file, green, offset)
 		}
 		return true
 	})
@@ -340,8 +363,8 @@ func walkRedChildrenFrom(children []*RedNode, start int, fn func(c *RedNode, i i
 }
 
 // walkRedNodeChildrenFrom is like walkRedChildrenFrom but walks n's direct
-// children via ForEachChildDesc without allocating []*RedNode.
-func walkRedNodeChildrenFrom(n *RedNode, start int, fn func(c *RedNode, i int) int) int {
+// children via ForEachChildDesc without bindChild per child.
+func walkRedNodeChildrenFrom(n *RedNode, start int, fn func(green *GreenNode, offset int, i int) int) int {
 	if n == nil {
 		return start
 	}
@@ -352,8 +375,7 @@ func walkRedNodeChildrenFrom(n *RedNode, start int, fn func(c *RedNode, i int) i
 			i++
 			return true
 		}
-		c := n.bindChild(green, offset)
-		if ni := fn(c, i); ni >= 0 {
+		if ni := fn(green, offset, i); ni >= 0 {
 			next = ni
 			return false
 		}
@@ -389,12 +411,13 @@ func lowerForStmt(n *RedNode, file *File) ast.Node {
 	f.Conditions = lowerExprRedNodes(conds, file)
 	updates, start := forClauseChildrenAt(n, start)
 	f.Updates = lowerExprRedNodes(updates, file)
-	walkRedNodeChildrenFrom(n, start, func(c *RedNode, idx int) int {
-		if c.Kind() == KindToken {
+	walkRedNodeChildrenFrom(n, start, func(green *GreenNode, offset int, idx int) int {
+		k := green.Kind()
+		if k == KindToken {
 			return -1
 		}
-		if c.Kind() == KindStatementList || isStmtKind(c.Kind()) {
-			f.Body = lowerControlBody(c, file)
+		if k == KindStatementList || isStmtKind(k) {
+			f.Body = lowerControlBodyAt(file, green, offset)
 			return idx
 		}
 		return -1
@@ -426,81 +449,86 @@ func lowerForeachStmt(n *RedNode, file *File) ast.Node {
 	fe := &ast.ForeachNode{Pos: pos, EndPos: end}
 	i := forStmtIndexAfterLParen(n)
 	// Iterated expression.
-	i = walkRedNodeChildrenFrom(n, i, func(c *RedNode, idx int) int {
-		if isTokenType(c, token.T_AS) {
+	i = walkRedNodeChildrenFrom(n, i, func(green *GreenNode, offset int, idx int) int {
+		if isGreenTokenType(green, token.T_AS) {
 			return idx + 1
 		}
-		if isExprKind(c.Kind()) || isNameKind(c.Kind()) {
-			fe.Expr = lowerExpr(c, file)
+		k := green.Kind()
+		if isExprKind(k) || isNameKind(k) {
+			fe.Expr = lowerExprAt(file, green, offset)
 		}
 		return -1
 	})
 	refBeforeFirst := false
-	i = walkRedNodeChildrenFrom(n, i, func(c *RedNode, idx int) int {
-		if isTokenType(c, token.T_AMPERSAND) {
+	i = walkRedNodeChildrenFrom(n, i, func(green *GreenNode, offset int, idx int) int {
+		if isGreenTokenType(green, token.T_AMPERSAND) {
 			refBeforeFirst = true
 			return idx + 1
 		}
 		return idx
 	})
-	var first *RedNode
-	i = walkRedNodeChildrenFrom(n, i, func(c *RedNode, idx int) int {
-		if isExprKind(c.Kind()) || isNameKind(c.Kind()) {
-			first = c
+	var firstGreen *GreenNode
+	var firstOff int
+	i = walkRedNodeChildrenFrom(n, i, func(green *GreenNode, offset int, idx int) int {
+		k := green.Kind()
+		if isExprKind(k) || isNameKind(k) {
+			firstGreen, firstOff = green, offset
 			return idx + 1
 		}
-		if isTokenType(c, token.T_RPAREN) {
+		if isGreenTokenType(green, token.T_RPAREN) {
 			return idx
 		}
 		return -1
 	})
 	hasArrow := false
-	i = walkRedNodeChildrenFrom(n, i, func(c *RedNode, idx int) int {
-		if isTokenType(c, token.T_DOUBLE_ARROW) {
+	i = walkRedNodeChildrenFrom(n, i, func(green *GreenNode, offset int, idx int) int {
+		if isGreenTokenType(green, token.T_DOUBLE_ARROW) {
 			hasArrow = true
 			return idx + 1
 		}
-		if isTokenType(c, token.T_RPAREN) {
+		if isGreenTokenType(green, token.T_RPAREN) {
 			return idx
 		}
 		return -1
 	})
-	if first != nil {
+	if firstGreen != nil {
 		if hasArrow {
-			key := lowerExpr(first, file)
+			key := lowerExprAt(file, firstGreen, firstOff)
 			if refBeforeFirst && key != nil {
-				kp, ke := nodePos(file, first)
+				kp, ke := nodePosGreen(file, firstGreen, firstOff)
 				key = &ast.UnaryExpr{Operator: "&", Operand: key, Pos: kp, EndPos: ke}
 			}
 			fe.KeyVar = key
-			i = walkRedNodeChildrenFrom(n, i, func(c *RedNode, idx int) int {
-				if isTokenType(c, token.T_AMPERSAND) {
+			i = walkRedNodeChildrenFrom(n, i, func(green *GreenNode, offset int, idx int) int {
+				if isGreenTokenType(green, token.T_AMPERSAND) {
 					fe.ByRef = true
 					return idx + 1
 				}
 				return idx
 			})
-			i = walkRedNodeChildrenFrom(n, i, func(c *RedNode, idx int) int {
-				if isExprKind(c.Kind()) || isNameKind(c.Kind()) {
-					fe.ValueVar = lowerExpr(c, file)
+			i = walkRedNodeChildrenFrom(n, i, func(green *GreenNode, offset int, idx int) int {
+				k := green.Kind()
+				if isExprKind(k) || isNameKind(k) {
+					fe.ValueVar = lowerExprAt(file, green, offset)
 					return idx + 1
 				}
-				if isTokenType(c, token.T_RPAREN) {
+				if isGreenTokenType(green, token.T_RPAREN) {
 					return idx
 				}
 				return -1
 			})
 		} else {
-			fe.ValueVar = lowerExpr(first, file)
+			fe.ValueVar = lowerExprAt(file, firstGreen, firstOff)
 			fe.ByRef = refBeforeFirst
 		}
 	}
-	walkRedNodeChildrenFrom(n, i, func(c *RedNode, idx int) int {
-		if c.Kind() == KindToken {
+	walkRedNodeChildrenFrom(n, i, func(green *GreenNode, offset int, idx int) int {
+		k := green.Kind()
+		if k == KindToken {
 			return -1
 		}
-		if c.Kind() == KindStatementList || isStmtKind(c.Kind()) {
-			fe.Body = lowerControlBody(c, file)
+		if k == KindStatementList || isStmtKind(k) {
+			fe.Body = lowerControlBodyAt(file, green, offset)
 			return idx
 		}
 		return -1
@@ -530,18 +558,22 @@ func lowerTryStmt(n *RedNode, file *File) ast.Node {
 	pos, end := nodePos(file, n)
 	tr := &ast.TryNode{Pos: pos, EndPos: end}
 	n.ForEachChildDesc(func(green *GreenNode, offset int) bool {
-		c := n.bindChild(green, offset)
-		switch green.Kind() {
+		k := green.Kind()
+		if k == KindToken {
+			return true
+		}
+		child := RedNode{File: n.File, Green: green, Offset: offset}
+		switch k {
 		case KindStatementList:
 			if tr.Body == nil {
-				tr.Body = lowerStatements(c, file)
+				tr.Body = lowerStatements(&child, file)
 			}
 		case KindCatchClause:
-			if catch := lowerCatchClause(c, file); catch != nil {
+			if catch := lowerCatchClause(&child, file); catch != nil {
 				tr.Catches = append(tr.Catches, catch)
 			}
 		case KindFinallyClause:
-			tr.Finally = lowerFinallyClause(c, file)
+			tr.Finally = lowerFinallyClause(&child, file)
 		}
 		return true
 	})
@@ -558,18 +590,19 @@ func lowerCatchClause(n *RedNode, file *File) *ast.CatchNode {
 		k := green.Kind()
 		switch {
 		case isTypeKind(k):
-			catch.Types = catchTypeNames(n.bindChild(green, offset), file)
+			typeNode := RedNode{File: n.File, Green: green, Offset: offset}
+			catch.Types = catchTypeNames(&typeNode, file)
 		case k == KindToken:
-			c := n.bindChild(green, offset)
-			if isTokenType(c, token.T_VARIABLE) {
-				catch.Variable = stripVarDollar(tokenLiteral(c))
+			if isGreenTokenType(green, token.T_VARIABLE) {
+				catch.Variable = stripVarDollar(greenTokenLiteral(green))
 			}
 		case k == KindStatementList:
-			catch.Body = lowerStatements(n.bindChild(green, offset), file)
+			body := RedNode{File: n.File, Green: green, Offset: offset}
+			catch.Body = lowerStatements(&body, file)
 		case k == KindTokenList:
-			c := n.bindChild(green, offset)
+			tokenList := RedNode{File: n.File, Green: green, Offset: offset}
 			// Recovery fallback: concatenate token text as a single type.
-			if text := strings.TrimSpace(c.Text()); text != "" && len(catch.Types) == 0 {
+			if text := strings.TrimSpace(tokenList.Text()); text != "" && len(catch.Types) == 0 {
 				catch.Types = []string{text}
 			}
 		}
@@ -607,7 +640,8 @@ func lowerFinallyClause(n *RedNode, file *File) []ast.Node {
 		if green.Kind() != KindStatementList {
 			return true
 		}
-		body = lowerStatements(n.bindChild(green, offset), file)
+		list := RedNode{File: n.File, Green: green, Offset: offset}
+		body = lowerStatements(&list, file)
 		return false
 	})
 	return body
@@ -622,14 +656,14 @@ func lowerSwitchStmt(n *RedNode, file *File) ast.Node {
 		if k == KindToken {
 			return true
 		}
-		c := n.bindChild(green, offset)
 		if (isExprKind(k) || isNameKind(k)) && !seenExpr {
-			sw.Expr = lowerExpr(c, file)
+			sw.Expr = lowerExprAt(file, green, offset)
 			seenExpr = true
 			return true
 		}
 		if k == KindStatementList {
-			sw.Cases = lowerSwitchCases(c, file)
+			block := RedNode{File: n.File, Green: green, Offset: offset}
+			sw.Cases = lowerSwitchCases(&block, file)
 			return false
 		}
 		return true
@@ -645,7 +679,8 @@ func lowerUnsetStmt(n *RedNode, file *File) ast.Node {
 	var args []ast.Node
 	n.ForEachChildDesc(func(green *GreenNode, offset int) bool {
 		if green.Kind() == KindArgList {
-			args = lowerArgList(n.bindChild(green, offset), file)
+			argList := RedNode{File: n.File, Green: green, Offset: offset}
+			args = lowerArgList(&argList, file)
 			return false
 		}
 		return true
@@ -654,7 +689,7 @@ func lowerUnsetStmt(n *RedNode, file *File) ast.Node {
 		n.ForEachChildDesc(func(green *GreenNode, offset int) bool {
 			k := green.Kind()
 			if isExprKind(k) || isNameKind(k) {
-				if e := lowerExpr(n.bindChild(green, offset), file); e != nil {
+				if e := lowerExprAt(file, green, offset); e != nil {
 					args = append(args, e)
 				}
 			}
@@ -679,13 +714,14 @@ func lowerDeclareStmt(n *RedNode, file *File) ast.Node {
 		switch green.Kind() {
 		case KindTokenList:
 			if len(decl.Directives) == 0 {
-				decl.Directives = lowerDeclareDirectives(n.bindChild(green, offset), file)
+				tl := RedNode{File: n.File, Green: green, Offset: offset}
+				decl.Directives = lowerDeclareDirectives(&tl, file)
 			}
 		case KindStatementList:
-			c := n.bindChild(green, offset)
-			stmts := lowerStatements(c, file)
+			bodyList := RedNode{File: n.File, Green: green, Offset: offset}
+			stmts := lowerStatements(&bodyList, file)
 			if len(stmts) > 0 {
-				bp, be := nodePos(file, c)
+				bp, be := nodePosGreen(file, green, offset)
 				decl.Body = &ast.BlockNode{Statements: stmts, Pos: bp, EndPos: be}
 			}
 		}
@@ -701,35 +737,42 @@ func lowerDeclareDirectives(list *RedNode, file *File) map[string]ast.Node {
 	if list == nil {
 		return nil
 	}
-	var tokens []*RedNode
+	var tokens []struct {
+		green  *GreenNode
+		offset int
+	}
 	list.ForEachChildDesc(func(green *GreenNode, offset int) bool {
 		if green.Kind() != KindToken {
 			return true
 		}
-		tokens = append(tokens, list.bindChild(green, offset))
+		tokens = append(tokens, struct {
+			green  *GreenNode
+			offset int
+		}{green, offset})
 		return true
 	})
 	out := make(map[string]ast.Node)
 	for i := 0; i < len(tokens); i++ {
-		if !isTokenType(tokens[i], token.T_STRING) {
+		if !isGreenTokenType(tokens[i].green, token.T_STRING) {
 			continue
 		}
-		name := strings.TrimSpace(tokenLiteral(tokens[i]))
+		name := strings.TrimSpace(greenTokenLiteral(tokens[i].green))
 		if name == "" {
 			continue
 		}
 		i++
-		for i < len(tokens) && isTokenType(tokens[i], token.T_COMMA) {
+		for i < len(tokens) && isGreenTokenType(tokens[i].green, token.T_COMMA) {
 			i++
 		}
-		if i >= len(tokens) || !isTokenType(tokens[i], token.T_ASSIGN) {
+		if i >= len(tokens) || !isGreenTokenType(tokens[i].green, token.T_ASSIGN) {
 			continue
 		}
 		i++
 		if i >= len(tokens) {
 			break
 		}
-		if val := lowerDeclareDirectiveValue(tokens[i], file); val != nil {
+		valNode := RedNode{File: file, Green: tokens[i].green, Offset: tokens[i].offset}
+		if val := lowerDeclareDirectiveValue(&valNode, file); val != nil {
 			out[name] = val
 		}
 	}
@@ -771,10 +814,9 @@ func lowerGlobalStmt(n *RedNode, file *File) ast.Node {
 		if green.Kind() != KindToken || green.TokenType() != token.T_VARIABLE {
 			return true
 		}
-		c := n.bindChild(green, offset)
-		vp, ve := nodePos(file, c)
+		vp, ve := nodePosGreen(file, green, offset)
 		vars = append(vars, ast.GlobalVarEntry{
-			Name:   stripVarDollar(tokenLiteral(c)),
+			Name:   stripVarDollar(greenTokenLiteral(green)),
 			Pos:    vp,
 			EndPos: ve,
 		})
@@ -813,10 +855,9 @@ func lowerStaticVarStmt(n *RedNode, file *File) ast.Node {
 		if k == KindToken {
 			switch green.TokenType() {
 			case token.T_VARIABLE:
-				c := n.bindChild(green, offset)
 				flush()
-				curPos, curEnd = nodePos(file, c)
-				curName = stripVarDollar(tokenLiteral(c))
+				curPos, curEnd = nodePosGreen(file, green, offset)
+				curName = stripVarDollar(greenTokenLiteral(green))
 			case token.T_COMMA, token.T_SEMICOLON:
 				flush()
 			case token.T_ASSIGN:
@@ -825,7 +866,7 @@ func lowerStaticVarStmt(n *RedNode, file *File) ast.Node {
 			return true
 		}
 		if curName != "" && (isExprKind(k) || isNameKind(k)) {
-			curInit = lowerExpr(n.bindChild(green, offset), file)
+			curInit = lowerExprAt(file, green, offset)
 		}
 		return true
 	})
@@ -844,11 +885,13 @@ func lowerSwitchCases(block *RedNode, file *File) []*ast.SwitchCaseNode {
 	block.ForEachChildDesc(func(green *GreenNode, offset int) bool {
 		switch green.Kind() {
 		case KindCaseClause:
-			if sc := lowerCaseClause(block.bindChild(green, offset), file, false); sc != nil {
+			clause := RedNode{File: block.File, Green: green, Offset: offset}
+			if sc := lowerCaseClause(&clause, file, false); sc != nil {
 				cases = append(cases, sc)
 			}
 		case KindDefaultClause:
-			if sc := lowerCaseClause(block.bindChild(green, offset), file, true); sc != nil {
+			clause := RedNode{File: block.File, Green: green, Offset: offset}
+			if sc := lowerCaseClause(&clause, file, true); sc != nil {
 				cases = append(cases, sc)
 			}
 		}
@@ -868,13 +911,13 @@ func lowerCaseClause(n *RedNode, file *File, isDefault bool) *ast.SwitchCaseNode
 		if k == KindToken {
 			return true
 		}
-		c := n.bindChild(green, offset)
 		if !isDefault && sc.Expr == nil && (isExprKind(k) || isNameKind(k)) {
-			sc.Expr = lowerExpr(c, file)
+			sc.Expr = lowerExprAt(file, green, offset)
 			return true
 		}
 		if k == KindStatementList {
-			sc.Body = lowerStatements(c, file)
+			body := RedNode{File: n.File, Green: green, Offset: offset}
+			sc.Body = lowerStatements(&body, file)
 		}
 		return true
 	})

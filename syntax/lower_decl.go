@@ -349,7 +349,7 @@ func lowerFunction(n *RedNode, file *File) *ast.FunctionNode {
 	// Classic anchors Pos at T_FUNCTION (modifiers are outside the Pos span).
 	n.ForEachChildDesc(func(green *GreenNode, offset int) bool {
 		if green.Kind() == KindToken && green.TokenType() == token.T_FUNCTION {
-			pos, _ = nodePos(file, n.bindChild(green, offset))
+			pos, _ = nodePosGreen(file, green, offset)
 			return false
 		}
 		return true
@@ -366,32 +366,31 @@ func lowerFunction(n *RedNode, file *File) *ast.FunctionNode {
 		k := green.Kind()
 		switch k {
 		case KindUnqualifiedName:
-			c := n.bindChild(green, offset)
 			if fn.Name == "" {
-				fn.Name = NameText(c)
-				headerEnd = spanEnd(file, c.Span())
+				nameNode := RedNode{File: n.File, Green: green, Offset: offset}
+				fn.Name = NameText(&nameNode)
+				headerEnd = spanEnd(file, Span{Start: offset, End: offset + green.width})
 			}
 		case KindParamList:
-			c := n.bindChild(green, offset)
-			fn.Params = lowerParamList(c, file)
-			headerEnd = spanEnd(file, c.Span())
+			paramList := RedNode{File: n.File, Green: green, Offset: offset}
+			fn.Params = lowerParamList(&paramList, file)
+			headerEnd = spanEnd(file, Span{Start: offset, End: offset + green.width})
 		case KindTokenList:
 			// Index mode: leave Body nil.
 			fn.Body = nil
 		case KindStatementList:
-			c := n.bindChild(green, offset)
-			fn.Body = lowerStatements(c, file)
+			bodyList := RedNode{File: n.File, Green: green, Offset: offset}
+			fn.Body = lowerStatements(&bodyList, file)
 		default:
 			if k == KindToken && green.TokenType() == token.T_COLON {
 				seenColon = true
-				c := n.bindChild(green, offset)
-				headerEnd = spanEnd(file, c.Span())
+				headerEnd = spanEnd(file, Span{Start: offset, End: offset + green.width})
 				return true
 			}
 			if seenColon && isTypeKind(k) {
-				c := n.bindChild(green, offset)
-				fn.ReturnType = lowerType(c, file)
-				headerEnd = spanEnd(file, c.Span())
+				typeNode := RedNode{File: n.File, Green: green, Offset: offset}
+				fn.ReturnType = lowerType(&typeNode, file)
+				headerEnd = spanEnd(file, Span{Start: offset, End: offset + green.width})
 				seenColon = false
 			}
 		}
@@ -437,36 +436,39 @@ func lowerProperties(n *RedNode, file *File) []ast.Node {
 	i := 0
 	for {
 		prev := i
-		i = walkRedNodeChildrenFrom(n, i, func(c *RedNode, idx int) int {
+		i = walkRedNodeChildrenFrom(n, i, func(green *GreenNode, offset int, idx int) int {
+			k := green.Kind()
 			switch {
-			case isTypeKind(c.Kind()):
-				typeHint = lowerType(c, file)
+			case isTypeKind(k):
+				typeNode := RedNode{File: n.File, Green: green, Offset: offset}
+				typeHint = lowerType(&typeNode, file)
 				return -1
-			case isTokenType(c, token.T_VARIABLE):
-				sp := c.Span()
+			case isGreenTokenType(green, token.T_VARIABLE):
+				sp := Span{Start: offset, End: offset + green.width}
 				nm := propName{
-					name: stripVarDollar(tokenLiteral(c)),
+					name: stripVarDollar(greenTokenLiteral(green)),
 					pos:  spanStart(file, sp),
 					end:  spanEnd(file, sp),
 				}
 				// Optional `= <expr>` default immediately after the variable.
 				j := idx + 1
 				hasAssign := false
-				walkRedNodeChildrenFrom(n, j, func(peek *RedNode, pj int) int {
+				walkRedNodeChildrenFrom(n, j, func(peek *GreenNode, peekOff int, pj int) int {
 					if pj != j {
 						return pj
 					}
-					hasAssign = isTokenType(peek, token.T_ASSIGN)
+					hasAssign = isGreenTokenType(peek, token.T_ASSIGN)
 					return pj
 				})
 				if hasAssign {
-					j = walkRedNodeChildrenFrom(n, j+1, func(v *RedNode, vj int) int {
-						if isTokenType(v, token.T_COMMA) || isTokenType(v, token.T_SEMICOLON) ||
+					j = walkRedNodeChildrenFrom(n, j+1, func(v *GreenNode, vOff int, vj int) int {
+						if isGreenTokenType(v, token.T_COMMA) || isGreenTokenType(v, token.T_SEMICOLON) ||
 							v.Kind() == KindPropertyHookList {
 							return vj
 						}
-						if isExprKind(v.Kind()) || isNameKind(v.Kind()) {
-							nm.defaultValue = lowerExpr(v, file)
+						vk := v.Kind()
+						if isExprKind(vk) || isNameKind(vk) {
+							nm.defaultValue = lowerExprAt(file, v, vOff)
 							if nm.defaultValue != nil {
 								nm.end = nm.defaultValue.GetEndPos()
 							}
@@ -477,8 +479,9 @@ func lowerProperties(n *RedNode, file *File) []ast.Node {
 				}
 				names = append(names, nm)
 				return j
-			case c.Kind() == KindPropertyHookList:
-				hooks = lowerPropertyHooks(c, file)
+			case k == KindPropertyHookList:
+				hookList := RedNode{File: n.File, Green: green, Offset: offset}
+				hooks = lowerPropertyHooks(&hookList, file)
 				return -1
 			}
 			return -1
@@ -525,7 +528,8 @@ func lowerPropertyHooks(list *RedNode, file *File) []ast.PropertyHookNode {
 		if green.Kind() != KindPropertyHook {
 			return true
 		}
-		if h, ok := lowerPropertyHook(list.bindChild(green, offset), file); ok {
+		hook := RedNode{File: list.File, Green: green, Offset: offset}
+		if h, ok := lowerPropertyHook(&hook, file); ok {
 			out = append(out, h)
 		}
 		return true
@@ -539,21 +543,21 @@ func lowerPropertyHook(n *RedNode, file *File) (ast.PropertyHookNode, bool) {
 	i := 0
 	for {
 		prev := i
-		i = walkRedNodeChildrenFrom(n, i, func(c *RedNode, idx int) int {
-			if isTokenType(c, token.T_AMPERSAND) {
+		i = walkRedNodeChildrenFrom(n, i, func(green *GreenNode, offset int, idx int) int {
+			if isGreenTokenType(green, token.T_AMPERSAND) {
 				h.IsByRef = true
 				return -1
 			}
-			if isTokenType(c, token.T_STRING) && h.Name == "" {
-				h.Name = tokenLiteral(c)
+			if isGreenTokenType(green, token.T_STRING) && h.Name == "" {
+				h.Name = greenTokenLiteral(green)
 				return -1
 			}
-			if isTokenType(c, token.T_LPAREN) {
+			if isGreenTokenType(green, token.T_LPAREN) {
 				// Capture balanced header text like classic readBalancedPropertyHookHeader.
-				start := c.Span().Start
-				next := walkRedNodeChildrenFrom(n, idx, func(inner *RedNode, j int) int {
-					if isTokenType(inner, token.T_RPAREN) {
-						endOff := inner.Span().End
+				start := offset
+				next := walkRedNodeChildrenFrom(n, idx, func(inner *GreenNode, innerOff int, j int) int {
+					if isGreenTokenType(inner, token.T_RPAREN) {
+						endOff := innerOff + inner.width
 						if file != nil && start >= 0 && endOff <= len(file.Source) && start <= endOff {
 							h.Parameter = string(file.Source[start:endOff])
 						}
@@ -564,13 +568,14 @@ func lowerPropertyHook(n *RedNode, file *File) (ast.PropertyHookNode, bool) {
 				return next
 			}
 			// Arrow hook: get => <expr>;  /  set($v) => <expr>;
-			if isTokenType(c, token.T_DOUBLE_ARROW) {
-				next := walkRedNodeChildrenFrom(n, idx+1, func(v *RedNode, j int) int {
-					if isTokenType(v, token.T_SEMICOLON) {
+			if isGreenTokenType(green, token.T_DOUBLE_ARROW) {
+				next := walkRedNodeChildrenFrom(n, idx+1, func(v *GreenNode, vOff int, j int) int {
+					if isGreenTokenType(v, token.T_SEMICOLON) {
 						return j
 					}
-					if isExprKind(v.Kind()) || isNameKind(v.Kind()) {
-						h.Expr = lowerExpr(v, file)
+					vk := v.Kind()
+					if isExprKind(vk) || isNameKind(vk) {
+						h.Expr = lowerExprAt(file, v, vOff)
 						return j + 1
 					}
 					return -1
@@ -578,8 +583,9 @@ func lowerPropertyHook(n *RedNode, file *File) (ast.PropertyHookNode, bool) {
 				return next
 			}
 			// Braced hook body: get { … } / set($v) { … }
-			if c.Kind() == KindStatementList {
-				h.Body = lowerStatements(c, file)
+			if green.Kind() == KindStatementList {
+				body := RedNode{File: n.File, Green: green, Offset: offset}
+				h.Body = lowerStatements(&body, file)
 				return -1
 			}
 			// Abstract / interface: bare `get;` / `set;` — Expr and Body stay nil.
@@ -607,33 +613,37 @@ func lowerClassConsts(n *RedNode, file *File) []ast.Node {
 	i := 0
 	for {
 		prev := i
-		i = walkRedNodeChildrenFrom(n, i, func(c *RedNode, idx int) int {
-			if isTypeKind(c.Kind()) {
-				typeHint = lowerType(c, file)
+		i = walkRedNodeChildrenFrom(n, i, func(green *GreenNode, offset int, idx int) int {
+			k := green.Kind()
+			if isTypeKind(k) {
+				typeNode := RedNode{File: n.File, Green: green, Offset: offset}
+				typeHint = lowerType(&typeNode, file)
 				return -1
 			}
-			if c.Kind() != KindUnqualifiedName {
+			if k != KindUnqualifiedName {
 				return -1
 			}
-			name := NameText(c)
-			np, ne := nodePos(file, c)
+			nameNode := RedNode{File: n.File, Green: green, Offset: offset}
+			name := NameText(&nameNode)
+			np, ne := nodePosGreen(file, green, offset)
 			var value ast.Node
 			j := idx + 1
 			hasAssign := false
-			walkRedNodeChildrenFrom(n, j, func(peek *RedNode, pj int) int {
+			walkRedNodeChildrenFrom(n, j, func(peek *GreenNode, peekOff int, pj int) int {
 				if pj != j {
 					return pj
 				}
-				hasAssign = isTokenType(peek, token.T_ASSIGN)
+				hasAssign = isGreenTokenType(peek, token.T_ASSIGN)
 				return pj
 			})
 			if hasAssign {
-				j = walkRedNodeChildrenFrom(n, j+1, func(v *RedNode, vj int) int {
-					if isTokenType(v, token.T_COMMA) || isTokenType(v, token.T_SEMICOLON) {
+				j = walkRedNodeChildrenFrom(n, j+1, func(v *GreenNode, vOff int, vj int) int {
+					if isGreenTokenType(v, token.T_COMMA) || isGreenTokenType(v, token.T_SEMICOLON) {
 						return vj
 					}
-					if isExprKind(v.Kind()) || isNameKind(v.Kind()) {
-						value = lowerExpr(v, file)
+					vk := v.Kind()
+					if isExprKind(vk) || isNameKind(vk) {
+						value = lowerExprAt(file, v, vOff)
 						if value != nil {
 							ne = value.GetEndPos()
 						}

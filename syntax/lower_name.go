@@ -11,6 +11,29 @@ func isGreenTokenType(g *GreenNode, tt token.TokenType) bool {
 	return g != nil && g.IsToken() && g.TokenType() == tt
 }
 
+func greenTokenLiteral(g *GreenNode) string {
+	if g == nil || !g.IsToken() {
+		return ""
+	}
+	tok, ok := g.Token()
+	if !ok {
+		return ""
+	}
+	return tok.Literal
+}
+
+func firstGreenTokenLiteral(green *GreenNode, offset int) string {
+	var lit string
+	forEachChildDescGreen(green, offset, func(g *GreenNode, off int) bool {
+		if g.IsToken() {
+			lit = greenTokenLiteral(g)
+			return false
+		}
+		return true
+	})
+	return lit
+}
+
 func lowerModifiers(n *RedNode) ast.ModifierList {
 	if n == nil {
 		return nil

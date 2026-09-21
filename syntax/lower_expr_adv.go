@@ -359,24 +359,26 @@ func lowerStringParts(n *RedNode, file *File) []ast.Node {
 	}
 	var parts []ast.Node
 	n.ForEachChildDesc(func(green *GreenNode, offset int) bool {
-		c := n.bindChild(green, offset)
 		switch green.Kind() {
 		case KindStringPart:
-			p, e := nodePos(file, c)
+			p, e := nodePosGreen(file, green, offset)
+			lit := firstGreenTokenLiteral(green, offset)
 			parts = append(parts, &ast.StringNode{
-				Value:  tokenLiteral(firstTokenChild(c)),
+				Value:  lit,
 				Pos:    p,
 				EndPos: e,
 			})
 		case KindVariablePart:
-			p, e := nodePos(file, c)
-			name := stripVarDollar(tokenLiteral(firstTokenChild(c)))
+			p, e := nodePosGreen(file, green, offset)
+			name := stripVarDollar(firstGreenTokenLiteral(green, offset))
 			if name == "" {
-				name = stripVarDollar(strings.TrimSpace(c.Text()))
+				part := RedNode{File: n.File, Green: green, Offset: offset}
+				name = stripVarDollar(strings.TrimSpace(part.Text()))
 			}
 			parts = append(parts, &ast.VariableNode{Name: name, Pos: p, EndPos: e})
 		case KindEncapsulatedExpr:
-			if e := lowerEncapsulatedExpr(c, file); e != nil {
+			enc := RedNode{File: n.File, Green: green, Offset: offset}
+			if e := lowerEncapsulatedExpr(&enc, file); e != nil {
 				parts = append(parts, e)
 			}
 		}
