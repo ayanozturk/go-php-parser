@@ -80,8 +80,14 @@ func lowerVariableExpr(n *RedNode, file *File) ast.Node {
 	name := ""
 	n.ForEachChildDesc(func(green *GreenNode, offset int) bool {
 		if isGreenTokenType(green, token.T_VARIABLE) {
-			c := n.bindChild(green, offset)
-			name = stripVarDollar(tokenLiteral(c))
+			tt, ok := green.Token()
+			if ok {
+				lit := tt.Literal
+				if lit == "" {
+					lit = tokenLiteral(n.bindChild(green, offset))
+				}
+				name = stripVarDollar(lit)
+			}
 			return false
 		}
 		return true
@@ -97,11 +103,16 @@ func lowerVariableExpr(n *RedNode, file *File) ast.Node {
 
 func lowerLiteralExpr(n *RedNode, file *File) ast.Node {
 	pos, end := nodePos(file, n)
-	var tokNode *RedNode
+	var litTok token.Token
+	var haveTok bool
 	var nameLit ast.Node
 	n.ForEachChildDesc(func(green *GreenNode, offset int) bool {
 		if green.IsToken() {
-			tokNode = n.bindChild(green, offset)
+			tok, ok := green.Token()
+			if ok {
+				litTok = tok
+				haveTok = true
+			}
 			return false
 		}
 		if isNameKind(green.Kind()) {
@@ -115,15 +126,11 @@ func lowerLiteralExpr(n *RedNode, file *File) ast.Node {
 	if nameLit != nil {
 		return nameLit
 	}
-	if tokNode == nil {
+	if !haveTok {
 		return nil
 	}
-	tok, ok := tokNode.Green.Token()
-	if !ok {
-		return nil
-	}
-	lit := tok.Literal
-	switch tok.Type {
+	lit := litTok.Literal
+	switch litTok.Type {
 	case token.T_LNUMBER:
 		v, _ := strconv.ParseInt(strings.ReplaceAll(lit, "_", ""), 0, 64)
 		return &ast.IntegerNode{Value: v, Pos: pos, EndPos: end}
@@ -239,9 +246,8 @@ func lowerCallExpr(n *RedNode, file *File) ast.Node {
 		case k == KindArgList:
 			args = n.bindChild(green, offset)
 		case k == KindToken:
-			c := n.bindChild(green, offset)
-			if isBuiltinCallNameToken(c) {
-				builtinTok = c
+			if isGreenBuiltinCallNameToken(green) {
+				builtinTok = n.bindChild(green, offset)
 			}
 		case isExprKind(k) || isNameKind(k):
 			c := n.bindChild(green, offset)
@@ -648,6 +654,18 @@ func isBuiltinCallNameToken(n *RedNode) bool {
 	return isTokenType(n, token.T_EXIT) || isTokenType(n, token.T_DIE) ||
 		isTokenType(n, token.T_ISSET) || isTokenType(n, token.T_EMPTY) ||
 		isTokenType(n, token.T_UNSET)
+}
+
+func isGreenBuiltinCallNameToken(g *GreenNode) bool {
+	if g == nil || !g.IsToken() {
+		return false
+	}
+	switch g.TokenType() {
+	case token.T_EXIT, token.T_DIE, token.T_ISSET, token.T_EMPTY, token.T_UNSET:
+		return true
+	default:
+		return false
+	}
 }
 
 func lowerYieldExpr(n *RedNode, file *File) ast.Node {

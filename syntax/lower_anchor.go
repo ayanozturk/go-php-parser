@@ -19,13 +19,14 @@ func FunctionDeclSpanOffsets(n *RedNode, file *File) (start, end int) {
 	}
 	pos, endPos := nodePos(file, n)
 	start, end = pos.Offset, endPos.Offset
-	for _, c := range n.Children() {
-		if isTokenType(c, token.T_FUNCTION) {
-			fnStart, _ := nodePos(file, c)
+	n.ForEachChildDesc(func(green *GreenNode, offset int) bool {
+		if isGreenTokenType(green, token.T_FUNCTION) {
+			fnStart, _ := nodePos(file, n.bindChild(green, offset))
 			start = fnStart.Offset
-			break
+			return false
 		}
-	}
+		return true
+	})
 	return start, end
 }
 

@@ -31,23 +31,47 @@ func leadingDocFromNode(n *RedNode) *ast.PHPDocNode {
 }
 
 // firstSignificantToken returns the first token leaf under n, skipping
-// KindAttributeList children at each level.
+// KindAttributeList children at each level. Walks green children without
+// allocating intermediate RedNode wrappers; binds only the winning token
+// (or returns n when n itself is the token).
 func firstSignificantToken(n *RedNode) *RedNode {
-	if n == nil {
+	if n == nil || n.Green == nil {
 		return nil
 	}
-	if n.Green != nil && n.Green.IsToken() {
+	if n.Green.IsToken() {
 		return n
 	}
-	for _, c := range n.Children() {
-		if c.Kind() == KindAttributeList {
-			continue
+	var foundGreen *GreenNode
+	var foundOff int
+	var search func(green *GreenNode, offset int) bool
+	search = func(green *GreenNode, offset int) bool {
+		if green == nil {
+			return false
 		}
-		if found := firstSignificantToken(c); found != nil {
-			return found
+		if green.IsToken() {
+			foundGreen, foundOff = green, offset
+			return true
 		}
+		off := offset
+		for _, g := range green.children {
+			if g == nil {
+				continue
+			}
+			if g.Kind() == KindAttributeList {
+				off += g.width
+				continue
+			}
+			if search(g, off) {
+				return true
+			}
+			off += g.width
+		}
+		return false
 	}
-	return nil
+	if !search(n.Green, n.Offset) {
+		return nil
+	}
+	return &RedNode{File: n.File, Green: foundGreen, Offset: foundOff}
 }
 
 func lastDocCommentLiteral(trivia []token.Token) string {

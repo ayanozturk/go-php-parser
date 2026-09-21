@@ -339,21 +339,57 @@ func walkRedChildrenFrom(children []*RedNode, start int, fn func(c *RedNode, i i
 	return len(children)
 }
 
+// walkRedNodeChildrenFrom is like walkRedChildrenFrom but walks n's direct
+// children via ForEachChildDesc without allocating []*RedNode.
+func walkRedNodeChildrenFrom(n *RedNode, start int, fn func(c *RedNode, i int) int) int {
+	if n == nil {
+		return start
+	}
+	i := 0
+	next := -1
+	n.ForEachChildDesc(func(green *GreenNode, offset int) bool {
+		if i < start {
+			i++
+			return true
+		}
+		c := n.bindChild(green, offset)
+		if ni := fn(c, i); ni >= 0 {
+			next = ni
+			return false
+		}
+		i++
+		return true
+	})
+	if next >= 0 {
+		return next
+	}
+	return i
+}
+
+func lowerExprRedNodes(nodes []*RedNode, file *File) []ast.Node {
+	if len(nodes) == 0 {
+		return nil
+	}
+	out := make([]ast.Node, 0, len(nodes))
+	for _, c := range nodes {
+		if e := lowerExpr(c, file); e != nil {
+			out = append(out, e)
+		}
+	}
+	return out
+}
+
 func lowerForStmt(n *RedNode, file *File) ast.Node {
 	pos, end := nodePos(file, n)
 	f := &ast.ForNode{Pos: pos, EndPos: end}
-	children := n.Children()
-	// Skip to '(' after for.
-	i := walkRedChildrenFrom(children, 0, func(c *RedNode, idx int) int {
-		if isTokenType(c, token.T_LPAREN) {
-			return idx + 1
-		}
-		return -1
-	})
-	f.Init, i = collectForClause(children, i, file)
-	f.Conditions, i = collectForClause(children, i, file)
-	f.Updates, i = collectForClause(children, i, file)
-	walkRedChildrenFrom(children, i, func(c *RedNode, idx int) int {
+	start := forStmtIndexAfterLParen(n)
+	init, start := forClauseChildrenAt(n, start)
+	f.Init = lowerExprRedNodes(init, file)
+	conds, start := forClauseChildrenAt(n, start)
+	f.Conditions = lowerExprRedNodes(conds, file)
+	updates, start := forClauseChildrenAt(n, start)
+	f.Updates = lowerExprRedNodes(updates, file)
+	walkRedNodeChildrenFrom(n, start, func(c *RedNode, idx int) int {
 		if c.Kind() == KindToken {
 			return -1
 		}
@@ -388,15 +424,9 @@ func collectForClause(children []*RedNode, start int, file *File) ([]ast.Node, i
 func lowerForeachStmt(n *RedNode, file *File) ast.Node {
 	pos, end := nodePos(file, n)
 	fe := &ast.ForeachNode{Pos: pos, EndPos: end}
-	children := n.Children()
-	i := walkRedChildrenFrom(children, 0, func(c *RedNode, idx int) int {
-		if isTokenType(c, token.T_LPAREN) {
-			return idx + 1
-		}
-		return -1
-	})
+	i := forStmtIndexAfterLParen(n)
 	// Iterated expression.
-	i = walkRedChildrenFrom(children, i, func(c *RedNode, idx int) int {
+	i = walkRedNodeChildrenFrom(n, i, func(c *RedNode, idx int) int {
 		if isTokenType(c, token.T_AS) {
 			return idx + 1
 		}
@@ -406,7 +436,7 @@ func lowerForeachStmt(n *RedNode, file *File) ast.Node {
 		return -1
 	})
 	refBeforeFirst := false
-	i = walkRedChildrenFrom(children, i, func(c *RedNode, idx int) int {
+	i = walkRedNodeChildrenFrom(n, i, func(c *RedNode, idx int) int {
 		if isTokenType(c, token.T_AMPERSAND) {
 			refBeforeFirst = true
 			return idx + 1
@@ -414,7 +444,7 @@ func lowerForeachStmt(n *RedNode, file *File) ast.Node {
 		return idx
 	})
 	var first *RedNode
-	i = walkRedChildrenFrom(children, i, func(c *RedNode, idx int) int {
+	i = walkRedNodeChildrenFrom(n, i, func(c *RedNode, idx int) int {
 		if isExprKind(c.Kind()) || isNameKind(c.Kind()) {
 			first = c
 			return idx + 1
@@ -425,7 +455,7 @@ func lowerForeachStmt(n *RedNode, file *File) ast.Node {
 		return -1
 	})
 	hasArrow := false
-	i = walkRedChildrenFrom(children, i, func(c *RedNode, idx int) int {
+	i = walkRedNodeChildrenFrom(n, i, func(c *RedNode, idx int) int {
 		if isTokenType(c, token.T_DOUBLE_ARROW) {
 			hasArrow = true
 			return idx + 1
@@ -443,14 +473,14 @@ func lowerForeachStmt(n *RedNode, file *File) ast.Node {
 				key = &ast.UnaryExpr{Operator: "&", Operand: key, Pos: kp, EndPos: ke}
 			}
 			fe.KeyVar = key
-			i = walkRedChildrenFrom(children, i, func(c *RedNode, idx int) int {
+			i = walkRedNodeChildrenFrom(n, i, func(c *RedNode, idx int) int {
 				if isTokenType(c, token.T_AMPERSAND) {
 					fe.ByRef = true
 					return idx + 1
 				}
 				return idx
 			})
-			i = walkRedChildrenFrom(children, i, func(c *RedNode, idx int) int {
+			i = walkRedNodeChildrenFrom(n, i, func(c *RedNode, idx int) int {
 				if isExprKind(c.Kind()) || isNameKind(c.Kind()) {
 					fe.ValueVar = lowerExpr(c, file)
 					return idx + 1
@@ -465,7 +495,7 @@ func lowerForeachStmt(n *RedNode, file *File) ast.Node {
 			fe.ByRef = refBeforeFirst
 		}
 	}
-	walkRedChildrenFrom(children, i, func(c *RedNode, idx int) int {
+	walkRedNodeChildrenFrom(n, i, func(c *RedNode, idx int) int {
 		if c.Kind() == KindToken {
 			return -1
 		}
