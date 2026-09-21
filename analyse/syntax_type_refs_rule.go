@@ -80,9 +80,7 @@ func checkTypeReferenceIssuesFromParsed(filename string, res *syntax.ParseResult
 				checkTypeReferenceOnNode(filename, c, ft, ctx, guards, &issues)
 			}
 		case syntax.KindCatchClause:
-			if catch := syntax.LowerCatchClauseNode(n, res.File); catch != nil {
-				checkTypeReferenceOnNode(filename, catch, ft, ctx, guards, &issues)
-			}
+			appendTypeRefCatchIssuesFromCST(filename, n, ft, ctx, guards, &issues)
 		case syntax.KindAttribute:
 			// Attributes attached to a top-level/namespace-level
 			// declaration (class/interface/trait/enum/function) are

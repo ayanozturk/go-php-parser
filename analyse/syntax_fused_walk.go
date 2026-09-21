@@ -153,9 +153,7 @@ func runFusedConfiguredCSTWalk(root *syntax.RedNode, rootFt FileTypeContext, o f
 					checkTypeReferenceOnNode(o.filename, c, ft, ctx, o.guards, o.level0)
 				}
 			case syntax.KindCatchClause:
-				if catch := syntax.LowerCatchClauseNode(n, res.File); catch != nil {
-					checkTypeReferenceOnNode(o.filename, catch, ft, ctx, o.guards, o.level0)
-				}
+				appendTypeRefCatchIssuesFromCST(o.filename, n, ft, ctx, o.guards, o.level0)
 			case syntax.KindAttribute:
 				if !inStatementBody {
 					if attr := syntax.LowerAttributeNode(n, res.File); attr != nil {

@@ -1182,3 +1182,52 @@ func IsWritableExprKind(n *RedNode) bool {
 		return false
 	}
 }
+
+// CatchClauseTypeNames returns the caught class type names for a
+// KindCatchClause, matching lowerCatchClause / catchTypeNames without
+// lowering the catch body.
+func CatchClauseTypeNames(n *RedNode) []string {
+	if n == nil || n.Kind() != KindCatchClause {
+		return nil
+	}
+	var out []string
+	n.ForEachChildDesc(func(green *GreenNode, offset int) bool {
+		k := green.Kind()
+		switch {
+		case isTypeKind(k):
+			out = append(out, typeNamesFromTypeGreen(n.File, green, offset)...)
+		case k == KindTokenList:
+			// Recovery fallback: concatenate token text as a single type.
+			text := strings.TrimSpace((&RedNode{File: n.File, Green: green, Offset: offset}).Text())
+			if text != "" && len(out) == 0 {
+				out = []string{text}
+			}
+		}
+		return true
+	})
+	return out
+}
+
+func typeNamesFromTypeGreen(file *File, green *GreenNode, offset int) []string {
+	if file == nil || green == nil {
+		return nil
+	}
+	n := &RedNode{File: file, Green: green, Offset: offset}
+	if green.Kind() == KindUnionType {
+		var parts []string
+		n.ForEachChildDesc(func(g *GreenNode, off int) bool {
+			if !isTypeKind(g.Kind()) {
+				return true
+			}
+			if s := strings.TrimSpace(TypeText(&RedNode{File: file, Green: g, Offset: off})); s != "" {
+				parts = append(parts, s)
+			}
+			return true
+		})
+		return parts
+	}
+	if s := strings.TrimSpace(TypeText(n)); s != "" {
+		return []string{s}
+	}
+	return nil
+}
