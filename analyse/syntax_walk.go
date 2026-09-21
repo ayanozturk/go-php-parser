@@ -148,13 +148,15 @@ func walkSyntaxConfigured(root *syntax.RedNode, ft FileTypeContext, fn func(n, c
 		if n.Kind() == syntax.KindParam {
 			nextInStatementBody = false
 		}
-		var elvisCond *syntax.RedNode
+		var elvisCondGreen *syntax.GreenNode
+		var elvisCondOff int
 		if n.Kind() == syntax.KindTernaryExpr {
-			elvisCond = syntax.TernaryElvisCondition(n)
+			elvisCondGreen, elvisCondOff = syntax.TernaryElvisCondition(n)
 		}
-		var paramDefault *syntax.RedNode
+		var paramDefaultGreen *syntax.GreenNode
+		var paramDefaultOff int
 		if n.Kind() == syntax.KindParam {
-			paramDefault = syntax.ParamDefaultValue(n)
+			paramDefaultGreen, paramDefaultOff = syntax.ParamDefaultValue(n)
 		}
 		var dynamicClassPartGreen *syntax.GreenNode
 		var dynamicClassPartOff int
@@ -196,7 +198,7 @@ func walkSyntaxConfigured(root *syntax.RedNode, ft FileTypeContext, fn func(n, c
 			// visit at all - skip both fn and recursion for this child
 			// entirely. See syntax.ParamDefaultValue and
 			// /memories/repo/cst-direct-migration.md for the full writeup.
-			if paramDefault != nil && g == paramDefault.Green && off == paramDefault.Offset {
+			if paramDefaultGreen != nil && g == paramDefaultGreen && off == paramDefaultOff {
 				goto nextChild
 			}
 			// splitStaticMemberAccessParts (syntax/lower_expr.go) lowers a
@@ -356,7 +358,7 @@ func walkSyntaxConfigured(root *syntax.RedNode, ft FileTypeContext, fn func(n, c
 			// path below is unaffected - this only duplicates the
 			// condition's subtree walk). See
 			// /memories/repo/cst-direct-migration.md for the full writeup.
-			if elvisCond != nil && g == elvisCond.Green && off == elvisCond.Offset {
+			if elvisCondGreen != nil && g == elvisCondGreen && off == elvisCondOff {
 				walk(bindScratch(g, off), nextClass, nextFn, ft, nextInStatementBody)
 			}
 			// An anonymous class's constructor argument list (`new class(

@@ -9,6 +9,11 @@ import (
 // Method/function bodies stay empty in index mode (KindTokenList).
 // Property-hook Expr/Body and property DefaultValue lower whenever CST has them.
 
+type topLevelChild struct {
+	green  *GreenNode
+	offset int
+}
+
 // File lowers KindFile children to top-level classic AST nodes.
 func LowerFile(root *RedNode, file *File) []ast.Node {
 	if root == nil {
@@ -18,29 +23,40 @@ func LowerFile(root *RedNode, file *File) []ast.Node {
 		nodes, _ := lowerTopLevel(root, file)
 		return nodes
 	}
-	var children []*RedNode
+	var children []topLevelChild
 	root.ForEachChildDesc(func(green *GreenNode, offset int) bool {
 		if green.Kind() == KindToken {
 			return true
 		}
-		children = append(children, &RedNode{File: root.File, Green: green, Offset: offset})
+		children = append(children, topLevelChild{green: green, offset: offset})
 		return true
 	})
 	var out []ast.Node
 	for i := 0; i < len(children); i++ {
-		c := children[i]
-		if c.Kind() == KindNamespaceDecl {
-			ns, consumed := lowerNamespace(c, file, children, i)
+		ch := children[i]
+		if ch.green.Kind() == KindNamespaceDecl {
+			ns, consumed := lowerNamespaceAt(file, ch, children, i)
 			if ns != nil {
 				out = append(out, ns)
 			}
 			i += consumed
 			continue
 		}
-		nodes, _ := lowerTopLevel(c, file)
-		out = append(out, nodes...)
+		withPooledRed(file, root, ch.green, ch.offset, func(c *RedNode) {
+			nodes, _ := lowerTopLevel(c, file)
+			out = append(out, nodes...)
+		})
 	}
 	return out
+}
+
+func lowerNamespaceAt(file *File, n topLevelChild, siblings []topLevelChild, idx int) (*ast.NamespaceNode, int) {
+	var ns *ast.NamespaceNode
+	var consumed int
+	withPooledRed(file, nil, n.green, n.offset, func(red *RedNode) {
+		ns, consumed = lowerNamespace(red, file, siblings, idx)
+	})
+	return ns, consumed
 }
 
 // lowerTopLevel lowers one red node that may appear at file or namespace scope.
@@ -120,14 +136,15 @@ func lowerAttributeList(n *RedNode, file *File) []ast.Node {
 		if green.Kind() != KindAttributeGroup {
 			return true
 		}
-		group := n.bindChild(green, offset)
-		group.ForEachChildDesc(func(attrGreen *GreenNode, attrOff int) bool {
+		forEachChildDescGreen(green, offset, func(attrGreen *GreenNode, attrOff int) bool {
 			if attrGreen.Kind() != KindAttribute {
 				return true
 			}
-			if node := lowerAttribute(group.bindChild(attrGreen, attrOff), file); node != nil {
-				out = append(out, node)
-			}
+			withPooledRed(file, n, attrGreen, attrOff, func(attr *RedNode) {
+				if node := lowerAttribute(attr, file); node != nil {
+					out = append(out, node)
+				}
+			})
 			return true
 		})
 		return true
@@ -141,24 +158,26 @@ func lowerAttribute(n *RedNode, file *File) ast.Node {
 	}
 	pos, end := nodePos(file, n)
 	var name string
-	var args *RedNode
+	var argsGreen *GreenNode
+	var argsOff int
 	n.ForEachChildDesc(func(green *GreenNode, offset int) bool {
 		k := green.Kind()
 		if k == KindArgList {
-			args = n.bindChild(green, offset)
+			argsGreen, argsOff = green, offset
 			return true
 		}
 		if isNameKind(k) && name == "" {
-			name = NameText(n.bindChild(green, offset))
+			name = nameTextAt(file, green, offset)
 		}
 		return true
 	})
 	if name == "" {
 		return nil
 	}
+	argNodes := lowerArgListFromGreen(file, argsGreen, argsOff)
 	return &ast.AttributeNode{
 		Name:      name,
-		Arguments: lowerArgList(args, file),
+		Arguments: argNodes,
 		Pos:       pos,
 		EndPos:    end,
 	}

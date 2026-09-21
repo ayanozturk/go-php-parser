@@ -120,29 +120,49 @@ func nameString(n *RedNode) string {
 	return strings.TrimPrefix(NameText(n), `\`)
 }
 
-func firstNameChild(n *RedNode) *RedNode {
-	if n == nil {
-		return nil
+func nameTextAt(file *File, green *GreenNode, offset int) string {
+	if file == nil || green == nil || !isNameKind(green.Kind()) {
+		return ""
 	}
-	var found *RedNode
+	var out string
+	withPooledRed(file, nil, green, offset, func(n *RedNode) {
+		out = NameText(n)
+	})
+	return out
+}
+
+func firstNameChildGreen(n *RedNode) (*GreenNode, int) {
+	if n == nil {
+		return nil, 0
+	}
+	var foundGreen *GreenNode
+	var foundOff int
 	n.ForEachChildDesc(func(green *GreenNode, offset int) bool {
 		if isNameKind(green.Kind()) {
-			found = n.bindChild(green, offset)
+			foundGreen = green
+			foundOff = offset
 			return false
 		}
 		return true
 	})
-	return found
+	return foundGreen, foundOff
 }
 
 func clauseNames(clause *RedNode) []string {
 	if clause == nil {
 		return nil
 	}
+	return clauseNamesGreen(clause.File, clause.Green, clause.Offset)
+}
+
+func clauseNamesGreen(file *File, green *GreenNode, offset int) []string {
+	if file == nil || green == nil {
+		return nil
+	}
 	var out []string
-	clause.ForEachChildDesc(func(green *GreenNode, offset int) bool {
-		if isNameKind(green.Kind()) {
-			out = append(out, NameText(clause.bindChild(green, offset)))
+	forEachChildDescGreen(green, offset, func(g *GreenNode, off int) bool {
+		if isNameKind(g.Kind()) {
+			out = append(out, nameTextAt(file, g, off))
 		}
 		return true
 	})

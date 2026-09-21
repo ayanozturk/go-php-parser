@@ -352,14 +352,15 @@ func LowerFunctionLikeContextNode(n *RedNode, file *File) *ast.FunctionNode {
 // (see analyse/syntax_walk.go and /memories/repo/cst-direct-migration.md)
 // instead of only visiting the condition once, which would under-count
 // relative to the ast.Node path for this specific construct.
-func TernaryElvisCondition(n *RedNode) *RedNode {
+func TernaryElvisCondition(n *RedNode) (*GreenNode, int) {
 	if n == nil || n.Kind() != KindTernaryExpr {
-		return nil
+		return nil, 0
 	}
-	var cond *RedNode
+	var condGreen *GreenNode
+	var condOff int
 	seenQ := false
 	seenColon := false
-	var thenChild *RedNode
+	var thenGreen *GreenNode
 	n.ForEachChildDesc(func(green *GreenNode, offset int) bool {
 		k := green.Kind()
 		if k == KindToken {
@@ -374,20 +375,20 @@ func TernaryElvisCondition(n *RedNode) *RedNode {
 		if !(isExprKind(k) || isNameKind(k)) {
 			return true
 		}
-		c := n.bindChild(green, offset)
-		if cond == nil {
-			cond = c
+		if condGreen == nil {
+			condGreen = green
+			condOff = offset
 			return true
 		}
-		if seenQ && !seenColon && thenChild == nil {
-			thenChild = c
+		if seenQ && !seenColon && thenGreen == nil {
+			thenGreen = green
 		}
 		return true
 	})
-	if cond == nil || thenChild != nil {
-		return nil
+	if condGreen == nil || thenGreen != nil {
+		return nil, 0
 	}
-	return cond
+	return condGreen, condOff
 }
 
 // ParamDefaultValue returns n's default-value expression child (the
@@ -400,12 +401,13 @@ func TernaryElvisCondition(n *RedNode) *RedNode {
 // of gap as KindCastExpr/KindSwitchStmt/etc. Exported so CST-direct ports
 // can skip it the same way. See analyse/syntax_walk.go and
 // /memories/repo/cst-direct-migration.md.
-func ParamDefaultValue(n *RedNode) *RedNode {
+func ParamDefaultValue(n *RedNode) (*GreenNode, int) {
 	if n == nil || n.Kind() != KindParam {
-		return nil
+		return nil, 0
 	}
 	seenAssign := false
-	var defaultVal *RedNode
+	var defaultGreen *GreenNode
+	var defaultOff int
 	n.ForEachChildDesc(func(green *GreenNode, offset int) bool {
 		if green.Kind() == KindToken && green.TokenType() == token.T_ASSIGN {
 			seenAssign = true
@@ -413,12 +415,13 @@ func ParamDefaultValue(n *RedNode) *RedNode {
 		}
 		k := green.Kind()
 		if seenAssign && (isExprKind(k) || isNameKind(k)) {
-			defaultVal = n.bindChild(green, offset)
+			defaultGreen = green
+			defaultOff = offset
 			return false
 		}
 		return true
 	})
-	return defaultVal
+	return defaultGreen, defaultOff
 }
 
 // IsStatementKind reports whether k is one of the statement kinds lowered

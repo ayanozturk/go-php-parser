@@ -18,7 +18,7 @@ func lowerType(n *RedNode, file *File) ast.Node {
 			if green.Kind() == KindToken {
 				return true
 			}
-			inner = lowerType(n.bindChild(green, offset), file)
+			inner = lowerTypeAt(file, green, offset)
 			return false
 		})
 		return &ast.NullableTypeNode{Inner: inner, Pos: pos, EndPos: end}
@@ -32,19 +32,22 @@ func lowerType(n *RedNode, file *File) ast.Node {
 			if green.Kind() == KindToken {
 				return true
 			}
-			inner = lowerType(n.bindChild(green, offset), file)
+			inner = lowerTypeAt(file, green, offset)
 			return false
 		})
 		return &ast.ParenthesizedTypeNode{Inner: inner, Pos: pos, EndPos: end}
 	case KindNamedType:
-		name := firstNameChild(n)
-		val := NameText(name)
+		nameGreen, nameOff := firstNameChildGreen(n)
+		val := ""
+		if nameGreen != nil {
+			val = nameTextAt(file, nameGreen, nameOff)
+		}
 		if val == "" {
 			val = strings.TrimSpace(TypeText(n))
 		}
 		np, ne := pos, end
-		if name != nil {
-			np, ne = nodePos(file, name)
+		if nameGreen != nil {
+			np, ne = nodePosGreen(file, nameGreen, nameOff)
 		}
 		return &ast.IdentifierNode{Value: val, Pos: np, EndPos: ne}
 	case KindPrimitiveType:
@@ -75,7 +78,7 @@ func lowerTypeParts(n *RedNode, file *File) []ast.Node {
 		if green.Kind() == KindToken {
 			return true
 		}
-		if t := lowerType(n.bindChild(green, offset), file); t != nil {
+		if t := lowerTypeAt(file, green, offset); t != nil {
 			parts = append(parts, t)
 		}
 		return true

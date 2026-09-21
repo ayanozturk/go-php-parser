@@ -7,23 +7,23 @@ import (
 	"github.com/ayanozturk/go-php-parser/token"
 )
 
-func lowerNamespace(n *RedNode, file *File, siblings []*RedNode, idx int) (*ast.NamespaceNode, int) {
+func lowerNamespace(n *RedNode, file *File, siblings []topLevelChild, idx int) (*ast.NamespaceNode, int) {
 	pos, end := nodePos(file, n)
 	ns := &ast.NamespaceNode{Pos: pos, EndPos: end}
-	var bodyList *RedNode
+	var bodyListGreen *GreenNode
+	var bodyListOff int
 	n.ForEachChildDesc(func(green *GreenNode, offset int) bool {
 		k := green.Kind()
 		if isNameKind(k) {
-			nameNode := RedNode{File: n.File, Green: green, Offset: offset}
-			ns.Name = nameString(&nameNode)
+			ns.Name = strings.TrimPrefix(nameTextAt(file, green, offset), `\`)
 		}
 		if k == KindStatementList {
-			bodyList = &RedNode{File: n.File, Green: green, Offset: offset}
+			bodyListGreen, bodyListOff = green, offset
 		}
 		return true
 	})
-	if bodyList != nil {
-		ns.Body = lowerStatementChildren(bodyList, file)
+	if bodyListGreen != nil {
+		ns.Body = lowerStatementChildren(file, bodyListGreen, bodyListOff)
 		return ns, 0
 	}
 	// Inline `namespace Name;` — fold following top-level decls into Body so
@@ -32,29 +32,32 @@ func lowerNamespace(n *RedNode, file *File, siblings []*RedNode, idx int) (*ast.
 	var body []ast.Node
 	for j := idx + 1; j < len(siblings); j++ {
 		sib := siblings[j]
-		if sib.Kind() == KindNamespaceDecl {
+		if sib.green.Kind() == KindNamespaceDecl {
 			break
 		}
 		consumed++
-		nodes, _ := lowerTopLevel(sib, file)
-		body = append(body, nodes...)
+		withPooledRed(file, n, sib.green, sib.offset, func(red *RedNode) {
+			nodes, _ := lowerTopLevel(red, file)
+			body = append(body, nodes...)
+		})
 	}
 	ns.Body = body
 	return ns, consumed
 }
 
-func lowerStatementChildren(list *RedNode, file *File) []ast.Node {
-	if list == nil {
+func lowerStatementChildren(file *File, listGreen *GreenNode, listOff int) []ast.Node {
+	if file == nil || listGreen == nil {
 		return nil
 	}
 	var out []ast.Node
-	list.ForEachChildDesc(func(green *GreenNode, offset int) bool {
+	forEachChildDescGreen(listGreen, listOff, func(green *GreenNode, offset int) bool {
 		if green.Kind() == KindToken {
 			return true
 		}
-		child := RedNode{File: list.File, Green: green, Offset: offset}
-		nodes, _ := lowerTopLevel(&child, file)
-		out = append(out, nodes...)
+		withPooledRed(file, nil, green, offset, func(child *RedNode) {
+			nodes, _ := lowerTopLevel(child, file)
+			out = append(out, nodes...)
+		})
 		return true
 	})
 	return out
@@ -90,9 +93,12 @@ func lowerUseClause(clause *RedNode, prefix, useType string, pos, end ast.Positi
 		return nil
 	}
 	itemType := useType
-	var name *RedNode
-	var alias *RedNode
-	var group *RedNode
+	var nameGreen *GreenNode
+	var nameOff int
+	var aliasGreen *GreenNode
+	var aliasOff int
+	var groupGreen *GreenNode
+	var groupOff int
 	clause.ForEachChildDesc(func(green *GreenNode, offset int) bool {
 		switch {
 		case green.Kind() == KindToken && green.TokenType() == token.T_FUNCTION:
@@ -100,37 +106,42 @@ func lowerUseClause(clause *RedNode, prefix, useType string, pos, end ast.Positi
 		case green.Kind() == KindToken && green.TokenType() == token.T_CONST:
 			itemType = "const"
 		case isNameKind(green.Kind()):
-			c := clause.bindChild(green, offset)
-			if name == nil {
-				name = c
+			if nameGreen == nil {
+				nameGreen, nameOff = green, offset
 			} else {
-				alias = c
+				aliasGreen, aliasOff = green, offset
 			}
 		case green.Kind() == KindUseGroup:
-			group = clause.bindChild(green, offset)
+			groupGreen, groupOff = green, offset
 		}
 		return true
 	})
-	if group != nil {
-		base := strings.TrimPrefix(NameText(name), `\`)
+	if groupGreen != nil {
+		base := strings.TrimPrefix(nameTextAt(clause.File, nameGreen, nameOff), `\`)
 		if prefix != "" {
 			base = strings.Trim(prefix, `\`) + `\` + strings.Trim(base, `\`)
 		}
 		base = strings.TrimSuffix(base, `\`)
 		var out []ast.Node
-		for _, inner := range group.ChildrenOfKind(KindUseClause) {
-			out = append(out, lowerUseClause(inner, base, itemType, pos, end)...)
-		}
+		forEachChildDescGreen(groupGreen, groupOff, func(g *GreenNode, off int) bool {
+			if g.Kind() != KindUseClause {
+				return true
+			}
+			withPooledRed(clause.File, clause, g, off, func(inner *RedNode) {
+				out = append(out, lowerUseClause(inner, base, itemType, pos, end)...)
+			})
+			return true
+		})
 		return out
 	}
-	path := strings.TrimPrefix(NameText(name), `\`)
+	path := strings.TrimPrefix(nameTextAt(clause.File, nameGreen, nameOff), `\`)
 	if prefix != "" {
 		path = strings.Trim(prefix, `\`) + `\` + path
 	}
 	path = strings.Trim(path, `\`)
 	aliasName := ""
-	if alias != nil {
-		aliasName = NameText(alias)
+	if aliasGreen != nil {
+		aliasName = nameTextAt(clause.File, aliasGreen, aliasOff)
 	} else {
 		aliasName = unqualifiedTail(path)
 	}
@@ -154,39 +165,36 @@ func lowerClass(n *RedNode, file *File) *ast.ClassNode {
 		Modifiers: lowerModifiers(n),
 		PHPDoc:    leadingDocFromNode(n),
 	}
-	var members *RedNode
+	var membersGreen *GreenNode
+	var membersOff int
 	headerEnd := pos
 	n.ForEachChildDesc(func(green *GreenNode, offset int) bool {
 		switch green.Kind() {
 		case KindUnqualifiedName, KindQualifiedName,
 			KindFullyQualifiedName, KindRelativeName:
 			if cls.Name == "" {
-				nameNode := RedNode{File: n.File, Green: green, Offset: offset}
-				cls.Name = unqualifiedTail(NameText(&nameNode))
-				headerEnd = spanEnd(file, nameNode.Span())
+				cls.Name = unqualifiedTail(nameTextAt(file, green, offset))
+				headerEnd = spanEnd(file, Span{Start: offset, End: offset + green.width})
 			}
 		case KindExtendsClause:
-			clause := RedNode{File: n.File, Green: green, Offset: offset}
-			names := clauseNames(&clause)
+			names := clauseNamesGreen(file, green, offset)
 			if len(names) > 0 {
 				cls.Extends = names[0]
 			}
-			headerEnd = spanEnd(file, clause.Span())
+			headerEnd = spanEnd(file, Span{Start: offset, End: offset + green.width})
 		case KindImplementsClause:
-			clause := RedNode{File: n.File, Green: green, Offset: offset}
-			cls.Implements = clauseNames(&clause)
-			headerEnd = spanEnd(file, clause.Span())
+			cls.Implements = clauseNamesGreen(file, green, offset)
+			headerEnd = spanEnd(file, Span{Start: offset, End: offset + green.width})
 		case KindMemberList:
-			members = &RedNode{File: n.File, Green: green, Offset: offset}
+			membersGreen, membersOff = green, offset
 		case KindModifierList:
-			modList := RedNode{File: n.File, Green: green, Offset: offset}
-			headerEnd = spanEnd(file, modList.Span())
+			headerEnd = spanEnd(file, Span{Start: offset, End: offset + green.width})
 		}
 		return true
 	})
 	cls.HeaderEndPos = headerEnd
-	if members != nil {
-		lowerClassMembers(members, file, cls)
+	if membersGreen != nil {
+		lowerClassMembers(file, membersGreen, membersOff, cls)
 	}
 	return cls
 }
@@ -201,28 +209,27 @@ func lowerInterface(n *RedNode, file *File) *ast.InterfaceNode {
 		EndPos: end,
 		PHPDoc: leadingDocFromNode(n),
 	}
-	var members *RedNode
+	var membersGreen *GreenNode
+	var membersOff int
 	headerEnd := pos
 	n.ForEachChildDesc(func(green *GreenNode, offset int) bool {
 		switch green.Kind() {
 		case KindUnqualifiedName, KindQualifiedName,
 			KindFullyQualifiedName, KindRelativeName:
 			if iface.Name == "" {
-				nameNode := RedNode{File: n.File, Green: green, Offset: offset}
-				iface.Name = unqualifiedTail(NameText(&nameNode))
-				headerEnd = spanEnd(file, nameNode.Span())
+				iface.Name = unqualifiedTail(nameTextAt(file, green, offset))
+				headerEnd = spanEnd(file, Span{Start: offset, End: offset + green.width})
 			}
 		case KindExtendsClause:
-			clause := RedNode{File: n.File, Green: green, Offset: offset}
-			iface.Extends = clauseNames(&clause)
-			headerEnd = spanEnd(file, clause.Span())
+			iface.Extends = clauseNamesGreen(file, green, offset)
+			headerEnd = spanEnd(file, Span{Start: offset, End: offset + green.width})
 		case KindMemberList:
-			members = &RedNode{File: n.File, Green: green, Offset: offset}
+			membersGreen, membersOff = green, offset
 		}
 		return true
 	})
 	iface.HeaderEndPos = headerEnd
-	if members != nil {
+	if membersGreen != nil {
 		var pendingAttrs []ast.Node
 		memberKinds := func(k Kind) bool {
 			switch k {
@@ -232,57 +239,59 @@ func lowerInterface(n *RedNode, file *File) *ast.InterfaceNode {
 				return false
 			}
 		}
-		members.ForEachChildDesc(func(green *GreenNode, offset int) bool {
+		membersParent := &RedNode{File: file, Green: membersGreen, Offset: membersOff}
+		forEachChildDescGreen(membersGreen, membersOff, func(green *GreenNode, offset int) bool {
 			k := green.Kind()
 			if !memberKinds(k) {
 				pendingAttrs = nil
 				return true
 			}
-			m := &RedNode{File: members.File, Green: green, Offset: offset}
-			switch k {
-			case KindAttributeList:
-				pendingAttrs = append(pendingAttrs, lowerAttributeList(m, file)...)
-			case KindFunctionDecl, KindMethodDecl:
-				if im := lowerInterfaceMethod(m, file); im != nil {
+			withPooledRed(file, membersParent, green, offset, func(m *RedNode) {
+				switch k {
+				case KindAttributeList:
+					pendingAttrs = append(pendingAttrs, lowerAttributeList(m, file)...)
+				case KindFunctionDecl, KindMethodDecl:
+					if im := lowerInterfaceMethod(m, file); im != nil {
+						if len(pendingAttrs) > 0 {
+							im.Attributes = pendingAttrs
+							pendingAttrs = nil
+						}
+						iface.Members = append(iface.Members, im)
+					}
+				case KindClassConstDecl:
+					consts := lowerClassConsts(m, file)
 					if len(pendingAttrs) > 0 {
-						im.Attributes = pendingAttrs
+						for _, node := range consts {
+							if c, ok := node.(*ast.ConstantNode); ok {
+								c.Attributes = pendingAttrs
+							}
+						}
 						pendingAttrs = nil
 					}
-					iface.Members = append(iface.Members, im)
-				}
-			case KindClassConstDecl:
-				consts := lowerClassConsts(m, file)
-				if len(pendingAttrs) > 0 {
-					for _, node := range consts {
-						if c, ok := node.(*ast.ConstantNode); ok {
-							c.Attributes = pendingAttrs
+					iface.Members = append(iface.Members, consts...)
+				case KindPropertyDecl:
+					props := lowerProperties(m, file)
+					if len(pendingAttrs) > 0 {
+						for _, node := range props {
+							if prop, ok := node.(*ast.PropertyNode); ok {
+								prop.Attributes = pendingAttrs
+							}
 						}
+						pendingAttrs = nil
 					}
+					// PHP 8.4 interface property hooks.
+					iface.Members = append(iface.Members, props...)
+				default:
 					pendingAttrs = nil
 				}
-				iface.Members = append(iface.Members, consts...)
-			case KindPropertyDecl:
-				props := lowerProperties(m, file)
-				if len(pendingAttrs) > 0 {
-					for _, node := range props {
-						if prop, ok := node.(*ast.PropertyNode); ok {
-							prop.Attributes = pendingAttrs
-						}
-					}
-					pendingAttrs = nil
-				}
-				// PHP 8.4 interface property hooks.
-				iface.Members = append(iface.Members, props...)
-			default:
-				pendingAttrs = nil
-			}
+			})
 			return true
 		})
 	}
 	return iface
 }
 
-func lowerClassMembers(members *RedNode, file *File, cls *ast.ClassNode) {
+func lowerClassMembers(file *File, membersGreen *GreenNode, membersOff int, cls *ast.ClassNode) {
 	var traitUses []ast.Node
 	var properties []ast.Node
 	var pendingAttrs []ast.Node
@@ -294,52 +303,54 @@ func lowerClassMembers(members *RedNode, file *File, cls *ast.ClassNode) {
 			return false
 		}
 	}
-	members.ForEachChildDesc(func(green *GreenNode, offset int) bool {
+	membersParent := &RedNode{File: file, Green: membersGreen, Offset: membersOff}
+	forEachChildDescGreen(membersGreen, membersOff, func(green *GreenNode, offset int) bool {
 		k := green.Kind()
 		if !memberKinds(k) {
 			pendingAttrs = nil
 			return true
 		}
-		m := &RedNode{File: members.File, Green: green, Offset: offset}
-		switch k {
-		case KindAttributeList:
-			pendingAttrs = append(pendingAttrs, lowerAttributeList(m, file)...)
-		case KindFunctionDecl, KindMethodDecl:
-			if fn := lowerFunction(m, file); fn != nil {
+		withPooledRed(file, membersParent, green, offset, func(m *RedNode) {
+			switch k {
+			case KindAttributeList:
+				pendingAttrs = append(pendingAttrs, lowerAttributeList(m, file)...)
+			case KindFunctionDecl, KindMethodDecl:
+				if fn := lowerFunction(m, file); fn != nil {
+					if len(pendingAttrs) > 0 {
+						fn.Attributes = pendingAttrs
+						pendingAttrs = nil
+					}
+					cls.Methods = append(cls.Methods, fn)
+				}
+			case KindPropertyDecl:
+				props := lowerProperties(m, file)
 				if len(pendingAttrs) > 0 {
-					fn.Attributes = pendingAttrs
+					for _, node := range props {
+						if prop, ok := node.(*ast.PropertyNode); ok {
+							prop.Attributes = pendingAttrs
+						}
+					}
 					pendingAttrs = nil
 				}
-				cls.Methods = append(cls.Methods, fn)
-			}
-		case KindPropertyDecl:
-			props := lowerProperties(m, file)
-			if len(pendingAttrs) > 0 {
-				for _, node := range props {
-					if prop, ok := node.(*ast.PropertyNode); ok {
-						prop.Attributes = pendingAttrs
+				properties = append(properties, props...)
+			case KindClassConstDecl:
+				consts := lowerClassConsts(m, file)
+				if len(pendingAttrs) > 0 {
+					for _, node := range consts {
+						if c, ok := node.(*ast.ConstantNode); ok {
+							c.Attributes = pendingAttrs
+						}
 					}
+					pendingAttrs = nil
 				}
-				pendingAttrs = nil
-			}
-			properties = append(properties, props...)
-		case KindClassConstDecl:
-			consts := lowerClassConsts(m, file)
-			if len(pendingAttrs) > 0 {
-				for _, node := range consts {
-					if c, ok := node.(*ast.ConstantNode); ok {
-						c.Attributes = pendingAttrs
-					}
+				cls.Constants = append(cls.Constants, consts...)
+			case KindUseTraitClause:
+				pendingAttrs = nil // attributes do not attach to `use` clauses
+				if tu := lowerUseTraitClause(m, file); tu != nil {
+					traitUses = append(traitUses, tu)
 				}
-				pendingAttrs = nil
 			}
-			cls.Constants = append(cls.Constants, consts...)
-		case KindUseTraitClause:
-			pendingAttrs = nil // attributes do not attach to `use` clauses
-			if tu := lowerUseTraitClause(m, file); tu != nil {
-				traitUses = append(traitUses, tu)
-			}
-		}
+		})
 		return true
 	})
 	// Classic prepends trait uses ahead of properties in ClassNode.Properties.
@@ -376,20 +387,17 @@ func lowerFunction(n *RedNode, file *File) *ast.FunctionNode {
 		switch k {
 		case KindUnqualifiedName:
 			if fn.Name == "" {
-				nameNode := RedNode{File: n.File, Green: green, Offset: offset}
-				fn.Name = NameText(&nameNode)
+				fn.Name = nameTextAt(file, green, offset)
 				headerEnd = spanEnd(file, Span{Start: offset, End: offset + green.width})
 			}
 		case KindParamList:
-			paramList := RedNode{File: n.File, Green: green, Offset: offset}
-			fn.Params = lowerParamList(&paramList, file)
+			fn.Params = lowerParamListAt(file, green, offset)
 			headerEnd = spanEnd(file, Span{Start: offset, End: offset + green.width})
 		case KindTokenList:
 			// Index mode: leave Body nil.
 			fn.Body = nil
 		case KindStatementList:
-			bodyList := RedNode{File: n.File, Green: green, Offset: offset}
-			fn.Body = lowerStatements(&bodyList, file)
+			fn.Body = lowerStatementsAt(file, green, offset)
 		default:
 			if k == KindToken && green.TokenType() == token.T_COLON {
 				seenColon = true
@@ -397,8 +405,7 @@ func lowerFunction(n *RedNode, file *File) *ast.FunctionNode {
 				return true
 			}
 			if seenColon && isTypeKind(k) {
-				typeNode := RedNode{File: n.File, Green: green, Offset: offset}
-				fn.ReturnType = lowerType(&typeNode, file)
+				fn.ReturnType = lowerTypeAt(file, green, offset)
 				headerEnd = spanEnd(file, Span{Start: offset, End: offset + green.width})
 				seenColon = false
 			}
@@ -449,8 +456,7 @@ func lowerProperties(n *RedNode, file *File) []ast.Node {
 			k := green.Kind()
 			switch {
 			case isTypeKind(k):
-				typeNode := RedNode{File: n.File, Green: green, Offset: offset}
-				typeHint = lowerType(&typeNode, file)
+				typeHint = lowerTypeAt(file, green, offset)
 				return -1
 			case isGreenTokenType(green, token.T_VARIABLE):
 				sp := Span{Start: offset, End: offset + green.width}
@@ -489,8 +495,7 @@ func lowerProperties(n *RedNode, file *File) []ast.Node {
 				names = append(names, nm)
 				return j
 			case k == KindPropertyHookList:
-				hookList := RedNode{File: n.File, Green: green, Offset: offset}
-				hooks = lowerPropertyHooks(&hookList, file)
+				hooks = lowerPropertyHooksAt(file, green, offset)
 				return -1
 			}
 			return -1
@@ -528,19 +533,21 @@ func lowerProperties(n *RedNode, file *File) []ast.Node {
 	return out
 }
 
-func lowerPropertyHooks(list *RedNode, file *File) []ast.PropertyHookNode {
-	if list == nil {
+func lowerPropertyHooksAt(file *File, listGreen *GreenNode, listOff int) []ast.PropertyHookNode {
+	if file == nil || listGreen == nil {
 		return nil
 	}
 	var out []ast.PropertyHookNode
-	list.ForEachChildDesc(func(green *GreenNode, offset int) bool {
+	listParent := &RedNode{File: file, Green: listGreen, Offset: listOff}
+	forEachChildDescGreen(listGreen, listOff, func(green *GreenNode, offset int) bool {
 		if green.Kind() != KindPropertyHook {
 			return true
 		}
-		hook := RedNode{File: list.File, Green: green, Offset: offset}
-		if h, ok := lowerPropertyHook(&hook, file); ok {
-			out = append(out, h)
-		}
+		withPooledRed(file, listParent, green, offset, func(hook *RedNode) {
+			if h, ok := lowerPropertyHook(hook, file); ok {
+				out = append(out, h)
+			}
+		})
 		return true
 	})
 	return out
@@ -593,8 +600,7 @@ func lowerPropertyHook(n *RedNode, file *File) (ast.PropertyHookNode, bool) {
 			}
 			// Braced hook body: get { … } / set($v) { … }
 			if green.Kind() == KindStatementList {
-				body := RedNode{File: n.File, Green: green, Offset: offset}
-				h.Body = lowerStatements(&body, file)
+				h.Body = lowerStatementsAt(file, green, offset)
 				return -1
 			}
 			// Abstract / interface: bare `get;` / `set;` — Expr and Body stay nil.
@@ -625,15 +631,13 @@ func lowerClassConsts(n *RedNode, file *File) []ast.Node {
 		i = walkRedNodeChildrenFrom(n, i, func(green *GreenNode, offset int, idx int) int {
 			k := green.Kind()
 			if isTypeKind(k) {
-				typeNode := RedNode{File: n.File, Green: green, Offset: offset}
-				typeHint = lowerType(&typeNode, file)
+				typeHint = lowerTypeAt(file, green, offset)
 				return -1
 			}
 			if k != KindUnqualifiedName {
 				return -1
 			}
-			nameNode := RedNode{File: n.File, Green: green, Offset: offset}
-			name := NameText(&nameNode)
+			name := nameTextAt(file, green, offset)
 			np, ne := nodePosGreen(file, green, offset)
 			var value ast.Node
 			j := idx + 1
