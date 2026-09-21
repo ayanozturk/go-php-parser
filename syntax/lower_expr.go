@@ -332,14 +332,14 @@ func lowerArgList(list *RedNode, file *File) []ast.Node {
 		return nil
 	}
 	var out []ast.Node
-	list.ForEachChild(func(c *RedNode) bool {
-		switch c.Kind() {
+	list.ForEachChildDesc(func(green *GreenNode, offset int) bool {
+		switch green.Kind() {
 		case KindArg:
-			if a := lowerArg(c, file); a != nil {
+			if a := lowerArg(list.bindChild(green, offset), file); a != nil {
 				out = append(out, a)
 			}
 		case KindNamedArg:
-			if a := lowerNamedArg(c, file); a != nil {
+			if a := lowerNamedArg(list.bindChild(green, offset), file); a != nil {
 				out = append(out, a)
 			}
 		}
@@ -793,11 +793,11 @@ func lowerNewExpr(n *RedNode, file *File) ast.Node {
 func lowerArrayExpr(n *RedNode, file *File) ast.Node {
 	pos, end := nodePos(file, n)
 	var elements []ast.Node
-	n.ForEachChild(func(c *RedNode) bool {
-		if c.Kind() != KindArrayElement {
+	n.ForEachChildDesc(func(green *GreenNode, offset int) bool {
+		if green.Kind() != KindArrayElement {
 			return true
 		}
-		if item := lowerArrayElement(c, file); item != nil {
+		if item := lowerArrayElement(n.bindChild(green, offset), file); item != nil {
 			elements = append(elements, item)
 		}
 		return true

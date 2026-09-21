@@ -15,10 +15,11 @@ func lowerStatements(list *RedNode, file *File) []ast.Node {
 		return nil
 	}
 	var out []ast.Node
-	list.ForEachChild(func(c *RedNode) bool {
-		if c == nil || c.Kind() == KindToken {
+	list.ForEachChildDesc(func(green *GreenNode, offset int) bool {
+		if green.Kind() == KindToken {
 			return true
 		}
+		c := list.bindChild(green, offset)
 		if stmt := lowerStmt(c, file); stmt != nil {
 			out = append(out, stmt)
 		}

@@ -97,6 +97,10 @@ func (r *RedNode) Children() []*RedNode {
 	return out
 }
 
+func (r *RedNode) bindChild(green *GreenNode, offset int) *RedNode {
+	return &RedNode{File: r.File, Parent: r, Green: green, Offset: offset}
+}
+
 // ForEachChildDesc calls fn for each non-nil child green node and its absolute
 // byte offset without allocating RedNode wrappers or descriptor slices.
 // If fn returns false, iteration stops.
