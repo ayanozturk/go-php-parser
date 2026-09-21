@@ -63,10 +63,119 @@ func TestProgressBar_Print_NonPositiveTotal(t *testing.T) {
 	}
 }
 
+func TestProgressBar_Print_RateAndETA(t *testing.T) {
+	pb := &ProgressBar{
+		total:     100,
+		label:     "Scan",
+		isTTY:     true,
+		startTime: time.Now().Add(-2 * time.Second),
+	}
+
+	output := captureStdout(t, func() {
+		pb.Print(0)  // no rate/ETA while current == 0
+		pb.Print(50) // mid-run: rate + ETA
+	})
+
+	if !strings.Contains(output, "Scan:   0% [0/100]") {
+		t.Fatalf("expected zero-progress line, got %q", output)
+	}
+	if !strings.Contains(output, "files/s") {
+		t.Fatalf("expected files/s rate for mid progress, got %q", output)
+	}
+	if !strings.Contains(output, "ETA") {
+		t.Fatalf("expected ETA for incomplete progress, got %q", output)
+	}
+	if strings.Contains(output, "100%") {
+		t.Fatalf("did not expect completion line, got %q", output)
+	}
+	if strings.HasSuffix(output, "\n") {
+		t.Fatalf("mid-progress line must not end with newline, got %q", output)
+	}
+}
+
+func TestProgressBar_Print_CompleteOmitsETA(t *testing.T) {
+	pb := &ProgressBar{
+		total:     4,
+		label:     "Done",
+		isTTY:     true,
+		startTime: time.Now().Add(-time.Second),
+	}
+	output := captureStdout(t, func() {
+		pb.Print(4)
+	})
+	if !strings.Contains(output, "files/s") {
+		t.Fatalf("expected rate on completion, got %q", output)
+	}
+	if strings.Contains(output, "ETA") {
+		t.Fatalf("completion line must not include ETA, got %q", output)
+	}
+	if !strings.HasSuffix(output, "\n") {
+		t.Fatalf("expected trailing newline on completion, got %q", output)
+	}
+}
+
 func TestNewProgressBar(t *testing.T) {
 	pb := NewProgressBar(5, "Load")
 	if pb.total != 5 || pb.label != "Load" {
 		t.Errorf("ProgressBar not initialized correctly")
+	}
+	if pb.startTime.IsZero() {
+		t.Fatal("expected startTime to be set")
+	}
+	if pb.isTTY != isatty(os.Stdout.Fd()) {
+		t.Fatalf("isTTY=%v, want isatty(stdout)=%v", pb.isTTY, isatty(os.Stdout.Fd()))
+	}
+}
+
+func TestIsattyHonorsFD(t *testing.T) {
+	// Unknown descriptor must not fall back to blindly stating stdout.
+	if isatty(^uintptr(0)) {
+		t.Fatal("unknown fd must not report as a TTY")
+	}
+	if fileForFD(^uintptr(0)) != nil {
+		t.Fatal("unknown fd must map to nil file")
+	}
+	if fileForFD(os.Stdout.Fd()) != os.Stdout {
+		t.Fatal("stdout fd should map to os.Stdout")
+	}
+	if fileForFD(os.Stderr.Fd()) != os.Stderr {
+		t.Fatal("stderr fd should map to os.Stderr")
+	}
+	if fileForFD(os.Stdin.Fd()) != os.Stdin {
+		t.Fatal("stdin fd should map to os.Stdin")
+	}
+
+	// Pipe fds are not char devices.
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("pipe: %v", err)
+	}
+	t.Cleanup(func() {
+		_ = r.Close()
+		_ = w.Close()
+	})
+	if isCharDeviceFile(r) || isCharDeviceFile(w) {
+		t.Fatal("pipe ends must not be char devices")
+	}
+}
+
+func TestIsCharDeviceFile(t *testing.T) {
+	if isCharDeviceFile(nil) {
+		t.Fatal("nil file must not be a char device")
+	}
+
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("pipe: %v", err)
+	}
+	if isCharDeviceFile(r) {
+		t.Fatal("pipe reader must not be a char device")
+	}
+	_ = w.Close()
+	_ = r.Close()
+	// Stat on a closed file fails → false (covers the error branch).
+	if isCharDeviceFile(r) {
+		t.Fatal("closed file must not report as char device")
 	}
 }
 

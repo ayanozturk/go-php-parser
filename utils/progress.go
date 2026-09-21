@@ -58,7 +58,29 @@ func (pb *ProgressBar) Print(current int) {
 
 // isatty returns true if the given file descriptor is a terminal.
 func isatty(fd uintptr) bool {
-	fi, err := os.Stdout.Stat()
+	return isCharDeviceFile(fileForFD(fd))
+}
+
+// fileForFD maps a well-known stdio descriptor to its *os.File.
+// Unknown descriptors return nil (progress only ever checks stdout).
+func fileForFD(fd uintptr) *os.File {
+	switch fd {
+	case os.Stdin.Fd():
+		return os.Stdin
+	case os.Stdout.Fd():
+		return os.Stdout
+	case os.Stderr.Fd():
+		return os.Stderr
+	default:
+		return nil
+	}
+}
+
+func isCharDeviceFile(f *os.File) bool {
+	if f == nil {
+		return false
+	}
+	fi, err := f.Stat()
 	if err != nil {
 		return false
 	}
