@@ -11,12 +11,13 @@ func lowerNamespace(n *RedNode, file *File, siblings []*RedNode, idx int) (*ast.
 	pos, end := nodePos(file, n)
 	ns := &ast.NamespaceNode{Pos: pos, EndPos: end}
 	var bodyList *RedNode
-	n.ForEachChild(func(c *RedNode) bool {
-		if isNameKind(c.Kind()) {
-			ns.Name = nameString(c)
+	n.ForEachChildDesc(func(green *GreenNode, offset int) bool {
+		k := green.Kind()
+		if isNameKind(k) {
+			ns.Name = nameString(n.bindChild(green, offset))
 		}
-		if c.Kind() == KindStatementList {
-			bodyList = c
+		if k == KindStatementList {
+			bodyList = n.bindChild(green, offset)
 		}
 		return true
 	})
@@ -46,8 +47,8 @@ func lowerStatementChildren(list *RedNode, file *File) []ast.Node {
 		return nil
 	}
 	var out []ast.Node
-	list.ForEachChild(func(c *RedNode) bool {
-		nodes, _ := lowerTopLevel(c, file)
+	list.ForEachChildDesc(func(green *GreenNode, offset int) bool {
+		nodes, _ := lowerTopLevel(list.bindChild(green, offset), file)
 		out = append(out, nodes...)
 		return true
 	})
@@ -60,10 +61,14 @@ func lowerUseDecl(n *RedNode, file *File) []ast.Node {
 	}
 	pos, end := nodePos(file, n)
 	useType := "class"
-	n.ForEachChild(func(c *RedNode) bool {
-		if isTokenType(c, token.T_FUNCTION) {
+	n.ForEachChildDesc(func(green *GreenNode, _ int) bool {
+		if green.Kind() != KindToken {
+			return true
+		}
+		switch green.TokenType() {
+		case token.T_FUNCTION:
 			useType = "function"
-		} else if isTokenType(c, token.T_CONST) {
+		case token.T_CONST:
 			useType = "const"
 		}
 		return true
@@ -83,20 +88,21 @@ func lowerUseClause(clause *RedNode, prefix, useType string, pos, end ast.Positi
 	var name *RedNode
 	var alias *RedNode
 	var group *RedNode
-	clause.ForEachChild(func(c *RedNode) bool {
+	clause.ForEachChildDesc(func(green *GreenNode, offset int) bool {
 		switch {
-		case isTokenType(c, token.T_FUNCTION):
+		case green.Kind() == KindToken && green.TokenType() == token.T_FUNCTION:
 			itemType = "function"
-		case isTokenType(c, token.T_CONST):
+		case green.Kind() == KindToken && green.TokenType() == token.T_CONST:
 			itemType = "const"
-		case isNameKind(c.Kind()):
+		case isNameKind(green.Kind()):
+			c := clause.bindChild(green, offset)
 			if name == nil {
 				name = c
 			} else {
 				alias = c
 			}
-		case c.Kind() == KindUseGroup:
-			group = c
+		case green.Kind() == KindUseGroup:
+			group = clause.bindChild(green, offset)
 		}
 		return true
 	})
@@ -145,8 +151,9 @@ func lowerClass(n *RedNode, file *File) *ast.ClassNode {
 	}
 	var members *RedNode
 	headerEnd := pos
-	n.ForEachChild(func(c *RedNode) bool {
-		switch c.Kind() {
+	n.ForEachChildDesc(func(green *GreenNode, offset int) bool {
+		c := n.bindChild(green, offset)
+		switch green.Kind() {
 		case KindUnqualifiedName, KindQualifiedName,
 			KindFullyQualifiedName, KindRelativeName:
 			if cls.Name == "" {
@@ -188,8 +195,9 @@ func lowerInterface(n *RedNode, file *File) *ast.InterfaceNode {
 	}
 	var members *RedNode
 	headerEnd := pos
-	n.ForEachChild(func(c *RedNode) bool {
-		switch c.Kind() {
+	n.ForEachChildDesc(func(green *GreenNode, offset int) bool {
+		c := n.bindChild(green, offset)
+		switch green.Kind() {
 		case KindUnqualifiedName, KindQualifiedName,
 			KindFullyQualifiedName, KindRelativeName:
 			if iface.Name == "" {
@@ -207,8 +215,22 @@ func lowerInterface(n *RedNode, file *File) *ast.InterfaceNode {
 	iface.HeaderEndPos = headerEnd
 	if members != nil {
 		var pendingAttrs []ast.Node
-		members.ForEachChild(func(m *RedNode) bool {
-			switch m.Kind() {
+		memberKinds := func(k Kind) bool {
+			switch k {
+			case KindAttributeList, KindFunctionDecl, KindMethodDecl, KindClassConstDecl, KindPropertyDecl:
+				return true
+			default:
+				return false
+			}
+		}
+		members.ForEachChildDesc(func(green *GreenNode, offset int) bool {
+			k := green.Kind()
+			if !memberKinds(k) {
+				pendingAttrs = nil
+				return true
+			}
+			m := members.bindChild(green, offset)
+			switch k {
 			case KindAttributeList:
 				pendingAttrs = append(pendingAttrs, lowerAttributeList(m, file)...)
 			case KindFunctionDecl, KindMethodDecl:

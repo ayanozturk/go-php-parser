@@ -158,13 +158,13 @@ func (r *RedNode) EndPos() ast.Position {
 // reconstructed from the red offset walk (green tokens are position-independent).
 func (r *RedNode) Tokens() []token.Token {
 	var out []token.Token
-	var walk func(*RedNode)
-	walk = func(n *RedNode) {
-		if n == nil || n.Green == nil {
+	var walk func(*GreenNode, int)
+	walk = func(green *GreenNode, offset int) {
+		if green == nil {
 			return
 		}
-		if n.Green.IsToken() {
-			tok, ok := n.Green.Token()
+		if green.IsToken() {
+			tok, ok := green.Token()
 			if !ok {
 				return
 			}
@@ -181,16 +181,23 @@ func (r *RedNode) Tokens() []token.Token {
 			if sig == 0 && tok.Type != token.T_EOF {
 				sig = len(tok.Literal)
 			}
-			tok.Pos = token.Position{Offset: n.Offset + lead}
-			tok.End = token.Position{Offset: n.Offset + lead + sig}
+			tok.Pos = token.Position{Offset: offset + lead}
+			tok.End = token.Position{Offset: offset + lead + sig}
 			out = append(out, tok)
 			return
 		}
-		for _, c := range n.Children() {
-			walk(c)
+		off := offset
+		for _, g := range green.Children() {
+			if g == nil {
+				continue
+			}
+			walk(g, off)
+			off += g.Width()
 		}
 	}
-	walk(r)
+	if r != nil && r.Green != nil {
+		walk(r.Green, r.Offset)
+	}
 	return out
 }
 

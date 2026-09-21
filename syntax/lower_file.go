@@ -113,15 +113,16 @@ func lowerAttributeList(n *RedNode, file *File) []ast.Node {
 		return nil
 	}
 	var out []ast.Node
-	n.ForEachChild(func(group *RedNode) bool {
-		if group.Kind() != KindAttributeGroup {
+	n.ForEachChildDesc(func(green *GreenNode, offset int) bool {
+		if green.Kind() != KindAttributeGroup {
 			return true
 		}
-		group.ForEachChild(func(attr *RedNode) bool {
-			if attr.Kind() != KindAttribute {
+		group := n.bindChild(green, offset)
+		group.ForEachChildDesc(func(attrGreen *GreenNode, attrOff int) bool {
+			if attrGreen.Kind() != KindAttribute {
 				return true
 			}
-			if node := lowerAttribute(attr, file); node != nil {
+			if node := lowerAttribute(group.bindChild(attrGreen, attrOff), file); node != nil {
 				out = append(out, node)
 			}
 			return true
@@ -138,13 +139,14 @@ func lowerAttribute(n *RedNode, file *File) ast.Node {
 	pos, end := nodePos(file, n)
 	var name string
 	var args *RedNode
-	n.ForEachChild(func(c *RedNode) bool {
-		if c.Kind() == KindArgList {
-			args = c
+	n.ForEachChildDesc(func(green *GreenNode, offset int) bool {
+		k := green.Kind()
+		if k == KindArgList {
+			args = n.bindChild(green, offset)
 			return true
 		}
-		if isNameKind(c.Kind()) && name == "" {
-			name = NameText(c)
+		if isNameKind(k) && name == "" {
+			name = NameText(n.bindChild(green, offset))
 		}
 		return true
 	})

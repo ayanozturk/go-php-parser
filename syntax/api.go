@@ -28,57 +28,59 @@ func NameText(n *RedNode) string {
 	switch n.Kind() {
 	case KindUnqualifiedName, KindQualifiedName, KindFullyQualifiedName, KindRelativeName, KindName:
 		var b []byte
-		for _, c := range n.Children() {
-			if c.Green != nil && c.Green.IsToken() {
-				tok, ok := c.Green.Token()
-				if !ok {
-					continue
-				}
-				// isContextualIdent is the parser's own "is this token usable as
-				// an identifier here" check (parseIdentName uses it to accept
-				// reserved words like `declare`, `list`, `default` as method/
-				// function/const names). NameText must recognize every token
-				// parseIdentName can produce, or a reserved-word name silently
-				// reconstructs as "" here even though the CST correctly holds
-				// it - T_NS_SEPARATOR is added back explicitly since it's a
-				// separator between name segments, not an identifier itself,
-				// but still belongs in the reconstructed text. A non-empty
-				// placeholder stands in for classification when a
-				// position-independent green node has no literal yet:
-				// isContextualIdent only needs literal text to sanity-check
-				// the first byte is alphabetic, which holds for every real
-				// token type reaching this branch.
-				classifyLit := tok.Literal
-				if classifyLit == "" {
-					classifyLit = "x"
-				}
-				if tok.Type == token.T_NS_SEPARATOR || isContextualIdent(tok.Type, classifyLit) {
-					if tok.Literal != "" {
-						b = append(b, tok.Literal...)
-					} else {
-						// Position-independent green: slice significant token text from red span.
-						s := c.Span()
-						lead := 0
-						for _, tr := range tok.LeadingTrivia {
-							w := tr.Width()
-							if w == 0 {
-								w = len(tr.Literal)
-							}
-							lead += w
+		file := n.File
+		n.ForEachChildDesc(func(green *GreenNode, offset int) bool {
+			if !green.IsToken() {
+				return true
+			}
+			tok, ok := green.Token()
+			if !ok {
+				return true
+			}
+			// isContextualIdent is the parser's own "is this token usable as
+			// an identifier here" check (parseIdentName uses it to accept
+			// reserved words like `declare`, `list`, `default` as method/
+			// function/const names). NameText must recognize every token
+			// parseIdentName can produce, or a reserved-word name silently
+			// reconstructs as "" here even though the CST correctly holds
+			// it - T_NS_SEPARATOR is added back explicitly since it's a
+			// separator between name segments, not an identifier itself,
+			// but still belongs in the reconstructed text. A non-empty
+			// placeholder stands in for classification when a
+			// position-independent green node has no literal yet:
+			// isContextualIdent only needs literal text to sanity-check
+			// the first byte is alphabetic, which holds for every real
+			// token type reaching this branch.
+			classifyLit := tok.Literal
+			if classifyLit == "" {
+				classifyLit = "x"
+			}
+			if tok.Type == token.T_NS_SEPARATOR || isContextualIdent(tok.Type, classifyLit) {
+				if tok.Literal != "" {
+					b = append(b, tok.Literal...)
+				} else {
+					// Position-independent green: slice significant token text from source span.
+					lead := 0
+					for _, tr := range tok.LeadingTrivia {
+						w := tr.Width()
+						if w == 0 {
+							w = len(tr.Literal)
 						}
-						sig := tok.Width()
-						if sig == 0 {
-							sig = len(tok.Literal)
-						}
-						start := s.Start + lead
-						end := start + sig
-						if c.File != nil && start >= 0 && end <= len(c.File.Source) && start <= end {
-							b = append(b, c.File.Source[start:end]...)
-						}
+						lead += w
+					}
+					sig := tok.Width()
+					if sig == 0 {
+						sig = len(tok.Literal)
+					}
+					start := offset + lead
+					end := start + sig
+					if file != nil && start >= 0 && end <= len(file.Source) && start <= end {
+						b = append(b, file.Source[start:end]...)
 					}
 				}
 			}
-		}
+			return true
+		})
 		return string(b)
 	default:
 		return n.Text()
@@ -358,31 +360,30 @@ func TernaryElvisCondition(n *RedNode) *RedNode {
 	seenQ := false
 	seenColon := false
 	var thenChild *RedNode
-	for _, c := range n.Children() {
-		if c.Green != nil && c.Green.IsToken() {
-			tt, ok := tokenOf(c)
-			if !ok {
-				continue
-			}
-			switch tt.Type {
+	n.ForEachChildDesc(func(green *GreenNode, offset int) bool {
+		k := green.Kind()
+		if k == KindToken {
+			switch green.TokenType() {
 			case token.T_QUESTION:
 				seenQ = true
 			case token.T_COLON:
 				seenColon = true
 			}
-			continue
+			return true
 		}
-		if !(isExprKind(c.Kind()) || isNameKind(c.Kind())) {
-			continue
+		if !(isExprKind(k) || isNameKind(k)) {
+			return true
 		}
+		c := n.bindChild(green, offset)
 		if cond == nil {
 			cond = c
-			continue
+			return true
 		}
 		if seenQ && !seenColon && thenChild == nil {
 			thenChild = c
 		}
-	}
+		return true
+	})
 	if cond == nil || thenChild != nil {
 		return nil
 	}
@@ -404,16 +405,20 @@ func ParamDefaultValue(n *RedNode) *RedNode {
 		return nil
 	}
 	seenAssign := false
-	for _, c := range n.Children() {
-		if isTokenType(c, token.T_ASSIGN) {
+	var defaultVal *RedNode
+	n.ForEachChildDesc(func(green *GreenNode, offset int) bool {
+		if green.Kind() == KindToken && green.TokenType() == token.T_ASSIGN {
 			seenAssign = true
-			continue
+			return true
 		}
-		if seenAssign && (isExprKind(c.Kind()) || isNameKind(c.Kind())) {
-			return c
+		k := green.Kind()
+		if seenAssign && (isExprKind(k) || isNameKind(k)) {
+			defaultVal = n.bindChild(green, offset)
+			return false
 		}
-	}
-	return nil
+		return true
+	})
+	return defaultVal
 }
 
 // IsStatementKind reports whether k is one of the statement kinds lowered
@@ -453,12 +458,18 @@ func Walk(root *RedNode, fn func(*RedNode) bool) {
 
 // FirstChildOfKind returns the first direct child with the given kind.
 func (r *RedNode) FirstChildOfKind(k Kind) *RedNode {
-	for _, c := range r.Children() {
-		if c.Kind() == k {
-			return c
-		}
+	if r == nil {
+		return nil
 	}
-	return nil
+	var found *RedNode
+	r.ForEachChildDesc(func(green *GreenNode, offset int) bool {
+		if green.Kind() != k {
+			return true
+		}
+		found = r.bindChild(green, offset)
+		return false
+	})
+	return found
 }
 
 // ChildrenOfKind returns all direct children of kind k.
@@ -506,19 +517,21 @@ func NamespaceAndAliases(f *File) (string, map[string]string) {
 		}
 		switch n.Kind() {
 		case KindNamespaceDecl:
-			for _, c := range n.Children() {
-				switch c.Kind() {
+			n.ForEachChildDesc(func(green *GreenNode, offset int) bool {
+				switch green.Kind() {
 				case KindUnqualifiedName, KindQualifiedName, KindFullyQualifiedName, KindRelativeName:
-					ns = strings.TrimPrefix(NameText(c), `\`)
+					ns = strings.TrimPrefix(NameText(n.bindChild(green, offset)), `\`)
 				}
-			}
+				return true
+			})
 		case KindUseDecl:
 			collectUseAliases(n, aliases, nil, nil)
 			return // don't double-walk clauses
 		}
-		for _, c := range n.Children() {
-			walk(c)
-		}
+		n.ForEachChildDesc(func(green *GreenNode, offset int) bool {
+			walk(n.bindChild(green, offset))
+			return true
+		})
 	}
 	walk(f.Root)
 	return ns, aliases
@@ -526,16 +539,18 @@ func NamespaceAndAliases(f *File) (string, map[string]string) {
 
 func collectUseAliases(useDecl *RedNode, classAliases, functionAliases, constAliases map[string]string) {
 	useType := "class"
-	for _, c := range useDecl.Children() {
-		if c.Green != nil && c.Green.IsToken() {
-			switch c.Green.TokenType() {
-			case token.T_FUNCTION:
-				useType = "function"
-			case token.T_CONST:
-				useType = "const"
-			}
+	useDecl.ForEachChildDesc(func(green *GreenNode, _ int) bool {
+		if green.Kind() != KindToken {
+			return true
 		}
-	}
+		switch green.TokenType() {
+		case token.T_FUNCTION:
+			useType = "function"
+		case token.T_CONST:
+			useType = "const"
+		}
+		return true
+	})
 	for _, clause := range useDecl.ChildrenOfKind(KindUseClause) {
 		collectUseClauseAliases(clause, "", useType, classAliases, functionAliases, constAliases)
 	}
@@ -549,22 +564,24 @@ func collectUseClauseAliases(clause *RedNode, prefix, useType string, classAlias
 	var name *RedNode
 	var alias *RedNode
 	var group *RedNode
-	for _, c := range clause.Children() {
+	clause.ForEachChildDesc(func(green *GreenNode, offset int) bool {
 		switch {
-		case c.Green != nil && c.Green.IsToken() && c.Green.TokenType() == token.T_FUNCTION:
+		case green.Kind() == KindToken && green.TokenType() == token.T_FUNCTION:
 			itemType = "function"
-		case c.Green != nil && c.Green.IsToken() && c.Green.TokenType() == token.T_CONST:
+		case green.Kind() == KindToken && green.TokenType() == token.T_CONST:
 			itemType = "const"
-		case c.Kind() == KindUnqualifiedName || c.Kind() == KindQualifiedName || c.Kind() == KindFullyQualifiedName || c.Kind() == KindRelativeName:
+		case green.Kind() == KindUnqualifiedName || green.Kind() == KindQualifiedName || green.Kind() == KindFullyQualifiedName || green.Kind() == KindRelativeName:
+			c := clause.bindChild(green, offset)
 			if name == nil {
 				name = c
 			} else {
 				alias = c
 			}
-		case c.Kind() == KindUseGroup:
-			group = c
+		case green.Kind() == KindUseGroup:
+			group = clause.bindChild(green, offset)
 		}
-	}
+		return true
+	})
 	if group != nil {
 		base := strings.TrimPrefix(NameText(name), `\`)
 		if prefix != "" {

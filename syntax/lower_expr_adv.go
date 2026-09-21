@@ -254,11 +254,11 @@ func lowerCloneExpr(n *RedNode, file *File) ast.Node {
 func lowerListExpr(n *RedNode, file *File) ast.Node {
 	pos, end := nodePos(file, n)
 	var elements []ast.Node
-	n.ForEachChild(func(c *RedNode) bool {
-		if c.Kind() != KindArrayElement {
+	n.ForEachChildDesc(func(green *GreenNode, offset int) bool {
+		if green.Kind() != KindArrayElement {
 			return true
 		}
-		if item := lowerArrayElement(c, file); item != nil {
+		if item := lowerArrayElement(n.bindChild(green, offset), file); item != nil {
 			elements = append(elements, item)
 		}
 		return true
@@ -336,8 +336,9 @@ func lowerStringParts(n *RedNode, file *File) []ast.Node {
 		return nil
 	}
 	var parts []ast.Node
-	n.ForEachChild(func(c *RedNode) bool {
-		switch c.Kind() {
+	n.ForEachChildDesc(func(green *GreenNode, offset int) bool {
+		c := n.bindChild(green, offset)
+		switch green.Kind() {
 		case KindStringPart:
 			p, e := nodePos(file, c)
 			parts = append(parts, &ast.StringNode{
@@ -367,9 +368,9 @@ func firstTokenChild(n *RedNode) *RedNode {
 		return nil
 	}
 	var found *RedNode
-	n.ForEachChild(func(c *RedNode) bool {
-		if c.Green != nil && c.Green.IsToken() {
-			found = c
+	n.ForEachChildDesc(func(green *GreenNode, offset int) bool {
+		if green.IsToken() {
+			found = n.bindChild(green, offset)
 			return false
 		}
 		return true
@@ -391,9 +392,10 @@ func lowerEncapsulatedExpr(n *RedNode, file *File) ast.Node {
 		return nil
 	}
 	var structured ast.Node
-	n.ForEachChild(func(c *RedNode) bool {
-		if isExprKind(c.Kind()) || isNameKind(c.Kind()) {
-			structured = lowerExpr(c, file)
+	n.ForEachChildDesc(func(green *GreenNode, offset int) bool {
+		k := green.Kind()
+		if isExprKind(k) || isNameKind(k) {
+			structured = lowerExpr(n.bindChild(green, offset), file)
 			return false
 		}
 		return true
@@ -403,16 +405,20 @@ func lowerEncapsulatedExpr(n *RedNode, file *File) ast.Node {
 	}
 	// Token-blob fallback: ${name} / {$var} before structured parse.
 	var varname string
-	n.ForEachChild(func(c *RedNode) bool {
-		if isTokenType(c, token.T_VARIABLE) {
+	n.ForEachChildDesc(func(green *GreenNode, offset int) bool {
+		if green.Kind() != KindToken {
+			return true
+		}
+		c := n.bindChild(green, offset)
+		switch green.TokenType() {
+		case token.T_VARIABLE:
 			structured = &ast.VariableNode{
 				Name:   stripVarDollar(tokenLiteral(c)),
 				Pos:    spanStart(file, c.Span()),
 				EndPos: spanEnd(file, c.Span()),
 			}
 			return false
-		}
-		if isTokenType(c, token.T_STRING_VARNAME) || isTokenType(c, token.T_STRING) {
+		case token.T_STRING_VARNAME, token.T_STRING:
 			if varname == "" {
 				varname = tokenLiteral(c)
 			}

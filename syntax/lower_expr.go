@@ -463,9 +463,10 @@ func splitMemberAccess(n *RedNode, file *File) (object ast.Node, member string) 
 
 func lowerParenExpr(n *RedNode, file *File) ast.Node {
 	var found ast.Node
-	n.ForEachChild(func(c *RedNode) bool {
-		if isExprKind(c.Kind()) || isNameKind(c.Kind()) {
-			found = lowerExpr(c, file)
+	n.ForEachChildDesc(func(green *GreenNode, offset int) bool {
+		k := green.Kind()
+		if isExprKind(k) || isNameKind(k) {
+			found = lowerExpr(n.bindChild(green, offset), file)
 			return false
 		}
 		return true
@@ -575,17 +576,19 @@ func splitStaticMemberAccessParts(n *RedNode, file *File) (class, member string,
 	}
 	seenColon := false
 	done := false
-	n.ForEachChild(func(c *RedNode) bool {
-		if isTokenType(c, token.T_DOUBLE_COLON) {
+	n.ForEachChildDesc(func(green *GreenNode, offset int) bool {
+		if green.Kind() == KindToken && green.TokenType() == token.T_DOUBLE_COLON {
 			seenColon = true
 			return true
 		}
+		k := green.Kind()
+		c := n.bindChild(green, offset)
 		if !seenColon {
-			if isNameKind(c.Kind()) && class == "" {
+			if isNameKind(k) && class == "" {
 				class = NameText(c)
 				return true
 			}
-			if (isExprKind(c.Kind()) || isNameKind(c.Kind())) && class == "" {
+			if (isExprKind(k) || isNameKind(k)) && class == "" {
 				// Dynamic class expr — classic ClassConstFetch only stores string.
 				if e := lowerExpr(c, file); e != nil {
 					class = e.TokenLiteral()
@@ -594,7 +597,7 @@ func splitStaticMemberAccessParts(n *RedNode, file *File) (class, member string,
 			return true
 		}
 		// After :: — member name (literal token) or dynamic expr.
-		switch c.Kind() {
+		switch k {
 		case KindParenExpr:
 			constExpr = lowerParenExpr(c, file)
 			member = "$"
@@ -606,12 +609,11 @@ func splitStaticMemberAccessParts(n *RedNode, file *File) (class, member string,
 			done = true
 			return false
 		default:
-			if c.Green != nil && c.Green.IsToken() {
-				tt, ok := tokenOf(c)
-				if !ok {
-					return true
+			if green.IsToken() {
+				tok, ok := green.Token()
+				if ok {
+					member = strings.TrimSpace(tok.Literal)
 				}
-				member = strings.TrimSpace(tt.Literal)
 			}
 		}
 		return true
@@ -726,13 +728,15 @@ func lowerNewExpr(n *RedNode, file *File) ast.Node {
 	var classTarget, args *RedNode
 	var anonNew ast.Node
 	var anonDone bool
-	n.ForEachChild(func(c *RedNode) bool {
-		switch c.Kind() {
+	n.ForEachChildDesc(func(green *GreenNode, offset int) bool {
+		k := green.Kind()
+		switch k {
 		case KindArgList:
-			args = c
+			args = n.bindChild(green, offset)
 		case KindAttributeList:
 			return true
 		case KindAnonymousClass:
+			c := n.bindChild(green, offset)
 			cls, ctorArgs := lowerAnonymousClass(c, file)
 			if cls == nil {
 				anonDone = true
@@ -747,8 +751,8 @@ func lowerNewExpr(n *RedNode, file *File) ast.Node {
 			anonDone = true
 			return false
 		default:
-			if (isExprKind(c.Kind()) || isNameKind(c.Kind())) && classTarget == nil {
-				classTarget = c
+			if (isExprKind(k) || isNameKind(k)) && classTarget == nil {
+				classTarget = n.bindChild(green, offset)
 			}
 		}
 		return true

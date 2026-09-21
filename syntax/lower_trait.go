@@ -47,8 +47,22 @@ func lowerTrait(n *RedNode, file *File) *ast.TraitNode {
 func lowerTraitMembers(members *RedNode, file *File) []ast.Node {
 	var body []ast.Node
 	var pendingAttrs []ast.Node
-	members.ForEachChild(func(m *RedNode) bool {
-		switch m.Kind() {
+	memberKinds := func(k Kind) bool {
+		switch k {
+		case KindAttributeList, KindFunctionDecl, KindMethodDecl, KindPropertyDecl, KindClassConstDecl, KindUseTraitClause:
+			return true
+		default:
+			return false
+		}
+	}
+	members.ForEachChildDesc(func(green *GreenNode, offset int) bool {
+		k := green.Kind()
+		if !memberKinds(k) {
+			pendingAttrs = nil
+			return true
+		}
+		m := members.bindChild(green, offset)
+		switch k {
 		case KindAttributeList:
 			pendingAttrs = append(pendingAttrs, lowerAttributeList(m, file)...)
 		case KindFunctionDecl, KindMethodDecl:

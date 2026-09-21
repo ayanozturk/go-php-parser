@@ -47,21 +47,23 @@ func lowerParam(n *RedNode, file *File) *ast.ParamNode {
 		p.IsReadonly = true
 	}
 	seenAssign := false
-	n.ForEachChild(func(c *RedNode) bool {
+	n.ForEachChildDesc(func(green *GreenNode, offset int) bool {
+		k := green.Kind()
+		c := n.bindChild(green, offset)
 		switch {
-		case c.Kind() == KindAttributeList:
+		case k == KindAttributeList:
 			p.Attributes = append(p.Attributes, lowerAttributeList(c, file)...)
-		case isTypeKind(c.Kind()):
+		case isTypeKind(k):
 			p.TypeHint = lowerType(c, file)
-		case isTokenType(c, token.T_AMPERSAND):
+		case k == KindToken && green.TokenType() == token.T_AMPERSAND:
 			p.IsByRef = true
-		case isTokenType(c, token.T_ELLIPSIS):
+		case k == KindToken && green.TokenType() == token.T_ELLIPSIS:
 			p.IsVariadic = true
-		case isTokenType(c, token.T_VARIABLE):
+		case k == KindToken && green.TokenType() == token.T_VARIABLE:
 			p.Name = stripVarDollar(tokenLiteral(c))
-		case isTokenType(c, token.T_ASSIGN):
+		case k == KindToken && green.TokenType() == token.T_ASSIGN:
 			seenAssign = true
-		case seenAssign && (isExprKind(c.Kind()) || isNameKind(c.Kind())):
+		case seenAssign && (isExprKind(k) || isNameKind(k)):
 			p.DefaultValue = lowerExpr(c, file)
 			seenAssign = false
 		}

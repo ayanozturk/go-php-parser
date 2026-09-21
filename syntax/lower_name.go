@@ -7,6 +7,10 @@ import (
 	"github.com/ayanozturk/go-php-parser/token"
 )
 
+func isGreenTokenType(g *GreenNode, tt token.TokenType) bool {
+	return g != nil && g.IsToken() && g.TokenType() == tt
+}
+
 func lowerModifiers(n *RedNode) ast.ModifierList {
 	if n == nil {
 		return nil
@@ -16,17 +20,23 @@ func lowerModifiers(n *RedNode) ast.ModifierList {
 		return nil
 	}
 	var out ast.ModifierList
-	var children []*RedNode
-	list.ForEachChild(func(c *RedNode) bool {
-		children = append(children, c)
+	var parts []struct {
+		green  *GreenNode
+		offset int
+	}
+	list.ForEachChildDesc(func(green *GreenNode, offset int) bool {
+		parts = append(parts, struct {
+			green  *GreenNode
+			offset int
+		}{green, offset})
 		return true
 	})
-	for i := 0; i < len(children); i++ {
-		c := children[i]
-		if c.Green == nil || !c.Green.IsToken() {
+	for i := 0; i < len(parts); i++ {
+		g := parts[i].green
+		if !g.IsToken() {
 			continue
 		}
-		tok, ok := c.Green.Token()
+		tok, ok := g.Token()
 		if !ok {
 			continue
 		}
@@ -36,10 +46,10 @@ func lowerModifiers(n *RedNode) ast.ModifierList {
 			m := ast.Modifier{Tok: tok.Type, Text: tok.Literal}
 			// Asymmetric visibility: public(set)
 			if (tok.Type == token.T_PUBLIC || tok.Type == token.T_PROTECTED || tok.Type == token.T_PRIVATE) &&
-				i+3 < len(children) &&
-				isTokenType(children[i+1], token.T_LPAREN) &&
-				tokenLiteral(children[i+2]) == "set" &&
-				isTokenType(children[i+3], token.T_RPAREN) {
+				i+3 < len(parts) &&
+				isGreenTokenType(parts[i+1].green, token.T_LPAREN) &&
+				tokenLiteral(list.bindChild(parts[i+2].green, parts[i+2].offset)) == "set" &&
+				isGreenTokenType(parts[i+3].green, token.T_RPAREN) {
 				m.Set = true
 				i += 3
 			}
@@ -92,9 +102,9 @@ func firstNameChild(n *RedNode) *RedNode {
 		return nil
 	}
 	var found *RedNode
-	n.ForEachChild(func(c *RedNode) bool {
-		if isNameKind(c.Kind()) {
-			found = c
+	n.ForEachChildDesc(func(green *GreenNode, offset int) bool {
+		if isNameKind(green.Kind()) {
+			found = n.bindChild(green, offset)
 			return false
 		}
 		return true
@@ -107,9 +117,9 @@ func clauseNames(clause *RedNode) []string {
 		return nil
 	}
 	var out []string
-	clause.ForEachChild(func(c *RedNode) bool {
-		if isNameKind(c.Kind()) {
-			out = append(out, NameText(c))
+	clause.ForEachChildDesc(func(green *GreenNode, offset int) bool {
+		if isNameKind(green.Kind()) {
+			out = append(out, NameText(clause.bindChild(green, offset)))
 		}
 		return true
 	})

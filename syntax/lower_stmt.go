@@ -613,17 +613,18 @@ func lowerUnsetStmt(n *RedNode, file *File) ast.Node {
 	}
 	pos, end := nodePos(file, n)
 	var args []ast.Node
-	n.ForEachChild(func(c *RedNode) bool {
-		if c.Kind() == KindArgList {
-			args = lowerArgList(c, file)
+	n.ForEachChildDesc(func(green *GreenNode, offset int) bool {
+		if green.Kind() == KindArgList {
+			args = lowerArgList(n.bindChild(green, offset), file)
 			return false
 		}
 		return true
 	})
 	if len(args) == 0 {
-		n.ForEachChild(func(c *RedNode) bool {
-			if isExprKind(c.Kind()) || isNameKind(c.Kind()) {
-				if e := lowerExpr(c, file); e != nil {
+		n.ForEachChildDesc(func(green *GreenNode, offset int) bool {
+			k := green.Kind()
+			if isExprKind(k) || isNameKind(k) {
+				if e := lowerExpr(n.bindChild(green, offset), file); e != nil {
 					args = append(args, e)
 				}
 			}
@@ -734,10 +735,11 @@ func lowerGlobalStmt(n *RedNode, file *File) ast.Node {
 	}
 	pos, end := nodePos(file, n)
 	var vars []ast.GlobalVarEntry
-	n.ForEachChild(func(c *RedNode) bool {
-		if !isTokenType(c, token.T_VARIABLE) {
+	n.ForEachChildDesc(func(green *GreenNode, offset int) bool {
+		if green.Kind() != KindToken || green.TokenType() != token.T_VARIABLE {
 			return true
 		}
+		c := n.bindChild(green, offset)
 		vp, ve := nodePos(file, c)
 		vars = append(vars, ast.GlobalVarEntry{
 			Name:   stripVarDollar(tokenLiteral(c)),
@@ -774,20 +776,24 @@ func lowerStaticVarStmt(n *RedNode, file *File) ast.Node {
 		curName = ""
 		curInit = nil
 	}
-	n.ForEachChild(func(c *RedNode) bool {
-		switch {
-		case isTokenType(c, token.T_VARIABLE):
-			flush()
-			curPos, curEnd = nodePos(file, c)
-			curName = stripVarDollar(tokenLiteral(c))
-		case isTokenType(c, token.T_COMMA), isTokenType(c, token.T_SEMICOLON):
-			flush()
-		case isTokenType(c, token.T_ASSIGN):
-			return true
-		default:
-			if curName != "" && (isExprKind(c.Kind()) || isNameKind(c.Kind())) {
-				curInit = lowerExpr(c, file)
+	n.ForEachChildDesc(func(green *GreenNode, offset int) bool {
+		k := green.Kind()
+		if k == KindToken {
+			switch green.TokenType() {
+			case token.T_VARIABLE:
+				c := n.bindChild(green, offset)
+				flush()
+				curPos, curEnd = nodePos(file, c)
+				curName = stripVarDollar(tokenLiteral(c))
+			case token.T_COMMA, token.T_SEMICOLON:
+				flush()
+			case token.T_ASSIGN:
+				return true
 			}
+			return true
+		}
+		if curName != "" && (isExprKind(k) || isNameKind(k)) {
+			curInit = lowerExpr(n.bindChild(green, offset), file)
 		}
 		return true
 	})
