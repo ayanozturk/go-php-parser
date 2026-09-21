@@ -133,23 +133,26 @@ func lowerIfStmt(n *RedNode, file *File) *ast.IfNode {
 	pos, end := nodePos(file, n)
 	iff := &ast.IfNode{Pos: pos, EndPos: end}
 	seenCond := false
-	n.ForEachChild(func(c *RedNode) bool {
-		switch c.Kind() {
+	n.ForEachChildDesc(func(green *GreenNode, offset int) bool {
+		k := green.Kind()
+		if k == KindToken {
+			return true
+		}
+		c := n.bindChild(green, offset)
+		switch k {
 		case KindElseIfClause:
 			if ei := lowerElseIfClause(c, file); ei != nil {
 				iff.ElseIfs = append(iff.ElseIfs, ei)
 			}
 		case KindElseClause:
 			iff.Else = lowerElseClause(c, file)
-		case KindToken:
-			return true
 		default:
-			if isExprKind(c.Kind()) && !seenCond {
+			if isExprKind(k) && !seenCond {
 				iff.Condition = lowerExpr(c, file)
 				seenCond = true
 				return true
 			}
-			if c.Kind() == KindStatementList || isStmtKind(c.Kind()) {
+			if k == KindStatementList || isStmtKind(k) {
 				if iff.Body == nil && seenCond {
 					iff.Body = lowerControlBody(c, file)
 				}
@@ -167,16 +170,18 @@ func lowerElseIfClause(n *RedNode, file *File) *ast.ElseIfNode {
 	pos, end := nodePos(file, n)
 	ei := &ast.ElseIfNode{Pos: pos, EndPos: end}
 	seenCond := false
-	n.ForEachChild(func(c *RedNode) bool {
-		if c.Kind() == KindToken {
+	n.ForEachChildDesc(func(green *GreenNode, offset int) bool {
+		k := green.Kind()
+		if k == KindToken {
 			return true
 		}
-		if isExprKind(c.Kind()) && !seenCond {
+		c := n.bindChild(green, offset)
+		if isExprKind(k) && !seenCond {
 			ei.Condition = lowerExpr(c, file)
 			seenCond = true
 			return true
 		}
-		if c.Kind() == KindStatementList || isStmtKind(c.Kind()) {
+		if k == KindStatementList || isStmtKind(k) {
 			ei.Body = lowerControlBody(c, file)
 			return false
 		}
@@ -191,11 +196,13 @@ func lowerElseClause(n *RedNode, file *File) *ast.ElseNode {
 	}
 	pos, end := nodePos(file, n)
 	els := &ast.ElseNode{Pos: pos, EndPos: end}
-	n.ForEachChild(func(c *RedNode) bool {
-		if c.Kind() == KindToken {
+	n.ForEachChildDesc(func(green *GreenNode, offset int) bool {
+		k := green.Kind()
+		if k == KindToken {
 			return true
 		}
-		if c.Kind() == KindStatementList || isStmtKind(c.Kind()) {
+		c := n.bindChild(green, offset)
+		if k == KindStatementList || isStmtKind(k) {
 			els.Body = lowerControlBody(c, file)
 			return false
 		}
@@ -239,11 +246,13 @@ func lowerEchoStmt(n *RedNode, file *File) ast.Node {
 	}
 	pos, end := nodePos(file, n)
 	var exprs []ast.Node
-	n.ForEachChild(func(c *RedNode) bool {
-		if isExprKind(c.Kind()) || isNameKind(c.Kind()) {
-			if e := lowerExpr(c, file); e != nil {
-				exprs = append(exprs, e)
-			}
+	n.ForEachChildDesc(func(green *GreenNode, offset int) bool {
+		k := green.Kind()
+		if !isExprKind(k) && !isNameKind(k) {
+			return true
+		}
+		if e := lowerExpr(n.bindChild(green, offset), file); e != nil {
+			exprs = append(exprs, e)
 		}
 		return true
 	})
@@ -278,16 +287,18 @@ func lowerWhileStmt(n *RedNode, file *File) ast.Node {
 	pos, end := nodePos(file, n)
 	w := &ast.WhileNode{Pos: pos, EndPos: end}
 	seenCond := false
-	n.ForEachChild(func(c *RedNode) bool {
-		if c.Kind() == KindToken {
+	n.ForEachChildDesc(func(green *GreenNode, offset int) bool {
+		k := green.Kind()
+		if k == KindToken {
 			return true
 		}
-		if (isExprKind(c.Kind()) || isNameKind(c.Kind())) && !seenCond {
+		c := n.bindChild(green, offset)
+		if (isExprKind(k) || isNameKind(k)) && !seenCond {
 			w.Condition = lowerExpr(c, file)
 			seenCond = true
 			return true
 		}
-		if c.Kind() == KindStatementList || isStmtKind(c.Kind()) {
+		if k == KindStatementList || isStmtKind(k) {
 			w.Body = lowerControlBody(c, file)
 			return false
 		}
@@ -299,15 +310,17 @@ func lowerWhileStmt(n *RedNode, file *File) ast.Node {
 func lowerDoWhileStmt(n *RedNode, file *File) ast.Node {
 	pos, end := nodePos(file, n)
 	d := &ast.DoWhileNode{Pos: pos, EndPos: end}
-	n.ForEachChild(func(c *RedNode) bool {
-		if c.Kind() == KindToken {
+	n.ForEachChildDesc(func(green *GreenNode, offset int) bool {
+		k := green.Kind()
+		if k == KindToken {
 			return true
 		}
-		if d.Body == nil && (c.Kind() == KindStatementList || isStmtKind(c.Kind())) {
+		c := n.bindChild(green, offset)
+		if d.Body == nil && (k == KindStatementList || isStmtKind(k)) {
 			d.Body = lowerControlBody(c, file)
 			return true
 		}
-		if isExprKind(c.Kind()) || isNameKind(c.Kind()) {
+		if isExprKind(k) || isNameKind(k) {
 			d.Condition = lowerExpr(c, file)
 		}
 		return true
@@ -486,8 +499,9 @@ func lowerContinueStmt(n *RedNode, file *File) ast.Node {
 func lowerTryStmt(n *RedNode, file *File) ast.Node {
 	pos, end := nodePos(file, n)
 	tr := &ast.TryNode{Pos: pos, EndPos: end}
-	n.ForEachChild(func(c *RedNode) bool {
-		switch c.Kind() {
+	n.ForEachChildDesc(func(green *GreenNode, offset int) bool {
+		c := n.bindChild(green, offset)
+		switch green.Kind() {
 		case KindStatementList:
 			if tr.Body == nil {
 				tr.Body = lowerStatements(c, file)
@@ -510,15 +524,20 @@ func lowerCatchClause(n *RedNode, file *File) *ast.CatchNode {
 	}
 	pos, end := nodePos(file, n)
 	catch := &ast.CatchNode{Pos: pos, EndPos: end}
-	n.ForEachChild(func(c *RedNode) bool {
+	n.ForEachChildDesc(func(green *GreenNode, offset int) bool {
+		k := green.Kind()
 		switch {
-		case isTypeKind(c.Kind()):
-			catch.Types = catchTypeNames(c, file)
-		case isTokenType(c, token.T_VARIABLE):
-			catch.Variable = stripVarDollar(tokenLiteral(c))
-		case c.Kind() == KindStatementList:
-			catch.Body = lowerStatements(c, file)
-		case c.Kind() == KindTokenList:
+		case isTypeKind(k):
+			catch.Types = catchTypeNames(n.bindChild(green, offset), file)
+		case k == KindToken:
+			c := n.bindChild(green, offset)
+			if isTokenType(c, token.T_VARIABLE) {
+				catch.Variable = stripVarDollar(tokenLiteral(c))
+			}
+		case k == KindStatementList:
+			catch.Body = lowerStatements(n.bindChild(green, offset), file)
+		case k == KindTokenList:
+			c := n.bindChild(green, offset)
 			// Recovery fallback: concatenate token text as a single type.
 			if text := strings.TrimSpace(c.Text()); text != "" && len(catch.Types) == 0 {
 				catch.Types = []string{text}
@@ -554,12 +573,12 @@ func lowerFinallyClause(n *RedNode, file *File) []ast.Node {
 		return nil
 	}
 	var body []ast.Node
-	n.ForEachChild(func(c *RedNode) bool {
-		if c.Kind() == KindStatementList {
-			body = lowerStatements(c, file)
-			return false
+	n.ForEachChildDesc(func(green *GreenNode, offset int) bool {
+		if green.Kind() != KindStatementList {
+			return true
 		}
-		return true
+		body = lowerStatements(n.bindChild(green, offset), file)
+		return false
 	})
 	return body
 }
@@ -568,16 +587,18 @@ func lowerSwitchStmt(n *RedNode, file *File) ast.Node {
 	pos, end := nodePos(file, n)
 	sw := &ast.SwitchNode{Pos: pos, EndPos: end}
 	seenExpr := false
-	n.ForEachChild(func(c *RedNode) bool {
-		if c.Kind() == KindToken {
+	n.ForEachChildDesc(func(green *GreenNode, offset int) bool {
+		k := green.Kind()
+		if k == KindToken {
 			return true
 		}
-		if (isExprKind(c.Kind()) || isNameKind(c.Kind())) && !seenExpr {
+		c := n.bindChild(green, offset)
+		if (isExprKind(k) || isNameKind(k)) && !seenExpr {
 			sw.Expr = lowerExpr(c, file)
 			seenExpr = true
 			return true
 		}
-		if c.Kind() == KindStatementList {
+		if k == KindStatementList {
 			sw.Cases = lowerSwitchCases(c, file)
 			return false
 		}
@@ -782,14 +803,14 @@ func lowerSwitchCases(block *RedNode, file *File) []*ast.SwitchCaseNode {
 		return nil
 	}
 	var cases []*ast.SwitchCaseNode
-	block.ForEachChild(func(c *RedNode) bool {
-		switch c.Kind() {
+	block.ForEachChildDesc(func(green *GreenNode, offset int) bool {
+		switch green.Kind() {
 		case KindCaseClause:
-			if sc := lowerCaseClause(c, file, false); sc != nil {
+			if sc := lowerCaseClause(block.bindChild(green, offset), file, false); sc != nil {
 				cases = append(cases, sc)
 			}
 		case KindDefaultClause:
-			if sc := lowerCaseClause(c, file, true); sc != nil {
+			if sc := lowerCaseClause(block.bindChild(green, offset), file, true); sc != nil {
 				cases = append(cases, sc)
 			}
 		}
@@ -804,15 +825,17 @@ func lowerCaseClause(n *RedNode, file *File, isDefault bool) *ast.SwitchCaseNode
 	}
 	pos, end := nodePos(file, n)
 	sc := &ast.SwitchCaseNode{IsDefault: isDefault, Pos: pos, EndPos: end}
-	n.ForEachChild(func(c *RedNode) bool {
-		if c.Kind() == KindToken {
+	n.ForEachChildDesc(func(green *GreenNode, offset int) bool {
+		k := green.Kind()
+		if k == KindToken {
 			return true
 		}
-		if !isDefault && sc.Expr == nil && (isExprKind(c.Kind()) || isNameKind(c.Kind())) {
+		c := n.bindChild(green, offset)
+		if !isDefault && sc.Expr == nil && (isExprKind(k) || isNameKind(k)) {
 			sc.Expr = lowerExpr(c, file)
 			return true
 		}
-		if c.Kind() == KindStatementList {
+		if k == KindStatementList {
 			sc.Body = lowerStatements(c, file)
 		}
 		return true

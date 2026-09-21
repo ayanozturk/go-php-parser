@@ -17,11 +17,11 @@ func lowerParamList(n *RedNode, file *File) []ast.Node {
 		return nil
 	}
 	var out []ast.Node
-	list.ForEachChild(func(c *RedNode) bool {
-		if c.Kind() != KindParam {
+	list.ForEachChildDesc(func(green *GreenNode, offset int) bool {
+		if green.Kind() != KindParam {
 			return true
 		}
-		if p := lowerParam(c, file); p != nil {
+		if p := lowerParam(list.bindChild(green, offset), file); p != nil {
 			out = append(out, p)
 		}
 		return true

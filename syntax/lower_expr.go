@@ -221,13 +221,18 @@ func lowerAssignExpr(n *RedNode, file *File) ast.Node {
 func lowerCallExpr(n *RedNode, file *File) ast.Node {
 	pos, end := nodePos(file, n)
 	var callee, args, builtinTok, loneArg *RedNode
-	n.ForEachChild(func(c *RedNode) bool {
+	n.ForEachChildDesc(func(green *GreenNode, offset int) bool {
+		k := green.Kind()
 		switch {
-		case c.Kind() == KindArgList:
-			args = c
-		case isBuiltinCallNameToken(c):
-			builtinTok = c
-		case isExprKind(c.Kind()) || isNameKind(c.Kind()):
+		case k == KindArgList:
+			args = n.bindChild(green, offset)
+		case k == KindToken:
+			c := n.bindChild(green, offset)
+			if isBuiltinCallNameToken(c) {
+				builtinTok = c
+			}
+		case isExprKind(k) || isNameKind(k):
+			c := n.bindChild(green, offset)
 			if builtinTok != nil && args == nil && loneArg == nil {
 				loneArg = c
 			} else if callee == nil {

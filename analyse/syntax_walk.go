@@ -166,9 +166,14 @@ func walkSyntaxConfigured(root *syntax.RedNode, ft FileTypeContext, fn func(n, c
 				gi++
 				continue
 			}
-			c := syntaxRedChild(n, syntaxChildRef{green: g, offset: off})
+			var c *syntax.RedNode
+			gk := g.Kind()
+			switch gk {
+			case syntax.KindToken, syntax.KindTokenList, syntax.KindMissing, syntax.KindError:
+				goto nextChild
+			}
 			if nextInStatementBody {
-				switch c.Kind() {
+				switch gk {
 				case syntax.KindClassDecl, syntax.KindInterfaceDecl, syntax.KindTraitDecl,
 					syntax.KindEnumDecl, syntax.KindFunctionDecl, syntax.KindMethodDecl:
 					goto nextChild
@@ -184,7 +189,7 @@ func walkSyntaxConfigured(root *syntax.RedNode, ft FileTypeContext, fn func(n, c
 			// visit at all - skip both fn and recursion for this child
 			// entirely. See syntax.ParamDefaultValue and
 			// /memories/repo/cst-direct-migration.md for the full writeup.
-			if paramDefault != nil && c.Green == paramDefault.Green && c.Offset == paramDefault.Offset {
+			if paramDefault != nil && g == paramDefault.Green && off == paramDefault.Offset {
 				goto nextChild
 			}
 			// splitStaticMemberAccessParts (syntax/lower_expr.go) lowers a
@@ -206,6 +211,7 @@ func walkSyntaxConfigured(root *syntax.RedNode, ft FileTypeContext, fn func(n, c
 			// case are completely invisible to every rule it drives. Mirror that
 			// by never calling fn for a KindEnumCase subtree at all. See
 			// /memories/repo/cst-direct-migration.md for the full writeup.
+			c = syntaxRedChild(n, syntaxChildRef{green: g, offset: off})
 			if c.Kind() == syntax.KindEnumCase {
 				goto nextChild
 			}
@@ -239,7 +245,7 @@ func walkSyntaxConfigured(root *syntax.RedNode, ft FileTypeContext, fn func(n, c
 			// KindClassConstDecl comment in syntax_type_refs_rule.go), so a
 			// class constant's attributes are just as invisible. See
 			// /memories/repo/cst-direct-migration.md for the full writeup.
-			if c.Kind() == syntax.KindAttributeList {
+			if gk == syntax.KindAttributeList {
 				jGi := gi + 1
 				for jGi < len(greens) {
 					jg := greens[jGi]
@@ -385,7 +391,7 @@ func walkSyntaxConfigured(root *syntax.RedNode, ft FileTypeContext, fn func(n, c
 			// *ast.NamespaceNode case + namespaceTypeContext. Namespace
 			// declarations only ever appear at file top level in valid PHP,
 			// so this never fires at deeper recursion depths.
-			if c.Kind() == syntax.KindNamespaceDecl {
+			if gk == syntax.KindNamespaceDecl {
 				if !syntaxContainerOnlyKinds[c.Kind()] {
 					fn(c, nextClass, nextFn, ft, nextInStatementBody)
 				}
