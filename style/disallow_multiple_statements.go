@@ -20,11 +20,39 @@ func (s *DisallowMultipleStatementsSniff) CheckIssues(lines []string, filename s
 		if helper.HandleHeredocEnd(line, commentState) {
 			continue
 		}
+		if commentState.InBlockComment {
+			if idx := strings.Index(line, "*/"); idx != -1 {
+				commentState.InBlockComment = false
+				line = line[idx+2:]
+			} else {
+				continue
+			}
+		}
+		// Heredoc/nowdoc opener: ignore the heredoc body on later lines, but still
+		// analyse any statements that appear before `<<<` on the opener line.
+		if idx := strings.Index(line, "<<<"); idx != -1 && !commentState.InHeredoc {
+			helper.HandleHeredocStart(line, idx, commentState)
+			line = line[:idx]
+		}
+		// Block-comment opener that continues onto later lines: keep code before `/*`.
+		enterBlockComment := false
+		if idx := strings.Index(line, "/*"); idx != -1 {
+			if strings.Index(line[idx+2:], "*/") == -1 {
+				enterBlockComment = true
+				line = line[:idx]
+			}
+		}
 		// Fast pre-check: skip lines with 0 or 1 semicolon
 		if strings.Count(line, ";") <= 1 {
+			if enterBlockComment {
+				commentState.InBlockComment = true
+			}
 			continue
 		}
 		count := s.countStatements(line, commentState)
+		if enterBlockComment {
+			commentState.InBlockComment = true
+		}
 		if count > 1 {
 			issues = append(issues, StyleIssue{
 				Filename: filename,
@@ -89,11 +117,12 @@ func (s *DisallowMultipleStatementsSniff) skipOrHandleBlockComment(line string, 
 }
 
 func (s *DisallowMultipleStatementsSniff) skipOrHandleHeredoc(line string, j *int, commentState *helper.CommentState) bool {
-	j2 := helper.HandleHeredocStart(line, *j, commentState)
-	if j2 != *j {
+	if commentState.InHeredoc {
 		return true
 	}
-	if commentState.InHeredoc {
+	j2 := helper.HandleHeredocStart(line, *j, commentState)
+	if j2 != *j {
+		*j = j2
 		return true
 	}
 	return false

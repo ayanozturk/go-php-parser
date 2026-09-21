@@ -60,14 +60,16 @@ func HandleHeredocStart(line string, j int, state *CommentState) int {
 	return j
 }
 
-// HandleHeredocEnd checks for heredoc/nowdoc end and updates state
+// HandleHeredocEnd checks for heredoc/nowdoc end and updates state.
+// The closer may be alone on the line or followed by an optional `;` (PHP 7.3+).
 func HandleHeredocEnd(line string, state *CommentState) bool {
 	if state.InHeredoc {
 		k := 0
 		for k < len(line) && (line[k] == ' ' || line[k] == '\t') {
 			k++
 		}
-		if state.HeredocEnd != "" && line[k:] == state.HeredocEnd {
+		rest := line[k:]
+		if state.HeredocEnd != "" && (rest == state.HeredocEnd || rest == state.HeredocEnd+";") {
 			state.InHeredoc = false
 			state.HeredocEnd = ""
 		}
