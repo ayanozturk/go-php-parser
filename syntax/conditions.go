@@ -1192,8 +1192,13 @@ type UseDeclImport struct {
 
 // ForEachUseDeclImport visits each import produced by a KindUseDecl without
 // allocating *ast.UseNode. Grouped clauses are flattened like lowerUseClause.
+// When the decl subtree has no T_FUNCTION / T_CONST tokens, returns
+// immediately (class-only imports are type-ref no-ops).
 func ForEachUseDeclImport(n *RedNode, fn func(UseDeclImport)) {
 	if n == nil || n.Kind() != KindUseDecl || fn == nil {
+		return
+	}
+	if !useDeclHasFunctionOrConstToken(n) {
 		return
 	}
 	useType := "class"
@@ -1216,6 +1221,33 @@ func ForEachUseDeclImport(n *RedNode, fn func(UseDeclImport)) {
 		forEachUseClauseImport(n.File, green, offset, "", useType, fn)
 		return true
 	})
+}
+
+func useDeclHasFunctionOrConstToken(n *RedNode) bool {
+	found := false
+	var walk func(green *GreenNode)
+	walk = func(green *GreenNode) {
+		if green == nil || found {
+			return
+		}
+		if green.Kind() == KindToken {
+			tt := green.TokenType()
+			if tt == token.T_FUNCTION || tt == token.T_CONST {
+				found = true
+			}
+			return
+		}
+		for _, ch := range green.children {
+			walk(ch)
+			if found {
+				return
+			}
+		}
+	}
+	if n.Green != nil {
+		walk(n.Green)
+	}
+	return found
 }
 
 func forEachUseClauseImport(file *File, green *GreenNode, offset int, prefix, useType string, fn func(UseDeclImport)) {
@@ -1262,7 +1294,7 @@ func forEachUseClauseImport(file *File, green *GreenNode, offset int, prefix, us
 		path = strings.Trim(prefix, `\`) + `\` + path
 	}
 	path = strings.Trim(path, `\`)
-	if path == "" {
+	if path == "" || itemType == "class" {
 		return
 	}
 	fn(UseDeclImport{Type: itemType, Path: path})

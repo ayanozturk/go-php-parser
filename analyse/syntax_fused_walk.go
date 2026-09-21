@@ -143,7 +143,9 @@ func runFusedConfiguredCSTWalk(root *syntax.RedNode, rootFt FileTypeContext, o f
 					checkTypeReferenceOnNode(o.filename, fn, ft, ctx, o.guards, o.level0)
 				}
 			case syntax.KindPropertyDecl:
-				appendTypeRefPropertyIssuesFromCST(o.filename, n, ft, ctx, o.guards, o.level0)
+				for _, p := range memoLowerPropertyDecl(ctx, n, res.File) {
+					checkTypeReferenceOnNode(o.filename, p, ft, ctx, o.guards, o.level0)
+				}
 			case syntax.KindConstDecl:
 				for _, c := range syntax.LowerClassConstDeclNode(n, res.File) {
 					checkTypeReferenceOnNode(o.filename, c, ft, ctx, o.guards, o.level0)

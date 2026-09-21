@@ -59,7 +59,9 @@ func checkTypeReferenceIssuesFromParsed(filename string, res *syntax.ParseResult
 				checkTypeReferenceOnNode(filename, fn, ft, ctx, guards, &issues)
 			}
 		case syntax.KindPropertyDecl:
-			appendTypeRefPropertyIssuesFromCST(filename, n, ft, ctx, guards, &issues)
+			for _, p := range syntax.LowerPropertyDeclNode(n, res.File) {
+				checkTypeReferenceOnNode(filename, p, ft, ctx, guards, &issues)
+			}
 		case syntax.KindConstDecl:
 			// KindClassConstDecl (class-member constants) is deliberately
 			// NOT handled here: walkAllConfigured's *ast.ClassNode case

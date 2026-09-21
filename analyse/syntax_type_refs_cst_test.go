@@ -6,7 +6,7 @@ import (
 	"github.com/ayanozturk/go-php-parser/syntax"
 )
 
-func TestTypeRefUseAndPropertyCSTNativeMatchesLowerPath(t *testing.T) {
+func TestTypeRefUseCSTNativeMatchesLowerPath(t *testing.T) {
 	cases := map[string]string{
 		"classUseSkipped": `<?php
 use Foo\Bar;
@@ -21,17 +21,9 @@ use function strlen;
 		"groupedMixed": `<?php
 use Vendor\Pkg\{ClassA, function missing_fn, const MISSING_C};
 `,
-		"propertyTypes": `<?php
-class C {
-    public MissingProp $a;
-    private ?MissingNullable $b;
-    public MissingMulti $x, $y;
-    public int $ok;
-}
-`,
 		"clean": `<?php
 use function strlen;
-class C { public string $s; }
+use Foo\Bar;
 `,
 	}
 
@@ -44,8 +36,8 @@ class C { public string $s; }
 			res := syntax.Parse(content)
 			ctx.Parsed = res
 
-			cst := sortIssuesForCompare(typeRefUsePropIssuesFromCST(filename, res, ctx, guards))
-			lower := sortIssuesForCompare(typeRefUsePropIssuesViaLower(filename, res, ctx, guards))
+			cst := sortIssuesForCompare(typeRefUseIssuesFromCST(filename, res, ctx, guards))
+			lower := sortIssuesForCompare(typeRefUseIssuesViaLower(filename, res, ctx, guards))
 			if len(cst) != len(lower) {
 				t.Fatalf("count mismatch cst=%d lower=%d\ncst=%+v\nlower=%+v", len(cst), len(lower), cst, lower)
 			}
@@ -59,38 +51,30 @@ class C { public string $s; }
 	}
 }
 
-func typeRefUsePropIssuesFromCST(filename string, res *syntax.ParseResult, ctx *AnalysisContext, guards reflectionGuards) []AnalysisIssue {
+func typeRefUseIssuesFromCST(filename string, res *syntax.ParseResult, ctx *AnalysisContext, guards reflectionGuards) []AnalysisIssue {
 	if res == nil || res.File == nil || res.File.Root == nil {
 		return nil
 	}
 	rootFt := ensureSyntaxRootFileTypeContext(ctx, res.File.Root)
 	var issues []AnalysisIssue
 	walkSyntaxConfigured(res.File.Root, rootFt, func(n, class, currentFn *syntax.RedNode, ft FileTypeContext, inStatementBody bool) {
-		switch n.Kind() {
-		case syntax.KindUseDecl:
+		if n.Kind() == syntax.KindUseDecl {
 			appendTypeRefUseIssuesFromCST(filename, n, ctx, guards, &issues)
-		case syntax.KindPropertyDecl:
-			appendTypeRefPropertyIssuesFromCST(filename, n, ft, ctx, guards, &issues)
 		}
 	})
 	return issues
 }
 
-func typeRefUsePropIssuesViaLower(filename string, res *syntax.ParseResult, ctx *AnalysisContext, guards reflectionGuards) []AnalysisIssue {
+func typeRefUseIssuesViaLower(filename string, res *syntax.ParseResult, ctx *AnalysisContext, guards reflectionGuards) []AnalysisIssue {
 	if res == nil || res.File == nil || res.File.Root == nil {
 		return nil
 	}
 	rootFt := ensureSyntaxRootFileTypeContext(ctx, res.File.Root)
 	var issues []AnalysisIssue
 	walkSyntaxConfigured(res.File.Root, rootFt, func(n, class, currentFn *syntax.RedNode, ft FileTypeContext, inStatementBody bool) {
-		switch n.Kind() {
-		case syntax.KindUseDecl:
+		if n.Kind() == syntax.KindUseDecl {
 			for _, u := range syntax.LowerUseDeclNode(n, res.File) {
 				checkTypeReferenceOnNode(filename, u, ft, ctx, guards, &issues)
-			}
-		case syntax.KindPropertyDecl:
-			for _, p := range syntax.LowerPropertyDeclNode(n, res.File) {
-				checkTypeReferenceOnNode(filename, p, ft, ctx, guards, &issues)
 			}
 		}
 	})
