@@ -12,7 +12,7 @@ func firstNodeOfKind(root *RedNode, k Kind) *RedNode {
 			return false
 		}
 		if n.Kind() == k {
-			found = n
+			found = &RedNode{File: n.File, Green: n.Green, Offset: n.Offset}
 			return false
 		}
 		return true
@@ -187,7 +187,7 @@ func TestCallIsMethodLikeAndArgList(t *testing.T) {
 	var calls []*RedNode
 	Walk(res.File.Root, func(n *RedNode) bool {
 		if n.Kind() == KindCallExpr {
-			calls = append(calls, n)
+			calls = append(calls, &RedNode{File: n.File, Green: n.Green, Offset: n.Offset})
 		}
 		return true
 	})

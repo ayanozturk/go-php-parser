@@ -15,7 +15,7 @@ func TestMemoLowerExprCrossWrapper(t *testing.T) {
 	var callExpr *syntax.RedNode
 	syntax.Walk(res.File.Root, func(n *syntax.RedNode) bool {
 		if n.Kind() == syntax.KindCallExpr {
-			callExpr = n
+			callExpr = &syntax.RedNode{File: n.File, Green: n.Green, Offset: n.Offset}
 			return false
 		}
 		return true
@@ -45,7 +45,7 @@ func TestMemoLowerFunctionDeclCrossWalk(t *testing.T) {
 		switch n.Kind() {
 		case syntax.KindFunctionDecl, syntax.KindMethodDecl:
 			if methodA == nil {
-				methodA = n
+				methodA = &syntax.RedNode{File: n.File, Green: n.Green, Offset: n.Offset}
 			}
 		}
 		return true
@@ -95,7 +95,7 @@ func TestMemoLowerClearedOnSharedReParse(t *testing.T) {
 	var method *syntax.RedNode
 	syntax.Walk(res1.File.Root, func(n *syntax.RedNode) bool {
 		if n.Kind() == syntax.KindFunctionDecl || n.Kind() == syntax.KindMethodDecl {
-			method = n
+			method = &syntax.RedNode{File: n.File, Green: n.Green, Offset: n.Offset}
 			return false
 		}
 		return true
@@ -151,7 +151,7 @@ func TestPreLoweredBridgeAvoidsRelower(t *testing.T) {
 		switch n.Kind() {
 		case syntax.KindFunctionDecl, syntax.KindMethodDecl:
 			if methodRed == nil {
-				methodRed = n
+				methodRed = &syntax.RedNode{File: n.File, Green: n.Green, Offset: n.Offset}
 			}
 		}
 		return true
@@ -193,7 +193,7 @@ func TestPreLoweredBridgeClass(t *testing.T) {
 	var classRed *syntax.RedNode
 	syntax.Walk(res.File.Root, func(n *syntax.RedNode) bool {
 		if n.Kind() == syntax.KindClassDecl {
-			classRed = n
+			classRed = &syntax.RedNode{File: n.File, Green: n.Green, Offset: n.Offset}
 			return false
 		}
 		return true

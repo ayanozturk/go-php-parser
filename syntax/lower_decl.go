@@ -325,9 +325,9 @@ func lowerFunction(n *RedNode, file *File) *ast.FunctionNode {
 	}
 	pos, end := nodePos(file, n)
 	// Classic anchors Pos at T_FUNCTION (modifiers are outside the Pos span).
-	n.ForEachChild(func(c *RedNode) bool {
-		if isTokenType(c, token.T_FUNCTION) {
-			pos, _ = nodePos(file, c)
+	n.ForEachChildDesc(func(green *GreenNode, offset int) bool {
+		if green.Kind() == KindToken && green.TokenType() == token.T_FUNCTION {
+			pos, _ = nodePos(file, n.bindChild(green, offset))
 			return false
 		}
 		return true
@@ -340,28 +340,34 @@ func lowerFunction(n *RedNode, file *File) *ast.FunctionNode {
 	}
 	seenColon := false
 	headerEnd := pos
-	n.ForEachChild(func(c *RedNode) bool {
-		switch c.Kind() {
+	n.ForEachChildDesc(func(green *GreenNode, offset int) bool {
+		k := green.Kind()
+		switch k {
 		case KindUnqualifiedName:
+			c := n.bindChild(green, offset)
 			if fn.Name == "" {
 				fn.Name = NameText(c)
 				headerEnd = spanEnd(file, c.Span())
 			}
 		case KindParamList:
+			c := n.bindChild(green, offset)
 			fn.Params = lowerParamList(c, file)
 			headerEnd = spanEnd(file, c.Span())
 		case KindTokenList:
 			// Index mode: leave Body nil.
 			fn.Body = nil
 		case KindStatementList:
+			c := n.bindChild(green, offset)
 			fn.Body = lowerStatements(c, file)
 		default:
-			if isTokenType(c, token.T_COLON) {
+			if k == KindToken && green.TokenType() == token.T_COLON {
 				seenColon = true
+				c := n.bindChild(green, offset)
 				headerEnd = spanEnd(file, c.Span())
 				return true
 			}
-			if seenColon && isTypeKind(c.Kind()) {
+			if seenColon && isTypeKind(k) {
+				c := n.bindChild(green, offset)
 				fn.ReturnType = lowerType(c, file)
 				headerEnd = spanEnd(file, c.Span())
 				seenColon = false

@@ -430,6 +430,9 @@ func IsStatementKind(k Kind) bool {
 // Walk performs a pre-order traversal of the CST rooted at root, calling fn
 // for each node. If fn returns false, that node's children are skipped
 // (unlike the lowered ast.Node walkers, this supports early subtree exit).
+//
+// Callers must not retain *RedNode pointers passed to fn past the callback:
+// child nodes are bound on the stack and reused across siblings.
 func Walk(root *RedNode, fn func(*RedNode) bool) {
 	if root == nil || fn == nil {
 		return
@@ -437,8 +440,13 @@ func Walk(root *RedNode, fn func(*RedNode) bool) {
 	if !fn(root) {
 		return
 	}
-	root.ForEachChild(func(c *RedNode) bool {
-		Walk(c, fn)
+	root.ForEachChildDesc(func(green *GreenNode, offset int) bool {
+		var child RedNode
+		child.File = root.File
+		child.Parent = root
+		child.Green = green
+		child.Offset = offset
+		Walk(&child, fn)
 		return true
 	})
 }

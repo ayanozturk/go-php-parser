@@ -20,28 +20,34 @@ func lowerClosureExpr(n *RedNode, file *File) ast.Node {
 	}
 	seenColon := false
 	headerEnd := pos
-	n.ForEachChild(func(c *RedNode) bool {
-		switch c.Kind() {
+	n.ForEachChildDesc(func(green *GreenNode, offset int) bool {
+		k := green.Kind()
+		switch k {
 		case KindParamList:
+			c := n.bindChild(green, offset)
 			fn.Params = lowerParamList(c, file)
 			headerEnd = spanEnd(file, c.Span())
 		case KindClosureUseClause:
+			c := n.bindChild(green, offset)
 			fn.Uses = lowerClosureUses(c, file)
 			headerEnd = spanEnd(file, c.Span())
 		case KindStatementList:
+			c := n.bindChild(green, offset)
 			fn.Body = lowerStatements(c, file)
 		case KindTokenList:
 			fn.Body = nil
 		default:
-			if isTokenType(c, token.T_STATIC) {
-				fn.Modifiers = append(fn.Modifiers, ast.Modifier{Tok: token.T_STATIC, Text: "static"})
+			if k == KindToken {
+				switch green.TokenType() {
+				case token.T_STATIC:
+					fn.Modifiers = append(fn.Modifiers, ast.Modifier{Tok: token.T_STATIC, Text: "static"})
+				case token.T_COLON:
+					seenColon = true
+				}
 				return true
 			}
-			if isTokenType(c, token.T_COLON) {
-				seenColon = true
-				return true
-			}
-			if seenColon && isTypeKind(c.Kind()) {
+			if seenColon && isTypeKind(k) {
+				c := n.bindChild(green, offset)
 				fn.ReturnType = lowerType(c, file)
 				headerEnd = spanEnd(file, c.Span())
 				seenColon = false
@@ -59,12 +65,15 @@ func lowerClosureUses(n *RedNode, file *File) []ast.ClosureUse {
 	}
 	var out []ast.ClosureUse
 	byRef := false
-	n.ForEachChild(func(c *RedNode) bool {
-		if isTokenType(c, token.T_AMPERSAND) {
-			byRef = true
+	n.ForEachChildDesc(func(green *GreenNode, offset int) bool {
+		if green.Kind() != KindToken {
 			return true
 		}
-		if isTokenType(c, token.T_VARIABLE) {
+		switch green.TokenType() {
+		case token.T_AMPERSAND:
+			byRef = true
+		case token.T_VARIABLE:
+			c := n.bindChild(green, offset)
 			p, e := nodePos(file, c)
 			out = append(out, ast.ClosureUse{
 				Name:   stripVarDollar(tokenLiteral(c)),
