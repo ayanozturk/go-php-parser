@@ -123,6 +123,9 @@ function run(): void {
 	if !ok || legacy.Type != "string" {
 		t.Fatalf("expected legacy hover API to retain string fallback inference, got %#v, %v", legacy, ok)
 	}
+	if typ, ok := InferTypeAtPosition(nodes, pos.Line, pos.Column, variable.Name, ctx); !ok || typ != "string" {
+		t.Fatalf("InferTypeAtPosition should mirror legacy hover fallback, got %q, %v", typ, ok)
+	}
 }
 
 func TestInferHoverTypeResolvesBackedEnumNativeProperties(t *testing.T) {

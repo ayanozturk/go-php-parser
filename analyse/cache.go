@@ -105,7 +105,16 @@ func (cm *CacheManager) Load(fileChecksums map[string]string) (*ProjectIndex, bo
 
 // GetChangedFiles returns list of files that changed since last cache.
 // Entry should be loaded from cache. Returns empty if all files unchanged.
+// A nil entry is treated as a cold cache: every path in newChecksums is changed.
 func (cm *CacheManager) GetChangedFiles(entry *CacheEntry, newChecksums map[string]string) []string {
+	if entry == nil {
+		changed := make([]string, 0, len(newChecksums))
+		for path := range newChecksums {
+			changed = append(changed, path)
+		}
+		return changed
+	}
+
 	changed := make([]string, 0)
 
 	// Check for modified or added files

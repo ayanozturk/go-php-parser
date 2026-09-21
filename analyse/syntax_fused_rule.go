@@ -2,22 +2,7 @@ package analyse
 
 import (
 	"github.com/ayanozturk/go-php-parser/ast"
-	"github.com/ayanozturk/go-php-parser/syntax"
 )
-
-func checkEmptyStatementIssuesFromParsed(filename string, res *syntax.ParseResult) []AnalysisIssue {
-	if res == nil || res.File == nil || res.File.Root == nil {
-		return nil
-	}
-	var issues []AnalysisIssue
-	syntax.Walk(res.File.Root, func(n *syntax.RedNode) bool {
-		if n.Kind() == syntax.KindEmptyStmt {
-			issues = append(issues, issueSpanRed(filename, n, emptyStatementCode, "Empty statement detected"))
-		}
-		return true
-	})
-	return issues
-}
 
 // ensureSharedFileDiagnosticsFromCST is the CST-direct analogue of the
 // []ast.Node-driven walk in ensureSharedFileDiagnostics: it populates the

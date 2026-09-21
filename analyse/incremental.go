@@ -52,6 +52,22 @@ func (dg *DependencyGraph) AddFile(path string, contentHash [16]byte, defined, u
 	dg.mu.Lock()
 	defer dg.mu.Unlock()
 
+	if old, ok := dg.FileDeps[path]; ok {
+		// Drop stale reverse-index entries before replacing the file record.
+		for className := range old.DefinedClasses {
+			dg.ReverseClassDeps[className] = removePathOccurrences(dg.ReverseClassDeps[className], path)
+			if len(dg.ReverseClassDeps[className]) == 0 {
+				delete(dg.ReverseClassDeps, className)
+			}
+		}
+		for className := range old.UsedClasses {
+			dg.ReverseClassUsage[className] = removePathOccurrences(dg.ReverseClassUsage[className], path)
+			if len(dg.ReverseClassUsage[className]) == 0 {
+				delete(dg.ReverseClassUsage, className)
+			}
+		}
+	}
+
 	fd := &FileDependency{
 		Path:              path,
 		ContentHash:       contentHash,
@@ -72,6 +88,19 @@ func (dg *DependencyGraph) AddFile(path string, contentHash [16]byte, defined, u
 	for className := range used.Classes {
 		dg.ReverseClassUsage[className] = append(dg.ReverseClassUsage[className], path)
 	}
+}
+
+func removePathOccurrences(paths []string, path string) []string {
+	if len(paths) == 0 {
+		return paths
+	}
+	out := paths[:0]
+	for _, p := range paths {
+		if p != path {
+			out = append(out, p)
+		}
+	}
+	return out
 }
 
 // FilesAffectedByChange returns files that need re-analysis when changedFile is modified.

@@ -154,3 +154,34 @@ func TestProjectHash(t *testing.T) {
 		t.Fatalf("different files should produce different hash")
 	}
 }
+
+func TestGetChangedFiles(t *testing.T) {
+	cm := NewCacheManager(t.TempDir())
+	entry := &CacheEntry{
+		OldChecksums: map[string]string{
+			"a.php": "1",
+			"b.php": "2",
+			"c.php": "3",
+		},
+	}
+	newChecksums := map[string]string{
+		"a.php": "1",
+		"b.php": "changed",
+		"d.php": "4",
+	}
+	got := cm.GetChangedFiles(entry, newChecksums)
+	want := map[string]bool{"b.php": true, "c.php": true, "d.php": true}
+	if len(got) != len(want) {
+		t.Fatalf("got %v, want keys %v", got, want)
+	}
+	for _, path := range got {
+		if !want[path] {
+			t.Fatalf("unexpected path %q in %v", path, got)
+		}
+	}
+
+	cold := cm.GetChangedFiles(nil, map[string]string{"x.php": "1", "y.php": "2"})
+	if len(cold) != 2 {
+		t.Fatalf("nil entry should treat all files as changed, got %v", cold)
+	}
+}

@@ -33,6 +33,14 @@ func TestListRegisteredAnalysisRuleCodes(t *testing.T) {
 	if !foundA || !foundZ {
 		t.Errorf("expected both A.TEST.RULE and Z.TEST.RULE to be present, got %v", codes)
 	}
+
+	meta := ListRegisteredAnalysisRuleMetadata()
+	if len(meta) != 2 {
+		t.Fatalf("expected 2 metadata entries, got %d", len(meta))
+	}
+	if meta[0].Code != "A.TEST.RULE" || meta[1].Code != "Z.TEST.RULE" {
+		t.Fatalf("metadata should follow sorted codes, got %#v", meta)
+	}
 }
 
 func TestRunAnalysisRulesDeterministicOrder(t *testing.T) {
