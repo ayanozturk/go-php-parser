@@ -86,7 +86,7 @@ func ProcessFile(filePath, commandName string, debug bool, w io.Writer) int {
 		}
 	} else {
 		fmt.Fprintf(w, "Unknown command: %s\n", commandName)
-		PrintUsage()
+		PrintUsageTo(w)
 	}
 	return lineCount
 }
