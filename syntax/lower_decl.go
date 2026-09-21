@@ -14,10 +14,11 @@ func lowerNamespace(n *RedNode, file *File, siblings []*RedNode, idx int) (*ast.
 	n.ForEachChildDesc(func(green *GreenNode, offset int) bool {
 		k := green.Kind()
 		if isNameKind(k) {
-			ns.Name = nameString(n.bindChild(green, offset))
+			nameNode := RedNode{File: n.File, Green: green, Offset: offset}
+			ns.Name = nameString(&nameNode)
 		}
 		if k == KindStatementList {
-			bodyList = n.bindChild(green, offset)
+			bodyList = &RedNode{File: n.File, Green: green, Offset: offset}
 		}
 		return true
 	})
@@ -48,7 +49,11 @@ func lowerStatementChildren(list *RedNode, file *File) []ast.Node {
 	}
 	var out []ast.Node
 	list.ForEachChildDesc(func(green *GreenNode, offset int) bool {
-		nodes, _ := lowerTopLevel(list.bindChild(green, offset), file)
+		if green.Kind() == KindToken {
+			return true
+		}
+		child := RedNode{File: list.File, Green: green, Offset: offset}
+		nodes, _ := lowerTopLevel(&child, file)
 		out = append(out, nodes...)
 		return true
 	})
@@ -152,27 +157,30 @@ func lowerClass(n *RedNode, file *File) *ast.ClassNode {
 	var members *RedNode
 	headerEnd := pos
 	n.ForEachChildDesc(func(green *GreenNode, offset int) bool {
-		c := n.bindChild(green, offset)
 		switch green.Kind() {
 		case KindUnqualifiedName, KindQualifiedName,
 			KindFullyQualifiedName, KindRelativeName:
 			if cls.Name == "" {
-				cls.Name = unqualifiedTail(NameText(c))
-				headerEnd = spanEnd(file, c.Span())
+				nameNode := RedNode{File: n.File, Green: green, Offset: offset}
+				cls.Name = unqualifiedTail(NameText(&nameNode))
+				headerEnd = spanEnd(file, nameNode.Span())
 			}
 		case KindExtendsClause:
-			names := clauseNames(c)
+			clause := RedNode{File: n.File, Green: green, Offset: offset}
+			names := clauseNames(&clause)
 			if len(names) > 0 {
 				cls.Extends = names[0]
 			}
-			headerEnd = spanEnd(file, c.Span())
+			headerEnd = spanEnd(file, clause.Span())
 		case KindImplementsClause:
-			cls.Implements = clauseNames(c)
-			headerEnd = spanEnd(file, c.Span())
+			clause := RedNode{File: n.File, Green: green, Offset: offset}
+			cls.Implements = clauseNames(&clause)
+			headerEnd = spanEnd(file, clause.Span())
 		case KindMemberList:
-			members = c
+			members = &RedNode{File: n.File, Green: green, Offset: offset}
 		case KindModifierList:
-			headerEnd = spanEnd(file, c.Span())
+			modList := RedNode{File: n.File, Green: green, Offset: offset}
+			headerEnd = spanEnd(file, modList.Span())
 		}
 		return true
 	})
@@ -196,19 +204,20 @@ func lowerInterface(n *RedNode, file *File) *ast.InterfaceNode {
 	var members *RedNode
 	headerEnd := pos
 	n.ForEachChildDesc(func(green *GreenNode, offset int) bool {
-		c := n.bindChild(green, offset)
 		switch green.Kind() {
 		case KindUnqualifiedName, KindQualifiedName,
 			KindFullyQualifiedName, KindRelativeName:
 			if iface.Name == "" {
-				iface.Name = unqualifiedTail(NameText(c))
-				headerEnd = spanEnd(file, c.Span())
+				nameNode := RedNode{File: n.File, Green: green, Offset: offset}
+				iface.Name = unqualifiedTail(NameText(&nameNode))
+				headerEnd = spanEnd(file, nameNode.Span())
 			}
 		case KindExtendsClause:
-			iface.Extends = clauseNames(c)
-			headerEnd = spanEnd(file, c.Span())
+			clause := RedNode{File: n.File, Green: green, Offset: offset}
+			iface.Extends = clauseNames(&clause)
+			headerEnd = spanEnd(file, clause.Span())
 		case KindMemberList:
-			members = c
+			members = &RedNode{File: n.File, Green: green, Offset: offset}
 		}
 		return true
 	})
@@ -229,7 +238,7 @@ func lowerInterface(n *RedNode, file *File) *ast.InterfaceNode {
 				pendingAttrs = nil
 				return true
 			}
-			m := members.bindChild(green, offset)
+			m := &RedNode{File: members.File, Green: green, Offset: offset}
 			switch k {
 			case KindAttributeList:
 				pendingAttrs = append(pendingAttrs, lowerAttributeList(m, file)...)
@@ -291,7 +300,7 @@ func lowerClassMembers(members *RedNode, file *File, cls *ast.ClassNode) {
 			pendingAttrs = nil
 			return true
 		}
-		m := members.bindChild(green, offset)
+		m := &RedNode{File: members.File, Green: green, Offset: offset}
 		switch k {
 		case KindAttributeList:
 			pendingAttrs = append(pendingAttrs, lowerAttributeList(m, file)...)

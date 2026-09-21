@@ -127,7 +127,7 @@ func MatchArmConditions(n *RedNode) []*RedNode {
 		if green.Kind() != KindMatchArm {
 			return true
 		}
-		arm := n.bindChild(green, offset)
+		arm := &RedNode{File: n.File, Green: green, Offset: offset}
 		seenArrow := false
 		arm.ForEachChildDesc(func(green *GreenNode, offset int) bool {
 			if isGreenTokenType(green, token.T_DOUBLE_ARROW) {
@@ -136,7 +136,7 @@ func MatchArmConditions(n *RedNode) []*RedNode {
 			}
 			k := green.Kind()
 			if !seenArrow && (isExprKind(k) || isNameKind(k)) {
-				out = append(out, arm.bindChild(green, offset))
+				out = append(out, &RedNode{File: arm.File, Green: green, Offset: offset})
 			}
 			return true
 		})
@@ -165,7 +165,7 @@ func IfBody(n *RedNode) *RedNode {
 				return true
 			}
 			if seenCond && body == nil && (k == KindStatementList || isStmtKind(k)) {
-				body = n.bindChild(green, offset)
+				body = &RedNode{File: n.File, Green: green, Offset: offset}
 				return false
 			}
 		}
@@ -197,7 +197,7 @@ func IfElse(n *RedNode) *RedNode {
 	var els *RedNode
 	n.ForEachChildDesc(func(green *GreenNode, offset int) bool {
 		if green.Kind() == KindElseClause {
-			els = n.bindChild(green, offset)
+			els = &RedNode{File: n.File, Green: green, Offset: offset}
 			return false
 		}
 		return true
@@ -223,7 +223,7 @@ func ElseIfBody(n *RedNode) *RedNode {
 			return true
 		}
 		if body == nil && (k == KindStatementList || isStmtKind(k)) {
-			body = n.bindChild(green, offset)
+			body = &RedNode{File: n.File, Green: green, Offset: offset}
 			return false
 		}
 		return true
@@ -244,7 +244,7 @@ func ElseBody(n *RedNode) *RedNode {
 			return true
 		}
 		if body == nil && (k == KindStatementList || isStmtKind(k)) {
-			body = n.bindChild(green, offset)
+			body = &RedNode{File: n.File, Green: green, Offset: offset}
 			return false
 		}
 		return true
@@ -270,7 +270,7 @@ func WhileBody(n *RedNode) *RedNode {
 			return true
 		}
 		if body == nil && (k == KindStatementList || isStmtKind(k)) {
-			body = n.bindChild(green, offset)
+			body = &RedNode{File: n.File, Green: green, Offset: offset}
 			return false
 		}
 		return true
@@ -291,7 +291,7 @@ func DoWhileBody(n *RedNode) *RedNode {
 			return true
 		}
 		if body == nil && (k == KindStatementList || isStmtKind(k)) {
-			body = n.bindChild(green, offset)
+			body = &RedNode{File: n.File, Green: green, Offset: offset}
 			return false
 		}
 		return true
@@ -322,7 +322,7 @@ func ForBody(n *RedNode) *RedNode {
 			return true
 		}
 		if body == nil && (k == KindStatementList || isStmtKind(k)) {
-			body = n.bindChild(green, offset)
+			body = &RedNode{File: n.File, Green: green, Offset: offset}
 			return false
 		}
 		i++
@@ -361,7 +361,7 @@ func FunctionBody(n *RedNode) *RedNode {
 	var body *RedNode
 	n.ForEachChildDesc(func(green *GreenNode, offset int) bool {
 		if green.Kind() == KindStatementList {
-			body = n.bindChild(green, offset)
+			body = &RedNode{File: n.File, Green: green, Offset: offset}
 			return false
 		}
 		return true
@@ -378,7 +378,7 @@ func ClassMethods(n *RedNode) []*RedNode {
 	var members *RedNode
 	n.ForEachChildDesc(func(green *GreenNode, offset int) bool {
 		if green.Kind() == KindMemberList {
-			members = n.bindChild(green, offset)
+			members = &RedNode{File: n.File, Green: green, Offset: offset}
 			return false
 		}
 		return true
@@ -390,7 +390,7 @@ func ClassMethods(n *RedNode) []*RedNode {
 	members.ForEachChildDesc(func(green *GreenNode, offset int) bool {
 		k := green.Kind()
 		if k == KindFunctionDecl || k == KindMethodDecl {
-			out = append(out, members.bindChild(green, offset))
+			out = append(out, &RedNode{File: members.File, Green: green, Offset: offset})
 		}
 		return true
 	})
@@ -447,7 +447,7 @@ func firstExprOrNameChild(n *RedNode) *RedNode {
 	n.ForEachChildDesc(func(green *GreenNode, offset int) bool {
 		k := green.Kind()
 		if isExprKind(k) || isNameKind(k) {
-			found = n.bindChild(green, offset)
+			found = &RedNode{File: n.File, Green: green, Offset: offset}
 			return false
 		}
 		return true
@@ -479,7 +479,7 @@ func NamespaceBody(n *RedNode, siblings []*RedNode, idx int) (body []*RedNode, c
 	var stmtList *RedNode
 	n.ForEachChildDesc(func(green *GreenNode, offset int) bool {
 		if green.Kind() == KindStatementList {
-			stmtList = n.bindChild(green, offset)
+			stmtList = &RedNode{File: n.File, Green: green, Offset: offset}
 			return false
 		}
 		return true
@@ -489,7 +489,7 @@ func NamespaceBody(n *RedNode, siblings []*RedNode, idx int) (body []*RedNode, c
 			if green == nil || green.Kind() == KindToken {
 				return true
 			}
-			body = append(body, stmtList.bindChild(green, offset))
+			body = append(body, &RedNode{File: stmtList.File, Green: green, Offset: offset})
 			return true
 		})
 		return body, 0

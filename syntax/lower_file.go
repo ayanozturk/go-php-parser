@@ -20,7 +20,10 @@ func LowerFile(root *RedNode, file *File) []ast.Node {
 	}
 	var children []*RedNode
 	root.ForEachChildDesc(func(green *GreenNode, offset int) bool {
-		children = append(children, root.bindChild(green, offset))
+		if green.Kind() == KindToken {
+			return true
+		}
+		children = append(children, &RedNode{File: root.File, Green: green, Offset: offset})
 		return true
 	})
 	var out []ast.Node

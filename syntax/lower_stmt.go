@@ -13,8 +13,16 @@ func lowerStmtAt(file *File, green *GreenNode, offset int) ast.Node {
 	if file == nil || green == nil || green.Kind() == KindToken {
 		return nil
 	}
-	n := RedNode{File: file, Green: green, Offset: offset}
-	return lowerStmt(&n, file)
+	n := redNodePool.Get().(*RedNode)
+	n.File = file
+	n.Parent = nil
+	n.Green = green
+	n.Offset = offset
+	defer func() {
+		*n = RedNode{}
+		redNodePool.Put(n)
+	}()
+	return lowerStmt(n, file)
 }
 
 // lowerControlBodyAt lowers a statement-list or single statement child without bindChild.
@@ -24,8 +32,16 @@ func lowerControlBodyAt(file *File, green *GreenNode, offset int) []ast.Node {
 	}
 	k := green.Kind()
 	if k == KindStatementList {
-		n := RedNode{File: file, Green: green, Offset: offset}
-		return lowerStatements(&n, file)
+		n := redNodePool.Get().(*RedNode)
+		n.File = file
+		n.Parent = nil
+		n.Green = green
+		n.Offset = offset
+		defer func() {
+			*n = RedNode{}
+			redNodePool.Put(n)
+		}()
+		return lowerStatements(n, file)
 	}
 	if isStmtKind(k) {
 		if stmt := lowerStmtAt(file, green, offset); stmt != nil {

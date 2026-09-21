@@ -3,10 +3,13 @@ package syntax
 import (
 	"strconv"
 	"strings"
+	"sync"
 
 	"github.com/ayanozturk/go-php-parser/ast"
 	"github.com/ayanozturk/go-php-parser/token"
 )
+
+var redNodePool = sync.Pool{New: func() any { return new(RedNode) }}
 
 // forEachChildDescGreen walks green's children at absolute offset without RedNode allocation.
 func forEachChildDescGreen(green *GreenNode, offset int, fn func(green *GreenNode, offset int) bool) {
@@ -30,8 +33,16 @@ func lowerExprAt(file *File, green *GreenNode, offset int) ast.Node {
 	if file == nil || green == nil {
 		return nil
 	}
-	n := RedNode{File: file, Green: green, Offset: offset}
-	return lowerExpr(&n, file)
+	n := redNodePool.Get().(*RedNode)
+	n.File = file
+	n.Parent = nil
+	n.Green = green
+	n.Offset = offset
+	defer func() {
+		*n = RedNode{}
+		redNodePool.Put(n)
+	}()
+	return lowerExpr(n, file)
 }
 
 // lowerExpr lowers one expression CST node to a classic AST node.

@@ -493,7 +493,7 @@ func (r *RedNode) FirstChildOfKind(k Kind) *RedNode {
 		if green.Kind() != k {
 			return true
 		}
-		found = r.bindChild(green, offset)
+		found = &RedNode{File: r.File, Green: green, Offset: offset}
 		return false
 	})
 	return found
