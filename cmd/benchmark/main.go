@@ -1024,7 +1024,7 @@ func runAnalysis(parsed map[string][]ast.Node, contents map[string][]byte, proje
 		}
 	}
 
-	snapshot, err := analyse.NewSemanticSnapshotWithIndexReleasingParsed(project, parsed, nil, nil)
+	snapshot, err := analyse.NewSemanticSnapshotWithIndexMaybeReleasing(project, parsed, nil, nil)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "benchmark: semantic snapshot: %v\n", err)
 		os.Exit(1)

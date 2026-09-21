@@ -145,3 +145,36 @@ function demo(int $a): void {
 		t.Fatalf("lazy ingest issue count %d != retained nodes %d\n got %#v\nwant %#v", len(got), len(want), got, want)
 	}
 }
+
+func TestMaybeReleasingRetainsHostASTWhenEnvSet(t *testing.T) {
+	host := filepath.Join("src", "app.php")
+	src := `<?php
+function demo($x) {
+    echo $y;
+}
+`
+	t.Run("default_releases", func(t *testing.T) {
+		t.Setenv("PHP_PARSER_RETAIN_HOST_AST", "")
+		nodes := parsePHPForProjectIndex(t, src)
+		parsed := map[string][]ast.Node{host: nodes}
+		idx := BuildProjectIndex(parsed)
+		if _, err := NewSemanticSnapshotWithIndexMaybeReleasing(idx, parsed, nil, nil); err != nil {
+			t.Fatalf("snapshot: %v", err)
+		}
+		if parsed[host] != nil {
+			t.Fatal("expected host AST released when PHP_PARSER_RETAIN_HOST_AST unset")
+		}
+	})
+	t.Run("retain_when_set", func(t *testing.T) {
+		t.Setenv("PHP_PARSER_RETAIN_HOST_AST", "1")
+		nodes := parsePHPForProjectIndex(t, src)
+		parsed := map[string][]ast.Node{host: nodes}
+		idx := BuildProjectIndex(parsed)
+		if _, err := NewSemanticSnapshotWithIndexMaybeReleasing(idx, parsed, nil, nil); err != nil {
+			t.Fatalf("snapshot: %v", err)
+		}
+		if parsed[host] == nil {
+			t.Fatal("expected host AST retained when PHP_PARSER_RETAIN_HOST_AST=1")
+		}
+	})
+}
