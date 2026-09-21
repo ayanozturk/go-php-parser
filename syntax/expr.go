@@ -99,19 +99,11 @@ func isAssignOp(tt token.TokenType) bool {
 }
 
 func (p *Parser) peekType(n int) token.TokenType {
-	i := p.i + n
-	if i >= len(p.tokens) {
-		return token.T_EOF
-	}
-	return p.tokens[i].Type
+	return p.tokenAt(p.i + n).Type
 }
 
 func (p *Parser) peekLit(n int) string {
-	i := p.i + n
-	if i >= len(p.tokens) {
-		return ""
-	}
-	return p.tokens[i].Literal
+	return p.tokenAt(p.i + n).Literal
 }
 
 // parseExpression parses one expression green node (structured).
