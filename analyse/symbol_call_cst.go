@@ -3,6 +3,7 @@ package analyse
 import (
 	"github.com/ayanozturk/go-php-parser/ast"
 	"github.com/ayanozturk/go-php-parser/syntax"
+	"github.com/ayanozturk/go-php-parser/token"
 )
 
 // tryCSTCallExprForMemo builds a lightweight FunctionCallNode / MethodCallNode
@@ -11,15 +12,15 @@ import (
 // call cannot be represented (same as lowerCallExpr nil → suppress subtree).
 //
 // Covers high-volume symbol shapes: simple/variable function names, Foo::bar(),
-// and -> / ?-> method calls including chained / (new T) / paren receivers.
+// -> / ?-> method calls (incl. chained / (new T) / paren receivers), and
+// keyword-token builtins (isset/empty/exit/die).
 func tryCSTCallExprForMemo(n *syntax.RedNode, file *syntax.File) (ast.Node, bool) {
 	if n == nil || n.Kind() != syntax.KindCallExpr || file == nil {
 		return nil, false
 	}
 	callee := syntax.CallCallee(n)
 	if callee == nil {
-		// Builtin token calls (isset/empty/…) — leave to full lower.
-		return nil, false
+		return tryCSTBuiltinCallForMemo(n)
 	}
 	args := stubCallArgsFromCST(n)
 	callPos, callEnd := n.Pos(), n.EndPos()
@@ -201,6 +202,65 @@ func tryCSTNewExprForMemo(n *syntax.RedNode) (ast.Node, bool) {
 	default:
 		return nil, false
 	}
+}
+
+// tryCSTBuiltinCallForMemo handles KindCallExpr whose name is a keyword token
+// (isset/empty/exit/die) with no expr/name callee child. Stub args avoid
+// recursive LowerExprNode on ArgList. Lone-arg forms without ArgList
+// (rare; e.g. legacy isset $a) fall back to full lower.
+func tryCSTBuiltinCallForMemo(n *syntax.RedNode) (ast.Node, bool) {
+	if n == nil || n.Kind() != syntax.KindCallExpr {
+		return nil, false
+	}
+	var name string
+	var namePos, nameEnd ast.Position
+	found := false
+	n.ForEachChildDesc(func(green *syntax.GreenNode, offset int) bool {
+		if green == nil || green.Kind() != syntax.KindToken {
+			return true
+		}
+		switch green.TokenType() {
+		case token.T_ISSET:
+			name = "isset"
+		case token.T_EMPTY:
+			name = "empty"
+		case token.T_EXIT:
+			name = "exit"
+		case token.T_DIE:
+			name = "die"
+		default:
+			return true
+		}
+		tok := &syntax.RedNode{File: n.File, Green: green, Offset: offset}
+		namePos, nameEnd = tok.Pos(), tok.EndPos()
+		found = true
+		return false
+	})
+	if !found {
+		return nil, false
+	}
+	if syntax.CallArgList(n) == nil {
+		// exit;/die; with no parens is fine (no args). Any non-token child
+		// without ArgList is the lone-arg form — leave to lowerCallExpr.
+		hasLone := false
+		n.ForEachChildDesc(func(green *syntax.GreenNode, _ int) bool {
+			if green == nil || green.Kind() == syntax.KindToken {
+				return true
+			}
+			hasLone = true
+			return false
+		})
+		if hasLone {
+			return nil, false
+		}
+	}
+	callPos, callEnd := n.Pos(), n.EndPos()
+	return &ast.FunctionCallNode{
+		Name:   &ast.IdentifierNode{Value: name, Pos: namePos, EndPos: nameEnd},
+		Args:   stubCallArgsFromCST(n),
+		Pos:    callPos,
+		EndPos: callEnd,
+	}, true
 }
 
 // stubCallArgsFromCST builds arg nodes sufficient for checkCallArguments /

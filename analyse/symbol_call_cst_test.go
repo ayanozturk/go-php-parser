@@ -166,6 +166,10 @@ $fn();
 (new Real)->m();
 $a->b->c();
 new Missing(1, 2);
+isset($x, $y);
+empty($z);
+exit(1);
+die();
 `)
 	res := syntax.Parse(src)
 	var calls []*syntax.RedNode
@@ -179,8 +183,8 @@ new Missing(1, 2);
 		}
 		return true
 	})
-	if len(calls) < 7 {
-		t.Fatalf("expected >=7 calls, got %d", len(calls))
+	if len(calls) < 11 {
+		t.Fatalf("expected >=11 calls, got %d", len(calls))
 	}
 	fn, ok := tryCSTCallExprForMemo(calls[0], res.File)
 	if !ok || fn == nil {
@@ -261,5 +265,28 @@ new Missing(1, 2);
 	nn := nw.(*ast.NewNode)
 	if nn.ClassName != "Missing" || len(nn.Args) != 2 {
 		t.Fatalf("new %#v", nn)
+	}
+
+	for _, tc := range []struct {
+		idx  int
+		name string
+		args int
+	}{
+		{7, "isset", 2},
+		{8, "empty", 1},
+		{9, "exit", 1},
+		{10, "die", 0},
+	} {
+		got, ok := tryCSTCallExprForMemo(calls[tc.idx], res.File)
+		if !ok || got == nil {
+			t.Fatalf("%s: ok=%v node=%#v", tc.name, ok, got)
+		}
+		fc, ok := got.(*ast.FunctionCallNode)
+		if !ok || functionCallName(fc) != tc.name {
+			t.Fatalf("%s: %#v", tc.name, got)
+		}
+		if len(fc.Args) != tc.args {
+			t.Fatalf("%s args=%d want %d", tc.name, len(fc.Args), tc.args)
+		}
 	}
 }
