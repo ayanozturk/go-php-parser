@@ -436,24 +436,29 @@ func IsStatementKind(k Kind) bool {
 // for each node. If fn returns false, that node's children are skipped
 // (unlike the lowered ast.Node walkers, this supports early subtree exit).
 //
-// Callers must not retain *RedNode pointers passed to fn past the callback:
-// child nodes are bound on the stack and reused across siblings.
+// *RedNode pointers passed to fn are valid only for the duration of the
+// callback. Parent may be nil on visited nodes; node identity is (Green,
+// Offset) within the same File. Callers must not retain *RedNode past fn.
 func Walk(root *RedNode, fn func(*RedNode) bool) {
 	if root == nil || fn == nil {
 		return
 	}
-	if !fn(root) {
-		return
+	stack := []RedNode{{File: root.File, Green: root.Green, Offset: root.Offset}}
+	for len(stack) > 0 {
+		node := stack[len(stack)-1]
+		stack = stack[:len(stack)-1]
+		if !fn(&node) {
+			continue
+		}
+		var children []RedNode
+		node.ForEachChildDesc(func(green *GreenNode, offset int) bool {
+			children = append(children, RedNode{File: node.File, Green: green, Offset: offset})
+			return true
+		})
+		for i := len(children) - 1; i >= 0; i-- {
+			stack = append(stack, children[i])
+		}
 	}
-	root.ForEachChildDesc(func(green *GreenNode, offset int) bool {
-		var child RedNode
-		child.File = root.File
-		child.Parent = root
-		child.Green = green
-		child.Offset = offset
-		Walk(&child, fn)
-		return true
-	})
 }
 
 // FirstChildOfKind returns the first direct child with the given kind.

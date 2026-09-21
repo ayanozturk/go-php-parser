@@ -269,7 +269,7 @@ func findAssignmentsInCST(expr *syntax.RedNode) []*syntax.RedNode {
 	visit = func(n *syntax.RedNode) bool {
 		switch n.Kind() {
 		case syntax.KindAssignExpr:
-			found = append(found, n)
+			found = append(found, &syntax.RedNode{File: n.File, Green: n.Green, Offset: n.Offset})
 			return true
 		case syntax.KindBinaryExpr, syntax.KindTernaryExpr, syntax.KindCastExpr,
 			syntax.KindExpressionStmt, syntax.KindParenExpr,
