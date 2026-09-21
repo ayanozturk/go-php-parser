@@ -337,3 +337,48 @@ func TestParsePHPDocKeepsCallableParamOverGenericClosure(t *testing.T) {
 		t.Fatalf("expected @return Collection, got %q", doc.ReturnType)
 	}
 }
+
+func TestIsTemplateBindingParamTypeAndUnionReturn(t *testing.T) {
+	if !IsTemplateBindingParamType("TValue") {
+		t.Fatalf("expected TValue to be a template binding type")
+	}
+	if !IsTemplateBindingParamType("?T") {
+		t.Fatalf("expected ?T to be a template binding type")
+	}
+	if IsTemplateBindingParamType("") || IsTemplateBindingParamType("string") || IsTemplateBindingParamType("T|U") {
+		t.Fatalf("unexpected template binding positives")
+	}
+	if IsTemplateBindingParamType("tx") || IsTemplateBindingParamType("T!") {
+		t.Fatalf("unexpected bare template name positives")
+	}
+
+	doc := ParsePHPDoc(`/**
+ * @return string|null
+ * @phpstan-return T|null
+ * @template T
+ */
+`)
+	if doc.ReturnType != "T|null" {
+		t.Fatalf("expected template union return to prefer phpstan-return, got %q", doc.ReturnType)
+	}
+
+	docNested := ParsePHPDoc(`/**
+ * @return mixed
+ * @phpstan-return array<string, T>|null
+ * @template T
+ */
+`)
+	// Nested generics with | at depth should not count as a bare template union.
+	if docNested.ReturnType != "array<string, T>|null" && docNested.ReturnType != "mixed" {
+		t.Fatalf("unexpected nested return %q", docNested.ReturnType)
+	}
+
+	doc2 := ParsePHPDoc(`/**
+ * @return Foo
+ * @phpstan-return ?
+ */
+`)
+	if doc2.ReturnType != "Foo" {
+		t.Fatalf("empty template-union (? ) should not overwrite return, got %q", doc2.ReturnType)
+	}
+}

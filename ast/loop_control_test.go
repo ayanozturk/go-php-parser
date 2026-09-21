@@ -23,6 +23,18 @@ func TestBreakNodeMethodsImplicitLevelAndSpan(t *testing.T) {
 	assertLoopControlSpan(t, node, node.Pos, node.EndPos)
 }
 
+func TestBreakNodeMethodsNumericLevel(t *testing.T) {
+	node := &BreakNode{
+		Level:  &IntegerLiteral{Value: 2},
+		Pos:    Position{Line: 3, Column: 4},
+		EndPos: Position{Line: 3, Column: 12},
+	}
+	if got := node.String(); got != "Break(2) @ 3:4" {
+		t.Fatalf("String() = %q, want Break(2) @ 3:4", got)
+	}
+	assertLoopControlSpan(t, node, node.Pos, node.EndPos)
+}
+
 func TestContinueNodeMethodsNumericLevelAndSpan(t *testing.T) {
 	node := &ContinueNode{
 		Level:  &IntegerLiteral{Value: 2},
@@ -40,6 +52,13 @@ func TestContinueNodeMethodsNumericLevelAndSpan(t *testing.T) {
 		t.Fatalf("String() = %q, want %q", got, "Continue(2) @ 4:7")
 	}
 	assertLoopControlSpan(t, node, node.Pos, node.EndPos)
+}
+
+func TestContinueNodeMethodsImplicitLevel(t *testing.T) {
+	node := &ContinueNode{Pos: Position{Line: 5, Column: 1}, EndPos: Position{Line: 5, Column: 9}}
+	if got := node.String(); got != "Continue @ 5:1" {
+		t.Fatalf("String() = %q", got)
+	}
 }
 
 func assertLoopControlSpan(t *testing.T, node Node, start, end Position) {

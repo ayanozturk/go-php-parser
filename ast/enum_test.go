@@ -33,6 +33,19 @@ func TestEnumNodeMethods(t *testing.T) {
 	}
 }
 
+func TestEnumNodeStringWithImplements(t *testing.T) {
+	enum := &EnumNode{
+		Name:       "E",
+		BackedBy:   "int",
+		Implements: []string{"Stringable"},
+		Pos:        Position{Line: 2, Column: 3},
+	}
+	want := "Enum(E) : int implements Stringable @ 2:3"
+	if got := enum.String(); got != want {
+		t.Fatalf("String() = %q, want %q", got, want)
+	}
+}
+
 func TestEnumCaseNodeMethods(t *testing.T) {
 	caseNode := &EnumCaseNode{Name: "FOO", Value: &StringLiteral{Value: "bar"}, Pos: Position{Line: 7, Column: 8}}
 	if caseNode.NodeType() != "EnumCase" {

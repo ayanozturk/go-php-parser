@@ -98,7 +98,11 @@ func (v *VariableVariableNode) SetPos(pos Position)    { v.Pos = pos }
 func (v *VariableVariableNode) GetEndPos() Position    { return v.EndPos }
 func (v *VariableVariableNode) SetEndPos(pos Position) { v.EndPos = pos }
 func (v *VariableVariableNode) String() string {
-	return fmt.Sprintf("VariableVariable($%s) @ %d:%d", v.Expr.String(), v.Pos.Line, v.Pos.Column)
+	expr := "<nil>"
+	if v.Expr != nil {
+		expr = v.Expr.String()
+	}
+	return fmt.Sprintf("VariableVariable($%s) @ %d:%d", expr, v.Pos.Line, v.Pos.Column)
 }
 func (v *VariableVariableNode) TokenLiteral() string {
 	return "$"
@@ -397,7 +401,11 @@ func (d *DoWhileNode) SetPos(pos Position)    { d.Pos = pos }
 func (d *DoWhileNode) GetEndPos() Position    { return d.EndPos }
 func (d *DoWhileNode) SetEndPos(pos Position) { d.EndPos = pos }
 func (d *DoWhileNode) String() string {
-	return fmt.Sprintf("DoWhile(Cond: %s) @ %d:%d", d.Condition.String(), d.Pos.Line, d.Pos.Column)
+	cond := "<nil>"
+	if d.Condition != nil {
+		cond = d.Condition.String()
+	}
+	return fmt.Sprintf("DoWhile(Cond: %s) @ %d:%d", cond, d.Pos.Line, d.Pos.Column)
 }
 func (d *DoWhileNode) TokenLiteral() string {
 	return "do"
@@ -500,13 +508,19 @@ func (f *FirstClassCallableNode) String() string {
 	if f.Name != nil {
 		return fmt.Sprintf("FirstClassCallable(%s) @ %d:%d", f.Name.Value, f.Pos.Line, f.Pos.Column)
 	}
-	return fmt.Sprintf("FirstClassCallable(%s) @ %d:%d", f.Target.String(), f.Pos.Line, f.Pos.Column)
+	if f.Target != nil {
+		return fmt.Sprintf("FirstClassCallable(%s) @ %d:%d", f.Target.String(), f.Pos.Line, f.Pos.Column)
+	}
+	return fmt.Sprintf("FirstClassCallable(<nil>) @ %d:%d", f.Pos.Line, f.Pos.Column)
 }
 func (f *FirstClassCallableNode) TokenLiteral() string {
 	if f.Name != nil {
 		return f.Name.Value
 	}
-	return f.Target.TokenLiteral()
+	if f.Target != nil {
+		return f.Target.TokenLiteral()
+	}
+	return ""
 }
 
 // BooleanNode represents a boolean literal

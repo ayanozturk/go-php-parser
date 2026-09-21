@@ -87,6 +87,15 @@ func TestArrayAccessNode(t *testing.T) {
 	}
 }
 
+func TestArrayAccessNodeNilIndexString(t *testing.T) {
+	v := &VariableNode{Name: "arr", Pos: Position{Line: 1, Column: 1}}
+	aa := &ArrayAccessNode{Var: v, Index: nil, Pos: Position{Line: 2, Column: 3}}
+	want := "ArrayAccess(Variable($arr) @ 1:1[]) @ 2:3"
+	if got := aa.String(); got != want {
+		t.Fatalf("nil Index String() = %q, want %q", got, want)
+	}
+}
+
 func TestArrayItemNode(t *testing.T) {
 	key := &StringLiteral{Value: "k", Pos: Position{Line: 1, Column: 1}}
 	val := &StringLiteral{Value: "v", Pos: Position{Line: 1, Column: 2}}
