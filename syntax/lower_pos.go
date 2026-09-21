@@ -129,12 +129,29 @@ func contentStartOffset(n *RedNode) int {
 		} else {
 			start = sp.Start
 		}
-	} else if t := firstTokenDescendant(n); t != nil {
-		start = contentStartOffset(t)
+	} else if tg, toff := firstTokenGreenDescendant(n.Green, n.Offset); tg != nil {
+		start = contentStartOffsetGreen(tg, toff)
 	} else {
 		start = sp.Start
 	}
 	return start
+}
+
+func contentStartOffsetGreen(g *GreenNode, off int) int {
+	if g == nil {
+		return off
+	}
+	if !g.IsToken() {
+		if tg, toff := firstTokenGreenDescendant(g, off); tg != nil {
+			return contentStartOffsetGreen(tg, toff)
+		}
+		return off
+	}
+	tok, ok := g.Token()
+	if !ok {
+		return off
+	}
+	return off + leadingTriviaWidth(tok)
 }
 
 func contentEndOffset(n *RedNode) int {
@@ -176,28 +193,26 @@ func trailingTriviaWidth(tok token.Token) int {
 	return w
 }
 
-func firstTokenDescendant(n *RedNode) *RedNode {
-	if n == nil {
-		return nil
+// firstTokenGreenDescendant returns the first token green under g at off and its
+// absolute offset, without allocating RedNode wrappers.
+func firstTokenGreenDescendant(g *GreenNode, off int) (*GreenNode, int) {
+	if g == nil {
+		return nil, 0
 	}
-	if n.Green != nil && n.Green.IsToken() {
-		return n
+	if g.IsToken() {
+		return g, off
 	}
-	if n.Green == nil {
-		return nil
-	}
-	off := n.Offset
-	for _, g := range n.Green.children {
-		if g == nil {
+	childOff := off
+	for _, c := range g.children {
+		if c == nil {
 			continue
 		}
-		child := &RedNode{File: n.File, Parent: n, Green: g, Offset: off}
-		if t := firstTokenDescendant(child); t != nil {
-			return t
+		if tg, toff := firstTokenGreenDescendant(c, childOff); tg != nil {
+			return tg, toff
 		}
-		off += g.width
+		childOff += c.width
 	}
-	return nil
+	return nil, 0
 }
 
 // offsetLineCol returns 0-based line and byte column for a byte offset.

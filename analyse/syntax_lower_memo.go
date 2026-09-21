@@ -11,10 +11,12 @@ type redIdentity struct {
 }
 
 type syntaxLowerMemo struct {
-	classLike map[redIdentity]*ast.ClassNode
-	fnDecl    map[redIdentity]*ast.FunctionNode
-	fnLike    map[redIdentity]*ast.FunctionNode
-	expr      map[redIdentity]ast.Node
+	classLike       map[redIdentity]*ast.ClassNode
+	fnDecl          map[redIdentity]*ast.FunctionNode
+	fnLike          map[redIdentity]*ast.FunctionNode
+	expr            map[redIdentity]ast.Node
+	propertyDecl    map[redIdentity][]ast.Node
+	interfaceMethod map[redIdentity]*ast.InterfaceMethodNode
 }
 
 func ensureSyntaxLowerMemo(ctx *AnalysisContext) *syntaxLowerMemo {
@@ -23,10 +25,12 @@ func ensureSyntaxLowerMemo(ctx *AnalysisContext) *syntaxLowerMemo {
 	}
 	if ctx.syntaxLower == nil {
 		ctx.syntaxLower = &syntaxLowerMemo{
-			classLike: make(map[redIdentity]*ast.ClassNode),
-			fnDecl:    make(map[redIdentity]*ast.FunctionNode),
-			fnLike:    make(map[redIdentity]*ast.FunctionNode),
-			expr:      make(map[redIdentity]ast.Node),
+			classLike:       make(map[redIdentity]*ast.ClassNode),
+			fnDecl:          make(map[redIdentity]*ast.FunctionNode),
+			fnLike:          make(map[redIdentity]*ast.FunctionNode),
+			expr:            make(map[redIdentity]ast.Node),
+			propertyDecl:    make(map[redIdentity][]ast.Node),
+			interfaceMethod: make(map[redIdentity]*ast.InterfaceMethodNode),
 		}
 	}
 	return ctx.syntaxLower
@@ -109,6 +113,38 @@ func memoLowerFunctionLike(ctx *AnalysisContext, n *syntax.RedNode, file *syntax
 		return fn
 	}
 	return syntax.LowerFunctionLikeContextNode(n, file)
+}
+
+func memoLowerPropertyDecl(ctx *AnalysisContext, n *syntax.RedNode, file *syntax.File) []ast.Node {
+	if n == nil {
+		return nil
+	}
+	if memo := ensureSyntaxLowerMemo(ctx); memo != nil {
+		id := redID(n)
+		if props, ok := memo.propertyDecl[id]; ok {
+			return props
+		}
+		props := syntax.LowerPropertyDeclNode(n, file)
+		memo.propertyDecl[id] = props
+		return props
+	}
+	return syntax.LowerPropertyDeclNode(n, file)
+}
+
+func memoLowerInterfaceMethod(ctx *AnalysisContext, n *syntax.RedNode, file *syntax.File) *ast.InterfaceMethodNode {
+	if n == nil {
+		return nil
+	}
+	if memo := ensureSyntaxLowerMemo(ctx); memo != nil {
+		id := redID(n)
+		if im, ok := memo.interfaceMethod[id]; ok {
+			return im
+		}
+		im := syntax.LowerInterfaceMethodDeclNode(n, file)
+		memo.interfaceMethod[id] = im
+		return im
+	}
+	return syntax.LowerInterfaceMethodDeclNode(n, file)
 }
 
 func memoLowerExpr(ctx *AnalysisContext, n *syntax.RedNode, file *syntax.File) ast.Node {
