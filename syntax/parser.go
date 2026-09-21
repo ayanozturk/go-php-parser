@@ -18,6 +18,10 @@ type Parser struct {
 	ctx                context.Context
 	cancelled          bool
 	SkipFunctionBodies bool // when true, function/method bodies stay KindTokenList blobs
+	// lex is non-nil for index-tier streaming parse: tokens are pulled on
+	// demand and SkipFunctionBodies spans advance the lexer without retaining
+	// body-interior tokens (no LexAll of function/method bodies).
+	lex *lexer.Lexer
 }
 
 func NewParser(src []byte) *Parser {
@@ -65,18 +69,31 @@ func ParseWith(src []byte, opts ParseOptions) *ParseResult {
 
 // ParseWithContext parses with cooperative cancellation during lexing and
 // parsing. A nil context disables cancellation checks.
+//
+// SkipFunctionBodies uses a streaming lexer: declaration tokens are pulled on
+// demand, and function/method/closure/anonymous-class bodies are advanced via
+// lexer.SkipBalancedCurlyBlock (opaque TokenList) so body-interior tokens are
+// never retained. Full-body parse still uses LexAllContext.
 func ParseWithContext(ctx context.Context, src []byte, opts ParseOptions) *ParseResult {
 	noteParseInvocation()
-	tokens, lexErr := lexer.LexAllContext(ctx, src)
 	p := &Parser{
 		src:                src,
-		tokens:             tokens,
 		intern:             NewInterner(src),
 		ctx:                ctx,
 		SkipFunctionBodies: opts.SkipFunctionBodies,
 	}
-	if lexErr != nil {
-		p.recordCancellation(lexErr)
+	if opts.SkipFunctionBodies {
+		l := lexer.NewFileBytes(src)
+		l.SetCancelContext(ctx)
+		// Decl-tier token density is far below full LexAll; avoid over-alloc.
+		p.tokens = make([]token.Token, 0, len(src)/32+16)
+		p.lex = l
+	} else {
+		tokens, lexErr := lexer.LexAllContext(ctx, src)
+		p.tokens = tokens
+		if lexErr != nil {
+			p.recordCancellation(lexErr)
+		}
 	}
 	var items []*GreenNode
 
@@ -105,6 +122,63 @@ func (p *Parser) at(tt token.TokenType) bool {
 	return p.tok().Type == tt
 }
 
+func (p *Parser) pullToken() {
+	if p.lex == nil || p.i < len(p.tokens) {
+		return
+	}
+	p.pullThrough(p.i)
+}
+
+// pullThrough ensures tokens[0..=idx] are available when streaming.
+func (p *Parser) pullThrough(idx int) {
+	if p.lex == nil {
+		return
+	}
+	for len(p.tokens) <= idx {
+		if len(p.tokens) > 0 && p.tokens[len(p.tokens)-1].Type == token.T_EOF {
+			return
+		}
+		if err := p.lex.Cancelled(); err != nil {
+			p.recordCancellation(err)
+			pos := p.currentPosition()
+			p.tokens = append(p.tokens, token.Token{Type: token.T_EOF, Pos: pos, End: pos})
+			return
+		}
+		if p.ctx != nil {
+			if err := p.ctx.Err(); err != nil {
+				p.recordCancellation(err)
+				pos := p.currentPosition()
+				p.tokens = append(p.tokens, token.Token{Type: token.T_EOF, Pos: pos, End: pos})
+				return
+			}
+		}
+		tok := p.lex.NextToken()
+		if err := p.lex.Cancelled(); err != nil {
+			p.recordCancellation(err)
+			pos := p.currentPosition()
+			p.tokens = append(p.tokens, token.Token{Type: token.T_EOF, Pos: pos, End: pos})
+			return
+		}
+		p.tokens = append(p.tokens, tok)
+		if tok.Type == token.T_EOF {
+			return
+		}
+	}
+}
+
+// tokenAt returns tokens[i], pulling from the streaming lexer as needed.
+func (p *Parser) tokenAt(i int) token.Token {
+	if i < 0 {
+		return token.Token{Type: token.T_EOF}
+	}
+	p.pullThrough(i)
+	if i >= len(p.tokens) {
+		pos := p.currentPosition()
+		return token.Token{Type: token.T_EOF, Pos: pos, End: pos}
+	}
+	return p.tokens[i]
+}
+
 func (p *Parser) tok() token.Token {
 	if p.ctx != nil {
 		if err := p.ctx.Err(); err != nil {
@@ -112,6 +186,7 @@ func (p *Parser) tok() token.Token {
 			return token.Token{Type: token.T_EOF, Pos: p.currentPosition(), End: p.currentPosition()}
 		}
 	}
+	p.pullToken()
 	if p.i >= len(p.tokens) {
 		pos := p.currentPosition()
 		return token.Token{Type: token.T_EOF, Pos: pos, End: pos}
@@ -183,7 +258,7 @@ func (p *Parser) tryParseStructured() *GreenNode {
 		return p.parseDeclareStmt()
 	case p.at(token.T_GLOBAL):
 		return p.parseGlobalStmt()
-	case p.at(token.T_STATIC) && p.i+1 < len(p.tokens) && p.tokens[p.i+1].Type == token.T_VARIABLE:
+	case p.at(token.T_STATIC) && p.tokenAt(p.i+1).Type == token.T_VARIABLE:
 		return p.parseStaticVarStmt()
 	case p.at(token.T_ECHO):
 		return p.parseEchoStmt()
@@ -230,7 +305,7 @@ func (p *Parser) tryParseStructured() *GreenNode {
 		return p.parseExpressionStmt()
 	case p.at(token.T_ILLEGAL) && p.tok().Literal == "$":
 		return p.parseExpressionStmt()
-	case p.at(token.T_STRING) && p.i+1 < len(p.tokens) && p.tokens[p.i+1].Type == token.T_COLON:
+	case p.at(token.T_STRING) && p.tokenAt(p.i+1).Type == token.T_COLON:
 		return p.parseLabelStmt()
 	case p.isNameStart():
 		// Function/const calls and bare names as expression statements.
@@ -259,30 +334,25 @@ func (p *Parser) isModifierToken(tt token.TokenType) bool {
 }
 
 func (p *Parser) skipModifierTokens(i int) int {
-	for i < len(p.tokens) {
-		tt := p.tokens[i].Type
-		if !p.isModifierToken(tt) {
+	for {
+		tt := p.tokenAt(i).Type
+		if tt == token.T_EOF || !p.isModifierToken(tt) {
 			return i
 		}
 		if (tt == token.T_PUBLIC || tt == token.T_PROTECTED || tt == token.T_PRIVATE) &&
-			i+3 < len(p.tokens) &&
-			p.tokens[i+1].Type == token.T_LPAREN &&
-			p.tokens[i+2].Type == token.T_STRING && p.tokens[i+2].Literal == "set" &&
-			p.tokens[i+3].Type == token.T_RPAREN {
+			p.tokenAt(i+1).Type == token.T_LPAREN &&
+			p.tokenAt(i+2).Type == token.T_STRING && p.tokenAt(i+2).Literal == "set" &&
+			p.tokenAt(i+3).Type == token.T_RPAREN {
 			i += 4
 			continue
 		}
 		i++
 	}
-	return i
 }
 
 func (p *Parser) isClassLikeStart() bool {
 	i := p.skipModifierTokens(p.i)
-	if i >= len(p.tokens) {
-		return false
-	}
-	switch p.tokens[i].Type {
+	switch p.tokenAt(i).Type {
 	case token.T_CLASS, token.T_INTERFACE, token.T_TRAIT, token.T_ENUM:
 		return true
 	default:
@@ -292,7 +362,7 @@ func (p *Parser) isClassLikeStart() bool {
 
 func (p *Parser) isFunctionStart() bool {
 	i := p.skipModifierTokens(p.i)
-	return i < len(p.tokens) && p.tokens[i].Type == token.T_FUNCTION
+	return p.tokenAt(i).Type == token.T_FUNCTION
 }
 
 func (p *Parser) parseModifierList() *GreenNode {
@@ -300,10 +370,9 @@ func (p *Parser) parseModifierList() *GreenNode {
 	for p.isModifierToken(p.tok().Type) {
 		tt := p.tok().Type
 		if (tt == token.T_PUBLIC || tt == token.T_PROTECTED || tt == token.T_PRIVATE) &&
-			p.i+3 < len(p.tokens) &&
-			p.tokens[p.i+1].Type == token.T_LPAREN &&
-			p.tokens[p.i+2].Type == token.T_STRING && p.tokens[p.i+2].Literal == "set" &&
-			p.tokens[p.i+3].Type == token.T_RPAREN {
+			p.tokenAt(p.i+1).Type == token.T_LPAREN &&
+			p.tokenAt(p.i+2).Type == token.T_STRING && p.tokenAt(p.i+2).Literal == "set" &&
+			p.tokenAt(p.i+3).Type == token.T_RPAREN {
 			parts = append(parts, p.bump())
 			parts = append(parts, p.bump())
 			parts = append(parts, p.bump())
@@ -447,7 +516,7 @@ func (p *Parser) parseTypeAtom() *GreenNode {
 		close := p.expect(token.T_RPAREN)
 		return p.intern.Node(KindParenthesizedType, open, inner, close)
 	}
-	if p.at(token.T_CALLABLE) && p.i+1 < len(p.tokens) && p.tokens[p.i+1].Type == token.T_LPAREN {
+	if p.at(token.T_CALLABLE) && p.tokenAt(p.i+1).Type == token.T_LPAREN {
 		return p.parseCallableType()
 	}
 	if p.isPrimitiveType() && !p.at(token.T_NS_SEPARATOR) {
@@ -540,7 +609,7 @@ func (p *Parser) parseUseClause() *GreenNode {
 	// Group-use prefix ends with `\`; the lexer emits T_BACKSLASH (not
 	// T_NS_SEPARATOR) immediately before `{`.
 	if p.at(token.T_BACKSLASH) || p.at(token.T_NS_SEPARATOR) {
-		if p.i+1 < len(p.tokens) && p.tokens[p.i+1].Type == token.T_LBRACE {
+		if p.tokenAt(p.i+1).Type == token.T_LBRACE {
 			clauseParts = append(clauseParts, p.bump())
 			clauseParts = append(clauseParts, p.parseUseGroup())
 			return p.intern.Node(KindUseClause, clauseParts...)
@@ -909,10 +978,7 @@ func (p *Parser) tryParseMember() *GreenNode {
 	}
 	// Look past modifiers for member kind.
 	i := p.skipModifierTokens(p.i)
-	if i >= len(p.tokens) {
-		return nil
-	}
-	switch p.tokens[i].Type {
+	switch p.tokenAt(i).Type {
 	case token.T_FUNCTION:
 		return p.parseFunctionDecl()
 	case token.T_CONST:
@@ -1697,7 +1763,7 @@ func (p *Parser) parseClassConstDecl() *GreenNode {
 		parts = append(parts, mods)
 	}
 	parts = append(parts, p.expect(token.T_CONST))
-	if p.isTypeStart() && !(p.at(token.T_STRING) && p.i+1 < len(p.tokens) && p.tokens[p.i+1].Type == token.T_ASSIGN) {
+	if p.isTypeStart() && !(p.at(token.T_STRING) && p.tokenAt(p.i+1).Type == token.T_ASSIGN) {
 		// Speculative typed const: const Type NAME = ...
 		save := p.i
 		typ := p.parseType()
@@ -1779,10 +1845,10 @@ func (p *Parser) parsePropertyHookList() *GreenNode {
 //	[&] name [( params )] ( ; | => expr ; | { stmts } )
 func (p *Parser) parsePropertyHook() *GreenNode {
 	i := p.i
-	if i < len(p.tokens) && p.tokens[i].Type == token.T_AMPERSAND {
+	if p.tokenAt(i).Type == token.T_AMPERSAND {
 		i++
 	}
-	if i >= len(p.tokens) || p.tokens[i].Type != token.T_STRING {
+	if p.tokenAt(i).Type != token.T_STRING {
 		return nil
 	}
 	var parts []*GreenNode
@@ -1898,11 +1964,11 @@ func (p *Parser) isTypeStart() bool {
 // nextIsIntersectionType reports whether & at the current position continues an
 // intersection type (Foo&Bar), not a by-ref param (&$x) or variadic (&...$x).
 func (p *Parser) nextIsIntersectionType() bool {
-	if !p.at(token.T_AMPERSAND) || p.i+1 >= len(p.tokens) {
+	if !p.at(token.T_AMPERSAND) {
 		return false
 	}
-	next := p.tokens[p.i+1].Type
-	if next == token.T_VARIABLE || next == token.T_ELLIPSIS {
+	next := p.tokenAt(p.i + 1).Type
+	if next == token.T_EOF || next == token.T_VARIABLE || next == token.T_ELLIPSIS {
 		return false
 	}
 	saved := p.i
@@ -1936,6 +2002,9 @@ func (p *Parser) parseBalancedBlock() *GreenNode {
 	if !p.at(token.T_LBRACE) {
 		return p.intern.Node(KindTokenList, p.expect(token.T_LBRACE))
 	}
+	if p.lex != nil {
+		return p.parseBalancedBlockSpanLex()
+	}
 	start := p.i
 	depth := 0
 	for !p.at(token.T_EOF) {
@@ -1960,4 +2029,43 @@ func (p *Parser) parseBalancedBlock() *GreenNode {
 		w += tokenWidth(p.tokens[i])
 	}
 	return p.intern.Node(KindTokenList, p.intern.OpaqueSpanToken(w))
+}
+
+// parseBalancedBlockSpanLex advances the streaming lexer through a brace-
+// balanced body without retaining interior tokens (index-tier LexAll cut).
+func (p *Parser) parseBalancedBlockSpanLex() *GreenNode {
+	open := p.tok()
+	start := tokenCoverStart(open)
+	// Drop the already-pulled "{" from the retained decl-tier token slice;
+	// the opaque green covers its full width including leading trivia.
+	p.tokens = p.tokens[:p.i]
+	end, ok := p.lex.SkipBalancedCurlyBlockWithEnd()
+	if err := p.lex.Cancelled(); err != nil {
+		p.recordCancellation(err)
+	}
+	if !ok && !p.cancelled {
+		pos := end.Offset
+		p.diags = append(p.diags, Diagnostic{
+			Message: "unclosed balanced block in skip-bodies span lex",
+			Span:    Span{Start: pos, End: pos},
+		})
+	}
+	w := end.Offset - start
+	if w < 0 {
+		w = 0
+	}
+	return p.intern.Node(KindTokenList, p.intern.OpaqueSpanToken(w))
+}
+
+// tokenCoverStart is the absolute byte offset where tok's leading trivia begins.
+func tokenCoverStart(tok token.Token) int {
+	start := tok.Pos.Offset
+	for _, tr := range tok.LeadingTrivia {
+		w := tr.Width()
+		if w == 0 {
+			w = len(tr.Literal)
+		}
+		start -= w
+	}
+	return start
 }

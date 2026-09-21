@@ -272,14 +272,25 @@ func (l *Lexer) SkipBalancedCurlyBlock() bool {
 
 // SkipBalancedCurlyBlockWithEnd also returns the position immediately after
 // the closing brace for declaration-span construction.
+//
+// When the lexer is already past "{", depth starts at 1 (index-tier streaming
+// body skip after the opener token was pulled). The scanner is byte-oriented:
+// strings, comments, heredoc/nowdoc, backticks, and ?>…<?php HTML spans are
+// skipped without counting interior braces, matching Zend brace matching for
+// function/method bodies without allocating body-interior tokens.
 func (l *Lexer) SkipBalancedCurlyBlockWithEnd() (token.Position, bool) {
+	// Drop any peeked token so the byte cursor matches real input.
+	l.hasPeeked = false
 	depth := 0
 	if l.char != '{' {
 		depth = 1
 	}
 	for !l.atEOF() {
+		if l.checkCancel() {
+			return token.Position{Line: l.line, Column: l.column, Offset: l.pos}, false
+		}
 		switch l.char {
-		case '\'', '"':
+		case '\'', '"', '`':
 			l.skipQuotedString(l.char)
 			continue
 		case '/':
@@ -292,8 +303,21 @@ func (l *Lexer) SkipBalancedCurlyBlockWithEnd() (token.Position, bool) {
 				continue
 			}
 		case '#':
-			l.skipLineComment()
-			continue
+			// Attributes are "#[...]" — not line comments.
+			if l.peekChar() != '[' {
+				l.skipLineComment()
+				continue
+			}
+		case '<':
+			if l.atHeredocOpener() {
+				l.skipHeredocOrNowdocSpan()
+				continue
+			}
+		case '?':
+			if l.peekChar() == '>' {
+				l.skipCloseTagAndInlineHTML()
+				continue
+			}
 		case '{':
 			depth++
 		case '}':
@@ -307,6 +331,100 @@ func (l *Lexer) SkipBalancedCurlyBlockWithEnd() (token.Position, bool) {
 		l.readChar()
 	}
 	return token.Position{Line: l.line, Column: l.column, Offset: l.pos}, false
+}
+
+func (l *Lexer) atHeredocOpener() bool {
+	rest := l.input[l.pos:]
+	return len(rest) >= 3 && rest[0] == '<' && rest[1] == '<' && rest[2] == '<'
+}
+
+// skipHeredocOrNowdocSpan advances from <<< through the terminator line without
+// emitting tokens (used by SkipBalancedCurlyBlock body spans).
+func (l *Lexer) skipHeredocOrNowdocSpan() {
+	// <<<
+	l.readChar()
+	l.readChar()
+	l.readChar()
+	for l.char == ' ' || l.char == '\t' {
+		l.readChar()
+	}
+	label, _ := l.readHeredocIdentifier()
+	// Rest of opener line including newline (Zend includes it in T_START_*).
+	for !l.atEOF() && l.char != '\n' {
+		if l.char == '\r' && l.peekChar() == '\n' {
+			l.readChar()
+			break
+		}
+		if l.char == '\r' {
+			break
+		}
+		l.readChar()
+	}
+	if l.char == '\r' {
+		l.readChar()
+		if l.char == '\n' {
+			l.readChar()
+		}
+	} else if l.char == '\n' {
+		l.readChar()
+	}
+	if label == "" {
+		return
+	}
+	// Scan body until a terminator line: optional indent + exact label.
+	for !l.atEOF() {
+		if l.checkCancel() {
+			return
+		}
+		if l.pos == 0 || (l.pos > 0 && l.input[l.pos-1] == '\n') {
+			identPos := l.pos
+			for identPos < len(l.input) && (l.input[identPos] == ' ' || l.input[identPos] == '\t') {
+				identPos++
+			}
+			if identPos+len(label) <= len(l.input) && bytes.Equal(l.input[identPos:identPos+len(label)], []byte(label)) {
+				var nextChar rune
+				nextPos := identPos + len(label)
+				if nextPos < len(l.input) {
+					nextChar, _ = utf8.DecodeRune(l.input[nextPos:])
+				}
+				if !isLetter(nextChar) && !isDigit(nextChar) && nextChar != '_' {
+					// Consume indent + label; leave following char (often ';' or newline).
+					for l.pos < identPos+len(label) {
+						l.readChar()
+					}
+					return
+				}
+			}
+		}
+		l.readChar()
+	}
+}
+
+// skipCloseTagAndInlineHTML consumes "?>" and following HTML until the next
+// "<?php" / "<?=" (or EOF), without counting braces inside the HTML span.
+func (l *Lexer) skipCloseTagAndInlineHTML() {
+	l.readChar() // ?
+	l.readChar() // >
+	for !l.atEOF() {
+		if l.checkCancel() {
+			return
+		}
+		if l.char == '<' && l.atOpenTag() {
+			rest := l.input[l.pos:]
+			switch {
+			case len(rest) >= 5 && bytes.EqualFold(rest[:5], openTagPHP):
+				for i := 0; i < 5; i++ {
+					l.readChar()
+				}
+			case bytes.HasPrefix(rest, openTagEcho):
+				for i := 0; i < 3; i++ {
+					l.readChar()
+				}
+			}
+			return
+		}
+		l.readChar()
+	}
 }
 
 func (l *Lexer) skipQuotedString(quote rune) {

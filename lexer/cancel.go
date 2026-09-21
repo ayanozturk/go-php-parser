@@ -8,6 +8,12 @@ import "context"
 // bodies that otherwise never return to that loop.
 var cancelCheckBudget = 64 << 10 // 64 KiB
 
+// SetCancelContext enables cooperative cancellation for streaming NextToken /
+// SkipBalancedCurlyBlock scans. A nil context disables checks.
+func (l *Lexer) SetCancelContext(ctx context.Context) {
+	l.setCancelContext(ctx)
+}
+
 func (l *Lexer) setCancelContext(ctx context.Context) {
 	l.ctx = ctx
 	l.cancelErr = nil
@@ -16,6 +22,11 @@ func (l *Lexer) setCancelContext(ctx context.Context) {
 		return
 	}
 	l.cancelCheckAt = l.pos + cancelCheckBudget
+}
+
+// Cancelled reports a cooperative cancellation observed during scanning.
+func (l *Lexer) Cancelled() error {
+	return l.cancelled()
 }
 
 // cancelled reports a cooperative cancellation observed during scanning.
