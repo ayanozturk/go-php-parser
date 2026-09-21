@@ -26,6 +26,7 @@ type SyntaxLowerMemoOutcome uint8
 const (
 	MemoOutcomeHit SyntaxLowerMemoOutcome = iota
 	MemoOutcomeBridge
+	MemoOutcomeCST // lightweight CST build (no LowerExprNode)
 	MemoOutcomeMiss
 	memoOutcomeCount
 )
@@ -67,14 +68,14 @@ func ResetSyntaxLowerMemoStats() {
 
 // SyntaxLowerMemoStatRow is one entrypoint's hit/bridge/miss totals.
 type SyntaxLowerMemoStatRow struct {
-	Bucket                 string
-	Hit, Bridge, Miss, Sum uint64
+	Bucket                      string
+	Hit, Bridge, CST, Miss, Sum uint64
 }
 
 // SyntaxLowerMemoSnapshot is a point-in-time dump of memoLower counters.
 type SyntaxLowerMemoSnapshot struct {
 	Rows     []SyntaxLowerMemoStatRow
-	ExprMiss map[string]uint64 // call/new/member/closure/other
+	ExprMiss map[string]uint64 // call/new/member/closure/other — LowerExprNode only
 }
 
 // SnapshotSyntaxLowerMemoStats returns current memoLower counters.
@@ -91,13 +92,15 @@ func SnapshotSyntaxLowerMemoStats() SyntaxLowerMemoSnapshot {
 	for b := SyntaxLowerMemoBucket(0); b < memoBucketCount; b++ {
 		hit := syntaxLowerMemoStats[b][MemoOutcomeHit].Load()
 		bridge := syntaxLowerMemoStats[b][MemoOutcomeBridge].Load()
+		cst := syntaxLowerMemoStats[b][MemoOutcomeCST].Load()
 		miss := syntaxLowerMemoStats[b][MemoOutcomeMiss].Load()
 		rows = append(rows, SyntaxLowerMemoStatRow{
 			Bucket: names[b],
 			Hit:    hit,
 			Bridge: bridge,
+			CST:    cst,
 			Miss:   miss,
-			Sum:    hit + bridge + miss,
+			Sum:    hit + bridge + cst + miss,
 		})
 	}
 	exprMiss := map[string]uint64{
@@ -112,12 +115,12 @@ func SnapshotSyntaxLowerMemoStats() SyntaxLowerMemoSnapshot {
 
 // FormatSyntaxLowerMemoStats renders a compact counter table for logs.
 func FormatSyntaxLowerMemoStats(s SyntaxLowerMemoSnapshot) string {
-	out := "memoLower hit/bridge/miss by entrypoint:\n"
+	out := "memoLower hit/bridge/cst/miss by entrypoint:\n"
 	for _, r := range s.Rows {
-		out += fmt.Sprintf("  %-16s hit=%8d bridge=%8d miss=%8d sum=%8d\n",
-			r.Bucket, r.Hit, r.Bridge, r.Miss, r.Sum)
+		out += fmt.Sprintf("  %-16s hit=%8d bridge=%8d cst=%8d miss=%8d sum=%8d\n",
+			r.Bucket, r.Hit, r.Bridge, r.CST, r.Miss, r.Sum)
 	}
-	out += "  expr miss by kind:"
+	out += "  expr Lower* miss by kind:"
 	for _, k := range []string{"call", "new", "member", "closure", "other"} {
 		out += fmt.Sprintf(" %s=%d", k, s.ExprMiss[k])
 	}

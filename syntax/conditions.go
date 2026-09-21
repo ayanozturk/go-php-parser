@@ -722,6 +722,52 @@ func firstExprOrNameChild(n *RedNode) *RedNode {
 	return found
 }
 
+// ParenInner returns the inner expression/name of a KindParenExpr, or nil.
+func ParenInner(n *RedNode) *RedNode {
+	if n == nil || n.Kind() != KindParenExpr {
+		return nil
+	}
+	return firstExprOrNameChild(n)
+}
+
+// NewClass returns the class name/expr child of a KindNewExpr (first
+// expr/name child that is not KindArgList / KindAnonymousClass), or nil.
+func NewClass(n *RedNode) *RedNode {
+	if n == nil || n.Kind() != KindNewExpr {
+		return nil
+	}
+	var cls *RedNode
+	n.ForEachChildDesc(func(green *GreenNode, offset int) bool {
+		k := green.Kind()
+		switch k {
+		case KindArgList, KindAttributeList, KindAnonymousClass, KindToken:
+			return true
+		}
+		if isExprKind(k) || isNameKind(k) {
+			cls = &RedNode{File: n.File, Green: green, Offset: offset}
+			return false
+		}
+		return true
+	})
+	return cls
+}
+
+// NewIsAnonymous reports whether KindNewExpr instantiates an anonymous class.
+func NewIsAnonymous(n *RedNode) bool {
+	if n == nil || n.Kind() != KindNewExpr {
+		return false
+	}
+	anon := false
+	n.ForEachChildDesc(func(green *GreenNode, _ int) bool {
+		if green.Kind() == KindAnonymousClass {
+			anon = true
+			return false
+		}
+		return true
+	})
+	return anon
+}
+
 // ExpressionStmtExpr returns the inner expression RedNode of an expression
 // statement, or nil. Mirrors lowerStmt's KindExpressionStmt handling
 // (firstExprChild).

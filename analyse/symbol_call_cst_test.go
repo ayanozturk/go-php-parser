@@ -44,6 +44,17 @@ function run(): void {
     echo Missing::FIELD;
 }
 `,
+		"newExpr": `<?php
+class Real {}
+abstract class Base {}
+interface HasRun {}
+function run(): void {
+    new Missing();
+    new Real();
+    new Base();
+    new HasRun();
+}
+`,
 		"namedArgUnknown": `<?php
 function takes(int $a): void {}
 takes(b: 1);
@@ -151,17 +162,25 @@ missingFn(1, named: 2, ...$rest);
 Real::bar();
 $this->m();
 $o->m();
+$fn();
+(new Real)->m();
+$a->b->c();
+new Missing(1, 2);
 `)
 	res := syntax.Parse(src)
 	var calls []*syntax.RedNode
+	var news []*syntax.RedNode
 	syntax.Walk(res.File.Root, func(n *syntax.RedNode) bool {
-		if n.Kind() == syntax.KindCallExpr {
+		switch n.Kind() {
+		case syntax.KindCallExpr:
 			calls = append(calls, &syntax.RedNode{File: n.File, Green: n.Green, Offset: n.Offset})
+		case syntax.KindNewExpr:
+			news = append(news, &syntax.RedNode{File: n.File, Green: n.Green, Offset: n.Offset})
 		}
 		return true
 	})
-	if len(calls) < 4 {
-		t.Fatalf("expected >=4 calls, got %d", len(calls))
+	if len(calls) < 7 {
+		t.Fatalf("expected >=7 calls, got %d", len(calls))
 	}
 	fn, ok := tryCSTCallExprForMemo(calls[0], res.File)
 	if !ok || fn == nil {
@@ -200,5 +219,47 @@ $o->m();
 	}
 	if v, ok := mc.Object.(*ast.VariableNode); !ok || v.Name != "this" {
 		t.Fatalf("object %#v", mc.Object)
+	}
+
+	varCall, ok := tryCSTCallExprForMemo(calls[4], res.File)
+	if !ok {
+		t.Fatal("variable call")
+	}
+	if _, ok := varCall.(*ast.FunctionCallNode).Name.(*ast.VariableNode); !ok {
+		t.Fatalf("var callee %#v", varCall)
+	}
+
+	newRecv, ok := tryCSTCallExprForMemo(calls[5], res.File)
+	if !ok {
+		t.Fatal("new receiver")
+	}
+	nrm := newRecv.(*ast.MethodCallNode)
+	if nn, ok := nrm.Object.(*ast.NewNode); !ok || nn.ClassName != "Real" {
+		t.Fatalf("new recv %#v", nrm.Object)
+	}
+
+	chain, ok := tryCSTCallExprForMemo(calls[6], res.File)
+	if !ok {
+		t.Fatal("chain")
+	}
+	chm := chain.(*ast.MethodCallNode)
+	if chm.Method != "c" {
+		t.Fatalf("chain method %q", chm.Method)
+	}
+	if _, ok := chm.Object.(*ast.PropertyFetchNode); !ok {
+		t.Fatalf("chain object %#v", chm.Object)
+	}
+
+	if len(news) < 2 {
+		t.Fatalf("news=%d", len(news))
+	}
+	// news[0] is (new Real) inside call; news[1] is new Missing
+	nw, ok := tryCSTNewExprForMemo(news[len(news)-1])
+	if !ok {
+		t.Fatal("new Missing")
+	}
+	nn := nw.(*ast.NewNode)
+	if nn.ClassName != "Missing" || len(nn.Args) != 2 {
+		t.Fatalf("new %#v", nn)
 	}
 }

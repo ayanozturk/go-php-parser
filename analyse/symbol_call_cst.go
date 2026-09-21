@@ -10,8 +10,8 @@ import (
 // ok=false means fall back to full LowerExprNode; ok=true with nil means the
 // call cannot be represented (same as lowerCallExpr nil → suppress subtree).
 //
-// Covers the high-volume symbol shapes: simple function names, Foo::bar(),
-// and -> / ?-> method calls with simple receivers ($this / $var / Name).
+// Covers high-volume symbol shapes: simple/variable function names, Foo::bar(),
+// and -> / ?-> method calls including chained / (new T) / paren receivers.
 func tryCSTCallExprForMemo(n *syntax.RedNode, file *syntax.File) (ast.Node, bool) {
 	if n == nil || n.Kind() != syntax.KindCallExpr || file == nil {
 		return nil, false
@@ -30,6 +30,20 @@ func tryCSTCallExprForMemo(n *syntax.RedNode, file *syntax.File) (ast.Node, bool
 		namePos := callee.Pos()
 		return &ast.FunctionCallNode{
 			Name:   &ast.IdentifierNode{Value: name, Pos: namePos, EndPos: callee.EndPos()},
+			Args:   args,
+			Pos:    namePos,
+			EndPos: callEnd,
+		}, true
+
+	case syntax.KindVariableExpr:
+		// $fn() — symbols ignore (functionCallName empty); still avoid Lower*.
+		name := syntax.VariableExprName(callee)
+		if name == "" {
+			return nil, false
+		}
+		namePos := callee.Pos()
+		return &ast.FunctionCallNode{
+			Name:   &ast.VariableNode{Name: name, Pos: namePos, EndPos: callee.EndPos()},
 			Args:   args,
 			Pos:    namePos,
 			EndPos: callEnd,
@@ -78,6 +92,38 @@ func tryCSTCallExprForMemo(n *syntax.RedNode, file *syntax.File) (ast.Node, bool
 			EndPos: callEnd,
 		}, true
 
+	case syntax.KindParenExpr:
+		// (expr)() — uncommon; fall back unless inner is a simple name/var.
+		inner := syntax.ParenInner(callee)
+		if inner == nil {
+			return nil, false
+		}
+		switch inner.Kind() {
+		case syntax.KindUnqualifiedName, syntax.KindQualifiedName, syntax.KindFullyQualifiedName, syntax.KindRelativeName, syntax.KindName:
+			name := syntax.NameText(inner)
+			namePos := inner.Pos()
+			return &ast.FunctionCallNode{
+				Name:   &ast.IdentifierNode{Value: name, Pos: namePos, EndPos: inner.EndPos()},
+				Args:   args,
+				Pos:    namePos,
+				EndPos: callEnd,
+			}, true
+		case syntax.KindVariableExpr:
+			name := syntax.VariableExprName(inner)
+			if name == "" {
+				return nil, false
+			}
+			namePos := inner.Pos()
+			return &ast.FunctionCallNode{
+				Name:   &ast.VariableNode{Name: name, Pos: namePos, EndPos: inner.EndPos()},
+				Args:   args,
+				Pos:    namePos,
+				EndPos: callEnd,
+			}, true
+		default:
+			return nil, false
+		}
+
 	default:
 		return nil, false
 	}
@@ -97,6 +143,12 @@ func lightweightCallObject(n *syntax.RedNode) (ast.Node, bool) {
 		return &ast.VariableNode{Name: name, Pos: pos, EndPos: end}, true
 	case syntax.KindUnqualifiedName, syntax.KindQualifiedName, syntax.KindFullyQualifiedName, syntax.KindRelativeName, syntax.KindName:
 		return &ast.IdentifierNode{Value: syntax.NameText(n), Pos: pos, EndPos: end}, true
+	case syntax.KindParenExpr:
+		return lightweightCallObject(syntax.ParenInner(n))
+	case syntax.KindNewExpr:
+		return tryCSTNewExprForMemo(n)
+	case syntax.KindMemberAccessExpr, syntax.KindNullsafeMemberAccessExpr:
+		return tryCSTMemberAccessForMemo(n)
 	case syntax.KindStaticMemberAccessExpr:
 		class, member, dynamic := syntax.StaticMemberAccessParts(n)
 		if dynamic || class == "" || member == "" {
@@ -105,7 +157,47 @@ func lightweightCallObject(n *syntax.RedNode) (ast.Node, bool) {
 		if member == "class" {
 			return &ast.ClassConstFetchNode{Class: class, Const: "class", Pos: pos, EndPos: end}, true
 		}
+		// Foo::CONST as receiver is unusual for methodCallClassName; fall back.
 		return nil, false
+	default:
+		return nil, false
+	}
+}
+
+// tryCSTNewExprForMemo builds NewNode for simple `new Name` / `new $var`
+// without lowering constructor args or anonymous classes.
+func tryCSTNewExprForMemo(n *syntax.RedNode) (ast.Node, bool) {
+	if n == nil || n.Kind() != syntax.KindNewExpr {
+		return nil, false
+	}
+	if syntax.NewIsAnonymous(n) {
+		return nil, false
+	}
+	cls := syntax.NewClass(n)
+	if cls == nil {
+		return nil, false
+	}
+	args := stubCallArgsFromCST(n)
+	pos, end := n.Pos(), n.EndPos()
+	switch cls.Kind() {
+	case syntax.KindUnqualifiedName, syntax.KindQualifiedName, syntax.KindFullyQualifiedName, syntax.KindRelativeName, syntax.KindName:
+		return &ast.NewNode{
+			ClassName: syntax.NameText(cls),
+			Args:      args,
+			Pos:       pos,
+			EndPos:    end,
+		}, true
+	case syntax.KindVariableExpr:
+		name := syntax.VariableExprName(cls)
+		if name == "" {
+			return nil, false
+		}
+		return &ast.NewNode{
+			ClassName: "$" + name,
+			Args:      args,
+			Pos:       pos,
+			EndPos:    end,
+		}, true
 	default:
 		return nil, false
 	}
@@ -113,7 +205,7 @@ func lightweightCallObject(n *syntax.RedNode) (ast.Node, bool) {
 
 // stubCallArgsFromCST builds arg nodes sufficient for checkCallArguments /
 // checkNamedArguments (count, named names, unpacked flags) without lowering
-// argument expressions.
+// argument expressions. Works for KindCallExpr and KindNewExpr (ArgList child).
 func stubCallArgsFromCST(call *syntax.RedNode) []ast.Node {
 	raw := syntax.CallArgs(call)
 	if len(raw) == 0 {

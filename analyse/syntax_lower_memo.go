@@ -181,8 +181,14 @@ func memoLowerExpr(ctx *AnalysisContext, n *syntax.RedNode, file *syntax.File) a
 		if n.Kind() == syntax.KindCallExpr {
 			if v, ok := tryCSTCallExprForMemo(n, file); ok {
 				memo.expr[id] = v
-				recordMemoLower(MemoBucketExpr, MemoOutcomeMiss)
-				recordMemoLowerExprMiss(n.Kind())
+				recordMemoLower(MemoBucketExpr, MemoOutcomeCST)
+				return v
+			}
+		}
+		if n.Kind() == syntax.KindNewExpr {
+			if v, ok := tryCSTNewExprForMemo(n); ok {
+				memo.expr[id] = v
+				recordMemoLower(MemoBucketExpr, MemoOutcomeCST)
 				return v
 			}
 		}
@@ -190,15 +196,13 @@ func memoLowerExpr(ctx *AnalysisContext, n *syntax.RedNode, file *syntax.File) a
 		case syntax.KindMemberAccessExpr, syntax.KindNullsafeMemberAccessExpr:
 			if v, ok := tryCSTMemberAccessForMemo(n); ok {
 				memo.expr[id] = v
-				recordMemoLower(MemoBucketExpr, MemoOutcomeMiss)
-				recordMemoLowerExprMiss(n.Kind())
+				recordMemoLower(MemoBucketExpr, MemoOutcomeCST)
 				return v
 			}
 		case syntax.KindStaticMemberAccessExpr:
 			if v, ok := tryCSTStaticMemberForMemo(n); ok {
 				memo.expr[id] = v
-				recordMemoLower(MemoBucketExpr, MemoOutcomeMiss)
-				recordMemoLowerExprMiss(n.Kind())
+				recordMemoLower(MemoBucketExpr, MemoOutcomeCST)
 				return v
 			}
 		}
