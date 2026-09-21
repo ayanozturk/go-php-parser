@@ -65,9 +65,11 @@ func stripLeadingLineCol(msg string) (bare string, line, col int) {
 	return bare, line, col
 }
 
-// ClassifyParseError maps a bare diagnostic message to a stable Parser.* code.
+// ClassifyParseError maps a diagnostic message to a stable Parser.* code.
+// A leading "line N:C:" prefix, when present, is stripped before classification.
 func ClassifyParseError(msg string) string {
-	return classifyParseError(msg)
+	bare, _, _ := stripLeadingLineCol(msg)
+	return classifyParseError(bare)
 }
 
 func classifyParseError(msg string) string {
@@ -75,7 +77,7 @@ func classifyParseError(msg string) string {
 	switch {
 	case strings.Contains(lower, "expected <?php"):
 		return "Parser.MissingOpenTag"
-	case strings.HasPrefix(msg, "Parser panic:"),
+	case strings.HasPrefix(lower, "parser panic:"),
 		strings.Contains(lower, "context cancelled"):
 		return "Parser.Internal"
 	case strings.Contains(lower, "expected"):

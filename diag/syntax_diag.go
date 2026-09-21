@@ -23,6 +23,7 @@ func ParseErrorFromOffsetsWithLines(src []byte, lines token.LineTable, start, en
 	if end < start {
 		end = start
 	}
+	bare, _, _ := stripLeadingLineCol(message)
 	startLine, startCol := offsetRuneLineCol(src, lines, start)
 	endLine, endCol := offsetRuneLineCol(src, lines, end)
 	return ParseError{
@@ -32,8 +33,8 @@ func ParseErrorFromOffsetsWithLines(src []byte, lines token.LineTable, start, en
 		EndLine:   endLine,
 		EndColumn: endCol,
 		EndOffset: end,
-		Code:      ClassifyParseError(message),
-		Message:   message,
+		Code:      ClassifyParseError(bare),
+		Message:   bare,
 	}
 }
 
