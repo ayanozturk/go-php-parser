@@ -158,58 +158,26 @@ func analyzeWithCachedIndex(files []string, targets []string, level *int, matche
 		}
 	}()
 
-	// Reuse the cached project index directly instead of rebuilding it from
-	// a full reparse; only the target files' ASTs are needed here.
+	// Reuse the cached project index; declaration-tier target ASTs are only
+	// for indexing accounting — full bodies come from one ParseAndLower per
+	// successfully parsed host file.
 	cachedIdx.DropSourceFiles()
 	cachedIdx.DropFileTypeASTRefs()
-	analyse.DropNonHostParsedTrees(parsed)
-	snapshot, err := analyse.NewSemanticSnapshotWithIndexMaybeReleasing(cachedIdx, parsed, nil, parseSet)
+	hostFiles := make([]string, 0, len(parsed))
+	for path := range parsed {
+		hostFiles = append(hostFiles, path)
+	}
+	for path := range parsed {
+		parsed[path] = nil
+	}
+	snapshot, err := analyse.NewSemanticSnapshotWithIndexOnly(cachedIdx, hostFiles, nil)
 	if err != nil {
 		result.ReadErrors = append(result.ReadErrors, FileReadError{File: "<project>", Message: err.Error()})
 		return sortedAnalyzeResult(result)
 	}
-	snapshot.ReleaseVariableFlowAST()
 
-	// Run analysis using cached symbols
-	analysisJobs := make(chan string)
-	issueResults := make(chan []analyse.AnalysisIssue, parallelism)
-	var contentsMu sync.Mutex
-	var analysisWorkers sync.WaitGroup
-	for i := 0; i < parallelism; i++ {
-		analysisWorkers.Add(1)
-		go func() {
-			defer analysisWorkers.Done()
-			for path := range analysisJobs {
-				contentsMu.Lock()
-				content := contents[path]
-				nodes := parsed[path]
-				contentsMu.Unlock()
-				ctx := snapshot.NewAnalysisContext()
-				ctx.AnalysisLevel = level
-				ctx.Content = content
-				issues := analyse.FilterIssues(analyse.RunAnalysisRulesWithContext(path, nodes, ctx), matcher)
-				contentsMu.Lock()
-				sharedcache.DeleteCachedFileContent(path)
-				sharedcache.DeleteCachedLines(content)
-				contents[path] = nil
-				parsed[path] = nil
-				contentsMu.Unlock()
-				issueResults <- issues
-			}
-		}()
-	}
-	go func() {
-		for _, path := range snapshot.Files() {
-			analysisJobs <- path
-		}
-		close(analysisJobs)
-		analysisWorkers.Wait()
-		close(issueResults)
-	}()
-	for issues := range issueResults {
-		result.Issues = append(result.Issues, issues...)
-	}
-
+	result.Issues = append(result.Issues, runHybridHostAnalysis(snapshot, contents, level, matcher, parallelism)...)
+	result.FilesAnalyzed = len(snapshot.Files())
 	return sortedAnalyzeResult(result)
 }
 
@@ -313,7 +281,27 @@ func analyzeFilesWithCache(files []string, targets []string, level *int, matcher
 
 	idx.DropSourceFiles()
 	idx.DropFileTypeASTRefs()
-	analyse.DropNonHostParsedTrees(parsed)
+	// Snapshot host list must match successfully parsed files (same as
+	// hostSnapshotTargets), not every path that still has source bytes —
+	// parse failures keep content for accounting but must not get rules.
+	hostTargets := make([]string, 0, len(parsed))
+	if len(targets) > 0 {
+		want := make(map[string]struct{}, len(targets))
+		for _, path := range analyse.HostFiles(targets) {
+			want[path] = struct{}{}
+		}
+		for path := range parsed {
+			if _, ok := want[path]; ok {
+				hostTargets = append(hostTargets, path)
+			}
+		}
+	} else {
+		for path := range parsed {
+			if !analyse.IsVendoredPath(path) {
+				hostTargets = append(hostTargets, path)
+			}
+		}
+	}
 	for path := range contents {
 		if analyse.IsVendoredPath(path) {
 			sharedcache.DeleteCachedFileContent(path)
@@ -321,13 +309,24 @@ func analyzeFilesWithCache(files []string, targets []string, level *int, matcher
 			contents[path] = nil
 		}
 	}
-	snapshot, err := analyse.NewSemanticSnapshotWithIndexMaybeReleasing(idx, parsed, nil, targets)
+	for path := range parsed {
+		parsed[path] = nil
+	}
+	snapshot, err := analyse.NewSemanticSnapshotWithIndexOnly(idx, hostTargets, nil)
 	if err != nil {
 		result.ReadErrors = append(result.ReadErrors, FileReadError{File: "<project>", Message: err.Error()})
 		return sortedAnalyzeResult(result)
 	}
-	snapshot.ReleaseVariableFlowAST()
 
+	result.Issues = append(result.Issues, runHybridHostAnalysis(snapshot, contents, level, matcher, parallelism)...)
+	result.FilesAnalyzed = len(snapshot.Files())
+	return sortedAnalyzeResult(result)
+}
+
+// runHybridHostAnalysis runs one full ParseAndLower per host file that owns
+// both file semantics and analysis rules (hybrid A/B). Index-tier ingest trees
+// must already have been dropped.
+func runHybridHostAnalysis(snapshot *analyse.SemanticSnapshot, contents map[string][]byte, level *int, matcher *overrides.Compiled, parallelism int) []analyse.AnalysisIssue {
 	analysisJobs := make(chan string)
 	issueResults := make(chan []analyse.AnalysisIssue, parallelism)
 	var contentsMu sync.Mutex
@@ -339,17 +338,17 @@ func analyzeFilesWithCache(files []string, targets []string, level *int, matcher
 			for path := range analysisJobs {
 				contentsMu.Lock()
 				content := contents[path]
-				nodes := parsed[path]
 				contentsMu.Unlock()
-				ctx := snapshot.NewAnalysisContext()
+				nodes, res := syntax.ParseAndLower(content)
+				ctx := snapshot.AnalysisContextForFile(path, nodes)
 				ctx.AnalysisLevel = level
 				ctx.Content = content
+				ctx.Parsed = res
 				issues := analyse.FilterIssues(analyse.RunAnalysisRulesWithContext(path, nodes, ctx), matcher)
 				contentsMu.Lock()
 				sharedcache.DeleteCachedFileContent(path)
 				sharedcache.DeleteCachedLines(content)
 				contents[path] = nil
-				parsed[path] = nil
 				contentsMu.Unlock()
 				issueResults <- issues
 			}
@@ -363,28 +362,22 @@ func analyzeFilesWithCache(files []string, targets []string, level *int, matcher
 		analysisWorkers.Wait()
 		close(issueResults)
 	}()
+	var all []analyse.AnalysisIssue
 	for issues := range issueResults {
-		result.Issues = append(result.Issues, issues...)
+		all = append(all, issues...)
 	}
-	result.FilesAnalyzed = len(snapshot.Files())
-	return sortedAnalyzeResult(result)
+	return all
 }
 
-// parseAnalysisFile reads and parses one PHP file for analyse via syntax.ParseAST
-// (CST → classic IR). Vendored paths use ParseASTForIndex (symbols only).
-// Parse diagnostics map to legacy Errors() strings.
+// parseAnalysisFile reads and parses one PHP file for project indexing via
+// syntax.ParseASTForIndex (declaration-tier). Full bodies for semantics/rules
+// come from a later ParseAndLower in runHybridHostAnalysis.
 func parseAnalysisFile(path string) parsedAnalysisFile {
 	content, err := os.ReadFile(path)
 	if err != nil {
 		return parsedAnalysisFile{path: path, readError: err.Error()}
 	}
-	var nodes []ast.Node
-	var diags []syntax.Diagnostic
-	if analyse.IsVendoredPath(path) {
-		nodes, diags = syntax.ParseASTForIndex(content)
-	} else {
-		nodes, diags = syntax.ParseAST(content)
-	}
+	nodes, diags := syntax.ParseASTForIndex(content)
 	return parsedAnalysisFile{
 		path:        path,
 		content:     content,

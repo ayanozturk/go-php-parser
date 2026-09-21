@@ -931,15 +931,10 @@ func parseFiles(files []string, workers int) (map[string][]ast.Node, map[string]
 				}
 				var nodes []ast.Node
 				var diags []syntax.Diagnostic
-				if analyse.IsVendoredPath(path) {
-					// Vendored files are indexed for symbols only (never
-					// type-checked). Declaration-tier AST cuts body retention
-					// at the parse peak; DropNonHostParsedTrees frees them
-					// before snapshot. Host files stay on full ParseAST.
-					nodes, diags = syntax.ParseASTForIndex(content)
-				} else {
-					nodes, diags = syntax.ParseAST(content)
-				}
+				// Hybrid A/B: every file uses declaration-tier ingest for the
+				// project index. Host full bodies come from one ParseAndLower
+				// later that owns both semantics and rules (see runAnalysis).
+				nodes, diags = syntax.ParseASTForIndex(content)
 				if len(diags) > 0 {
 					outcomes[idx] = parseOutcome{path: path, failed: true, bytes: int64(len(content))}
 					continue
@@ -1001,11 +996,9 @@ func countLines(content []byte) int {
 	return n
 }
 
-// runAnalysis builds one shared semantic snapshot from the project index,
-// then runs the registered analysis rules over every host file concurrently.
+// runAnalysis builds an index-only semantic snapshot, then for each host file
+// performs one full ParseAndLower that owns both buildFileSemantics and rules.
 // Vendored paths are indexed and skipped, matching Mago's FileType::Vendored.
-// This is the same snapshot-backed path as command.AnalyzeFiles and PHP Strom,
-// so benchmark timings include fact, CFG, and variable-flow construction.
 func releaseBenchmarkContents(contents map[string][]byte) {
 	for path := range contents {
 		delete(contents, path)
@@ -1013,52 +1006,56 @@ func releaseBenchmarkContents(contents map[string][]byte) {
 }
 
 func runAnalysis(parsed map[string][]ast.Node, contents map[string][]byte, project *analyse.ProjectIndex, level *int, workers int) int {
-	// Free index-retained AST pins and vendored trees before snapshot/rules so
-	// peak RSS is host AST + snapshot rather than full corpus AST + snapshot.
+	// Free index-retained AST pins and all ingest trees before the full-parse
+	// stage so peak RSS is O(workers×file) + snapshot + index, not corpus AST.
 	project.DropSourceFiles()
 	project.DropFileTypeASTRefs()
-	analyse.DropNonHostParsedTrees(parsed)
+	hostFiles := make([]string, 0, len(contents))
 	for path := range contents {
 		if analyse.IsVendoredPath(path) {
 			delete(contents, path)
+			continue
 		}
+		hostFiles = append(hostFiles, path)
+	}
+	for path := range parsed {
+		parsed[path] = nil
 	}
 
-	snapshot, err := analyse.NewSemanticSnapshotWithIndexMaybeReleasing(project, parsed, nil, nil)
+	snapshot, err := analyse.NewSemanticSnapshotWithIndexOnly(project, hostFiles, nil)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "benchmark: semantic snapshot: %v\n", err)
 		os.Exit(1)
 	}
-	snapshot.ReleaseVariableFlowAST()
 
 	type job struct {
 		path    string
-		nodes   []ast.Node
 		content []byte
 	}
 	files := snapshot.Files()
 	jobs := make([]job, 0, len(files))
 	for _, path := range files {
-		jobs = append(jobs, job{path: path, nodes: parsed[path], content: contents[path]})
+		jobs = append(jobs, job{path: path, content: contents[path]})
 	}
 	jobCh := make(chan job, workers*2)
 	var total atomic.Int64
-	var parsedMu sync.Mutex
+	var contentsMu sync.Mutex
 	var wg sync.WaitGroup
 	for i := 0; i < workers; i++ {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
 			for j := range jobCh {
-				ctx := snapshot.NewAnalysisContext()
+				nodes, res := syntax.ParseAndLower(j.content)
+				ctx := snapshot.AnalysisContextForFile(j.path, nodes)
 				ctx.AnalysisLevel = level
 				ctx.Content = j.content
-				issues := analyse.RunAnalysisRulesWithContext(j.path, j.nodes, ctx)
+				ctx.Parsed = res
+				issues := analyse.RunAnalysisRulesWithContext(j.path, nodes, ctx)
 				total.Add(int64(len(issues)))
-				parsedMu.Lock()
-				parsed[j.path] = nil
+				contentsMu.Lock()
 				delete(contents, j.path)
-				parsedMu.Unlock()
+				contentsMu.Unlock()
 			}
 		}()
 	}
