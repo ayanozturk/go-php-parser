@@ -471,6 +471,9 @@ func NewLineTable(src []byte) LineTable {
 var newlineBytes = []byte{'\n'}
 
 // LineBytes returns the 1-indexed line without its terminating newline.
+// Out-of-range line numbers return nil. A valid empty line returns a
+// non-nil zero-length slice so callers can distinguish "missing line"
+// from "blank line" (including an empty source's sole line 1).
 func (t LineTable) LineBytes(src []byte, line int) []byte {
 	if line < 1 || line > len(t) {
 		return nil
@@ -485,6 +488,9 @@ func (t LineTable) LineBytes(src []byte, line int) []byte {
 	}
 	if end > start && src[end-1] == '\r' {
 		end--
+	}
+	if end <= start {
+		return []byte{}
 	}
 	return src[start:end]
 }

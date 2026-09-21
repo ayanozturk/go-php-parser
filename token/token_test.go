@@ -22,6 +22,32 @@ func TestTokenTypeConstants(t *testing.T) {
 	}
 }
 
+func TestTokenTypeStringAllNamed(t *testing.T) {
+	for i, name := range tokenTypeNames {
+		tt := TokenType(i)
+		got := tt.String()
+		if name == "" {
+			if got != "T_UNKNOWN" {
+				t.Fatalf("TokenType(%d).String() = %q, want T_UNKNOWN", i, got)
+			}
+			continue
+		}
+		if got != name {
+			t.Fatalf("TokenType(%d).String() = %q, want %q", i, got, name)
+		}
+	}
+}
+
+func TestTokenTypeStringUnknown(t *testing.T) {
+	if got := TokenType(0).String(); got != "T_UNKNOWN" {
+		t.Fatalf("zero TokenType.String() = %q, want T_UNKNOWN", got)
+	}
+	outOfRange := TokenType(len(tokenTypeNames) + 10)
+	if got := outOfRange.String(); got != "T_UNKNOWN" {
+		t.Fatalf("out-of-range String() = %q, want T_UNKNOWN", got)
+	}
+}
+
 func TestPositionFields(t *testing.T) {
 	pos := Position{Line: 3, Column: 5, Offset: 42}
 	if pos.Line != 3 || pos.Column != 5 || pos.Offset != 42 {
@@ -39,6 +65,104 @@ func TestTokenFields(t *testing.T) {
 	}
 	if tok.Pos.Line != 1 || tok.Pos.Column != 2 || tok.Pos.Offset != 3 {
 		t.Errorf("Token.Pos not set correctly: %+v", tok.Pos)
+	}
+}
+
+func TestTokenTextUsesSourceSpan(t *testing.T) {
+	src := []byte("<?php echo $x;")
+	tok := Token{
+		Type:    T_VARIABLE,
+		Literal: "$stale",
+		Pos:     Position{Offset: 11},
+		End:     Position{Offset: 13},
+	}
+	if got := tok.Text(src); got != "$x" {
+		t.Fatalf("Text() = %q, want %q", got, "$x")
+	}
+}
+
+func TestTokenTextFallsBackToLiteral(t *testing.T) {
+	src := []byte("short")
+	cases := []struct {
+		name string
+		tok  Token
+	}{
+		{
+			name: "unset end",
+			tok:  Token{Literal: "fallback", Pos: Position{Offset: 1}},
+		},
+		{
+			name: "end beyond source",
+			tok: Token{
+				Literal: "fallback",
+				Pos:     Position{Offset: 0},
+				End:     Position{Offset: 99},
+			},
+		},
+		{
+			name: "negative pos",
+			tok: Token{
+				Literal: "fallback",
+				Pos:     Position{Offset: -1},
+				End:     Position{Offset: 2},
+			},
+		},
+		{
+			name: "zero width span",
+			tok: Token{
+				Literal: "fallback",
+				Pos:     Position{Offset: 1},
+				End:     Position{Offset: 1},
+			},
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := tc.tok.Text(src); got != "fallback" {
+				t.Fatalf("Text() = %q, want fallback", got)
+			}
+		})
+	}
+}
+
+func TestTokenIsTrivia(t *testing.T) {
+	trivia := []TokenType{T_WHITESPACE, T_COMMENT, T_DOC_COMMENT}
+	for _, tt := range trivia {
+		tok := Token{Type: tt}
+		if !tok.IsTrivia() {
+			t.Fatalf("%s should be trivia", tt)
+		}
+	}
+	nonTrivia := Token{Type: T_STRING}
+	if nonTrivia.IsTrivia() {
+		t.Fatal("T_STRING must not be trivia")
+	}
+	eof := Token{Type: T_EOF}
+	if eof.IsTrivia() {
+		t.Fatal("T_EOF must not be trivia")
+	}
+}
+
+func TestTokenWidth(t *testing.T) {
+	withEnd := Token{
+		Literal: "ignored",
+		Pos:     Position{Offset: 10},
+		End:     Position{Offset: 15},
+	}
+	if got := withEnd.Width(); got != 5 {
+		t.Fatalf("Width() with End = %d, want 5", got)
+	}
+	fromLiteral := Token{Literal: "abc", Pos: Position{Offset: 3}}
+	if got := fromLiteral.Width(); got != 3 {
+		t.Fatalf("Width() from Literal = %d, want 3", got)
+	}
+	zeroWidth := Token{
+		Literal: "x",
+		Pos:     Position{Offset: 4},
+		End:     Position{Offset: 4},
+	}
+	if got := zeroWidth.Width(); got != 1 {
+		t.Fatalf("Width() zero-width End falls back to Literal len = %d, want 1", got)
 	}
 }
 
@@ -64,6 +188,43 @@ func TestLineTableLineBytes(t *testing.T) {
 	}
 }
 
+func TestLineTableLineBytesEdges(t *testing.T) {
+	src := []byte("a\n")
+	table := NewLineTable(src)
+	if len(table) != 2 {
+		t.Fatalf("NewLineTable(%q) len = %d, want 2", src, len(table))
+	}
+	if got := string(table.LineBytes(src, 1)); got != "a" {
+		t.Fatalf("line 1 = %q, want %q", got, "a")
+	}
+	if got := table.LineBytes(src, 2); got == nil || len(got) != 0 {
+		t.Fatalf("trailing empty line = %q, want empty non-nil", got)
+	}
+	if got := table.LineBytes(src, 0); got != nil {
+		t.Fatalf("line 0 = %q, want nil", got)
+	}
+	if got := table.LineBytes(src, -1); got != nil {
+		t.Fatalf("line -1 = %q, want nil", got)
+	}
+	if got := table.LineBytes(src, 3); got != nil {
+		t.Fatalf("line 3 = %q, want nil", got)
+	}
+
+	crOnly := []byte("row\r")
+	crTable := NewLineTable(crOnly)
+	if got := string(crTable.LineBytes(crOnly, 1)); got != "row" {
+		t.Fatalf("bare CR terminator stripped: got %q, want %q", got, "row")
+	}
+
+	empty := NewLineTable(nil)
+	if len(empty) != 1 || empty[0] != 0 {
+		t.Fatalf("empty source LineTable = %#v, want [0]", []int(empty))
+	}
+	if got := empty.LineBytes(nil, 1); got == nil || len(got) != 0 {
+		t.Fatalf("empty source line 1 = %q, want empty", got)
+	}
+}
+
 func TestTokenEndPosMultiLine(t *testing.T) {
 	// A heredoc-like literal spanning two lines: "ab\ncd" starting at
 	// line 1, column 5. After consuming it the end position should be on
@@ -78,6 +239,26 @@ func TestTokenEndPosMultiLine(t *testing.T) {
 	}
 	if end.Offset != 15 {
 		t.Errorf("EndPos().Offset = %d, want 15 (10 + len(\"ab\\ncd\"))", end.Offset)
+	}
+}
+
+func TestTokenEndPosTrailingNewline(t *testing.T) {
+	tok := Token{
+		Type:    T_WHITESPACE,
+		Literal: "x\n",
+		Pos:     Position{Line: 4, Column: 2, Offset: 20},
+	}
+	end := tok.EndPos()
+	if end.Line != 5 || end.Column != 1 || end.Offset != 22 {
+		t.Fatalf("EndPos() = %+v, want {Line:5 Column:1 Offset:22}", end)
+	}
+}
+
+func TestTokenEndPosEmptyLiteral(t *testing.T) {
+	tok := Token{Type: T_EOF, Pos: Position{Line: 1, Column: 1, Offset: 0}}
+	end := tok.EndPos()
+	if end != tok.Pos {
+		t.Fatalf("empty Literal EndPos() = %+v, want Pos %+v", end, tok.Pos)
 	}
 }
 
