@@ -442,6 +442,115 @@ func CallArgList(n *RedNode) *RedNode {
 	return n.FirstChildOfKind(KindArgList)
 }
 
+// CallCallee returns the callee expression/name child of a KindCallExpr
+// (first expr/name child that is not inside KindArgList), or nil for
+// builtin-token calls (isset/empty/…) that have no separate callee node.
+func CallCallee(n *RedNode) *RedNode {
+	if n == nil || n.Kind() != KindCallExpr {
+		return nil
+	}
+	var callee *RedNode
+	n.ForEachChildDesc(func(green *GreenNode, offset int) bool {
+		k := green.Kind()
+		if k == KindArgList || k == KindToken {
+			return true
+		}
+		if isExprKind(k) || isNameKind(k) {
+			callee = &RedNode{File: n.File, Green: green, Offset: offset}
+			return false
+		}
+		return true
+	})
+	return callee
+}
+
+// CallArgs returns KindArg / KindNamedArg children of a call's ArgList, in
+// source order (excludes punctuation tokens).
+func CallArgs(n *RedNode) []*RedNode {
+	list := CallArgList(n)
+	if list == nil {
+		return nil
+	}
+	var out []*RedNode
+	list.ForEachChildDesc(func(green *GreenNode, offset int) bool {
+		switch green.Kind() {
+		case KindArg, KindNamedArg:
+			out = append(out, &RedNode{File: list.File, Green: green, Offset: offset})
+		}
+		return true
+	})
+	return out
+}
+
+// ArgExpr returns the value expression of a KindArg or KindNamedArg (the
+// expr/name child; for named args this is the value after `:`). Returns nil
+// when the arg is missing or only an unpack ellipsis without an expression.
+func ArgExpr(n *RedNode) *RedNode {
+	if n == nil {
+		return nil
+	}
+	switch n.Kind() {
+	case KindArg, KindNamedArg:
+	default:
+		return nil
+	}
+	var expr *RedNode
+	n.ForEachChildDesc(func(green *GreenNode, offset int) bool {
+		k := green.Kind()
+		if isExprKind(k) || isNameKind(k) {
+			expr = &RedNode{File: n.File, Green: green, Offset: offset}
+			// NamedArg may have a name identifier before the value; keep
+			// scanning so the last expr/name wins (value side).
+			if n.Kind() == KindNamedArg {
+				return true
+			}
+			return false
+		}
+		return true
+	})
+	return expr
+}
+
+// LiteralStringValue returns the decoded contents of a constant string
+// literal expression (KindLiteralExpr with a quoted string token), matching
+// lowering → *ast.StringLiteral.Value. Returns false for non-string literals
+// and interpolated KindStringLiteral forms.
+func LiteralStringValue(n *RedNode) (string, bool) {
+	if n == nil {
+		return "", false
+	}
+	switch n.Kind() {
+	case KindLiteralExpr:
+		var lit string
+		ok := false
+		n.ForEachChildDesc(func(green *GreenNode, _ int) bool {
+			if !green.IsToken() {
+				return true
+			}
+			tok, tokOK := green.Token()
+			if !tokOK {
+				return true
+			}
+			switch tok.Type {
+			case token.T_CONSTANT_ENCAPSED_STRING, token.T_CONSTANT_STRING:
+				lit = tok.Literal
+				if lit == "" {
+					lit = greenTokenLiteral(green)
+				}
+				ok = true
+				return false
+			}
+			return true
+		})
+		if !ok {
+			return "", false
+		}
+		return decodeLowerStringLiteral(lit), true
+	default:
+		return "", false
+	}
+}
+
 func firstExprOrNameChild(n *RedNode) *RedNode {
 	if n == nil {
 		return nil

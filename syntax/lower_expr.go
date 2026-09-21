@@ -1281,6 +1281,13 @@ func decodeLowerStringLiteral(lit string) string {
 	return lit
 }
 
+// DecodeStringLiteral returns the PHP string contents of a quoted literal
+// token text (single- or double-quoted), matching lowering's
+// decodeLowerStringLiteral. Unquoted input is returned unchanged.
+func DecodeStringLiteral(lit string) string {
+	return decodeLowerStringLiteral(lit)
+}
+
 func unescapeLowerSingleQuoted(s string) string {
 	var b strings.Builder
 	for i := 0; i < len(s); i++ {

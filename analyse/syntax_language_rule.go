@@ -15,10 +15,10 @@ import (
 //
 // checkLanguageOnNode ignores its FileTypeContext parameter, so unlike
 // walkAllWithFileContext-driven rules this check needs no namespace/class/
-// function scope at all - it walks the CST flatly with syntax.Walk and
-// lowers only the individual matched nodes to ast.Node (via
-// syntax.LowerStmtNode/syntax.LowerExprNode) so the existing, unmodified
-// checkLanguageOnNode logic can run unchanged on each one.
+// function scope at all - it walks the CST flatly with syntax.Walk.
+// KindCallExpr uses a CST-native leaf (appendLanguageCallIssuesFromCST);
+// other matched kinds still lower via LowerStmtNode/LowerExprNode into
+// checkLanguageOnNode.
 //
 // walkAllConfigured (the shared ast.Node dispatcher) has no case for
 // *ast.SwitchNode/*ast.SwitchCaseNode, so switch statement bodies are
@@ -52,10 +52,12 @@ func checkLanguageIssuesFromParsed(filename string, res *syntax.ParseResult) []A
 			if lowered := syntax.LowerStmtNode(n, res.File); lowered != nil {
 				checkLanguageOnNode(filename, lowered, FileTypeContext{}, labels, &gotos, &issues)
 			}
-		case syntax.KindArrayExpr, syntax.KindUnaryExpr, syntax.KindIncludeExpr, syntax.KindCastExpr, syntax.KindCallExpr:
+		case syntax.KindArrayExpr, syntax.KindUnaryExpr, syntax.KindIncludeExpr, syntax.KindCastExpr:
 			if lowered := syntax.LowerExprNode(n, res.File); lowered != nil {
 				checkLanguageOnNode(filename, lowered, FileTypeContext{}, labels, &gotos, &issues)
 			}
+		case syntax.KindCallExpr:
+			appendLanguageCallIssuesFromCST(filename, n, &issues)
 		}
 		return true
 	})

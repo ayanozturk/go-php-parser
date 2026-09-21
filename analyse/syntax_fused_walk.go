@@ -44,10 +44,12 @@ func collectFusedFlatCSTDiagnostics(filename string, res *syntax.ParseResult) fu
 			appendPropertyCallableTypeIssueFromCST(filename, n, &out.propertyCallable)
 		case syntax.KindParam:
 			appendPromotedParamCallableTypeIssueFromCST(filename, n, &out.propertyCallable)
-		case syntax.KindArrayExpr, syntax.KindUnaryExpr, syntax.KindIncludeExpr, syntax.KindCastExpr, syntax.KindCallExpr:
+		case syntax.KindArrayExpr, syntax.KindUnaryExpr, syntax.KindIncludeExpr, syntax.KindCastExpr:
 			if lowered := syntax.LowerExprNode(n, res.File); lowered != nil {
 				checkLanguageOnNode(filename, lowered, FileTypeContext{}, labels, &gotos, &out.language)
 			}
+		case syntax.KindCallExpr:
+			appendLanguageCallIssuesFromCST(filename, n, &out.language)
 		}
 		return true
 	})
