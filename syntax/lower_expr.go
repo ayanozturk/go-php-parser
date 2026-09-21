@@ -8,6 +8,32 @@ import (
 	"github.com/ayanozturk/go-php-parser/token"
 )
 
+// forEachChildDescGreen walks green's children at absolute offset without RedNode allocation.
+func forEachChildDescGreen(green *GreenNode, offset int, fn func(green *GreenNode, offset int) bool) {
+	if green == nil || len(green.children) == 0 || fn == nil {
+		return
+	}
+	off := offset
+	for _, g := range green.children {
+		if g == nil {
+			continue
+		}
+		if !fn(g, off) {
+			return
+		}
+		off += g.width
+	}
+}
+
+// lowerExprAt lowers the child described by green+offset without a prior bindChild.
+func lowerExprAt(file *File, green *GreenNode, offset int) ast.Node {
+	if file == nil || green == nil {
+		return nil
+	}
+	n := RedNode{File: file, Green: green, Offset: offset}
+	return lowerExpr(&n, file)
+}
+
 // lowerExpr lowers one expression CST node to a classic AST node.
 // Unsupported kinds return nil without panicking.
 func lowerExpr(n *RedNode, file *File) ast.Node {
@@ -161,7 +187,9 @@ func lowerLiteralExpr(n *RedNode, file *File) ast.Node {
 
 func lowerBinaryExpr(n *RedNode, file *File) ast.Node {
 	pos, end := nodePos(file, n)
-	var left, right *RedNode
+	var leftGreen, rightGreen *GreenNode
+	var leftOff, rightOff int
+	var haveLeft bool
 	var op string
 	n.ForEachChildDesc(func(green *GreenNode, offset int) bool {
 		if green.IsToken() {
@@ -173,22 +201,22 @@ func lowerBinaryExpr(n *RedNode, file *File) ast.Node {
 		}
 		k := green.Kind()
 		if isExprKind(k) || isNameKind(k) {
-			c := n.bindChild(green, offset)
-			if left == nil {
-				left = c
+			if !haveLeft {
+				leftGreen, leftOff = green, offset
+				haveLeft = true
 			} else {
-				right = c
+				rightGreen, rightOff = green, offset
 			}
 		}
 		return true
 	})
-	if left == nil || op == "" {
+	if !haveLeft || op == "" {
 		return nil
 	}
 	return &ast.BinaryExpr{
-		Left:     lowerExpr(left, file),
+		Left:     lowerExprAt(file, leftGreen, leftOff),
 		Operator: op,
-		Right:    lowerExpr(right, file),
+		Right:    lowerExprAt(file, rightGreen, rightOff),
 		Pos:      pos,
 		EndPos:   end,
 	}
@@ -196,7 +224,9 @@ func lowerBinaryExpr(n *RedNode, file *File) ast.Node {
 
 func lowerAssignExpr(n *RedNode, file *File) ast.Node {
 	pos, end := nodePos(file, n)
-	var left, right *RedNode
+	var leftGreen, rightGreen *GreenNode
+	var leftOff, rightOff int
+	var haveLeft bool
 	var op string
 	n.ForEachChildDesc(func(green *GreenNode, offset int) bool {
 		if green.IsToken() {
@@ -208,20 +238,20 @@ func lowerAssignExpr(n *RedNode, file *File) ast.Node {
 		}
 		k := green.Kind()
 		if isExprKind(k) || isNameKind(k) {
-			c := n.bindChild(green, offset)
-			if left == nil {
-				left = c
+			if !haveLeft {
+				leftGreen, leftOff = green, offset
+				haveLeft = true
 			} else {
-				right = c
+				rightGreen, rightOff = green, offset
 			}
 		}
 		return true
 	})
-	if left == nil || op == "" {
+	if !haveLeft || op == "" {
 		return nil
 	}
-	leftNode := lowerExpr(left, file)
-	rightNode := lowerExpr(right, file)
+	leftNode := lowerExprAt(file, leftGreen, leftOff)
+	rightNode := lowerExprAt(file, rightGreen, rightOff)
 	if leftNode != nil {
 		pos = leftNode.GetPos()
 	}
@@ -239,35 +269,45 @@ func lowerAssignExpr(n *RedNode, file *File) ast.Node {
 
 func lowerCallExpr(n *RedNode, file *File) ast.Node {
 	pos, end := nodePos(file, n)
-	var callee, args, builtinTok, loneArg *RedNode
+	var calleeGreen, argsGreen, loneArgGreen *GreenNode
+	var calleeOff, argsOff, loneArgOff int
+	var haveCallee, haveArgs, haveBuiltin, haveLoneArg bool
+	var builtinGreen *GreenNode
+	var builtinOff int
 	n.ForEachChildDesc(func(green *GreenNode, offset int) bool {
 		k := green.Kind()
 		switch {
 		case k == KindArgList:
-			args = n.bindChild(green, offset)
+			argsGreen, argsOff = green, offset
+			haveArgs = true
 		case k == KindToken:
 			if isGreenBuiltinCallNameToken(green) {
-				builtinTok = n.bindChild(green, offset)
+				builtinGreen, builtinOff = green, offset
+				haveBuiltin = true
 			}
 		case isExprKind(k) || isNameKind(k):
-			c := n.bindChild(green, offset)
-			if builtinTok != nil && args == nil && loneArg == nil {
-				loneArg = c
-			} else if callee == nil {
-				callee = c
+			if haveBuiltin && !haveArgs && !haveLoneArg {
+				loneArgGreen, loneArgOff = green, offset
+				haveLoneArg = true
+			} else if !haveCallee {
+				calleeGreen, calleeOff = green, offset
+				haveCallee = true
 			}
 		}
 		return true
 	})
-	if builtinTok != nil {
-		tt, ok := tokenOf(builtinTok)
+	var argNodes []ast.Node
+	if haveArgs {
+		argNodes = lowerArgListFromGreen(file, argsGreen, argsOff)
+	}
+	if haveBuiltin {
+		tt, ok := builtinGreen.Token()
 		if !ok {
 			return nil
 		}
-		namePos, nameEnd := nodePos(file, builtinTok)
-		argNodes := lowerArgList(args, file)
-		if loneArg != nil && len(argNodes) == 0 {
-			if a := lowerExpr(loneArg, file); a != nil {
+		namePos, nameEnd := nodePosGreen(file, builtinGreen, builtinOff)
+		if haveLoneArg && len(argNodes) == 0 {
+			if a := lowerExprAt(file, loneArgGreen, loneArgOff); a != nil {
 				argNodes = []ast.Node{a}
 			}
 		}
@@ -282,14 +322,14 @@ func lowerCallExpr(n *RedNode, file *File) ast.Node {
 			EndPos: end,
 		}
 	}
-	if callee == nil {
+	if !haveCallee {
 		return nil
 	}
-	argNodes := lowerArgList(args, file)
 
-	switch callee.Kind() {
+	switch calleeGreen.Kind() {
 	case KindMemberAccessExpr, KindNullsafeMemberAccessExpr:
-		obj, method := splitMemberAccess(callee, file)
+		callee := RedNode{File: file, Green: calleeGreen, Offset: calleeOff}
+		obj, method := splitMemberAccess(&callee, file)
 		if method == "" {
 			return nil
 		}
@@ -299,12 +339,13 @@ func lowerCallExpr(n *RedNode, file *File) ast.Node {
 			Args:     argNodes,
 			Pos:      pos,
 			EndPos:   end,
-			Nullsafe: callee.Kind() == KindNullsafeMemberAccessExpr,
+			Nullsafe: calleeGreen.Kind() == KindNullsafeMemberAccessExpr,
 		}
 	case KindStaticMemberAccessExpr:
+		callee := RedNode{File: file, Green: calleeGreen, Offset: calleeOff}
 		// Classic: Foo::bar() → FunctionCall Name=Identifier{"Foo::bar"};
 		// Foo::{$m}() → FunctionCall Name=ClassConstFetch{ConstExpr}.
-		class, member, constExpr := splitStaticMemberAccessParts(callee, file)
+		class, member, constExpr := splitStaticMemberAccessParts(&callee, file)
 		if class == "" {
 			return nil
 		}
@@ -336,7 +377,7 @@ func lowerCallExpr(n *RedNode, file *File) ast.Node {
 			EndPos: end,
 		}
 	default:
-		name := lowerExpr(callee, file)
+		name := lowerExprAt(file, calleeGreen, calleeOff)
 		callPos, callEnd := pos, end
 		if name != nil {
 			callPos = name.GetPos()
@@ -354,15 +395,22 @@ func lowerArgList(list *RedNode, file *File) []ast.Node {
 	if list == nil {
 		return nil
 	}
+	return lowerArgListFromGreen(file, list.Green, list.Offset)
+}
+
+func lowerArgListFromGreen(file *File, green *GreenNode, offset int) []ast.Node {
+	if file == nil || green == nil {
+		return nil
+	}
 	var out []ast.Node
-	list.ForEachChildDesc(func(green *GreenNode, offset int) bool {
-		switch green.Kind() {
+	forEachChildDescGreen(green, offset, func(g *GreenNode, off int) bool {
+		switch g.Kind() {
 		case KindArg:
-			if a := lowerArg(list.bindChild(green, offset), file); a != nil {
+			if a := lowerArgFromGreen(file, g, off); a != nil {
 				out = append(out, a)
 			}
 		case KindNamedArg:
-			if a := lowerNamedArg(list.bindChild(green, offset), file); a != nil {
+			if a := lowerNamedArgFromGreen(file, g, off); a != nil {
 				out = append(out, a)
 			}
 		}
@@ -372,40 +420,58 @@ func lowerArgList(list *RedNode, file *File) []ast.Node {
 }
 
 func lowerArg(n *RedNode, file *File) ast.Node {
-	pos, end := nodePos(file, n)
+	if n == nil {
+		return nil
+	}
+	return lowerArgFromGreen(file, n.Green, n.Offset)
+}
+
+func lowerArgFromGreen(file *File, green *GreenNode, offset int) ast.Node {
 	unpacked := false
-	var expr *RedNode
-	n.ForEachChildDesc(func(green *GreenNode, offset int) bool {
-		if isGreenTokenType(green, token.T_ELLIPSIS) {
+	var exprGreen *GreenNode
+	var exprOff int
+	var haveExpr bool
+	forEachChildDescGreen(green, offset, func(g *GreenNode, off int) bool {
+		if isGreenTokenType(g, token.T_ELLIPSIS) {
 			unpacked = true
 			return true
 		}
-		k := green.Kind()
+		k := g.Kind()
 		if isExprKind(k) || isNameKind(k) {
-			expr = n.bindChild(green, offset)
+			exprGreen, exprOff = g, off
+			haveExpr = true
 		}
 		return true
 	})
-	if expr == nil {
+	if !haveExpr {
 		return nil
 	}
-	lowered := lowerExpr(expr, file)
+	lowered := lowerExprAt(file, exprGreen, exprOff)
 	if lowered == nil {
 		return nil
 	}
 	if unpacked {
+		pos, end := nodePosGreen(file, green, offset)
 		return &ast.UnpackedArgumentNode{Expr: lowered, Pos: pos, EndPos: end}
 	}
 	return lowered
 }
 
 func lowerNamedArg(n *RedNode, file *File) ast.Node {
-	pos, end := nodePos(file, n)
+	if n == nil {
+		return nil
+	}
+	return lowerNamedArgFromGreen(file, n.Green, n.Offset)
+}
+
+func lowerNamedArgFromGreen(file *File, green *GreenNode, offset int) ast.Node {
 	name := ""
-	var expr *RedNode
-	n.ForEachChildDesc(func(green *GreenNode, offset int) bool {
-		if green.IsToken() {
-			tt, ok := green.Token()
+	var exprGreen *GreenNode
+	var exprOff int
+	var haveExpr bool
+	forEachChildDescGreen(green, offset, func(g *GreenNode, off int) bool {
+		if g.IsToken() {
+			tt, ok := g.Token()
 			if !ok {
 				return true
 			}
@@ -416,18 +482,20 @@ func lowerNamedArg(n *RedNode, file *File) ast.Node {
 			}
 			return true
 		}
-		k := green.Kind()
+		k := g.Kind()
 		if isExprKind(k) || isNameKind(k) {
-			expr = n.bindChild(green, offset)
+			exprGreen, exprOff = g, off
+			haveExpr = true
 		}
 		return true
 	})
-	if name == "" || expr == nil {
+	if name == "" || !haveExpr {
 		return nil
 	}
+	pos, end := nodePosGreen(file, green, offset)
 	return &ast.NamedArgumentNode{
 		Name:   name,
-		Value:  lowerExpr(expr, file),
+		Value:  lowerExprAt(file, exprGreen, exprOff),
 		Pos:    pos,
 		EndPos: end,
 	}
@@ -737,28 +805,31 @@ func lowerYieldExpr(n *RedNode, file *File) ast.Node {
 
 func lowerArrayAccessExpr(n *RedNode, file *File) ast.Node {
 	pos, end := nodePos(file, n)
-	var arr, idx *RedNode
+	var arrGreen, idxGreen *GreenNode
+	var arrOff, idxOff int
+	var haveArr, haveIdx bool
 	n.ForEachChildDesc(func(green *GreenNode, offset int) bool {
 		k := green.Kind()
 		if isExprKind(k) || isNameKind(k) {
-			c := n.bindChild(green, offset)
-			if arr == nil {
-				arr = c
+			if !haveArr {
+				arrGreen, arrOff = green, offset
+				haveArr = true
 			} else {
-				idx = c
+				idxGreen, idxOff = green, offset
+				haveIdx = true
 			}
 		}
 		return true
 	})
-	if arr == nil {
+	if !haveArr {
 		return nil
 	}
 	var index ast.Node
-	if idx != nil {
-		index = lowerExpr(idx, file)
+	if haveIdx {
+		index = lowerExprAt(file, idxGreen, idxOff)
 	}
 	return &ast.ArrayAccessNode{
-		Var:    lowerExpr(arr, file),
+		Var:    lowerExprAt(file, arrGreen, arrOff),
 		Index:  index,
 		Pos:    pos,
 		EndPos: end,
@@ -848,7 +919,7 @@ func lowerArrayExpr(n *RedNode, file *File) ast.Node {
 		if green.Kind() != KindArrayElement {
 			return true
 		}
-		if item := lowerArrayElement(n.bindChild(green, offset), file); item != nil {
+		if item := lowerArrayElementFromGreen(file, green, offset); item != nil {
 			elements = append(elements, item)
 		}
 		return true
@@ -860,40 +931,51 @@ func lowerArrayElement(n *RedNode, file *File) ast.Node {
 	if n == nil {
 		return nil
 	}
-	pos, end := nodePos(file, n)
+	return lowerArrayElementFromGreen(file, n.Green, n.Offset)
+}
+
+func lowerArrayElementFromGreen(file *File, green *GreenNode, offset int) ast.Node {
+	if file == nil || green == nil {
+		return nil
+	}
+	pos, end := nodePosGreen(file, green, offset)
+
+	var firstChild *GreenNode
 	childCount := 0
-	n.ForEachChildDesc(func(green *GreenNode, offset int) bool {
+	forEachChildDescGreen(green, offset, func(g *GreenNode, off int) bool {
 		childCount++
+		if firstChild == nil {
+			firstChild = g
+		}
 		return true
 	})
 	if childCount == 0 {
 		return nil
 	}
-	var child0 *RedNode
-	n.ForEachChildDesc(func(green *GreenNode, offset int) bool {
-		child0 = n.bindChild(green, offset)
-		return false
-	})
-	if isTokenType(child0, token.T_ELLIPSIS) {
-		var val *RedNode
+
+	if isGreenTokenType(firstChild, token.T_ELLIPSIS) {
+		var valGreen *GreenNode
+		var valOff int
+		var haveVal bool
 		skip := true
-		n.ForEachChildDesc(func(green *GreenNode, offset int) bool {
+		forEachChildDescGreen(green, offset, func(g *GreenNode, off int) bool {
 			if skip {
 				skip = false
 				return true
 			}
-			k := green.Kind()
+			k := g.Kind()
 			if isExprKind(k) || isNameKind(k) {
-				val = n.bindChild(green, offset)
+				valGreen, valOff = g, off
+				haveVal = true
 				return false
 			}
 			return true
 		})
-		if val == nil {
+		if !haveVal {
 			return nil
 		}
 		return &ast.ArrayItemNode{
-			Value:  lowerExpr(val, file),
+			Value:  lowerExprAt(file, valGreen, valOff),
 			Unpack: true,
 			Pos:    pos,
 			EndPos: end,
@@ -901,40 +983,39 @@ func lowerArrayElement(n *RedNode, file *File) ast.Node {
 	}
 
 	i := 0
-	byRefBeforeFirst := false
-	if isTokenType(child0, token.T_AMPERSAND) {
-		byRefBeforeFirst = true
+	byRefBeforeFirst := isGreenTokenType(firstChild, token.T_AMPERSAND)
+	if byRefBeforeFirst {
 		i = 1
 	}
-	var first *RedNode
+	var firstGreen *GreenNode
+	var firstExprOff int
 	idx := 0
-	n.ForEachChildDesc(func(green *GreenNode, offset int) bool {
+	forEachChildDescGreen(green, offset, func(g *GreenNode, off int) bool {
 		if idx < i {
 			idx++
 			return true
 		}
-		k := green.Kind()
-		if first == nil && (isExprKind(k) || isNameKind(k)) {
-			first = n.bindChild(green, offset)
+		k := g.Kind()
+		if firstGreen == nil && (isExprKind(k) || isNameKind(k)) {
+			firstGreen, firstExprOff = g, off
 			i = idx + 1
 			return false
 		}
 		idx++
 		return true
 	})
-	if first == nil {
+	if firstGreen == nil {
 		return nil
 	}
 
-	// Look for => after first expr.
 	hasArrow := false
 	idx = 0
-	n.ForEachChildDesc(func(green *GreenNode, offset int) bool {
+	forEachChildDescGreen(green, offset, func(g *GreenNode, off int) bool {
 		if idx < i {
 			idx++
 			return true
 		}
-		if isGreenTokenType(green, token.T_DOUBLE_ARROW) {
+		if isGreenTokenType(g, token.T_DOUBLE_ARROW) {
 			hasArrow = true
 			i = idx + 1
 			return false
@@ -944,49 +1025,52 @@ func lowerArrayElement(n *RedNode, file *File) ast.Node {
 	})
 	if !hasArrow {
 		return &ast.ArrayItemNode{
-			Value:  lowerExpr(first, file),
+			Value:  lowerExprAt(file, firstGreen, firstExprOff),
 			ByRef:  byRefBeforeFirst,
 			Pos:    pos,
 			EndPos: end,
 		}
 	}
 
-	key := lowerExpr(first, file)
+	key := lowerExprAt(file, firstGreen, firstExprOff)
 	if byRefBeforeFirst && key != nil {
-		kp, ke := nodePos(file, first)
+		kp, ke := nodePosGreen(file, firstGreen, firstExprOff)
 		key = &ast.UnaryExpr{Operator: "&", Operand: key, Pos: kp, EndPos: ke}
 	}
 	byRefValue := false
 	idx = 0
-	n.ForEachChildDesc(func(green *GreenNode, offset int) bool {
+	forEachChildDescGreen(green, offset, func(g *GreenNode, off int) bool {
 		if idx < i {
 			idx++
 			return true
 		}
-		if isGreenTokenType(green, token.T_AMPERSAND) {
+		if isGreenTokenType(g, token.T_AMPERSAND) {
 			byRefValue = true
 			i = idx + 1
 		}
 		return false
 	})
-	var val *RedNode
+	var valGreen *GreenNode
+	var valOff int
+	var haveVal bool
 	idx = 0
-	n.ForEachChildDesc(func(green *GreenNode, offset int) bool {
+	forEachChildDescGreen(green, offset, func(g *GreenNode, off int) bool {
 		if idx < i {
 			idx++
 			return true
 		}
-		k := green.Kind()
+		k := g.Kind()
 		if isExprKind(k) || isNameKind(k) {
-			val = n.bindChild(green, offset)
+			valGreen, valOff = g, off
+			haveVal = true
 			return false
 		}
 		idx++
 		return true
 	})
 	var value ast.Node
-	if val != nil {
-		value = lowerExpr(val, file)
+	if haveVal {
+		value = lowerExprAt(file, valGreen, valOff)
 	}
 	return &ast.ArrayItemNode{
 		Key:    key,

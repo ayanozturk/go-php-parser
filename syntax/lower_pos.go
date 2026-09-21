@@ -99,6 +99,14 @@ func spanEnd(file *File, s Span) ast.Position {
 	return positionAt(file, s.End)
 }
 
+func nodePosGreen(file *File, green *GreenNode, offset int) (start, end ast.Position) {
+	if file == nil || green == nil {
+		return ast.Position{}, ast.Position{}
+	}
+	n := RedNode{File: file, Green: green, Offset: offset}
+	return nodePos(file, &n)
+}
+
 func nodePos(file *File, n *RedNode) (start, end ast.Position) {
 	if n == nil {
 		return ast.Position{}, ast.Position{}
