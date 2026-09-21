@@ -22,17 +22,20 @@ func New(w io.Writer) *Printer {
 	return &Printer{w: w}
 }
 
-func buildStringToPrint(nodes []ast.Node, w io.Writer) {
+// Fprint writes a structured AST dump of nodes to w using the given indent level.
+func Fprint(w io.Writer, nodes []ast.Node, indent int) {
 	p := New(w)
-	p.indent = 0
+	p.indent = indent
 	p.printNodes(nodes)
 }
 
-// PrintAST prints the AST nodes with proper indentation
+func buildStringToPrint(nodes []ast.Node, w io.Writer) {
+	Fprint(w, nodes, 0)
+}
+
+// PrintAST prints the AST nodes with proper indentation to stdout.
 func PrintAST(nodes []ast.Node, indent int) {
-	p := New(os.Stdout)
-	p.indent = indent
-	p.printNodes(nodes)
+	Fprint(os.Stdout, nodes, indent)
 }
 
 func (p *Printer) printf(format string, args ...interface{}) {
@@ -50,12 +53,14 @@ func (p *Printer) printNodes(nodes []ast.Node) {
 		if node == nil {
 			continue
 		}
-		p.printf(node.String() + "\n")
-		// p.printNode(node)
+		p.printNode(node)
 	}
 }
 
 func (p *Printer) printNode(node ast.Node) {
+	if node == nil {
+		return
+	}
 	p.printIndent()
 	p.printNodeType(node)
 	p.printf(" @ %d:%d\n", node.GetPos().Line, node.GetPos().Column)
@@ -129,6 +134,9 @@ func (p *Printer) printArray(n *ast.ArrayNode) {
 }
 
 func (p *Printer) arrayItemToString(item *ast.ArrayItemNode) string {
+	if item == nil {
+		return ""
+	}
 	var result string
 	if item.ByRef {
 		result += "&"
@@ -139,7 +147,9 @@ func (p *Printer) arrayItemToString(item *ast.ArrayItemNode) string {
 	if item.Key != nil {
 		result += fmt.Sprintf("%s => ", item.Key.TokenLiteral())
 	}
-	result += item.Value.TokenLiteral()
+	if item.Value != nil {
+		result += item.Value.TokenLiteral()
+	}
 	return result
 }
 
