@@ -56,6 +56,107 @@ func TestNodePosSkipsLeadingTrivia(t *testing.T) {
 	}
 }
 
+// TestGreenPrecomputedContentBoundsMatchDescendantWalk checks every red node
+// in a trivia-heavy fixture: precomputed green contentStartRel/contentEndRel
+// must match the prior descendant-walk semantics for Pos/End offsets.
+func TestGreenPrecomputedContentBoundsMatchDescendantWalk(t *testing.T) {
+	src := []byte("<?php\n// leading\nfunction value(): int\n{\n    return 1;\n}\n")
+	res := Parse(src)
+	var walk func(*RedNode)
+	walk = func(n *RedNode) {
+		if n == nil {
+			return
+		}
+		wantStart := refContentStartOffset(n)
+		wantEnd := refContentEndOffset(n)
+		if got := contentStartOffset(n); got != wantStart {
+			t.Fatalf("contentStartOffset %s: got %d want %d", n.Green.Kind(), got, wantStart)
+		}
+		if got := contentEndOffset(n); got != wantEnd {
+			t.Fatalf("contentEndOffset %s: got %d want %d", n.Green.Kind(), got, wantEnd)
+		}
+		start, end := nodePos(res.File, n)
+		if start.Offset != wantStart || end.Offset != wantEnd {
+			t.Fatalf("nodePos %s: got %d..%d want %d..%d", n.Green.Kind(), start.Offset, end.Offset, wantStart, wantEnd)
+		}
+		for _, c := range n.Children() {
+			walk(c)
+		}
+	}
+	walk(res.File.Root)
+}
+
+func refContentStartOffset(n *RedNode) int {
+	if n == nil {
+		return 0
+	}
+	sp := n.Span()
+	if n.Green != nil && n.Green.IsToken() {
+		if tok, ok := n.Green.Token(); ok {
+			return sp.Start + leadingTriviaWidth(tok)
+		}
+		return sp.Start
+	}
+	if tg, toff := refFirstTokenGreenDescendant(n.Green, n.Offset); tg != nil {
+		return refContentStartOffsetGreen(tg, toff)
+	}
+	return sp.Start
+}
+
+func refContentStartOffsetGreen(g *GreenNode, off int) int {
+	if g == nil {
+		return off
+	}
+	if !g.IsToken() {
+		if tg, toff := refFirstTokenGreenDescendant(g, off); tg != nil {
+			return refContentStartOffsetGreen(tg, toff)
+		}
+		return off
+	}
+	tok, ok := g.Token()
+	if !ok {
+		return off
+	}
+	return off + leadingTriviaWidth(tok)
+}
+
+func refContentEndOffset(n *RedNode) int {
+	if n == nil {
+		return 0
+	}
+	sp := n.Span()
+	if n.Green != nil && n.Green.IsToken() {
+		if tok, ok := n.Green.Token(); ok {
+			end := sp.End - trailingTriviaWidth(tok)
+			if end < sp.Start {
+				return sp.End
+			}
+			return end
+		}
+	}
+	return sp.End
+}
+
+func refFirstTokenGreenDescendant(g *GreenNode, off int) (*GreenNode, int) {
+	if g == nil {
+		return nil, 0
+	}
+	if g.IsToken() {
+		return g, off
+	}
+	childOff := off
+	for _, c := range g.children {
+		if c == nil {
+			continue
+		}
+		if tg, toff := refFirstTokenGreenDescendant(c, childOff); tg != nil {
+			return tg, toff
+		}
+		childOff += c.width
+	}
+	return nil, 0
+}
+
 // TestRuneColumnAtHandlesMultibyteAndBackwardJumps guards the runeColumnAt
 // cache added to positionAt: lowering a nested array computes a container's
 // own (start, end) before descending into its children, so offsets routinely

@@ -282,6 +282,11 @@ type GreenNode struct {
 	width    int
 	token    *token.Token // KindToken / KindMissing; Pos/End cleared
 	children []*GreenNode
+	// Byte offsets relative to this green's start: content begins after leading
+	// trivia on the first token descendant and ends before trailing trivia on
+	// token greens; composites span the full width (endRel == width).
+	contentStartRel int
+	contentEndRel   int
 }
 
 // Kind returns the green node kind.
@@ -347,7 +352,8 @@ func (in *Interner) Token(tok token.Token) *GreenNode {
 		return n
 	}
 	t := positionIndependentToken(tok)
-	n := &GreenNode{kind: KindToken, width: w, token: &t}
+	startRel, endRel := greenTokenContentBounds(w, t)
+	n := &GreenNode{kind: KindToken, width: w, token: &t, contentStartRel: startRel, contentEndRel: endRel}
 	in.nodes[key] = n
 	return n
 }
@@ -356,7 +362,8 @@ func (in *Interner) Missing(tok token.Token) *GreenNode {
 	tok = in.materializeLiterals(tok)
 	t := positionIndependentToken(tok)
 	// Missing tokens are not shared — each recovery site is distinct.
-	return &GreenNode{kind: KindMissing, width: 0, token: &t}
+	startRel, endRel := greenTokenContentBounds(0, t)
+	return &GreenNode{kind: KindMissing, width: 0, token: &t, contentStartRel: startRel, contentEndRel: endRel}
 }
 
 func (in *Interner) Node(kind Kind, children ...*GreenNode) *GreenNode {
@@ -379,9 +386,27 @@ func (in *Interner) Node(kind Kind, children ...*GreenNode) *GreenNode {
 		return n
 	}
 	ch := append([]*GreenNode(nil), children...)
-	n := &GreenNode{kind: kind, width: w, children: ch}
+	startRel := greenCompositeContentStartRel(ch)
+	n := &GreenNode{kind: kind, width: w, children: ch, contentStartRel: startRel, contentEndRel: w}
 	in.nodes[key] = n
 	return n
+}
+
+func greenTokenContentBounds(width int, tok token.Token) (startRel, endRel int) {
+	startRel = leadingTriviaWidth(tok)
+	endRel = width - trailingTriviaWidth(tok)
+	return startRel, endRel
+}
+
+func greenCompositeContentStartRel(children []*GreenNode) int {
+	childOff := 0
+	for _, c := range children {
+		if c == nil {
+			continue
+		}
+		return childOff + c.contentStartRel
+	}
+	return 0
 }
 
 // Len reports how many distinct greens are currently interned (tests/metrics).

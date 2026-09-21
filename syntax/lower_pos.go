@@ -121,37 +121,10 @@ func contentStartOffset(n *RedNode) int {
 	if n == nil {
 		return 0
 	}
-	sp := n.Span()
-	var start int
-	if n.Green != nil && n.Green.IsToken() {
-		if tok, ok := n.Green.Token(); ok {
-			start = sp.Start + leadingTriviaWidth(tok)
-		} else {
-			start = sp.Start
-		}
-	} else if tg, toff := firstTokenGreenDescendant(n.Green, n.Offset); tg != nil {
-		start = contentStartOffsetGreen(tg, toff)
-	} else {
-		start = sp.Start
+	if n.Green != nil {
+		return n.Offset + n.Green.contentStartRel
 	}
-	return start
-}
-
-func contentStartOffsetGreen(g *GreenNode, off int) int {
-	if g == nil {
-		return off
-	}
-	if !g.IsToken() {
-		if tg, toff := firstTokenGreenDescendant(g, off); tg != nil {
-			return contentStartOffsetGreen(tg, toff)
-		}
-		return off
-	}
-	tok, ok := g.Token()
-	if !ok {
-		return off
-	}
-	return off + leadingTriviaWidth(tok)
+	return n.Span().Start
 }
 
 func contentEndOffset(n *RedNode) int {
@@ -159,14 +132,15 @@ func contentEndOffset(n *RedNode) int {
 		return 0
 	}
 	sp := n.Span()
-	if n.Green != nil && n.Green.IsToken() {
-		if tok, ok := n.Green.Token(); ok {
-			end := sp.End - trailingTriviaWidth(tok)
+	if n.Green != nil {
+		if n.Green.IsToken() {
+			end := n.Offset + n.Green.contentEndRel
 			if end < sp.Start {
 				return sp.End
 			}
 			return end
 		}
+		return n.Offset + n.Green.contentEndRel
 	}
 	return sp.End
 }
@@ -191,28 +165,6 @@ func trailingTriviaWidth(tok token.Token) int {
 		}
 	}
 	return w
-}
-
-// firstTokenGreenDescendant returns the first token green under g at off and its
-// absolute offset, without allocating RedNode wrappers.
-func firstTokenGreenDescendant(g *GreenNode, off int) (*GreenNode, int) {
-	if g == nil {
-		return nil, 0
-	}
-	if g.IsToken() {
-		return g, off
-	}
-	childOff := off
-	for _, c := range g.children {
-		if c == nil {
-			continue
-		}
-		if tg, toff := firstTokenGreenDescendant(c, childOff); tg != nil {
-			return tg, toff
-		}
-		childOff += c.width
-	}
-	return nil, 0
 }
 
 // offsetLineCol returns 0-based line and byte column for a byte offset.
