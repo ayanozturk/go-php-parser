@@ -75,13 +75,11 @@ func walkSyntaxConfigured(root *syntax.RedNode, ft FileTypeContext, fn func(n, c
 		if !syntaxContainerOnlyKinds[n.Kind()] {
 			fn(n, class, currentFn, ft, inStatementBody)
 		}
-		var scopeClass, scopeFn syntax.RedNode
 		nextClass, nextFn := class, currentFn
 		switch n.Kind() {
 		case syntax.KindClassDecl, syntax.KindInterfaceDecl, syntax.KindTraitDecl,
 			syntax.KindEnumDecl, syntax.KindAnonymousClass:
-			scopeClass = syntax.RedNode{File: n.File, Green: n.Green, Offset: n.Offset}
-			nextClass = &scopeClass
+			nextClass = &syntax.RedNode{File: n.File, Green: n.Green, Offset: n.Offset}
 		case syntax.KindFunctionDecl, syntax.KindMethodDecl, syntax.KindClosureExpr:
 			// KindArrowFunctionExpr is deliberately excluded: arrow functions
 			// lower to the distinct *ast.ArrowFunctionNode type, and
@@ -92,8 +90,7 @@ func walkSyntaxConfigured(root *syntax.RedNode, ft FileTypeContext, fn func(n, c
 			// walkAllConfigured's *ast.FunctionNode case. See
 			// syntax.LowerFunctionLikeContextNode and
 			// /memories/repo/cst-direct-migration.md.
-			scopeFn = syntax.RedNode{File: n.File, Green: n.Green, Offset: n.Offset}
-			nextFn = &scopeFn
+			nextFn = &syntax.RedNode{File: n.File, Green: n.Green, Offset: n.Offset}
 		}
 		bindScratch := func(g *syntax.GreenNode, offset int) *syntax.RedNode {
 			scratch.Green = g
