@@ -3,6 +3,7 @@ package helper
 import (
 	"encoding/json"
 	"fmt"
+	"math"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -49,7 +50,9 @@ func SaveBenchmarkHistory(path string, h BenchmarkHistory) error {
 	}
 	dir := filepath.Dir(path)
 	if dir != "." && dir != "" {
-		os.MkdirAll(dir, 0755)
+		if err := os.MkdirAll(dir, 0755); err != nil {
+			return err
+		}
 	}
 	return os.WriteFile(path, data, 0644)
 }
@@ -57,6 +60,12 @@ func SaveBenchmarkHistory(path string, h BenchmarkHistory) error {
 // GenerateBenchmarkReport creates HTML report from history.
 func GenerateBenchmarkReport(history BenchmarkHistory, outPath string) error {
 	html := generateBenchmarkHTML(history)
+	dir := filepath.Dir(outPath)
+	if dir != "." && dir != "" {
+		if err := os.MkdirAll(dir, 0755); err != nil {
+			return err
+		}
+	}
 	return os.WriteFile(outPath, []byte(html), 0644)
 }
 
@@ -160,31 +169,46 @@ func avgField(results []BenchmarkResult, field string) float64 {
 		return 0
 	}
 	sum := 0.0
+	n := 0
 	for _, r := range results {
-		if field == "cold" {
+		switch field {
+		case "cold":
 			sum += r.ColdTime
-		} else if field == "warm" {
+			n++
+		case "warm":
 			sum += r.WarmTime
+			n++
 		}
 	}
-	return sum / float64(len(results))
+	if n == 0 {
+		return 0
+	}
+	return sum / float64(n)
 }
 
 func minField(results []BenchmarkResult, field string) float64 {
 	if len(results) == 0 {
 		return 0
 	}
-	min := float64(^uint64(0))
+	min := math.Inf(1)
+	found := false
 	for _, r := range results {
 		var val float64
-		if field == "cold" {
+		switch field {
+		case "cold":
 			val = r.ColdTime
-		} else if field == "warm" {
+		case "warm":
 			val = r.WarmTime
+		default:
+			continue
 		}
-		if val < min {
+		if !found || val < min {
 			min = val
+			found = true
 		}
+	}
+	if !found {
+		return 0
 	}
 	return min
 }
@@ -193,17 +217,25 @@ func maxField(results []BenchmarkResult, field string) float64 {
 	if len(results) == 0 {
 		return 0
 	}
-	max := 0.0
+	max := math.Inf(-1)
+	found := false
 	for _, r := range results {
 		var val float64
-		if field == "cold" {
+		switch field {
+		case "cold":
 			val = r.ColdTime
-		} else if field == "warm" {
+		case "warm":
 			val = r.WarmTime
+		default:
+			continue
 		}
-		if val > max {
+		if !found || val > max {
 			max = val
+			found = true
 		}
+	}
+	if !found {
+		return 0
 	}
 	return max
 }
