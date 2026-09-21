@@ -80,56 +80,65 @@ func ParsePHPDoc(rawContent string) *PHPDocNode {
 	var inDescription = true
 
 	for _, line := range lines {
-		// Check for @param tags
-		if tag, value, ok := phpDocTag(line); ok && isPHPDocParamTag(tag) {
+		// Parse the leading @tag at most once per line. The previous
+		// if/else-if chain re-ran phpDocTag (and strings.Fields) on every
+		// failed branch, so description / unknown-tag lines paid Fields up
+		// to six times — the dominant LowerFile PHPDoc CPU under WP.
+		if tag, value, ok := phpDocTag(line); ok {
 			inDescription = false
-			typeName, remainder := splitPHPDocParamTypeAndRest(value)
-			parts := strings.Fields(remainder)
-			if typeName != "" && len(parts) >= 1 {
-				prefer := IsTemplateBindingParamType(typeName)
-				if !prefer && tag != "param" {
-					continue
+			switch {
+			case isPHPDocParamTag(tag):
+				typeName, remainder := splitPHPDocParamTypeAndRest(value)
+				name, desc, hasName := firstFieldRest(remainder)
+				if typeName != "" && hasName {
+					prefer := IsTemplateBindingParamType(typeName)
+					if !prefer && tag != "param" {
+						break
+					}
+					upsertPHPDocParam(phpdoc, PHPDocParam{
+						Type:        typeName,
+						Name:        strings.TrimPrefix(name, "$"),
+						Description: desc,
+					}, prefer)
 				}
-				upsertPHPDocParam(phpdoc, PHPDocParam{
-					Type:        typeName,
-					Name:        strings.TrimPrefix(parts[0], "$"),
-					Description: strings.Join(parts[1:], " "),
-				}, prefer)
+			case isPHPDocReturnTag(tag):
+				returnType, _ := splitPHPDocTypeAndRest(value)
+				if phpdoc.ReturnType == "" || isTemplateUnionReturnType(returnType) {
+					phpdoc.ReturnType = returnType
+				}
+			case tag == "var":
+				var remainder string
+				phpdoc.VarType, remainder = splitPHPDocTypeAndRest(value)
+				if name, _, ok := firstFieldRest(remainder); ok && strings.HasPrefix(name, "$") {
+					phpdoc.VarName = strings.TrimPrefix(name, "$")
+				}
+			case isTemplateTag(tag):
+				if template, ok := parsePHPDocTemplate(value); ok {
+					phpdoc.Templates = append(phpdoc.Templates, template)
+				}
+			case isTypeAliasTag(tag):
+				if alias, ok := parsePHPDocTypeAlias(value); ok {
+					phpdoc.TypeAliases = append(phpdoc.TypeAliases, alias)
+				}
+			case isExtendsTag(tag):
+				if ref, ok := parsePHPDocTypeReference(value); ok {
+					phpdoc.Extends = append(phpdoc.Extends, ref)
+				}
+			case isImplementsTag(tag):
+				if ref, ok := parsePHPDocTypeReference(value); ok {
+					phpdoc.Implements = append(phpdoc.Implements, ref)
+				}
+			case tag == "deprecated":
+				phpdoc.Deprecated = true
+				phpdoc.DeprecationMessage = value
+			default:
+				// Any other recognized @tag stops description parsing.
 			}
-		} else if tag, value, ok := phpDocTag(line); ok && isPHPDocReturnTag(tag) {
-			inDescription = false
-			returnType, _ := splitPHPDocTypeAndRest(value)
-			if phpdoc.ReturnType == "" || isTemplateUnionReturnType(returnType) {
-				phpdoc.ReturnType = returnType
-			}
-		} else if strings.HasPrefix(line, "@var") {
-			inDescription = false
-			var remainder string
-			phpdoc.VarType, remainder = splitPHPDocTypeAndRest(strings.TrimSpace(strings.TrimPrefix(line, "@var")))
-			if fields := strings.Fields(remainder); len(fields) > 0 && strings.HasPrefix(fields[0], "$") {
-				phpdoc.VarName = strings.TrimPrefix(fields[0], "$")
-			}
-		} else if tag, value, ok := phpDocTag(line); ok && isTemplateTag(tag) {
-			inDescription = false
-			if template, ok := parsePHPDocTemplate(value); ok {
-				phpdoc.Templates = append(phpdoc.Templates, template)
-			}
-		} else if tag, value, ok := phpDocTag(line); ok && isTypeAliasTag(tag) {
-			inDescription = false
-			if alias, ok := parsePHPDocTypeAlias(value); ok {
-				phpdoc.TypeAliases = append(phpdoc.TypeAliases, alias)
-			}
-		} else if tag, value, ok := phpDocTag(line); ok && isExtendsTag(tag) {
-			inDescription = false
-			if ref, ok := parsePHPDocTypeReference(value); ok {
-				phpdoc.Extends = append(phpdoc.Extends, ref)
-			}
-		} else if tag, value, ok := phpDocTag(line); ok && isImplementsTag(tag) {
-			inDescription = false
-			if ref, ok := parsePHPDocTypeReference(value); ok {
-				phpdoc.Implements = append(phpdoc.Implements, ref)
-			}
-		} else if strings.HasPrefix(line, "@deprecated") {
+			continue
+		}
+		if strings.HasPrefix(line, "@deprecated") {
+			// Bare @deprecated (no value) fails phpDocTag's "tag + value"
+			// rule; keep the classic HasPrefix path for that case.
 			inDescription = false
 			phpdoc.Deprecated = true
 			phpdoc.DeprecationMessage = strings.TrimSpace(strings.TrimPrefix(line, "@deprecated"))
@@ -276,11 +285,115 @@ func splitPHPDocTypeAndRest(value string) (string, string) {
 }
 
 func phpDocTag(line string) (string, string, bool) {
-	parts := strings.Fields(line)
-	if len(parts) < 2 || !strings.HasPrefix(parts[0], "@") {
+	// Match strings.Fields semantics without allocating on the common
+	// non-tag path (description prose): reject before any Fields/Join.
+	i := 0
+	n := len(line)
+	for i < n && isPHPDocASCIISpace(line[i]) {
+		i++
+	}
+	if i >= n || line[i] != '@' {
 		return "", "", false
 	}
-	return strings.ToLower(strings.TrimPrefix(parts[0], "@")), strings.Join(parts[1:], " "), true
+	tagStart := i + 1
+	i = tagStart
+	for i < n && !isPHPDocASCIISpace(line[i]) {
+		i++
+	}
+	if i == tagStart {
+		return "", "", false
+	}
+	tagEnd := i
+	for i < n && isPHPDocASCIISpace(line[i]) {
+		i++
+	}
+	if i >= n {
+		// No value field — same as len(Fields) < 2.
+		return "", "", false
+	}
+	tag := strings.ToLower(line[tagStart:tagEnd])
+	value := joinFieldsLike(line[i:])
+	return tag, value, true
+}
+
+func isPHPDocASCIISpace(b byte) bool {
+	switch b {
+	case ' ', '\t', '\n', '\r', '\v', '\f':
+		return true
+	default:
+		return false
+	}
+}
+
+// joinFieldsLike matches strings.Join(strings.Fields(s), " ") for ASCII
+// whitespace. Fast path returns s unchanged when already Fields-normalized.
+func joinFieldsLike(s string) string {
+	start := 0
+	n := len(s)
+	for start < n && isPHPDocASCIISpace(s[start]) {
+		start++
+	}
+	if start >= n {
+		return ""
+	}
+	end := n
+	for end > start && isPHPDocASCIISpace(s[end-1]) {
+		end--
+	}
+	needCollapse := start > 0 || end < n
+	if !needCollapse {
+		for i := start; i < end; i++ {
+			if !isPHPDocASCIISpace(s[i]) {
+				continue
+			}
+			if s[i] != ' ' || i+1 < end && isPHPDocASCIISpace(s[i+1]) {
+				needCollapse = true
+				break
+			}
+		}
+	}
+	if !needCollapse {
+		return s[start:end]
+	}
+	var b strings.Builder
+	b.Grow(end - start)
+	inSpace := false
+	wrote := false
+	for i := start; i < end; i++ {
+		if isPHPDocASCIISpace(s[i]) {
+			inSpace = true
+			continue
+		}
+		if inSpace && wrote {
+			b.WriteByte(' ')
+		}
+		inSpace = false
+		wrote = true
+		b.WriteByte(s[i])
+	}
+	return b.String()
+}
+
+// firstFieldRest returns the first Fields-like token and the remainder joined
+// with single spaces (same as Fields[0] / Join(Fields[1:], " ")).
+func firstFieldRest(s string) (field, rest string, ok bool) {
+	start := 0
+	n := len(s)
+	for start < n && isPHPDocASCIISpace(s[start]) {
+		start++
+	}
+	if start >= n {
+		return "", "", false
+	}
+	end := start
+	for end < n && !isPHPDocASCIISpace(s[end]) {
+		end++
+	}
+	field = s[start:end]
+	if end >= n {
+		return field, "", true
+	}
+	return field, joinFieldsLike(s[end:]), true
 }
 
 func isPHPDocParamTag(tag string) bool {
