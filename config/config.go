@@ -217,9 +217,6 @@ func GetIncludeFiles(config *Config) ([]string, error) {
 	var files []string
 	seen := make(map[string]struct{})
 	for _, dir := range includeIndexDirs(config) {
-		if dir == "" {
-			continue
-		}
 		info, err := os.Stat(dir)
 		if err != nil {
 			if os.IsNotExist(err) {
@@ -283,20 +280,25 @@ func includeIndexDirs(config *Config) []string {
 // streams discovered file paths into the returned channel, which is closed
 // when the walk completes. This allows callers to overlap I/O and parsing
 // with the directory walk rather than waiting for the full file list first.
+// Ignore-name matching matches GetFilesToScan / walkForFiles: the walk root
+// itself is never skipped even when its basename appears in config.Ignore.
 func StreamFilesToScan(config *Config) <-chan string {
 	ignoreDirs := ignoreDirSet(config.Ignore)
 	allowedExts := extSet(config.Extensions)
+	root := filepath.Clean(config.Path)
 
 	ch := make(chan string, 256)
 	go func() {
 		defer close(ch)
-		filepath.WalkDir(config.Path, func(path string, d os.DirEntry, err error) error { //nolint:errcheck
+		filepath.WalkDir(root, func(path string, d os.DirEntry, err error) error { //nolint:errcheck
 			if err != nil {
 				return nil // skip unreadable entries
 			}
 			if d.IsDir() {
-				if _, ignored := ignoreDirs[d.Name()]; ignored {
-					return filepath.SkipDir
+				if filepath.Clean(path) != root {
+					if _, ignored := ignoreDirs[d.Name()]; ignored {
+						return filepath.SkipDir
+					}
 				}
 				return nil
 			}
