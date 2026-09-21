@@ -1,9 +1,6 @@
 package analyse
 
 import (
-	"fmt"
-
-	"github.com/ayanozturk/go-php-parser/ast"
 	"github.com/ayanozturk/go-php-parser/syntax"
 )
 
@@ -17,8 +14,8 @@ import (
 // walkAllWithFileContext-driven rules this check needs no namespace/class/
 // function scope at all - it walks the CST flatly with syntax.Walk.
 // KindCallExpr uses a CST-native leaf (appendLanguageCallIssuesFromCST);
-// other matched kinds still lower via LowerStmtNode/LowerExprNode into
-// checkLanguageOnNode.
+// remaining matched kinds use CST-native leaves in
+// appendLanguageNonCallIssuesFromCST (no LowerStmtNode/LowerExprNode).
 //
 // walkAllConfigured (the shared ast.Node dispatcher) has no case for
 // *ast.SwitchNode/*ast.SwitchCaseNode, so switch statement bodies are
@@ -37,7 +34,7 @@ func checkLanguageIssuesFromParsed(filename string, res *syntax.ParseResult) []A
 
 	var issues []AnalysisIssue
 	labels := map[string]struct{}{}
-	var gotos []*ast.GotoNode
+	var gotos []languageCSTGoto
 	syntax.Walk(res.File.Root, func(n *syntax.RedNode) bool {
 		switch n.Kind() {
 		case syntax.KindSwitchStmt:
@@ -48,23 +45,14 @@ func checkLanguageIssuesFromParsed(filename string, res *syntax.ParseResult) []A
 			// this stays a faithful, swappable replacement; see
 			// /memories/repo/cst-direct-migration.md for the full writeup.
 			return false
-		case syntax.KindLabelStmt, syntax.KindGotoStmt:
-			if lowered := syntax.LowerStmtNode(n, res.File); lowered != nil {
-				checkLanguageOnNode(filename, lowered, FileTypeContext{}, labels, &gotos, &issues)
-			}
-		case syntax.KindArrayExpr, syntax.KindUnaryExpr, syntax.KindIncludeExpr, syntax.KindCastExpr:
-			if lowered := syntax.LowerExprNode(n, res.File); lowered != nil {
-				checkLanguageOnNode(filename, lowered, FileTypeContext{}, labels, &gotos, &issues)
-			}
+		case syntax.KindLabelStmt, syntax.KindGotoStmt,
+			syntax.KindArrayExpr, syntax.KindUnaryExpr, syntax.KindIncludeExpr, syntax.KindCastExpr:
+			appendLanguageNonCallIssuesFromCST(filename, n, labels, &gotos, &issues)
 		case syntax.KindCallExpr:
 			appendLanguageCallIssuesFromCST(filename, n, &issues)
 		}
 		return true
 	})
-	for _, goTo := range gotos {
-		if _, ok := labels[goTo.Label]; !ok {
-			issues = append(issues, issueSpan(filename, goTo, level0LanguageCode, fmt.Sprintf("Goto to undefined label %s.", goTo.Label)))
-		}
-	}
+	appendUndefinedGotoIssuesFromCST(filename, labels, gotos, &issues)
 	return issues
 }

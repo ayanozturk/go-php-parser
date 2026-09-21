@@ -1,8 +1,6 @@
 package analyse
 
 import (
-	"fmt"
-
 	"github.com/ayanozturk/go-php-parser/ast"
 	"github.com/ayanozturk/go-php-parser/syntax"
 )
@@ -29,35 +27,26 @@ func collectFusedFlatCSTDiagnostics(filename string, res *syntax.ParseResult) fu
 	}
 
 	labels := map[string]struct{}{}
-	var gotos []*ast.GotoNode
+	var gotos []languageCSTGoto
 	syntax.Walk(res.File.Root, func(n *syntax.RedNode) bool {
 		switch n.Kind() {
 		case syntax.KindEmptyStmt:
 			out.emptyStatement = append(out.emptyStatement, issueSpanRed(filename, n, emptyStatementCode, "Empty statement detected"))
 		case syntax.KindSwitchStmt:
 			return false
-		case syntax.KindLabelStmt, syntax.KindGotoStmt:
-			if lowered := syntax.LowerStmtNode(n, res.File); lowered != nil {
-				checkLanguageOnNode(filename, lowered, FileTypeContext{}, labels, &gotos, &out.language)
-			}
+		case syntax.KindLabelStmt, syntax.KindGotoStmt,
+			syntax.KindArrayExpr, syntax.KindUnaryExpr, syntax.KindIncludeExpr, syntax.KindCastExpr:
+			appendLanguageNonCallIssuesFromCST(filename, n, labels, &gotos, &out.language)
 		case syntax.KindPropertyDecl:
 			appendPropertyCallableTypeIssueFromCST(filename, n, &out.propertyCallable)
 		case syntax.KindParam:
 			appendPromotedParamCallableTypeIssueFromCST(filename, n, &out.propertyCallable)
-		case syntax.KindArrayExpr, syntax.KindUnaryExpr, syntax.KindIncludeExpr, syntax.KindCastExpr:
-			if lowered := syntax.LowerExprNode(n, res.File); lowered != nil {
-				checkLanguageOnNode(filename, lowered, FileTypeContext{}, labels, &gotos, &out.language)
-			}
 		case syntax.KindCallExpr:
 			appendLanguageCallIssuesFromCST(filename, n, &out.language)
 		}
 		return true
 	})
-	for _, goTo := range gotos {
-		if _, ok := labels[goTo.Label]; !ok {
-			out.language = append(out.language, issueSpan(filename, goTo, level0LanguageCode, fmt.Sprintf("Goto to undefined label %s.", goTo.Label)))
-		}
-	}
+	appendUndefinedGotoIssuesFromCST(filename, labels, gotos, &out.language)
 	return out
 }
 

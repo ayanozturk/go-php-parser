@@ -1,6 +1,7 @@
 package syntax
 
 import (
+	"strconv"
 	"strings"
 
 	"github.com/ayanozturk/go-php-parser/ast"
@@ -953,4 +954,231 @@ func RawSpanPositions(n *RedNode) (ast.Position, ast.Position) {
 	}
 	sp := n.Span()
 	return spanStart(n.File, sp), spanEnd(n.File, sp)
+}
+
+// UnaryOperator returns the operator literal for KindUnaryExpr (e.g. "++",
+// "--", "!", "-"), or empty.
+func UnaryOperator(n *RedNode) string {
+	if n == nil || n.Kind() != KindUnaryExpr {
+		return ""
+	}
+	var op string
+	n.ForEachChildDesc(func(green *GreenNode, _ int) bool {
+		if !green.IsToken() {
+			return true
+		}
+		tok, ok := green.Token()
+		if !ok {
+			return true
+		}
+		op = strings.TrimSpace(tok.Literal)
+		return false
+	})
+	return op
+}
+
+// UnaryOperand returns the operand expression/name of KindUnaryExpr or
+// KindIncludeExpr / KindPrintExpr, or nil.
+func UnaryOperand(n *RedNode) *RedNode {
+	if n == nil {
+		return nil
+	}
+	switch n.Kind() {
+	case KindUnaryExpr, KindIncludeExpr, KindPrintExpr:
+	default:
+		return nil
+	}
+	var operand *RedNode
+	n.ForEachChildDesc(func(green *GreenNode, offset int) bool {
+		if green.IsToken() {
+			return true
+		}
+		k := green.Kind()
+		if isExprKind(k) || isNameKind(k) {
+			operand = &RedNode{File: n.File, Green: green, Offset: offset}
+			return false
+		}
+		return true
+	})
+	return operand
+}
+
+// KeywordUnaryOperator returns the keyword literal for KindIncludeExpr /
+// KindPrintExpr (include/require/print), or empty.
+func KeywordUnaryOperator(n *RedNode) string {
+	if n == nil {
+		return ""
+	}
+	switch n.Kind() {
+	case KindIncludeExpr, KindPrintExpr:
+	default:
+		return ""
+	}
+	var op string
+	n.ForEachChildDesc(func(green *GreenNode, _ int) bool {
+		if !green.IsToken() {
+			return true
+		}
+		tok, ok := green.Token()
+		if !ok {
+			return true
+		}
+		lit := strings.TrimSpace(tok.Literal)
+		if lit != "" {
+			op = lit
+			return false
+		}
+		return true
+	})
+	return op
+}
+
+// CastTypeName returns the cast type token text inside (… ) for KindCastExpr
+// (e.g. "int", "unset", "void"), or empty.
+func CastTypeName(n *RedNode) string {
+	if n == nil || n.Kind() != KindCastExpr {
+		return ""
+	}
+	castType := ""
+	seenOpen := false
+	n.ForEachChildDesc(func(green *GreenNode, _ int) bool {
+		if !green.IsToken() {
+			return true
+		}
+		tt, ok := green.Token()
+		if !ok {
+			return true
+		}
+		switch tt.Type {
+		case token.T_LPAREN:
+			seenOpen = true
+		case token.T_RPAREN:
+			seenOpen = false
+		default:
+			if seenOpen && castType == "" {
+				castType = strings.TrimSpace(tt.Literal)
+			}
+		}
+		return true
+	})
+	return castType
+}
+
+// ArrayElements appends KindArrayElement children of KindArrayExpr.
+func ArrayElements(n *RedNode) []*RedNode {
+	if n == nil || n.Kind() != KindArrayExpr {
+		return nil
+	}
+	var out []*RedNode
+	n.ForEachChildDesc(func(green *GreenNode, offset int) bool {
+		if green.Kind() != KindArrayElement {
+			return true
+		}
+		out = append(out, &RedNode{File: n.File, Green: green, Offset: offset})
+		return true
+	})
+	return out
+}
+
+// ArrayElementKey returns the key expression of a KindArrayElement when the
+// element uses `key => value` form, or nil for value-only / unpack elements.
+func ArrayElementKey(n *RedNode) *RedNode {
+	if n == nil || n.Kind() != KindArrayElement {
+		return nil
+	}
+	var first *RedNode
+	hasArrow := false
+	n.ForEachChildDesc(func(green *GreenNode, offset int) bool {
+		if isGreenTokenType(green, token.T_ELLIPSIS) {
+			return false
+		}
+		if isGreenTokenType(green, token.T_DOUBLE_ARROW) {
+			hasArrow = true
+			return false
+		}
+		if first == nil && !green.IsToken() {
+			k := green.Kind()
+			if isExprKind(k) || isNameKind(k) {
+				first = &RedNode{File: n.File, Green: green, Offset: offset}
+			}
+		}
+		return true
+	})
+	if !hasArrow {
+		return nil
+	}
+	return first
+}
+
+// LiteralIntValue returns the int64 value of a KindLiteralExpr integer token,
+// matching lowering → *ast.IntegerLiteral / IntegerNode. False for non-int.
+func LiteralIntValue(n *RedNode) (int64, bool) {
+	if n == nil || n.Kind() != KindLiteralExpr {
+		return 0, false
+	}
+	var lit string
+	ok := false
+	n.ForEachChildDesc(func(green *GreenNode, _ int) bool {
+		if !green.IsToken() {
+			return true
+		}
+		tok, tokOK := green.Token()
+		if !tokOK {
+			return true
+		}
+		switch tok.Type {
+		case token.T_LNUMBER:
+			lit = tok.Literal
+			if lit == "" {
+				lit = greenTokenLiteral(green)
+			}
+			ok = true
+			return false
+		}
+		return true
+	})
+	if !ok {
+		return 0, false
+	}
+	v, err := strconv.ParseInt(strings.ReplaceAll(lit, "_", ""), 0, 64)
+	if err != nil {
+		return 0, false
+	}
+	return v, true
+}
+
+// LabelOrGotoName returns the T_STRING label name for KindLabelStmt /
+// KindGotoStmt, or empty.
+func LabelOrGotoName(n *RedNode) string {
+	if n == nil {
+		return ""
+	}
+	switch n.Kind() {
+	case KindLabelStmt, KindGotoStmt:
+	default:
+		return ""
+	}
+	var name string
+	n.ForEachChildDesc(func(green *GreenNode, _ int) bool {
+		if !isGreenTokenType(green, token.T_STRING) {
+			return true
+		}
+		name = strings.TrimSpace(greenTokenLiteral(green))
+		return false
+	})
+	return name
+}
+
+// IsWritableExprKind reports whether n is a writable lvalue shape matching
+// analyse.isWritableExpr (variable / array access / property fetch).
+func IsWritableExprKind(n *RedNode) bool {
+	if n == nil {
+		return false
+	}
+	switch n.Kind() {
+	case KindVariableExpr, KindArrayAccessExpr, KindMemberAccessExpr:
+		return true
+	default:
+		return false
+	}
 }
