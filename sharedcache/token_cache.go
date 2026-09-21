@@ -39,6 +39,11 @@ func GetCachedTokens(filename string) []token.Token {
 }
 
 // ClearTokenCache removes all cached tokens (for test isolation or memory management).
+// Deletes entries in place so concurrent readers/writers do not race on a
+// package-level map reassignment.
 func ClearTokenCache() {
-	tokenCache = sync.Map{}
+	tokenCache.Range(func(k, _ interface{}) bool {
+		tokenCache.Delete(k)
+		return true
+	})
 }

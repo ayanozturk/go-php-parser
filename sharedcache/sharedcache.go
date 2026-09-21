@@ -15,7 +15,7 @@ var linesCacheCount int64
 
 // linesCacheEvictionThreshold bounds the split-lines cache's live entry
 // count as a memory safety valve for very long-lived processes, not as a
-// per-corpus budget: linesCacheCount now tracks the actual number of live
+// per-corpus budget: linesCacheCount tracks the actual number of live
 // entries (incremented on store, decremented on individual eviction), so a
 // single full pass over a corpus at or above this size no longer triggers
 // a full-cache clear mid-analysis. It previously counted cumulative
@@ -24,7 +24,9 @@ var linesCacheCount int64
 // benchmarks against (e.g. test_projects/drupal has 10,856 files),
 // causing the cache to thrash: clear itself before a single warm-loop
 // iteration even finished, forcing every remaining file to re-split.
-const linesCacheEvictionThreshold = 200000
+// Mutable so tests can exercise eviction without inserting hundreds of
+// thousands of entries.
+var linesCacheEvictionThreshold int64 = 200000
 
 // GetCachedFileContent loads file content from cache or disk, and stores it in cache if not present.
 func GetCachedFileContent(filename string) ([]byte, error) {
@@ -74,7 +76,11 @@ func SplitLinesCached(content []byte) []string {
 		// allocation landed at the same address): it will be overwritten
 		// below without double-counting linesCacheCount.
 	} else if atomic.AddInt64(&linesCacheCount, 1) > linesCacheEvictionThreshold {
+		// ClearLinesCache zeros the live counter. Re-count the entry we are
+		// about to store so eviction does not leave the cache under-counted
+		// (which would delay the next safety-valve clear).
 		ClearLinesCache()
+		atomic.AddInt64(&linesCacheCount, 1)
 	}
 
 	table := token.NewLineTable(content)
@@ -97,7 +103,17 @@ func DeleteCachedLines(content []byte) {
 		return
 	}
 	if _, ok := linesCache.LoadAndDelete(uintptr(unsafe.Pointer(&content[0]))); ok {
-		atomic.AddInt64(&linesCacheCount, -1)
+		// Saturating decrement: concurrent ClearLinesCache may already have
+		// zeroed the counter before this delete lands.
+		for {
+			c := atomic.LoadInt64(&linesCacheCount)
+			if c <= 0 {
+				return
+			}
+			if atomic.CompareAndSwapInt64(&linesCacheCount, c, c-1) {
+				return
+			}
+		}
 	}
 }
 
