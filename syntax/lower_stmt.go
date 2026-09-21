@@ -97,12 +97,12 @@ func lowerStmt(n *RedNode, file *File) ast.Node {
 		return lowerDeclareStmt(n, file)
 	case KindGotoStmt:
 		label := ""
-		n.ForEachChild(func(c *RedNode) bool {
-			if isTokenType(c, token.T_STRING) {
-				label = strings.TrimSpace(tokenLiteral(c))
-				return false
+		n.ForEachChildDesc(func(green *GreenNode, offset int) bool {
+			if !isGreenTokenType(green, token.T_STRING) {
+				return true
 			}
-			return true
+			label = strings.TrimSpace(tokenLiteral(n.bindChild(green, offset)))
+			return false
 		})
 		if label == "" {
 			return nil
@@ -110,12 +110,12 @@ func lowerStmt(n *RedNode, file *File) ast.Node {
 		return &ast.GotoNode{Label: label, Pos: pos, EndPos: end}
 	case KindLabelStmt:
 		name := ""
-		n.ForEachChild(func(c *RedNode) bool {
-			if isTokenType(c, token.T_STRING) {
-				name = strings.TrimSpace(tokenLiteral(c))
-				return false
+		n.ForEachChildDesc(func(green *GreenNode, offset int) bool {
+			if !isGreenTokenType(green, token.T_STRING) {
+				return true
 			}
-			return true
+			name = strings.TrimSpace(tokenLiteral(n.bindChild(green, offset)))
+			return false
 		})
 		if name == "" {
 			return nil
@@ -645,13 +645,14 @@ func lowerDeclareStmt(n *RedNode, file *File) ast.Node {
 	}
 	pos, end := nodePos(file, n)
 	decl := &ast.DeclareNode{Directives: map[string]ast.Node{}, Pos: pos, EndPos: end}
-	n.ForEachChild(func(c *RedNode) bool {
-		switch c.Kind() {
+	n.ForEachChildDesc(func(green *GreenNode, offset int) bool {
+		switch green.Kind() {
 		case KindTokenList:
 			if len(decl.Directives) == 0 {
-				decl.Directives = lowerDeclareDirectives(c, file)
+				decl.Directives = lowerDeclareDirectives(n.bindChild(green, offset), file)
 			}
 		case KindStatementList:
+			c := n.bindChild(green, offset)
 			stmts := lowerStatements(c, file)
 			if len(stmts) > 0 {
 				bp, be := nodePos(file, c)
@@ -671,10 +672,11 @@ func lowerDeclareDirectives(list *RedNode, file *File) map[string]ast.Node {
 		return nil
 	}
 	var tokens []*RedNode
-	list.ForEachChild(func(c *RedNode) bool {
-		if c.Kind() == KindToken {
-			tokens = append(tokens, c)
+	list.ForEachChildDesc(func(green *GreenNode, offset int) bool {
+		if green.Kind() != KindToken {
+			return true
 		}
+		tokens = append(tokens, list.bindChild(green, offset))
 		return true
 	})
 	out := make(map[string]ast.Node)

@@ -36,17 +36,21 @@ func MatchCondition(n *RedNode) *RedNode {
 	if n == nil || n.Kind() != KindMatchExpr {
 		return nil
 	}
+	var cond *RedNode
 	seenLParen := false
-	for _, c := range n.Children() {
-		if isTokenType(c, token.T_LPAREN) {
+	n.ForEachChildDesc(func(green *GreenNode, offset int) bool {
+		if isGreenTokenType(green, token.T_LPAREN) {
 			seenLParen = true
-			continue
+			return true
 		}
-		if seenLParen && (isExprKind(c.Kind()) || isNameKind(c.Kind())) {
-			return c
+		k := green.Kind()
+		if seenLParen && cond == nil && (isExprKind(k) || isNameKind(k)) {
+			cond = n.bindChild(green, offset)
+			return false
 		}
-	}
-	return nil
+		return true
+	})
+	return cond
 }
 
 // ForConditions returns the (possibly multiple, comma-separated) condition
@@ -56,34 +60,59 @@ func ForConditions(n *RedNode) []*RedNode {
 	if n == nil || n.Kind() != KindForStmt {
 		return nil
 	}
-	children := n.Children()
-	i := 0
-	for ; i < len(children); i++ {
-		if isTokenType(children[i], token.T_LPAREN) {
-			i++
-			break
-		}
-	}
-	_, i = forClauseChildren(children, i) // skip init clause
-	conds, _ := forClauseChildren(children, i)
+	start := forStmtIndexAfterLParen(n)
+	_, start = forClauseChildrenAt(n, start) // skip init clause
+	conds, _ := forClauseChildrenAt(n, start)
 	return conds
 }
 
-func forClauseChildren(children []*RedNode, start int) ([]*RedNode, int) {
+func forClauseChildrenAt(n *RedNode, start int) ([]*RedNode, int) {
 	var exprs []*RedNode
-	for i := start; i < len(children); i++ {
-		c := children[i]
-		if isTokenType(c, token.T_SEMICOLON) || isTokenType(c, token.T_RPAREN) {
-			return exprs, i + 1
+	i := 0
+	next := start
+	n.ForEachChildDesc(func(green *GreenNode, offset int) bool {
+		if i < start {
+			i++
+			return true
 		}
-		if isTokenType(c, token.T_COMMA) {
-			continue
+		if isGreenTokenType(green, token.T_SEMICOLON) || isGreenTokenType(green, token.T_RPAREN) {
+			next = i + 1
+			return false
 		}
-		if isExprKind(c.Kind()) || isNameKind(c.Kind()) {
-			exprs = append(exprs, c)
+		if isGreenTokenType(green, token.T_COMMA) {
+			i++
+			return true
 		}
+		k := green.Kind()
+		if isExprKind(k) || isNameKind(k) {
+			exprs = append(exprs, n.bindChild(green, offset))
+		}
+		i++
+		return true
+	})
+	if next == start && i > start {
+		next = i
 	}
-	return exprs, len(children)
+	return exprs, next
+}
+
+func forStmtIndexAfterLParen(n *RedNode) int {
+	i := 0
+	after := 0
+	found := false
+	n.ForEachChildDesc(func(green *GreenNode, offset int) bool {
+		if isGreenTokenType(green, token.T_LPAREN) {
+			after = i + 1
+			found = true
+			return false
+		}
+		i++
+		return true
+	})
+	if found {
+		return after
+	}
+	return i
 }
 
 // MatchArmConditions returns the arm-condition expression RedNodes of a
@@ -94,21 +123,25 @@ func MatchArmConditions(n *RedNode) []*RedNode {
 		return nil
 	}
 	var out []*RedNode
-	for _, arm := range n.Children() {
-		if arm.Kind() != KindMatchArm {
-			continue
+	n.ForEachChildDesc(func(green *GreenNode, offset int) bool {
+		if green.Kind() != KindMatchArm {
+			return true
 		}
+		arm := n.bindChild(green, offset)
 		seenArrow := false
-		for _, c := range arm.Children() {
-			if isTokenType(c, token.T_DOUBLE_ARROW) {
+		arm.ForEachChildDesc(func(green *GreenNode, offset int) bool {
+			if isGreenTokenType(green, token.T_DOUBLE_ARROW) {
 				seenArrow = true
-				continue
+				return true
 			}
-			if !seenArrow && (isExprKind(c.Kind()) || isNameKind(c.Kind())) {
-				out = append(out, c)
+			k := green.Kind()
+			if !seenArrow && (isExprKind(k) || isNameKind(k)) {
+				out = append(out, arm.bindChild(green, offset))
 			}
-		}
-	}
+			return true
+		})
+		return true
+	})
 	return out
 }
 
@@ -120,21 +153,25 @@ func IfBody(n *RedNode) *RedNode {
 		return nil
 	}
 	seenCond := false
-	for _, c := range n.Children() {
-		switch c.Kind() {
+	var body *RedNode
+	n.ForEachChildDesc(func(green *GreenNode, offset int) bool {
+		k := green.Kind()
+		switch k {
 		case KindElseIfClause, KindElseClause, KindToken:
-			continue
+			return true
 		default:
-			if isExprKind(c.Kind()) && !seenCond {
+			if isExprKind(k) && !seenCond {
 				seenCond = true
-				continue
+				return true
 			}
-			if seenCond && (c.Kind() == KindStatementList || isStmtKind(c.Kind())) {
-				return c
+			if seenCond && body == nil && (k == KindStatementList || isStmtKind(k)) {
+				body = n.bindChild(green, offset)
+				return false
 			}
 		}
-	}
-	return nil
+		return true
+	})
+	return body
 }
 
 // IfElseIfs returns the ElseIfClause children of an if-statement.
@@ -143,11 +180,12 @@ func IfElseIfs(n *RedNode) []*RedNode {
 		return nil
 	}
 	var out []*RedNode
-	for _, c := range n.Children() {
-		if c.Kind() == KindElseIfClause {
-			out = append(out, c)
+	n.ForEachChildDesc(func(green *GreenNode, offset int) bool {
+		if green.Kind() == KindElseIfClause {
+			out = append(out, n.bindChild(green, offset))
 		}
-	}
+		return true
+	})
 	return out
 }
 
@@ -156,12 +194,15 @@ func IfElse(n *RedNode) *RedNode {
 	if n == nil || n.Kind() != KindIfStmt {
 		return nil
 	}
-	for _, c := range n.Children() {
-		if c.Kind() == KindElseClause {
-			return c
+	var els *RedNode
+	n.ForEachChildDesc(func(green *GreenNode, offset int) bool {
+		if green.Kind() == KindElseClause {
+			els = n.bindChild(green, offset)
+			return false
 		}
-	}
-	return nil
+		return true
+	})
+	return els
 }
 
 // ElseIfBody returns the raw body RedNode of an else-if clause. Mirrors
@@ -171,19 +212,23 @@ func ElseIfBody(n *RedNode) *RedNode {
 		return nil
 	}
 	seenCond := false
-	for _, c := range n.Children() {
-		if c.Kind() == KindToken {
-			continue
+	var body *RedNode
+	n.ForEachChildDesc(func(green *GreenNode, offset int) bool {
+		k := green.Kind()
+		if k == KindToken {
+			return true
 		}
-		if isExprKind(c.Kind()) && !seenCond {
+		if isExprKind(k) && !seenCond {
 			seenCond = true
-			continue
+			return true
 		}
-		if c.Kind() == KindStatementList || isStmtKind(c.Kind()) {
-			return c
+		if body == nil && (k == KindStatementList || isStmtKind(k)) {
+			body = n.bindChild(green, offset)
+			return false
 		}
-	}
-	return nil
+		return true
+	})
+	return body
 }
 
 // ElseBody returns the raw body RedNode of an else clause. Mirrors
@@ -192,15 +237,19 @@ func ElseBody(n *RedNode) *RedNode {
 	if n == nil || n.Kind() != KindElseClause {
 		return nil
 	}
-	for _, c := range n.Children() {
-		if c.Kind() == KindToken {
-			continue
+	var body *RedNode
+	n.ForEachChildDesc(func(green *GreenNode, offset int) bool {
+		k := green.Kind()
+		if k == KindToken {
+			return true
 		}
-		if c.Kind() == KindStatementList || isStmtKind(c.Kind()) {
-			return c
+		if body == nil && (k == KindStatementList || isStmtKind(k)) {
+			body = n.bindChild(green, offset)
+			return false
 		}
-	}
-	return nil
+		return true
+	})
+	return body
 }
 
 // WhileBody returns the raw body RedNode of a while-statement. Mirrors
@@ -210,19 +259,23 @@ func WhileBody(n *RedNode) *RedNode {
 		return nil
 	}
 	seenCond := false
-	for _, c := range n.Children() {
-		if c.Kind() == KindToken {
-			continue
+	var body *RedNode
+	n.ForEachChildDesc(func(green *GreenNode, offset int) bool {
+		k := green.Kind()
+		if k == KindToken {
+			return true
 		}
-		if (isExprKind(c.Kind()) || isNameKind(c.Kind())) && !seenCond {
+		if (isExprKind(k) || isNameKind(k)) && !seenCond {
 			seenCond = true
-			continue
+			return true
 		}
-		if c.Kind() == KindStatementList || isStmtKind(c.Kind()) {
-			return c
+		if body == nil && (k == KindStatementList || isStmtKind(k)) {
+			body = n.bindChild(green, offset)
+			return false
 		}
-	}
-	return nil
+		return true
+	})
+	return body
 }
 
 // DoWhileBody returns the raw body RedNode of a do-while statement. Mirrors
@@ -231,15 +284,19 @@ func DoWhileBody(n *RedNode) *RedNode {
 	if n == nil || n.Kind() != KindDoWhileStmt {
 		return nil
 	}
-	for _, c := range n.Children() {
-		if c.Kind() == KindToken {
-			continue
+	var body *RedNode
+	n.ForEachChildDesc(func(green *GreenNode, offset int) bool {
+		k := green.Kind()
+		if k == KindToken {
+			return true
 		}
-		if c.Kind() == KindStatementList || isStmtKind(c.Kind()) {
-			return c
+		if body == nil && (k == KindStatementList || isStmtKind(k)) {
+			body = n.bindChild(green, offset)
+			return false
 		}
-	}
-	return nil
+		return true
+	})
+	return body
 }
 
 // ForBody returns the raw body RedNode of a for-statement. Mirrors
@@ -248,27 +305,30 @@ func ForBody(n *RedNode) *RedNode {
 	if n == nil || n.Kind() != KindForStmt {
 		return nil
 	}
-	children := n.Children()
+	start := forStmtIndexAfterLParen(n)
+	_, start = forClauseChildrenAt(n, start) // init
+	_, start = forClauseChildrenAt(n, start) // condition
+	_, start = forClauseChildrenAt(n, start) // update
+	var body *RedNode
 	i := 0
-	for ; i < len(children); i++ {
-		if isTokenType(children[i], token.T_LPAREN) {
+	n.ForEachChildDesc(func(green *GreenNode, offset int) bool {
+		if i < start {
 			i++
-			break
+			return true
 		}
-	}
-	_, i = forClauseChildren(children, i) // init
-	_, i = forClauseChildren(children, i) // condition
-	_, i = forClauseChildren(children, i) // update
-	for ; i < len(children); i++ {
-		c := children[i]
-		if c.Kind() == KindToken {
-			continue
+		k := green.Kind()
+		if k == KindToken {
+			i++
+			return true
 		}
-		if c.Kind() == KindStatementList || isStmtKind(c.Kind()) {
-			return c
+		if body == nil && (k == KindStatementList || isStmtKind(k)) {
+			body = n.bindChild(green, offset)
+			return false
 		}
-	}
-	return nil
+		i++
+		return true
+	})
+	return body
 }
 
 // StatementBodyList normalizes a body RedNode (either a KindStatementList or
@@ -280,12 +340,13 @@ func StatementBodyList(n *RedNode) []*RedNode {
 	}
 	if n.Kind() == KindStatementList {
 		var out []*RedNode
-		for _, c := range n.Children() {
-			if c == nil || c.Kind() == KindToken {
-				continue
+		n.ForEachChildDesc(func(green *GreenNode, offset int) bool {
+			if green == nil || green.Kind() == KindToken {
+				return true
 			}
-			out = append(out, c)
-		}
+			out = append(out, n.bindChild(green, offset))
+			return true
+		})
 		return out
 	}
 	return []*RedNode{n}
@@ -297,12 +358,15 @@ func FunctionBody(n *RedNode) *RedNode {
 	if n == nil || (n.Kind() != KindFunctionDecl && n.Kind() != KindMethodDecl) {
 		return nil
 	}
-	for _, c := range n.Children() {
-		if c.Kind() == KindStatementList {
-			return c
+	var body *RedNode
+	n.ForEachChildDesc(func(green *GreenNode, offset int) bool {
+		if green.Kind() == KindStatementList {
+			body = n.bindChild(green, offset)
+			return false
 		}
-	}
-	return nil
+		return true
+	})
+	return body
 }
 
 // ClassMethods returns the KindFunctionDecl/KindMethodDecl member children of
@@ -312,21 +376,24 @@ func ClassMethods(n *RedNode) []*RedNode {
 		return nil
 	}
 	var members *RedNode
-	for _, c := range n.Children() {
-		if c.Kind() == KindMemberList {
-			members = c
-			break
+	n.ForEachChildDesc(func(green *GreenNode, offset int) bool {
+		if green.Kind() == KindMemberList {
+			members = n.bindChild(green, offset)
+			return false
 		}
-	}
+		return true
+	})
 	if members == nil {
 		return nil
 	}
 	var out []*RedNode
-	for _, m := range members.Children() {
-		if m.Kind() == KindFunctionDecl || m.Kind() == KindMethodDecl {
-			out = append(out, m)
+	members.ForEachChildDesc(func(green *GreenNode, offset int) bool {
+		k := green.Kind()
+		if k == KindFunctionDecl || k == KindMethodDecl {
+			out = append(out, members.bindChild(green, offset))
 		}
-	}
+		return true
+	})
 	return out
 }
 
@@ -338,17 +405,28 @@ func CallIsMethodLike(n *RedNode) bool {
 	if n == nil || n.Kind() != KindCallExpr {
 		return false
 	}
-	for _, c := range n.Children() {
-		switch c.Kind() {
+	methodLike := false
+	decided := false
+	n.ForEachChildDesc(func(green *GreenNode, offset int) bool {
+		k := green.Kind()
+		switch k {
 		case KindArgList, KindToken:
-			continue
-		case KindMemberAccessExpr, KindNullsafeMemberAccessExpr, KindStaticMemberAccessExpr:
 			return true
+		case KindMemberAccessExpr, KindNullsafeMemberAccessExpr, KindStaticMemberAccessExpr:
+			methodLike = true
+			decided = true
+			return false
 		default:
-			if isExprKind(c.Kind()) || isNameKind(c.Kind()) {
+			if isExprKind(k) || isNameKind(k) {
+				methodLike = false
+				decided = true
 				return false
 			}
 		}
+		return true
+	})
+	if decided {
+		return methodLike
 	}
 	return false
 }
@@ -362,12 +440,19 @@ func CallArgList(n *RedNode) *RedNode {
 }
 
 func firstExprOrNameChild(n *RedNode) *RedNode {
-	for _, c := range n.Children() {
-		if isExprKind(c.Kind()) || isNameKind(c.Kind()) {
-			return c
-		}
+	if n == nil {
+		return nil
 	}
-	return nil
+	var found *RedNode
+	n.ForEachChildDesc(func(green *GreenNode, offset int) bool {
+		k := green.Kind()
+		if isExprKind(k) || isNameKind(k) {
+			found = n.bindChild(green, offset)
+			return false
+		}
+		return true
+	})
+	return found
 }
 
 // ExpressionStmtExpr returns the inner expression RedNode of an expression
@@ -391,10 +476,23 @@ func NamespaceBody(n *RedNode, siblings []*RedNode, idx int) (body []*RedNode, c
 	if n == nil {
 		return nil, 0
 	}
-	for _, c := range n.Children() {
-		if c.Kind() == KindStatementList {
-			return c.Children(), 0
+	var stmtList *RedNode
+	n.ForEachChildDesc(func(green *GreenNode, offset int) bool {
+		if green.Kind() == KindStatementList {
+			stmtList = n.bindChild(green, offset)
+			return false
 		}
+		return true
+	})
+	if stmtList != nil {
+		stmtList.ForEachChildDesc(func(green *GreenNode, offset int) bool {
+			if green == nil || green.Kind() == KindToken {
+				return true
+			}
+			body = append(body, stmtList.bindChild(green, offset))
+			return true
+		})
+		return body, 0
 	}
 	for j := idx + 1; j < len(siblings); j++ {
 		sib := siblings[j]

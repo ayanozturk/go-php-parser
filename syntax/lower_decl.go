@@ -524,11 +524,11 @@ func lowerPropertyHooks(list *RedNode, file *File) []ast.PropertyHookNode {
 		return nil
 	}
 	var out []ast.PropertyHookNode
-	list.ForEachChild(func(c *RedNode) bool {
-		if c.Kind() != KindPropertyHook {
+	list.ForEachChildDesc(func(green *GreenNode, offset int) bool {
+		if green.Kind() != KindPropertyHook {
 			return true
 		}
-		if h, ok := lowerPropertyHook(c, file); ok {
+		if h, ok := lowerPropertyHook(list.bindChild(green, offset), file); ok {
 			out = append(out, h)
 		}
 		return true

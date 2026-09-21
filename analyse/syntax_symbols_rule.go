@@ -93,12 +93,13 @@ func checkSymbolIssuesFromParsed(filename string, res *syntax.ParseResult, ctx *
 		}
 		switch n.Kind() {
 		case syntax.KindCallExpr:
-			for _, c := range n.Children() {
-				switch c.Kind() {
+			n.ForEachChildDesc(func(green *syntax.GreenNode, offset int) bool {
+				switch green.Kind() {
 				case syntax.KindMemberAccessExpr, syntax.KindNullsafeMemberAccessExpr, syntax.KindStaticMemberAccessExpr:
-					callCallees[keyOf(c)] = true
+					callCallees[redNodeKey{green: green, offset: offset}] = true
 				}
-			}
+				return true
+			})
 			node := memoLowerExpr(ctx, n, res.File)
 			if node == nil {
 				syntax.Walk(n, func(d *syntax.RedNode) bool {

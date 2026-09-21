@@ -181,10 +181,10 @@ func runFusedConfiguredCSTWalk(root *syntax.RedNode, rootFt FileTypeContext, o f
 		if runSymbols && !symbolSuppressed[cstKeyOf(n)] {
 			switch n.Kind() {
 			case syntax.KindCallExpr:
-				n.ForEachChild(func(c *syntax.RedNode) bool {
-					switch c.Kind() {
+				n.ForEachChildDesc(func(green *syntax.GreenNode, offset int) bool {
+					switch green.Kind() {
 					case syntax.KindMemberAccessExpr, syntax.KindNullsafeMemberAccessExpr, syntax.KindStaticMemberAccessExpr:
-						callCallees[cstKeyOf(c)] = true
+						callCallees[cstRedNodeKey{green: green, offset: offset}] = true
 					}
 					return true
 				})

@@ -15,8 +15,9 @@ func lowerTrait(n *RedNode, file *File) *ast.TraitNode {
 	var name string
 	var namePos, nameEnd ast.Position
 	var members *RedNode
-	n.ForEachChild(func(c *RedNode) bool {
-		switch c.Kind() {
+	n.ForEachChildDesc(func(green *GreenNode, offset int) bool {
+		c := n.bindChild(green, offset)
+		switch green.Kind() {
 		case KindUnqualifiedName, KindQualifiedName,
 			KindFullyQualifiedName, KindRelativeName:
 			if name == "" {
@@ -115,11 +116,12 @@ func lowerUseTraitClause(n *RedNode, file *File) *ast.TraitUseNode {
 	pos, end := nodePos(file, n)
 	var traits []string
 	var adaptations []ast.TraitAdaptation
-	n.ForEachChild(func(c *RedNode) bool {
+	n.ForEachChildDesc(func(green *GreenNode, offset int) bool {
+		c := n.bindChild(green, offset)
 		switch {
-		case isNameKind(c.Kind()):
+		case isNameKind(green.Kind()):
 			traits = append(traits, NameText(c))
-		case c.Kind() == KindTraitAdaptationList:
+		case green.Kind() == KindTraitAdaptationList:
 			adaptations = lowerTraitAdaptations(c)
 		}
 		return true
@@ -140,11 +142,11 @@ func lowerTraitAdaptations(list *RedNode) []ast.TraitAdaptation {
 		return nil
 	}
 	var out []ast.TraitAdaptation
-	list.ForEachChild(func(c *RedNode) bool {
-		if c.Kind() != KindTraitAdaptation {
+	list.ForEachChildDesc(func(green *GreenNode, offset int) bool {
+		if green.Kind() != KindTraitAdaptation {
 			return true
 		}
-		if a, ok := lowerTraitAdaptation(c); ok {
+		if a, ok := lowerTraitAdaptation(list.bindChild(green, offset)); ok {
 			out = append(out, a)
 		}
 		return true
@@ -155,8 +157,8 @@ func lowerTraitAdaptations(list *RedNode) []ast.TraitAdaptation {
 func lowerTraitAdaptation(n *RedNode) (ast.TraitAdaptation, bool) {
 	var a ast.TraitAdaptation
 	var children []*RedNode
-	n.ForEachChild(func(c *RedNode) bool {
-		children = append(children, c)
+	n.ForEachChildDesc(func(green *GreenNode, offset int) bool {
+		children = append(children, n.bindChild(green, offset))
 		return true
 	})
 	i := 0
@@ -226,11 +228,11 @@ func lowerModifiersFromList(list *RedNode) ast.ModifierList {
 		return nil
 	}
 	var out ast.ModifierList
-	list.ForEachChild(func(c *RedNode) bool {
-		if c.Green == nil || !c.Green.IsToken() {
+	list.ForEachChildDesc(func(green *GreenNode, _ int) bool {
+		if !green.IsToken() {
 			return true
 		}
-		tok, ok := c.Green.Token()
+		tok, ok := green.Token()
 		if !ok {
 			return true
 		}

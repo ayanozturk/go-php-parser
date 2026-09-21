@@ -95,25 +95,30 @@ func lowerArrowFunctionExpr(n *RedNode, file *File) ast.Node {
 	pos, end := nodePos(file, n)
 	af := &ast.ArrowFunctionNode{Pos: pos, EndPos: end}
 	seenColon, seenArrow := false, false
-	n.ForEachChild(func(c *RedNode) bool {
-		switch c.Kind() {
+	n.ForEachChildDesc(func(green *GreenNode, offset int) bool {
+		k := green.Kind()
+		switch k {
 		case KindParamList:
+			c := n.bindChild(green, offset)
 			af.Params = lowerParamList(c, file)
 		default:
-			if isTokenType(c, token.T_COLON) {
-				seenColon = true
+			if k == KindToken {
+				switch green.TokenType() {
+				case token.T_COLON:
+					seenColon = true
+				case token.T_DOUBLE_ARROW:
+					seenArrow = true
+				}
 				return true
 			}
-			if seenColon && isTypeKind(c.Kind()) {
+			if seenColon && isTypeKind(k) {
+				c := n.bindChild(green, offset)
 				af.ReturnType = lowerType(c, file)
 				seenColon = false
 				return true
 			}
-			if isTokenType(c, token.T_DOUBLE_ARROW) {
-				seenArrow = true
-				return true
-			}
-			if seenArrow && (isExprKind(c.Kind()) || isNameKind(c.Kind())) {
+			if seenArrow && (isExprKind(k) || isNameKind(k)) {
+				c := n.bindChild(green, offset)
 				af.Expr = lowerExpr(c, file)
 			}
 		}
@@ -134,8 +139,8 @@ func lowerAnonymousClass(n *RedNode, file *File) (ast.Node, []ast.Node) {
 		PHPDoc:    leadingDocFromNode(n),
 	}
 	// Readonly may appear as a bare token before T_CLASS on anonymous classes.
-	n.ForEachChild(func(c *RedNode) bool {
-		if isTokenType(c, token.T_READONLY) {
+	n.ForEachChildDesc(func(green *GreenNode, _ int) bool {
+		if isGreenTokenType(green, token.T_READONLY) {
 			cls.Modifiers = append(cls.Modifiers, ast.Modifier{Tok: token.T_READONLY, Text: "readonly"})
 		}
 		return true
@@ -143,23 +148,28 @@ func lowerAnonymousClass(n *RedNode, file *File) (ast.Node, []ast.Node) {
 	var ctorArgs []ast.Node
 	var members *RedNode
 	headerEnd := pos
-	n.ForEachChild(func(c *RedNode) bool {
-		switch c.Kind() {
+	n.ForEachChildDesc(func(green *GreenNode, offset int) bool {
+		k := green.Kind()
+		switch k {
 		case KindArgList:
+			c := n.bindChild(green, offset)
 			ctorArgs = lowerArgList(c, file)
 			headerEnd = spanEnd(file, c.Span())
 		case KindExtendsClause:
+			c := n.bindChild(green, offset)
 			names := clauseNames(c)
 			if len(names) > 0 {
 				cls.Extends = names[0]
 			}
 			headerEnd = spanEnd(file, c.Span())
 		case KindImplementsClause:
+			c := n.bindChild(green, offset)
 			cls.Implements = clauseNames(c)
 			headerEnd = spanEnd(file, c.Span())
 		case KindMemberList:
-			members = c
+			members = n.bindChild(green, offset)
 		case KindModifierList:
+			c := n.bindChild(green, offset)
 			headerEnd = spanEnd(file, c.Span())
 		}
 		return true
@@ -178,17 +188,20 @@ func lowerMatchExpr(n *RedNode, file *File) ast.Node {
 	pos, end := nodePos(file, n)
 	m := &ast.MatchNode{Pos: pos, EndPos: end}
 	seenLParen, seenCond := false, false
-	n.ForEachChild(func(c *RedNode) bool {
-		if isTokenType(c, token.T_LPAREN) {
+	n.ForEachChildDesc(func(green *GreenNode, offset int) bool {
+		if isGreenTokenType(green, token.T_LPAREN) {
 			seenLParen = true
 			return true
 		}
-		if seenLParen && !seenCond && (isExprKind(c.Kind()) || isNameKind(c.Kind())) {
+		k := green.Kind()
+		if seenLParen && !seenCond && (isExprKind(k) || isNameKind(k)) {
+			c := n.bindChild(green, offset)
 			m.Condition = lowerExpr(c, file)
 			seenCond = true
 			return true
 		}
-		if c.Kind() == KindMatchArm {
+		if k == KindMatchArm {
+			c := n.bindChild(green, offset)
 			if arm := lowerMatchArm(c, file); arm != nil {
 				m.Arms = append(m.Arms, *arm)
 			}
@@ -205,24 +218,28 @@ func lowerMatchArm(n *RedNode, file *File) *ast.MatchArmNode {
 	pos, end := nodePos(file, n)
 	arm := &ast.MatchArmNode{Pos: pos, EndPos: end}
 	seenArrow := false
-	n.ForEachChild(func(c *RedNode) bool {
-		if isTokenType(c, token.T_DEFAULT) {
+	n.ForEachChildDesc(func(green *GreenNode, offset int) bool {
+		if isGreenTokenType(green, token.T_DEFAULT) {
+			c := n.bindChild(green, offset)
 			dp, de := nodePos(file, c)
 			arm.Conditions = []ast.Node{&ast.IdentifierNode{Value: "default", Pos: dp, EndPos: de}}
 			return true
 		}
-		if isTokenType(c, token.T_DOUBLE_ARROW) {
+		if isGreenTokenType(green, token.T_DOUBLE_ARROW) {
 			seenArrow = true
 			return true
 		}
-		if isTokenType(c, token.T_COMMA) {
+		if isGreenTokenType(green, token.T_COMMA) {
 			return true
 		}
-		if !seenArrow && (isExprKind(c.Kind()) || isNameKind(c.Kind())) {
+		k := green.Kind()
+		if !seenArrow && (isExprKind(k) || isNameKind(k)) {
+			c := n.bindChild(green, offset)
 			arm.Conditions = append(arm.Conditions, lowerExpr(c, file))
 			return true
 		}
-		if seenArrow && (isExprKind(c.Kind()) || isNameKind(c.Kind())) {
+		if seenArrow && (isExprKind(k) || isNameKind(k)) {
+			c := n.bindChild(green, offset)
 			arm.Body = lowerExpr(c, file)
 		}
 		return true
@@ -233,9 +250,10 @@ func lowerMatchArm(n *RedNode, file *File) *ast.MatchArmNode {
 func lowerCloneExpr(n *RedNode, file *File) ast.Node {
 	pos, end := nodePos(file, n)
 	var operand *RedNode
-	n.ForEachChild(func(c *RedNode) bool {
-		if isExprKind(c.Kind()) || isNameKind(c.Kind()) {
-			operand = c
+	n.ForEachChildDesc(func(green *GreenNode, offset int) bool {
+		k := green.Kind()
+		if isExprKind(k) || isNameKind(k) {
+			operand = n.bindChild(green, offset)
 			return false
 		}
 		return true
@@ -270,16 +288,20 @@ func lowerKeywordUnaryExpr(n *RedNode, file *File) ast.Node {
 	pos, end := nodePos(file, n)
 	var op string
 	var operand *RedNode
-	n.ForEachChild(func(c *RedNode) bool {
-		if c.Green != nil && c.Green.IsToken() {
-			lit := strings.TrimSpace(tokenLiteral(c))
-			if lit != "" && op == "" {
-				op = lit
+	n.ForEachChildDesc(func(green *GreenNode, offset int) bool {
+		if green.IsToken() {
+			tok, ok := green.Token()
+			if ok {
+				lit := strings.TrimSpace(tok.Literal)
+				if lit != "" && op == "" {
+					op = lit
+				}
 			}
 			return true
 		}
-		if isExprKind(c.Kind()) || isNameKind(c.Kind()) {
-			operand = c
+		k := green.Kind()
+		if isExprKind(k) || isNameKind(k) {
+			operand = n.bindChild(green, offset)
 		}
 		return true
 	})
@@ -309,16 +331,16 @@ func lowerInterpolatedStringLiteral(n *RedNode, file *File) ast.Node {
 func lowerHeredoc(n *RedNode, file *File) ast.Node {
 	pos, end := nodePos(file, n)
 	ident := ""
-	n.ForEachChild(func(c *RedNode) bool {
-		if c.Green == nil || !c.Green.IsToken() {
+	n.ForEachChildDesc(func(green *GreenNode, _ int) bool {
+		if !green.IsToken() {
 			return true
 		}
-		tt, ok := tokenOf(c)
+		tok, ok := green.Token()
 		if !ok {
 			return true
 		}
-		if tt.Type == token.T_START_HEREDOC || tt.Type == token.T_START_NOWDOC {
-			ident = heredocIdentifier(tt.Literal)
+		if tok.Type == token.T_START_HEREDOC || tok.Type == token.T_START_NOWDOC {
+			ident = heredocIdentifier(tok.Literal)
 			return false
 		}
 		return true

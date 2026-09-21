@@ -54,7 +54,11 @@ func flattenTopLevelForSideEffects(root *syntax.RedNode) []*syntax.RedNode {
 	if root == nil {
 		return nil
 	}
-	children := root.Children()
+	var children []*syntax.RedNode
+	root.ForEachChild(func(c *syntax.RedNode) bool {
+		children = append(children, c)
+		return true
+	})
 	var out []*syntax.RedNode
 	for i := 0; i < len(children); i++ {
 		c := children[i]

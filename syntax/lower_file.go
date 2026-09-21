@@ -19,8 +19,8 @@ func LowerFile(root *RedNode, file *File) []ast.Node {
 		return nodes
 	}
 	var children []*RedNode
-	root.ForEachChild(func(c *RedNode) bool {
-		children = append(children, c)
+	root.ForEachChildDesc(func(green *GreenNode, offset int) bool {
+		children = append(children, root.bindChild(green, offset))
 		return true
 	})
 	var out []ast.Node

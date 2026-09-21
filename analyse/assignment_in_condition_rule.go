@@ -248,9 +248,10 @@ func (r *AssignmentInConditionRule) checkIssuesFromParsedCST(filename string, re
 			}
 		}
 	}
-	for _, top := range res.File.Root.Children() {
+	res.File.Root.ForEachChild(func(top *syntax.RedNode) bool {
 		walkStmt(top)
-	}
+		return true
+	})
 	return issues
 }
 

@@ -14,11 +14,11 @@ func lowerType(n *RedNode, file *File) ast.Node {
 	switch n.Kind() {
 	case KindNullableType:
 		var inner ast.Node
-		n.ForEachChild(func(c *RedNode) bool {
-			if c.Kind() == KindToken {
+		n.ForEachChildDesc(func(green *GreenNode, offset int) bool {
+			if green.Kind() == KindToken {
 				return true
 			}
-			inner = lowerType(c, file)
+			inner = lowerType(n.bindChild(green, offset), file)
 			return false
 		})
 		return &ast.NullableTypeNode{Inner: inner, Pos: pos, EndPos: end}
@@ -28,11 +28,11 @@ func lowerType(n *RedNode, file *File) ast.Node {
 		return &ast.IntersectionTypeNode{Types: lowerTypeParts(n, file), Pos: pos, EndPos: end}
 	case KindParenthesizedType:
 		var inner ast.Node
-		n.ForEachChild(func(c *RedNode) bool {
-			if c.Kind() == KindToken {
+		n.ForEachChildDesc(func(green *GreenNode, offset int) bool {
+			if green.Kind() == KindToken {
 				return true
 			}
-			inner = lowerType(c, file)
+			inner = lowerType(n.bindChild(green, offset), file)
 			return false
 		})
 		return &ast.ParenthesizedTypeNode{Inner: inner, Pos: pos, EndPos: end}
@@ -71,11 +71,11 @@ func lowerType(n *RedNode, file *File) ast.Node {
 
 func lowerTypeParts(n *RedNode, file *File) []ast.Node {
 	var parts []ast.Node
-	n.ForEachChild(func(c *RedNode) bool {
-		if c.Kind() == KindToken {
+	n.ForEachChildDesc(func(green *GreenNode, offset int) bool {
+		if green.Kind() == KindToken {
 			return true
 		}
-		if t := lowerType(c, file); t != nil {
+		if t := lowerType(n.bindChild(green, offset), file); t != nil {
 			parts = append(parts, t)
 		}
 		return true
