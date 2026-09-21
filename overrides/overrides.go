@@ -85,7 +85,8 @@ func normalizePattern(pattern string) string {
 	if len(trimmed) >= 2 && strings.HasPrefix(trimmed, "/") && strings.HasSuffix(trimmed, "/") {
 		return trimmed[1 : len(trimmed)-1]
 	}
-	return "^" + regexp.QuoteMeta(trimmed) + "$"
+	// Exact PHP class names are case-insensitive; slash-regex bodies are left as authored.
+	return "^(?i)" + regexp.QuoteMeta(trimmed) + "$"
 }
 
 func matchesAny(patterns []*regexp.Regexp, value string) bool {
