@@ -38,3 +38,36 @@ func appendTypeRefUseIssuesFromCST(filename string, useDecl *syntax.RedNode, ctx
 		}
 	})
 }
+
+// appendTypeRefPropertyIssuesFromCST checks property type hints without
+// LowerPropertyDeclNode. Span parity: single-name decls use the whole
+// property decl; multi-name decls use each variable token span (same as
+// property-callable CST).
+func appendTypeRefPropertyIssuesFromCST(filename string, propDecl *syntax.RedNode, ft FileTypeContext, ctx *AnalysisContext, guards reflectionGuards, issues *[]AnalysisIssue) {
+	if propDecl == nil || propDecl.Kind() != syntax.KindPropertyDecl || ctx == nil {
+		return
+	}
+	typ := syntax.PropertyDeclType(propDecl)
+	if typ == nil {
+		return
+	}
+	raw := syntax.TypeText(typ)
+	if raw == "" {
+		return
+	}
+	vars := syntax.PropertyDeclVariables(propDecl)
+	if len(vars) == 0 {
+		return
+	}
+	if len(vars) == 1 {
+		name := syntax.VariableName(vars[0])
+		start := propDecl.Pos()
+		checkTypeReference(filename, start, "Property $"+name, raw, ft, ctx, guards, issues)
+		return
+	}
+	for _, v := range vars {
+		name := syntax.VariableName(v)
+		start, _ := syntax.RawSpanPositions(v)
+		checkTypeReference(filename, start, "Property $"+name, raw, ft, ctx, guards, issues)
+	}
+}
