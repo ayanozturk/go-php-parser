@@ -2,7 +2,6 @@ package syntax
 
 import (
 	"strconv"
-	"strings"
 	"unsafe"
 
 	"github.com/ayanozturk/go-php-parser/token"
@@ -336,8 +335,9 @@ func (g *GreenNode) IsToken() bool {
 // Interner deduplicates identical position-independent green subtrees.
 // src is the owned file buffer used to fingerprint token text when Literal is empty.
 type Interner struct {
-	src   []byte
-	nodes map[string]*GreenNode
+	src    []byte
+	nodes  map[string]*GreenNode
+	keyBuf []byte // reused for Token/Node map keys; lookup via string(buf) avoids hit alloc
 }
 
 func NewInterner(src []byte) *Interner {
@@ -347,10 +347,11 @@ func NewInterner(src []byte) *Interner {
 func (in *Interner) Token(tok token.Token) *GreenNode {
 	tok = in.materializeLiterals(tok)
 	w := tokenWidth(tok)
-	key := tokenInternKey(tok, w)
-	if n, ok := in.nodes[key]; ok {
+	in.buildTokenKey(tok, w)
+	if n, ok := in.nodes[string(in.keyBuf)]; ok {
 		return n
 	}
+	key := string(in.keyBuf)
 	t := positionIndependentToken(tok)
 	startRel, endRel := greenTokenContentBounds(w, t)
 	n := &GreenNode{kind: KindToken, width: w, token: &t, contentStartRel: startRel, contentEndRel: endRel}
@@ -368,23 +369,28 @@ func (in *Interner) Missing(tok token.Token) *GreenNode {
 
 func (in *Interner) Node(kind Kind, children ...*GreenNode) *GreenNode {
 	w := 0
-	var b strings.Builder
-	b.Grow(16 + len(children)*18)
-	b.WriteString("n:")
-	b.WriteString(kind.String())
+	ks := kind.String()
+	b := in.keyBuf[:0]
+	need := 2 + len(ks) + len(children)*18
+	if cap(b) < need {
+		b = make([]byte, 0, need)
+	}
+	b = append(b, 'n', ':')
+	b = append(b, ks...)
 	for _, c := range children {
-		b.WriteByte(':')
+		b = append(b, ':')
 		if c == nil {
-			b.WriteByte('0')
+			b = append(b, '0')
 			continue
 		}
 		w += c.width
-		b.WriteString(ptrKey(c))
+		b = strconv.AppendUint(b, uint64(uintptr(unsafe.Pointer(c))), 16)
 	}
-	key := b.String()
-	if n, ok := in.nodes[key]; ok {
+	in.keyBuf = b
+	if n, ok := in.nodes[string(b)]; ok {
 		return n
 	}
+	key := string(b)
 	ch := append([]*GreenNode(nil), children...)
 	startRel := greenCompositeContentStartRel(ch)
 	n := &GreenNode{kind: kind, width: w, children: ch, contentStartRel: startRel, contentEndRel: w}
@@ -489,45 +495,45 @@ func stripTriviaPositions(triv []token.Token) []token.Token {
 	return out
 }
 
-func tokenInternKey(tok token.Token, w int) string {
-	var b strings.Builder
-	b.Grow(64)
-	b.WriteString("t:")
-	b.WriteString(tok.Type.String())
-	b.WriteByte(':')
-	b.WriteString(strconv.Itoa(w))
-	b.WriteString(":L")
-	appendTriviaKey(&b, tok.LeadingTrivia)
-	b.WriteString(":T")
-	appendTriviaKey(&b, tok.TrailingTrivia)
-	// Significant token text fingerprint (position-independent).
-	b.WriteByte(':')
-	if lit := tok.Literal; lit != "" {
-		b.WriteString(lit)
-	} else if tok.End.Offset > tok.Pos.Offset {
-		// Prefer width-stable key when literal empty; content sharing still keyed by type+width+trivia.
-		b.WriteString(strconv.Itoa(tok.Width()))
+func (in *Interner) buildTokenKey(tok token.Token, w int) {
+	ts := tok.Type.String()
+	b := in.keyBuf[:0]
+	// Heuristic: type name + width + trivia literals + token literal.
+	need := 8 + len(ts) + len(tok.Literal) + len(tok.LeadingTrivia)*24 + len(tok.TrailingTrivia)*24
+	if cap(b) < need {
+		b = make([]byte, 0, need)
 	}
-	return b.String()
+	b = append(b, 't', ':')
+	b = append(b, ts...)
+	b = append(b, ':')
+	b = strconv.AppendInt(b, int64(w), 10)
+	b = append(b, ':', 'L')
+	b = appendTriviaKeyBytes(b, tok.LeadingTrivia)
+	b = append(b, ':', 'T')
+	b = appendTriviaKeyBytes(b, tok.TrailingTrivia)
+	b = append(b, ':')
+	if lit := tok.Literal; lit != "" {
+		b = append(b, lit...)
+	} else if tok.End.Offset > tok.Pos.Offset {
+		b = strconv.AppendInt(b, int64(tok.Width()), 10)
+	}
+	in.keyBuf = b
 }
 
-func appendTriviaKey(b *strings.Builder, triv []token.Token) {
+func appendTriviaKeyBytes(b []byte, triv []token.Token) []byte {
 	for _, tr := range triv {
-		b.WriteByte(',')
-		b.WriteString(tr.Type.String())
-		b.WriteByte('/')
-		b.WriteString(strconv.Itoa(tokenWidth(tr)))
-		b.WriteByte('/')
+		b = append(b, ',')
+		b = append(b, tr.Type.String()...)
+		b = append(b, '/')
+		b = strconv.AppendInt(b, int64(tokenWidth(tr)), 10)
+		b = append(b, '/')
 		if tr.Literal != "" {
-			b.WriteString(tr.Literal)
+			b = append(b, tr.Literal...)
 		} else {
-			b.WriteString(strconv.Itoa(tr.Width()))
+			b = strconv.AppendInt(b, int64(tr.Width()), 10)
 		}
 	}
-}
-
-func ptrKey(g *GreenNode) string {
-	return strconv.FormatUint(uint64(uintptr(unsafe.Pointer(g))), 16)
+	return b
 }
 
 func tokenWidth(tok token.Token) int {
