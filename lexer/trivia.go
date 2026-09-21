@@ -58,8 +58,14 @@ func (l *Lexer) lexCommentTrivia() token.Token {
 	// block comment — l.char is '*'
 	typ := token.T_COMMENT
 	if l.peekChar() == '*' {
-		l.readChar() // second '*'
-		typ = token.T_DOC_COMMENT
+		// Zend: /**/ is a normal comment. Only promote to doc when the
+		// second '*' is not immediately followed by the closer '/'.
+		// Pre-consuming the second '*' before readBlockComment would leave
+		// char on the closing '/' of /**/ and swallow the rest of the file.
+		if l.readPos+1 >= len(l.input) || l.input[l.readPos+1] != '/' {
+			l.readChar() // second '*'
+			typ = token.T_DOC_COMMENT
+		}
 	}
 	lit := l.readBlockComment(commentStart)
 	// PHP treats /**/ as a normal comment, not a doc comment.
