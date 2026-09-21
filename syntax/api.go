@@ -436,27 +436,49 @@ func IsStatementKind(k Kind) bool {
 // for each node. If fn returns false, that node's children are skipped
 // (unlike the lowered ast.Node walkers, this supports early subtree exit).
 //
-// *RedNode pointers passed to fn are valid only for the duration of the
-// callback. Parent may be nil on visited nodes; node identity is (Green,
-// Offset) within the same File. Callers must not retain *RedNode past fn.
+// fn receives a single reused scratch *RedNode (Parent is always nil). The
+// pointer MUST NOT be retained after fn returns — store a copy by value
+// (RedNode{File, Green, Offset}) if a node must outlive the callback; see
+// analyse/assignment_in_condition_rule.go. Green and Offset identify the
+// visited node within root.File for the duration of the call only.
 func Walk(root *RedNode, fn func(*RedNode) bool) {
 	if root == nil || fn == nil {
 		return
 	}
-	stack := []RedNode{{File: root.File, Green: root.Green, Offset: root.Offset}}
+	type walkFrame struct {
+		green  *GreenNode
+		offset int
+	}
+	scratch := &RedNode{File: root.File, Parent: nil, Green: root.Green, Offset: root.Offset}
+	stack := []walkFrame{{green: root.Green, offset: root.Offset}}
 	for len(stack) > 0 {
-		node := stack[len(stack)-1]
-		stack = stack[:len(stack)-1]
-		if !fn(&node) {
+		top := len(stack) - 1
+		f := stack[top]
+		stack = stack[:top]
+		scratch.Green = f.green
+		scratch.Offset = f.offset
+		if !fn(scratch) {
 			continue
 		}
-		var children []RedNode
-		node.ForEachChildDesc(func(green *GreenNode, offset int) bool {
-			children = append(children, RedNode{File: node.File, Green: green, Offset: offset})
-			return true
-		})
-		for i := len(children) - 1; i >= 0; i-- {
-			stack = append(stack, children[i])
+		g := f.green
+		if g == nil {
+			continue
+		}
+		kids := g.Children()
+		if len(kids) == 0 {
+			continue
+		}
+		mark := len(stack)
+		off := f.offset
+		for _, child := range kids {
+			if child == nil {
+				continue
+			}
+			stack = append(stack, walkFrame{green: child, offset: off})
+			off += child.Width()
+		}
+		for i, j := mark, len(stack)-1; i < j; i, j = i+1, j-1 {
+			stack[i], stack[j] = stack[j], stack[i]
 		}
 	}
 }
