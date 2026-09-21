@@ -61,4 +61,5 @@ func TestSyntaxLowerMemoStatsWPSample(t *testing.T) {
 
 	snap := SnapshotSyntaxLowerMemoStats()
 	t.Log("\n" + FormatSyntaxLowerMemoStats(snap))
+	t.Log("\n" + FormatCallLowerMissReasons(CallLowerMissReasonSnapshot()))
 }

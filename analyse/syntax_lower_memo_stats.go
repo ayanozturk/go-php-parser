@@ -64,6 +64,7 @@ func ResetSyntaxLowerMemoStats() {
 	for k := 0; k < memoExprKindCount; k++ {
 		syntaxLowerMemoExprMiss[k].Store(0)
 	}
+	resetCallLowerMissReasons()
 }
 
 // SyntaxLowerMemoStatRow is one entrypoint's hit/bridge/miss totals.

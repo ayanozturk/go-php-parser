@@ -184,6 +184,7 @@ func memoLowerExpr(ctx *AnalysisContext, n *syntax.RedNode, file *syntax.File) a
 				recordMemoLower(MemoBucketExpr, MemoOutcomeCST)
 				return v
 			}
+			recordCallExprLowerMissReason(classifyCallExprCSTFallback(n))
 		}
 		if n.Kind() == syntax.KindNewExpr {
 			if v, ok := tryCSTNewExprForMemo(n); ok {
