@@ -1,6 +1,9 @@
 package syntax
 
-import "github.com/ayanozturk/go-php-parser/token"
+import (
+	"github.com/ayanozturk/go-php-parser/ast"
+	"github.com/ayanozturk/go-php-parser/token"
+)
 
 // IfCondition returns the condition expression RedNode of an if-statement
 // (or an else-if clause), or nil. Mirrors lowerIfStmt's condition detection
@@ -523,4 +526,121 @@ func ClauseNames(clause *RedNode) []string {
 // unqualifiedTail helper used for class/interface declaration names.
 func UnqualifiedTail(path string) string {
 	return unqualifiedTail(path)
+}
+
+// IsTypeKind reports whether k is a type-node kind (named, primitive,
+// nullable, union, intersection, parenthesized, or callable-signature).
+func IsTypeKind(k Kind) bool {
+	return isTypeKind(k)
+}
+
+// PropertyDeclType returns the shared type child of a KindPropertyDecl, or nil.
+func PropertyDeclType(n *RedNode) *RedNode {
+	if n == nil || n.Kind() != KindPropertyDecl {
+		return nil
+	}
+	var typ *RedNode
+	n.ForEachChildDesc(func(green *GreenNode, offset int) bool {
+		if isTypeKind(green.Kind()) {
+			typ = &RedNode{File: n.File, Green: green, Offset: offset}
+			return false
+		}
+		return true
+	})
+	return typ
+}
+
+// PropertyDeclVariables returns each T_VARIABLE child of a KindPropertyDecl
+// as a RedNode (source order). Multi-property decls share one type but each
+// variable gets its own span for diagnostics.
+func PropertyDeclVariables(n *RedNode) []*RedNode {
+	if n == nil || n.Kind() != KindPropertyDecl {
+		return nil
+	}
+	var vars []*RedNode
+	n.ForEachChildDesc(func(green *GreenNode, offset int) bool {
+		if isGreenTokenType(green, token.T_VARIABLE) {
+			vars = append(vars, &RedNode{File: n.File, Green: green, Offset: offset})
+		}
+		return true
+	})
+	return vars
+}
+
+// ParamType returns the type child of a KindParam, or nil.
+func ParamType(n *RedNode) *RedNode {
+	if n == nil || n.Kind() != KindParam {
+		return nil
+	}
+	var typ *RedNode
+	n.ForEachChildDesc(func(green *GreenNode, offset int) bool {
+		if isTypeKind(green.Kind()) {
+			typ = &RedNode{File: n.File, Green: green, Offset: offset}
+			return false
+		}
+		return true
+	})
+	return typ
+}
+
+// ParamVariable returns the T_VARIABLE child of a KindParam, or nil.
+func ParamVariable(n *RedNode) *RedNode {
+	if n == nil || n.Kind() != KindParam {
+		return nil
+	}
+	var v *RedNode
+	n.ForEachChildDesc(func(green *GreenNode, offset int) bool {
+		if isGreenTokenType(green, token.T_VARIABLE) {
+			v = &RedNode{File: n.File, Green: green, Offset: offset}
+			return false
+		}
+		return true
+	})
+	return v
+}
+
+// ParamIsPromoted reports whether a KindParam has a visibility modifier
+// (public/protected/private), matching lowerParam's IsPromoted rule.
+func ParamIsPromoted(n *RedNode) bool {
+	if n == nil || n.Kind() != KindParam {
+		return false
+	}
+	list := n.FirstChildOfKind(KindModifierList)
+	if list == nil {
+		return false
+	}
+	promoted := false
+	list.ForEachChildDesc(func(green *GreenNode, _ int) bool {
+		if green == nil || !green.IsToken() {
+			return true
+		}
+		tt := green.TokenType()
+		if tt == token.T_PUBLIC || tt == token.T_PROTECTED || tt == token.T_PRIVATE {
+			promoted = true
+			return false
+		}
+		return true
+	})
+	return promoted
+}
+
+// VariableName returns the identifier text of a T_VARIABLE token RedNode
+// without the leading '$'. Empty string if n is not a variable token.
+func VariableName(n *RedNode) string {
+	if n == nil || n.Green == nil || !n.Green.IsToken() || n.Green.TokenType() != token.T_VARIABLE {
+		return ""
+	}
+	return stripVarDollar(greenTokenLiteral(n.Green))
+}
+
+// RawSpanPositions returns classic positions for n's full green byte span
+// (including leading trivia on the first token). Matches lowerProperties'
+// multi-name property Pos/EndPos via spanStart/spanEnd — distinct from
+// RedNode.Pos()/EndPos(), which skip leading trivia.
+func RawSpanPositions(n *RedNode) (ast.Position, ast.Position) {
+	if n == nil || n.File == nil {
+		return ast.Position{}, ast.Position{}
+	}
+	sp := n.Span()
+	return spanStart(n.File, sp), spanEnd(n.File, sp)
 }

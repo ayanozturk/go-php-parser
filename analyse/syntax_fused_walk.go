@@ -41,13 +41,9 @@ func collectFusedFlatCSTDiagnostics(filename string, res *syntax.ParseResult) fu
 				checkLanguageOnNode(filename, lowered, FileTypeContext{}, labels, &gotos, &out.language)
 			}
 		case syntax.KindPropertyDecl:
-			for _, prop := range syntax.LowerPropertyDeclNode(n, res.File) {
-				appendPropertyCallableTypeIssue(filename, prop, &out.propertyCallable)
-			}
+			appendPropertyCallableTypeIssueFromCST(filename, n, &out.propertyCallable)
 		case syntax.KindParam:
-			if param := syntax.LowerParamNode(n, res.File); param != nil {
-				appendPropertyCallableTypeIssue(filename, param, &out.propertyCallable)
-			}
+			appendPromotedParamCallableTypeIssueFromCST(filename, n, &out.propertyCallable)
 		case syntax.KindArrayExpr, syntax.KindUnaryExpr, syntax.KindIncludeExpr, syntax.KindCastExpr, syntax.KindCallExpr:
 			if lowered := syntax.LowerExprNode(n, res.File); lowered != nil {
 				checkLanguageOnNode(filename, lowered, FileTypeContext{}, labels, &gotos, &out.language)

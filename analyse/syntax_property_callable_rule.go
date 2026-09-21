@@ -9,11 +9,10 @@ import (
 // (appendPropertyCallableTypeIssue): a typed property or promoted
 // constructor parameter cannot declare "callable" in its type.
 //
-// Like checkLanguageOnNode, appendPropertyCallableTypeIssue needs no
-// FileTypeContext/class/currentFn scope, so a flat syntax.Walk is safe.
-// KindPropertyDecl/KindParam are lowered in isolation (via
-// syntax.LowerPropertyDeclNode/syntax.LowerParamNode) and fed unchanged into
-// appendPropertyCallableTypeIssue.
+// Like checkLanguageOnNode, this check needs no FileTypeContext/class/
+// currentFn scope, so a flat syntax.Walk is safe. PropertyDecl/Param are
+// inspected via CST accessors (PropertyDeclType / ParamIsPromoted / …)
+// without LowerPropertyDeclNode / LowerParamNode.
 func CheckPropertyCallableTypeIssuesFromCST(filename string, content []byte) []AnalysisIssue {
 	return checkPropertyCallableTypeIssuesFromParsed(filename, syntax.Parse(content))
 }
@@ -27,13 +26,9 @@ func checkPropertyCallableTypeIssuesFromParsed(filename string, res *syntax.Pars
 	syntax.Walk(res.File.Root, func(n *syntax.RedNode) bool {
 		switch n.Kind() {
 		case syntax.KindPropertyDecl:
-			for _, prop := range syntax.LowerPropertyDeclNode(n, res.File) {
-				appendPropertyCallableTypeIssue(filename, prop, &issues)
-			}
+			appendPropertyCallableTypeIssueFromCST(filename, n, &issues)
 		case syntax.KindParam:
-			if param := syntax.LowerParamNode(n, res.File); param != nil {
-				appendPropertyCallableTypeIssue(filename, param, &issues)
-			}
+			appendPromotedParamCallableTypeIssueFromCST(filename, n, &issues)
 		}
 		// Keep descending: a property/param default value can contain a
 		// nested closure with its own KindParam nodes.
