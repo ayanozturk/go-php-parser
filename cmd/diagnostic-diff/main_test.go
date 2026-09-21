@@ -11,8 +11,8 @@ func TestCheckedInEngineDifferentialBaseline(t *testing.T) {
 	if err != nil {
 		t.Fatalf("run engine differential baseline: %v", err)
 	}
-	if level0Report.Totals.Cases != 95 {
-		t.Fatalf("expected 95 level-0 differential cases, got %d", level0Report.Totals.Cases)
+	if level0Report.Totals.Cases != 96 {
+		t.Fatalf("expected 96 level-0 differential cases, got %d", level0Report.Totals.Cases)
 	}
 	if level0Report.Totals.EngineMismatches != 0 {
 		t.Fatalf("engine differential baseline has %d mismatches: %#v", level0Report.Totals.EngineMismatches, level0Report.Cases)

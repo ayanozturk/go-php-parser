@@ -36,6 +36,22 @@ function run(): void {
     Missing::bar();
 }
 `,
+		"variableClassStaticCall": `<?php
+namespace App\Tests\Unit\EventSubscriber;
+
+class Sub {
+    public static function getSubscribedEvents(): array {
+        return [];
+    }
+}
+
+class T {
+    public function test(Sub $subscriber): void {
+        $events = $subscriber::getSubscribedEvents();
+        $this::getSubscribedEvents();
+    }
+}
+`,
 		"dynamicStaticCall": `<?php
 class Real {
     public static function bar(): void {}
@@ -185,6 +201,7 @@ function run(Real $r): void {
 			{Message: "Call to an undefined static method Real::missing().", Line: 7, Column: 5},
 			{Message: "Call to static method bar() on an unknown class Missing.", Line: 8, Column: 5},
 		},
+		"variableClassStaticCall": {},
 		"dynamicStaticCall": {
 			{Message: "Access to undefined static property Real::$.", Line: 7, Column: 5},
 		},

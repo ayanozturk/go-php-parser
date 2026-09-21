@@ -647,6 +647,13 @@ func StaticMemberAccessParts(n *RedNode) (class, member string, dynamic bool) {
 		if !seenColon {
 			if isNameKind(k) && class == "" {
 				class = nameTextAt(n.File, green, offset)
+			} else if k == KindVariableExpr && class == "" {
+				// `$var::member` — preserve leading "$" (VariableExprName strips it).
+				withPooledRed(n.File, n, green, offset, func(vn *RedNode) {
+					if name := VariableExprName(vn); name != "" {
+						class = "$" + name
+					}
+				})
 			}
 			return true
 		}

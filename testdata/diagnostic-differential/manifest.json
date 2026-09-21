@@ -28,6 +28,13 @@
       ]
     },
     {
+      "id": "variable-class-static-call",
+      "capability": "variable-class static calls stay clean at level 0",
+      "file": "variable-class-static-call.php",
+      "engineCodes": [],
+      "phpstanIdentifiers": []
+    },
+    {
       "id": "unknown-catch-class",
       "capability": "unknown catch types",
       "file": "unknown-catch-class.php",
