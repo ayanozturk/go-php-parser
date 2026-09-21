@@ -2,6 +2,7 @@ package phpstubs
 
 import (
 	"embed"
+	"fmt"
 	"io/fs"
 	"path"
 	"strings"
@@ -32,10 +33,21 @@ func NormalizePHPVersion(version string) string {
 	return DefaultPHPVersion
 }
 
-// Names returns bundled stub files for a PHP version, without the .php suffix.
-func Names(version string) []string {
-	version = NormalizePHPVersion(version)
-	entries, err := fs.ReadDir(content, version)
+// cleanStubName strips a trailing .php and rejects empty or path-like names so
+// Read/ReadShared cannot escape their version or shared directories via "..".
+func cleanStubName(name string) string {
+	name = strings.TrimSuffix(strings.TrimSpace(name), ".php")
+	if name == "" || name == "." || name == ".." {
+		return ""
+	}
+	if strings.ContainsAny(name, `/\`) || name != path.Base(name) {
+		return ""
+	}
+	return name
+}
+
+func stubBaseNames(fsys fs.FS, dir string) []string {
+	entries, err := fs.ReadDir(fsys, dir)
 	if err != nil {
 		return nil
 	}
@@ -49,44 +61,44 @@ func Names(version string) []string {
 	return names
 }
 
+// Names returns bundled stub files for a PHP version, without the .php suffix.
+func Names(version string) []string {
+	return stubBaseNames(content, NormalizePHPVersion(version))
+}
+
 // Read returns the stub source for an extension name such as "Core" or "SPL".
 func Read(version, name string) ([]byte, error) {
 	version = NormalizePHPVersion(version)
-	name = strings.TrimSuffix(strings.TrimSpace(name), ".php")
+	name = cleanStubName(name)
+	if name == "" {
+		return nil, fmt.Errorf("phpstubs: invalid stub name")
+	}
 	return content.ReadFile(path.Join(version, name+".php"))
 }
 
 // FileName is the virtual project-index path for a bundled stub.
 func FileName(version, name string) string {
 	version = NormalizePHPVersion(version)
-	name = strings.TrimSuffix(strings.TrimSpace(name), ".php")
+	name = cleanStubName(name)
 	return "phpstub:" + version + "/" + name + ".php"
 }
 
 // SharedNames returns version-independent stub files such as Standard.
 func SharedNames() []string {
-	entries, err := fs.ReadDir(content, "shared")
-	if err != nil {
-		return nil
-	}
-	names := make([]string, 0, len(entries))
-	for _, entry := range entries {
-		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".php") {
-			continue
-		}
-		names = append(names, strings.TrimSuffix(entry.Name(), ".php"))
-	}
-	return names
+	return stubBaseNames(content, "shared")
 }
 
 // ReadShared returns a version-independent stub source file.
 func ReadShared(name string) ([]byte, error) {
-	name = strings.TrimSuffix(strings.TrimSpace(name), ".php")
+	name = cleanStubName(name)
+	if name == "" {
+		return nil, fmt.Errorf("phpstubs: invalid stub name")
+	}
 	return content.ReadFile(path.Join("shared", name+".php"))
 }
 
 // SharedFileName is the virtual project-index path for a shared stub.
 func SharedFileName(name string) string {
-	name = strings.TrimSuffix(strings.TrimSpace(name), ".php")
+	name = cleanStubName(name)
 	return "phpstub:shared/" + name + ".php"
 }
