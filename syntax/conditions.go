@@ -1,6 +1,8 @@
 package syntax
 
 import (
+	"strings"
+
 	"github.com/ayanozturk/go-php-parser/ast"
 	"github.com/ayanozturk/go-php-parser/token"
 )
@@ -549,6 +551,159 @@ func LiteralStringValue(n *RedNode) (string, bool) {
 	default:
 		return "", false
 	}
+}
+
+// VariableExprName returns the variable name (no '$') for a KindVariableExpr,
+// or empty if not a simple variable.
+func VariableExprName(n *RedNode) string {
+	if n == nil || n.Kind() != KindVariableExpr {
+		return ""
+	}
+	var name string
+	n.ForEachChildDesc(func(green *GreenNode, _ int) bool {
+		if isGreenTokenType(green, token.T_VARIABLE) {
+			name = stripVarDollar(greenTokenLiteral(green))
+			return false
+		}
+		return true
+	})
+	return name
+}
+
+// MemberAccessObject returns the receiver expression/name of a member-access
+// node (-> / ?->), or nil.
+func MemberAccessObject(n *RedNode) *RedNode {
+	if n == nil {
+		return nil
+	}
+	switch n.Kind() {
+	case KindMemberAccessExpr, KindNullsafeMemberAccessExpr:
+	default:
+		return nil
+	}
+	var obj *RedNode
+	n.ForEachChildDesc(func(green *GreenNode, offset int) bool {
+		k := green.Kind()
+		if isExprKind(k) || isNameKind(k) {
+			obj = &RedNode{File: n.File, Green: green, Offset: offset}
+			return false
+		}
+		return true
+	})
+	return obj
+}
+
+// MemberAccessName returns the literal member/method name for a member-access
+// node, or empty when the member is dynamic / non-literal.
+func MemberAccessName(n *RedNode) string {
+	if n == nil {
+		return ""
+	}
+	switch n.Kind() {
+	case KindMemberAccessExpr, KindNullsafeMemberAccessExpr:
+	default:
+		return ""
+	}
+	var member string
+	n.ForEachChildDesc(func(green *GreenNode, _ int) bool {
+		if !green.IsToken() {
+			return true
+		}
+		tt, ok := green.Token()
+		if !ok {
+			return true
+		}
+		switch tt.Type {
+		case token.T_OBJECT_OPERATOR, token.T_NULLSAFE_OBJECT_OPERATOR:
+			return true
+		case token.T_STRING, token.T_VARIABLE:
+			member = strings.TrimSpace(tt.Literal)
+		default:
+			if isContextualIdent(tt.Type, tt.Literal) {
+				member = strings.TrimSpace(tt.Literal)
+			}
+		}
+		return true
+	})
+	return member
+}
+
+// StaticMemberAccessParts returns class name + literal member for
+// KindStaticMemberAccessExpr. dynamic is true when the member is an
+// expression (Foo::{$m} / Foo::{expr}), matching lowerCallExpr's
+// ClassConstFetch Const:"$" shape.
+func StaticMemberAccessParts(n *RedNode) (class, member string, dynamic bool) {
+	if n == nil || n.Kind() != KindStaticMemberAccessExpr {
+		return "", "", false
+	}
+	seenColon := false
+	n.ForEachChildDesc(func(green *GreenNode, offset int) bool {
+		if isGreenTokenType(green, token.T_DOUBLE_COLON) {
+			seenColon = true
+			return true
+		}
+		k := green.Kind()
+		if !seenColon {
+			if isNameKind(k) && class == "" {
+				class = nameTextAt(n.File, green, offset)
+			}
+			return true
+		}
+		switch k {
+		case KindParenExpr, KindEncapsulatedExpr:
+			member = "$"
+			dynamic = true
+			return false
+		default:
+			if green.IsToken() {
+				tok, ok := green.Token()
+				if ok {
+					member = strings.TrimSpace(tok.Literal)
+				}
+			}
+		}
+		return true
+	})
+	return class, member, dynamic
+}
+
+// NamedArgName returns the parameter name of a KindNamedArg, or empty.
+func NamedArgName(n *RedNode) string {
+	if n == nil || n.Kind() != KindNamedArg {
+		return ""
+	}
+	var name string
+	n.ForEachChildDesc(func(green *GreenNode, _ int) bool {
+		if !green.IsToken() {
+			return true
+		}
+		tt, ok := green.Token()
+		if !ok {
+			return true
+		}
+		if (tt.Type == token.T_STRING || tt.Type == token.T_CLASS) && name == "" {
+			name = tt.Literal
+			return false
+		}
+		return true
+	})
+	return name
+}
+
+// ArgIsUnpacked reports whether a KindArg starts with `...`.
+func ArgIsUnpacked(n *RedNode) bool {
+	if n == nil || n.Kind() != KindArg {
+		return false
+	}
+	unpacked := false
+	n.ForEachChildDesc(func(green *GreenNode, _ int) bool {
+		if isGreenTokenType(green, token.T_ELLIPSIS) {
+			unpacked = true
+			return false
+		}
+		return true
+	})
+	return unpacked
 }
 
 func firstExprOrNameChild(n *RedNode) *RedNode {
