@@ -66,6 +66,7 @@ func walkSyntaxConfigured(root *syntax.RedNode, ft FileTypeContext, fn func(n, c
 		return
 	}
 	nsCache := map[*syntax.RedNode]FileTypeContext{}
+	scratch := &syntax.RedNode{File: root.File}
 	var walk func(n, class, currentFn *syntax.RedNode, ft FileTypeContext, inStatementBody bool)
 	walk = func(n, class, currentFn *syntax.RedNode, ft FileTypeContext, inStatementBody bool) {
 		if n == nil {
@@ -74,11 +75,13 @@ func walkSyntaxConfigured(root *syntax.RedNode, ft FileTypeContext, fn func(n, c
 		if !syntaxContainerOnlyKinds[n.Kind()] {
 			fn(n, class, currentFn, ft, inStatementBody)
 		}
+		var scopeClass, scopeFn syntax.RedNode
 		nextClass, nextFn := class, currentFn
 		switch n.Kind() {
 		case syntax.KindClassDecl, syntax.KindInterfaceDecl, syntax.KindTraitDecl,
 			syntax.KindEnumDecl, syntax.KindAnonymousClass:
-			nextClass = n
+			scopeClass = syntax.RedNode{File: n.File, Green: n.Green, Offset: n.Offset}
+			nextClass = &scopeClass
 		case syntax.KindFunctionDecl, syntax.KindMethodDecl, syntax.KindClosureExpr:
 			// KindArrowFunctionExpr is deliberately excluded: arrow functions
 			// lower to the distinct *ast.ArrowFunctionNode type, and
@@ -89,7 +92,14 @@ func walkSyntaxConfigured(root *syntax.RedNode, ft FileTypeContext, fn func(n, c
 			// walkAllConfigured's *ast.FunctionNode case. See
 			// syntax.LowerFunctionLikeContextNode and
 			// /memories/repo/cst-direct-migration.md.
-			nextFn = n
+			scopeFn = syntax.RedNode{File: n.File, Green: n.Green, Offset: n.Offset}
+			nextFn = &scopeFn
+		}
+		bindScratch := func(g *syntax.GreenNode, offset int) *syntax.RedNode {
+			scratch.Green = g
+			scratch.Offset = offset
+			scratch.File = n.File
+			return scratch
 		}
 		// lowerStmt (syntax/lower_stmt.go) has no case for declaration kinds
 		// (KindClassDecl/KindInterfaceDecl/KindTraitDecl/KindEnumDecl/
@@ -211,8 +221,7 @@ func walkSyntaxConfigured(root *syntax.RedNode, ft FileTypeContext, fn func(n, c
 			// case are completely invisible to every rule it drives. Mirror that
 			// by never calling fn for a KindEnumCase subtree at all. See
 			// /memories/repo/cst-direct-migration.md for the full writeup.
-			c = syntaxRedChild(n, syntaxChildRef{green: g, offset: off})
-			if c.Kind() == syntax.KindEnumCase {
+			if gk == syntax.KindEnumCase {
 				goto nextChild
 			}
 			// walkAllConfigured (phpstan_level0_walk.go) has no case at all
@@ -227,7 +236,7 @@ func walkSyntaxConfigured(root *syntax.RedNode, ft FileTypeContext, fn func(n, c
 			// fn for a KindPropertyHookList subtree at all, the same way as
 			// KindEnumCase above. See /memories/repo/cst-direct-migration.md
 			// for the full writeup.
-			if c.Kind() == syntax.KindPropertyHookList {
+			if gk == syntax.KindPropertyHookList {
 				goto nextChild
 			}
 			// An enum case's own preceding AttributeList sibling (e.g.
@@ -277,10 +286,8 @@ func walkSyntaxConfigured(root *syntax.RedNode, ft FileTypeContext, fn func(n, c
 			// syntax_language_rule.go; centralized here since every Phase 3
 			// rule driven by this shared walker would otherwise need to
 			// repeat the same skip).
-			if c.Kind() == syntax.KindSwitchStmt {
-				if !syntaxContainerOnlyKinds[c.Kind()] {
-					fn(c, nextClass, nextFn, ft, nextInStatementBody)
-				}
+			if gk == syntax.KindSwitchStmt {
+				fn(bindScratch(g, off), nextClass, nextFn, ft, nextInStatementBody)
 				goto nextChild
 			}
 			// walkAllConfigured's *ast.ClassNode case (phpstan_level0_walk.go)
@@ -295,10 +302,8 @@ func walkSyntaxConfigured(root *syntax.RedNode, ft FileTypeContext, fn func(n, c
 			// centralizes the deeper fix of also never descending into it).
 			// See /memories/repo/cst-direct-migration.md for the full
 			// writeup.
-			if c.Kind() == syntax.KindClassConstDecl {
-				if !syntaxContainerOnlyKinds[c.Kind()] {
-					fn(c, nextClass, nextFn, ft, nextInStatementBody)
-				}
+			if gk == syntax.KindClassConstDecl {
+				fn(bindScratch(g, off), nextClass, nextFn, ft, nextInStatementBody)
 				goto nextChild
 			}
 			// walkAllConfigured also has no case at all for *ast.YieldNode (a
@@ -311,10 +316,8 @@ func walkSyntaxConfigured(root *syntax.RedNode, ft FileTypeContext, fn func(n, c
 			// the same way as KindSwitchStmt: fn still fires on the yield
 			// expression itself, but its children are never descended into.
 			// See /memories/repo/cst-direct-migration.md for the full writeup.
-			if c.Kind() == syntax.KindYieldExpr {
-				if !syntaxContainerOnlyKinds[c.Kind()] {
-					fn(c, nextClass, nextFn, ft, nextInStatementBody)
-				}
+			if gk == syntax.KindYieldExpr {
+				fn(bindScratch(g, off), nextClass, nextFn, ft, nextInStatementBody)
 				goto nextChild
 			}
 			// walkAllConfigured also has no case at all for
@@ -326,10 +329,8 @@ func walkSyntaxConfigured(root *syntax.RedNode, ft FileTypeContext, fn func(n, c
 			// / KindYieldExpr: fn still fires on the first-class-callable
 			// expression itself, but its children are never descended into.
 			// See /memories/repo/cst-direct-migration.md for the full writeup.
-			if c.Kind() == syntax.KindFirstClassCallableExpr {
-				if !syntaxContainerOnlyKinds[c.Kind()] {
-					fn(c, nextClass, nextFn, ft, nextInStatementBody)
-				}
+			if gk == syntax.KindFirstClassCallableExpr {
+				fn(bindScratch(g, off), nextClass, nextFn, ft, nextInStatementBody)
 				goto nextChild
 			}
 			// walkAllConfigured also has no case at all for
@@ -343,10 +344,8 @@ func walkSyntaxConfigured(root *syntax.RedNode, ft FileTypeContext, fn func(n, c
 			// children (the parens/type tokens and the operand) are never
 			// descended into. See /memories/repo/cst-direct-migration.md
 			// for the full writeup.
-			if c.Kind() == syntax.KindCastExpr {
-				if !syntaxContainerOnlyKinds[c.Kind()] {
-					fn(c, nextClass, nextFn, ft, nextInStatementBody)
-				}
+			if gk == syntax.KindCastExpr {
+				fn(bindScratch(g, off), nextClass, nextFn, ft, nextInStatementBody)
 				goto nextChild
 			}
 			// An Elvis/short ternary (`cond ?: else`) lowers to a single
@@ -360,8 +359,8 @@ func walkSyntaxConfigured(root *syntax.RedNode, ft FileTypeContext, fn func(n, c
 			// path below is unaffected - this only duplicates the
 			// condition's subtree walk). See
 			// /memories/repo/cst-direct-migration.md for the full writeup.
-			if elvisCond != nil && c.Green == elvisCond.Green && c.Offset == elvisCond.Offset {
-				walk(c, nextClass, nextFn, ft, nextInStatementBody)
+			if elvisCond != nil && g == elvisCond.Green && off == elvisCond.Offset {
+				walk(bindScratch(g, off), nextClass, nextFn, ft, nextInStatementBody)
 			}
 			// An anonymous class's constructor argument list (`new class(
 			// $this->message) {...}`) is a CST child of KindAnonymousClass,
@@ -380,8 +379,8 @@ func walkSyntaxConfigured(root *syntax.RedNode, ft FileTypeContext, fn func(n, c
 			// the pre-switch (outer) class/currentFn/inStatementBody
 			// values instead. See /memories/repo/cst-direct-migration.md
 			// for the full writeup.
-			if n.Kind() == syntax.KindAnonymousClass && c.Kind() == syntax.KindArgList {
-				walk(c, class, currentFn, ft, inStatementBody)
+			if n.Kind() == syntax.KindAnonymousClass && gk == syntax.KindArgList {
+				walk(bindScratch(g, off), class, currentFn, ft, inStatementBody)
 				goto nextChild
 			}
 			// A namespace declaration re-derives FileTypeContext for its
@@ -392,9 +391,10 @@ func walkSyntaxConfigured(root *syntax.RedNode, ft FileTypeContext, fn func(n, c
 			// declarations only ever appear at file top level in valid PHP,
 			// so this never fires at deeper recursion depths.
 			if gk == syntax.KindNamespaceDecl {
-				if !syntaxContainerOnlyKinds[c.Kind()] {
-					fn(c, nextClass, nextFn, ft, nextInStatementBody)
-				}
+				var nsDecl syntax.RedNode
+				nsDecl = syntax.RedNode{File: n.File, Green: g, Offset: off}
+				c = &nsDecl
+				fn(c, nextClass, nextFn, ft, nextInStatementBody)
 				siblings := syntaxNonNilSiblings(n)
 				body, consumed := syntax.NamespaceBody(c, siblings, childIdx)
 				nft := namespaceSyntaxTypeContext(c, body, nsCache)
@@ -417,7 +417,7 @@ func walkSyntaxConfigured(root *syntax.RedNode, ft FileTypeContext, fn func(n, c
 				}
 				continue
 			}
-			walk(c, nextClass, nextFn, ft, nextInStatementBody)
+			walk(bindScratch(g, off), nextClass, nextFn, ft, nextInStatementBody)
 		nextChild:
 			off += g.Width()
 			gi++
