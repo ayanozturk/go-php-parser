@@ -37,7 +37,9 @@ func checkTypeReferenceIssuesFromParsed(filename string, res *syntax.ParseResult
 	walkSyntaxConfigured(res.File.Root, rootFt, func(n, class, currentFn *syntax.RedNode, ft FileTypeContext, inStatementBody bool) {
 		switch n.Kind() {
 		case syntax.KindUseDecl:
-			appendTypeRefUseIssuesFromCST(filename, n, ctx, guards, &issues)
+			for _, u := range syntax.LowerUseDeclNode(n, res.File) {
+				checkTypeReferenceOnNode(filename, u, ft, ctx, guards, &issues)
+			}
 		case syntax.KindFunctionDecl, syntax.KindMethodDecl:
 			if class != nil && class.Kind() == syntax.KindInterfaceDecl {
 				if im := syntax.LowerInterfaceMethodDeclNode(n, res.File); im != nil {
@@ -59,7 +61,9 @@ func checkTypeReferenceIssuesFromParsed(filename string, res *syntax.ParseResult
 				checkTypeReferenceOnNode(filename, fn, ft, ctx, guards, &issues)
 			}
 		case syntax.KindPropertyDecl:
-			appendTypeRefPropertyIssuesFromCST(filename, n, ft, ctx, guards, &issues)
+			for _, p := range syntax.LowerPropertyDeclNode(n, res.File) {
+				checkTypeReferenceOnNode(filename, p, ft, ctx, guards, &issues)
+			}
 		case syntax.KindConstDecl:
 			// KindClassConstDecl (class-member constants) is deliberately
 			// NOT handled here: walkAllConfigured's *ast.ClassNode case

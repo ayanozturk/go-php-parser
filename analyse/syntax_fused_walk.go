@@ -129,7 +129,9 @@ func runFusedConfiguredCSTWalk(root *syntax.RedNode, rootFt FileTypeContext, o f
 		if runTypeRefs {
 			switch n.Kind() {
 			case syntax.KindUseDecl:
-				appendTypeRefUseIssuesFromCST(o.filename, n, ctx, o.guards, o.level0)
+				for _, u := range syntax.LowerUseDeclNode(n, res.File) {
+					checkTypeReferenceOnNode(o.filename, u, ft, ctx, o.guards, o.level0)
+				}
 			case syntax.KindFunctionDecl, syntax.KindMethodDecl:
 				if class != nil && class.Kind() == syntax.KindInterfaceDecl {
 					if im := memoLowerInterfaceMethod(ctx, n, res.File); im != nil {
@@ -143,7 +145,9 @@ func runFusedConfiguredCSTWalk(root *syntax.RedNode, rootFt FileTypeContext, o f
 					checkTypeReferenceOnNode(o.filename, fn, ft, ctx, o.guards, o.level0)
 				}
 			case syntax.KindPropertyDecl:
-				appendTypeRefPropertyIssuesFromCST(o.filename, n, ft, ctx, o.guards, o.level0)
+				for _, p := range memoLowerPropertyDecl(ctx, n, res.File) {
+					checkTypeReferenceOnNode(o.filename, p, ft, ctx, o.guards, o.level0)
+				}
 			case syntax.KindConstDecl:
 				for _, c := range syntax.LowerClassConstDeclNode(n, res.File) {
 					checkTypeReferenceOnNode(o.filename, c, ft, ctx, o.guards, o.level0)
