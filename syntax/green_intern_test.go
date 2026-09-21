@@ -32,6 +32,58 @@ func TestMaterializeTriviaLiteralsSkipsNoopCopy(t *testing.T) {
 	}
 }
 
+func TestOpaqueSpanTokenSharesByWidth(t *testing.T) {
+	in := NewInterner(nil)
+	a := in.OpaqueSpanToken(12)
+	b := in.OpaqueSpanToken(12)
+	c := in.OpaqueSpanToken(13)
+	if a != b {
+		t.Fatal("same width opaque spans must intern")
+	}
+	if a == c {
+		t.Fatal("different widths must not share")
+	}
+	if !a.IsToken() || a.Width() != 12 {
+		t.Fatalf("opaque span IsToken=%v width=%d", a.IsToken(), a.Width())
+	}
+}
+
+func TestParseForIndexOpaqueBodyIdentity(t *testing.T) {
+	src := "<?php\nclass C {\n  public function f($x) {\n    echo \"{$x}\";\n  }\n  private function g() {}\n}\nfunction h() { return 1; }\n"
+	res := ParseForIndex([]byte(src))
+	if got := Print(res.File.Root); got != src {
+		t.Fatalf("ParseForIndex identity\nwant %q\ngot  %q", src, got)
+	}
+	var bodies int
+	var walk func(*RedNode)
+	walk = func(n *RedNode) {
+		if n == nil {
+			return
+		}
+		if n.Kind() == KindTokenList {
+			bodies++
+			ch := n.Children()
+			if len(ch) != 1 || ch[0].Green == nil || !ch[0].Green.IsToken() {
+				t.Fatalf("expected single opaque token body, got %d children", len(ch))
+			}
+		}
+		for _, c := range n.Children() {
+			walk(c)
+		}
+	}
+	walk(res.File.Root)
+	if bodies < 3 {
+		t.Fatalf("expected >=3 TokenList bodies, got %d", bodies)
+	}
+	nodes, diags := ParseASTForIndex([]byte(src))
+	if len(diags) > 0 {
+		t.Fatalf("diags: %v", diags)
+	}
+	if len(nodes) == 0 {
+		t.Fatal("expected lowered nodes")
+	}
+}
+
 func TestInternerSharesPunctuationAcrossPositions(t *testing.T) {
 	src := []byte("()")
 	in := NewInterner(src)

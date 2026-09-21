@@ -1930,10 +1930,15 @@ func (p *Parser) parseUntilParamEnd() *GreenNode {
 }
 
 func (p *Parser) parseBalancedBlock() *GreenNode {
-	var parts []*GreenNode
-	parts = append(parts, p.expect(token.T_LBRACE))
-	depth := 1
-	for !p.at(token.T_EOF) && depth > 0 {
+	// SkipFunctionBodies: cover the brace-balanced span with one opaque token
+	// green so we do not Interner.Token/Node every interior body token.
+	// Print still identity-slices via green width; lower keeps bodies empty.
+	if !p.at(token.T_LBRACE) {
+		return p.intern.Node(KindTokenList, p.expect(token.T_LBRACE))
+	}
+	start := p.i
+	depth := 0
+	for !p.at(token.T_EOF) {
 		// Encapsed "{$var}" / "${var}" / heredoc {$var} open with
 		// T_CURLY_OPEN or T_DOLLAR_OPEN_CURLY_BRACES and close with T_RBRACE.
 		// Count those opens so SkipFunctionBodies does not treat the
@@ -1945,7 +1950,14 @@ func (p *Parser) parseBalancedBlock() *GreenNode {
 		case token.T_RBRACE:
 			depth--
 		}
-		parts = append(parts, p.bump())
+		p.i++
+		if depth == 0 {
+			break
+		}
 	}
-	return p.intern.Node(KindTokenList, parts...)
+	w := 0
+	for i := start; i < p.i && i < len(p.tokens); i++ {
+		w += tokenWidth(p.tokens[i])
+	}
+	return p.intern.Node(KindTokenList, p.intern.OpaqueSpanToken(w))
 }

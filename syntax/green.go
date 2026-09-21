@@ -344,6 +344,39 @@ func NewInterner(src []byte) *Interner {
 	return &Interner{src: src, nodes: make(map[string]*GreenNode)}
 }
 
+// opaqueSpanSentinel makes IsToken() true for width-only body blobs so Print
+// slices source by green width without a real Zend token payload.
+var opaqueSpanSentinel = token.Token{Type: token.T_INLINE_HTML}
+
+// OpaqueSpanToken returns a KindToken green covering width source bytes.
+// Used by SkipFunctionBodies TokenList blobs to avoid interning every body token.
+func (in *Interner) OpaqueSpanToken(width int) *GreenNode {
+	if width < 0 {
+		width = 0
+	}
+	b := in.keyBuf[:0]
+	need := 2 + 20
+	if cap(b) < need {
+		b = make([]byte, 0, need)
+	}
+	b = append(b, 'o', ':')
+	b = strconv.AppendInt(b, int64(width), 10)
+	in.keyBuf = b
+	if n, ok := in.nodes[string(b)]; ok {
+		return n
+	}
+	key := string(b)
+	n := &GreenNode{
+		kind:            KindToken,
+		width:           width,
+		token:           &opaqueSpanSentinel,
+		contentStartRel: 0,
+		contentEndRel:   width,
+	}
+	in.nodes[key] = n
+	return n
+}
+
 func (in *Interner) Token(tok token.Token) *GreenNode {
 	tok = in.materializeLiterals(tok)
 	w := tokenWidth(tok)
