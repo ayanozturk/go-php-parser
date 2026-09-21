@@ -449,7 +449,13 @@ func (l *Lexer) skipQuotedString(quote rune) {
 }
 
 func (l *Lexer) skipLineComment() {
+	// Match readLineComment / readHashComment: "?>" ends a single-line
+	// comment and must be left for the skipper's close-tag path so HTML
+	// braces are not counted toward the PHP body depth.
 	for !l.atEOF() && l.char != '\n' {
+		if l.char == '?' && l.peekChar() == '>' {
+			break
+		}
 		l.readChar()
 	}
 }
