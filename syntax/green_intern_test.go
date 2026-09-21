@@ -6,6 +6,32 @@ import (
 	"github.com/ayanozturk/go-php-parser/token"
 )
 
+func TestMaterializeTriviaLiteralsSkipsNoopCopy(t *testing.T) {
+	src := []byte("  // c\nx")
+	filled := []token.Token{
+		{Type: token.T_WHITESPACE, Literal: "  ", Pos: token.Position{Offset: 0}, End: token.Position{Offset: 2}},
+		{Type: token.T_COMMENT, Literal: "// c\n", Pos: token.Position{Offset: 2}, End: token.Position{Offset: 7}},
+	}
+	got := materializeTriviaLiterals(src, filled)
+	if &got[0] != &filled[0] {
+		t.Fatalf("expected noop reuse of trivia slice when Literals already set")
+	}
+
+	empty := []token.Token{
+		{Type: token.T_WHITESPACE, Literal: "", Pos: token.Position{Offset: 0}, End: token.Position{Offset: 2}},
+	}
+	got2 := materializeTriviaLiterals(src, empty)
+	if &got2[0] == &empty[0] {
+		t.Fatalf("expected copy when Literal needs materialization")
+	}
+	if got2[0].Literal != "  " {
+		t.Fatalf("Literal=%q want %q", got2[0].Literal, "  ")
+	}
+	if empty[0].Literal != "" {
+		t.Fatalf("input slice must not be mutated")
+	}
+}
+
 func TestInternerSharesPunctuationAcrossPositions(t *testing.T) {
 	src := []byte("()")
 	in := NewInterner(src)

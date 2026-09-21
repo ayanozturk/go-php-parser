@@ -435,6 +435,19 @@ func (in *Interner) materializeLiterals(tok token.Token) token.Token {
 }
 
 func materializeTriviaLiterals(src []byte, triv []token.Token) []token.Token {
+	// Lexer paths already fill trivia Literal. Skip the slice copy when there
+	// is nothing to materialize — hot Interner.Token paid ~8% WP alloc here.
+	needCopy := false
+	for i := range triv {
+		if triv[i].Literal == "" && triv[i].End.Offset > triv[i].Pos.Offset &&
+			triv[i].Pos.Offset >= 0 && triv[i].End.Offset <= len(src) {
+			needCopy = true
+			break
+		}
+	}
+	if !needCopy {
+		return triv
+	}
 	out := make([]token.Token, len(triv))
 	copy(out, triv)
 	for i := range out {
