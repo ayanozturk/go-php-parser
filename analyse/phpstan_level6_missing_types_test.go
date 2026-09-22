@@ -332,6 +332,35 @@ function consumeBareBox(Box $box): void {}
 	}
 }
 
+func TestLevel6AttributedPropertyUsesGenericPHPDoc(t *testing.T) {
+	const source = `<?php
+namespace Doctrine\Common\Collections;
+
+/** @template TKey of array-key @template T @extends \IteratorAggregate<TKey, T> */
+interface Collection extends \IteratorAggregate {}
+
+namespace App;
+
+use Doctrine\Common\Collections\Collection;
+
+final class Item {}
+
+final class Example
+{
+    /** @var Collection<int, Item> */
+    #[Mapping]
+    private Collection $items;
+
+    private Collection $untyped;
+}
+`
+	issues := runAnalysisLevelOnFiles(t, map[string]string{"test.php": source}, 6)
+	missing := filterIssuesByCode(issues, level6MissingIterableTypeCode)
+	if len(missing) != 1 || missing[0].Line != 19 {
+		t.Fatalf("expected only the undocumented property at line 19 to report, got %#v", missing)
+	}
+}
+
 func TestLevel6MissingReturnTypeSpanIsSignatureOnly(t *testing.T) {
 	const source = `<?php
 class Widget {

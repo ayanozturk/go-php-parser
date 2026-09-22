@@ -278,8 +278,13 @@ func lowerInterface(n *RedNode, file *File) *ast.InterfaceNode {
 					}
 					iface.Members = append(iface.Members, consts...)
 				case KindPropertyDecl:
-					pendingDoc = nil
 					props := lowerProperties(m, file)
+					for _, node := range props {
+						if prop, ok := node.(*ast.PropertyNode); ok && prop.PHPDoc == nil {
+							prop.PHPDoc = pendingDoc
+						}
+					}
+					pendingDoc = nil
 					if len(pendingAttrs) > 0 {
 						for _, node := range props {
 							if prop, ok := node.(*ast.PropertyNode); ok {
@@ -340,8 +345,13 @@ func lowerClassMembers(file *File, membersGreen *GreenNode, membersOff int, cls 
 					cls.Methods = append(cls.Methods, fn)
 				}
 			case KindPropertyDecl:
-				pendingDoc = nil
 				props := lowerProperties(m, file)
+				for _, node := range props {
+					if prop, ok := node.(*ast.PropertyNode); ok && prop.PHPDoc == nil {
+						prop.PHPDoc = pendingDoc
+					}
+				}
+				pendingDoc = nil
 				if len(pendingAttrs) > 0 {
 					for _, node := range props {
 						if prop, ok := node.(*ast.PropertyNode); ok {

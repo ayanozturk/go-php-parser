@@ -260,7 +260,7 @@ func runFusedConfiguredCSTWalk(root *syntax.RedNode, rootFt FileTypeContext, o f
 				}
 			}
 		case syntax.KindPropertyDecl:
-			for _, p := range memoLowerPropertyDecl(ctx, n, res.File) {
+			for _, p := range memoLowerPropertyDeclInClass(ctx, class, n, res.File) {
 				appendPHPDocIssuesOnNode(o.filename, p, lowerClass(class), ft, ctx, o.phpDoc)
 				if o.collectMissingTypes {
 					appendMissingTypeIssuesOnNode(o.filename, p, lowerClass(class), ft, ctx, o.missingType)

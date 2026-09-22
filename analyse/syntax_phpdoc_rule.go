@@ -63,7 +63,7 @@ func checkPHPDocIssuesFromParsed(filename string, res *syntax.ParseResult, ctx *
 				appendPHPDocIssuesOnNode(filename, fn, lowerClass(class), ft, ctx, &issues)
 			}
 		case syntax.KindPropertyDecl:
-			for _, p := range syntax.LowerPropertyDeclNode(n, res.File) {
+			for _, p := range memoLowerPropertyDeclInClass(ctx, class, n, res.File) {
 				appendPHPDocIssuesOnNode(filename, p, lowerClass(class), ft, ctx, &issues)
 			}
 		}

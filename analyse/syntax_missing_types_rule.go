@@ -52,7 +52,7 @@ func checkMissingTypeIssuesFromParsed(filename string, res *syntax.ParseResult, 
 				appendMissingTypeIssuesOnNode(filename, fn, lowerClass(class), ft, ctx, &issues)
 			}
 		case syntax.KindPropertyDecl:
-			for _, p := range syntax.LowerPropertyDeclNode(n, res.File) {
+			for _, p := range memoLowerPropertyDeclInClass(ctx, class, n, res.File) {
 				appendMissingTypeIssuesOnNode(filename, p, lowerClass(class), ft, ctx, &issues)
 			}
 		}

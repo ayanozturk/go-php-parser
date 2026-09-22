@@ -180,6 +180,26 @@ func TestLowerPHPDocOnAttributedMethod(t *testing.T) {
 	}
 }
 
+func TestLowerPHPDocOnAttributedProperty(t *testing.T) {
+	src := []byte(`<?php
+class C {
+    /** @var Collection<int, Item> */
+    #[Example]
+    private Collection $items;
+}
+`)
+	res := syntax.ParseForIndex(src)
+	nodes := lower.File(res.File.Root, res.File)
+	cls := nodes[0].(*ast.ClassNode)
+	prop := cls.Properties[0].(*ast.PropertyNode)
+	if prop.PHPDoc == nil || prop.PHPDoc.VarType != "Collection<int, Item>" {
+		t.Fatalf("expected @var PHPDoc through property attribute, got %+v", prop.PHPDoc)
+	}
+	if len(prop.Attributes) != 1 {
+		t.Fatalf("expected one property attribute, got %d", len(prop.Attributes))
+	}
+}
+
 func TestLowerPropertyHooks(t *testing.T) {
 	src := []byte(`<?php
 class H {

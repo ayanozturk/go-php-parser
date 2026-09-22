@@ -136,14 +136,68 @@ func LowerStmtNode(n *RedNode, file *File) ast.Node {
 // LowerPropertyDeclNode lowers a single KindPropertyDecl CST node (a class
 // property declaration, possibly with multiple comma-separated names sharing
 // one type hint) to its classic []ast.Node ([]*ast.PropertyNode). Returns nil
-// for a nil or non-KindPropertyDecl node. Attributes attached via a
-// preceding sibling KindAttributeList (see lowerClassMembers) are not
-// populated when lowering a single node in isolation.
+// for a nil or non-KindPropertyDecl node. Leading PHPDoc from contiguous
+// preceding sibling KindAttributeList nodes is preserved.
 func LowerPropertyDeclNode(n *RedNode, file *File) []ast.Node {
 	if n == nil || n.Kind() != KindPropertyDecl {
 		return nil
 	}
-	return lowerProperties(n, file)
+	props := lowerProperties(n, file)
+	if doc := leadingAttributeDoc(n); doc != nil {
+		for _, node := range props {
+			if prop, ok := node.(*ast.PropertyNode); ok && prop.PHPDoc == nil {
+				prop.PHPDoc = doc
+			}
+		}
+	}
+	return props
+}
+
+func leadingAttributeDoc(n *RedNode) *ast.PHPDocNode {
+	if n == nil || n.Parent == nil {
+		return nil
+	}
+	children := n.Parent.Children()
+	for i, child := range children {
+		if child.Green != n.Green || child.Offset != n.Offset {
+			continue
+		}
+		for j := i - 1; j >= 0 && children[j].Kind() == KindAttributeList; j-- {
+			if doc := leadingDocFromNode(children[j]); doc != nil {
+				return doc
+			}
+		}
+		return nil
+	}
+	return nil
+}
+
+// PrecedingAttributePHPDoc returns the PHPDoc comment attached to contiguous
+// attribute-list siblings immediately before declaration. classLike is the
+// enclosing class-like node; it provides sibling context for CST walkers that
+// visit declaration nodes without retaining parent pointers.
+func PrecedingAttributePHPDoc(classLike, declaration *RedNode) *ast.PHPDocNode {
+	if classLike == nil || declaration == nil {
+		return nil
+	}
+	for _, child := range classLike.Children() {
+		if child.Kind() != KindMemberList {
+			continue
+		}
+		siblings := child.Children()
+		for i, sibling := range siblings {
+			if sibling.Green != declaration.Green || sibling.Offset != declaration.Offset {
+				continue
+			}
+			for j := i - 1; j >= 0 && siblings[j].Kind() == KindAttributeList; j-- {
+				if doc := leadingDocFromNode(siblings[j]); doc != nil {
+					return doc
+				}
+			}
+			return nil
+		}
+	}
+	return nil
 }
 
 // LowerParamNode lowers a single KindParam CST node to its classic

@@ -61,7 +61,7 @@ func checkTypeReferenceIssuesFromParsed(filename string, res *syntax.ParseResult
 				checkTypeReferenceOnNode(filename, fn, ft, ctx, guards, &issues)
 			}
 		case syntax.KindPropertyDecl:
-			for _, p := range syntax.LowerPropertyDeclNode(n, res.File) {
+			for _, p := range memoLowerPropertyDeclInClass(ctx, class, n, res.File) {
 				checkTypeReferenceOnNode(filename, p, ft, ctx, guards, &issues)
 			}
 		case syntax.KindConstDecl:

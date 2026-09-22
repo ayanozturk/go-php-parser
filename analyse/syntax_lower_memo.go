@@ -142,6 +142,18 @@ func memoLowerPropertyDecl(ctx *AnalysisContext, n *syntax.RedNode, file *syntax
 	return syntax.LowerPropertyDeclNode(n, file)
 }
 
+func memoLowerPropertyDeclInClass(ctx *AnalysisContext, class, n *syntax.RedNode, file *syntax.File) []ast.Node {
+	props := memoLowerPropertyDecl(ctx, n, file)
+	if doc := syntax.PrecedingAttributePHPDoc(class, n); doc != nil {
+		for _, node := range props {
+			if prop, ok := node.(*ast.PropertyNode); ok && prop.PHPDoc == nil {
+				prop.PHPDoc = doc
+			}
+		}
+	}
+	return props
+}
+
 func memoLowerInterfaceMethod(ctx *AnalysisContext, n *syntax.RedNode, file *syntax.File) *ast.InterfaceMethodNode {
 	if n == nil {
 		return nil
