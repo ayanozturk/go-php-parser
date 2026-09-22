@@ -157,7 +157,15 @@ func TestMatchExprRecoveryProgress(t *testing.T) {
 	case <-time.After(2 * time.Second):
 		t.Fatal("Parse hung on malformed match (no progress guard)")
 	}
-	_ = res
+	if res == nil || res.File == nil {
+		t.Fatal("Parse returned no result for malformed match")
+	}
+	if got := Print(res.File.Root); got != src {
+		t.Fatalf("malformed match recovery lost source identity\nwant %q\ngot  %q", src, got)
+	}
+	if len(res.Diagnostics) == 0 {
+		t.Fatal("expected diagnostics for malformed match")
+	}
 }
 
 func TestInterfaceNamespaceSegmentRoundTrip(t *testing.T) {
