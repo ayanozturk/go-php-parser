@@ -7,3 +7,11 @@ default_subagent_reasoning_effort = "medium"
 [agents.worker]
 description = "Implementation worker for small, clearly scoped, repetitive changes with straightforward validation."
 config_file = "./agents/worker.toml"
+
+[agents.explorer]
+description = "Read-only repository explorer for focused codebase questions, call-site discovery, and evidence gathering."
+config_file = "./agents/explorer.toml"
+
+[agents.benchmark_runner]
+description = "Runs focused parser benchmarks and reports reproducible measurements without changing source files."
+config_file = "./agents/benchmark_runner.toml"
