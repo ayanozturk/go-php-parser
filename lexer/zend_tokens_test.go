@@ -87,6 +87,11 @@ func TestTokenGetAllFullOrderedEquality(t *testing.T) {
 		`<?php $a = namespace\Foo;`,
 		`<?php $o->m();`,
 		`<?php $o?->m();`,
+		`<?php $a = $b ?: $c;`,
+		`<?php $f = strlen(...);`,
+		`<?php enum E: string { case A = 'a'; }`,
+		`<?php class C { public const string FOO = 1; }`,
+		`<?php $o->$x; $o->{$y};`,
 	}
 	for _, src := range cases {
 		phpOut, err := phpTokenDump(src)

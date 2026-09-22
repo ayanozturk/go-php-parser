@@ -55,11 +55,13 @@ SYNTAX_CORPUS_DIR="$PWD/test_projects/wordpress-develop" GOWORK=off go test ./sy
 
 ### 3. Complete high-risk syntax coverage
 
-- [ ] Audit gold-tree coverage for attributes, DNF types, qualified/relative/fully-qualified names, mixed-case keywords, declaration trivia, heredoc/nowdoc, and interpolation.
-- [ ] Add focused gold/recovery coverage for PHP 8.4 property hooks, dynamic/braced members, first-class callables, casts, `yield`, enum cases, class-constant attributes/values, and Elvis ternaries.
-- [ ] Expand Zend `token_get_all` parity fixtures only for high-value lexer edge cases.
-- [ ] Add malformed and incomplete editor-input controls for each recovery change.
+- [x] Audit gold-tree coverage for attributes, DNF types, qualified/relative/fully-qualified names, mixed-case keywords, declaration trivia, heredoc/nowdoc, and interpolation.
+- [x] Add focused gold/recovery coverage for PHP 8.4 property hooks, dynamic/braced members, first-class callables, casts, `yield`, enum cases, class-constant attributes/values, and Elvis ternaries.
+- [x] Expand Zend `token_get_all` parity fixtures only for high-value lexer edge cases.
+- [x] Add malformed and incomplete editor-input controls for each recovery change.
 - [ ] Keep new `syntax`, trivia, lexer-state, and binder paths at least 95% covered, with branch-complete new state machines.
+
+Step-3 evidence (2026-09-22 iteration, no grammar changes — characterization only): pre-existing gold covered attributes, DNF, names, heredoc/interpolation, and property hooks; added `syntax/gold_test.go` gold trees for Elvis (`TestGoldTreeElvisTernary`), all yield forms (`TestGoldTreeYieldForms`), dynamic/braced members (`TestGoldTreeDynamicBracedMembers`), first-class callables (`TestGoldTreeFirstClassCallables`), casts (`TestGoldTreeCasts`), attributed enum cases (`TestGoldTreeEnumCases`), attributed typed class consts (`TestGoldTreeClassConstAttributes`), nowdoc (`TestGoldTreeNowdoc`), mixed-case keywords (`TestGoldTreeMixedCaseKeywords`), and decl-trivia/PHPDoc attachment (`TestGoldTreeDeclTriviaAttachment`). Added `syntax/recovery_hotspots_test.go` (`TestHotspotIncompleteRecoveryControls`, 10 incomplete-input controls: identity + hotspot-kind survival + bounded diagnostics + `KindMissing` where the grammar emits one). Extended `TestTokenGetAllFullOrderedEquality` with 5 high-value parity fixtures (Elvis, first-class callable, enum, typed class const, dynamic members). Deliberately excluded `yield from` and `(int)`-style casts from parity: Zend emits combined `T_YIELD_FROM`/`T_INT_CAST` while this lexer emits split tokens by design (parser reassembles them). Gates: `GOWORK=off go test ./syntax ./lexer ./analyse -count=1` green; `go vet ./syntax ./lexer` clean; `git diff --check` clean.
 
 ### 4. Validate cancellation and robustness
 

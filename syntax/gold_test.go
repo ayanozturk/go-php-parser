@@ -4,6 +4,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/ayanozturk/go-php-parser/ast"
 	"github.com/ayanozturk/go-php-parser/token"
 )
 
@@ -565,5 +566,457 @@ func TestGoldTreeControlFlow(t *testing.T) {
 	}
 	if !strings.Contains(got, "WhileStmt\n") || !strings.Contains(got, "  BreakStmt\n") && !strings.Contains(got, "    BreakStmt\n") {
 		t.Fatalf("expected BreakStmt under WhileStmt:\n%s", got)
+	}
+}
+
+// TestGoldTreeElvisTernary locks the short-ternary shape: the middle operand
+// is absent (no second expr child between ? and :), unlike the full ternary
+// covered in TestGoldTreeExpressions.
+func TestGoldTreeElvisTernary(t *testing.T) {
+	src := "<?php $a = $b ?: $c;\n"
+	res := Parse([]byte(src))
+	if Print(res.File.Root) != src {
+		t.Fatalf("identity failed\nwant %q\ngot  %q", src, Print(res.File.Root))
+	}
+	got := dumpGoldTree(res.File.Root)
+	want := "" +
+		"File\n" +
+		"  Token T_OPEN_TAG \"<?php\"\n" +
+		"  ExpressionStmt\n" +
+		"    AssignExpr\n" +
+		"      VariableExpr\n" +
+		"        Token T_VARIABLE \"$a\"\n" +
+		"      Token T_ASSIGN \"=\"\n" +
+		"      TernaryExpr\n" +
+		"        VariableExpr\n" +
+		"          Token T_VARIABLE \"$b\"\n" +
+		"        Token T_QUESTION \"?\"\n" +
+		"        Token T_COLON \":\"\n" +
+		"        VariableExpr\n" +
+		"          Token T_VARIABLE \"$c\"\n" +
+		"    Token T_SEMICOLON \";\"\n" +
+		"  Token T_EOF\n"
+	if got != want {
+		t.Fatalf("gold elvis tree mismatch\nwant:\n%s\ngot:\n%s", want, got)
+	}
+}
+
+// TestGoldTreeYieldForms locks every yield variant: bare, value, key=>value,
+// and delegated `yield from` (T_YIELD + T_STRING("from") + value).
+func TestGoldTreeYieldForms(t *testing.T) {
+	src := "<?php function gen() { yield; yield $v; yield $k => $v; yield from gen(); }\n"
+	res := Parse([]byte(src))
+	if Print(res.File.Root) != src {
+		t.Fatalf("identity failed\nwant %q\ngot  %q", src, Print(res.File.Root))
+	}
+	got := dumpGoldTree(res.File.Root)
+	want := "" +
+		"File\n" +
+		"  Token T_OPEN_TAG \"<?php\"\n" +
+		"  FunctionDecl\n" +
+		"    Token T_FUNCTION \"function\"\n" +
+		"    UnqualifiedName\n" +
+		"      Token T_STRING \"gen\"\n" +
+		"    Token T_LPAREN \"(\"\n" +
+		"    ParamList\n" +
+		"    Token T_RPAREN \")\"\n" +
+		"    StatementList\n" +
+		"      Token T_LBRACE \"{\"\n" +
+		"      ExpressionStmt\n" +
+		"        YieldExpr\n" +
+		"          Token T_YIELD \"yield\"\n" +
+		"        Token T_SEMICOLON \";\"\n" +
+		"      ExpressionStmt\n" +
+		"        YieldExpr\n" +
+		"          Token T_YIELD \"yield\"\n" +
+		"          VariableExpr\n" +
+		"            Token T_VARIABLE \"$v\"\n" +
+		"        Token T_SEMICOLON \";\"\n" +
+		"      ExpressionStmt\n" +
+		"        YieldExpr\n" +
+		"          Token T_YIELD \"yield\"\n" +
+		"          VariableExpr\n" +
+		"            Token T_VARIABLE \"$k\"\n" +
+		"          Token T_DOUBLE_ARROW \"=>\"\n" +
+		"          VariableExpr\n" +
+		"            Token T_VARIABLE \"$v\"\n" +
+		"        Token T_SEMICOLON \";\"\n" +
+		"      ExpressionStmt\n" +
+		"        YieldExpr\n" +
+		"          Token T_YIELD \"yield\"\n" +
+		"          Token T_STRING \"from\"\n" +
+		"          CallExpr\n" +
+		"            UnqualifiedName\n" +
+		"              Token T_STRING \"gen\"\n" +
+		"            ArgList\n" +
+		"              Token T_LPAREN \"(\"\n" +
+		"              Token T_RPAREN \")\"\n" +
+		"        Token T_SEMICOLON \";\"\n" +
+		"      Token T_RBRACE \"}\"\n" +
+		"  Token T_EOF\n"
+	if got != want {
+		t.Fatalf("gold yield tree mismatch\nwant:\n%s\ngot:\n%s", want, got)
+	}
+}
+
+// TestGoldTreeDynamicBracedMembers locks dynamic/braced member shapes:
+// $o->$x (bare variable), $o->{$y} and Foo::{$z} (ParenExpr braces).
+func TestGoldTreeDynamicBracedMembers(t *testing.T) {
+	src := "<?php $o->$x; $o->{$y}; Foo::{$z};\n"
+	res := Parse([]byte(src))
+	if Print(res.File.Root) != src {
+		t.Fatalf("identity failed\nwant %q\ngot  %q", src, Print(res.File.Root))
+	}
+	got := dumpGoldTree(res.File.Root)
+	want := "" +
+		"File\n" +
+		"  Token T_OPEN_TAG \"<?php\"\n" +
+		"  ExpressionStmt\n" +
+		"    MemberAccessExpr\n" +
+		"      VariableExpr\n" +
+		"        Token T_VARIABLE \"$o\"\n" +
+		"      Token T_OBJECT_OPERATOR \"->\"\n" +
+		"      Token T_VARIABLE \"$x\"\n" +
+		"    Token T_SEMICOLON \";\"\n" +
+		"  ExpressionStmt\n" +
+		"    MemberAccessExpr\n" +
+		"      VariableExpr\n" +
+		"        Token T_VARIABLE \"$o\"\n" +
+		"      Token T_OBJECT_OPERATOR \"->\"\n" +
+		"      ParenExpr\n" +
+		"        Token T_LBRACE \"{\"\n" +
+		"        VariableExpr\n" +
+		"          Token T_VARIABLE \"$y\"\n" +
+		"        Token T_RBRACE \"}\"\n" +
+		"    Token T_SEMICOLON \";\"\n" +
+		"  ExpressionStmt\n" +
+		"    StaticMemberAccessExpr\n" +
+		"      UnqualifiedName\n" +
+		"        Token T_STRING \"Foo\"\n" +
+		"      Token T_DOUBLE_COLON \"::\"\n" +
+		"      ParenExpr\n" +
+		"        Token T_LBRACE \"{\"\n" +
+		"        VariableExpr\n" +
+		"          Token T_VARIABLE \"$z\"\n" +
+		"        Token T_RBRACE \"}\"\n" +
+		"    Token T_SEMICOLON \";\"\n" +
+		"  Token T_EOF\n"
+	if got != want {
+		t.Fatalf("gold dynamic-member tree mismatch\nwant:\n%s\ngot:\n%s", want, got)
+	}
+}
+
+// TestGoldTreeFirstClassCallables locks `...` callables on plain, member,
+// and static receivers.
+func TestGoldTreeFirstClassCallables(t *testing.T) {
+	src := "<?php $f = strlen(...); $g = $o->m(...); $h = Foo::m(...);\n"
+	res := Parse([]byte(src))
+	if Print(res.File.Root) != src {
+		t.Fatalf("identity failed\nwant %q\ngot  %q", src, Print(res.File.Root))
+	}
+	got := dumpGoldTree(res.File.Root)
+	want := "" +
+		"File\n" +
+		"  Token T_OPEN_TAG \"<?php\"\n" +
+		"  ExpressionStmt\n" +
+		"    AssignExpr\n" +
+		"      VariableExpr\n" +
+		"        Token T_VARIABLE \"$f\"\n" +
+		"      Token T_ASSIGN \"=\"\n" +
+		"      FirstClassCallableExpr\n" +
+		"        UnqualifiedName\n" +
+		"          Token T_STRING \"strlen\"\n" +
+		"        Token T_LPAREN \"(\"\n" +
+		"        Token T_ELLIPSIS \"...\"\n" +
+		"        Token T_RPAREN \")\"\n" +
+		"    Token T_SEMICOLON \";\"\n" +
+		"  ExpressionStmt\n" +
+		"    AssignExpr\n" +
+		"      VariableExpr\n" +
+		"        Token T_VARIABLE \"$g\"\n" +
+		"      Token T_ASSIGN \"=\"\n" +
+		"      FirstClassCallableExpr\n" +
+		"        MemberAccessExpr\n" +
+		"          VariableExpr\n" +
+		"            Token T_VARIABLE \"$o\"\n" +
+		"          Token T_OBJECT_OPERATOR \"->\"\n" +
+		"          Token T_STRING \"m\"\n" +
+		"        Token T_LPAREN \"(\"\n" +
+		"        Token T_ELLIPSIS \"...\"\n" +
+		"        Token T_RPAREN \")\"\n" +
+		"    Token T_SEMICOLON \";\"\n" +
+		"  ExpressionStmt\n" +
+		"    AssignExpr\n" +
+		"      VariableExpr\n" +
+		"        Token T_VARIABLE \"$h\"\n" +
+		"      Token T_ASSIGN \"=\"\n" +
+		"      FirstClassCallableExpr\n" +
+		"        StaticMemberAccessExpr\n" +
+		"          UnqualifiedName\n" +
+		"            Token T_STRING \"Foo\"\n" +
+		"          Token T_DOUBLE_COLON \"::\"\n" +
+		"          Token T_STRING \"m\"\n" +
+		"        Token T_LPAREN \"(\"\n" +
+		"        Token T_ELLIPSIS \"...\"\n" +
+		"        Token T_RPAREN \")\"\n" +
+		"    Token T_SEMICOLON \";\"\n" +
+		"  Token T_EOF\n"
+	if got != want {
+		t.Fatalf("gold first-class-callable tree mismatch\nwant:\n%s\ngot:\n%s", want, got)
+	}
+}
+
+// TestGoldTreeCasts locks the CastExpr shape (open, type token, close, operand).
+func TestGoldTreeCasts(t *testing.T) {
+	src := "<?php $x = (int)$y;\n"
+	res := Parse([]byte(src))
+	if Print(res.File.Root) != src {
+		t.Fatalf("identity failed\nwant %q\ngot  %q", src, Print(res.File.Root))
+	}
+	got := dumpGoldTree(res.File.Root)
+	want := "" +
+		"File\n" +
+		"  Token T_OPEN_TAG \"<?php\"\n" +
+		"  ExpressionStmt\n" +
+		"    AssignExpr\n" +
+		"      VariableExpr\n" +
+		"        Token T_VARIABLE \"$x\"\n" +
+		"      Token T_ASSIGN \"=\"\n" +
+		"      CastExpr\n" +
+		"        Token T_LPAREN \"(\"\n" +
+		"        Token T_STRING \"int\"\n" +
+		"        Token T_RPAREN \")\"\n" +
+		"        VariableExpr\n" +
+		"          Token T_VARIABLE \"$y\"\n" +
+		"    Token T_SEMICOLON \";\"\n" +
+		"  Token T_EOF\n"
+	if got != want {
+		t.Fatalf("gold cast tree mismatch\nwant:\n%s\ngot:\n%s", want, got)
+	}
+}
+
+// TestGoldTreeEnumCases locks attributed enum cases (valued + unit) and the
+// backing-type header.
+func TestGoldTreeEnumCases(t *testing.T) {
+	src := "<?php enum E: string { #[Attr] case A = 'a'; case B; }\n"
+	res := Parse([]byte(src))
+	if Print(res.File.Root) != src {
+		t.Fatalf("identity failed\nwant %q\ngot  %q", src, Print(res.File.Root))
+	}
+	got := dumpGoldTree(res.File.Root)
+	want := "" +
+		"File\n" +
+		"  Token T_OPEN_TAG \"<?php\"\n" +
+		"  EnumDecl\n" +
+		"    Token T_ENUM \"enum\"\n" +
+		"    UnqualifiedName\n" +
+		"      Token T_STRING \"E\"\n" +
+		"    Token T_COLON \":\"\n" +
+		"    PrimitiveType\n" +
+		"      Token T_STRING \"string\"\n" +
+		"    MemberList\n" +
+		"      Token T_LBRACE \"{\"\n" +
+		"      AttributeList\n" +
+		"        AttributeGroup\n" +
+		"          Token T_ATTRIBUTE \"#[\"\n" +
+		"          Attribute\n" +
+		"            UnqualifiedName\n" +
+		"              Token T_STRING \"Attr\"\n" +
+		"          Token T_RBRACKET \"]\"\n" +
+		"      EnumCase\n" +
+		"        Token T_CASE \"case\"\n" +
+		"        UnqualifiedName\n" +
+		"          Token T_STRING \"A\"\n" +
+		"        Token T_ASSIGN \"=\"\n" +
+		"        LiteralExpr\n" +
+		"          Token T_CONSTANT_ENCAPSED_STRING \"'a'\"\n" +
+		"        Token T_SEMICOLON \";\"\n" +
+		"      EnumCase\n" +
+		"        Token T_CASE \"case\"\n" +
+		"        UnqualifiedName\n" +
+		"          Token T_STRING \"B\"\n" +
+		"        Token T_SEMICOLON \";\"\n" +
+		"      Token T_RBRACE \"}\"\n" +
+		"  Token T_EOF\n"
+	if got != want {
+		t.Fatalf("gold enum-case tree mismatch\nwant:\n%s\ngot:\n%s", want, got)
+	}
+}
+
+// TestGoldTreeClassConstAttributes locks attributes + typed multi-name class
+// constants (the class-constant attribute/value hotspot).
+func TestGoldTreeClassConstAttributes(t *testing.T) {
+	src := "<?php class C { #[Attr] public const string FOO = 1, BAR = 2; }\n"
+	res := Parse([]byte(src))
+	if Print(res.File.Root) != src {
+		t.Fatalf("identity failed\nwant %q\ngot  %q", src, Print(res.File.Root))
+	}
+	got := dumpGoldTree(res.File.Root)
+	want := "" +
+		"File\n" +
+		"  Token T_OPEN_TAG \"<?php\"\n" +
+		"  ClassDecl\n" +
+		"    Token T_CLASS \"class\"\n" +
+		"    UnqualifiedName\n" +
+		"      Token T_STRING \"C\"\n" +
+		"    MemberList\n" +
+		"      Token T_LBRACE \"{\"\n" +
+		"      AttributeList\n" +
+		"        AttributeGroup\n" +
+		"          Token T_ATTRIBUTE \"#[\"\n" +
+		"          Attribute\n" +
+		"            UnqualifiedName\n" +
+		"              Token T_STRING \"Attr\"\n" +
+		"          Token T_RBRACKET \"]\"\n" +
+		"      ClassConstDecl\n" +
+		"        ModifierList\n" +
+		"          Token T_PUBLIC \"public\"\n" +
+		"        Token T_CONST \"const\"\n" +
+		"        PrimitiveType\n" +
+		"          Token T_STRING \"string\"\n" +
+		"        UnqualifiedName\n" +
+		"          Token T_STRING \"FOO\"\n" +
+		"        Token T_ASSIGN \"=\"\n" +
+		"        LiteralExpr\n" +
+		"          Token T_LNUMBER \"1\"\n" +
+		"        Token T_COMMA \",\"\n" +
+		"        UnqualifiedName\n" +
+		"          Token T_STRING \"BAR\"\n" +
+		"        Token T_ASSIGN \"=\"\n" +
+		"        LiteralExpr\n" +
+		"          Token T_LNUMBER \"2\"\n" +
+		"        Token T_SEMICOLON \";\"\n" +
+		"      Token T_RBRACE \"}\"\n" +
+		"  Token T_EOF\n"
+	if got != want {
+		t.Fatalf("gold class-const tree mismatch\nwant:\n%s\ngot:\n%s", want, got)
+	}
+}
+
+// TestGoldTreeNowdoc locks the Nowdoc shape: interpolated-looking `$x` stays
+// a single StringPart (no VariablePart), unlike heredoc.
+func TestGoldTreeNowdoc(t *testing.T) {
+	src := "<?php\n$a = <<<'NOW'\nplain $x\nNOW;\n"
+	res := Parse([]byte(src))
+	if Print(res.File.Root) != src {
+		t.Fatalf("identity failed\nwant %q\ngot  %q", src, Print(res.File.Root))
+	}
+	got := dumpGoldTree(res.File.Root)
+	want := "" +
+		"File\n" +
+		"  Token T_OPEN_TAG \"<?php\"\n" +
+		"  ExpressionStmt\n" +
+		"    AssignExpr\n" +
+		"      VariableExpr\n" +
+		"        Token T_VARIABLE \"$a\"\n" +
+		"      Token T_ASSIGN \"=\"\n" +
+		"      Nowdoc\n" +
+		"        Token T_START_NOWDOC \"<<<'NOW'\\n\"\n" +
+		"        StringPart\n" +
+		"          Token T_ENCAPSED_AND_WHITESPACE \"plain $x\\n\"\n" +
+		"        Token T_END_NOWDOC \"NOW\"\n" +
+		"    Token T_SEMICOLON \";\"\n" +
+		"  Token T_EOF\n"
+	if got != want {
+		t.Fatalf("gold nowdoc tree mismatch\nwant:\n%s\ngot:\n%s", want, got)
+	}
+}
+
+// TestGoldTreeMixedCaseKeywords locks that keyword tokens keep their original
+// spelling while the tree shape stays canonical.
+func TestGoldTreeMixedCaseKeywords(t *testing.T) {
+	src := "<?php\nFunction FOO() {}\nIF ($a) { ECHO 1; }\n"
+	res := Parse([]byte(src))
+	if Print(res.File.Root) != src {
+		t.Fatalf("identity failed\nwant %q\ngot  %q", src, Print(res.File.Root))
+	}
+	got := dumpGoldTree(res.File.Root)
+	want := "" +
+		"File\n" +
+		"  Token T_OPEN_TAG \"<?php\"\n" +
+		"  FunctionDecl\n" +
+		"    Token T_FUNCTION \"Function\"\n" +
+		"    UnqualifiedName\n" +
+		"      Token T_STRING \"FOO\"\n" +
+		"    Token T_LPAREN \"(\"\n" +
+		"    ParamList\n" +
+		"    Token T_RPAREN \")\"\n" +
+		"    StatementList\n" +
+		"      Token T_LBRACE \"{\"\n" +
+		"      Token T_RBRACE \"}\"\n" +
+		"  IfStmt\n" +
+		"    Token T_IF \"IF\"\n" +
+		"    Token T_LPAREN \"(\"\n" +
+		"    VariableExpr\n" +
+		"      Token T_VARIABLE \"$a\"\n" +
+		"    Token T_RPAREN \")\"\n" +
+		"    StatementList\n" +
+		"      Token T_LBRACE \"{\"\n" +
+		"      EchoStmt\n" +
+		"        Token T_ECHO \"ECHO\"\n" +
+		"        LiteralExpr\n" +
+		"          Token T_LNUMBER \"1\"\n" +
+		"        Token T_SEMICOLON \";\"\n" +
+		"      Token T_RBRACE \"}\"\n" +
+		"  Token T_EOF\n"
+	if got != want {
+		t.Fatalf("gold mixed-case tree mismatch\nwant:\n%s\ngot:\n%s", want, got)
+	}
+}
+
+// TestGoldTreeDeclTriviaAttachment locks doc-comment trivia attachment on a
+// declaration: the comment rides as LeadingTrivia on the declaration's first
+// significant token and lowers to the declaration's PHPDoc.
+func TestGoldTreeDeclTriviaAttachment(t *testing.T) {
+	src := "<?php\n/** prop doc */\nclass C {\n/** prop doc */\npublic int $x;\n}\n"
+	res := Parse([]byte(src))
+	if Print(res.File.Root) != src {
+		t.Fatalf("identity failed\nwant %q\ngot  %q", src, Print(res.File.Root))
+	}
+	var prop *RedNode
+	Walk(res.File.Root, func(n *RedNode) bool {
+		if n.Kind() == KindPropertyDecl {
+			prop = copyRed(n)
+			return false
+		}
+		return true
+	})
+	if prop == nil {
+		t.Fatal("expected PropertyDecl")
+	}
+	first := firstSignificantToken(prop)
+	if first == nil || first.Green == nil || !first.Green.IsToken() {
+		t.Fatal("expected significant token under PropertyDecl")
+	}
+	tok, ok := first.Green.Token()
+	if !ok {
+		t.Fatal("expected token")
+	}
+	found := false
+	for _, tr := range tok.LeadingTrivia {
+		if tr.Type.String() == "T_DOC_COMMENT" && strings.Contains(tr.Literal, "prop doc") {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("expected /** prop doc */ in LeadingTrivia, got %#v", tok.LeadingTrivia)
+	}
+	nodes := LowerAST(res)
+	if len(nodes) == 0 {
+		t.Fatal("expected lowered nodes")
+	}
+	cls, ok := nodes[0].(*ast.ClassNode)
+	if !ok {
+		t.Fatalf("expected *ast.ClassNode, got %T", nodes[0])
+	}
+	if len(cls.Properties) == 0 {
+		t.Fatal("expected class properties")
+	}
+	propNode, ok := cls.Properties[0].(*ast.PropertyNode)
+	if !ok {
+		t.Fatalf("expected *ast.PropertyNode, got %T", cls.Properties[0])
+	}
+	if propNode.PHPDoc == nil {
+		t.Fatalf("expected PHPDoc attached to property:\n%s", dumpGoldTree(res.File.Root))
 	}
 }
