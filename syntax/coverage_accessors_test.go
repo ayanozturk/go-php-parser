@@ -13,7 +13,7 @@ func copyRed(n *RedNode) *RedNode {
 
 func TestCallAndMemberAccessors(t *testing.T) {
 	src := []byte(`<?php
-foo($a, bar: $b, ...$c);
+foo($a, bar: $b, in: $b, ...$c);
 $o->meth();
 $o?->prop;
 Foo::BAR;
@@ -41,6 +41,9 @@ new class {};
 	named := firstNodeOfKind(res.File.Root, KindNamedArg)
 	if NamedArgName(named) != "bar" {
 		t.Fatalf("NamedArgName=%q", NamedArgName(named))
+	}
+	if NamedArgName(args[2]) != "in" {
+		t.Fatalf("contextual NamedArgName=%q", NamedArgName(args[2]))
 	}
 	if ArgExpr(named) == nil {
 		t.Fatal("ArgExpr named")

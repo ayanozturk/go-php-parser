@@ -35,11 +35,16 @@ func ensureArgCallDiagnostics(filename string, nodes []ast.Node, ctx *AnalysisCo
 	}
 	var observe semanticExpressionObserver
 	if ctx.Resolver != nil && analysisLevelAtLeast(ctx, 2) {
+		seen := make(map[*ast.MethodCallNode]struct{})
 		observe = func(filename string, expr ast.Node, scope *functionScope, ctx *AnalysisContext) {
 			call, ok := expr.(*ast.MethodCallNode)
 			if !ok {
 				return
 			}
+			if _, exists := seen[call]; exists {
+				return
+			}
+			seen[call] = struct{}{}
 			appendMethodReceiverIssuesForCall(filename, call, scope, ctx, &ctx.methodReceiverIssues)
 		}
 	}
@@ -112,7 +117,7 @@ func walkStatementsForArgTypes(nodes []ast.Node, scope *functionScope, ctx *Anal
 }
 
 func walkStatementsForArgTypesUsing(nodes []ast.Node, scope *functionScope, ctx *AnalysisContext, filename string, issues *[]AnalysisIssue, observe semanticExpressionObserver) {
-	for _, node := range nodes {
+	for nodeIndex, node := range nodes {
 		switch n := node.(type) {
 		case *ast.ExpressionStmt:
 			applyExpressionStmtVarDocBefore(scope, n)
@@ -158,6 +163,7 @@ func walkStatementsForArgTypesUsing(nodes []ast.Node, scope *functionScope, ctx 
 		case *ast.WhileNode:
 			walkExprForArgTypesUsing(n.Condition, scope, ctx, filename, issues, observe)
 			walkStatementsForArgTypesUsing(n.Body, scopeForConditionTrue(scope, n.Condition, ctx), ctx, filename, issues, observe)
+			applyGuaranteedWhileExitAssignments(nodes[:nodeIndex], n, scope, ctx)
 		case *ast.DoWhileNode:
 			loopScope := scope.clone()
 			walkStatementsForArgTypesUsing(n.Body, loopScope, ctx, filename, issues, observe)

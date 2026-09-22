@@ -50,6 +50,25 @@ func TestShortArrayLiteralReturnMatchesArrayType(t *testing.T) {
 	}
 }
 
+func TestClassPHPDocTypeAliasExpandsForMethodReturn(t *testing.T) {
+	php := `<?php
+/**
+ * @psalm-type RouteConfig = array{path: string, methods?: list<string>}
+ */
+final class Routes {
+    /** @psalm-return RouteConfig */
+    public static function config(array $config): array {
+		/** @var RouteConfig $config */
+		$config = $config;
+        return $config;
+    }
+}`
+	issues := analysePHP(t, php)
+	if hasReturnTypeIssue(issues) {
+		t.Fatalf("expected class-level PHPDoc type alias to expand to array for return checking, got %#v", issues)
+	}
+}
+
 // TestReturnTypeRuleFallbackHonorsContentContext exercises
 // collectReturnTypeIssues's ctx.Content branch specifically, not just the
 // return-type rule in general. It deliberately passes an empty `nodes`
@@ -311,7 +330,9 @@ class EntityRepository {
 	public function find($id): ?object { return null; }
 }
 
-class ServiceEntityRepository extends EntityRepository {}
+class ServiceEntityRepository extends EntityRepository {
+	public function find($id): ?object { return parent::find($id); }
+}
 
 /** @extends ServiceEntityRepository<Record> */
 class RecordRepository extends ServiceEntityRepository {}

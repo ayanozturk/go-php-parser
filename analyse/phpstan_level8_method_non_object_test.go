@@ -37,7 +37,6 @@ function run(
     $nullableInt->missing();
     $nullsafe?->execute();
 }
-
 function ternary(bool $flag): void {
     ($flag ? new Service() : null)->execute();
 }
@@ -74,6 +73,23 @@ function ternary(bool $flag): void {
 	}
 	if hasIssueContaining(level8Issues, level8MethodNonObjectCode, "nullsafe") {
 		t.Fatalf("nullsafe calls should remain clean, got %#v", level8Issues)
+	}
+}
+
+func TestLevel8NestedCallReportsNullableReceiverOnce(t *testing.T) {
+	files := map[string]string{
+		"test.php": `<?php
+class Collection { public function all(): array { return []; } }
+class Router { public function routes(): Collection { return new Collection(); } }
+function inspect(?Router $router): array {
+    return $router->routes()->all();
+}
+`,
+	}
+
+	issues := runAnalysisLevelOnFiles(t, files, 8)
+	if countIssueContaining(issues, level8MethodNonObjectCode, "routes() on Router|null") != 1 {
+		t.Fatalf("expected one nullable diagnostic for a nested receiver call, got %#v", issues)
 	}
 }
 

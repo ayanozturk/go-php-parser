@@ -126,6 +126,60 @@ class C {
 	}
 }
 
+func TestLowerPHPDocOnAttributedMethod(t *testing.T) {
+	cases := []struct {
+		name string
+		src  string
+		get  func(ast.Node) (*ast.PHPDocNode, []ast.Node)
+	}{
+		{
+			name: "class",
+			src:  "class C { /** @return int */ #[Example] public function m() {} }",
+			get: func(node ast.Node) (*ast.PHPDocNode, []ast.Node) {
+				fn := node.(*ast.ClassNode).Methods[0].(*ast.FunctionNode)
+				return fn.PHPDoc, fn.Attributes
+			},
+		},
+		{
+			name: "trait",
+			src:  "trait T { /** @return int */ #[Example] public function m() {} }",
+			get: func(node ast.Node) (*ast.PHPDocNode, []ast.Node) {
+				fn := node.(*ast.TraitNode).Body[0].(*ast.FunctionNode)
+				return fn.PHPDoc, fn.Attributes
+			},
+		},
+		{
+			name: "enum",
+			src:  "enum E { /** @return int */ #[Example] public function m() {} }",
+			get: func(node ast.Node) (*ast.PHPDocNode, []ast.Node) {
+				fn := node.(*ast.EnumNode).Methods[0].(*ast.FunctionNode)
+				return fn.PHPDoc, fn.Attributes
+			},
+		},
+		{
+			name: "interface",
+			src:  "interface I { /** @return int */ #[Example] public function m(); }",
+			get: func(node ast.Node) (*ast.PHPDocNode, []ast.Node) {
+				fn := node.(*ast.InterfaceNode).Members[0].(*ast.InterfaceMethodNode)
+				return fn.PHPDoc, fn.Attributes
+			},
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			res := syntax.ParseForIndex([]byte("<?php " + tc.src))
+			nodes := lower.File(res.File.Root, res.File)
+			doc, attrs := tc.get(nodes[0])
+			if doc == nil || doc.ReturnType != "int" {
+				t.Fatalf("expected @return int PHPDoc through attribute, got %+v", doc)
+			}
+			if len(attrs) != 1 {
+				t.Fatalf("expected one method attribute, got %d", len(attrs))
+			}
+		})
+	}
+}
+
 func TestLowerPropertyHooks(t *testing.T) {
 	src := []byte(`<?php
 class H {

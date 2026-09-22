@@ -344,11 +344,27 @@ func (idx *ProjectIndex) resolveMethodWithTemplates(className, methodName string
 		method.Params = append([]ResolvedParam(nil), method.Params...)
 		method.DeclaringClass = class.Name
 		method.ReturnType = ApplyTemplateBindings(method.ReturnType, bindings)
+		method.NativeReturnType = ApplyTemplateBindings(method.NativeReturnType, bindings)
 		for i := range method.Params {
 			method.Params[i].Type = ApplyTemplateBindings(method.Params[i].Type, bindings)
 		}
+		// An override without its own PHPDoc keeps the inherited PHPDoc
+		// contract when both native signatures are the same. This is how a
+		// generic proxy can redeclare `object|null` while its parent refines the
+		// result to `T|null`.
+		if sameResolvedType(method.ReturnType, method.NativeReturnType) {
+			if inherited, inheritedFound := idx.resolveInheritedMethodWithTemplates(class, methodName, bindings, seen); inheritedFound &&
+				!sameResolvedType(inherited.ReturnType, inherited.NativeReturnType) &&
+				sameResolvedType(method.NativeReturnType, inherited.NativeReturnType) {
+				method.ReturnType = inherited.ReturnType
+			}
+		}
 		return method, true
 	}
+	return idx.resolveInheritedMethodWithTemplates(class, methodName, bindings, seen)
+}
+
+func (idx *ProjectIndex) resolveInheritedMethodWithTemplates(class ResolvedClass, methodName string, bindings map[string]string, seen map[string]struct{}) (ResolvedMethod, bool) {
 	parents := append(append(append([]string(nil), class.Traits...), class.Extends...), class.Implements...)
 	for _, parentName := range parents {
 		parent, parentOK := idx.ResolveClass(parentName)
@@ -366,6 +382,12 @@ func (idx *ProjectIndex) resolveMethodWithTemplates(className, methodName string
 		}
 	}
 	return ResolvedMethod{}, false
+}
+
+func sameResolvedType(left, right string) bool {
+	leftType := ParseType(left)
+	rightType := ParseType(right)
+	return !leftType.IsEmpty() && !rightType.IsEmpty() && leftType.dnfString() == rightType.dnfString()
 }
 
 func (idx *ProjectIndex) ResolveProperty(className, propertyName string) (ResolvedProperty, bool) {

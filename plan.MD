@@ -35,6 +35,7 @@ GOWORK=off go run ./cmd/syntax-metrics --root "$PWD/test_projects/wordpress-deve
 
 - [x] Run the lossless identity gate on Symfony with an absolute corpus path.
 - [x] Run the lossless identity gate on WordPress with an absolute corpus path.
+- [x] Eliminate the reproducible external-project false-positive batch recorded on 2026-09-22 with neutral parser/analyser regressions and a sibling-development PHP Strom re-scan.
 - [ ] Reduce every failing file to a neutral fixture with a clean control.
 - [ ] Classify each failure as lexing, grammar, recovery/progress, lowering, or diagnostic-only.
 - [ ] Fix shared grammar/recovery logic rather than adding corpus-specific exceptions.
@@ -42,6 +43,8 @@ GOWORK=off go run ./cmd/syntax-metrics --root "$PWD/test_projects/wordpress-deve
 - [ ] Re-run both full corpus gates after isolated failures pass.
 
 Gate result: both corpora passed on 2026-09-20. No failing file was exposed, so the reduction, classification, fix, progress-guard, and post-fix rerun steps above remain conditional rather than being marked as work performed. Evidence: `docs/benchmarks/2026-09-20-syntax-corpus-baseline.md`.
+
+The external-project false-positive batch was explicitly prioritized by the user on 2026-09-22. The production-equivalent sibling-development PHP Strom scan indexed vendor symbols, scanned 2,016 reportable files, and returned 18 intentionally deferred project annotations with none of the reported false-positive families remaining. The extension's committed parser pin and delivery validation are still part of step 6. Private project code and identifiers must not enter committed fixtures.
 
 Commands:
 

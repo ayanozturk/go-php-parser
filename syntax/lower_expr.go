@@ -538,7 +538,7 @@ func lowerNamedArgFromGreen(file *File, green *GreenNode, offset int) ast.Node {
 			if !ok {
 				return true
 			}
-			if tt.Type == token.T_STRING || tt.Type == token.T_CLASS {
+			if isContextualIdent(tt.Type, tt.Literal) {
 				if name == "" {
 					name = tt.Literal
 				}

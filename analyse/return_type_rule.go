@@ -133,6 +133,7 @@ type functionScope struct {
 type functionScopeContext struct {
 	className               string
 	typeCtx                 FileTypeContext
+	typeAliases             map[string]string
 	propertyDecls           map[string]Type
 	methods                 map[string]ResolvedMethod
 	methodReturns           map[string]Type
@@ -734,6 +735,11 @@ func declaredFunctionReturnTypeInClass(fn *ast.FunctionNode, class *ast.ClassNod
 	}
 	if fn.PHPDoc != nil && fn.PHPDoc.ReturnType != "" {
 		raw := collapsePHPDocConditionalType(fn.PHPDoc.ReturnType, native)
+		var classDoc *ast.PHPDocNode
+		if class != nil {
+			classDoc = class.PHPDoc
+		}
+		raw = expandPHPDocTypeAliases(raw, phpDocTypeAliasBindings(classDoc, fn.PHPDoc))
 		return ParseType(normalizeTemplateAwareType(raw, typeCtx, templates))
 	}
 	if fn.ReturnType == nil {
@@ -761,9 +767,14 @@ func newFunctionScope(class *ast.ClassNode, fn *ast.FunctionNode, typeCtx FileTy
 }
 
 func newFunctionScopeWithContext(ctx *AnalysisContext, class *ast.ClassNode, fn *ast.FunctionNode, typeCtx FileTypeContext) *functionScope {
+	var classDoc *ast.PHPDocNode
+	if class != nil {
+		classDoc = class.PHPDoc
+	}
 	scope := &functionScope{
 		functionScopeContext: &functionScopeContext{
 			typeCtx:                 typeCtx,
+			typeAliases:             phpDocTypeAliasBindings(classDoc, fn.PHPDoc),
 			propertyDecls:           make(map[string]Type),
 			methods:                 make(map[string]ResolvedMethod),
 			methodReturns:           make(map[string]Type),
@@ -1810,6 +1821,7 @@ func applyVarDocScope(scope *functionScope, doc *ast.PHPDocNode, assignment *ast
 		}
 		name = left.Name
 	}
+	raw = expandPHPDocTypeAliases(raw, scope.typeAliases)
 	normalized := normalizeTypeWithContext(raw, scope.typeCtx)
 	typ := ParseType(normalized)
 	if typ.IsEmpty() {

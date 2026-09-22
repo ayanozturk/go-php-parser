@@ -48,6 +48,7 @@ func lowerTrait(n *RedNode, file *File) *ast.TraitNode {
 func lowerTraitMembers(members *RedNode, file *File) []ast.Node {
 	var body []ast.Node
 	var pendingAttrs []ast.Node
+	var pendingDoc *ast.PHPDocNode
 	memberKinds := func(k Kind) bool {
 		switch k {
 		case KindAttributeList, KindFunctionDecl, KindMethodDecl, KindPropertyDecl, KindClassConstDecl, KindUseTraitClause:
@@ -60,14 +61,20 @@ func lowerTraitMembers(members *RedNode, file *File) []ast.Node {
 		k := green.Kind()
 		if !memberKinds(k) {
 			pendingAttrs = nil
+			pendingDoc = nil
 			return true
 		}
 		m := members.bindChild(green, offset)
 		switch k {
 		case KindAttributeList:
+			pendingDoc = leadingDocFromNode(m)
 			pendingAttrs = append(pendingAttrs, lowerAttributeList(m, file)...)
 		case KindFunctionDecl, KindMethodDecl:
 			if fn := lowerFunction(m, file); fn != nil {
+				if fn.PHPDoc == nil {
+					fn.PHPDoc = pendingDoc
+				}
+				pendingDoc = nil
 				if len(pendingAttrs) > 0 {
 					fn.Attributes = pendingAttrs
 					pendingAttrs = nil
@@ -75,6 +82,7 @@ func lowerTraitMembers(members *RedNode, file *File) []ast.Node {
 				body = append(body, fn)
 			}
 		case KindPropertyDecl:
+			pendingDoc = nil
 			props := lowerProperties(m, file)
 			if len(pendingAttrs) > 0 {
 				for _, node := range props {
@@ -86,6 +94,7 @@ func lowerTraitMembers(members *RedNode, file *File) []ast.Node {
 			}
 			body = append(body, props...)
 		case KindClassConstDecl:
+			pendingDoc = nil
 			consts := lowerClassConsts(m, file)
 			if len(pendingAttrs) > 0 {
 				for _, node := range consts {
@@ -98,11 +107,13 @@ func lowerTraitMembers(members *RedNode, file *File) []ast.Node {
 			body = append(body, consts...)
 		case KindUseTraitClause:
 			pendingAttrs = nil
+			pendingDoc = nil
 			if tu := lowerUseTraitClause(m, file); tu != nil {
 				body = append(body, tu)
 			}
 		default:
 			pendingAttrs = nil
+			pendingDoc = nil
 		}
 		return true
 	})

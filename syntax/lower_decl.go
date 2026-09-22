@@ -231,6 +231,7 @@ func lowerInterface(n *RedNode, file *File) *ast.InterfaceNode {
 	iface.HeaderEndPos = headerEnd
 	if membersGreen != nil {
 		var pendingAttrs []ast.Node
+		var pendingDoc *ast.PHPDocNode
 		memberKinds := func(k Kind) bool {
 			switch k {
 			case KindAttributeList, KindFunctionDecl, KindMethodDecl, KindClassConstDecl, KindPropertyDecl:
@@ -244,14 +245,20 @@ func lowerInterface(n *RedNode, file *File) *ast.InterfaceNode {
 			k := green.Kind()
 			if !memberKinds(k) {
 				pendingAttrs = nil
+				pendingDoc = nil
 				return true
 			}
 			withPooledRed(file, membersParent, green, offset, func(m *RedNode) {
 				switch k {
 				case KindAttributeList:
+					pendingDoc = leadingDocFromNode(m)
 					pendingAttrs = append(pendingAttrs, lowerAttributeList(m, file)...)
 				case KindFunctionDecl, KindMethodDecl:
 					if im := lowerInterfaceMethod(m, file); im != nil {
+						if im.PHPDoc == nil {
+							im.PHPDoc = pendingDoc
+						}
+						pendingDoc = nil
 						if len(pendingAttrs) > 0 {
 							im.Attributes = pendingAttrs
 							pendingAttrs = nil
@@ -259,6 +266,7 @@ func lowerInterface(n *RedNode, file *File) *ast.InterfaceNode {
 						iface.Members = append(iface.Members, im)
 					}
 				case KindClassConstDecl:
+					pendingDoc = nil
 					consts := lowerClassConsts(m, file)
 					if len(pendingAttrs) > 0 {
 						for _, node := range consts {
@@ -270,6 +278,7 @@ func lowerInterface(n *RedNode, file *File) *ast.InterfaceNode {
 					}
 					iface.Members = append(iface.Members, consts...)
 				case KindPropertyDecl:
+					pendingDoc = nil
 					props := lowerProperties(m, file)
 					if len(pendingAttrs) > 0 {
 						for _, node := range props {
@@ -283,6 +292,7 @@ func lowerInterface(n *RedNode, file *File) *ast.InterfaceNode {
 					iface.Members = append(iface.Members, props...)
 				default:
 					pendingAttrs = nil
+					pendingDoc = nil
 				}
 			})
 			return true
@@ -295,6 +305,7 @@ func lowerClassMembers(file *File, membersGreen *GreenNode, membersOff int, cls 
 	var traitUses []ast.Node
 	var properties []ast.Node
 	var pendingAttrs []ast.Node
+	var pendingDoc *ast.PHPDocNode
 	memberKinds := func(k Kind) bool {
 		switch k {
 		case KindAttributeList, KindFunctionDecl, KindMethodDecl, KindPropertyDecl, KindClassConstDecl, KindUseTraitClause:
@@ -308,14 +319,20 @@ func lowerClassMembers(file *File, membersGreen *GreenNode, membersOff int, cls 
 		k := green.Kind()
 		if !memberKinds(k) {
 			pendingAttrs = nil
+			pendingDoc = nil
 			return true
 		}
 		withPooledRed(file, membersParent, green, offset, func(m *RedNode) {
 			switch k {
 			case KindAttributeList:
+				pendingDoc = leadingDocFromNode(m)
 				pendingAttrs = append(pendingAttrs, lowerAttributeList(m, file)...)
 			case KindFunctionDecl, KindMethodDecl:
 				if fn := lowerFunction(m, file); fn != nil {
+					if fn.PHPDoc == nil {
+						fn.PHPDoc = pendingDoc
+					}
+					pendingDoc = nil
 					if len(pendingAttrs) > 0 {
 						fn.Attributes = pendingAttrs
 						pendingAttrs = nil
@@ -323,6 +340,7 @@ func lowerClassMembers(file *File, membersGreen *GreenNode, membersOff int, cls 
 					cls.Methods = append(cls.Methods, fn)
 				}
 			case KindPropertyDecl:
+				pendingDoc = nil
 				props := lowerProperties(m, file)
 				if len(pendingAttrs) > 0 {
 					for _, node := range props {
@@ -334,6 +352,7 @@ func lowerClassMembers(file *File, membersGreen *GreenNode, membersOff int, cls 
 				}
 				properties = append(properties, props...)
 			case KindClassConstDecl:
+				pendingDoc = nil
 				consts := lowerClassConsts(m, file)
 				if len(pendingAttrs) > 0 {
 					for _, node := range consts {
@@ -346,6 +365,7 @@ func lowerClassMembers(file *File, membersGreen *GreenNode, membersOff int, cls 
 				cls.Constants = append(cls.Constants, consts...)
 			case KindUseTraitClause:
 				pendingAttrs = nil // attributes do not attach to `use` clauses
+				pendingDoc = nil
 				if tu := lowerUseTraitClause(m, file); tu != nil {
 					traitUses = append(traitUses, tu)
 				}

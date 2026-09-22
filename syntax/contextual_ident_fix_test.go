@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ayanozturk/go-php-parser/ast"
 	"github.com/ayanozturk/go-php-parser/token"
 )
 
@@ -72,15 +73,53 @@ func TestNamedArgMatchKeyword(t *testing.T) {
 }
 
 func TestNamedArgOtherContextualKeywords(t *testing.T) {
-	src := "<?php f(class: 1, list: 2, fn: 3);\n"
+	src := "<?php f(class: 1, list: 2, fn: 3, in: 4);\n"
 	res := Parse([]byte(src))
 	got := Print(res.File.Root)
 	if got != src {
 		t.Fatalf("identity\nwant %q\ngot  %q", src, got)
 	}
 	counts := countKinds(res.File.Root, KindNamedArg)
-	if counts[KindNamedArg] != 3 {
-		t.Fatalf("expected 3 NamedArg, got %d", counts[KindNamedArg])
+	if counts[KindNamedArg] != 4 {
+		t.Fatalf("expected 4 NamedArg, got %d", counts[KindNamedArg])
+	}
+	nodes := LowerFile(res.File.Root, res.File)
+	stmt, ok := nodes[0].(*ast.ExpressionStmt)
+	if !ok || stmt.Expr == nil {
+		t.Fatalf("expected expression statement, got %#v", nodes[0])
+	}
+	call, ok := stmt.Expr.(*ast.FunctionCallNode)
+	if !ok || len(call.Args) != 4 {
+		t.Fatalf("expected four call arguments, got %#v", stmt.Expr)
+	}
+	for i, want := range []string{"class", "list", "fn", "in"} {
+		arg, ok := call.Args[i].(*ast.NamedArgumentNode)
+		if !ok || arg.Name != want {
+			t.Fatalf("argument %d: want named %q, got %#v", i, want, call.Args[i])
+		}
+	}
+}
+
+func TestEmptyKeywordMethodDeclarationAndCall(t *testing.T) {
+	src := "<?php class Result { public static function empty(): self {} } Result::empty();\n"
+	res := Parse([]byte(src))
+	if got := Print(res.File.Root); got != src {
+		t.Fatalf("identity\nwant %q\ngot  %q", src, got)
+	}
+	if len(res.Diagnostics) != 0 {
+		t.Fatalf("unexpected diagnostics: %#v", res.Diagnostics)
+	}
+	nodes := LowerFile(res.File.Root, res.File)
+	if len(nodes) != 2 {
+		t.Fatalf("expected class and call statement, got %d nodes", len(nodes))
+	}
+	class, ok := nodes[0].(*ast.ClassNode)
+	if !ok || len(class.Methods) != 1 {
+		t.Fatalf("expected one class method, got %#v", nodes[0])
+	}
+	method, ok := class.Methods[0].(*ast.FunctionNode)
+	if !ok || method.Name != "empty" {
+		t.Fatalf("expected method name empty, got %#v", class.Methods[0])
 	}
 }
 
@@ -153,6 +192,7 @@ func TestIsContextualIdent(t *testing.T) {
 		{token.T_TRAIT, "trait", true},
 		{token.T_INSTEADOF, "insteadof", true},
 		{token.T_MATCH, "match", true},
+		{token.T_EMPTY, "empty", true},
 		{token.T_CLASS, "class", true},
 		{token.T_INTERFACE, "Interface", true},
 		{token.T_LPAREN, "(", false},

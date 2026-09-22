@@ -325,10 +325,6 @@ func normalizeTemplateAwareTypeExpression(raw string, ctx FileTypeContext, templ
 	if raw == "" {
 		return ""
 	}
-	if strings.HasSuffix(raw, "[]") {
-		element := strings.TrimSpace(strings.TrimSuffix(raw, "[]"))
-		return "array<" + normalizeTemplateAwareTypeExpression(element, ctx, templates) + ">"
-	}
 	if parts := splitTopLevelTypes(raw, '|'); len(parts) > 1 {
 		for idx, part := range parts {
 			normalized := normalizeTemplateAwareTypeExpression(part, ctx, templates)
@@ -344,6 +340,13 @@ func normalizeTemplateAwareTypeExpression(raw string, ctx FileTypeContext, templ
 			parts[idx] = normalizeTemplateAwareTypeExpression(part, ctx, templates)
 		}
 		return strings.Join(parts, "&")
+	}
+	// Array shorthand binds to one type atom, not to a complete union. Check
+	// top-level union/intersection delimiters first so `string|Item[]` becomes
+	// `string|array<Item>` rather than `array<string|Item>`.
+	if strings.HasSuffix(raw, "[]") {
+		element := strings.TrimSpace(strings.TrimSuffix(raw, "[]"))
+		return "array<" + normalizeTemplateAwareTypeExpression(element, ctx, templates) + ">"
 	}
 	if instance, ok := parseGenericTypeFromString(raw); ok {
 		name := instance.ClassName

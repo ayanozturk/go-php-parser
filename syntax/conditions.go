@@ -689,7 +689,7 @@ func NamedArgName(n *RedNode) string {
 		if !ok {
 			return true
 		}
-		if (tt.Type == token.T_STRING || tt.Type == token.T_CLASS) && name == "" {
+		if IsContextualIdent(tt.Type, tt.Literal) && name == "" {
 			name = tt.Literal
 			return false
 		}

@@ -1538,6 +1538,26 @@ class Controller {
 	}
 }
 
+func TestPHPDocUnionWithArrayShorthandKeepsScalarArm(t *testing.T) {
+	php := `<?php
+class Configurator {
+    /** @param string|string[] $allowed */
+    public function allow(string|array $allowed): void {}
+
+    /** @param string|float[] $size */
+    public function resize($size): void {}
+}
+
+function configure(Configurator $configurator): void {
+    $configurator->allow('class-name');
+    $configurator->resize('named-size');
+}`
+	issues := analysePHPArgTypesWithProject(t, php)
+	if hasArgTypeIssue(issues) {
+		t.Fatalf("expected scalar arms of PHPDoc array-shorthand unions to remain accepted, got %#v", issues)
+	}
+}
+
 func TestMethodArgumentTypeRefinedAfterNullGuardThrow(t *testing.T) {
 	php := `<?php
     class DocumentPolicy {
