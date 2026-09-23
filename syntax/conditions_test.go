@@ -149,7 +149,7 @@ func TestIfBodyAndElseAccessors(t *testing.T) {
 }
 
 func TestWhileDoWhileForBodyAccessors(t *testing.T) {
-	res := Parse([]byte("<?php\nwhile ($a) {\n    echo 1;\n}\ndo {\n    echo 2;\n} while ($b);\nfor ($i = 0; $i < 10; $i++) {\n    echo 3;\n}\n"))
+	res := Parse([]byte("<?php\nwhile ($a) {\n    echo 1;\n}\ndo {\n    echo 2;\n} while ($b);\nfor ($i = 0; $i < 10; $i++) {\n    echo 3;\n}\nfor (;;):\n    echo 4;\nendfor;\n"))
 	while := firstNodeOfKind(res.File.Root, KindWhileStmt)
 	if body := WhileBody(while); body == nil || len(StatementBodyList(body)) != 1 {
 		t.Fatalf("expected 1 statement in while-body, got %v", body)
@@ -161,6 +161,21 @@ func TestWhileDoWhileForBodyAccessors(t *testing.T) {
 	forStmt := firstNodeOfKind(res.File.Root, KindForStmt)
 	if body := ForBody(forStmt); body == nil || len(StatementBodyList(body)) != 1 {
 		t.Fatalf("expected 1 statement in for-body, got %v", body)
+	}
+	var forCount int
+	Walk(res.File.Root, func(n *RedNode) bool {
+		if n.Kind() == KindForStmt {
+			forCount++
+			if forCount == 2 {
+				if body := ForBody(n); body == nil || len(StatementBodyList(body)) != 1 {
+					t.Errorf("expected 1 statement in alternate for-body, got %v", body)
+				}
+			}
+		}
+		return true
+	})
+	if forCount != 2 {
+		t.Fatalf("expected two for-statements, got %d", forCount)
 	}
 }
 
@@ -268,5 +283,60 @@ func TestNamespaceBodyBracedAndUnbraced(t *testing.T) {
 	}
 	if ubClassCount != 2 {
 		t.Fatalf("expected 2 class decls in unbraced namespace body, got %+v", ubBody)
+	}
+}
+
+func TestConditionAndBodyAccessorsRejectNilAndWrongKinds(t *testing.T) {
+	res := Parse([]byte("<?php $value = 1;"))
+	wrongKind := firstNodeOfKind(res.File.Root, KindLiteralExpr)
+	if wrongKind == nil {
+		t.Fatal("expected literal expression for wrong-kind controls")
+	}
+
+	checks := []struct {
+		name string
+		fn   func(*RedNode) bool
+	}{
+		{"if condition", func(n *RedNode) bool { return IfCondition(n) == nil }},
+		{"while condition", func(n *RedNode) bool { return WhileCondition(n) == nil }},
+		{"do while condition", func(n *RedNode) bool { return DoWhileCondition(n) == nil }},
+		{"match condition", func(n *RedNode) bool { return MatchCondition(n) == nil }},
+		{"for conditions", func(n *RedNode) bool { return len(ForConditions(n)) == 0 }},
+		{"match arm conditions", func(n *RedNode) bool { return len(MatchArmConditions(n)) == 0 }},
+		{"if body", func(n *RedNode) bool { return IfBody(n) == nil }},
+		{"if else ifs", func(n *RedNode) bool { return len(IfElseIfs(n)) == 0 }},
+		{"if else", func(n *RedNode) bool { return IfElse(n) == nil }},
+		{"else if body", func(n *RedNode) bool { return ElseIfBody(n) == nil }},
+		{"else body", func(n *RedNode) bool { return ElseBody(n) == nil }},
+		{"while body", func(n *RedNode) bool { return WhileBody(n) == nil }},
+		{"do while body", func(n *RedNode) bool { return DoWhileBody(n) == nil }},
+		{"for body", func(n *RedNode) bool { return ForBody(n) == nil }},
+		{"function body", func(n *RedNode) bool { return FunctionBody(n) == nil }},
+		{"class methods", func(n *RedNode) bool { return len(ClassMethods(n)) == 0 }},
+		{"method-like call", func(n *RedNode) bool { return !CallIsMethodLike(n) }},
+		{"call arg list", func(n *RedNode) bool { return CallArgList(n) == nil }},
+		{"call callee", func(n *RedNode) bool { return CallCallee(n) == nil }},
+		{"call args", func(n *RedNode) bool { return len(CallArgs(n)) == 0 }},
+	}
+
+	for _, check := range checks {
+		t.Run(check.name, func(t *testing.T) {
+			for _, input := range []*RedNode{nil, wrongKind} {
+				if !check.fn(input) {
+					t.Fatalf("accessor accepted input of kind %v", func() any {
+						if input == nil {
+							return nil
+						}
+						return input.Kind()
+					}())
+				}
+			}
+		})
+	}
+	if StatementBodyList(nil) != nil {
+		t.Fatal("StatementBodyList(nil) should be nil")
+	}
+	if body := StatementBodyList(wrongKind); len(body) != 1 || body[0].Kind() != KindLiteralExpr {
+		t.Fatalf("single-node statement body should be preserved, got %v", body)
 	}
 }
