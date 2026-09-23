@@ -72,6 +72,32 @@ func ForConditions(n *RedNode) []*RedNode {
 	return conds
 }
 
+// ForInitExpressions returns the initialization clause expressions of a
+// for-statement, in source order.
+func ForInitExpressions(n *RedNode) []*RedNode {
+	if n == nil || n.Kind() != KindForStmt {
+		return nil
+	}
+	return forClauseExpressions(n, 0)
+}
+
+// ForUpdateExpressions returns the update clause expressions of a
+// for-statement, in source order.
+func ForUpdateExpressions(n *RedNode) []*RedNode {
+	if n == nil || n.Kind() != KindForStmt {
+		return nil
+	}
+	start := forStmtIndexAfterLParen(n)
+	_, start = forClauseChildrenAt(n, start)
+	_, start = forClauseChildrenAt(n, start)
+	return forClauseExpressions(n, start)
+}
+
+func forClauseExpressions(n *RedNode, start int) []*RedNode {
+	exprs, _ := forClauseChildrenAt(n, start)
+	return exprs
+}
+
 func forClauseChildrenAt(n *RedNode, start int) ([]*RedNode, int) {
 	var exprs []*RedNode
 	i := 0
@@ -356,6 +382,279 @@ func StatementBodyList(n *RedNode) []*RedNode {
 		return out
 	}
 	return []*RedNode{n}
+}
+
+// StatementSiblings returns the direct, non-token children of a statement
+// list, in source order. This is the CST equivalent of the ordered AST slice
+// consumed by statement walkers.
+func StatementSiblings(n *RedNode) []*RedNode {
+	if n == nil || n.Kind() != KindStatementList {
+		return nil
+	}
+	return directNonTokenChildren(n)
+}
+
+// TopLevelStatements returns direct file children that lower as top-level
+// statements or declarations, in source order.
+func TopLevelStatements(n *RedNode) []*RedNode {
+	if n == nil || n.Kind() != KindFile {
+		return nil
+	}
+	return directNonTokenChildren(n)
+}
+
+func directNonTokenChildren(n *RedNode) []*RedNode {
+	var out []*RedNode
+	n.ForEachChildDesc(func(green *GreenNode, offset int) bool {
+		if green != nil && green.Kind() != KindToken && green.Kind() != KindTokenList {
+			out = append(out, &RedNode{File: n.File, Green: green, Offset: offset})
+		}
+		return true
+	})
+	return out
+}
+
+// AssignmentParts returns the left and right operand RedNodes and operator
+// spelling of an assignment expression. Nil operands are possible in
+// recovered syntax, matching the lowerer's partial-node behavior.
+func AssignmentParts(n *RedNode) (left, right *RedNode, operator string) {
+	if n == nil || n.Kind() != KindAssignExpr {
+		return nil, nil, ""
+	}
+	seenLeft := false
+	n.ForEachChildDesc(func(green *GreenNode, offset int) bool {
+		k := green.Kind()
+		if k == KindToken {
+			if seenLeft && operator == "" {
+				text := strings.TrimSpace((&RedNode{File: n.File, Green: green, Offset: offset}).Text())
+				if text != "" && text != "(" && text != ")" {
+					operator = text
+				}
+			}
+			return true
+		}
+		if isExprKind(k) || isNameKind(k) {
+			child := &RedNode{File: n.File, Green: green, Offset: offset}
+			if !seenLeft {
+				left, seenLeft = child, true
+			} else if right == nil {
+				right = child
+				return false
+			}
+		}
+		return true
+	})
+	return left, right, operator
+}
+
+// ReturnExpr returns the returned expression, or nil for a bare/recovered
+// return statement.
+func ReturnExpr(n *RedNode) *RedNode {
+	if n == nil || n.Kind() != KindReturnStmt {
+		return nil
+	}
+	return firstExprChild(n)
+}
+
+// ThrowExpr returns the expression thrown by a throw statement.
+func ThrowExpr(n *RedNode) *RedNode {
+	if n == nil || n.Kind() != KindThrowStmt {
+		return nil
+	}
+	return firstExprChild(n)
+}
+
+// ElseIfCondition returns the condition expression of an else-if clause.
+func ElseIfCondition(n *RedNode) *RedNode {
+	if n == nil || n.Kind() != KindElseIfClause {
+		return nil
+	}
+	return firstExprChild(n)
+}
+
+// TryBody returns the statement-list body of a try statement.
+func TryBody(n *RedNode) *RedNode {
+	if n == nil || n.Kind() != KindTryStmt {
+		return nil
+	}
+	return n.FirstChildOfKind(KindStatementList)
+}
+
+// TryCatches returns catch clauses in source order.
+func TryCatches(n *RedNode) []*RedNode {
+	if n == nil || n.Kind() != KindTryStmt {
+		return nil
+	}
+	return n.ChildrenOfKind(KindCatchClause)
+}
+
+// CatchBody returns the statement-list body of a catch clause.
+func CatchBody(n *RedNode) *RedNode {
+	if n == nil || n.Kind() != KindCatchClause {
+		return nil
+	}
+	return n.FirstChildOfKind(KindStatementList)
+}
+
+// CatchVariable returns the catch variable name without its leading dollar
+// sign, or the empty string for an omitted/recovered variable.
+func CatchVariable(n *RedNode) string {
+	if n == nil || n.Kind() != KindCatchClause {
+		return ""
+	}
+	var name string
+	n.ForEachChildDesc(func(green *GreenNode, _ int) bool {
+		if green.Kind() == KindToken && green.TokenType() == token.T_VARIABLE {
+			name = stripVarDollar(greenTokenLiteral(green))
+			return false
+		}
+		return true
+	})
+	return name
+}
+
+// CatchTypes returns the source text of catch type expressions in source
+// order. Union type expressions remain a single string, matching the
+// grouped representation accepted by Type parsing.
+func CatchTypes(n *RedNode) []string {
+	if n == nil || n.Kind() != KindCatchClause {
+		return nil
+	}
+	var out []string
+	n.ForEachChildDesc(func(green *GreenNode, offset int) bool {
+		if isTypeKind(green.Kind()) {
+			text := strings.TrimSpace((&RedNode{File: n.File, Green: green, Offset: offset}).Text())
+			if text != "" {
+				out = append(out, text)
+			}
+		}
+		return true
+	})
+	return out
+}
+
+// TryFinallyBody returns the statement-list body of the finally clause, or
+// nil when the try statement has no finally clause.
+func TryFinallyBody(n *RedNode) *RedNode {
+	if n == nil || n.Kind() != KindTryStmt {
+		return nil
+	}
+	clause := n.FirstChildOfKind(KindFinallyClause)
+	if clause == nil {
+		return nil
+	}
+	return clause.FirstChildOfKind(KindStatementList)
+}
+
+// SwitchExpr returns the subject expression of a switch statement.
+func SwitchExpr(n *RedNode) *RedNode {
+	if n == nil || n.Kind() != KindSwitchStmt {
+		return nil
+	}
+	return firstExprOrNameChild(n)
+}
+
+// SwitchCases returns case and default clauses in source order.
+func SwitchCases(n *RedNode) []*RedNode {
+	if n == nil || n.Kind() != KindSwitchStmt {
+		return nil
+	}
+	var list *RedNode
+	n.ForEachChildDesc(func(green *GreenNode, offset int) bool {
+		if green.Kind() == KindStatementList {
+			list = &RedNode{File: n.File, Green: green, Offset: offset}
+			return false
+		}
+		return true
+	})
+	if list == nil {
+		return nil
+	}
+	var out []*RedNode
+	list.ForEachChildDesc(func(green *GreenNode, offset int) bool {
+		if green.Kind() == KindCaseClause || green.Kind() == KindDefaultClause {
+			out = append(out, &RedNode{File: n.File, Green: green, Offset: offset})
+		}
+		return true
+	})
+	return out
+}
+
+// SwitchCaseExpr returns a case expression; default clauses have no
+// expression and return nil.
+func SwitchCaseExpr(n *RedNode) *RedNode {
+	if n == nil || (n.Kind() != KindCaseClause && n.Kind() != KindDefaultClause) || n.Kind() == KindDefaultClause {
+		return nil
+	}
+	return firstExprOrNameChild(n)
+}
+
+// SwitchCaseBody returns the statement-list body of a case/default clause.
+func SwitchCaseBody(n *RedNode) *RedNode {
+	if n == nil || (n.Kind() != KindCaseClause && n.Kind() != KindDefaultClause) {
+		return nil
+	}
+	return n.FirstChildOfKind(KindStatementList)
+}
+
+// ForeachParts returns the iterated expression, optional key expression, and
+// value expression in the shapes produced by lowerForeachStmt.
+func ForeachParts(n *RedNode) (iterable, key, value *RedNode) {
+	if n == nil || n.Kind() != KindForeachStmt {
+		return nil, nil, nil
+	}
+	children := n.Children()
+	start := forStmtIndexAfterLParen(n)
+	idx := 0
+	for ; idx < len(children) && idx < start; idx++ {
+	}
+	for ; idx < len(children); idx++ {
+		c := children[idx]
+		if isGreenTokenType(c.Green, token.T_AS) {
+			idx++
+			break
+		}
+		if isExprKind(c.Kind()) || isNameKind(c.Kind()) {
+			iterable = c
+		}
+	}
+	var operands []*RedNode
+	for ; idx < len(children); idx++ {
+		c := children[idx]
+		if isGreenTokenType(c.Green, token.T_RPAREN) {
+			break
+		}
+		if isExprKind(c.Kind()) || isNameKind(c.Kind()) {
+			operands = append(operands, c)
+		}
+	}
+	if len(operands) == 1 {
+		value = operands[0]
+	} else if len(operands) >= 2 {
+		key, value = operands[0], operands[len(operands)-1]
+	}
+	return iterable, key, value
+}
+
+// ForeachBody returns the raw body node of a foreach statement.
+func ForeachBody(n *RedNode) *RedNode {
+	if n == nil || n.Kind() != KindForeachStmt {
+		return nil
+	}
+	seenRightParen := false
+	var body *RedNode
+	n.ForEachChildDesc(func(green *GreenNode, offset int) bool {
+		if isGreenTokenType(green, token.T_RPAREN) {
+			seenRightParen = true
+			return true
+		}
+		if seenRightParen && (green.Kind() == KindStatementList || isStmtKind(green.Kind())) {
+			body = &RedNode{File: n.File, Green: green, Offset: offset}
+			return false
+		}
+		return true
+	})
+	return body
 }
 
 // FunctionBody returns the KindStatementList body of a function/method

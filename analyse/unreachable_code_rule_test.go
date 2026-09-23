@@ -26,6 +26,65 @@ func countUnreachableIssues(issues []AnalysisIssue) int {
 	return count
 }
 
+func TestUnreachableCSTProductionRegistryPath(t *testing.T) {
+	content := []byte("<?php function f($x) { if ($x) { return; } else { throw $e; } $dead = 1; }")
+	ctx := &AnalysisContext{Content: content}
+	issues := RunAnalysisRulesWithContext("test.php", nil, ctx)
+	got := unreachableIssues(issues)
+	if len(got) != 1 || got[0].Line != 1 {
+		t.Fatalf("production CST registry path issues = %#v, want one unreachable statement", got)
+	}
+}
+
+func TestUnreachableCSTNestedLoopAndDeclaration(t *testing.T) {
+	content := []byte(`<?php
+class C { function f() { while ($x) { return; $inside = 1; } } }
+function g() { return; $outside = 1; }
+`)
+	rule := &UnreachableCodeRule{}
+	ctx := &AnalysisContext{Content: content}
+	got := unreachableIssues(rule.CheckIssuesWithContext(nil, "test.php", ctx))
+	if len(got) != 2 {
+		t.Fatalf("CST nested issues = %#v, want unreachable lines in method and function", got)
+	}
+}
+
+func TestUnreachableCSTMalformedRecovery(t *testing.T) {
+	content := []byte("<?php function f() { return; $dead = ; }")
+	rule := &UnreachableCodeRule{}
+	got := unreachableIssues(rule.CheckIssuesWithContext(nil, "test.php", &AnalysisContext{Content: content}))
+	if len(got) != 1 {
+		t.Fatalf("recovery issues = %#v, want one unreachable recovered statement", got)
+	}
+}
+
+func TestUnreachableCSTUnbracketedNamespace(t *testing.T) {
+	content := []byte("<?php namespace N; function f() { return; $dead = 1; }")
+	rule := &UnreachableCodeRule{}
+	got := unreachableIssues(rule.CheckIssuesWithContext(nil, "test.php", &AnalysisContext{Content: content}))
+	if len(got) != 1 {
+		t.Fatalf("unbracketed namespace issues = %#v, want one unreachable statement", got)
+	}
+}
+
+func TestUnreachableCSTUnbracketedNamespaceReturnClosure(t *testing.T) {
+	content := []byte("<?php namespace N; return function () { $reachable = true; };")
+	rule := &UnreachableCodeRule{}
+	got := unreachableIssues(rule.CheckIssuesWithContext(nil, "test.php", &AnalysisContext{Content: content}))
+	if len(got) != 0 {
+		t.Fatalf("namespace return-closure issues = %#v, want none", got)
+	}
+}
+
+func TestUnreachableCSTPHPUnitNeverMethods(t *testing.T) {
+	content := []byte("<?php class T { function test() { $this->markTestIncomplete(); $dead = 1; } }")
+	rule := &UnreachableCodeRule{}
+	got := unreachableIssues(rule.CheckIssuesWithContext(nil, "test.php", &AnalysisContext{Content: content}))
+	if len(got) != 1 || got[0].Line != 1 {
+		t.Fatalf("CST PHPUnit never-method issues = %#v, want one unreachable statement", got)
+	}
+}
+
 func TestUnreachableAfterReturnInFunction(t *testing.T) {
 	php := `<?php
 function foo(): int {

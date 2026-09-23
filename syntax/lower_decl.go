@@ -155,6 +155,10 @@ func lowerUseClause(clause *RedNode, prefix, useType string, pos, end ast.Positi
 }
 
 func lowerClass(n *RedNode, file *File) *ast.ClassNode {
+	return lowerClassWithMethodBodies(n, file, true)
+}
+
+func lowerClassWithMethodBodies(n *RedNode, file *File, withMethodBodies bool) *ast.ClassNode {
 	if n == nil {
 		return nil
 	}
@@ -194,7 +198,7 @@ func lowerClass(n *RedNode, file *File) *ast.ClassNode {
 	})
 	cls.HeaderEndPos = headerEnd
 	if membersGreen != nil {
-		lowerClassMembers(file, membersGreen, membersOff, cls)
+		lowerClassMembers(file, membersGreen, membersOff, cls, withMethodBodies)
 	}
 	return cls
 }
@@ -306,7 +310,7 @@ func lowerInterface(n *RedNode, file *File) *ast.InterfaceNode {
 	return iface
 }
 
-func lowerClassMembers(file *File, membersGreen *GreenNode, membersOff int, cls *ast.ClassNode) {
+func lowerClassMembers(file *File, membersGreen *GreenNode, membersOff int, cls *ast.ClassNode, withMethodBodies bool) {
 	var traitUses []ast.Node
 	var properties []ast.Node
 	var pendingAttrs []ast.Node
@@ -333,7 +337,7 @@ func lowerClassMembers(file *File, membersGreen *GreenNode, membersOff int, cls 
 				pendingDoc = leadingDocFromNode(m)
 				pendingAttrs = append(pendingAttrs, lowerAttributeList(m, file)...)
 			case KindFunctionDecl, KindMethodDecl:
-				if fn := lowerFunction(m, file); fn != nil {
+				if fn := lowerFunctionWithBody(m, file, withMethodBodies); fn != nil {
 					if fn.PHPDoc == nil {
 						fn.PHPDoc = pendingDoc
 					}
@@ -392,6 +396,10 @@ func lowerClassMembers(file *File, membersGreen *GreenNode, membersOff int, cls 
 }
 
 func lowerFunction(n *RedNode, file *File) *ast.FunctionNode {
+	return lowerFunctionWithBody(n, file, true)
+}
+
+func lowerFunctionWithBody(n *RedNode, file *File, withBody bool) *ast.FunctionNode {
 	if n == nil {
 		return nil
 	}
@@ -427,7 +435,9 @@ func lowerFunction(n *RedNode, file *File) *ast.FunctionNode {
 			// Index mode: leave Body nil.
 			fn.Body = nil
 		case KindStatementList:
-			fn.Body = lowerStatementsAt(file, green, offset)
+			if withBody {
+				fn.Body = lowerStatementsAt(file, green, offset)
+			}
 		default:
 			if k == KindToken && green.TokenType() == token.T_COLON {
 				seenColon = true

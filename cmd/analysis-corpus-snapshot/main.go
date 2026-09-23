@@ -1,15 +1,13 @@
-// analysis-corpus-snapshot is the Phase 0 differential guardrail for the
-// CST-direct migration of analyse/phpstan_level0_walk.go's dispatcher and
-// RunAnalysisRulesWithContext (see AGENTS.md "CST-direct migration" and
-// /memories/repo/cst-direct-migration.md).
+// analysis-corpus-snapshot is the issue-set parity guardrail for the
+// production analysis registry and its CST-direct migrations (see AGENTS.md).
 //
 // It runs the full analysis-rule registry (via analyse.RunAnalysisRulesWithContext,
 // exactly as command/analyze.go does for real projects) over every PHP file
-// under --root and records the resulting issue set per file. Capture a
-// baseline now, before any rule is ported to walk *syntax.RedNode directly;
-// once a rule (or the dispatcher, or the public entry point) is ported,
-// re-run with --baseline against the captured snapshot to prove the exact
-// same issues are produced, file for file, code/line/column/message.
+// under --root and records the resulting issue set per file. The harness
+// passes both the lowered AST and its caller-owned ParseResult to the
+// registry, so CST rules reuse one parse. Compare with --baseline after an
+// analysis refactor to prove the exact same issues are produced, file for
+// file, code/line/column/message.
 //
 // Capture a baseline:
 //
@@ -134,6 +132,7 @@ func collectPHPFiles(root string) ([]string, error) {
 
 func buildSnapshot(root string, files []string, workers, level int) (*snapshot, error) {
 	parsed := make(map[string][]ast.Node, len(files))
+	parseResults := make(map[string]*syntax.ParseResult, len(files))
 	contents := make(map[string][]byte, len(files))
 	var parseErrors []string
 	var mu sync.Mutex
@@ -152,12 +151,17 @@ func buildSnapshot(root string, files []string, workers, level int) (*snapshot, 
 					mu.Unlock()
 					continue
 				}
-				nodes, diags := syntax.ParseAST(content)
+				nodes, res := syntax.ParseAndLower(content)
 				mu.Lock()
-				if len(diags) > 0 {
-					parseErrors = append(parseErrors, fmt.Sprintf("%s: %d parse diagnostic(s)", path, len(diags)))
+				if res == nil || len(res.Diagnostics) > 0 {
+					diagCount := 0
+					if res != nil {
+						diagCount = len(res.Diagnostics)
+					}
+					parseErrors = append(parseErrors, fmt.Sprintf("%s: %d parse diagnostic(s)", path, diagCount))
 				} else {
 					parsed[path] = nodes
+					parseResults[path] = res
 					contents[path] = content
 				}
 				mu.Unlock()
@@ -192,6 +196,7 @@ func buildSnapshot(root string, files []string, workers, level int) (*snapshot, 
 					ctx.AnalysisLevel = &l
 				}
 				ctx.Content = contents[path]
+				ctx.Parsed = parseResults[path]
 				issues := analyse.RunAnalysisRulesWithContext(path, parsed[path], ctx)
 				codes := make([]string, len(issues))
 				for i, issue := range issues {

@@ -132,13 +132,10 @@ func ClearAnalysisRules() {
 }
 
 // RunAnalysisRules runs all registered analysis rules with an empty
-// AnalysisContext (ctx.Content == ""). Level0, structural, and return-type
-// diagnostics are produced by Check*IssuesFromCST functions that parse
-// ctx.Content directly rather than walking nodes; with no content, those
-// functions see no source and silently return zero issues. Callers that
-// need those diagnostics must call RunAnalysisRulesWithContext directly
-// with a populated AnalysisContext{Content: ...} — this 2-arg wrapper alone
-// will not surface them.
+// AnalysisContext (ctx.Content == ""). CST-direct production diagnostics
+// require source content and a shared ParseResult, so callers that need those
+// diagnostics must use RunAnalysisRulesWithContext with Content populated.
+// The two-argument wrapper remains for AST-only compatibility callers.
 func RunAnalysisRules(filename string, nodes []ast.Node) []AnalysisIssue {
 	return RunAnalysisRulesWithContext(filename, nodes, nil)
 }
@@ -149,8 +146,8 @@ func RunAnalysisRulesWithContext(filename string, nodes []ast.Node, ctx *Analysi
 	}
 	defer releaseEphemeralAnalysisState(ctx)
 	// Snapshot construction may release host ingest AST for RSS. When Content
-	// is present but nodes were cleared, rebuild one shared CST+AST so
-	// ingest-walk rules (arg/unreachable/…) keep parity without a second parse.
+	// is present but nodes were cleared, rebuild one shared CST+AST so support
+	// facts and compatibility paths can use it without a second parse.
 	if len(nodes) == 0 && len(ctx.Content) > 0 && ctx.Parsed == nil {
 		var res *syntax.ParseResult
 		nodes, res = syntax.ParseAndLower(ctx.Content)

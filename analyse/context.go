@@ -229,15 +229,12 @@ type AnalysisContext struct {
 	AnalysisLevel      *int
 	DisabledIssueCodes map[string]bool
 
-	// Content, when set by the caller, is the raw PHP source for filename.
-	// ensureSharedFileDiagnostics/ensureStructuralIssues use it to run the
-	// CST-direct (*syntax.RedNode-walking) equivalents of the Level0/
-	// structural checks instead of the []ast.Node-driven fused walk. Rules
-	// outside that fused walk (arg count/type, deprecated calls, level1
-	// variables, level2 method existence/non-object, level6/7/8 method
-	// checks, property type, unreachable code, etc.) are unaffected and
-	// keep using nodes regardless of Content. Left nil, behavior is
-	// identical to before this field existed.
+	// Content, when set by the caller, is the raw PHP source for filename and
+	// selects the production CST-direct rule paths. The registry runner reuses
+	// Parsed across the fused diagnostics, call/assignment checks, and
+	// unreachable-code analysis. Shared per-file semantic facts remain
+	// available to individual rules. Left nil, AST-based compatibility paths
+	// remain available to tests and tools that supply nodes without source.
 	Content []byte
 
 	// Parsed is an optional shared *syntax.ParseResult for this file.

@@ -227,6 +227,16 @@ func LowerFunctionDeclNode(n *RedNode, file *File) *ast.FunctionNode {
 	return lowerFunction(n, file)
 }
 
+// LowerFunctionHeaderNode lowers a function or method's signature metadata
+// without traversing its statement-list body. It is intended for analyses
+// that need parameter/type/PHPDoc scope but walk the body directly in CST.
+func LowerFunctionHeaderNode(n *RedNode, file *File) *ast.FunctionNode {
+	if n == nil || (n.Kind() != KindFunctionDecl && n.Kind() != KindMethodDecl) {
+		return nil
+	}
+	return lowerFunctionWithBody(n, file, false)
+}
+
 // LowerInterfaceMethodDeclNode lowers a single KindFunctionDecl or
 // KindMethodDecl CST node representing an interface method signature to its
 // classic *ast.InterfaceMethodNode. Interface methods reuse the same CST
@@ -360,6 +370,34 @@ func LowerClassLikeContextNode(n *RedNode, file *File) *ast.ClassNode {
 			return nil
 		}
 		return &ast.ClassNode{Name: e.Name}
+	default:
+		return nil
+	}
+}
+
+// LowerClassLikeHeaderNode lowers class metadata and member signatures
+// without traversing method bodies. Trait/enum nodes are adapted to the
+// name-only synthetic ClassNode context used by functionScope.
+func LowerClassLikeHeaderNode(n *RedNode, file *File) *ast.ClassNode {
+	if n == nil {
+		return nil
+	}
+	switch n.Kind() {
+	case KindClassDecl:
+		return lowerClassWithMethodBodies(n, file, false)
+	case KindTraitDecl, KindEnumDecl:
+		var name string
+		n.ForEachChildDesc(func(green *GreenNode, offset int) bool {
+			if isNameKind(green.Kind()) {
+				name = unqualifiedTail(nameTextAt(file, green, offset))
+				return false
+			}
+			return true
+		})
+		if name == "" {
+			return nil
+		}
+		return &ast.ClassNode{Name: name}
 	default:
 		return nil
 	}

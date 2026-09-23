@@ -1,8 +1,10 @@
 package analyse
 
 import (
-	"github.com/ayanozturk/go-php-parser/ast"
 	"strings"
+
+	"github.com/ayanozturk/go-php-parser/ast"
+	"github.com/ayanozturk/go-php-parser/syntax"
 )
 
 // UnreachableCodeRule reports statements that can never execute because a
@@ -17,9 +19,176 @@ func (r *UnreachableCodeRule) CheckIssues(nodes []ast.Node, filename string) []A
 }
 
 func (r *UnreachableCodeRule) CheckIssuesWithContext(nodes []ast.Node, filename string, ctx *AnalysisContext) []AnalysisIssue {
+	if ctx != nil && len(ctx.Content) > 0 {
+		return r.checkIssuesFromParsedCST(filename, sharedParseResult(ctx, ctx.Content), ctx.Flow)
+	}
 	issues := make([]AnalysisIssue, 0, 4)
 	r.walkStatements(nodes, filename, ctx, &issues)
 	return issues
+}
+
+// checkIssuesFromParsedCST is the production path. Statement offsets match
+// FlowStatementKey, so richer shared flow facts remain available without
+// lowering the file to AST nodes.
+func (r *UnreachableCodeRule) checkIssuesFromParsedCST(filename string, res *syntax.ParseResult, flow FlowGraphReader) []AnalysisIssue {
+	if res == nil || res.File == nil || res.File.Root == nil {
+		return nil
+	}
+	var issues []AnalysisIssue
+	var walk func([]*syntax.RedNode)
+	var walkStmt func(*syntax.RedNode)
+	walk = func(stmts []*syntax.RedNode) {
+		terminated := false
+		for _, stmt := range stmts {
+			if stmt == nil || stmt.Kind() == syntax.KindToken {
+				continue
+			}
+			reachable := !terminated
+			if flow != nil {
+				p, e := stmt.Pos(), stmt.EndPos()
+				key := FlowStatementKey{File: filename, StartOffset: p.Offset, EndOffset: e.Offset}
+				fromGraph, ok := flow.StatementReachable(key)
+				// Lowered ExpressionStmt spans exclude the trailing semicolon,
+				// while the lossless CST span includes it. Preserve the shared
+				// flow lookup by trying that AST-compatible end offset as well.
+				if !ok && stmt.Kind() == syntax.KindExpressionStmt && e.Offset > p.Offset {
+					key.EndOffset--
+					fromGraph, ok = flow.StatementReachable(key)
+				}
+				if ok {
+					reachable = fromGraph
+				}
+			}
+			if !reachable {
+				p := stmt.Pos()
+				issues = append(issues, AnalysisIssue{Filename: filename, Line: p.Line, Column: p.Column, Code: "Generic.CodeAnalysis.UnreachableCode", Message: "Unreachable statement after terminating statement"})
+				continue
+			}
+			walkStmt(stmt)
+			if cstTerminatingStatement(stmt) {
+				terminated = true
+			}
+		}
+	}
+	walkBody := func(body *syntax.RedNode) { walk(syntax.StatementBodyList(body)) }
+	walkStmt = func(n *syntax.RedNode) {
+		if n == nil {
+			return
+		}
+		switch n.Kind() {
+		case syntax.KindStatementList:
+			walkBody(n)
+		case syntax.KindFunctionDecl, syntax.KindMethodDecl:
+			walkBody(syntax.FunctionBody(n))
+		case syntax.KindClassDecl:
+			for _, method := range syntax.ClassMethods(n) {
+				walkStmt(method)
+			}
+		case syntax.KindNamespaceDecl:
+			var children []*syntax.RedNode
+			n.ForEachChild(func(ch *syntax.RedNode) bool {
+				if ch.Kind() == syntax.KindStatementList {
+					children = syntax.StatementBodyList(ch)
+				}
+				return true
+			})
+			walk(children)
+		case syntax.KindIfStmt:
+			walkBody(syntax.IfBody(n))
+			for _, ei := range syntax.IfElseIfs(n) {
+				walkBody(syntax.ElseIfBody(ei))
+			}
+			if els := syntax.IfElse(n); els != nil {
+				walkBody(syntax.ElseBody(els))
+			}
+		case syntax.KindWhileStmt:
+			walkBody(syntax.WhileBody(n))
+		case syntax.KindDoWhileStmt:
+			walkBody(syntax.DoWhileBody(n))
+		case syntax.KindForStmt:
+			walkBody(syntax.ForBody(n))
+		case syntax.KindForeachStmt:
+			n.ForEachChild(func(ch *syntax.RedNode) bool {
+				if isCSTStatement(ch.Kind()) {
+					walkStmt(ch)
+				}
+				return true
+			})
+		}
+	}
+	tops := res.File.Root.Children()
+	for i := 0; i < len(tops); i++ {
+		if tops[i].Kind() == syntax.KindToken {
+			continue
+		}
+		if tops[i].Kind() == syntax.KindNamespaceDecl {
+			body, consumed := syntax.NamespaceBody(tops[i], tops, i)
+			walk(body)
+			i += consumed
+			continue
+		}
+		walk([]*syntax.RedNode{tops[i]})
+	}
+	return issues
+}
+
+func isCSTStatement(k syntax.Kind) bool {
+	return k == syntax.KindStatementList || syntax.IsStatementKind(k)
+}
+
+func cstTerminatingStatement(n *syntax.RedNode) bool {
+	if n == nil {
+		return false
+	}
+	switch n.Kind() {
+	case syntax.KindReturnStmt, syntax.KindThrowStmt, syntax.KindBreakStmt, syntax.KindContinueStmt:
+		return true
+	case syntax.KindExpressionStmt:
+		return cstTerminatingExpr(syntax.ExpressionStmtExpr(n))
+	case syntax.KindIfStmt:
+		if syntax.IfElse(n) == nil || !cstStatementsTerminate(syntax.StatementBodyList(syntax.IfBody(n))) {
+			return false
+		}
+		for _, ei := range syntax.IfElseIfs(n) {
+			if !cstStatementsTerminate(syntax.StatementBodyList(syntax.ElseIfBody(ei))) {
+				return false
+			}
+		}
+		return cstStatementsTerminate(syntax.StatementBodyList(syntax.ElseBody(syntax.IfElse(n))))
+	}
+	return false
+}
+
+func cstStatementsTerminate(stmts []*syntax.RedNode) bool {
+	for _, s := range stmts {
+		if cstTerminatingStatement(s) {
+			return true
+		}
+	}
+	return false
+}
+
+func cstTerminatingExpr(n *syntax.RedNode) bool {
+	if n == nil || n.Kind() != syntax.KindCallExpr {
+		return false
+	}
+	callee := syntax.CallCallee(n)
+	if callee == nil {
+		return false
+	}
+	if !syntax.CallIsMethodLike(n) {
+		name := strings.TrimLeft(asciiLowerIdent(syntax.NameText(callee)), `\\`)
+		if name == "exit" || name == "die" {
+			return true
+		}
+		return isPHPUnitNeverMethod(staticCallMethodName(name)) && strings.Contains(name, "::")
+	}
+	access := callee
+	if callee.Kind() != syntax.KindMemberAccessExpr && callee.Kind() != syntax.KindNullsafeMemberAccessExpr && callee.Kind() != syntax.KindStaticMemberAccessExpr {
+		return false
+	}
+	obj := syntax.MemberAccessObject(access)
+	return obj != nil && obj.Kind() == syntax.KindVariableExpr && syntax.VariableExprName(obj) == "this" && isPHPUnitNeverMethod(syntax.MemberAccessName(access))
 }
 
 func (r *UnreachableCodeRule) walkStatements(stmts []ast.Node, filename string, ctx *AnalysisContext, issues *[]AnalysisIssue) {

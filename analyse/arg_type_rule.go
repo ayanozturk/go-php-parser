@@ -22,6 +22,9 @@ func ensureArgCallDiagnostics(filename string, nodes []ast.Node, ctx *AnalysisCo
 	if ctx.hasArgCallDiagnostics {
 		return ctx
 	}
+	if ctx.Content != nil {
+		return ensureArgCallDiagnosticsFromCST(filename, nodes, ctx)
+	}
 	var typeIssues []AnalysisIssue
 	var typeIssueSink *[]AnalysisIssue
 	if analysisLevelAtLeast(ctx, 5) {

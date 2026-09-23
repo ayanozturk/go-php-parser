@@ -165,7 +165,7 @@ func lowerAnonymousClass(n *RedNode, file *File) (ast.Node, []ast.Node) {
 	})
 	cls.HeaderEndPos = headerEnd
 	if membersGreen != nil {
-		lowerClassMembers(file, membersGreen, membersOff, cls)
+		lowerClassMembers(file, membersGreen, membersOff, cls, true)
 	}
 	return cls, ctorArgs
 }

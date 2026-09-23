@@ -138,6 +138,9 @@ func TestIfBodyAndElseAccessors(t *testing.T) {
 	if elseIfBody == nil || len(StatementBodyList(elseIfBody)) != 1 {
 		t.Fatalf("expected 1 statement in elseif-body, got %v", elseIfBody)
 	}
+	if cond := ElseIfCondition(elseIfs[0]); cond == nil || strings.TrimSpace(cond.Text()) != "$b" {
+		t.Fatalf("expected elseif condition $b, got %v", cond)
+	}
 	els := IfElse(ifStmt)
 	if els == nil {
 		t.Fatal("expected an else clause")
@@ -218,6 +221,108 @@ func TestCallIsMethodLikeAndArgList(t *testing.T) {
 	if !CallIsMethodLike(calls[1]) {
 		t.Fatalf("expected $obj->bar(...) to be method-like")
 	}
+}
+
+func TestStatementSiblingAccessors(t *testing.T) {
+	res := Parse([]byte("<?php\n$a = 1;\nfunction f() { return 2; }\n"))
+	if got := TopLevelStatements(res.File.Root); len(got) != 2 || got[0].Kind() != KindExpressionStmt || got[1].Kind() != KindFunctionDecl {
+		t.Fatalf("unexpected top-level children: %v", kindsOf(got))
+	}
+	list := firstNodeOfKind(res.File.Root, KindStatementList)
+	if got := StatementSiblings(list); len(got) != 1 || got[0].Kind() != KindReturnStmt {
+		t.Fatalf("unexpected statement siblings: %v", kindsOf(got))
+	}
+	if TopLevelStatements(nil) != nil || TopLevelStatements(list) != nil || StatementSiblings(nil) != nil {
+		t.Fatal("expected nil for nil or wrong-kind statement containers")
+	}
+}
+
+func TestAssignmentAndSimpleExpressionAccessors(t *testing.T) {
+	res := Parse([]byte("<?php\n$x += foo();\nreturn $x;\nthrow new Exception();\n"))
+	assign := firstNodeOfKind(res.File.Root, KindAssignExpr)
+	left, right, op := AssignmentParts(assign)
+	if left == nil || strings.TrimSpace(left.Text()) != "$x" || right == nil || strings.TrimSpace(right.Text()) != "foo()" || op != "+=" {
+		t.Fatalf("unexpected assignment parts: left=%v right=%v operator=%q", left, right, op)
+	}
+	ret := firstNodeOfKind(res.File.Root, KindReturnStmt)
+	if expr := ReturnExpr(ret); expr == nil || strings.TrimSpace(expr.Text()) != "$x" {
+		t.Fatalf("unexpected return expression: %v", expr)
+	}
+	throw := firstNodeOfKind(res.File.Root, KindThrowStmt)
+	if expr := ThrowExpr(throw); expr == nil || !strings.Contains(expr.Text(), "new Exception()") {
+		t.Fatalf("unexpected throw expression: %v", expr)
+	}
+	if _, _, op := AssignmentParts(ret); op != "" || ReturnExpr(assign) != nil || ThrowExpr(ret) != nil {
+		t.Fatal("expected nil/empty results for wrong kinds")
+	}
+}
+
+func TestTryAndSwitchAccessors(t *testing.T) {
+	res := Parse([]byte("<?php\ntry { work(); } catch (RuntimeException $e) { recoverIt(); } finally { cleanup(); }\nswitch ($x) { case 1: one(); break; default: other(); }\n"))
+	tr := firstNodeOfKind(res.File.Root, KindTryStmt)
+	if body := TryBody(tr); body == nil || len(StatementSiblings(body)) != 1 {
+		t.Fatalf("expected try body statement, got %v", body)
+	}
+	catches := TryCatches(tr)
+	if len(catches) != 1 || CatchBody(catches[0]) == nil || len(StatementSiblings(CatchBody(catches[0]))) != 1 {
+		t.Fatalf("unexpected catch accessors: %v", catches)
+	}
+	if body := TryFinallyBody(tr); body == nil || len(StatementSiblings(body)) != 1 {
+		t.Fatalf("expected finally body statement, got %v", body)
+	}
+	sw := firstNodeOfKind(res.File.Root, KindSwitchStmt)
+	if expr := SwitchExpr(sw); expr == nil || strings.TrimSpace(expr.Text()) != "$x" {
+		t.Fatalf("unexpected switch subject: %v", expr)
+	}
+	cases := SwitchCases(sw)
+	if len(cases) != 2 || strings.TrimSpace(SwitchCaseExpr(cases[0]).Text()) != "1" || SwitchCaseExpr(cases[1]) != nil {
+		t.Fatalf("unexpected switch case expressions: %v", cases)
+	}
+	for _, clause := range cases {
+		if body := SwitchCaseBody(clause); body == nil || len(StatementSiblings(body)) == 0 {
+			t.Fatalf("expected case body for %v", clause.Kind())
+		}
+	}
+	if TryBody(sw) != nil || len(TryCatches(sw)) != 0 || SwitchExpr(tr) != nil || len(SwitchCases(tr)) != 0 {
+		t.Fatal("expected nil/empty results for wrong kinds")
+	}
+}
+
+func TestForeachParts(t *testing.T) {
+	res := Parse([]byte("<?php\nforeach (items() as $key => $value) { echo $value; }\nforeach ($items as &$value) { echo $value; }\n"))
+	var foreach []*RedNode
+	Walk(res.File.Root, func(n *RedNode) bool {
+		if n.Kind() == KindForeachStmt {
+			foreach = append(foreach, &RedNode{File: n.File, Green: n.Green, Offset: n.Offset})
+		}
+		return true
+	})
+	if len(foreach) != 2 {
+		t.Fatalf("expected two foreach statements, got %d", len(foreach))
+	}
+	iterable, key, value := ForeachParts(foreach[0])
+	if iterable == nil || strings.TrimSpace(iterable.Text()) != "items()" || key == nil || strings.TrimSpace(key.Text()) != "$key" || value == nil || strings.TrimSpace(value.Text()) != "$value" {
+		var childKinds []Kind
+		for _, child := range foreach[0].Children() {
+			childKinds = append(childKinds, child.Kind())
+		}
+		t.Fatalf("unexpected foreach parts: iterable=%v key=%v value=%v children=%v", iterable, key, value, childKinds)
+	}
+	iterable, key, value = ForeachParts(foreach[1])
+	if iterable == nil || strings.TrimSpace(iterable.Text()) != "$items" || key != nil || value == nil || strings.TrimSpace(value.Text()) != "$value" {
+		t.Fatalf("unexpected value-only foreach parts: iterable=%v key=%v value=%v", iterable, key, value)
+	}
+	if iterable, key, value = ForeachParts(nil); iterable != nil || key != nil || value != nil {
+		t.Fatal("expected nil parts for nil foreach")
+	}
+}
+
+func kindsOf(nodes []*RedNode) []Kind {
+	out := make([]Kind, 0, len(nodes))
+	for _, n := range nodes {
+		out = append(out, n.Kind())
+	}
+	return out
 }
 
 func TestExpressionStmtExpr(t *testing.T) {

@@ -4,22 +4,6 @@ This is the single source of truth for future work in `go-php-parser`. The item 
 
 ## Short term
 
-### 1. Finish CST-direct production analysis
-
-- Inventory the remaining AST-only registered rules, including argument count/type, deprecated calls, variables, method/property checks, and unreachable code.
-- Port them in cohesive groups using the shared CST walker, file type context, condition/body accessors, and narrowly lowered matched subtrees.
-- Fix traversal gaps in shared walkers or lowering rather than special-casing individual rules.
-- Move reusable scope, expression-type, reads/writes, calls, throws, returns, suppression, and source-location data into shared per-file semantic facts.
-- Remove retained AST rule implementations only after proving that production, tests, and tools no longer call them.
-- Ensure each content version is lexed and parsed once per analysis pass in both the CLI and PHP Strom.
-
-Done when:
-
-- every production rule uses CST traversal or shared semantic facts for its file-wide work;
-- remaining AST lowering is an explicit compatibility boundary;
-- pure refactors produce zero issue-set differences on Symfony and Composer;
-- PHP Strom's pinned and sibling-development modes produce equivalent diagnostics.
-
 ### 2. Reduce false positives and expand executable compatibility
 
 - Re-run the exact private-corpus manifest before accepting historical diagnostic counts as a baseline.

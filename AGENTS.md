@@ -52,14 +52,15 @@ functions (`checkLanguageOnNode`, `checkTypeReferenceOnNode`,
 as shared leaf logic — these are not dead code and must not be deleted even
 though the file-wide `[]ast.Node` walk they used to run under is gone.
 
-`AnalysisContext.Content []byte` (`context.go`) is the switch that selects
-the CST-direct fused path in `RunAnalysisRulesWithContext`: when set,
-`analyse/syntax_fused_rule.go` calls `syntax.Parse` once per file and shares
-the resulting `*syntax.ParseResult` across every `Check*IssuesFromParsed`
-call. All production callers (including
-`server/providers/diagnostics.go` in `vscode-php-strom`) set this field;
-leaving it unset falls back to the legacy ast.Node walk, kept only for
-tests/tools that don't populate `Content`.
+`AnalysisContext.Content []byte` (`context.go`) selects the CST-direct
+production paths in `RunAnalysisRulesWithContext`. The registry runner
+reuses the caller's `*syntax.ParseResult`; the fused rules and shared
+call/assignment and unreachable-code passes consume that parse or cached
+per-file facts. A small set of shared support facts (such as PHPDoc aliases
+and reflection guards) is still extracted from the already-lowered AST.
+Production callers, including `server/providers/diagnostics.go` in
+`vscode-php-strom`, set `Content` and reuse the parse result. Callers that
+omit it retain the AST-based compatibility entry points.
 
 Known, intentionally-preserved gaps and gotchas when touching this area:
 
@@ -84,11 +85,11 @@ Remaining, acknowledged debt (deferred, not blocking):
 
 - `AssignmentInConditionRule` and `SideEffectsRule` still keep their
   original `ast.Node`-based `CheckIssues` implementations alongside their
-  CST-direct versions; only their registered callbacks were wired onto
-  `ctx.Content`. Deleting the old paths is optional future cleanup.
-- Roughly 15 other registered rules (arg count/type, deprecated calls,
-  level1 variables, level2/6/7/8 method/property checks, unreachable code,
-  etc.) are still ast.Node-only and were never in scope for CST porting.
+  CST-direct versions. Their AST paths remain compatibility APIs for callers
+  without source content.
+- Level 1 variable-flow facts can still be built lazily from AST nodes when a
+  caller supplies `Content` without a shared `VariableFlow`; production
+  `SemanticSnapshot` contexts provide the shared flow facts.
 
 ### Perf (not coverage %)
 
