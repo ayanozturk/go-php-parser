@@ -9,7 +9,7 @@
 - **Introduced at this level:** 2 registered levelled rules: `Level0.PropertyCallableType` and `Level0.Symbols`.
 - **Cumulative registered levelled rules:** 2.
 - **Diagnostic families emitted:** `Level0.Symbols`, `Level0.ClassModel`, `Level0.Invocation`, and `Level0.Language`. These are emitted by the level-0 rule entry; they are not additional registered levelled rules.
-- **Checked-in differential pack:** 94 cases in `testdata/diagnostic-differential`.
+- **Checked-in differential pack:** 98 cases in `testdata/diagnostic-differential` (96 PHPStan differential cases and 2 explicit unsupported boundaries).
 
 ## Coverage and boundaries
 

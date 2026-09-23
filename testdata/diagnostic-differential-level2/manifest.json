@@ -2,7 +2,9 @@
   "schemaVersion": 1,
   "reference": {
     "tool": "PHPStan",
-    "level": 2
+    "level": 2,
+    "version": "2.2.5",
+    "configuration": "../phpstan-differential.neon"
   },
   "cases": [
     {
@@ -732,6 +734,13 @@
       "file": "phpdoc-closure-incompatible-native.php",
       "engineCodes": ["Level2.PHPDocParamType"],
       "phpstanIdentifiers": ["parameter.phpDocType"]
+    },
+    {
+      "id": "laravel-collection-foreach-clean",
+      "capability": "generic Laravel collection values remain typed through foreach",
+      "file": "laravel-collection-foreach-clean.php",
+      "engineCodes": [],
+      "phpstanIdentifiers": []
     }
   ]
 }

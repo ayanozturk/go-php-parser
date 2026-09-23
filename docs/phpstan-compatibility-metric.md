@@ -7,8 +7,10 @@
 - An engine diagnostic without a reviewed identifier mapping is counted as engine-only and is also reported as unmapped.
 - PHPStan identifiers that never appear in the reviewed crosswalk at or below the measured level are **unreviewed** (framework/extension families and unimplemented core identifiers). They still affect the headline F1, but are labelled separately as `phpstanOnlyUnreviewed`. A second **reviewed F1** uses only mapped engine codes and reviewed PHPStan identifiers so framework noise is not mistaken for core-rule misses.
 - A run fails instead of publishing a metric when an engine file cannot be read or parsed, PHPStan returns analysis errors, a PHPStan diagnostic lacks an identifier, or PHPStan's `--debug` file accounting differs from the selected first-party manifest.
+- The reviewed fixture release gate is strict: zero engine mismatches and zero PHPStan-reference mismatches across the pinned differential manifests. Cases marked `engineSupport: unsupported` are listed separately with their exact PHPStan identifiers and must not acquire an engine diagnostic without updating that disposition.
+- `cmd/phpstan-compat` emits the unmatched engine and PHPStan diagnostics with path, line, and code/identifier so corpus deltas can be reviewed and dispositioned. The command also rejects PHPStan versions that differ from the pinned manifest crosswalk version.
 
-The percentage is meaningful only with its provenance: corpus revision, PHPStan version, PHP version (first line of `php -v` when available), configuration, paths, and the recorded crosswalk source SHA-256 hashes. It means “diagnostic F1 on this pinned workload”, not coverage of every PHPStan rule or extension, PHPStan parity, or a published percentage.
+The percentage is meaningful only with its provenance: report-file and index-file manifest SHA-256 hashes, PHPStan version, PHP version (first line of `php -v` when available), configuration and its SHA-256, paths, and the recorded crosswalk source SHA-256 hashes. It means “diagnostic F1 on this pinned workload”, not coverage of every PHPStan rule or extension, PHPStan parity, or a published percentage. The strict fixture gate is the release threshold; corpus F1 remains a separate workload metric and should not be reported for a zero-diagnostic corpus without its zero denominators.
 
 ## Run
 

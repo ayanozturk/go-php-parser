@@ -2,7 +2,9 @@
   "schemaVersion": 1,
   "reference": {
     "tool": "PHPStan",
-    "level": 5
+    "level": 5,
+    "version": "2.2.5",
+    "configuration": "../phpstan-differential.neon"
   },
   "cases": [
     {
@@ -354,6 +356,13 @@
       "file": "argument-direct-list-constructor-clean.php",
       "engineCodes": [],
       "phpstanIdentifiers": []
+    },
+    {
+      "id": "composer-installed-versions-mismatch",
+      "capability": "nullable Composer package versions cannot be passed as strings",
+      "file": "composer-installed-versions-mismatch.php",
+      "engineCodes": ["A.ARG.TYPE"],
+      "phpstanIdentifiers": ["argument.type"]
     }
   ]
 }

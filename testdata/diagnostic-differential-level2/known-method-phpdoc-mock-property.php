@@ -1,12 +1,14 @@
 <?php
 
-namespace PHPUnit\Framework\MockObject;
+namespace PHPUnit\Framework\MockObject {
 
 interface MockObject
 {
     public function expects(mixed $matcher): MockObject;
 
     public function method(string $name): MockObject;
+}
+
 }
 
 namespace {

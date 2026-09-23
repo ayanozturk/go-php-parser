@@ -19,6 +19,10 @@ class EntityRepository
     }
 }
 
+/**
+ * @template T of object
+ * @extends EntityRepository<T>
+ */
 class ServiceEntityRepository extends EntityRepository
 {
 }

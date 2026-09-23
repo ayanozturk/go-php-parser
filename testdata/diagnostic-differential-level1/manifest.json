@@ -2,7 +2,9 @@
   "schemaVersion": 1,
   "reference": {
     "tool": "PHPStan",
-    "level": 1
+    "level": 1,
+    "version": "2.2.5",
+    "configuration": "../phpstan-differential.neon"
   },
   "cases": [
     {
@@ -188,6 +190,20 @@
         "variable.undefined",
         "variable.undefined"
       ]
+    },
+    {
+      "id": "foreach-after-loop-possibly-undefined",
+      "capability": "foreach values may be undefined after an empty iterable",
+      "file": "foreach-after-loop-possibly-undefined.php",
+      "engineCodes": ["Level1.Variables"],
+      "phpstanIdentifiers": ["variable.undefined"]
+    },
+    {
+      "id": "interpolated-undefined-variable",
+      "capability": "undefined variables inside interpolated strings",
+      "file": "interpolated-undefined-variable.php",
+      "engineCodes": ["Level1.Variables"],
+      "phpstanIdentifiers": ["variable.undefined"]
     }
   ]
 }

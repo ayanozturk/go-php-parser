@@ -8,7 +8,7 @@
 
 - **Introduced at this level:** 5 registered levelled rules: `Level6.MissingGenericType`, `Level6.MissingIterableValueType`, `Level6.MissingParameterType`, `Level6.MissingReturnType`, and `Level6.MissingPropertyType`.
 - **Cumulative registered levelled rules:** 30.
-- **Checked-in differential pack:** 26 cases in `testdata/diagnostic-differential-level6`.
+- **Checked-in differential pack:** 27 cases in `testdata/diagnostic-differential-level6`.
 
 ## Coverage and boundaries
 

@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"crypto/sha256"
 	"encoding/json"
 	"errors"
 	"flag"
@@ -27,14 +28,17 @@ type manifest struct {
 }
 
 type manifestReference struct {
-	Tool  string `json:"tool"`
-	Level int    `json:"level"`
+	Tool          string `json:"tool"`
+	Version       string `json:"version"`
+	Level         int    `json:"level"`
+	Configuration string `json:"configuration"`
 }
 
 type manifestCase struct {
 	ID                 string   `json:"id"`
 	Capability         string   `json:"capability"`
 	File               string   `json:"file"`
+	EngineSupport      string   `json:"engineSupport,omitempty"`
 	EngineCodes        []string `json:"engineCodes"`
 	PHPStanIdentifiers []string `json:"phpstanIdentifiers"`
 }
@@ -48,15 +52,18 @@ type differentialReport struct {
 }
 
 type toolReport struct {
-	Tool    string `json:"tool"`
-	Version string `json:"version"`
-	Level   int    `json:"level"`
+	Tool              string `json:"tool"`
+	Version           string `json:"version"`
+	Level             int    `json:"level"`
+	Configuration     string `json:"configuration"`
+	ConfigurationHash string `json:"configurationSHA256"`
 }
 
 type caseReport struct {
 	ID                   string   `json:"id"`
 	Capability           string   `json:"capability"`
 	File                 string   `json:"file"`
+	EngineSupport        string   `json:"engineSupport,omitempty"`
 	ExpectedEngine       []string `json:"expectedEngine"`
 	ActualEngine         []string `json:"actualEngine"`
 	EngineMatches        bool     `json:"engineMatches"`
@@ -71,6 +78,7 @@ type reportTotals struct {
 	EngineMismatches    int `json:"engineMismatches"`
 	ReferenceMismatches int `json:"referenceMismatches"`
 	DifferentialMatches int `json:"differentialMatches"`
+	UnsupportedCases    int `json:"unsupportedCases"`
 }
 
 type phpstanOutput struct {
@@ -117,11 +125,28 @@ func runDifferential(fixtures, phpstanBin string, engineOnly bool) (differential
 	report := differentialReport{SchemaVersion: reportSchemaVersion, Engine: "go-php-parser", Totals: reportTotals{Cases: len(manifest.Cases)}}
 
 	if !engineOnly {
+		configuration, err := filepath.Abs(filepath.Clean(filepath.Join(fixtures, manifest.Reference.Configuration)))
+		if err != nil {
+			return differentialReport{}, fmt.Errorf("resolve reference configuration: %w", err)
+		}
+		configurationBytes, err := os.ReadFile(configuration)
+		if err != nil {
+			return differentialReport{}, fmt.Errorf("read reference configuration: %w", err)
+		}
 		version, err := phpstanVersion(phpstanBin)
 		if err != nil {
 			return differentialReport{}, fmt.Errorf("reference analyser unavailable (use --engine-only for the local gate): %w", err)
 		}
-		report.Reference = &toolReport{Tool: manifest.Reference.Tool, Version: version, Level: manifest.Reference.Level}
+		if !strings.HasSuffix(strings.TrimSpace(version), " "+manifest.Reference.Version) {
+			return differentialReport{}, fmt.Errorf("reference analyser version mismatch: manifest pins %s, executable reports %s", manifest.Reference.Version, version)
+		}
+		report.Reference = &toolReport{
+			Tool:              manifest.Reference.Tool,
+			Version:           version,
+			Level:             manifest.Reference.Level,
+			Configuration:     manifest.Reference.Configuration,
+			ConfigurationHash: fmt.Sprintf("%x", sha256.Sum256(configurationBytes)),
+		}
 	}
 
 	for _, fixture := range manifest.Cases {
@@ -134,6 +159,7 @@ func runDifferential(fixtures, phpstanBin string, engineOnly bool) (differential
 			ID:             fixture.ID,
 			Capability:     fixture.Capability,
 			File:           fixture.File,
+			EngineSupport:  fixture.EngineSupport,
 			ExpectedEngine: sortedCopy(fixture.EngineCodes),
 			ActualEngine:   actualEngine,
 		}
@@ -141,9 +167,17 @@ func runDifferential(fixtures, phpstanBin string, engineOnly bool) (differential
 		if !result.EngineMatches {
 			report.Totals.EngineMismatches++
 		}
+		unsupported := fixture.EngineSupport == "unsupported"
+		if unsupported {
+			report.Totals.UnsupportedCases++
+		}
 
 		if !engineOnly {
-			actualReference, err := runPHPStan(phpstanBin, path, manifest.Reference.Level)
+			configuration, err := filepath.Abs(filepath.Clean(filepath.Join(fixtures, manifest.Reference.Configuration)))
+			if err != nil {
+				return differentialReport{}, fmt.Errorf("resolve reference configuration: %w", err)
+			}
+			actualReference, err := runPHPStan(phpstanBin, path, manifest.Reference.Level, configuration)
 			if err != nil {
 				return differentialReport{}, fmt.Errorf("case %s: %w", fixture.ID, err)
 			}
@@ -151,13 +185,15 @@ func runDifferential(fixtures, phpstanBin string, engineOnly bool) (differential
 			result.ActualReference = actualReference
 			matches := equalStrings(result.ExpectedReference, result.ActualReference)
 			result.ReferenceMatches = &matches
-			conforms := result.EngineMatches && matches
-			result.DifferentialConforms = &conforms
+			if !unsupported {
+				conforms := result.EngineMatches && matches
+				result.DifferentialConforms = &conforms
+				if conforms {
+					report.Totals.DifferentialMatches++
+				}
+			}
 			if !matches {
 				report.Totals.ReferenceMismatches++
-			}
-			if conforms {
-				report.Totals.DifferentialMatches++
 			}
 		}
 		report.Cases = append(report.Cases, result)
@@ -179,14 +215,23 @@ func loadManifest(path string) (manifest, error) {
 	if result.SchemaVersion != reportSchemaVersion {
 		return manifest{}, fmt.Errorf("unsupported manifest schema version %d", result.SchemaVersion)
 	}
-	if result.Reference.Tool == "" || len(result.Cases) == 0 {
-		return manifest{}, errors.New("manifest requires a reference tool and at least one case")
+	if result.Reference.Tool == "" || result.Reference.Version == "" || result.Reference.Configuration == "" || len(result.Cases) == 0 {
+		return manifest{}, errors.New("manifest requires a pinned reference tool, version, configuration, and at least one case")
 	}
 	seen := make(map[string]struct{}, len(result.Cases))
 	for i := range result.Cases {
 		fixture := &result.Cases[i]
 		if fixture.ID == "" || fixture.Capability == "" || fixture.File == "" {
 			return manifest{}, fmt.Errorf("manifest case %d requires id, capability, and file", i)
+		}
+		if fixture.EngineSupport != "" && fixture.EngineSupport != "implemented" && fixture.EngineSupport != "unsupported" {
+			return manifest{}, fmt.Errorf("manifest case %q has invalid engineSupport %q", fixture.ID, fixture.EngineSupport)
+		}
+		if fixture.EngineSupport == "unsupported" && len(fixture.EngineCodes) != 0 {
+			return manifest{}, fmt.Errorf("unsupported manifest case %q must not expect engine diagnostics", fixture.ID)
+		}
+		if fixture.EngineSupport == "unsupported" && len(fixture.PHPStanIdentifiers) == 0 {
+			return manifest{}, fmt.Errorf("unsupported manifest case %q must name at least one PHPStan identifier", fixture.ID)
 		}
 		if _, duplicate := seen[fixture.ID]; duplicate {
 			return manifest{}, fmt.Errorf("duplicate manifest case id %q", fixture.ID)
@@ -243,8 +288,8 @@ func phpstanVersion(binary string) (string, error) {
 	return strings.TrimSpace(string(output)), nil
 }
 
-func runPHPStan(binary, path string, level int) ([]string, error) {
-	command := exec.Command(binary, "analyse", "--no-progress", "--error-format=json", fmt.Sprintf("--level=%d", level), path)
+func runPHPStan(binary, path string, level int, configuration string) ([]string, error) {
+	command := exec.Command(binary, "analyse", "--no-progress", "--error-format=json", fmt.Sprintf("--level=%d", level), "--configuration="+configuration, path)
 	output, err := command.Output()
 	if err != nil {
 		var exitError *exec.ExitError

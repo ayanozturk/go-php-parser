@@ -8,7 +8,7 @@
 
 - **Introduced at this level:** 1 registered levelled rule, `A.ARG.TYPE`.
 - **Cumulative registered levelled rules:** 25.
-- **Checked-in differential pack:** 50 cases in `testdata/diagnostic-differential-level5`.
+- **Checked-in differential pack:** 51 cases in `testdata/diagnostic-differential-level5`.
 
 ## Coverage and boundaries
 
