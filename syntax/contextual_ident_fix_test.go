@@ -72,6 +72,33 @@ func TestNamedArgMatchKeyword(t *testing.T) {
 	}
 }
 
+func TestMultilineAttributeGroupTrailingComma(t *testing.T) {
+	cases := []struct {
+		name string
+		src  string
+	}{
+		{
+			name: "trailing comma",
+			src:  "<?php\n#[\n    Route('/x'),\n    IsGranted('ROLE_USER'),\n]\nclass Example {}\n",
+		},
+		{
+			name: "without trailing comma",
+			src:  "<?php\n#[\n    Route('/x'),\n    IsGranted('ROLE_USER')\n]\nclass Example {}\n",
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			res := Parse([]byte(tc.src))
+			if got := Print(res.File.Root); got != tc.src {
+				t.Fatalf("identity\nwant %q\ngot  %q", tc.src, got)
+			}
+			if len(res.Diagnostics) != 0 {
+				t.Fatalf("unexpected parse diagnostics: %#v", res.Diagnostics)
+			}
+		})
+	}
+}
+
 func TestNamedArgOtherContextualKeywords(t *testing.T) {
 	src := "<?php f(class: 1, list: 2, fn: 3, in: 4);\n"
 	res := Parse([]byte(src))

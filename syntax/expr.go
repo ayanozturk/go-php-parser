@@ -331,6 +331,12 @@ func (p *Parser) parsePostfixExpr(expr *GreenNode) *GreenNode {
 		case token.T_LBRACKET:
 			expr = p.parseArrayAccess(expr)
 		case token.T_LBRACE:
+			// After a property default value, PHP 8.4 may start the property's
+			// hook list. Leave that brace to parsePropertyDecl instead of
+			// interpreting it as the deprecated `$value{offset}` access form.
+			if p.isPropertyHookListStart() {
+				return expr
+			}
 			// Rare: $a{0} deprecated string offset — keep tokens structured as ArrayAccess-like.
 			expr = p.parseBraceAccess(expr)
 		case token.T_LPAREN:
@@ -339,6 +345,21 @@ func (p *Parser) parsePostfixExpr(expr *GreenNode) *GreenNode {
 			return expr
 		}
 	}
+}
+
+func (p *Parser) isPropertyHookListStart() bool {
+	if !p.at(token.T_LBRACE) {
+		return false
+	}
+	i := p.i + 1
+	if p.tokenAt(i).Type == token.T_AMPERSAND {
+		i++
+	}
+	if p.tokenAt(i).Type != token.T_STRING {
+		return false
+	}
+	name := lowercase(p.tokenAt(i).Literal)
+	return name == "get" || name == "set"
 }
 
 func (p *Parser) parseMemberAccess(expr *GreenNode, kind Kind) *GreenNode {
@@ -614,6 +635,10 @@ func (p *Parser) parseNewExpr() *GreenNode {
 		parts = append(parts, p.parseName())
 	} else if p.at(token.T_VARIABLE) {
 		parts = append(parts, p.intern.Node(KindVariableExpr, p.bump()))
+	} else if p.at(token.T_DOLLAR_OPEN_CURLY_BRACES) {
+		// Dynamic class names such as `new ${$class}(...)` are expressions,
+		// just like the parenthesized `new ($class)(...)` form.
+		parts = append(parts, p.parseDollarCurlyVar())
 	}
 	if p.at(token.T_LPAREN) {
 		parts = append(parts, p.parseCallArgList())
