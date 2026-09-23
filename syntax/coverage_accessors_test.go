@@ -256,6 +256,55 @@ class C {
 	}
 }
 
+func TestExpressionAccessorsRejectNilAndWrongKinds(t *testing.T) {
+	res := Parse([]byte("<?php $value = 1;"))
+	wrongKind := firstNodeOfKind(res.File.Root, KindAssignExpr)
+	if wrongKind == nil {
+		t.Fatal("expected literal expression for wrong-kind controls")
+	}
+
+	checks := []struct {
+		name string
+		fn   func(*RedNode) bool
+	}{
+		{"literal string", func(n *RedNode) bool { _, ok := LiteralStringValue(n); return !ok }},
+		{"variable expression name", func(n *RedNode) bool { return VariableExprName(n) == "" }},
+		{"member object", func(n *RedNode) bool { return MemberAccessObject(n) == nil }},
+		{"member name", func(n *RedNode) bool { return MemberAccessName(n) == "" }},
+		{"static member parts", func(n *RedNode) bool { c, m, d := StaticMemberAccessParts(n); return c == "" && m == "" && !d }},
+		{"named argument name", func(n *RedNode) bool { return NamedArgName(n) == "" }},
+		{"unpacked argument", func(n *RedNode) bool { return !ArgIsUnpacked(n) }},
+		{"argument expression", func(n *RedNode) bool { return ArgExpr(n) == nil }},
+		{"parenthesized expression", func(n *RedNode) bool { return ParenInner(n) == nil }},
+		{"new class", func(n *RedNode) bool { return NewClass(n) == nil }},
+		{"anonymous new", func(n *RedNode) bool { return !NewIsAnonymous(n) }},
+		{"variable token name", func(n *RedNode) bool { return VariableName(n) == "" }},
+		{"unary operator", func(n *RedNode) bool { return UnaryOperator(n) == "" }},
+		{"unary operand", func(n *RedNode) bool { return UnaryOperand(n) == nil }},
+		{"keyword unary operator", func(n *RedNode) bool { return KeywordUnaryOperator(n) == "" }},
+		{"cast type", func(n *RedNode) bool { return CastTypeName(n) == "" }},
+		{"array elements", func(n *RedNode) bool { return len(ArrayElements(n)) == 0 }},
+		{"array element key", func(n *RedNode) bool { return ArrayElementKey(n) == nil }},
+		{"integer literal", func(n *RedNode) bool { _, ok := LiteralIntValue(n); return !ok }},
+		{"label or goto name", func(n *RedNode) bool { return LabelOrGotoName(n) == "" }},
+	}
+
+	for _, check := range checks {
+		t.Run(check.name, func(t *testing.T) {
+			for _, input := range []*RedNode{nil, wrongKind} {
+				if !check.fn(input) {
+					t.Fatalf("accessor accepted input of kind %v", func() any {
+						if input == nil {
+							return nil
+						}
+						return input.Kind()
+					}())
+				}
+			}
+		})
+	}
+}
+
 func TestLowerAPIWrappers(t *testing.T) {
 	src := []byte(`<?php
 namespace N;

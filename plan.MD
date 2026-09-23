@@ -65,6 +65,8 @@ Step-3 evidence (2026-09-22 iteration, no grammar changes — characterization o
 
 Step-3 coverage slice (2026-09-23): added nil/wrong-kind controls for the condition, body, class/function, and call accessors in `syntax/conditions_test.go`, plus alternate `for` body-form coverage. `GOWORK=off go test ./syntax -coverprofile=/tmp/go-php-parser-syntax-coverage-after.out -count=1` passes; syntax package statement coverage moved from 82.3% to 82.8%, and `conditions.go:ForBody` moved from 81.8% to 90.9%. A paired pre-change `GOWORK=off go test ./syntax ./lexer -coverprofile=...` passed with lexer at 95.9%. `GOWORK=off go test ./...`, `GOWORK=off go vet ./...`, and `git diff --check` pass. The syntax-wide 95% target remains open; this slice does not claim the whole new syntax/binder/trivia surface meets it.
 
+Step-3 expression-accessor slice (2026-09-23): added nil and mismatched-kind controls for expression, literal, member, argument, unary, array, and label accessors in `syntax/coverage_accessors_test.go`. The syntax package passes with 83.2% statement coverage; `ParenInner`, `VariableName`, `ArrayElements`, `NewIsAnonymous`, and `LabelOrGotoName` now each reach 100%, and `ArgExpr` reaches 100%. The 95% new-kernel target remains open.
+
 ### 4. Validate cancellation and robustness
 
 - [ ] Run parser security and malformed-input fuzz seeds.
