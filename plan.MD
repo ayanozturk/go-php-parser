@@ -2,38 +2,40 @@
 
 Status: in progress
 
-Roadmap source: short-term item 2
+Roadmap source: short-term item 3
 
-Scope: reduce false positives and expand executable compatibility
+Scope: unify diagnostics and finish source mapping
 
-This file is the single source of truth for work currently being implemented. Keep the next implementation within this approved roadmap item; record evidence before accepting historical diagnostic counts as baselines.
+The user explicitly reprioritized this roadmap item while short-term item 2 remains unfinished. Resume item 2 afterward unless the user changes priority again.
 
 ## Objective
 
-Reduce false positives across the parser and analyser while expanding neutral executable coverage for supported PHP and framework behavior.
+Use a transport-neutral structured diagnostic with stable codes and half-open byte spans across parser, style, analysis, dependency-guard, CLI, and PHP Strom paths. Convert byte spans to each output format only at its boundary.
 
 ## Work sequence
 
-### 1. Establish reviewed diagnostic baselines
+### 1. Establish the shared diagnostic path
 
-- [ ] Re-run the exact private-corpus manifest before accepting historical diagnostic counts as a baseline.
-- [ ] Build reviewed true-positive, false-positive, and false-negative suites with pinned reference versions and configuration.
-- [ ] Add neutral public fixtures for each correction.
+- [ ] Add the transport-neutral diagnostic value with filename, source, code, severity, message, and byte span.
+- [ ] Route PHP Strom parser, style, and analysis diagnostics through byte spans and one LSP conversion path.
+- [ ] Preserve existing parser, style, analysis, and CLI API compatibility while adding adapters.
+- [ ] Identify and route dependency-guard output through the shared value.
 
-### 2. Close high-priority type and resolver cases
+### 2. Complete source ranges
 
-- [ ] Close remaining `Level6.MissingIterableValueType` cases across native, PHPDoc/refined, inherited, trait, and anonymous-class contracts.
-- [ ] Audit repository return/template substitution and unknown-symbol noise.
-- [ ] Add framework metadata for Symfony container returns, Doctrine repositories and collections, PHPUnit data providers, Composer, and common Laravel patterns.
+- [ ] Add coverage for UTF-8 and UTF-16 conversion, CRLF, malformed offsets, and zero-width diagnostics.
+- [ ] Migrate style rules that can identify a precise token or whitespace range from point locations to exact spans.
+- [ ] Ensure every analysis diagnostic with a known node span preserves its byte offsets.
 
-### 3. Expand executable PHPStan compatibility
+### 3. Stabilize output behavior
 
-- [ ] Add PHPStan-gated coverage at the level where each diagnostic begins: casts, offset access, callables, increments, foreach, interpolation, condition narrowing, PHPDoc validation, property initialization, variance, and trait/interface contracts.
-- [ ] Keep the capability matrix, README rule inventory, and rule pages synchronized with executable registrations.
+- [ ] Preserve deterministic ordering and stable machine-readable codes across CLI and PHP Strom.
+- [ ] Add integration coverage for equivalent CLI/editor diagnostics, ranges, ordering, and malformed input.
+- [ ] Document any producers that cannot yet supply a byte span and the reason.
 
 ## Acceptance gates
 
-- Level 0 behavior is demonstrated on the agreed corpus rather than inferred from fixture totals.
-- Levels 1–6 have broad executable coverage and explicit unsupported identifiers.
-- Framework packs pass without global suppressions.
-- Reviewed false-positive and false-negative release thresholds exist and pass reproducibly.
+- Parser, style, analysis, and dependency-guard producers share one structured diagnostic representation.
+- No production diagnostic relies on point-only or unstructured output where an exact span is available.
+- CLI and PHP Strom publish equivalent codes, messages, severities, and source ranges.
+- Range, ordering, malformed-input, and UTF-16 integration checks pass.
