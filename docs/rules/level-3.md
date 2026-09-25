@@ -8,7 +8,7 @@
 
 - **Introduced at this level:** 5 registered levelled rules: `A.PROP.TYPE`, `A.RETURN.NEVER`, `A.RETURN.TYPE`, `A.RETURN.VOID`, and `Level3.ThrowType`.
 - **Cumulative registered levelled rules:** 23. The assignment, binary-operation, void-purity, method, and PHPDoc rules from level 2 are cumulative and are not introduced here.
-- **Checked-in differential pack:** 40 cases in `testdata/diagnostic-differential-level3`.
+- **Checked-in differential pack:** 44 cases in `testdata/diagnostic-differential-level3`.
 
 ## Coverage and boundaries
 

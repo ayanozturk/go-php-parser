@@ -34,27 +34,29 @@ type diagnostic struct {
 }
 
 type levelMetrics struct {
-	Level                      int     `json:"level"`
-	CompatibilityPct           float64 `json:"compatibilityPct"`
-	PrecisionPct               float64 `json:"precisionPct"`
-	RecallPct                  float64 `json:"recallPct"`
-	ReviewedCompatibilityPct   float64 `json:"reviewedCompatibilityPct"`
-	ReviewedPrecisionPct       float64 `json:"reviewedPrecisionPct"`
-	ReviewedRecallPct          float64 `json:"reviewedRecallPct"`
-	ExactMatches               int     `json:"exactMatches"`
-	EngineDiagnostics          int     `json:"engineDiagnostics"`
-	PHPStanDiagnostics         int     `json:"phpstanDiagnostics"`
-	ReviewedEngineDiagnostics  int     `json:"reviewedEngineDiagnostics"`
-	ReviewedPHPStanDiagnostics int     `json:"reviewedPHPStanDiagnostics"`
-	EngineOnly                 int     `json:"engineOnly"`
-	EngineOnlyReviewed         int     `json:"engineOnlyReviewed"`
-	PHPStanOnly                int     `json:"phpstanOnly"`
-	PHPStanOnlyReviewed        int     `json:"phpstanOnlyReviewed"`
-	PHPStanOnlyUnreviewed      int     `json:"phpstanOnlyUnreviewed"`
-	UnmappedEngine             int     `json:"unmappedEngineDiagnostics"`
-	FilesDiscovered            int     `json:"filesDiscovered"`
-	FilesAnalyzed              int     `json:"filesAnalyzed"`
-	PHPStanFilesAnalyzed       int     `json:"phpstanFilesAnalyzed"`
+	Level                      int          `json:"level"`
+	CompatibilityPct           float64      `json:"compatibilityPct"`
+	PrecisionPct               float64      `json:"precisionPct"`
+	RecallPct                  float64      `json:"recallPct"`
+	ReviewedCompatibilityPct   float64      `json:"reviewedCompatibilityPct"`
+	ReviewedPrecisionPct       float64      `json:"reviewedPrecisionPct"`
+	ReviewedRecallPct          float64      `json:"reviewedRecallPct"`
+	ExactMatches               int          `json:"exactMatches"`
+	EngineDiagnostics          int          `json:"engineDiagnostics"`
+	PHPStanDiagnostics         int          `json:"phpstanDiagnostics"`
+	ReviewedEngineDiagnostics  int          `json:"reviewedEngineDiagnostics"`
+	ReviewedPHPStanDiagnostics int          `json:"reviewedPHPStanDiagnostics"`
+	EngineOnly                 int          `json:"engineOnly"`
+	EngineOnlyReviewed         int          `json:"engineOnlyReviewed"`
+	PHPStanOnly                int          `json:"phpstanOnly"`
+	PHPStanOnlyReviewed        int          `json:"phpstanOnlyReviewed"`
+	PHPStanOnlyUnreviewed      int          `json:"phpstanOnlyUnreviewed"`
+	UnmappedEngine             int          `json:"unmappedEngineDiagnostics"`
+	FilesDiscovered            int          `json:"filesDiscovered"`
+	FilesAnalyzed              int          `json:"filesAnalyzed"`
+	PHPStanFilesAnalyzed       int          `json:"phpstanFilesAnalyzed"`
+	EngineOnlyDetails          []diagnostic `json:"engineOnlyDetails,omitempty"`
+	PHPStanOnlyDetails         []diagnostic `json:"phpstanOnlyDetails,omitempty"`
 }
 
 type report struct {
@@ -63,7 +65,11 @@ type report struct {
 	Root            string            `json:"root"`
 	Paths           []string          `json:"paths"`
 	PHPStanVersion  string            `json:"phpstanVersion"`
+	PHPStanConfig   string            `json:"phpstanConfig,omitempty"`
+	PHPStanConfigSHA256 string         `json:"phpstanConfigSHA256,omitempty"`
 	PHPVersion      string            `json:"phpVersion,omitempty"`
+	ReportManifestSHA256 string       `json:"reportManifestSHA256"`
+	IndexManifestSHA256 string        `json:"indexManifestSHA256"`
 	Matching        string            `json:"matching"`
 	HeadlineMetric  string            `json:"headlineMetric"`
 	CrosswalkSource []crosswalkSource `json:"crosswalkSources"`
@@ -71,20 +77,24 @@ type report struct {
 }
 
 type crosswalkSource struct {
-	Path   string `json:"path"`
-	SHA256 string `json:"sha256"`
+	Path    string `json:"path"`
+	SHA256  string `json:"sha256"`
+	Version string `json:"version"`
 }
 
 type fixtureManifest struct {
 	SchemaVersion int `json:"schemaVersion"`
 	Reference     struct {
-		Tool  string `json:"tool"`
-		Level int    `json:"level"`
+		Tool          string `json:"tool"`
+		Version       string `json:"version"`
+		Level         int    `json:"level"`
+		Configuration string `json:"configuration"`
 	} `json:"reference"`
 	Cases []struct {
 		ID                 string   `json:"id"`
 		Capability         string   `json:"capability"`
 		File               string   `json:"file"`
+		EngineSupport      string   `json:"engineSupport,omitempty"`
 		EngineCodes        []string `json:"engineCodes"`
 		PHPStanIdentifiers []string `json:"phpstanIdentifiers"`
 	} `json:"cases"`
@@ -176,8 +186,39 @@ func run(root string, reportPaths, indexPaths []string, levelsText, phpstanBin, 
 	if err != nil {
 		return report{}, err
 	}
+	if len(sources) == 0 || !strings.HasSuffix(strings.TrimSpace(version), " "+sources[0].Version) {
+		return report{}, fmt.Errorf("PHPStan reference version mismatch: crosswalk pins %s, executable reports %s", firstCrosswalkVersion(sources), version)
+	}
+	reportManifestHash, err := fileManifestSHA256(absRoot, reportable)
+	if err != nil {
+		return report{}, fmt.Errorf("hash report manifest: %w", err)
+	}
+	indexManifestHash, err := fileManifestSHA256(absRoot, indexed)
+	if err != nil {
+		return report{}, fmt.Errorf("hash index manifest: %w", err)
+	}
+	configHash := ""
+	if phpstanConfig != "" {
+		configPath := phpstanConfig
+		if !filepath.IsAbs(configPath) {
+			configPath = filepath.Join(absRoot, configPath)
+		}
+		configContent, err := os.ReadFile(configPath)
+		if err != nil {
+			return report{}, fmt.Errorf("read PHPStan configuration: %w", err)
+		}
+		configHash = fmt.Sprintf("%x", sha256.Sum256(configContent))
+	}
 
-	result := report{SchemaVersion: schemaVersion, GeneratedAt: time.Now().UTC().Format(time.RFC3339), Root: filepath.ToSlash(absRoot), Paths: reportPaths, PHPStanVersion: version, PHPVersion: phpVersion(absRoot), Matching: "exact normalized path + start line + compatible identifier", HeadlineMetric: "F1 (harmonic mean of diagnostic precision and recall)", CrosswalkSource: sources}
+	result := report{
+		SchemaVersion: schemaVersion,
+		GeneratedAt: time.Now().UTC().Format(time.RFC3339),
+		Root: filepath.ToSlash(absRoot), Paths: reportPaths,
+		PHPStanVersion: version, PHPStanConfig: phpstanConfig, PHPStanConfigSHA256: configHash,
+		PHPVersion: phpVersion(absRoot), ReportManifestSHA256: reportManifestHash, IndexManifestSHA256: indexManifestHash,
+		Matching: "exact normalized path + start line + compatible identifier",
+		HeadlineMetric: "F1 (harmonic mean of diagnostic precision and recall)", CrosswalkSource: sources,
+	}
 	for _, level := range levels {
 		engine, engineResult, err := runEngine(absRoot, indexed, reportable, level, workers)
 		if err != nil {
@@ -292,15 +333,21 @@ func score(level int, engine, reference []diagnostic, crosswalk map[int]map[stri
 			}
 		}
 	}
-	matches, matchedReference := maximumMatches(adjacency, len(reference))
+	matches, matchedEngine, matchedReference := maximumMatches(adjacency, len(reference))
 	metrics.ExactMatches = matches
 	metrics.EngineOnly = len(engine) - metrics.ExactMatches
 	metrics.EngineOnlyReviewed = metrics.EngineOnly - metrics.UnmappedEngine
 	metrics.PHPStanOnly = len(reference) - metrics.ExactMatches
+	for i, issue := range engine {
+		if !matchedEngine[i] {
+			metrics.EngineOnlyDetails = append(metrics.EngineOnlyDetails, issue)
+		}
+	}
 	for i, expected := range reference {
 		if matchedReference[i] {
 			continue
 		}
+		metrics.PHPStanOnlyDetails = append(metrics.PHPStanOnlyDetails, expected)
 		if reviewedIdentifiers[expected.Identifier] {
 			metrics.PHPStanOnlyReviewed++
 		} else {
@@ -318,6 +365,25 @@ func score(level int, engine, reference []diagnostic, crosswalk map[int]map[stri
 	return metrics
 }
 
+func fileManifestSHA256(root string, paths []string) (string, error) {
+	ordered := append([]string(nil), paths...)
+	sort.Strings(ordered)
+	h := sha256.New()
+	for _, path := range ordered {
+		content, err := os.ReadFile(path)
+		if err != nil {
+			return "", err
+		}
+		relative := normalizePath(root, path)
+		fileHash := sha256.Sum256(content)
+		_, _ = h.Write([]byte(relative))
+		_, _ = h.Write([]byte{0})
+		_, _ = h.Write([]byte(fmt.Sprintf("%x", fileHash)))
+		_, _ = h.Write([]byte{'\n'})
+	}
+	return fmt.Sprintf("%x", h.Sum(nil)), nil
+}
+
 func loadCrosswalk(pattern string) (map[int]map[string]map[string]bool, []crosswalkSource, error) {
 	paths, err := expandCrosswalkGlob(pattern)
 	if err != nil {
@@ -329,6 +395,7 @@ func loadCrosswalk(pattern string) (map[int]map[string]map[string]bool, []crossw
 	sort.Strings(paths)
 	result := make(map[int]map[string]map[string]bool)
 	sources := make([]crosswalkSource, 0, len(paths))
+	pinnedVersion := ""
 	for _, path := range paths {
 		content, err := os.ReadFile(path)
 		if err != nil {
@@ -340,8 +407,13 @@ func loadCrosswalk(pattern string) (map[int]map[string]map[string]bool, []crossw
 		if err := decoder.Decode(&manifest); err != nil {
 			return nil, nil, fmt.Errorf("decode %s: %w", path, err)
 		}
-		if manifest.SchemaVersion != schemaVersion || manifest.Reference.Tool != "PHPStan" {
+		if manifest.SchemaVersion != schemaVersion || manifest.Reference.Tool != "PHPStan" || manifest.Reference.Version == "" || manifest.Reference.Configuration == "" {
 			return nil, nil, fmt.Errorf("unsupported crosswalk manifest %s", path)
+		}
+		if pinnedVersion == "" {
+			pinnedVersion = manifest.Reference.Version
+		} else if pinnedVersion != manifest.Reference.Version {
+			return nil, nil, fmt.Errorf("crosswalk mixes PHPStan versions %s and %s", pinnedVersion, manifest.Reference.Version)
 		}
 		level := manifest.Reference.Level
 		if level < 0 || level > 10 {
@@ -366,9 +438,16 @@ func loadCrosswalk(pattern string) (map[int]map[string]map[string]bool, []crossw
 				}
 			}
 		}
-		sources = append(sources, crosswalkSource{Path: filepath.ToSlash(path), SHA256: fmt.Sprintf("%x", sha256.Sum256(content))})
+		sources = append(sources, crosswalkSource{Path: filepath.ToSlash(path), SHA256: fmt.Sprintf("%x", sha256.Sum256(content)), Version: manifest.Reference.Version})
 	}
 	return result, sources, nil
+}
+
+func firstCrosswalkVersion(sources []crosswalkSource) string {
+	if len(sources) == 0 {
+		return "<none>"
+	}
+	return sources[0].Version
 }
 
 func collectPHPFiles(paths []string) ([]string, error) {
@@ -522,7 +601,7 @@ func identifiersAtLevel(crosswalk map[int]map[string]map[string]bool, level int,
 	return result
 }
 
-func maximumMatches(adjacency [][]int, referenceCount int) (int, []bool) {
+func maximumMatches(adjacency [][]int, referenceCount int) (int, []bool, []bool) {
 	matchedEngine := make([]int, referenceCount)
 	for i := range matchedEngine {
 		matchedEngine[i] = -1
@@ -549,10 +628,14 @@ func maximumMatches(adjacency [][]int, referenceCount int) (int, []bool) {
 		}
 	}
 	matchedReference := make([]bool, referenceCount)
+	matchedEngineCandidates := make([]bool, len(adjacency))
 	for i, engineIndex := range matchedEngine {
 		matchedReference[i] = engineIndex != -1
+		if engineIndex != -1 {
+			matchedEngineCandidates[engineIndex] = true
+		}
 	}
-	return matches, matchedReference
+	return matches, matchedEngineCandidates, matchedReference
 }
 
 func phpstanAnalyzedFiles(root, debugOutput string) map[string]bool {

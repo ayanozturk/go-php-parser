@@ -674,6 +674,9 @@ func (p *Parser) parseAttributeGroup() *GreenNode {
 		parts = append(parts, p.parseAttribute())
 		if p.at(token.T_COMMA) {
 			parts = append(parts, p.bump())
+			if p.at(token.T_RBRACKET) {
+				break
+			}
 			continue
 		}
 		break

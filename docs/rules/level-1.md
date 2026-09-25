@@ -8,10 +8,10 @@
 
 - **Introduced at this level:** 1 registered levelled rule, `Level1.Variables`.
 - **Cumulative registered levelled rules:** 3.
-- **Checked-in differential pack:** 24 cases in `testdata/diagnostic-differential-level1`.
+- **Checked-in differential pack:** 26 cases in `testdata/diagnostic-differential-level1`.
 
 ## Coverage and boundaries
 
-`Level1.Variables` reports always-undefined and possibly-undefined variable reads using joined flow facts. It covers common branches, short-circuit expressions, ternaries, bounded loops, `switch`, `try`/`catch`/`finally`, globals and statics, destructuring, closure captures, references, selected by-reference outputs, known-string dynamic reads, `extract`, `compact`, and `isset`/`empty` suppression.
+`Level1.Variables` reports always-undefined and possibly-undefined variable reads using joined flow facts. It covers common branches, short-circuit expressions, ternaries, bounded loops, `foreach` values read after the loop, `switch`, `try`/`catch`/`finally`, interpolated strings, globals and statics, destructuring, closure captures, references, selected by-reference outputs, known-string dynamic reads, `extract`, `compact`, and `isset`/`empty` suppression.
 
 Dynamic calls, dynamic transfer levels, complex dynamic-name expressions, and extension-dependent built-in signatures remain conservative or incomplete. Level 1 includes the cumulative level-0 rule set.

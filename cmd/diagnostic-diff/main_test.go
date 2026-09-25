@@ -11,10 +11,10 @@ func TestCheckedInEngineDifferentialBaseline(t *testing.T) {
 	if err != nil {
 		t.Fatalf("run engine differential baseline: %v", err)
 	}
-	if level0Report.Totals.Cases != 96 {
-		t.Fatalf("expected 96 level-0 differential cases, got %d", level0Report.Totals.Cases)
+	if level0Report.Totals.Cases != 98 {
+		t.Fatalf("expected 98 level-0 differential cases, got %d", level0Report.Totals.Cases)
 	}
-	if level0Report.Totals.EngineMismatches != 0 {
+	if level0Report.Totals.EngineMismatches != 0 || level0Report.Totals.UnsupportedCases != 2 {
 		t.Fatalf("engine differential baseline has %d mismatches: %#v", level0Report.Totals.EngineMismatches, level0Report.Cases)
 	}
 	if level0Report.Reference != nil {
@@ -25,8 +25,8 @@ func TestCheckedInEngineDifferentialBaseline(t *testing.T) {
 	if err != nil {
 		t.Fatalf("run engine level-1 differential baseline: %v", err)
 	}
-	if level1Report.Totals.Cases != 24 {
-		t.Fatalf("expected 24 level-1 differential cases, got %d", level1Report.Totals.Cases)
+	if level1Report.Totals.Cases != 26 {
+		t.Fatalf("expected 26 level-1 differential cases, got %d", level1Report.Totals.Cases)
 	}
 	if level1Report.Totals.EngineMismatches != 0 {
 		t.Fatalf("engine level-1 differential baseline has %d mismatches: %#v", level1Report.Totals.EngineMismatches, level1Report.Cases)
@@ -39,7 +39,7 @@ func TestCheckedInEngineDifferentialBaseline(t *testing.T) {
 	if err != nil {
 		t.Fatalf("run engine level-2 differential baseline: %v", err)
 	}
-	if level2Report.Totals.Cases != 104 || level2Report.Totals.EngineMismatches != 0 {
+	if level2Report.Totals.Cases != 105 || level2Report.Totals.EngineMismatches != 0 {
 		t.Fatalf("unexpected level-2 differential baseline: %#v", level2Report.Totals)
 	}
 	if level2Report.Reference != nil {
@@ -61,7 +61,7 @@ func TestCheckedInEngineDifferentialBaseline(t *testing.T) {
 	if err != nil {
 		t.Fatalf("run engine level-5 differential baseline: %v", err)
 	}
-	if level5Report.Totals.Cases != 50 || level5Report.Totals.EngineMismatches != 0 {
+	if level5Report.Totals.Cases != 51 || level5Report.Totals.EngineMismatches != 0 {
 		t.Fatalf("unexpected level-5 differential baseline: %#v", level5Report.Totals)
 	}
 	if level5Report.Reference != nil {
@@ -72,7 +72,7 @@ func TestCheckedInEngineDifferentialBaseline(t *testing.T) {
 	if err != nil {
 		t.Fatalf("run engine level-6 differential baseline: %v", err)
 	}
-	if level6Report.Totals.Cases != 26 || level6Report.Totals.EngineMismatches != 0 {
+	if level6Report.Totals.Cases != 27 || level6Report.Totals.EngineMismatches != 0 {
 		t.Fatalf("unexpected level-6 differential baseline: %#v", level6Report.Totals)
 	}
 	if level6Report.Reference != nil {
@@ -106,7 +106,7 @@ func TestLoadManifestRejectsDuplicateCaseIDs(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "manifest.json")
 	content := []byte(`{
   "schemaVersion": 1,
-  "reference": {"tool": "PHPStan", "level": 0},
+  "reference": {"tool": "PHPStan", "version": "2.2.5", "level": 0, "configuration": "../phpstan-differential.neon"},
   "cases": [
     {"id": "same", "capability": "one", "file": "one.php", "engineCodes": [], "phpstanIdentifiers": []},
     {"id": "same", "capability": "two", "file": "two.php", "engineCodes": [], "phpstanIdentifiers": []}
@@ -117,6 +117,23 @@ func TestLoadManifestRejectsDuplicateCaseIDs(t *testing.T) {
 	}
 	if _, err := loadManifest(path); err == nil {
 		t.Fatal("expected duplicate case id to be rejected")
+	}
+}
+
+func TestLoadManifestRequiresIdentifiersForUnsupportedCases(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "manifest.json")
+	content := []byte(`{
+  "schemaVersion": 1,
+  "reference": {"tool": "PHPStan", "version": "2.2.5", "level": 0, "configuration": "../phpstan-differential.neon"},
+  "cases": [
+    {"id": "unsupported", "capability": "not implemented", "file": "unsupported.php", "engineSupport": "unsupported", "engineCodes": [], "phpstanIdentifiers": []}
+  ]
+}`)
+	if err := os.WriteFile(path, content, 0o600); err != nil {
+		t.Fatalf("write manifest: %v", err)
+	}
+	if _, err := loadManifest(path); err == nil {
+		t.Fatal("expected unsupported case without a PHPStan identifier to be rejected")
 	}
 }
 

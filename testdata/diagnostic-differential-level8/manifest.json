@@ -2,7 +2,9 @@
   "schemaVersion": 1,
   "reference": {
     "tool": "PHPStan",
-    "level": 8
+    "level": 8,
+    "version": "2.2.5",
+    "configuration": "../phpstan-differential.neon"
   },
   "cases": [
     {

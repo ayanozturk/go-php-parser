@@ -53,28 +53,33 @@ func TestParsePropertyHooksStructured(t *testing.T) {
 		wantHooks int
 	}{
 		{
-			name: "arrow get/set",
-			src:  "<?php\nclass C { public string $x { get => $this->x; set => $this->x = $value; } }\n",
+			name:      "arrow get/set",
+			src:       "<?php\nclass C { public string $x { get => $this->x; set => $this->x = $value; } }\n",
 			wantProps: 1, wantLists: 1, wantHooks: 2,
 		},
 		{
-			name: "abstract get",
-			src:  "<?php\nabstract class C { abstract public string $bar { get; } }\n",
+			name:      "arrow get/set with default value",
+			src:       "<?php\nclass C { public int $x = 321 { get => $this->x; set => $this->x = $value; } }\n",
+			wantProps: 1, wantLists: 1, wantHooks: 2,
+		},
+		{
+			name:      "abstract get",
+			src:       "<?php\nabstract class C { abstract public string $bar { get; } }\n",
 			wantProps: 1, wantLists: 1, wantHooks: 1,
 		},
 		{
-			name: "interface get/set",
-			src:  "<?php\ninterface I { public string $foo { get; set; } }\n",
+			name:      "interface get/set",
+			src:       "<?php\ninterface I { public string $foo { get; set; } }\n",
 			wantProps: 1, wantLists: 1, wantHooks: 2,
 		},
 		{
-			name: "braced body with set params",
-			src:  "<?php\nclass C { public string $x { get { return $this->x; } set (string $v) { $this->x = $v; } } }\n",
+			name:      "braced body with set params",
+			src:       "<?php\nclass C { public string $x { get { return $this->x; } set (string $v) { $this->x = $v; } } }\n",
 			wantProps: 1, wantLists: 1, wantHooks: 2,
 		},
 		{
-			name: "asymmetric visibility without hooks",
-			src:  "<?php\nclass C { public private(set) string $x; }\n",
+			name:      "asymmetric visibility without hooks",
+			src:       "<?php\nclass C { public private(set) string $x; }\n",
 			wantProps: 1, wantLists: 0, wantHooks: 0,
 		},
 	}

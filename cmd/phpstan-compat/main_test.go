@@ -25,6 +25,42 @@ func TestScoreUsesExactLocationAndIdentifierCrosswalk(t *testing.T) {
 	if got.PrecisionPct != 33.33 || got.RecallPct != 50 || got.CompatibilityPct != 40 {
 		t.Fatalf("unexpected percentages: %#v", got)
 	}
+	if len(got.EngineOnlyDetails) != 2 || got.EngineOnlyDetails[0].Code != "Level1.Variables" || len(got.PHPStanOnlyDetails) != 1 || got.PHPStanOnlyDetails[0].Identifier != "variable.undefined" {
+		t.Fatalf("unexpected mismatch details: %#v", got)
+	}
+}
+
+func TestFileManifestSHA256IsStableAndTracksContents(t *testing.T) {
+	root := t.TempDir()
+	first := filepath.Join(root, "a.php")
+	second := filepath.Join(root, "b.php")
+	if err := os.WriteFile(first, []byte("<?php A;\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(second, []byte("<?php B;\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	forward, err := fileManifestSHA256(root, []string{first, second})
+	if err != nil {
+		t.Fatal(err)
+	}
+	reversed, err := fileManifestSHA256(root, []string{second, first})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if forward == "" || forward != reversed {
+		t.Fatalf("file manifest hash should be stable across input ordering: %q != %q", forward, reversed)
+	}
+	if err := os.WriteFile(second, []byte("<?php changed;\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	changed, err := fileManifestSHA256(root, []string{first, second})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if changed == forward {
+		t.Fatal("file manifest hash did not change after a source edit")
+	}
 }
 
 func TestScoreTreatsDuplicateDiagnosticsAsSeparate(t *testing.T) {
@@ -117,7 +153,7 @@ func TestScoreUsesOnlyMappingsReviewedAtOrBelowLevel(t *testing.T) {
 func TestLoadCrosswalkBuildsAllowedPairs(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "manifest.json")
-	content := []byte(`{"schemaVersion":1,"reference":{"tool":"PHPStan","level":0},"cases":[{"engineCodes":["A"],"phpstanIdentifiers":["a","b"]}]}`)
+	content := []byte(`{"schemaVersion":1,"reference":{"tool":"PHPStan","version":"2.2.5","level":0,"configuration":"../phpstan-differential.neon"},"cases":[{"engineCodes":["A"],"phpstanIdentifiers":["a","b"]}]}`)
 	if err := os.WriteFile(path, content, 0o600); err != nil {
 		t.Fatal(err)
 	}
@@ -133,7 +169,7 @@ func TestLoadCrosswalkBuildsAllowedPairs(t *testing.T) {
 func TestLoadCrosswalkIgnoresEmptyCodesAndIdentifiers(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "manifest.json")
-	content := []byte(`{"schemaVersion":1,"reference":{"tool":"PHPStan","level":0},"cases":[{"id":"clean","engineCodes":[],"phpstanIdentifiers":[]},{"engineCodes":["Mapped"],"phpstanIdentifiers":["mapped.id"]}]}`)
+	content := []byte(`{"schemaVersion":1,"reference":{"tool":"PHPStan","version":"2.2.5","level":0,"configuration":"../phpstan-differential.neon"},"cases":[{"id":"clean","engineCodes":[],"phpstanIdentifiers":[]},{"engineCodes":["Mapped"],"phpstanIdentifiers":["mapped.id"]}]}`)
 	if err := os.WriteFile(path, content, 0o600); err != nil {
 		t.Fatal(err)
 	}

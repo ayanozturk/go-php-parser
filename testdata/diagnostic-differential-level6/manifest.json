@@ -2,7 +2,9 @@
   "schemaVersion": 1,
   "reference": {
     "tool": "PHPStan",
-    "level": 6
+    "level": 6,
+    "version": "2.2.5",
+    "configuration": "../phpstan-differential.neon"
   },
   "cases": [
     {
@@ -184,6 +186,13 @@
       "id": "clean-doctrine-collection-iterable-generic",
       "capability": "documented Doctrine Collection generic arguments are clean",
       "file": "clean-doctrine-collection-iterable-generic.php",
+      "engineCodes": [],
+      "phpstanIdentifiers": []
+    },
+    {
+      "id": "phpunit-data-provider-attributed-param",
+      "capability": "PHPDoc iterable type on an attributed PHPUnit data-provider parameter",
+      "file": "phpunit-data-provider-attributed-param.php",
       "engineCodes": [],
       "phpstanIdentifiers": []
     }

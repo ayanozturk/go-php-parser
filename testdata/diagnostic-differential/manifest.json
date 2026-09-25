@@ -2,7 +2,9 @@
   "schemaVersion": 1,
   "reference": {
     "tool": "PHPStan",
-    "level": 0
+    "level": 0,
+    "version": "2.2.5",
+    "configuration": "../phpstan-differential.neon"
   },
   "cases": [
     {
@@ -1012,6 +1014,22 @@
       "file": "property-closure-type.php",
       "engineCodes": [],
       "phpstanIdentifiers": []
+    },
+    {
+      "id": "uninitialized-readonly-property",
+      "capability": "readonly properties without constructor initialization",
+      "file": "uninitialized-readonly-property.php",
+      "engineSupport": "unsupported",
+      "engineCodes": [],
+      "phpstanIdentifiers": ["property.uninitializedReadonly"]
+    },
+    {
+      "id": "incompatible-parameter-variance",
+      "capability": "contravariant interface parameter contracts",
+      "file": "incompatible-parameter-variance.php",
+      "engineSupport": "unsupported",
+      "engineCodes": [],
+      "phpstanIdentifiers": ["method.childParameterType"]
     }
   ]
 }

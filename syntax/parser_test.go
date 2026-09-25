@@ -68,6 +68,28 @@ func TestParseNameKinds(t *testing.T) {
 	}
 }
 
+func TestParseNewDynamicClassName(t *testing.T) {
+	src := []byte("<?php\n$instance = new ${($class = get_class_name()) ?: 'Fallback'}($value);\n")
+	res := Parse(src)
+	if len(res.Diagnostics) != 0 {
+		t.Fatalf("unexpected diagnostics: %#v", res.Diagnostics)
+	}
+	if got := Print(res.File.Root); got != string(src) {
+		t.Fatalf("source identity failed\nwant %q\ngot  %q", src, got)
+	}
+	var newExpr *RedNode
+	Walk(res.File.Root, func(n *RedNode) bool {
+		if n.Kind() == KindNewExpr {
+			newExpr = &RedNode{File: n.File, Green: n.Green, Offset: n.Offset}
+			return false
+		}
+		return true
+	})
+	if newExpr == nil {
+		t.Fatal("expected dynamic class instantiation")
+	}
+}
+
 func TestParseParamByRefNotIntersection(t *testing.T) {
 	src := "<?php\nfunction f(array &$a) {}\n"
 	res := Parse([]byte(src))
@@ -794,5 +816,3 @@ func TestStaticClosureExprIdentity(t *testing.T) {
 		}
 	}
 }
-
-
