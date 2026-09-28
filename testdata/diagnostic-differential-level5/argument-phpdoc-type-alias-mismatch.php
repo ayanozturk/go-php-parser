@@ -13,7 +13,7 @@ final readonly class CompanyOverview
     }
 }
 
-function run(): void
+function run(): CompanyOverview
 {
-    new CompanyOverview('not-an-array');
+    return new CompanyOverview('not-an-array');
 }

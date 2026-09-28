@@ -11,22 +11,34 @@
       "id": "unknown-method-partial-union",
       "capability": "unknown methods on partial unions",
       "file": "unknown-method-partial-union.php",
-      "engineCodes": ["Level7.MethodUnion"],
-      "phpstanIdentifiers": ["method.notFound"]
+      "engineCodes": [
+        "Level7.MethodUnion"
+      ],
+      "phpstanIdentifiers": [
+        "method.notFound"
+      ]
     },
     {
       "id": "unknown-method-partial-dnf",
       "capability": "unknown methods on partial DNF receivers",
       "file": "unknown-method-partial-dnf.php",
-      "engineCodes": ["Level7.MethodUnion"],
-      "phpstanIdentifiers": ["method.notFound"]
+      "engineCodes": [
+        "Level7.MethodUnion"
+      ],
+      "phpstanIdentifiers": [
+        "method.notFound"
+      ]
     },
     {
       "id": "unknown-method-partial-dnf-available",
       "capability": "unknown methods on partial DNF with an available member",
       "file": "unknown-method-partial-dnf-available.php",
-      "engineCodes": ["Level7.MethodUnion"],
-      "phpstanIdentifiers": ["method.notFound"]
+      "engineCodes": [
+        "Level7.MethodUnion"
+      ],
+      "phpstanIdentifiers": [
+        "method.notFound"
+      ]
     },
     {
       "id": "known-method-all-dnf-alternatives",
@@ -60,8 +72,30 @@
       "id": "argument-strict-return-union",
       "capability": "strict argument checking for a false return union",
       "file": "argument-strict-return-union.php",
-      "engineCodes": ["A.ARG.TYPE"],
-      "phpstanIdentifiers": ["argument.type"]
+      "engineCodes": [
+        "A.ARG.TYPE"
+      ],
+      "phpstanIdentifiers": [
+        "argument.type"
+      ]
+    },
+    {
+      "id": "argument-false-ternary-mismatch",
+      "capability": "DateTimeImmutable|null|false without ternary is rejected",
+      "file": "argument-false-ternary-mismatch.php",
+      "engineCodes": [
+        "A.ARG.TYPE"
+      ],
+      "phpstanIdentifiers": [
+        "argument.type"
+      ]
+    },
+    {
+      "id": "argument-nullable-boundary-clean",
+      "capability": "nullable argument mismatch stays silent at level 7",
+      "file": "argument-nullable-boundary-clean.php",
+      "engineCodes": [],
+      "phpstanIdentifiers": []
     }
   ]
 }

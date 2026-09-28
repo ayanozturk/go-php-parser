@@ -10,14 +10,11 @@ function save(ResetPassword $reset): void
 
 function findReset(?ResetPassword $candidate): ?ResetPassword
 {
-    return $candidate;
+	return $candidate;
 }
 
 function run(?ResetPassword $candidate): void
 {
-    $passwordReset = findReset($candidate);
-    if (!$passwordReset) {
-        $passwordReset = new ResetPassword();
-    }
+	$passwordReset = findReset($candidate);
     save($passwordReset);
 }

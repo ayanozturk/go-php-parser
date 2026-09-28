@@ -5,7 +5,7 @@ namespace Composer {
     {
         public static function getPrettyVersion(string $packageName): ?string
         {
-            return null;
+            return random_int(0, 1) === 0 ? null : '1.0.0';
         }
     }
 }

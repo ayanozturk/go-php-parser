@@ -299,6 +299,160 @@
       "file": "nullable-get-previous-constructor-chain.php",
       "engineCodes": [],
       "phpstanIdentifiers": []
+    },
+    {
+      "id": "argument-var-doc-mismatch",
+      "capability": "nullable User without @var is rejected",
+      "file": "argument-var-doc-mismatch.php",
+      "engineCodes": [
+        "A.ARG.TYPE"
+      ],
+      "phpstanIdentifiers": [
+        "argument.type"
+      ]
+    },
+    {
+      "id": "argument-is-string-early-return-mismatch",
+      "capability": "nullable string without is_string guard is rejected",
+      "file": "argument-is-string-early-return-mismatch.php",
+      "engineCodes": [
+        "A.ARG.TYPE"
+      ],
+      "phpstanIdentifiers": [
+        "argument.type"
+      ]
+    },
+    {
+      "id": "argument-find-class-string-mismatch",
+      "capability": "find(Foo::class) without null check is rejected",
+      "file": "argument-find-class-string-mismatch.php",
+      "engineCodes": [
+        "A.ARG.TYPE"
+      ],
+      "phpstanIdentifiers": [
+        "argument.type"
+      ]
+    },
+    {
+      "id": "argument-container-get-class-string-mismatch",
+      "capability": "container get(Foo::class) without null check is rejected",
+      "file": "argument-container-get-class-string-mismatch.php",
+      "engineCodes": [
+        "A.ARG.TYPE"
+      ],
+      "phpstanIdentifiers": [
+        "argument.type"
+      ]
+    },
+    {
+      "id": "argument-container-get-string-id-mismatch",
+      "capability": "container get(string id) passed to typed param is rejected",
+      "file": "argument-container-get-string-id-mismatch.php",
+      "engineCodes": [
+        "A.ARG.TYPE"
+      ],
+      "phpstanIdentifiers": [
+        "argument.type"
+      ]
+    },
+    {
+      "id": "argument-nullsafe-property-mismatch",
+      "capability": "nullable object without nullsafe property guard is rejected",
+      "file": "argument-nullsafe-property-mismatch.php",
+      "engineCodes": [
+        "A.ARG.TYPE"
+      ],
+      "phpstanIdentifiers": [
+        "argument.type"
+      ]
+    },
+    {
+      "id": "argument-property-instanceof-mismatch",
+      "capability": "nullable property without instanceof is rejected",
+      "file": "argument-property-instanceof-mismatch.php",
+      "engineCodes": [
+        "A.ARG.TYPE"
+      ],
+      "phpstanIdentifiers": [
+        "argument.type"
+      ]
+    },
+    {
+      "id": "argument-property-truthy-mismatch",
+      "capability": "nullable property without truthy guard is rejected",
+      "file": "argument-property-truthy-mismatch.php",
+      "engineCodes": [
+        "A.ARG.TYPE"
+      ],
+      "phpstanIdentifiers": [
+        "argument.type"
+      ]
+    },
+    {
+      "id": "argument-while-null-mismatch",
+      "capability": "nullable loop variable without while null check is rejected",
+      "file": "argument-while-null-mismatch.php",
+      "engineCodes": [
+        "A.ARG.TYPE"
+      ],
+      "phpstanIdentifiers": [
+        "argument.type"
+      ]
+    },
+    {
+      "id": "argument-var-doc-switch-mismatch",
+      "capability": "nullable getUser in switch without @var is rejected",
+      "file": "argument-var-doc-switch-mismatch.php",
+      "engineCodes": [
+        "A.ARG.TYPE"
+      ],
+      "phpstanIdentifiers": [
+        "argument.type"
+      ]
+    },
+    {
+      "id": "argument-var-doc-after-if-mismatch",
+      "capability": "nullable getUser after terminating if without @var is rejected",
+      "file": "argument-var-doc-after-if-mismatch.php",
+      "engineCodes": [
+        "A.ARG.TYPE"
+      ],
+      "phpstanIdentifiers": [
+        "argument.type"
+      ]
+    },
+    {
+      "id": "composer-installed-versions-mismatch",
+      "capability": "nullable Composer package versions cannot be passed as strings",
+      "file": "composer-installed-versions-mismatch.php",
+      "engineCodes": [
+        "A.ARG.TYPE"
+      ],
+      "phpstanIdentifiers": [
+        "argument.type"
+      ]
+    },
+    {
+      "id": "argument-nullable-argument-mismatch",
+      "capability": "nullable argument mismatch starts at level 8",
+      "file": "argument-nullable-argument-mismatch.php",
+      "engineCodes": [
+        "A.ARG.TYPE"
+      ],
+      "phpstanIdentifiers": [
+        "argument.type"
+      ]
+    },
+    {
+      "id": "argument-falsy-assign-init-mismatch",
+      "capability": "nullable object without falsy assign-init is rejected",
+      "file": "argument-falsy-assign-init-mismatch.php",
+      "engineCodes": [
+        "A.ARG.TYPE"
+      ],
+      "phpstanIdentifiers": [
+        "argument.type"
+      ]
     }
   ]
 }

@@ -1,6 +1,6 @@
 # Current implementation plan
 
-Status: ready
+Status: in progress
 
 Roadmap source: short-term item 2
 
@@ -12,13 +12,20 @@ This is the previously reprioritized next item after short-term item 3 was compl
 
 Improve analyser compatibility through evidence-backed semantic fixes, neutral fixtures, and framework metadata while preserving the agreed corpus behavior and keeping capability documentation synchronized with executable rules.
 
+## Baseline evidence (2026-09-28)
+
+- The external HR corpus contains 1,930 PHP files (source manifest SHA256 `e0a6e4771fbdc5853fa9931d64e6c0bed7c5cf35697dd1d8f2880ce9fb647bf2`). Its PHPStan 2.1.44 phar is pinned by SHA256 `f9e9524f8e3d3c6338ced11d1911860989165edeedc5b1084d8d53abd87cc7ab`; the level-7 configuration SHA256 is `2cebafcacff07d42a69719403533ec3bc44905030bb4f7ee61315691080a5526`.
+- Reference baseline: PHPStan reported 0 diagnostics across the 1,930 files at the configured level 7. The production-equivalent PHP Strom scan with parser `fbc5ea2a` reported 30 `A.ARG.TYPE` findings across four files and no other reportable diagnostics. On this measured corpus/run, the diagnostic comparison is 0 true positives, 30 false positives, and 0 false negatives.
+- The findings reduce to short-ternary `DateTime::createFromFormat()` falsey narrowing and PHPUnit `assertNotFalse()` narrowing. Private source, paths, and messages remain external and are not fixture material.
+- Differential suites use their checked-in PHPStan 2.2.5 pin, separate from the private project's PHPStan 2.1.44 reference. Levels 0–3 and 5–8 pass with 98, 26, 105, 44, 39, 28, 10, and 49 cases respectively; level 4 has no checked-in differential pack.
+
 ## Work sequence
 
 ### 1. Re-establish baselines
 
-- [ ] Locate and run the exact private-corpus manifest with its pinned reference versions and configuration.
-- [ ] Record current true-positive, false-positive, and false-negative counts; do not infer these from fixture totals.
-- [ ] Run the current checked-in differential suites and identify the highest-impact remaining gaps.
+- [x] Re-run the exact private-corpus source/config manifest with its pinned reference version and configuration.
+- [x] Record current true-positive, false-positive, and false-negative counts for the measured private run; do not infer these from fixture totals.
+- [x] Run all checked-in differential suites and identify the highest-impact remaining gaps.
 
 ### 2. Fix compatibility gaps
 

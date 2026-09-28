@@ -15,8 +15,8 @@ namespace Tests {
 
     final class ProviderTest
     {
-        #[DataProvider('stringCases')]
         /** @param list<string> $values */
+        #[DataProvider('stringCases')]
         public function testValues(array $values): void
         {
         }

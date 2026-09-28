@@ -2,8 +2,12 @@
 
 namespace Doctrine\Common\Collections;
 
-/** @template TKey of array-key @template T @extends \IteratorAggregate<TKey, T> */
-interface Collection extends \IteratorAggregate {}
+/**
+ * @template TKey of array-key
+ * @template T
+ * @extends \IteratorAggregate<TKey, T>
+ */
+interface Collection extends \IteratorAggregate, \Countable {}
 
 namespace App;
 

@@ -29,6 +29,33 @@ function run(): void { acceptInt('wrong'); }
 	}
 }
 
+func TestNullableArgumentMismatchStartsAtPHPStanLevel8(t *testing.T) {
+	const source = `<?php
+class User {}
+function requireUser(User $user): void {}
+function run(?User $user): void { requireUser($user); }
+`
+	if issues := runAnalysisLevelOnFiles(t, map[string]string{"test.php": source}, 7); hasArgTypeIssue(issues) {
+		t.Fatalf("nullable argument mismatch must stay silent through level 7, got %#v", issues)
+	}
+	if issues := runAnalysisLevelOnFiles(t, map[string]string{"test.php": source}, 8); !hasArgTypeIssue(issues) {
+		t.Fatalf("nullable argument mismatch should be reported at level 8, got %#v", issues)
+	}
+}
+
+func TestFalseUnionArgumentMismatchStartsAtPHPStanLevel7(t *testing.T) {
+	const source = `<?php
+function requireDateTime(?DateTimeImmutable $date): void {}
+function run(DateTimeImmutable|null|false $date): void { requireDateTime($date); }
+`
+	if issues := runAnalysisLevelOnFiles(t, map[string]string{"test.php": source}, 6); hasArgTypeIssue(issues) {
+		t.Fatalf("a false-only extra union arm must stay silent through level 6, got %#v", issues)
+	}
+	if issues := runAnalysisLevelOnFiles(t, map[string]string{"test.php": source}, 7); !hasArgTypeIssue(issues) {
+		t.Fatalf("a false-only extra union arm should be reported at level 7, got %#v", issues)
+	}
+}
+
 func analysePHPArgTypesWithProject(t *testing.T, code string) []AnalysisIssue {
 	t.Helper()
 	nodes, diags := syntax.ParseAST([]byte(code))
@@ -403,11 +430,11 @@ class Controller
 }
 `,
 	}
-	if issues := runAnalysisLevelOnFiles(t, files, 4); hasArgTypeIssue(issues) {
-		t.Fatalf("expected nullable User mismatch to remain silent at level 4, got %#v", issues)
+	if issues := runAnalysisLevelOnFiles(t, files, 7); hasArgTypeIssue(issues) {
+		t.Fatalf("expected nullable User mismatch to remain silent through level 7, got %#v", issues)
 	}
-	if issues := runAnalysisLevelOnFiles(t, files, 5); !hasArgTypeIssue(issues) {
-		t.Fatalf("expected nullable User without @var to mismatch, got %#v", issues)
+	if issues := runAnalysisLevelOnFiles(t, files, 8); !hasArgTypeIssue(issues) {
+		t.Fatalf("expected nullable User without @var to mismatch at level 8, got %#v", issues)
 	}
 }
 
@@ -434,11 +461,11 @@ namespace App {
 }
 `,
 	}
-	if issues := runAnalysisLevelOnFiles(t, files, 4); hasArgTypeIssue(issues) {
-		t.Fatalf("static nullable return should remain unchecked at level 4, got %#v", issues)
+	if issues := runAnalysisLevelOnFiles(t, files, 7); hasArgTypeIssue(issues) {
+		t.Fatalf("static nullable return should remain unchecked through level 7, got %#v", issues)
 	}
-	if issues := runAnalysisLevelOnFiles(t, files, 5); !hasArgTypeIssue(issues) {
-		t.Fatalf("expected static nullable return to mismatch string parameter, got %#v", issues)
+	if issues := runAnalysisLevelOnFiles(t, files, 8); !hasArgTypeIssue(issues) {
+		t.Fatalf("expected static nullable return to mismatch string parameter at level 8, got %#v", issues)
 	}
 }
 
@@ -467,8 +494,8 @@ class Controller
 }
 `,
 	}
-	if issues := runAnalysisLevelOnFiles(t, files, 5); !hasArgTypeIssue(issues) {
-		t.Fatalf("expected @var on a different variable not to silence nullable User, got %#v", issues)
+	if issues := runAnalysisLevelOnFiles(t, files, 8); !hasArgTypeIssue(issues) {
+		t.Fatalf("expected @var on a different variable not to silence nullable User at level 8, got %#v", issues)
 	}
 }
 
@@ -671,11 +698,11 @@ function run(View $view): void
     createCompanyRows($view->companyHealthOverview);
 }
 `}
-	if issues := runAnalysisLevelOnFiles(t, files, 4); hasArgTypeIssue(issues) {
-		t.Fatalf("expected nullable CompanyTeamHealthOverview mismatch to remain silent at level 4, got %#v", issues)
+	if issues := runAnalysisLevelOnFiles(t, files, 7); hasArgTypeIssue(issues) {
+		t.Fatalf("expected nullable CompanyTeamHealthOverview mismatch to remain silent through level 7, got %#v", issues)
 	}
-	if issues := runAnalysisLevelOnFiles(t, files, 5); !hasArgTypeIssue(issues) {
-		t.Fatalf("expected nullable CompanyTeamHealthOverview without instanceof guard to mismatch, got %#v", issues)
+	if issues := runAnalysisLevelOnFiles(t, files, 8); !hasArgTypeIssue(issues) {
+		t.Fatalf("expected nullable CompanyTeamHealthOverview without instanceof guard to mismatch at level 8, got %#v", issues)
 	}
 }
 
@@ -723,11 +750,11 @@ function run(Request $request): void
     echo (new \DateTimeImmutable($request->targetDateIso))->format('c');
 }
 `}
-	if issues := runAnalysisLevelOnFiles(t, files, 4); hasArgTypeIssue(issues) {
-		t.Fatalf("expected nullable string property mismatch to remain silent at level 4, got %#v", issues)
+	if issues := runAnalysisLevelOnFiles(t, files, 7); hasArgTypeIssue(issues) {
+		t.Fatalf("expected nullable string property mismatch to remain silent through level 7, got %#v", issues)
 	}
-	if issues := runAnalysisLevelOnFiles(t, files, 5); !hasArgTypeIssue(issues) {
-		t.Fatalf("expected nullable string property without guard to mismatch, got %#v", issues)
+	if issues := runAnalysisLevelOnFiles(t, files, 8); !hasArgTypeIssue(issues) {
+		t.Fatalf("expected nullable string property without guard to mismatch at level 8, got %#v", issues)
 	}
 }
 
@@ -764,11 +791,11 @@ function run(Task $task): void
     sumChildren($task->parent());
 }
 `}
-	if issues := runAnalysisLevelOnFiles(t, files, 4); hasArgTypeIssue(issues) {
-		t.Fatalf("expected nullable Task mismatch to remain silent at level 4, got %#v", issues)
+	if issues := runAnalysisLevelOnFiles(t, files, 7); hasArgTypeIssue(issues) {
+		t.Fatalf("expected nullable Task mismatch to remain silent through level 7, got %#v", issues)
 	}
-	if issues := runAnalysisLevelOnFiles(t, files, 5); !hasArgTypeIssue(issues) {
-		t.Fatalf("expected nullable Task without while null guard to mismatch, got %#v", issues)
+	if issues := runAnalysisLevelOnFiles(t, files, 8); !hasArgTypeIssue(issues) {
+		t.Fatalf("expected nullable Task without while null guard to mismatch at level 8, got %#v", issues)
 	}
 }
 
@@ -794,11 +821,11 @@ function run(\DateTimeImmutable|null|false $dueDate): void
     makeDue($dueDate);
 }
 `}
-	if issues := runAnalysisLevelOnFiles(t, files, 4); hasArgTypeIssue(issues) {
-		t.Fatalf("expected DateTimeImmutable|null|false mismatch to remain silent at level 4, got %#v", issues)
+	if issues := runAnalysisLevelOnFiles(t, files, 6); hasArgTypeIssue(issues) {
+		t.Fatalf("expected DateTimeImmutable|null|false mismatch to remain silent through level 6, got %#v", issues)
 	}
-	if issues := runAnalysisLevelOnFiles(t, files, 5); !hasArgTypeIssue(issues) {
-		t.Fatalf("expected DateTimeImmutable|null|false without ternary guard to mismatch, got %#v", issues)
+	if issues := runAnalysisLevelOnFiles(t, files, 7); !hasArgTypeIssue(issues) {
+		t.Fatalf("expected DateTimeImmutable|null|false without ternary guard to mismatch at level 7, got %#v", issues)
 	}
 }
 
@@ -906,11 +933,11 @@ class Controller
     }
 }
 `}
-	if issues := runAnalysisLevelOnFiles(t, files, 4); hasArgTypeIssue(issues) {
-		t.Fatalf("expected nullable User mismatch inside switch to remain silent at level 4, got %#v", issues)
+	if issues := runAnalysisLevelOnFiles(t, files, 7); hasArgTypeIssue(issues) {
+		t.Fatalf("expected nullable User mismatch inside switch to remain silent through level 7, got %#v", issues)
 	}
-	if issues := runAnalysisLevelOnFiles(t, files, 5); !hasArgTypeIssue(issues) {
-		t.Fatalf("expected nullable User without @var inside switch to mismatch, got %#v", issues)
+	if issues := runAnalysisLevelOnFiles(t, files, 8); !hasArgTypeIssue(issues) {
+		t.Fatalf("expected nullable User without @var inside switch to mismatch at level 8, got %#v", issues)
 	}
 }
 
@@ -1033,11 +1060,11 @@ function run(): void
 }
 `,
 	}
-	if issues := runAnalysisLevelOnFiles(t, files, 4); hasArgTypeIssue(issues) {
-		t.Fatalf("expected nullable ResetPassword mismatch to remain silent at level 4, got %#v", issues)
+	if issues := runAnalysisLevelOnFiles(t, files, 7); hasArgTypeIssue(issues) {
+		t.Fatalf("expected nullable ResetPassword mismatch to remain silent through level 7, got %#v", issues)
 	}
-	if issues := runAnalysisLevelOnFiles(t, files, 5); !hasArgTypeIssue(issues) {
-		t.Fatalf("expected nullable ResetPassword without falsy assign init to mismatch, got %#v", issues)
+	if issues := runAnalysisLevelOnFiles(t, files, 8); !hasArgTypeIssue(issues) {
+		t.Fatalf("expected nullable ResetPassword without falsy assign init to mismatch at level 8, got %#v", issues)
 	}
 }
 
@@ -1059,6 +1086,49 @@ function run(): void
 	}
 	if issues := runAnalysisLevelOnFiles(t, files, 5); hasArgTypeIssue(issues) {
 		t.Fatalf("expected if ($x === false) { $x = 0 } to narrow int|false to int, got %#v", issues)
+	}
+}
+
+func TestShortTernaryNarrowsFalseFromTruthyResult(t *testing.T) {
+	const source = `<?php
+function acceptsNullableDateTime(?DateTime $date): void {}
+function run(): void
+{
+    acceptsNullableDateTime(DateTime::createFromFormat('!Y-m-d', '2026-01-02') ?: null);
+}
+function runWithoutFallback(): void
+{
+    acceptsNullableDateTime(DateTime::createFromFormat('!Y-m-d', '2026-01-02'));
+}
+`
+	if issues := runAnalysisLevelOnFiles(t, map[string]string{"test.php": source}, 5); hasArgTypeIssue(issues) {
+		t.Fatalf("a short ternary must exclude false from the truthy result, got %#v", issues)
+	}
+	if issues := runAnalysisLevelOnFiles(t, map[string]string{"test.php": source}, 7); !hasArgTypeIssue(issues) {
+		t.Fatalf("an unguarded DateTime|false value should remain incompatible at level 7, got %#v", issues)
+	}
+}
+
+func TestPHPUnitAssertNotFalseNarrowsArgumentType(t *testing.T) {
+	const source = `<?php
+namespace PHPUnit\Framework {
+    class Assert {
+        /** @phpstan-assert !false $actual */
+        public static function assertNotFalse(mixed $actual): void {}
+    }
+}
+
+namespace App {
+    function acceptsDateTime(\DateTime $date): void {}
+    function run(\DateTime|false $date): void
+    {
+        \PHPUnit\Framework\Assert::assertNotFalse($date);
+        acceptsDateTime($date);
+    }
+}
+`
+	if issues := runAnalysisLevelOnFiles(t, map[string]string{"test.php": source}, 5); hasArgTypeIssue(issues) {
+		t.Fatalf("assertNotFalse must remove false from the argument type, got %#v", issues)
 	}
 }
 
@@ -1101,11 +1171,11 @@ function run(?PreferenceFitScore $preferenceFit): void
 }
 `,
 	}
-	if issues := runAnalysisLevelOnFiles(t, files, 4); hasArgTypeIssue(issues) {
-		t.Fatalf("expected nullable PreferenceFitScore mismatch to remain silent at level 4, got %#v", issues)
+	if issues := runAnalysisLevelOnFiles(t, files, 7); hasArgTypeIssue(issues) {
+		t.Fatalf("expected nullable PreferenceFitScore mismatch to remain silent through level 7, got %#v", issues)
 	}
-	if issues := runAnalysisLevelOnFiles(t, files, 5); !hasArgTypeIssue(issues) {
-		t.Fatalf("expected nullable PreferenceFitScore without nullsafe guard to mismatch, got %#v", issues)
+	if issues := runAnalysisLevelOnFiles(t, files, 8); !hasArgTypeIssue(issues) {
+		t.Fatalf("expected nullable PreferenceFitScore without nullsafe guard to mismatch at level 8, got %#v", issues)
 	}
 }
 
@@ -1232,11 +1302,11 @@ function run(ObjectRepository $em): void
 }
 `,
 	}
-	if issues := runAnalysisLevelOnFiles(t, files, 4); hasArgTypeIssue(issues) {
-		t.Fatalf("expected nullable find() mismatch to remain silent at level 4, got %#v", issues)
+	if issues := runAnalysisLevelOnFiles(t, files, 7); hasArgTypeIssue(issues) {
+		t.Fatalf("expected nullable find() mismatch to remain silent through level 7, got %#v", issues)
 	}
-	if issues := runAnalysisLevelOnFiles(t, files, 5); !hasArgTypeIssue(issues) {
-		t.Fatalf("expected find() without null check to mismatch, got %#v", issues)
+	if issues := runAnalysisLevelOnFiles(t, files, 8); !hasArgTypeIssue(issues) {
+		t.Fatalf("expected find() without null check to mismatch at level 8, got %#v", issues)
 	}
 }
 
@@ -1267,11 +1337,11 @@ function run(?string $start): void
 }
 `,
 	}
-	if issues := runAnalysisLevelOnFiles(t, files, 4); hasArgTypeIssue(issues) {
-		t.Fatalf("expected nullable string mismatch to remain silent at level 4, got %#v", issues)
+	if issues := runAnalysisLevelOnFiles(t, files, 7); hasArgTypeIssue(issues) {
+		t.Fatalf("expected nullable string mismatch to remain silent through level 7, got %#v", issues)
 	}
-	if issues := runAnalysisLevelOnFiles(t, files, 5); !hasArgTypeIssue(issues) {
-		t.Fatalf("expected nullable string without is_string guard to mismatch, got %#v", issues)
+	if issues := runAnalysisLevelOnFiles(t, files, 8); !hasArgTypeIssue(issues) {
+		t.Fatalf("expected nullable string without is_string guard to mismatch at level 8, got %#v", issues)
 	}
 }
 

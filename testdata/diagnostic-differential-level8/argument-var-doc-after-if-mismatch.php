@@ -15,6 +15,7 @@ class Controller
     {
     }
 
+    /** @param list<mixed> $items */
     public function run(array $items): void
     {
         if (empty($items)) {

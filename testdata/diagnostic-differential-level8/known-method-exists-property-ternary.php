@@ -2,7 +2,7 @@
 class Payload { public function toArray(): mixed { return []; } }
 class Gateway
 {
-    /** @var Payload|null */
+    /** @var mixed */
     public $payload;
     public function export(): mixed
     {

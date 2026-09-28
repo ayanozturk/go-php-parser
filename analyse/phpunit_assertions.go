@@ -17,6 +17,12 @@ func applyPHPUnitAssertionScope(scope *functionScope, expr ast.Node, ctx *Analys
 	switch asciiLowerIdent(method) {
 	case "assertinstanceof":
 		applyAssertInstanceOfScope(scope, args)
+	case "assertnotfalse":
+		if variable, ok := argumentValue(phpUnitArg(args, 0, "actual")).(*ast.VariableNode); ok {
+			if typ, ok := variableWithoutBuiltin(scope, variable.Name, "false"); ok {
+				scope.setVariable(variable.Name, typ)
+			}
+		}
 	case "assertnotnull":
 		if variable, ok := argumentValue(phpUnitArg(args, 0, "actual")).(*ast.VariableNode); ok {
 			if typ, ok := nonNullVariableType(scope, variable.Name); ok {

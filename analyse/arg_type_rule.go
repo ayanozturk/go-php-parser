@@ -1144,6 +1144,19 @@ func expectedCallParamType(param ResolvedParam, method ResolvedMethod, calleeCla
 	return bindCalleeSignatureType(expandUnboundClassTemplates(param.Type, method.DeclaringClass, ctx), method.DeclaringClass, calleeClass, ctx)
 }
 
+func argumentTypeIssueMinimumLevel(expected, actual Type, scope *functionScope, ctx *AnalysisContext) int {
+	if actual.hasBuiltin("false") && expected.AcceptsWithContext(actual.withoutBuiltin("false"), scope, ctx) {
+		return 7
+	}
+	if actual.hasBuiltin("null") && expected.AcceptsWithContext(actual.withoutBuiltin("null"), scope, ctx) {
+		return 8
+	}
+	if actual.AcceptsWithContext(expected, scope, ctx) {
+		return 8
+	}
+	return 5
+}
+
 func checkResolvedCallArgTypes(target string, method ResolvedMethod, args []ast.Node, scope *functionScope, ctx *AnalysisContext, filename string, issues *[]AnalysisIssue, calleeClass string) {
 	if len(method.Params) == 0 {
 		return
@@ -1215,6 +1228,10 @@ func checkResolvedCallArgTypes(target string, method ResolvedMethod, args []ast.
 
 		actual := inferTypeWithFacts(filename, argExpr, scope, ctx)
 		if expected.AcceptsWithContext(actual, scope, ctx) {
+			usedParams[paramIndex] = struct{}{}
+			continue
+		}
+		if !analysisLevelAtLeast(ctx, argumentTypeIssueMinimumLevel(expected, actual, scope, ctx)) {
 			usedParams[paramIndex] = struct{}{}
 			continue
 		}

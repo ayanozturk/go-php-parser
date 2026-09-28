@@ -1,13 +1,14 @@
 <?php
 
-namespace PHPUnit\Framework\MockObject;
+namespace PHPUnit\Framework\MockObject {
 
 interface MockObject
 {
     public function method(string $name): MockObject;
 }
+}
 
-namespace {
+namespace App {
 
 use PHPUnit\Framework\MockObject\MockObject;
 

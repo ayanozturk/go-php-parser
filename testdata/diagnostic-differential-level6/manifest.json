@@ -18,15 +18,23 @@
       "id": "missing-generic-parameter",
       "capability": "missing generic type arguments in parameters",
       "file": "missing-generic-parameter.php",
-      "engineCodes": ["Level6.MissingGenericType"],
-      "phpstanIdentifiers": ["missingType.generics"]
+      "engineCodes": [
+        "Level6.MissingGenericType"
+      ],
+      "phpstanIdentifiers": [
+        "missingType.generics"
+      ]
     },
     {
       "id": "missing-generic-return",
       "capability": "missing generic type arguments in returns",
       "file": "missing-generic-return.php",
-      "engineCodes": ["Level6.MissingGenericType"],
-      "phpstanIdentifiers": ["missingType.generics"]
+      "engineCodes": [
+        "Level6.MissingGenericType"
+      ],
+      "phpstanIdentifiers": [
+        "missingType.generics"
+      ]
     },
     {
       "id": "known-generic-argument",
@@ -39,22 +47,34 @@
       "id": "missing-native-array-value",
       "capability": "missing iterable value types in native array parameters",
       "file": "missing-native-array-value.php",
-      "engineCodes": ["Level6.MissingIterableValueType"],
-      "phpstanIdentifiers": ["missingType.iterableValue"]
+      "engineCodes": [
+        "Level6.MissingIterableValueType"
+      ],
+      "phpstanIdentifiers": [
+        "missingType.iterableValue"
+      ]
     },
     {
       "id": "missing-phpdoc-array-value",
       "capability": "missing iterable value types in PHPDoc array parameters",
       "file": "missing-phpdoc-array-value.php",
-      "engineCodes": ["Level6.MissingIterableValueType"],
-      "phpstanIdentifiers": ["missingType.iterableValue"]
+      "engineCodes": [
+        "Level6.MissingIterableValueType"
+      ],
+      "phpstanIdentifiers": [
+        "missingType.iterableValue"
+      ]
     },
     {
       "id": "missing-iterable-return-value",
       "capability": "missing iterable value types in returns",
       "file": "missing-iterable-return-value.php",
-      "engineCodes": ["Level6.MissingIterableValueType"],
-      "phpstanIdentifiers": ["missingType.iterableValue"]
+      "engineCodes": [
+        "Level6.MissingIterableValueType"
+      ],
+      "phpstanIdentifiers": [
+        "missingType.iterableValue"
+      ]
     },
     {
       "id": "known-array-value",
@@ -109,43 +129,69 @@
       "id": "missing-explicit-weak-iterable-override",
       "capability": "explicit weak PHPDoc overrides inherited iterable value types",
       "file": "missing-explicit-weak-iterable-override.php",
-      "engineCodes": ["Level6.MissingIterableValueType", "Level6.MissingIterableValueType"],
-      "phpstanIdentifiers": ["missingType.iterableValue", "missingType.iterableValue"]
+      "engineCodes": [
+        "Level6.MissingIterableValueType",
+        "Level6.MissingIterableValueType"
+      ],
+      "phpstanIdentifiers": [
+        "missingType.iterableValue",
+        "missingType.iterableValue"
+      ]
     },
     {
       "id": "missing-function-parameter",
       "capability": "missing named-function parameter types",
       "file": "missing-function-parameter.php",
-      "engineCodes": ["Level6.MissingParameterType"],
-      "phpstanIdentifiers": ["missingType.parameter"]
+      "engineCodes": [
+        "Level6.MissingParameterType"
+      ],
+      "phpstanIdentifiers": [
+        "missingType.parameter"
+      ]
     },
     {
       "id": "missing-method-parameter",
       "capability": "missing method parameter types",
       "file": "missing-method-parameter.php",
-      "engineCodes": ["Level6.MissingParameterType"],
-      "phpstanIdentifiers": ["missingType.parameter"]
+      "engineCodes": [
+        "Level6.MissingParameterType"
+      ],
+      "phpstanIdentifiers": [
+        "missingType.parameter"
+      ]
     },
     {
       "id": "missing-function-return",
       "capability": "missing named-function return types",
       "file": "missing-function-return.php",
-      "engineCodes": ["Level6.MissingReturnType"],
-      "phpstanIdentifiers": ["missingType.return"]
+      "engineCodes": [
+        "Level6.MissingReturnType"
+      ],
+      "phpstanIdentifiers": [
+        "missingType.return"
+      ]
     },
     {
       "id": "missing-method-return",
       "capability": "missing method return types",
       "file": "missing-method-return.php",
-      "engineCodes": ["Level6.MissingReturnType"],
-      "phpstanIdentifiers": ["missingType.return"]
+      "engineCodes": [
+        "Level6.MissingReturnType"
+      ],
+      "phpstanIdentifiers": [
+        "missingType.return"
+      ]
     },
     {
       "id": "missing-property-type",
       "capability": "missing property types",
       "file": "missing-property-type.php",
-      "engineCodes": ["Level6.MissingPropertyType"],
-      "phpstanIdentifiers": ["missingType.property"]
+      "engineCodes": [
+        "Level6.MissingPropertyType"
+      ],
+      "phpstanIdentifiers": [
+        "missingType.property"
+      ]
     },
     {
       "id": "known-mixed-void",
@@ -177,10 +223,14 @@
     },
     {
       "id": "missing-doctrine-collection-iterable-generic",
-      "capability": "bare Doctrine Collection reports missing iterable value type",
+      "capability": "bare Doctrine Collection reports its missing generic value type",
       "file": "missing-doctrine-collection-iterable-generic.php",
-      "engineCodes": ["Level6.MissingIterableValueType"],
-      "phpstanIdentifiers": ["missingType.iterableValue"]
+      "engineCodes": [
+        "Level6.MissingIterableValueType"
+      ],
+      "phpstanIdentifiers": [
+        "missingType.generics"
+      ]
     },
     {
       "id": "clean-doctrine-collection-iterable-generic",
@@ -193,6 +243,13 @@
       "id": "phpunit-data-provider-attributed-param",
       "capability": "PHPDoc iterable type on an attributed PHPUnit data-provider parameter",
       "file": "phpunit-data-provider-attributed-param.php",
+      "engineCodes": [],
+      "phpstanIdentifiers": []
+    },
+    {
+      "id": "argument-false-union-boundary-clean",
+      "capability": "false-union argument mismatch stays silent at level 6",
+      "file": "argument-false-union-boundary-clean.php",
       "engineCodes": [],
       "phpstanIdentifiers": []
     }

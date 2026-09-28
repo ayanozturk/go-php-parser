@@ -6,16 +6,26 @@ interface FormInterface
 {
 }
 
+interface FormFlowInterface extends FormInterface
+{
+}
+
+interface FormFlowTypeInterface
+{
+}
+
 namespace Symfony\Bundle\FrameworkBundle\Controller;
 
 use Symfony\Component\Form\FormInterface;
+use Symfony\Component\Form\FormFlowInterface;
+use Symfony\Component\Form\FormFlowTypeInterface;
 
 class AbstractController
 {
     /**
      * @return ($type is class-string<FormFlowTypeInterface> ? FormFlowInterface : FormInterface)
      */
-    protected function createForm(string $type, mixed $data = null, array $options = []): FormInterface
+    protected function createForm(string $type, mixed $data = null, array $options = []): FormFlowInterface|FormInterface
     {
         throw new \RuntimeException('stub');
     }

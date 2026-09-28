@@ -2,9 +2,10 @@
 class Beacon { public function ping(): string { return 'ready'; } }
 class Harbor
 {
+    public bool $enabled = true;
     public ?Beacon $beacon;
     public function inspect(): string {
-        $ready = $this->beacon !== null && $this->beacon;
+        $ready = $this->enabled && $this->beacon !== null;
         if ($ready) {
             return $this->beacon->ping();
         }

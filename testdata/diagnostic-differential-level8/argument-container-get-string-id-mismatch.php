@@ -6,13 +6,7 @@ class UserRepository
 
 interface ContainerInterface
 {
-    /**
-     * @param string $id
-     * @phpstan-param class-string<T> $id
-     * @return object|null
-     * @phpstan-return T|null
-     * @template T of object
-     */
+    /** @return object|null */
     public function get(string $id): ?object;
 }
 

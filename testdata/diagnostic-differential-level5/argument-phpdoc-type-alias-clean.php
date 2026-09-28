@@ -17,7 +17,7 @@ final readonly class CompanyOverview
     }
 }
 
-function run(): void
+function run(): CompanyOverview
 {
-    new CompanyOverview([new ManagerSummary()]);
+    return new CompanyOverview([new ManagerSummary()]);
 }

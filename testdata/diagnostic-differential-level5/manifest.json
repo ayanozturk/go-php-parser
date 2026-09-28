@@ -11,29 +11,45 @@
       "id": "argument-function-mismatch",
       "capability": "named-function argument type mismatch",
       "file": "argument-function-mismatch.php",
-      "engineCodes": ["A.ARG.TYPE"],
-      "phpstanIdentifiers": ["argument.type"]
+      "engineCodes": [
+        "A.ARG.TYPE"
+      ],
+      "phpstanIdentifiers": [
+        "argument.type"
+      ]
     },
     {
       "id": "argument-method-mismatch",
       "capability": "method argument type mismatch",
       "file": "argument-method-mismatch.php",
-      "engineCodes": ["A.ARG.TYPE"],
-      "phpstanIdentifiers": ["argument.type"]
+      "engineCodes": [
+        "A.ARG.TYPE"
+      ],
+      "phpstanIdentifiers": [
+        "argument.type"
+      ]
     },
     {
       "id": "argument-constructor-mismatch",
       "capability": "constructor argument type mismatch",
       "file": "argument-constructor-mismatch.php",
-      "engineCodes": ["A.ARG.TYPE"],
-      "phpstanIdentifiers": ["argument.type"]
+      "engineCodes": [
+        "A.ARG.TYPE"
+      ],
+      "phpstanIdentifiers": [
+        "argument.type"
+      ]
     },
     {
       "id": "argument-named-mismatch",
       "capability": "named argument type mismatch",
       "file": "argument-named-mismatch.php",
-      "engineCodes": ["A.ARG.TYPE"],
-      "phpstanIdentifiers": ["argument.type"]
+      "engineCodes": [
+        "A.ARG.TYPE"
+      ],
+      "phpstanIdentifiers": [
+        "argument.type"
+      ]
     },
     {
       "id": "argument-clean",
@@ -67,8 +83,12 @@
       "id": "argument-self-param-mismatch",
       "capability": "self parameter rejects an unrelated argument",
       "file": "argument-self-param-mismatch.php",
-      "engineCodes": ["A.ARG.TYPE"],
-      "phpstanIdentifiers": ["argument.type"]
+      "engineCodes": [
+        "A.ARG.TYPE"
+      ],
+      "phpstanIdentifiers": [
+        "argument.type"
+      ]
     },
     {
       "id": "argument-generic-collection-clean",
@@ -95,8 +115,12 @@
       "id": "argument-phpdoc-type-alias-mismatch",
       "capability": "phpstan-type list alias constructor rejects a string",
       "file": "argument-phpdoc-type-alias-mismatch.php",
-      "engineCodes": ["A.ARG.TYPE"],
-      "phpstanIdentifiers": ["argument.type"]
+      "engineCodes": [
+        "A.ARG.TYPE"
+      ],
+      "phpstanIdentifiers": [
+        "argument.type"
+      ]
     },
     {
       "id": "argument-inputbag-query-clean",
@@ -116,8 +140,12 @@
       "id": "argument-closure-filter-mismatch",
       "capability": "Collection filter rejects a string",
       "file": "argument-closure-filter-mismatch.php",
-      "engineCodes": ["A.ARG.TYPE"],
-      "phpstanIdentifiers": ["argument.type"]
+      "engineCodes": [
+        "A.ARG.TYPE"
+      ],
+      "phpstanIdentifiers": [
+        "argument.type"
+      ]
     },
     {
       "id": "argument-var-doc-clean",
@@ -125,13 +153,6 @@
       "file": "argument-var-doc-clean.php",
       "engineCodes": [],
       "phpstanIdentifiers": []
-    },
-    {
-      "id": "argument-var-doc-mismatch",
-      "capability": "nullable User without @var is rejected",
-      "file": "argument-var-doc-mismatch.php",
-      "engineCodes": ["A.ARG.TYPE"],
-      "phpstanIdentifiers": ["argument.type"]
     },
     {
       "id": "argument-conditional-form-clean",
@@ -144,8 +165,12 @@
       "id": "argument-conditional-form-mismatch",
       "capability": "conditional createForm return rejects string",
       "file": "argument-conditional-form-mismatch.php",
-      "engineCodes": ["A.ARG.TYPE"],
-      "phpstanIdentifiers": ["argument.type"]
+      "engineCodes": [
+        "A.ARG.TYPE"
+      ],
+      "phpstanIdentifiers": [
+        "argument.type"
+      ]
     },
     {
       "id": "argument-interface-template-clean",
@@ -162,13 +187,6 @@
       "phpstanIdentifiers": []
     },
     {
-      "id": "argument-is-string-early-return-mismatch",
-      "capability": "nullable string without is_string guard is rejected",
-      "file": "argument-is-string-early-return-mismatch.php",
-      "engineCodes": ["A.ARG.TYPE"],
-      "phpstanIdentifiers": ["argument.type"]
-    },
-    {
       "id": "argument-is-string-and-ternary-clean",
       "capability": "is_string and non-empty ternary infers int|null not bool",
       "file": "argument-is-string-and-ternary-clean.php",
@@ -179,8 +197,12 @@
       "id": "argument-is-string-and-ternary-mismatch",
       "capability": "is_string and non-empty ternary int|null rejects string",
       "file": "argument-is-string-and-ternary-mismatch.php",
-      "engineCodes": ["A.ARG.TYPE"],
-      "phpstanIdentifiers": ["argument.type"]
+      "engineCodes": [
+        "A.ARG.TYPE"
+      ],
+      "phpstanIdentifiers": [
+        "argument.type"
+      ]
     },
     {
       "id": "argument-find-class-string-clean",
@@ -190,25 +212,11 @@
       "phpstanIdentifiers": []
     },
     {
-      "id": "argument-find-class-string-mismatch",
-      "capability": "find(Foo::class) without null check is rejected",
-      "file": "argument-find-class-string-mismatch.php",
-      "engineCodes": ["A.ARG.TYPE"],
-      "phpstanIdentifiers": ["argument.type"]
-    },
-    {
       "id": "argument-container-get-class-string-clean",
       "capability": "container get(Foo::class) after null check is Foo not object",
       "file": "argument-container-get-class-string-clean.php",
       "engineCodes": [],
       "phpstanIdentifiers": []
-    },
-    {
-      "id": "argument-container-get-class-string-mismatch",
-      "capability": "container get(Foo::class) without null check is rejected",
-      "file": "argument-container-get-class-string-mismatch.php",
-      "engineCodes": ["A.ARG.TYPE"],
-      "phpstanIdentifiers": ["argument.type"]
     },
     {
       "id": "argument-container-get-string-id-clean",
@@ -218,25 +226,11 @@
       "phpstanIdentifiers": []
     },
     {
-      "id": "argument-container-get-string-id-mismatch",
-      "capability": "container get(string id) passed to typed param is rejected",
-      "file": "argument-container-get-string-id-mismatch.php",
-      "engineCodes": ["A.ARG.TYPE"],
-      "phpstanIdentifiers": ["argument.type"]
-    },
-    {
       "id": "argument-nullsafe-property-clean",
       "capability": "truthy nullsafe property fetch narrows receiver to non-null",
       "file": "argument-nullsafe-property-clean.php",
       "engineCodes": [],
       "phpstanIdentifiers": []
-    },
-    {
-      "id": "argument-nullsafe-property-mismatch",
-      "capability": "nullable object without nullsafe property guard is rejected",
-      "file": "argument-nullsafe-property-mismatch.php",
-      "engineCodes": ["A.ARG.TYPE"],
-      "phpstanIdentifiers": ["argument.type"]
     },
     {
       "id": "argument-falsy-assign-init-clean",
@@ -246,25 +240,11 @@
       "phpstanIdentifiers": []
     },
     {
-      "id": "argument-falsy-assign-init-mismatch",
-      "capability": "nullable object without falsy assign-init is rejected",
-      "file": "argument-falsy-assign-init-mismatch.php",
-      "engineCodes": ["A.ARG.TYPE"],
-      "phpstanIdentifiers": ["argument.type"]
-    },
-    {
       "id": "argument-property-instanceof-clean",
       "capability": "property instanceof narrows that property for arguments",
       "file": "argument-property-instanceof-clean.php",
       "engineCodes": [],
       "phpstanIdentifiers": []
-    },
-    {
-      "id": "argument-property-instanceof-mismatch",
-      "capability": "nullable property without instanceof is rejected",
-      "file": "argument-property-instanceof-mismatch.php",
-      "engineCodes": ["A.ARG.TYPE"],
-      "phpstanIdentifiers": ["argument.type"]
     },
     {
       "id": "argument-property-truthy-clean",
@@ -274,13 +254,6 @@
       "phpstanIdentifiers": []
     },
     {
-      "id": "argument-property-truthy-mismatch",
-      "capability": "nullable property without truthy guard is rejected",
-      "file": "argument-property-truthy-mismatch.php",
-      "engineCodes": ["A.ARG.TYPE"],
-      "phpstanIdentifiers": ["argument.type"]
-    },
-    {
       "id": "argument-while-null-clean",
       "capability": "while null check narrows loop variable for arguments",
       "file": "argument-while-null-clean.php",
@@ -288,25 +261,11 @@
       "phpstanIdentifiers": []
     },
     {
-      "id": "argument-while-null-mismatch",
-      "capability": "nullable loop variable without while null check is rejected",
-      "file": "argument-while-null-mismatch.php",
-      "engineCodes": ["A.ARG.TYPE"],
-      "phpstanIdentifiers": ["argument.type"]
-    },
-    {
       "id": "argument-false-ternary-clean",
       "capability": "ternary === false strips false from the else operand",
       "file": "argument-false-ternary-clean.php",
       "engineCodes": [],
       "phpstanIdentifiers": []
-    },
-    {
-      "id": "argument-false-ternary-mismatch",
-      "capability": "DateTimeImmutable|null|false without ternary is rejected",
-      "file": "argument-false-ternary-mismatch.php",
-      "engineCodes": ["A.ARG.TYPE"],
-      "phpstanIdentifiers": ["argument.type"]
     },
     {
       "id": "argument-native-null-param-clean",
@@ -319,8 +278,12 @@
       "id": "argument-native-null-param-mismatch",
       "capability": "PHPDoc int param still rejects string",
       "file": "argument-native-null-param-mismatch.php",
-      "engineCodes": ["A.ARG.TYPE"],
-      "phpstanIdentifiers": ["argument.type"]
+      "engineCodes": [
+        "A.ARG.TYPE"
+      ],
+      "phpstanIdentifiers": [
+        "argument.type"
+      ]
     },
     {
       "id": "argument-var-doc-switch-clean",
@@ -330,25 +293,11 @@
       "phpstanIdentifiers": []
     },
     {
-      "id": "argument-var-doc-switch-mismatch",
-      "capability": "nullable getUser in switch without @var is rejected",
-      "file": "argument-var-doc-switch-mismatch.php",
-      "engineCodes": ["A.ARG.TYPE"],
-      "phpstanIdentifiers": ["argument.type"]
-    },
-    {
       "id": "argument-var-doc-after-if-clean",
       "capability": "assignment @var after terminating if narrows switch arguments",
       "file": "argument-var-doc-after-if-clean.php",
       "engineCodes": [],
       "phpstanIdentifiers": []
-    },
-    {
-      "id": "argument-var-doc-after-if-mismatch",
-      "capability": "nullable getUser after terminating if without @var is rejected",
-      "file": "argument-var-doc-after-if-mismatch.php",
-      "engineCodes": ["A.ARG.TYPE"],
-      "phpstanIdentifiers": ["argument.type"]
     },
     {
       "id": "argument-direct-list-constructor-clean",
@@ -358,11 +307,18 @@
       "phpstanIdentifiers": []
     },
     {
-      "id": "composer-installed-versions-mismatch",
-      "capability": "nullable Composer package versions cannot be passed as strings",
-      "file": "composer-installed-versions-mismatch.php",
-      "engineCodes": ["A.ARG.TYPE"],
-      "phpstanIdentifiers": ["argument.type"]
+      "id": "argument-datetime-falsey-ternary-clean",
+      "capability": "false is removed from a short-ternary DateTime result",
+      "file": "argument-datetime-falsey-ternary-clean.php",
+      "engineCodes": [],
+      "phpstanIdentifiers": []
+    },
+    {
+      "id": "argument-assert-not-false-clean",
+      "capability": "PHPUnit assertNotFalse narrows an argument",
+      "file": "argument-assert-not-false-clean.php",
+      "engineCodes": [],
+      "phpstanIdentifiers": []
     }
   ]
 }

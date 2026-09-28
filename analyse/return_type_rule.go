@@ -508,8 +508,8 @@ func inferType(expr ast.Node, scope *functionScope, ctx *AnalysisContext) Type {
 	case *ast.TernaryExpr:
 		trueScope := scopeForConditionTrue(scope, n.Condition, ctx)
 		ifTrue := inferType(n.IfTrue, trueScope, ctx)
-		if n.IfTrue == nil {
-			ifTrue = inferType(n.Condition, trueScope, ctx)
+		if n.IfTrue == nil || n.IfTrue == n.Condition {
+			ifTrue = inferType(n.Condition, trueScope, ctx).withoutBuiltin("false").withoutBuiltin("null")
 		}
 		return unionInferredTypes(ifTrue, inferType(n.IfFalse, scopeForConditionFalse(scope, n.Condition, ctx), ctx))
 	case *ast.UnaryExpr:

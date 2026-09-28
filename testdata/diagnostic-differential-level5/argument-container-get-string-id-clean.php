@@ -8,10 +8,7 @@ interface ContainerInterface
 {
     /**
      * @param string $id
-     * @phpstan-param class-string<T> $id
      * @return object|null
-     * @phpstan-return T|null
-     * @template T of object
      */
     public function get(string $id): ?object;
 }
@@ -19,7 +16,7 @@ interface ContainerInterface
 function run(ContainerInterface $container): void
 {
     $repo = $container->get('app.user_repository');
-    if (!$repo) {
+    if ($repo === null) {
         return;
     }
 }
