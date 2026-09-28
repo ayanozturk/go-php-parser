@@ -4,39 +4,7 @@ This is the single source of truth for future work in `go-php-parser`. The item 
 
 ## Short term
 
-### 2. Reduce false positives and expand executable compatibility
-
-- Re-run the exact private-corpus manifest before accepting historical diagnostic counts as a baseline.
-- Close remaining `Level6.MissingIterableValueType` cases across native, PHPDoc/refined, inherited, trait, and anonymous-class contracts.
-- Audit repository return/template substitution and unknown-symbol noise, adding neutral public fixtures for every correction.
-- Add framework metadata for Symfony container returns, Doctrine repositories and collections, PHPUnit data providers, Composer, and common Laravel patterns.
-- Expand PHPStan-gated coverage at the level where each diagnostic begins: casts, offset access, callables, increments, foreach, interpolation, condition narrowing, PHPDoc validation, property initialization, variance, and trait/interface contracts.
-- Build reviewed true-positive, false-positive, and false-negative suites with pinned reference versions and configuration.
-- Keep the capability matrix, README rule inventory, and rule pages synchronized with executable registrations.
-
-Done when:
-
-- level 0 behavior is demonstrated on the agreed corpus rather than inferred from fixture totals;
-- levels 1–6 have broad executable coverage and explicit unsupported identifiers;
-- framework packs pass without global suppressions;
-- reviewed false-positive and false-negative release thresholds exist and pass reproducibly.
-
-### 3. Unify diagnostics and finish source mapping
-
-- Use one structured diagnostic schema for parser, style, analysis, and dependency-guard output.
-- Complete byte spans and tested UTF-16 conversion for every diagnostic producer.
-- Finish style-rule range migration from point locations to exact spans.
-- Preserve deterministic ordering and stable machine-readable codes across CLI and editor paths.
-
-Done when:
-
-- no production diagnostic relies on an unstructured message or point-only location where a span is available;
-- CLI and PHP Strom publish equivalent codes, messages, and source ranges;
-- range, ordering, and malformed-input integration tests pass.
-
-## Medium term
-
-### 4. Complete the semantic and type system
+### 2. Complete the semantic and type system
 
 - Complete PHPDoc templates, bounds, variance, generic inheritance, aliases/imports, conditional types, indexed access, key/value projections, callable signatures, shapes, non-empty types, literal types, and integer ranges.
 - Complete normalization, subtyping, substitution, narrowing/widening, recursion limits, and `self`/`static`/`parent`/`$this` behavior.
@@ -50,7 +18,7 @@ Done when:
 - Symfony, Doctrine, Composer, PHPUnit, and Laravel compatibility packs pass;
 - WordPress, Symfony, PSL, and Magento complete without panic, timeout, race, or silent omission.
 
-### 5. Complete incremental project analysis
+### 3. Complete incremental project analysis
 
 - Separate content hashes from exported-semantic hashes.
 - Reanalyse only files affected by changed exports.
@@ -66,7 +34,7 @@ Done when:
 - cache and cancellation behavior is observable, bounded, and covered by integration tests;
 - concurrency cannot change diagnostic output.
 
-### 6. Finish CLI and PHP Strom adoption features
+### 4. Finish CLI and PHP Strom adoption features
 
 - Add `lint`, `format`, `config`, and `guard` without breaking `style`.
 - Add `go-phpcs.yaml`/`.yml` discovery, `--config`, and resolved-config output.
@@ -82,9 +50,9 @@ Done when:
 - user-facing documentation describes only shipped behavior;
 - PHP Strom integration tests cover overlays, scheduling, cancellation, invalidation, and UTF-16 conversion.
 
-## Long term
+## Medium term
 
-### 7. Meet editor latency targets
+### 5. Meet editor latency targets
 
 - Add a trace-based benchmark for open-document diagnostics, local edits, exported-symbol edits, cancellation, and competing language features.
 - Reserve interactive capacity while background analysis runs.
@@ -97,7 +65,7 @@ Targets:
 - cancellation acknowledgement: p95 at most 25 ms;
 - no stale diagnostics after a newer document version is accepted.
 
-### 8. Reach comparable full-analysis performance
+### 6. Reach comparable full-analysis performance
 
 - Profile structural hot paths only after semantic workload and corpus accounting are stable.
 - Keep tokens, nodes, and semantic facts compact; intern normalized identities; bound cache lifetimes; and use deterministic parallel reduction.
@@ -111,7 +79,9 @@ Done when:
 - reliability, semantic coverage, peak RSS, variance, and file-accounting gates all pass;
 - no result depends on excluding vendor, reducing rules, skipping bodies, or comparing index-only work with full analysis.
 
-### 9. Full-analyser release
+## Long term
+
+### 7. Full-analyser release
 
 - Establish and meet quantified diagnostic-quality thresholds on reviewed corpora.
 - Classify every remaining unsupported language or PHPDoc construct.
