@@ -18,6 +18,7 @@ Improve analyser compatibility through evidence-backed semantic fixes, neutral f
 - Reference baseline: PHPStan reported 0 diagnostics across the 1,930 files at the configured level 7. The production-equivalent PHP Strom scan with parser `fbc5ea2a` reported 30 `A.ARG.TYPE` findings across four files and no other reportable diagnostics. On this measured corpus/run, the diagnostic comparison is 0 true positives, 30 false positives, and 0 false negatives.
 - The findings reduce to short-ternary `DateTime::createFromFormat()` falsey narrowing and PHPUnit `assertNotFalse()` narrowing. Private source, paths, and messages remain external and are not fixture material.
 - Differential suites use their checked-in PHPStan 2.2.5 pin, separate from the private project's PHPStan 2.1.44 reference. Levels 0–3 and 5–8 pass with 98, 26, 105, 44, 39, 28, 10, and 49 cases respectively; level 4 has no checked-in differential pack.
+- After parser commit `a0004f15` was pinned in PHP Strom, the production-equivalent rerun indexed 15,699 files and reported 0 diagnostics on the same external project; all 30 baseline `A.ARG.TYPE` findings are cleared. Against the same PHPStan level-7 zero-diagnostic baseline, this rerun measured 0 true positives, 0 false positives, and 0 false negatives. This result closes the observed private-corpus slice only; the broader compatibility and reviewed-threshold gates below remain open.
 
 ## Work sequence
 
