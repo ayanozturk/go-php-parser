@@ -30,13 +30,17 @@ func (c *MethodVisibilityDeclaredChecker) CheckIssues(lines []string, filename s
 				continue
 			}
 			if isMethodDeclaration(trimmed) && !hasVisibility(trimmed) {
+				column := helper.IndexOfWord(trimmed, "function") + 1
 				issues = append(issues, StyleIssue{
-					Filename: filename,
-					Line:     i + 1,
-					Type:     Error,
-					Fixable:  false,
-					Message:  "Visibility must be declared on all class methods",
-					Code:     methodVisibilityDeclaredCode,
+					Filename:  filename,
+					Line:      i + 1,
+					Column:    column,
+					EndLine:   i + 1,
+					EndColumn: column + len("function"),
+					Type:      Error,
+					Fixable:   false,
+					Message:   "Visibility must be declared on all class methods",
+					Code:      methodVisibilityDeclaredCode,
 				})
 			}
 		}

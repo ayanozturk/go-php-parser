@@ -10,8 +10,8 @@ import (
 
 	"github.com/ayanozturk/go-php-parser/analyse"
 	"github.com/ayanozturk/go-php-parser/ast"
-	"github.com/ayanozturk/go-php-parser/overrides"
 	"github.com/ayanozturk/go-php-parser/diag"
+	"github.com/ayanozturk/go-php-parser/overrides"
 	"github.com/ayanozturk/go-php-parser/sharedcache"
 	"github.com/ayanozturk/go-php-parser/syntax"
 	"github.com/ayanozturk/go-php-parser/token"
@@ -28,6 +28,21 @@ type AnalyzeResult struct {
 	TotalLines      int
 }
 
+// Diagnostics adapts compatibility issue values into the shared diagnostic
+// representation. sourceByFile supplies source text for legacy rune-based
+// issue coordinates; parser diagnostics already carry byte spans.
+func (r AnalyzeResult) Diagnostics(sourceByFile map[string][]byte) []diag.Diagnostic {
+	var values []diag.Diagnostic
+	for _, issue := range r.Issues {
+		values = append(values, issue.AsDiagnostic(sourceByFile[issue.Filename], "go-php-parser"))
+	}
+	for _, detail := range r.ParseErrors {
+		values = append(values, detail.Diagnostics...)
+	}
+	diag.Sort(values)
+	return values
+}
+
 type FileReadError struct {
 	File    string
 	Message string
@@ -39,6 +54,7 @@ type parsedAnalysisFile struct {
 	nodes       []ast.Node
 	lines       int
 	parseErrors []string
+	diagnostics []diag.Diagnostic
 	readError   string
 }
 
@@ -146,7 +162,7 @@ func analyzeWithCachedIndex(files []string, targets []string, level *int, matche
 		contents[file.path] = file.content
 		sharedcache.StoreCachedFileContent(file.path, file.content)
 		if len(file.parseErrors) > 0 {
-			result.ParseErrors = append(result.ParseErrors, ParseErrorDetail{File: file.path, Errors: file.parseErrors})
+			result.ParseErrors = append(result.ParseErrors, ParseErrorDetail{File: file.path, Errors: file.parseErrors, Diagnostics: file.diagnostics})
 			continue
 		}
 		parsed[file.path] = file.nodes
@@ -245,7 +261,7 @@ func analyzeFilesWithCache(files []string, targets []string, level *int, matcher
 		contents[file.path] = file.content
 		sharedcache.StoreCachedFileContent(file.path, file.content)
 		if len(file.parseErrors) > 0 {
-			result.ParseErrors = append(result.ParseErrors, ParseErrorDetail{File: file.path, Errors: file.parseErrors})
+			result.ParseErrors = append(result.ParseErrors, ParseErrorDetail{File: file.path, Errors: file.parseErrors, Diagnostics: file.diagnostics})
 			continue
 		}
 		parsed[file.path] = file.nodes
@@ -384,7 +400,22 @@ func parseAnalysisFile(path string) parsedAnalysisFile {
 		nodes:       nodes,
 		lines:       CountLines(content),
 		parseErrors: syntaxDiagnosticStrings(content, diags),
+		diagnostics: syntaxDiagnostics(path, content, diags),
 	}
+}
+
+func syntaxDiagnostics(filename string, src []byte, values []syntax.Diagnostic) []diag.Diagnostic {
+	if len(values) == 0 {
+		return nil
+	}
+	lines := token.NewLineTable(src)
+	out := make([]diag.Diagnostic, 0, len(values))
+	for _, value := range values {
+		parseError := diag.ParseErrorFromOffsetsWithLines(src, lines, value.Span.Start, value.Span.End, value.Message)
+		out = append(out, parseError.AsDiagnostic(filename, "parser"))
+	}
+	diag.Sort(out)
+	return out
 }
 
 func syntaxDiagnosticStrings(src []byte, diags []syntax.Diagnostic) []string {

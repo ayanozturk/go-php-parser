@@ -60,3 +60,28 @@ func TestUTF16PositionFromByteOffset(t *testing.T) {
 		})
 	}
 }
+
+func TestSortOrdersByFilenameSpanAndStableTieBreakers(t *testing.T) {
+	values := []Diagnostic{
+		{Filename: "b.php", Span: ByteSpan{Start: 0}, Code: "A"},
+		{Filename: "a.php", Span: ByteSpan{Start: 4}, Code: "A"},
+		{Filename: "a.php", Span: ByteSpan{Start: 1}, Code: "B"},
+		{Filename: "a.php", Span: ByteSpan{Start: 1}, Code: "A", Message: "z"},
+		{Filename: "a.php", Span: ByteSpan{Start: 1}, Code: "A", Message: "a"},
+	}
+	Sort(values)
+	want := []struct {
+		file, code, message string
+	}{
+		{file: "a.php", code: "A", message: "a"},
+		{file: "a.php", code: "A", message: "z"},
+		{file: "a.php", code: "B", message: ""},
+		{file: "a.php", code: "A", message: ""},
+		{file: "b.php", code: "A", message: ""},
+	}
+	for i, expected := range want {
+		if values[i].Filename != expected.file || values[i].Code != expected.code || values[i].Message != expected.message {
+			t.Fatalf("diagnostic %d: expected %+v, got %#v", i, expected, values[i])
+		}
+	}
+}

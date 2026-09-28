@@ -19,13 +19,15 @@ func (c *NoSpaceBeforeSemicolonChecker) CheckIssues(lines []string, filename str
 		for j := 0; j < len(line); j++ {
 			if line[j] == ';' && j > 0 && (line[j-1] == ' ' || line[j-1] == '\t') {
 				issues = append(issues, StyleIssue{
-					Filename: filename,
-					Line:     i + 1,
-					Column:   j,
-					Type:     Error,
-					Fixable:  true,
-					Message:  "Space or tab found before semicolon",
-					Code:     "PSR12.Files.NoSpaceBeforeSemicolon",
+					Filename:  filename,
+					Line:      i + 1,
+					Column:    j,
+					EndLine:   i + 1,
+					EndColumn: j + 1,
+					Type:      Error,
+					Fixable:   true,
+					Message:   "Space or tab found before semicolon",
+					Code:      "PSR12.Files.NoSpaceBeforeSemicolon",
 				})
 			}
 		}

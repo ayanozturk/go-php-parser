@@ -9,7 +9,36 @@ import (
 	"testing"
 
 	"github.com/ayanozturk/go-php-parser/analyse"
+	"github.com/ayanozturk/go-php-parser/diag"
 )
+
+func TestAnalyzeResultDiagnosticsUseSharedByteSpansAndStableOrdering(t *testing.T) {
+	source := []byte("<?php\n$🙂 = 1;\n")
+	result := AnalyzeResult{
+		Issues: []analyse.AnalysisIssue{{
+			Filename: "b.php", Line: 2, Column: 2, EndLine: 2, EndColumn: 3,
+			Code: "A.EXAMPLE", Message: "example", Severity: "warning",
+		}},
+		ParseErrors: []ParseErrorDetail{{
+			File: "a.php",
+			Diagnostics: []diag.Diagnostic{{
+				Filename: "a.php", Source: "parser", Code: "Parser.ExpectedToken",
+				Severity: diag.SeverityError, Message: "expected token", Span: diag.ByteSpan{Start: 2, End: 2},
+			}},
+		}},
+	}
+
+	got := result.Diagnostics(map[string][]byte{"b.php": source})
+	if len(got) != 2 {
+		t.Fatalf("expected two diagnostics, got %#v", got)
+	}
+	if got[0].Filename != "a.php" || got[0].Span != (diag.ByteSpan{Start: 2, End: 2}) {
+		t.Fatalf("expected parser diagnostic first with its zero-width span, got %#v", got[0])
+	}
+	if got[1].Filename != "b.php" || got[1].Span != (diag.ByteSpan{Start: 7, End: 11}) || got[1].Severity != diag.SeverityWarning {
+		t.Fatalf("expected analysis diagnostic with UTF-8 span and warning severity, got %#v", got[1])
+	}
+}
 
 func TestAnalyzeFilesUsesOneProjectSnapshotDeterministically(t *testing.T) {
 	dir := t.TempDir()

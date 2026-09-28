@@ -2,6 +2,7 @@ package diag
 
 import (
 	"bytes"
+	"sort"
 	"unicode/utf16"
 	"unicode/utf8"
 )
@@ -33,6 +34,33 @@ type Diagnostic struct {
 	Severity Severity
 	Message  string
 	Span     ByteSpan
+}
+
+// Sort orders diagnostics deterministically by file, byte span, code, severity,
+// source, and message. Equal diagnostics retain their input order.
+func Sort(values []Diagnostic) {
+	sort.SliceStable(values, func(i, j int) bool {
+		left, right := values[i], values[j]
+		if left.Filename != right.Filename {
+			return left.Filename < right.Filename
+		}
+		if left.Span.Start != right.Span.Start {
+			return left.Span.Start < right.Span.Start
+		}
+		if left.Span.End != right.Span.End {
+			return left.Span.End < right.Span.End
+		}
+		if left.Code != right.Code {
+			return left.Code < right.Code
+		}
+		if left.Severity != right.Severity {
+			return left.Severity < right.Severity
+		}
+		if left.Source != right.Source {
+			return left.Source < right.Source
+		}
+		return left.Message < right.Message
+	})
 }
 
 // ByteSpanFromRunePositions converts one-based rune line and column

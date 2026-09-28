@@ -15,27 +15,34 @@ func (c *ClassBraceOnOwnLineChecker) CheckIssues(lines []string, filename string
 	for i := 0; i < len(lines); i++ {
 		trimmed := lines[i]
 		if helper.IsClassDeclaration(trimmed) {
-			if containsBraceOnSameLine(trimmed) {
+			if braceColumn := braceOnSameLineColumn(trimmed); braceColumn > 0 {
 				issues = append(issues, StyleIssue{
-					Filename: filename,
-					Line:     i + 1,
-					Type:     Error,
-					Fixable:  true,
-					Message:  "Opening brace for class-like declaration must be on its own line",
-					Code:     classBraceOnOwnLineCode,
+					Filename:  filename,
+					Line:      i + 1,
+					Column:    braceColumn,
+					EndLine:   i + 1,
+					EndColumn: braceColumn + 1,
+					Type:      Error,
+					Fixable:   true,
+					Message:   "Opening brace for class-like declaration must be on its own line",
+					Code:      classBraceOnOwnLineCode,
 				})
 				continue
 			}
 			if i+1 < len(lines) {
 				next := lines[i+1]
 				if helper.TrimWhitespace(next) != "{" {
+					column := len(next) - len(strings.TrimLeft(next, " \t")) + 1
 					issues = append(issues, StyleIssue{
-						Filename: filename,
-						Line:     i + 2,
-						Type:     Error,
-						Fixable:  false, // Only the same-line case is auto-fixable
-						Message:  "Opening brace for class-like declaration must be on its own line",
-						Code:     classBraceOnOwnLineCode,
+						Filename:  filename,
+						Line:      i + 2,
+						Column:    column,
+						EndLine:   i + 2,
+						EndColumn: column,
+						Type:      Error,
+						Fixable:   false, // Only the same-line case is auto-fixable
+						Message:   "Opening brace for class-like declaration must be on its own line",
+						Code:      classBraceOnOwnLineCode,
 					})
 				}
 			}
@@ -45,17 +52,21 @@ func (c *ClassBraceOnOwnLineChecker) CheckIssues(lines []string, filename string
 }
 
 func containsBraceOnSameLine(line string) bool {
+	return braceOnSameLineColumn(line) > 0
+}
+
+func braceOnSameLineColumn(line string) int {
 	keywords := []string{"class ", "interface ", "trait ", "enum "}
 	for _, k := range keywords {
 		idx := indexOf(line, k)
 		if idx != -1 {
 			braceIdx := indexOf(line[idx+len(k):], "{")
 			if braceIdx != -1 {
-				return true
+				return idx + len(k) + braceIdx + 1
 			}
 		}
 	}
-	return false
+	return 0
 }
 
 func indexOf(s, substr string) int {

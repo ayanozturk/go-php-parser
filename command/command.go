@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/ayanozturk/go-php-parser/ast"
 	"github.com/ayanozturk/go-php-parser/config"
+	"github.com/ayanozturk/go-php-parser/diag"
 	"github.com/ayanozturk/go-php-parser/overrides"
 	"github.com/ayanozturk/go-php-parser/printer"
 	"github.com/ayanozturk/go-php-parser/sharedcache"
@@ -149,8 +150,9 @@ func init() {
 }
 
 type ParseErrorDetail struct {
-	File   string
-	Errors []string
+	File        string
+	Errors      []string
+	Diagnostics []diag.Diagnostic
 }
 
 type MemStats struct {

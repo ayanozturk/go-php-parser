@@ -239,16 +239,16 @@ func (c *ControlStructureSpacingChecker) checkControlKeywordSpacing(line, filena
 					continue
 				}
 				if nextChar == '{' {
-					issues = append(issues, StyleIssue{Filename: filename, Line: lineNum, Column: end + 1, Type: Error, Fixable: true, Message: "Expected single space after '" + keyword + "' keyword", Code: controlStructureSpacingCode})
+					issues = append(issues, StyleIssue{Filename: filename, Line: lineNum, Column: end + 1, EndLine: lineNum, EndColumn: end + 1, Type: Error, Fixable: true, Message: "Expected single space after '" + keyword + "' keyword", Code: controlStructureSpacingCode})
 					continue
 				}
 			}
 
 			if nextChar == '(' {
-				issues = append(issues, StyleIssue{Filename: filename, Line: lineNum, Column: end + 1, Type: Error, Fixable: true, Message: "Expected single space after '" + keyword + "' keyword", Code: controlStructureSpacingCode})
+				issues = append(issues, StyleIssue{Filename: filename, Line: lineNum, Column: end + 1, EndLine: lineNum, EndColumn: end + 1, Type: Error, Fixable: true, Message: "Expected single space after '" + keyword + "' keyword", Code: controlStructureSpacingCode})
 			} else if nextChar != ' ' && nextChar != '\t' {
 				if keyword != "else" || nextChar != '{' {
-					issues = append(issues, StyleIssue{Filename: filename, Line: lineNum, Column: end + 1, Type: Error, Fixable: true, Message: "Expected single space after '" + keyword + "' keyword", Code: controlStructureSpacingCode})
+					issues = append(issues, StyleIssue{Filename: filename, Line: lineNum, Column: end + 1, EndLine: lineNum, EndColumn: end + 1, Type: Error, Fixable: true, Message: "Expected single space after '" + keyword + "' keyword", Code: controlStructureSpacingCode})
 				}
 			} else {
 				spaceCount := 0
@@ -256,7 +256,7 @@ func (c *ControlStructureSpacingChecker) checkControlKeywordSpacing(line, filena
 					spaceCount++
 				}
 				if spaceCount > 1 {
-					issues = append(issues, StyleIssue{Filename: filename, Line: lineNum, Column: end + 1, Type: Error, Fixable: true, Message: "Expected single space after '" + keyword + "' keyword, found multiple spaces", Code: controlStructureSpacingCode})
+					issues = append(issues, StyleIssue{Filename: filename, Line: lineNum, Column: end + 1, EndLine: lineNum, EndColumn: end + spaceCount + 1, Type: Error, Fixable: true, Message: "Expected single space after '" + keyword + "' keyword, found multiple spaces", Code: controlStructureSpacingCode})
 				}
 			}
 		}
@@ -355,7 +355,7 @@ func (c *ControlStructureSpacingChecker) checkFunctionCallSpacing(line, filename
 			j++
 		}
 		if spaces > 0 && j < len(line) && line[j] == '(' {
-			issues = append(issues, StyleIssue{Filename: filename, Line: lineNum, Column: end + 1, Type: Error, Fixable: true, Message: "No space allowed between function name and opening parenthesis", Code: controlStructureSpacingCode})
+			issues = append(issues, StyleIssue{Filename: filename, Line: lineNum, Column: end + 1, EndLine: lineNum, EndColumn: j + 1, Type: Error, Fixable: true, Message: "No space allowed between function name and opening parenthesis", Code: controlStructureSpacingCode})
 		}
 	}
 
@@ -371,13 +371,15 @@ func (c *ControlStructureSpacingChecker) checkBraceSpacing(line, filename string
 			nextChar := line[i+1]
 			if nextChar == '{' {
 				issues = append(issues, StyleIssue{
-					Filename: filename,
-					Line:     lineNum,
-					Column:   i + 2,
-					Type:     Error,
-					Fixable:  true,
-					Message:  "Expected single space before opening brace",
-					Code:     controlStructureSpacingCode,
+					Filename:  filename,
+					Line:      lineNum,
+					Column:    i + 2,
+					EndLine:   lineNum,
+					EndColumn: i + 2,
+					Type:      Error,
+					Fixable:   true,
+					Message:   "Expected single space before opening brace",
+					Code:      controlStructureSpacingCode,
 				})
 			} else if nextChar == ' ' || nextChar == '\t' {
 				spaceCount := 0
@@ -388,13 +390,15 @@ func (c *ControlStructureSpacingChecker) checkBraceSpacing(line, filename string
 				}
 				if j < len(line) && line[j] == '{' && spaceCount != 1 {
 					issues = append(issues, StyleIssue{
-						Filename: filename,
-						Line:     lineNum,
-						Column:   i + 2,
-						Type:     Error,
-						Fixable:  true,
-						Message:  "Expected single space before opening brace, found multiple spaces",
-						Code:     controlStructureSpacingCode,
+						Filename:  filename,
+						Line:      lineNum,
+						Column:    i + 2,
+						EndLine:   lineNum,
+						EndColumn: j + 1,
+						Type:      Error,
+						Fixable:   true,
+						Message:   "Expected single space before opening brace, found multiple spaces",
+						Code:      controlStructureSpacingCode,
 					})
 				}
 			}

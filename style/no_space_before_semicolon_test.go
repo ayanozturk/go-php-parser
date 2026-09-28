@@ -1,6 +1,10 @@
 package style
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/ayanozturk/go-php-parser/diag"
+)
 
 func TestNoSpaceBeforeSemicolonChecker(t *testing.T) {
 	checker := &NoSpaceBeforeSemicolonChecker{}
@@ -24,5 +28,21 @@ func TestNoSpaceBeforeSemicolonChecker(t *testing.T) {
 		if len(issues) != tc.expected {
 			t.Errorf("%s: expected %d issues, got %d: %+v", tc.msg, tc.expected, len(issues), issues)
 		}
+	}
+}
+
+func TestNoSpaceBeforeSemicolonHasExactWhitespaceSpan(t *testing.T) {
+	source := []byte("$a = 1 ;")
+	issues := (&NoSpaceBeforeSemicolonChecker{}).CheckIssues([]string{string(source)}, "test.php")
+	if len(issues) != 1 {
+		t.Fatalf("expected one issue, got %#v", issues)
+	}
+	issue := issues[0]
+	if issue.Line != 1 || issue.Column != 7 || issue.EndLine != 1 || issue.EndColumn != 8 {
+		t.Fatalf("expected the single whitespace byte range [7,8), got %+v", issue)
+	}
+	got := issue.AsDiagnostic(source, "go-php-parser")
+	if got.Span != (diag.ByteSpan{Start: 6, End: 7}) {
+		t.Fatalf("expected exact byte span [6,7), got %+v", got.Span)
 	}
 }
