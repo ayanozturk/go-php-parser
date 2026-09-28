@@ -17,7 +17,7 @@ Improve analyser compatibility through evidence-backed semantic fixes, neutral f
 - The external HR corpus contains 1,930 PHP files (source manifest SHA256 `e0a6e4771fbdc5853fa9931d64e6c0bed7c5cf35697dd1d8f2880ce9fb647bf2`). Its PHPStan 2.1.44 phar is pinned by SHA256 `f9e9524f8e3d3c6338ced11d1911860989165edeedc5b1084d8d53abd87cc7ab`; the level-7 configuration SHA256 is `2cebafcacff07d42a69719403533ec3bc44905030bb4f7ee61315691080a5526`.
 - Reference baseline: PHPStan reported 0 diagnostics across the 1,930 files at the configured level 7. The production-equivalent PHP Strom scan with parser `fbc5ea2a` reported 30 `A.ARG.TYPE` findings across four files and no other reportable diagnostics. On this measured corpus/run, the diagnostic comparison is 0 true positives, 30 false positives, and 0 false negatives.
 - The findings reduce to short-ternary `DateTime::createFromFormat()` falsey narrowing and PHPUnit `assertNotFalse()` narrowing. Private source, paths, and messages remain external and are not fixture material.
-- Differential suites use their checked-in PHPStan 2.2.5 pin, separate from the private project's PHPStan 2.1.44 reference. Levels 0–3 and 5–8 pass with 98, 26, 105, 44, 39, 28, 10, and 49 cases respectively; level 4 has no checked-in differential pack.
+- Differential suites use their checked-in PHPStan 2.2.5 pin, separate from the private project's PHPStan 2.1.44 reference. Levels 0–3 and 5–8 pass with 98, 26, 105, 44, 39, 30, 10, and 49 cases respectively; level 4 has no checked-in differential pack.
 - After parser commit `a0004f15` was pinned in PHP Strom, the production-equivalent rerun indexed 15,699 files and reported 0 diagnostics on the same external project; all 30 baseline `A.ARG.TYPE` findings are cleared. Against the same PHPStan level-7 zero-diagnostic baseline, this rerun measured 0 true positives, 0 false positives, and 0 false negatives. This result closes the observed private-corpus slice only; the broader compatibility and reviewed-threshold gates below remain open.
 
 ## Work sequence
@@ -30,7 +30,7 @@ Improve analyser compatibility through evidence-backed semantic fixes, neutral f
 
 ### 2. Fix compatibility gaps
 
-- [ ] Close remaining `Level6.MissingIterableValueType` cases across native, PHPDoc/refined, inherited, trait, and anonymous-class contracts.
+- [x] Close `Level6.MissingIterableValueType` coverage across native, PHPDoc/refined, inherited, trait, and anonymous-class contracts.
 - [ ] Audit repository return/template substitution and unknown-symbol noise; add a neutral public fixture and clean control for each correction.
 - [ ] Add framework metadata for Symfony container returns, Doctrine repositories and collections, PHPUnit data providers, Composer, and common Laravel patterns.
 - [ ] Expand PHPStan-gated coverage at the level where each diagnostic begins: casts, offset access, callables, increments, foreach, interpolation, condition narrowing, PHPDoc validation, property initialization, variance, and trait/interface contracts.

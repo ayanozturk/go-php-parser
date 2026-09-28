@@ -139,6 +139,32 @@
       ]
     },
     {
+      "id": "missing-trait-iterable-types",
+      "capability": "weak iterable PHPDoc in trait methods remains reportable after composition",
+      "file": "missing-trait-iterable-types.php",
+      "engineCodes": [
+        "Level6.MissingIterableValueType",
+        "Level6.MissingIterableValueType"
+      ],
+      "phpstanIdentifiers": [
+        "missingType.iterableValue",
+        "missingType.iterableValue"
+      ]
+    },
+    {
+      "id": "missing-anonymous-iterable-types",
+      "capability": "weak iterable PHPDoc on anonymous contract overrides remains reportable",
+      "file": "missing-anonymous-iterable-types.php",
+      "engineCodes": [
+        "Level6.MissingIterableValueType",
+        "Level6.MissingIterableValueType"
+      ],
+      "phpstanIdentifiers": [
+        "missingType.iterableValue",
+        "missingType.iterableValue"
+      ]
+    },
+    {
       "id": "missing-function-parameter",
       "capability": "missing named-function parameter types",
       "file": "missing-function-parameter.php",
