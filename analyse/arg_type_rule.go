@@ -1201,6 +1201,9 @@ func argumentTypeIssueMinimumLevel(expected, actual Type, scope *functionScope, 
 	if actual.hasBuiltin("null") && expected.AcceptsWithContext(actual.withoutBuiltin("null"), scope, ctx) {
 		return 8
 	}
+	if expected.hasBuiltin("non-empty-string") && actual.hasBuiltin("string") && len(actual.atoms) == 1 {
+		return 7
+	}
 	if actual.AcceptsWithContext(expected, scope, ctx) {
 		return 8
 	}
@@ -1276,7 +1279,7 @@ func checkResolvedCallArgTypes(target string, method ResolvedMethod, args []ast.
 			continue
 		}
 
-		actual := inferTypeWithFacts(filename, argExpr, scope, ctx)
+		actual := inferArgumentTypeWithFacts(filename, argExpr, scope, ctx)
 		if expected.AcceptsWithContext(actual, scope, ctx) {
 			usedParams[paramIndex] = struct{}{}
 			continue
@@ -1302,6 +1305,37 @@ func checkResolvedCallArgTypes(target string, method ResolvedMethod, args []ast.
 
 		usedParams[paramIndex] = struct{}{}
 	}
+}
+
+func inferArgumentTypeWithFacts(filename string, expr ast.Node, scope *functionScope, ctx *AnalysisContext) Type {
+	actual := inferTypeWithFacts(filename, expr, scope, ctx)
+	switch node := expr.(type) {
+	case *ast.StringLiteral:
+		if isPlainStringType(actual) {
+			return inferredStringLiteralArgumentType(node.Value)
+		}
+	case *ast.StringNode:
+		if isPlainStringType(actual) {
+			return inferredStringLiteralArgumentType(node.Value)
+		}
+	case *ast.ArrayAccessNode:
+		field := lookupArrayShapeField(arrayShapeFieldsOf(node.Var, scope, ctx), node.Index, scope)
+		if field.stringRefinement != "" && isPlainStringType(actual) {
+			return ParseType(field.stringRefinement)
+		}
+	}
+	return actual
+}
+
+func isPlainStringType(typ Type) bool {
+	return typ.hasBuiltin("string") && len(typ.atoms) == 1
+}
+
+func inferredStringLiteralArgumentType(value string) Type {
+	if value == "" {
+		return ParseType("empty-string")
+	}
+	return ParseType("non-empty-string")
 }
 
 func resolveMethodForCall(call *ast.MethodCallNode, scope *functionScope, ctx *AnalysisContext, filename string) (ResolvedMethod, bool) {

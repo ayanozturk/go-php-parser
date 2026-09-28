@@ -25,21 +25,23 @@ type typeAtom struct {
 }
 
 var builtinTypeNames = map[string]struct{}{
-	"array":    {},
-	"bool":     {},
-	"callable": {},
-	"false":    {},
-	"float":    {},
-	"int":      {},
-	"iterable": {},
-	"mixed":    {},
-	"never":    {},
-	"null":     {},
-	"object":   {},
-	"resource": {},
-	"string":   {},
-	"true":     {},
-	"void":     {},
+	"array":            {},
+	"bool":             {},
+	"callable":         {},
+	"empty-string":     {},
+	"false":            {},
+	"float":            {},
+	"int":              {},
+	"iterable":         {},
+	"mixed":            {},
+	"never":            {},
+	"null":             {},
+	"non-empty-string": {},
+	"object":           {},
+	"resource":         {},
+	"string":           {},
+	"true":             {},
+	"void":             {},
 }
 
 const (
@@ -621,6 +623,12 @@ func atomsCompatibleWithContext(declared, actual typeAtom, scope *functionScope,
 		return true
 	}
 	if declared.kind == typeKindBuiltin && actual.kind == typeKindBuiltin {
+		if declared.key == "string" && actual.key == "non-empty-string" {
+			return true
+		}
+		if declared.key == "string" && actual.key == "empty-string" {
+			return true
+		}
 		if declared.key == "float" && actual.key == "int" {
 			return true
 		}
@@ -684,7 +692,13 @@ func canonicalizeDocType(raw string) string {
 		return "array"
 	case "array", "non-empty-array", "associative-array":
 		return "array"
-	case "class-string", "interface-string", "trait-string", "literal-string", "non-empty-string", "non-empty-lowercase-string", "numeric-string", "lowercase-string":
+	case "non-empty-string":
+		return "non-empty-string"
+	case "non-empty-lowercase-string":
+		return "string"
+	case "empty-string":
+		return "empty-string"
+	case "class-string", "interface-string", "trait-string", "literal-string", "numeric-string", "lowercase-string":
 		return "string"
 	case "positive-int", "negative-int", "non-negative-int", "non-positive-int":
 		return "int"

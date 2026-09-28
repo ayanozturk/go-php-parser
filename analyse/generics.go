@@ -131,6 +131,9 @@ func richerGenericType(native, documented string, ft FileTypeContext) string {
 	if docNorm == "" {
 		return nativeNorm
 	}
+	if nativeNorm == "string" && docNorm == "non-empty-string" {
+		return docNorm
+	}
 	docInst, docOK := parseGenericTypeFromString(docNorm)
 	if !docOK || len(docInst.TypeArguments) == 0 {
 		return nativeNorm
@@ -450,9 +453,10 @@ func isClassStringOfKnownTemplate(typ string, templates, extra map[string]struct
 }
 
 type arrayShapeField struct {
-	callable Type
-	nested   map[string]arrayShapeField
-	typ      Type
+	callable         Type
+	nested           map[string]arrayShapeField
+	typ              Type
+	stringRefinement string
 }
 
 func (f arrayShapeField) empty() bool {
@@ -510,6 +514,13 @@ func parseArrayShapeFields(raw string, typeCtx FileTypeContext) map[string]array
 		if field.callable.IsEmpty() && len(field.nested) == 0 {
 			if parsed := arrayShapeValueType(value, typeCtx); !parsed.IsEmpty() {
 				field.typ = parsed
+			}
+			if isQuotedPHPDocString(value) {
+				if len(strings.TrimSpace(value)) == 2 {
+					field.stringRefinement = "empty-string"
+				} else {
+					field.stringRefinement = "non-empty-string"
+				}
 			}
 		}
 		if field.empty() {

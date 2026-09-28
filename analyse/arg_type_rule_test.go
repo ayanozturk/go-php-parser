@@ -85,6 +85,42 @@ function acceptBool(bool $value): void {}
 	}
 }
 
+func TestArgumentTypesEnforceNonEmptyString(t *testing.T) {
+	const source = `<?php
+/** @param non-empty-string $value */
+function acceptNonEmpty(string $value): void {}
+function acceptStringValue(string $value): void { acceptNonEmpty($value); }
+function run(): void {
+    acceptNonEmpty('ready');
+    acceptNonEmpty('');
+}
+/** @param array{label: 'ready', blank: ''} $data */
+function passShapeStrings(array $data): void {
+    acceptNonEmpty($data['label']);
+    acceptNonEmpty($data['blank']);
+}
+`
+	files := map[string]string{"non-empty-string.php": source}
+	issues := runAnalysisLevelOnFiles(t, files, 5)
+	if !hasArgTypeIssue(issues) || len(filterNonEmptyArgTypeIssues(issues)) != 2 {
+		t.Fatalf("expected empty literals to mismatch at level 5, got %#v", issues)
+	}
+	issues = runAnalysisLevelOnFiles(t, files, 7)
+	if len(filterNonEmptyArgTypeIssues(issues)) != 3 {
+		t.Fatalf("expected unrefined and empty strings to mismatch at level 7, got %#v", issues)
+	}
+}
+
+func filterNonEmptyArgTypeIssues(issues []AnalysisIssue) []AnalysisIssue {
+	var result []AnalysisIssue
+	for _, issue := range issues {
+		if issue.Code == "A.ARG.TYPE" {
+			result = append(result, issue)
+		}
+	}
+	return result
+}
+
 func TestUnboundContravariantClassTemplateParameterRemainsMixedForArguments(t *testing.T) {
 	const source = `<?php
 /** @template-contravariant Tin */

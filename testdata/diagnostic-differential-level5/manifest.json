@@ -376,6 +376,26 @@
       "phpstanIdentifiers": [
         "argument.type"
       ]
+    },
+    {
+      "id": "argument-non-empty-string-clean",
+      "capability": "a non-empty string accepts a non-empty string literal",
+      "file": "argument-non-empty-string-clean.php",
+      "engineCodes": [],
+      "phpstanIdentifiers": []
+    },
+    {
+      "id": "argument-non-empty-string-mismatch",
+      "capability": "non-empty string rejects empty and unrefined strings",
+      "file": "argument-non-empty-string-mismatch.php",
+      "engineCodes": [
+        "A.ARG.TYPE",
+        "A.ARG.TYPE"
+      ],
+      "phpstanIdentifiers": [
+        "argument.type",
+        "argument.type"
+      ]
     }
   ]
 }

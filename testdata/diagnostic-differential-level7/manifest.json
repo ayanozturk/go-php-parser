@@ -96,6 +96,17 @@
       "file": "argument-nullable-boundary-clean.php",
       "engineCodes": [],
       "phpstanIdentifiers": []
+    },
+    {
+      "id": "argument-non-empty-string-variable-mismatch",
+      "capability": "an unrefined string argument does not satisfy non-empty-string",
+      "file": "argument-non-empty-string-variable-mismatch.php",
+      "engineCodes": [
+        "A.ARG.TYPE"
+      ],
+      "phpstanIdentifiers": [
+        "argument.type"
+      ]
     }
   ]
 }

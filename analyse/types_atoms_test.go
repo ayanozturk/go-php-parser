@@ -41,8 +41,28 @@ func TestTypeAcceptsUsesAtomCompatibility(t *testing.T) {
 	}
 }
 
-func TestNonEmptyLowercaseStringIsNormalizedAsString(t *testing.T) {
+func TestNonEmptyLowercaseStringRemainsUnrefinedUntilCaseSemanticsExist(t *testing.T) {
 	if got := ParseType("non-empty-lowercase-string").String(); got != "string" {
 		t.Fatalf("normalized non-empty-lowercase-string = %q, want string", got)
+	}
+}
+
+func TestNonEmptyStringPreservesItsSubtypeBoundary(t *testing.T) {
+	nonEmpty := ParseType("non-empty-string")
+	empty := ParseType("empty-string")
+	if !ParseType("string").Accepts(nonEmpty) {
+		t.Fatal("string should accept non-empty-string")
+	}
+	if !ParseType("string").Accepts(empty) {
+		t.Fatal("string should accept empty-string")
+	}
+	if !nonEmpty.Accepts(nonEmpty) {
+		t.Fatal("non-empty-string should accept itself")
+	}
+	if nonEmpty.Accepts(empty) {
+		t.Fatal("non-empty-string must reject empty-string")
+	}
+	if nonEmpty.Accepts(ParseType("string")) {
+		t.Fatal("non-empty-string must not accept an unrefined string")
 	}
 }

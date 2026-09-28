@@ -1235,6 +1235,12 @@ func arrayIndexIncludes(lookup arrayIndexLookup, key string) bool {
 }
 
 func mergeArrayShapeField(left, right arrayShapeField) arrayShapeField {
+	if left.empty() {
+		return right
+	}
+	if right.empty() {
+		return left
+	}
 	nested := copyArrayShapeFieldMap(left.nested)
 	for key, field := range right.nested {
 		if nested == nil {
@@ -1243,10 +1249,18 @@ func mergeArrayShapeField(left, right arrayShapeField) arrayShapeField {
 		nested[key] = mergeArrayShapeField(nested[key], field)
 	}
 	return arrayShapeField{
-		callable: unionInferredTypes(left.callable, right.callable),
-		nested:   nested,
-		typ:      unionInferredTypes(left.typ, right.typ),
+		callable:         unionInferredTypes(left.callable, right.callable),
+		nested:           nested,
+		typ:              unionInferredTypes(left.typ, right.typ),
+		stringRefinement: mergeStringRefinement(left.stringRefinement, right.stringRefinement),
 	}
+}
+
+func mergeStringRefinement(left, right string) string {
+	if left == right {
+		return left
+	}
+	return ""
 }
 
 func copyArrayShapeFieldMap(src map[string]arrayShapeField) map[string]arrayShapeField {
