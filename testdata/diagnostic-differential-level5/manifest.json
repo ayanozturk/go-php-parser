@@ -319,6 +319,20 @@
       "file": "argument-assert-not-false-clean.php",
       "engineCodes": [],
       "phpstanIdentifiers": []
+    },
+    {
+      "id": "argument-symfony-container-get-clean",
+      "capability": "Symfony container class-string return respects the service type after a null check",
+      "file": "argument-symfony-container-get-clean.php",
+      "engineCodes": [],
+      "phpstanIdentifiers": []
+    },
+    {
+      "id": "argument-laravel-builder-first-clean",
+      "capability": "Laravel Eloquent builder first returns its model type after a null check",
+      "file": "argument-laravel-builder-first-clean.php",
+      "engineCodes": [],
+      "phpstanIdentifiers": []
     }
   ]
 }

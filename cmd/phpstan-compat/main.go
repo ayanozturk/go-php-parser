@@ -114,7 +114,7 @@ func main() {
 	root := flag.String("root", ".", "project root used to normalize diagnostic paths")
 	pathsFlag := flag.String("paths", "", "comma-separated first-party files/directories to report (default: root)")
 	indexPathsFlag := flag.String("index-paths", "", "comma-separated extra files/directories indexed only for symbol resolution")
-	levelsFlag := flag.String("levels", "0,1,2,3,5,6,7,8", "comma-separated PHPStan levels")
+	levelsFlag := flag.String("levels", "0,1,2,3,4,5,6,7,8", "comma-separated PHPStan levels")
 	phpstanBin := flag.String("phpstan-bin", "phpstan", "PHPStan executable")
 	phpstanConfig := flag.String("phpstan-config", "", "PHPStan configuration file")
 	crosswalkGlob := flag.String("crosswalk", "testdata/diagnostic-differential*/manifest.json", "glob of differential manifests used as the identifier crosswalk")

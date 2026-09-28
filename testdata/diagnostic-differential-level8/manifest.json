@@ -453,6 +453,28 @@
       "phpstanIdentifiers": [
         "argument.type"
       ]
+    },
+    {
+      "id": "argument-symfony-container-get-mismatch",
+      "capability": "nullable Symfony container result without a null check is rejected",
+      "file": "argument-symfony-container-get-mismatch.php",
+      "engineCodes": [
+        "A.ARG.TYPE"
+      ],
+      "phpstanIdentifiers": [
+        "argument.type"
+      ]
+    },
+    {
+      "id": "argument-laravel-builder-first-mismatch",
+      "capability": "nullable Laravel Eloquent first result without a null check is rejected",
+      "file": "argument-laravel-builder-first-mismatch.php",
+      "engineCodes": [
+        "A.ARG.TYPE"
+      ],
+      "phpstanIdentifiers": [
+        "argument.type"
+      ]
     }
   ]
 }

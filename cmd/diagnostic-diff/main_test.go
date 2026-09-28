@@ -57,11 +57,22 @@ func TestCheckedInEngineDifferentialBaseline(t *testing.T) {
 		t.Fatalf("engine-only level-3 report should not contain a reference run: %#v", level3Report.Reference)
 	}
 
+	level4Report, err := runDifferential(filepath.Join("..", "..", "testdata", "diagnostic-differential-level4"), "", true)
+	if err != nil {
+		t.Fatalf("run engine level-4 differential baseline: %v", err)
+	}
+	if level4Report.Totals.Cases != 3 || level4Report.Totals.EngineMismatches != 0 {
+		t.Fatalf("unexpected level-4 differential baseline: %#v", level4Report.Totals)
+	}
+	if level4Report.Reference != nil {
+		t.Fatalf("engine-only level-4 report should not contain a reference run: %#v", level4Report.Reference)
+	}
+
 	level5Report, err := runDifferential(filepath.Join("..", "..", "testdata", "diagnostic-differential-level5"), "", true)
 	if err != nil {
 		t.Fatalf("run engine level-5 differential baseline: %v", err)
 	}
-	if level5Report.Totals.Cases != 39 || level5Report.Totals.EngineMismatches != 0 {
+	if level5Report.Totals.Cases != 41 || level5Report.Totals.EngineMismatches != 0 {
 		t.Fatalf("unexpected level-5 differential baseline: %#v", level5Report.Totals)
 	}
 	if level5Report.Reference != nil {
@@ -94,7 +105,7 @@ func TestCheckedInEngineDifferentialBaseline(t *testing.T) {
 	if err != nil {
 		t.Fatalf("run engine level-8 differential baseline: %v", err)
 	}
-	if level8Report.Totals.Cases != 49 || level8Report.Totals.EngineMismatches != 0 {
+	if level8Report.Totals.Cases != 51 || level8Report.Totals.EngineMismatches != 0 {
 		t.Fatalf("unexpected level-8 differential baseline: %#v", level8Report.Totals)
 	}
 	if level8Report.Reference != nil {

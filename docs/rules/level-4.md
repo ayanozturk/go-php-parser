@@ -8,10 +8,10 @@
 
 - **Introduced at this level:** 1 registered levelled rule, `Generic.CodeAnalysis.UnreachableCode`.
 - **Cumulative registered levelled rules:** 24.
-- **Checked-in differential pack:** None currently checked in.
+- **Checked-in differential pack:** 3 cases in `testdata/diagnostic-differential-level4`.
 
 ## Coverage and boundaries
 
-`Generic.CodeAnalysis.UnreachableCode` reports selected statements that cannot execute after terminating control flow, such as `return`, `throw`, and equivalent branches recognized by the control-flow analysis. It is a focused dead-code check, not a complete reachability proof for every PHP construct or path-sensitive condition.
+`Generic.CodeAnalysis.UnreachableCode` reports selected statements that cannot execute after terminating control flow, such as `return` and `throw`. The pinned PHPStan 2.2.5 differential pack covers both terminators and a clean conditional-return control. This is a focused dead-code check, not a complete reachability proof for every PHP construct or path-sensitive condition.
 
-Levels 0 through 3 are cumulative. No PHPStan differential pack currently gates this level.
+Levels 0 through 3 are cumulative.

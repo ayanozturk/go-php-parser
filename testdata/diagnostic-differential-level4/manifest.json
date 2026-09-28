@@ -1,0 +1,40 @@
+{
+  "schemaVersion": 1,
+  "reference": {
+    "tool": "PHPStan",
+    "level": 4,
+    "version": "2.2.5",
+    "configuration": "../phpstan-differential.neon"
+  },
+  "cases": [
+    {
+      "id": "unreachable-after-return",
+      "capability": "statements after return are unreachable",
+      "file": "unreachable-after-return.php",
+      "engineCodes": [
+        "Generic.CodeAnalysis.UnreachableCode"
+      ],
+      "phpstanIdentifiers": [
+        "deadCode.unreachable"
+      ]
+    },
+    {
+      "id": "unreachable-after-throw",
+      "capability": "statements after throw are unreachable",
+      "file": "unreachable-after-throw.php",
+      "engineCodes": [
+        "Generic.CodeAnalysis.UnreachableCode"
+      ],
+      "phpstanIdentifiers": [
+        "deadCode.unreachable"
+      ]
+    },
+    {
+      "id": "clean-conditional-return",
+      "capability": "reachable statements after a conditional return stay clean",
+      "file": "clean-conditional-return.php",
+      "engineCodes": [],
+      "phpstanIdentifiers": []
+    }
+  ]
+}
