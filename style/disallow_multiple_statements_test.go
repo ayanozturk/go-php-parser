@@ -2,6 +2,18 @@ package style
 
 import "testing"
 
+func TestDisallowMultipleStatementsPointsToSecondStatement(t *testing.T) {
+	line := "$é = 1; $b = 2;"
+	issues := (&DisallowMultipleStatementsSniff{}).CheckIssues([]string{line}, "test.php")
+	if len(issues) != 1 {
+		t.Fatalf("expected one issue, got %#v", issues)
+	}
+	wantColumn := 9 // `$é = 1;` then a space, then the second `$`.
+	if issues[0].Line != 1 || issues[0].Column != wantColumn || issues[0].EndLine != 1 || issues[0].EndColumn != wantColumn {
+		t.Fatalf("expected zero-width point at the second statement, got %+v", issues[0])
+	}
+}
+
 func TestDisallowMultipleStatementsSniff(t *testing.T) {
 	sniff := &DisallowMultipleStatementsSniff{}
 	filename := "test.php"

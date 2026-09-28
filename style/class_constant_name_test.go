@@ -38,6 +38,9 @@ class TestClass {
 		if issue.Code != psr1ClassConstantNameCode {
 			t.Errorf("expected %s, got %s", psr1ClassConstantNameCode, issue.Code)
 		}
+		if issue.EndLine != issue.Line || issue.EndColumn-issue.Column != len("foo") && issue.EndColumn-issue.Column != len("barBaz") {
+			t.Errorf("expected a token-sized constant name range, got %+v", issue)
+		}
 	}
 }
 

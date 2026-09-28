@@ -411,6 +411,37 @@ class Controller
 	}
 }
 
+func TestStaticMethodNullableReturnIsCheckedAsArgument(t *testing.T) {
+	files := map[string]string{
+		"composer.php": `<?php
+namespace Composer {
+    final class InstalledVersions
+    {
+        public static function getPrettyVersion(string $packageName): ?string
+        {
+            return null;
+        }
+    }
+}
+
+namespace App {
+    function requireVersion(string $version): void {}
+
+    function passComposerVersion(): void
+    {
+        requireVersion(\Composer\InstalledVersions::getPrettyVersion('vendor/package'));
+    }
+}
+`,
+	}
+	if issues := runAnalysisLevelOnFiles(t, files, 4); hasArgTypeIssue(issues) {
+		t.Fatalf("static nullable return should remain unchecked at level 4, got %#v", issues)
+	}
+	if issues := runAnalysisLevelOnFiles(t, files, 5); !hasArgTypeIssue(issues) {
+		t.Fatalf("expected static nullable return to mismatch string parameter, got %#v", issues)
+	}
+}
+
 func TestWrongNamedVarDocDoesNotRefineAssignedVariable(t *testing.T) {
 	files := map[string]string{
 		"user.php": `<?php

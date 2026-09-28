@@ -571,6 +571,9 @@ func inferFunctionCallType(n *ast.FunctionCallNode, scope *functionScope, ctx *A
 	if n == nil || n.Name == nil {
 		return MixedType()
 	}
+	if typ, ok := inferStaticMethodCallType(n, scope, ctx); ok {
+		return typ
+	}
 	if returnType := inferCallableInvocationReturn(n.Name, scope, ctx); !returnType.IsEmpty() {
 		return returnType
 	}
@@ -597,6 +600,44 @@ func inferFunctionCallType(n *ast.FunctionCallNode, scope *functionScope, ctx *A
 		}
 	}
 	return MixedType()
+}
+
+func inferStaticMethodCallType(call *ast.FunctionCallNode, scope *functionScope, ctx *AnalysisContext) (Type, bool) {
+	if call == nil || ctx == nil || ctx.Resolver == nil {
+		return Type{}, false
+	}
+	var className, methodName string
+	switch access := call.Name.(type) {
+	case *ast.ClassConstFetchNode:
+		if access.ConstExpr != nil || access.Const == "" || strings.EqualFold(access.Const, "class") || strings.HasPrefix(access.Const, "$") {
+			return Type{}, false
+		}
+		className, methodName = access.Class, access.Const
+	case *ast.IdentifierNode:
+		if separator := strings.LastIndex(access.Value, "::"); separator >= 0 {
+			className, methodName = access.Value[:separator], access.Value[separator+2:]
+		}
+	case *ast.Identifier:
+		if separator := strings.LastIndex(access.Name, "::"); separator >= 0 {
+			className, methodName = access.Name[:separator], access.Name[separator+2:]
+		}
+	}
+	if className == "" || methodName == "" || strings.EqualFold(methodName, "class") || strings.HasPrefix(methodName, "$") {
+		return Type{}, false
+	}
+	var typeCtx FileTypeContext
+	var currentClass *ast.ClassNode
+	if scope != nil {
+		typeCtx = scope.typeCtx
+		currentClass = &ast.ClassNode{Name: scope.className}
+	}
+	className = resolveClassLikeForCall(className, currentClass, typeCtx, ctx)
+	method, ok := ctx.Resolver.ResolveMethod(className, methodName)
+	if !ok {
+		return Type{}, false
+	}
+	bindings := bindCallSiteMethodTemplates(method, call.Args, scope, ctx, "")
+	return inferredMethodReturnTypePreserving(method, className, ctx, bindings, classTemplatePreserveSet(scope, ctx)), true
 }
 
 func inferCallableInvocationReturn(expr ast.Node, scope *functionScope, ctx *AnalysisContext) Type {

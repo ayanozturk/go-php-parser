@@ -4,6 +4,7 @@ import (
 	"github.com/ayanozturk/go-php-parser/ast"
 	"github.com/ayanozturk/go-php-parser/style/helper"
 	"strings"
+	"unicode/utf8"
 )
 
 const disallowMultipleStatementsCode = "Generic.Formatting.DisallowMultipleStatements"
@@ -49,26 +50,35 @@ func (s *DisallowMultipleStatementsSniff) CheckIssues(lines []string, filename s
 			}
 			continue
 		}
-		count := s.countStatements(line, commentState)
+		count, firstSeparator := s.countStatements(line, commentState)
 		if enterBlockComment {
 			commentState.InBlockComment = true
 		}
 		if count > 1 {
+			byteOffset := firstSeparator + 1
+			for byteOffset < len(line) && (line[byteOffset] == ' ' || line[byteOffset] == '\t') {
+				byteOffset++
+			}
+			column := utf8.RuneCountInString(line[:byteOffset]) + 1
 			issues = append(issues, StyleIssue{
-				Filename: filename,
-				Line:     i + 1,
-				Type:     Error,
-				Fixable:  false,
-				Message:  "Multiple statements detected on the same line",
-				Code:     disallowMultipleStatementsCode,
+				Filename:  filename,
+				Line:      i + 1,
+				Column:    column,
+				EndLine:   i + 1,
+				EndColumn: column,
+				Type:      Error,
+				Fixable:   false,
+				Message:   "Multiple statements detected on the same line",
+				Code:      disallowMultipleStatementsCode,
 			})
 		}
 	}
 	return issues
 }
 
-func (s *DisallowMultipleStatementsSniff) countStatements(line string, commentState *helper.CommentState) int {
+func (s *DisallowMultipleStatementsSniff) countStatements(line string, commentState *helper.CommentState) (int, int) {
 	count := 0
+	firstSeparator := -1
 	qs := &helper.QuoteState{}
 	parenDepth := 0
 	j := 0
@@ -96,11 +106,14 @@ func (s *DisallowMultipleStatementsSniff) countStatements(line string, commentSt
 			}
 		}
 		if s.isStatementSeparator(line, j, qs, commentState, parenDepth) {
+			if firstSeparator < 0 {
+				firstSeparator = j
+			}
 			count++
 		}
 		j++
 	}
-	return count
+	return count, firstSeparator
 }
 
 func (s *DisallowMultipleStatementsSniff) skipOrHandleBlockComment(line string, j *int, commentState *helper.CommentState) bool {

@@ -51,3 +51,13 @@ func TestClosingBraceOnOwnLineInit(t *testing.T) {
 		t.Errorf("Expected at least one issue for a lone closing brace, got none")
 	}
 }
+
+func TestClosingBraceIssueHighlightsBraceToken(t *testing.T) {
+	issues := (&ClosingBraceOnOwnLineChecker{}).CheckIssues([]string{"class Foo", "{", "} $value = 1;"}, "test.php")
+	if len(issues) != 1 {
+		t.Fatalf("expected one issue, got %#v", issues)
+	}
+	if issues[0].Line != 3 || issues[0].Column != 1 || issues[0].EndLine != 3 || issues[0].EndColumn != 2 {
+		t.Fatalf("expected exact closing brace range [1,2), got %+v", issues[0])
+	}
+}

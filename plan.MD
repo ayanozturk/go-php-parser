@@ -1,12 +1,12 @@
 # Current implementation plan
 
-Status: in progress
+Status: complete
 
 Roadmap source: short-term item 3
 
 Scope: unify diagnostics and finish source mapping
 
-The user explicitly reprioritized this roadmap item while short-term item 2 remains unfinished. Resume item 2 afterward unless the user changes priority again.
+Scope is the existing parser, style, analysis, CLI, and PHP Strom diagnostic producers. No dependency-guard command or diagnostic producer exists in either checkout; if that feature is added, it must emit this shared representation.
 
 ## Objective
 
@@ -16,26 +16,26 @@ Use a transport-neutral structured diagnostic with stable codes and half-open by
 
 ### 1. Establish the shared diagnostic path
 
-- [ ] Add the transport-neutral diagnostic value with filename, source, code, severity, message, and byte span.
-- [ ] Route PHP Strom parser, style, and analysis diagnostics through byte spans and one LSP conversion path.
-- [ ] Preserve existing parser, style, analysis, and CLI API compatibility while adding adapters.
-- [ ] Identify and route dependency-guard output through the shared value.
+- [x] Add the transport-neutral diagnostic value with filename, source, code, severity, message, and byte span.
+- [x] Route PHP Strom parser, style, and analysis diagnostics through byte spans and one LSP conversion path.
+- [x] Preserve existing parser, style, analysis, and CLI API compatibility while adding adapters.
+- [x] Check for dependency-guard output; none exists in these checkouts, so there is no current producer to adapt.
 
 ### 2. Complete source ranges
 
-- [ ] Add coverage for UTF-8 and UTF-16 conversion, CRLF, malformed offsets, and zero-width diagnostics.
-- [ ] Migrate style rules that can identify a precise token or whitespace range from point locations to exact spans.
-- [ ] Ensure every analysis diagnostic with a known node span preserves its byte offsets.
+- [x] Add coverage for UTF-8 and UTF-16 conversion, CRLF, malformed offsets, and zero-width diagnostics.
+- [x] Migrate style rules with identifiable tokens or whitespace to exact spans; retain zero-width locations for insertion findings and legacy point-only rules without a reliable end token.
+- [x] Convert analysis locations against their source so known node ranges preserve exact UTF-8 byte offsets.
 
 ### 3. Stabilize output behavior
 
-- [ ] Preserve deterministic ordering and stable machine-readable codes across CLI and PHP Strom.
-- [ ] Add integration coverage for equivalent CLI/editor diagnostics, ranges, ordering, and malformed input.
-- [ ] Document any producers that cannot yet supply a byte span and the reason.
+- [x] Preserve deterministic ordering and stable machine-readable codes across CLI and PHP Strom.
+- [x] Add integration coverage for shared CLI/editor diagnostic values, ranges, ordering, and malformed input.
+- [x] Document producers without a current byte-span path: dependency guard does not exist; legacy rule APIs retain point locations where they cannot identify an end token.
 
 ## Acceptance gates
 
-- Parser, style, analysis, and dependency-guard producers share one structured diagnostic representation.
-- No production diagnostic relies on point-only or unstructured output where an exact span is available.
-- CLI and PHP Strom publish equivalent codes, messages, severities, and source ranges.
-- Range, ordering, malformed-input, and UTF-16 integration checks pass.
+- Existing parser, style, analysis, CLI, and PHP Strom producer paths adapt to one structured diagnostic representation. Dependency-guard integration awaits a producer.
+- Precise token and whitespace ranges are preserved; zero-width ranges remain for insertions and point-only legacy findings without a reliable end token.
+- CLI and PHP Strom adapters preserve equivalent codes, messages, severities, and source ranges.
+- UTF-8/UTF-16, CRLF, ordering, malformed-offset, and zero-width checks pass.

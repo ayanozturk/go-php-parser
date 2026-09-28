@@ -5,6 +5,7 @@ import (
 	"github.com/ayanozturk/go-php-parser/style/helper"
 	"regexp"
 	"strings"
+	"unicode/utf8"
 )
 
 const psr1ClassConstantNameCode = "PSR1.Classes.ClassConstantName"
@@ -33,14 +34,17 @@ func (s *ClassConstantNameSniff) checkNodeForConstants(node ast.Node, filename s
 				// Debug: check constant name validation
 				_ = s.isValidConstantName(constant.Name) // debug
 				if !s.isValidConstantName(constant.Name) {
+					pos := constant.GetPos()
 					*issues = append(*issues, StyleIssue{
-						Filename: filename,
-						Line:     constant.GetPos().Line,
-						Column:   constant.GetPos().Column,
-						Type:     Error,
-						Fixable:  false,
-						Message:  "Class constant name should be UPPER_CASE_WITH_UNDERSCORES",
-						Code:     psr1ClassConstantNameCode,
+						Filename:  filename,
+						Line:      pos.Line,
+						Column:    pos.Column,
+						EndLine:   pos.Line,
+						EndColumn: pos.Column + utf8.RuneCountInString(constant.Name),
+						Type:      Error,
+						Fixable:   false,
+						Message:   "Class constant name should be UPPER_CASE_WITH_UNDERSCORES",
+						Code:      psr1ClassConstantNameCode,
 					})
 				}
 			}
@@ -61,14 +65,17 @@ func (s *ClassConstantNameSniff) checkNodeForConstants(node ast.Node, filename s
 				}
 			} else if constant, ok := bodyNode.(*ast.ConstantNode); ok {
 				if !s.isValidConstantName(constant.Name) {
+					pos := constant.GetPos()
 					*issues = append(*issues, StyleIssue{
-						Filename: filename,
-						Line:     constant.GetPos().Line,
-						Column:   constant.GetPos().Column,
-						Type:     Error,
-						Fixable:  false,
-						Message:  "Class constant name should be UPPER_CASE_WITH_UNDERSCORES",
-						Code:     psr1ClassConstantNameCode,
+						Filename:  filename,
+						Line:      pos.Line,
+						Column:    pos.Column,
+						EndLine:   pos.Line,
+						EndColumn: pos.Column + utf8.RuneCountInString(constant.Name),
+						Type:      Error,
+						Fixable:   false,
+						Message:   "Class constant name should be UPPER_CASE_WITH_UNDERSCORES",
+						Code:      psr1ClassConstantNameCode,
 					})
 				}
 			}

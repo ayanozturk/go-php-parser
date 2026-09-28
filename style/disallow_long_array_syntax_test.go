@@ -26,6 +26,9 @@ func TestDisallowLongArraySyntaxSniff(t *testing.T) {
 	if issue.Line != 2 || issue.Column != 1 {
 		t.Errorf("Expected issue at 2:1, got %d:%d", issue.Line, issue.Column)
 	}
+	if issue.EndLine != 2 || issue.EndColumn != 6 {
+		t.Errorf("Expected exact array keyword range [1,6), got %d:%d to %d:%d", issue.Line, issue.Column, issue.EndLine, issue.EndColumn)
+	}
 	if issue.Type != "ERROR" {
 		t.Errorf("Expected issue type ERROR, got %s", issue.Type)
 	}

@@ -20,14 +20,17 @@ func (s *DisallowLongArraySyntaxSniff) checkNode(node ast.Node, filename string)
 	}
 	if arr, ok := node.(*ast.ArrayNode); ok {
 		if arr.TokenLiteral() == "array" {
+			pos := arr.GetPos()
 			s.Issues = append(s.Issues, StyleIssue{
-				Filename: filename,
-				Line:     arr.GetPos().Line,
-				Column:   arr.GetPos().Column,
-				Type:     Error,
-				Fixable:  false, // not auto-fixable yet
-				Message:  "Usage of long array syntax (array(...)) is disallowed; use short syntax ([...]) instead.",
-				Code:     "Generic.Arrays.DisallowLongArraySyntax",
+				Filename:  filename,
+				Line:      pos.Line,
+				Column:    pos.Column,
+				EndLine:   pos.Line,
+				EndColumn: pos.Column + len("array"),
+				Type:      Error,
+				Fixable:   false, // not auto-fixable yet
+				Message:   "Usage of long array syntax (array(...)) is disallowed; use short syntax ([...]) instead.",
+				Code:      "Generic.Arrays.DisallowLongArraySyntax",
 				// FixCode: "" // explicitly empty for non-fixable
 			})
 		}

@@ -22,5 +22,10 @@ func TestNoBlankLineAfterPHPOpeningTagChecker(t *testing.T) {
 		if len(issues) != tc.expected {
 			t.Errorf("%s: expected %d issues, got %d: %+v", tc.msg, tc.expected, len(issues), issues)
 		}
+		if tc.expected > 0 && tc.msg == "missing blank line after opening" {
+			if issues[0].Line != 2 || issues[0].Column != 1 || issues[0].EndLine != 2 || issues[0].EndColumn != 1 {
+				t.Errorf("expected insertion point at start of line 2, got %+v", issues[0])
+			}
+		}
 	}
 }

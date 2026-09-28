@@ -32,12 +32,15 @@ func checkClosingBraceOwnLine(line string, lineNum int, filename string, message
 	after := strings.TrimSpace(line[lastIdx+1:])
 	if before != "" || (after != "" && after != "?>") {
 		*issues = append(*issues, StyleIssue{
-			Filename: filename,
-			Line:     lineNum,
-			Type:     Error,
-			Fixable:  true,
-			Message:  message,
-			Code:     closingBraceOnOwnLineCode,
+			Filename:  filename,
+			Line:      lineNum,
+			Column:    lastIdx + 1,
+			EndLine:   lineNum,
+			EndColumn: lastIdx + 2,
+			Type:      Error,
+			Fixable:   true,
+			Message:   message,
+			Code:      closingBraceOnOwnLineCode,
 		})
 	}
 }

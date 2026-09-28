@@ -12,12 +12,15 @@ func (c *NoBlankLineAfterPHPOpeningTagChecker) CheckIssues(lines []string, filen
 		if line == "<?php" && i+1 < len(lines) {
 			if lines[i+1] != "" {
 				issues = append(issues, StyleIssue{
-					Filename: filename,
-					Line:     i + 2, // the line after <?php
-					Type:     Error,
-					Fixable:  true,
-					Message:  "Missing blank line after opening <?php tag",
-					Code:     "PSR12.Files.MissingBlankLineAfterPHPOpeningTag",
+					Filename:  filename,
+					Line:      i + 2, // the line after <?php
+					Column:    1,
+					EndLine:   i + 2,
+					EndColumn: 1,
+					Type:      Error,
+					Fixable:   true,
+					Message:   "Missing blank line after opening <?php tag",
+					Code:      "PSR12.Files.MissingBlankLineAfterPHPOpeningTag",
 				})
 			}
 			break // Only check the first opening tag

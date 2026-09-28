@@ -69,8 +69,12 @@ func (w *argCallCSTWalker) walkTopLevel(root *syntax.RedNode) {
 		n := siblings[i]
 		if n.Kind() == syntax.KindNamespaceDecl {
 			body, consumed := syntax.NamespaceBody(n, siblings, i)
-			namespaceScope := newFunctionScopeWithContext(w.ctx, nil, &ast.FunctionNode{}, w.fileCtx)
+			namespaceTypeContext := namespaceSyntaxTypeContext(n, body, nil)
+			previousFileContext := w.fileCtx
+			w.fileCtx = namespaceTypeContext
+			namespaceScope := newFunctionScopeWithContext(w.ctx, nil, &ast.FunctionNode{}, namespaceTypeContext)
 			w.walkDeclarations(body, nil, namespaceScope)
+			w.fileCtx = previousFileContext
 			i += consumed
 			continue
 		}
@@ -91,8 +95,12 @@ func (w *argCallCSTWalker) walkDeclaration(n *syntax.RedNode, class *ast.ClassNo
 	switch n.Kind() {
 	case syntax.KindNamespaceDecl:
 		body, _ := syntax.NamespaceBody(n, nil, 0)
-		namespaceScope := newFunctionScopeWithContext(w.ctx, class, &ast.FunctionNode{}, w.fileCtx)
+		namespaceTypeContext := namespaceSyntaxTypeContext(n, body, nil)
+		previousFileContext := w.fileCtx
+		w.fileCtx = namespaceTypeContext
+		namespaceScope := newFunctionScopeWithContext(w.ctx, class, &ast.FunctionNode{}, namespaceTypeContext)
 		w.walkDeclarations(body, class, namespaceScope)
+		w.fileCtx = previousFileContext
 	case syntax.KindClassDecl, syntax.KindTraitDecl, syntax.KindEnumDecl:
 		classCtx := syntax.LowerClassLikeHeaderNode(n, w.file)
 		if classCtx == nil {
@@ -111,7 +119,7 @@ func (w *argCallCSTWalker) walkDeclaration(n *syntax.RedNode, class *ast.ClassNo
 						if fn == nil {
 							continue
 						}
-						scope := analysisFunctionScope(w.ctx, classCtx, fn, w.fileCtx)
+						scope := newFunctionScopeWithContext(w.ctx, classCtx, fn, w.fileCtx)
 						if body := syntax.FunctionBody(child); body != nil {
 							w.walkStatementList(body, scope, nil)
 						}
@@ -124,7 +132,7 @@ func (w *argCallCSTWalker) walkDeclaration(n *syntax.RedNode, class *ast.ClassNo
 		if fn == nil {
 			return
 		}
-		scope := analysisFunctionScope(w.ctx, class, fn, w.fileCtx)
+		scope := newFunctionScopeWithContext(w.ctx, class, fn, w.fileCtx)
 		if body := syntax.FunctionBody(n); body != nil {
 			w.walkStatementList(body, scope, nil)
 		}
