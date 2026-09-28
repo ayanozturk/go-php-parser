@@ -18,6 +18,12 @@ namespace App;
 class Repository {
     /** @return T */
     public function find(int $id): object {}
+
+    /**
+     * @template U of string
+     * @param U $value
+     */
+    public function generic($value): void {}
 }
 `),
 	}
@@ -64,6 +70,16 @@ class Repository {
 	methodAgain, _ := snapshot.ResolveMethod(`app\repository`, "FIND")
 	if methodAgain.Params[0].Name != "id" {
 		t.Fatalf("method parameter metadata leaked caller mutation: %#v", methodAgain.Params)
+	}
+	genericMethod, ok := snapshot.ResolveMethod(`App\Repository`, "generic")
+	if !ok || !reflect.DeepEqual(genericMethod.TemplateParams, []string{"U"}) || !reflect.DeepEqual(genericMethod.TemplateBounds, []string{"string"}) {
+		t.Fatalf("unexpected generic method metadata: %#v", genericMethod)
+	}
+	genericMethod.TemplateParams[0] = "Mutated"
+	genericMethod.TemplateBounds[0] = "Mutated"
+	genericMethodAgain, _ := snapshot.ResolveMethod(`app\repository`, "GENERIC")
+	if !reflect.DeepEqual(genericMethodAgain.TemplateParams, []string{"U"}) || !reflect.DeepEqual(genericMethodAgain.TemplateBounds, []string{"string"}) {
+		t.Fatalf("method template metadata leaked caller mutation: params=%#v bounds=%#v", genericMethodAgain.TemplateParams, genericMethodAgain.TemplateBounds)
 	}
 
 	files := snapshot.Files()

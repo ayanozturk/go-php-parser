@@ -684,7 +684,7 @@ func canonicalizeDocType(raw string) string {
 		return "array"
 	case "array", "non-empty-array", "associative-array":
 		return "array"
-	case "class-string", "interface-string", "trait-string", "literal-string", "non-empty-string", "numeric-string", "lowercase-string":
+	case "class-string", "interface-string", "trait-string", "literal-string", "non-empty-string", "non-empty-lowercase-string", "numeric-string", "lowercase-string":
 		return "string"
 	case "positive-int", "negative-int", "non-negative-int", "non-positive-int":
 		return "int"

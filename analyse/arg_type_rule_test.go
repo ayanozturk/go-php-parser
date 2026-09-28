@@ -1,6 +1,7 @@
 package analyse
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/ayanozturk/go-php-parser/ast"
@@ -53,6 +54,76 @@ function run(DateTimeImmutable|null|false $date): void { requireDateTime($date);
 	}
 	if issues := runAnalysisLevelOnFiles(t, map[string]string{"test.php": source}, 7); !hasArgTypeIssue(issues) {
 		t.Fatalf("a false-only extra union arm should be reported at level 7, got %#v", issues)
+	}
+}
+
+func TestArgumentTypesInferScalarArrayShapeOffsets(t *testing.T) {
+	const source = `<?php
+/**
+ * @param array{count: int, label: 'ready', nested: array{active: bool}} $data
+ */
+function inspectShape(array $data): void {
+    acceptInt($data['count']);
+    acceptString($data['label']);
+    acceptBool($data['nested']['active']);
+    acceptString($data['count']);
+}
+
+function acceptInt(int $value): void {}
+function acceptString(string $value): void {}
+function acceptBool(bool $value): void {}
+`
+	issues := runAnalysisLevelOnFiles(t, map[string]string{"shape.php": source}, 5)
+	var mismatches []AnalysisIssue
+	for _, issue := range issues {
+		if issue.Code == "A.ARG.TYPE" {
+			mismatches = append(mismatches, issue)
+		}
+	}
+	if len(mismatches) != 1 || !strings.Contains(mismatches[0].Message, "acceptString") {
+		t.Fatalf("expected only the int-to-string shape offset mismatch, got %#v", mismatches)
+	}
+}
+
+func TestUnboundContravariantClassTemplateParameterRemainsMixedForArguments(t *testing.T) {
+	const source = `<?php
+/** @template-contravariant Tin */
+class GenericSearch {
+    /** @param Tin $value */
+    public function search($value): void {}
+}
+
+function run(GenericSearch $search): void { $search->search(1); }
+`
+	if issues := runAnalysisLevelOnFiles(t, map[string]string{"generic.php": source}, 5); hasArgTypeIssue(issues) {
+		t.Fatalf("an unbound class template should accept an unconstrained argument, got %#v", issues)
+	}
+}
+
+func TestMethodTemplateParametersUseTheirDeclaredBounds(t *testing.T) {
+	const source = `<?php
+class GenericSearch {
+    /** @template Tin @param Tin $value */
+    public function search($value): void {}
+}
+class BoundedSearch {
+    /** @template Tin of string @param Tin $value */
+    public function search($value): void {}
+}
+function run(GenericSearch $generic, BoundedSearch $bounded): void {
+    $generic->search(1);
+    $bounded->search(1);
+}
+`
+	issues := runAnalysisLevelOnFiles(t, map[string]string{"method-template.php": source}, 5)
+	var mismatches []AnalysisIssue
+	for _, issue := range issues {
+		if issue.Code == "A.ARG.TYPE" {
+			mismatches = append(mismatches, issue)
+		}
+	}
+	if len(mismatches) != 1 || !strings.Contains(mismatches[0].Message, "expects string") {
+		t.Fatalf("expected only the value outside the method-template bound to mismatch, got %#v", mismatches)
 	}
 }
 

@@ -40,3 +40,9 @@ func TestTypeAcceptsUsesAtomCompatibility(t *testing.T) {
 		t.Fatal("int should not accept float")
 	}
 }
+
+func TestNonEmptyLowercaseStringIsNormalizedAsString(t *testing.T) {
+	if got := ParseType("non-empty-lowercase-string").String(); got != "string" {
+		t.Fatalf("normalized non-empty-lowercase-string = %q, want string", got)
+	}
+}

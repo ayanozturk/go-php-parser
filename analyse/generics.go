@@ -508,7 +508,7 @@ func parseArrayShapeFields(raw string, typeCtx FileTypeContext) map[string]array
 			field.nested = nested
 		}
 		if field.callable.IsEmpty() && len(field.nested) == 0 {
-			if parsed := ParseType(normalizeTypeWithContext(value, typeCtx)); parsed.hasClassAtom() {
+			if parsed := arrayShapeValueType(value, typeCtx); !parsed.IsEmpty() {
 				field.typ = parsed
 			}
 		}
@@ -521,6 +521,35 @@ func parseArrayShapeFields(raw string, typeCtx FileTypeContext) map[string]array
 		return nil
 	}
 	return fields
+}
+
+func arrayShapeValueType(raw string, typeCtx FileTypeContext) Type {
+	raw = stripBalancedOuterTypeParens(strings.TrimSpace(raw))
+	if parts := splitTopLevelTypes(raw, '|'); len(parts) > 1 {
+		normalized := make([]string, 0, len(parts))
+		for _, part := range parts {
+			part = strings.TrimSpace(part)
+			if isQuotedPHPDocString(part) {
+				normalized = append(normalized, "string")
+				continue
+			}
+			normalized = append(normalized, normalizeTypeWithContext(part, typeCtx))
+		}
+		return ParseType(strings.Join(normalized, "|"))
+	}
+	if isQuotedPHPDocString(raw) {
+		return ParseType("string")
+	}
+	return ParseType(normalizeTypeWithContext(raw, typeCtx))
+}
+
+func isQuotedPHPDocString(raw string) bool {
+	raw = strings.TrimSpace(raw)
+	if len(raw) < 2 {
+		return false
+	}
+	quote := raw[0]
+	return (quote == '\'' || quote == '"') && raw[len(raw)-1] == quote
 }
 
 func arrayShapeBody(raw string) (string, bool) {

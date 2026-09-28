@@ -67,6 +67,19 @@ function example() {
 	_ = issues
 }
 
+func TestArrayShapeFieldsRetainScalarAndLiteralValueTypes(t *testing.T) {
+	fields := parseArrayShapeFields(`array{count: int, label: 'ready'|'busy', nested: array{active: bool}}`, FileTypeContext{})
+	if got := fields["count"].typ.String(); got != "int" {
+		t.Fatalf("count field type = %q, want int", got)
+	}
+	if got := fields["label"].typ.String(); got != "string" {
+		t.Fatalf("literal label field type = %q, want string", got)
+	}
+	if got := fields["nested"].nested["active"].typ.String(); got != "bool" {
+		t.Fatalf("nested active field type = %q, want bool", got)
+	}
+}
+
 func parseGenericReturnFixture(t *testing.T, source string) ([]ast.Node, ast.Node) {
 	t.Helper()
 	nodes, diags := syntax.ParseAST([]byte(source))

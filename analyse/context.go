@@ -170,6 +170,8 @@ type ResolvedMethod struct {
 	NativeReturnType   string
 	CallableReturnType string
 	Params             []ResolvedParam
+	TemplateParams     []string
+	TemplateBounds     []string
 	Visibility         string
 	IsStatic           bool
 	Abstract           bool
@@ -246,8 +248,8 @@ type AnalysisContext struct {
 	syntaxLower *syntaxLowerMemo // cross-walk CST Lower* memo for this file
 	preLowered  *preLoweredIndex // ingest []ast.Node span index for CST Lower* reuse
 
-	syntaxRootFt     FileTypeContext // CollectFileTypeContextFromSyntax(root), once per parse
-	hasSyntaxRootFt  bool
+	syntaxRootFt    FileTypeContext // CollectFileTypeContextFromSyntax(root), once per parse
+	hasSyntaxRootFt bool
 
 	FileTypeContext     FileTypeContext
 	hasFileTypeContext  bool

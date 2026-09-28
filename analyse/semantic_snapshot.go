@@ -822,8 +822,7 @@ func (s *SemanticSnapshot) MethodsDeclaredBy(className string) []ResolvedMethod 
 	methods := s.project.methodsDeclaredView(className)
 	result := make([]ResolvedMethod, len(methods))
 	for i := range methods {
-		result[i] = methods[i]
-		result[i].Params = append([]ResolvedParam(nil), methods[i].Params...)
+		result[i] = cloneResolvedMethod(methods[i])
 	}
 	return result
 }

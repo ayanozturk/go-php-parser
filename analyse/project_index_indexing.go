@@ -190,7 +190,7 @@ func (idx *ProjectIndex) indexInterfaceMembers(filename, className string, membe
 			if nativeReturn != "" {
 				nativeReturnType = normalizeTemplateAwareType(nativeReturn, ft, templates)
 			}
-			idx.addMethod(className, ResolvedMethod{Name: m.Name, DeclaringClass: className, Declaration: sourceLocation(filename, m), ReturnType: normalizedReturn, NativeReturnType: nativeReturnType, CallableReturnType: callableReturn.dnfString(), Params: paramsFromNodesWithPHPDoc(m.Params, m.PHPDoc, ft, templates, aliases), Visibility: "public", Abstract: true})
+			idx.addMethod(className, ResolvedMethod{Name: m.Name, DeclaringClass: className, Declaration: sourceLocation(filename, m), ReturnType: normalizedReturn, NativeReturnType: nativeReturnType, CallableReturnType: callableReturn.dnfString(), Params: paramsFromNodesWithPHPDoc(m.Params, m.PHPDoc, ft, templates, aliases), TemplateParams: resolvedMethodTemplateParams(m.PHPDoc), TemplateBounds: resolvedMethodTemplateBounds(m.PHPDoc, ft, templates), Visibility: "public", Abstract: true})
 		case *ast.PropertyNode:
 			rawType := nativeTypeDNF(m.TypeHint, ft)
 			docType := ""
@@ -484,6 +484,8 @@ func methodFromFunction(filename, className string, fn *ast.FunctionNode, ft Fil
 		NativeReturnType:   nativeReturnType,
 		CallableReturnType: callableReturn.dnfString(),
 		Params:             paramsFromNodesWithPHPDoc(fn.Params, fn.PHPDoc, ft, templates, aliases),
+		TemplateParams:     resolvedMethodTemplateParams(fn.PHPDoc),
+		TemplateBounds:     resolvedMethodTemplateBounds(fn.PHPDoc, ft, templates),
 		Visibility:         functionVisibility(fn),
 		IsStatic:           hasModifier(fn.Modifiers, "static"),
 		Abstract:           hasModifier(fn.Modifiers, "abstract"),
@@ -494,6 +496,28 @@ func methodFromFunction(filename, className string, fn *ast.FunctionNode, ft Fil
 		method.DeprecationMessage = fn.PHPDoc.DeprecationMessage
 	}
 	return method
+}
+
+func resolvedMethodTemplateParams(doc *ast.PHPDocNode) []string {
+	if doc == nil || len(doc.Templates) == 0 {
+		return nil
+	}
+	params := make([]string, len(doc.Templates))
+	for index, template := range doc.Templates {
+		params[index] = template.Name
+	}
+	return params
+}
+
+func resolvedMethodTemplateBounds(doc *ast.PHPDocNode, ft FileTypeContext, templates map[string]struct{}) []string {
+	if doc == nil || len(doc.Templates) == 0 {
+		return nil
+	}
+	bounds := make([]string, len(doc.Templates))
+	for index, template := range doc.Templates {
+		bounds[index] = normalizeTemplateAwareType(template.Bound, ft, templates)
+	}
+	return bounds
 }
 
 func resolvedGenericMetadata(doc *ast.PHPDocNode, ft FileTypeContext) ([]string, []string, []ResolvedGenericParent) {

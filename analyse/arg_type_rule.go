@@ -1141,7 +1141,57 @@ func expectedCallParamType(param ResolvedParam, method ResolvedMethod, calleeCla
 	if name := openTemplateParamName(param.Type, ctx); name != "" {
 		return MixedType()
 	}
+	if bound, ok := resolvedMethodTemplateBound(param.Type, method); ok {
+		if strings.TrimSpace(bound) == "" {
+			return MixedType()
+		}
+		return ParseType(bound)
+	}
+	if _, bound, ok := classTemplateParamBound(param.Type, method.DeclaringClass, ctx); ok {
+		if strings.TrimSpace(bound) == "" {
+			return MixedType()
+		}
+		return ParseType(bound)
+	}
 	return bindCalleeSignatureType(expandUnboundClassTemplates(param.Type, method.DeclaringClass, ctx), method.DeclaringClass, calleeClass, ctx)
+}
+
+func resolvedMethodTemplateBound(raw string, method ResolvedMethod) (string, bool) {
+	raw = strings.TrimSpace(strings.TrimPrefix(raw, "?"))
+	if raw == "" || strings.ContainsAny(raw, `\\|&<>()`) {
+		return "", false
+	}
+	for index, template := range method.TemplateParams {
+		if raw != template {
+			continue
+		}
+		if index < len(method.TemplateBounds) {
+			return method.TemplateBounds[index], true
+		}
+		return "", true
+	}
+	return "", false
+}
+
+func classTemplateParamBound(raw, className string, ctx *AnalysisContext) (name, bound string, ok bool) {
+	raw = strings.TrimSpace(strings.TrimPrefix(raw, "?"))
+	if raw == "" || strings.ContainsAny(raw, `\\|&<>()`) || ctx == nil || ctx.Resolver == nil || className == "" {
+		return "", "", false
+	}
+	class, found := ctx.Resolver.ResolveClass(className)
+	if !found {
+		return "", "", false
+	}
+	for index, template := range class.TemplateParams {
+		if raw != template {
+			continue
+		}
+		if index < len(class.TemplateBounds) {
+			return template, class.TemplateBounds[index], true
+		}
+		return template, "", true
+	}
+	return "", "", false
 }
 
 func argumentTypeIssueMinimumLevel(expected, actual Type, scope *functionScope, ctx *AnalysisContext) int {

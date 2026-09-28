@@ -333,6 +333,49 @@
       "file": "argument-laravel-builder-first-clean.php",
       "engineCodes": [],
       "phpstanIdentifiers": []
+    },
+    {
+      "id": "argument-array-shape-scalar-offset-clean",
+      "capability": "scalar and nested array-shape offsets retain their declared types",
+      "file": "argument-array-shape-scalar-offset-clean.php",
+      "engineCodes": [],
+      "phpstanIdentifiers": []
+    },
+    {
+      "id": "argument-array-shape-scalar-offset-mismatch",
+      "capability": "an int array-shape offset cannot be passed as string",
+      "file": "argument-array-shape-scalar-offset-mismatch.php",
+      "engineCodes": [
+        "A.ARG.TYPE"
+      ],
+      "phpstanIdentifiers": [
+        "argument.type"
+      ]
+    },
+    {
+      "id": "argument-unbound-class-template-param-clean",
+      "capability": "an unbound class template parameter accepts unconstrained values",
+      "file": "argument-unbound-class-template-param-clean.php",
+      "engineCodes": [],
+      "phpstanIdentifiers": []
+    },
+    {
+      "id": "argument-method-template-unbound-clean",
+      "capability": "an unbound method template accepts its inferred argument type",
+      "file": "argument-method-template-unbound-clean.php",
+      "engineCodes": [],
+      "phpstanIdentifiers": []
+    },
+    {
+      "id": "argument-method-template-bound-mismatch",
+      "capability": "a method template argument must satisfy its declared bound",
+      "file": "argument-method-template-bound-mismatch.php",
+      "engineCodes": [
+        "A.ARG.TYPE"
+      ],
+      "phpstanIdentifiers": [
+        "argument.type"
+      ]
     }
   ]
 }

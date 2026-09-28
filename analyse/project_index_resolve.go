@@ -47,7 +47,7 @@ func (idx *ProjectIndex) ResolveMethod(className, methodName string) (ResolvedMe
 		}
 		// Public callers may mutate the returned parameter metadata. Keep the
 		// allocation-light traversal internal, then detach only the mutable slice.
-		method.Params = append([]ResolvedParam(nil), method.Params...)
+		method = cloneResolvedMethod(method)
 		return method, true
 	}
 	return idx.resolveMethodWithTemplates(className, methodName, nil, make(map[string]struct{}))
@@ -184,8 +184,15 @@ func (idx *ProjectIndex) ResolveOwnMethod(className, methodName string) (Resolve
 	if !ok {
 		return ResolvedMethod{}, false
 	}
-	method.Params = append([]ResolvedParam(nil), method.Params...)
+	method = cloneResolvedMethod(method)
 	return method, true
+}
+
+func cloneResolvedMethod(method ResolvedMethod) ResolvedMethod {
+	method.Params = append([]ResolvedParam(nil), method.Params...)
+	method.TemplateParams = append([]string(nil), method.TemplateParams...)
+	method.TemplateBounds = append([]string(nil), method.TemplateBounds...)
+	return method
 }
 
 func (idx *ProjectIndex) resolveOwnMethodView(className, methodName string) (ResolvedMethod, bool) {
@@ -292,8 +299,7 @@ func (idx *ProjectIndex) MethodsDeclaredBy(className string) []ResolvedMethod {
 	methods := idx.methodsDeclaredView(className)
 	result := make([]ResolvedMethod, len(methods))
 	for i := range methods {
-		result[i] = methods[i]
-		result[i].Params = append([]ResolvedParam(nil), methods[i].Params...)
+		result[i] = cloneResolvedMethod(methods[i])
 	}
 	return result
 }
@@ -341,12 +347,15 @@ func (idx *ProjectIndex) resolveMethodWithTemplates(className, methodName string
 		// ResolvedMethod is returned by value, but Params is a slice. Clone it
 		// before applying call-specific generic bindings so resolution cannot
 		// mutate the project index or race with concurrent snapshot readers.
-		method.Params = append([]ResolvedParam(nil), method.Params...)
+		method = cloneResolvedMethod(method)
 		method.DeclaringClass = class.Name
 		method.ReturnType = ApplyTemplateBindings(method.ReturnType, bindings)
 		method.NativeReturnType = ApplyTemplateBindings(method.NativeReturnType, bindings)
 		for i := range method.Params {
 			method.Params[i].Type = ApplyTemplateBindings(method.Params[i].Type, bindings)
+		}
+		for i := range method.TemplateBounds {
+			method.TemplateBounds[i] = ApplyTemplateBindings(method.TemplateBounds[i], bindings)
 		}
 		// An override without its own PHPDoc keeps the inherited PHPDoc
 		// contract when both native signatures are the same. This is how a
