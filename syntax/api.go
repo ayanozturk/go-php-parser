@@ -4,6 +4,7 @@ import (
 	"strings"
 
 	"github.com/ayanozturk/go-php-parser/ast"
+	"github.com/ayanozturk/go-php-parser/diag"
 	"github.com/ayanozturk/go-php-parser/token"
 )
 
@@ -11,6 +12,19 @@ import (
 type Diagnostic struct {
 	Message string
 	Span    Span
+}
+
+// AsDiagnostic adapts a syntax diagnostic to the shared representation while
+// preserving its half-open UTF-8 byte span.
+func (d Diagnostic) AsDiagnostic(filename, source string) diag.Diagnostic {
+	return diag.Diagnostic{
+		Filename: filename,
+		Source:   source,
+		Code:     "Parser.Syntax",
+		Severity: diag.SeverityError,
+		Message:  d.Message,
+		Span:     diag.ByteSpan{Start: d.Span.Start, End: d.Span.End},
+	}
 }
 
 // ParseResult is the versioned public parse API.

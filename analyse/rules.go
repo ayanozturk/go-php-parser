@@ -5,6 +5,7 @@ import (
 	"sync"
 
 	"github.com/ayanozturk/go-php-parser/ast"
+	"github.com/ayanozturk/go-php-parser/diag"
 	"github.com/ayanozturk/go-php-parser/syntax"
 )
 
@@ -28,6 +29,31 @@ type AnalysisIssue struct {
 	Severity    string
 	SubjectKind string
 	SubjectName string
+}
+
+// AsDiagnostic adapts an analysis issue to the shared representation. The
+// compatibility API remains rune-coordinate based; sourceText supplies the
+// exact byte span at the output boundary.
+func (i AnalysisIssue) AsDiagnostic(sourceText []byte, sourceName string) diag.Diagnostic {
+	severity := diag.SeverityError
+	switch i.Severity {
+	case "warning":
+		severity = diag.SeverityWarning
+	case "info":
+		severity = diag.SeverityInfo
+	case "hint":
+		severity = diag.SeverityHint
+	}
+	return diag.Diagnostic{
+		Filename: i.Filename,
+		Source:   sourceName,
+		Code:     i.Code,
+		Severity: severity,
+		Message:  i.Message,
+		Span: diag.ByteSpanFromRunePositions(
+			sourceText, i.Line, i.Column, i.EndLine, i.EndColumn,
+		),
+	}
 }
 
 type AnalysisRuleFunc func(filename string, nodes []ast.Node) []AnalysisIssue

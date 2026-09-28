@@ -33,6 +33,27 @@ func (e ParseError) Error() string {
 	return e.Message
 }
 
+// AsDiagnostic adapts the parser's compatibility error value to the shared
+// transport-neutral diagnostic representation.
+func (e ParseError) AsDiagnostic(filename, source string) Diagnostic {
+	code := e.Code
+	if code == "" {
+		code = ClassifyParseError(e.Message)
+	}
+	end := e.EndOffset
+	if end < e.Offset {
+		end = e.Offset
+	}
+	return Diagnostic{
+		Filename: filename,
+		Source:   source,
+		Code:     code,
+		Severity: SeverityError,
+		Message:  e.Message,
+		Span:     ByteSpan{Start: e.Offset, End: end},
+	}
+}
+
 // stripLeadingLineCol removes a leading "line N:C: " prefix from a formatted
 // parser message. When absent, line and column are zero.
 func stripLeadingLineCol(msg string) (bare string, line, col int) {
