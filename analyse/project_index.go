@@ -1,6 +1,7 @@
 package analyse
 
 import (
+	"fmt"
 	"sort"
 
 	"github.com/ayanozturk/go-php-parser/ast"
@@ -151,4 +152,42 @@ func BuildProjectIndexForVersion(parsed map[string][]ast.Node, phpVersion string
 	idx.methodsDeclared = buildMethodsDeclaredViews(idx)
 	idx.classLineages = buildClassLineageViews(idx)
 	return idx
+}
+
+// BuildProjectIndexFromFiles indexes files in deterministic order by loading
+// one parsed file at a time. The returned index does not retain source ASTs or
+// per-file FileTypeContexts, so callers must rebuild it before incremental updates.
+// This is intended for whole-project snapshot workloads where retaining every
+// lowered tree while building the index would create an avoidable memory peak.
+func BuildProjectIndexFromFiles(files []string, load func(string) ([]ast.Node, error)) (*ProjectIndex, error) {
+	return BuildProjectIndexFromFilesForVersion(files, load, phpstubs.DefaultPHPVersion)
+}
+
+// BuildProjectIndexFromFilesForVersion is BuildProjectIndexFromFiles with an
+// explicit PHP version for builtin stub registration.
+func BuildProjectIndexFromFilesForVersion(files []string, load func(string) ([]ast.Node, error), phpVersion string) (*ProjectIndex, error) {
+	if load == nil {
+		return nil, fmt.Errorf("load parsed PHP files: loader is nil")
+	}
+	filenames := append([]string(nil), files...)
+	sort.Strings(filenames)
+	uniqueFilenames := filenames[:0]
+	for _, filename := range filenames {
+		if len(uniqueFilenames) == 0 || uniqueFilenames[len(uniqueFilenames)-1] != filename {
+			uniqueFilenames = append(uniqueFilenames, filename)
+		}
+	}
+	idx := NewProjectIndexForVersion(phpVersion)
+	for _, filename := range uniqueFilenames {
+		nodes, err := load(filename)
+		if err != nil {
+			return nil, fmt.Errorf("load parsed PHP file %s: %w", filename, err)
+		}
+		ft := CollectFileTypeContext(nodes)
+		idx.indexNodes(filename, nodes, ft, "")
+	}
+	idx.methodsDeclared = buildMethodsDeclaredViews(idx)
+	idx.classLineages = buildClassLineageViews(idx)
+	idx.FileTypes = nil
+	return idx, nil
 }

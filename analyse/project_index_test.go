@@ -38,6 +38,7 @@ func TestBuildProjectIndexDuplicateClassResolutionIsDeterministic(t *testing.T) 
 class Dup {
     public function shared(): FromZ {}
 }
+
 `),
 		"a_first.php": parsePHPForProjectIndex(t, `<?php
 class Dup {
@@ -73,6 +74,56 @@ class Dup {
 		if method.ReturnType != "FromZ" {
 			t.Fatalf("iteration %d: expected the alphabetically-last file (z_last.php) to win method registration with return type FromZ, got %q", i, method.ReturnType)
 		}
+	}
+}
+
+func TestBuildProjectIndexFromFilesMatchesFullIndexWithoutRetainingASTs(t *testing.T) {
+	parsed := map[string][]ast.Node{
+		"z_last.php": parsePHPForProjectIndex(t, `<?php
+namespace App;
+class Shared { public function value(): FromZ {} }
+function load_z(): Shared {}
+`),
+		"a_first.php": parsePHPForProjectIndex(t, `<?php
+namespace App;
+class Shared { public function value(): FromA {} }
+function load_a(): Shared {}
+`),
+	}
+	files := []string{"z_last.php", "a_first.php", "z_last.php"}
+	streamed, err := BuildProjectIndexFromFiles(files, func(filename string) ([]ast.Node, error) {
+		return parsed[filename], nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	eager := BuildProjectIndex(parsed)
+	if streamed.sourceFiles != nil {
+		t.Fatal("streamed index retained source ASTs")
+	}
+	if !reflect.DeepEqual(streamed.Classes, eager.Classes) {
+		t.Fatal("streamed classes differ from deterministic full index")
+	}
+	if !reflect.DeepEqual(streamed.Methods, eager.Methods) {
+		t.Fatal("streamed methods differ from deterministic full index")
+	}
+	if !reflect.DeepEqual(streamed.Properties, eager.Properties) {
+		t.Fatal("streamed properties differ from deterministic full index")
+	}
+	if !reflect.DeepEqual(streamed.ClassConsts, eager.ClassConsts) {
+		t.Fatal("streamed class constants differ from deterministic full index")
+	}
+	if !reflect.DeepEqual(streamed.Functions, eager.Functions) {
+		t.Fatal("streamed functions differ from deterministic full index")
+	}
+	if !reflect.DeepEqual(streamed.Constants, eager.Constants) {
+		t.Fatal("streamed constants differ from deterministic full index")
+	}
+	if streamed.FileTypes != nil {
+		t.Fatal("streamed index retained per-file type contexts")
+	}
+	if !reflect.DeepEqual(streamed.Duplicates, eager.Duplicates) {
+		t.Fatal("streamed duplicate records differ from deterministic full index")
 	}
 }
 

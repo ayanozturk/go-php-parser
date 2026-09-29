@@ -4,8 +4,9 @@
 // It runs the full analysis-rule registry (via analyse.RunAnalysisRulesWithContext,
 // exactly as command/analyze.go does for real projects) over every PHP file
 // under --root and records the resulting issue set per file. The harness
-// passes both the lowered AST and its caller-owned ParseResult to the
-// registry, so CST rules reuse one parse. Compare with --baseline after an
+// indexes the corpus once, then parses and analyzes one target file at a time;
+// each registry run receives the same lowered AST and caller-owned ParseResult
+// so CST rules reuse that file's parse. Compare with --baseline after an
 // analysis refactor to prove the exact same issues are produced, file for
 // file, code/line/column/message.
 //
@@ -131,55 +132,39 @@ func collectPHPFiles(root string) ([]string, error) {
 }
 
 func buildSnapshot(root string, files []string, workers, level int) (*snapshot, error) {
-	parsed := make(map[string][]ast.Node, len(files))
-	parseResults := make(map[string]*syntax.ParseResult, len(files))
-	contents := make(map[string][]byte, len(files))
 	var parseErrors []string
 	var mu sync.Mutex
-
-	jobs := make(chan string)
-	var wg sync.WaitGroup
-	wg.Add(workers)
-	for i := 0; i < workers; i++ {
-		go func() {
-			defer wg.Done()
-			for path := range jobs {
-				content, err := os.ReadFile(path)
-				if err != nil {
-					mu.Lock()
-					parseErrors = append(parseErrors, fmt.Sprintf("%s: read: %v", path, err))
-					mu.Unlock()
-					continue
-				}
-				nodes, res := syntax.ParseAndLower(content)
-				mu.Lock()
-				if res == nil || len(res.Diagnostics) > 0 {
-					diagCount := 0
-					if res != nil {
-						diagCount = len(res.Diagnostics)
-					}
-					parseErrors = append(parseErrors, fmt.Sprintf("%s: %d parse diagnostic(s)", path, diagCount))
-				} else {
-					parsed[path] = nodes
-					parseResults[path] = res
-					contents[path] = content
-				}
-				mu.Unlock()
+	projectFiles := make([]string, 0, len(files))
+	project, err := analyse.BuildProjectIndexFromFiles(files, func(path string) ([]ast.Node, error) {
+		content, err := os.ReadFile(path)
+		if err != nil {
+			mu.Lock()
+			parseErrors = append(parseErrors, fmt.Sprintf("%s: read: %v", path, err))
+			mu.Unlock()
+			return nil, nil
+		}
+		nodes, res := syntax.ParseAndLower(content)
+		if res == nil || len(res.Diagnostics) > 0 {
+			diagCount := 0
+			if res != nil {
+				diagCount = len(res.Diagnostics)
 			}
-		}()
+			mu.Lock()
+			parseErrors = append(parseErrors, fmt.Sprintf("%s: %d parse diagnostic(s)", path, diagCount))
+			mu.Unlock()
+			return nil, nil
+		}
+		projectFiles = append(projectFiles, path)
+		return nodes, nil
+	})
+	if err != nil {
+		return nil, fmt.Errorf("build project index: %w", err)
 	}
-	for _, path := range files {
-		jobs <- path
-	}
-	close(jobs)
-	wg.Wait()
-	sort.Strings(parseErrors)
-
-	snap, err := analyse.NewSemanticSnapshot(parsed, nil)
+	runtime.GC()
+	snap, err := analyse.NewSemanticSnapshotWithIndexOnly(project, projectFiles, nil)
 	if err != nil {
 		return nil, fmt.Errorf("build semantic snapshot: %w", err)
 	}
-
 	targets := snap.Files()
 	results := make(map[string][]string, len(targets))
 	var resultsMu sync.Mutex
@@ -190,14 +175,32 @@ func buildSnapshot(root string, files []string, workers, level int) (*snapshot, 
 		go func() {
 			defer runWg.Done()
 			for path := range targetJobs {
-				ctx := snap.NewAnalysisContext()
+				content, err := os.ReadFile(path)
+				if err != nil {
+					mu.Lock()
+					parseErrors = append(parseErrors, fmt.Sprintf("%s: read on analysis pass: %v", path, err))
+					mu.Unlock()
+					continue
+				}
+				nodes, res := syntax.ParseAndLower(content)
+				if res == nil || len(res.Diagnostics) > 0 {
+					diagCount := 0
+					if res != nil {
+						diagCount = len(res.Diagnostics)
+					}
+					mu.Lock()
+					parseErrors = append(parseErrors, fmt.Sprintf("%s: %d parse diagnostic(s) on analysis pass", path, diagCount))
+					mu.Unlock()
+					continue
+				}
+				ctx := snap.AnalysisContextForFile(path, nodes)
 				if level >= 0 {
 					l := level
 					ctx.AnalysisLevel = &l
 				}
-				ctx.Content = contents[path]
-				ctx.Parsed = parseResults[path]
-				issues := analyse.RunAnalysisRulesWithContext(path, parsed[path], ctx)
+				ctx.Content = content
+				ctx.Parsed = res
+				issues := analyse.RunAnalysisRulesWithContext(path, nodes, ctx)
 				codes := make([]string, len(issues))
 				for i, issue := range issues {
 					codes[i] = fmt.Sprintf("%s|%d|%d|%d|%d|%s", issue.Code, issue.Line, issue.Column, issue.EndLine, issue.EndColumn, issue.Message)
@@ -214,6 +217,7 @@ func buildSnapshot(root string, files []string, workers, level int) (*snapshot, 
 	}
 	close(targetJobs)
 	runWg.Wait()
+	sort.Strings(parseErrors)
 
 	return &snapshot{
 		SchemaVersion: reportSchemaVersion,
