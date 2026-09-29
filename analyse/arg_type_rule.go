@@ -411,6 +411,10 @@ func variablesTypedWhenTrue(node ast.Node, scope *functionScope) map[string]Type
 					}
 				}
 			}
+		case ">", ">=", "<", "<=":
+			if name, typ, ok := integerComparisonRefinement(n, true, scope); ok {
+				return map[string]Type{name: typ}
+			}
 		}
 	case *ast.UnaryExpr:
 		if n.Operator == "!" {
@@ -478,6 +482,10 @@ func variablesTypedWhenFalse(node ast.Node, scope *functionScope) map[string]Typ
 					return map[string]Type{name: ParseType("empty-string")}
 				}
 			}
+		case ">", ">=", "<", "<=":
+			if name, typ, ok := integerComparisonRefinement(n, false, scope); ok {
+				return map[string]Type{name: typ}
+			}
 		}
 	case *ast.UnaryExpr:
 		if n.Operator == "!" {
@@ -485,6 +493,69 @@ func variablesTypedWhenFalse(node ast.Node, scope *functionScope) map[string]Typ
 		}
 	}
 	return map[string]Type{}
+}
+
+func integerComparisonRefinement(node *ast.BinaryExpr, whenTrue bool, scope *functionScope) (string, Type, bool) {
+	if node == nil || scope == nil {
+		return "", EmptyType(), false
+	}
+	variable, ok := node.Left.(*ast.VariableNode)
+	operator := node.Operator
+	valueNode := node.Right
+	if !ok {
+		variable, ok = node.Right.(*ast.VariableNode)
+		valueNode = node.Left
+		switch operator {
+		case ">":
+			operator = "<"
+		case ">=":
+			operator = "<="
+		case "<":
+			operator = ">"
+		case "<=":
+			operator = ">="
+		}
+	}
+	if !ok {
+		return "", EmptyType(), false
+	}
+	value, ok := integerLiteralValue(valueNode)
+	if !ok || value != 0 {
+		return "", EmptyType(), false
+	}
+	current, ok := scope.variable(variable.Name)
+	if !ok || !current.hasBuiltin("int") || len(current.atoms) != 1 {
+		return "", EmptyType(), false
+	}
+	trueType, falseType := EmptyType(), EmptyType()
+	switch operator {
+	case ">":
+		trueType, falseType = ParseType("positive-int"), ParseType("non-positive-int")
+	case ">=":
+		trueType, falseType = ParseType("non-negative-int"), ParseType("negative-int")
+	case "<":
+		trueType, falseType = ParseType("negative-int"), ParseType("non-negative-int")
+	case "<=":
+		trueType, falseType = ParseType("non-positive-int"), ParseType("positive-int")
+	}
+	if whenTrue && !trueType.IsEmpty() {
+		return variable.Name, trueType, true
+	}
+	if !whenTrue && !falseType.IsEmpty() {
+		return variable.Name, falseType, true
+	}
+	return "", EmptyType(), false
+}
+
+func integerLiteralValue(node ast.Node) (int64, bool) {
+	switch literal := node.(type) {
+	case *ast.IntegerLiteral:
+		return literal.Value, true
+	case *ast.IntegerNode:
+		return literal.Value, true
+	default:
+		return 0, false
+	}
 }
 
 func emptyStringComparedVariable(left, right ast.Node) (string, bool) {

@@ -488,6 +488,26 @@
       "phpstanIdentifiers": [
         "argument.type"
       ]
+    },
+    {
+      "id": "argument-integer-sign-narrowing-clean",
+      "capability": "zero comparisons narrow integer variables to all four sign refinements",
+      "file": "argument-integer-sign-narrowing-clean.php",
+      "engineCodes": [],
+      "phpstanIdentifiers": []
+    },
+    {
+      "id": "argument-integer-sign-narrowing-mismatch",
+      "capability": "integer sign refinements reject values in the wrong comparison branches",
+      "file": "argument-integer-sign-narrowing-mismatch.php",
+      "engineCodes": [
+        "A.ARG.TYPE",
+        "A.ARG.TYPE"
+      ],
+      "phpstanIdentifiers": [
+        "argument.type",
+        "argument.type"
+      ]
     }
   ]
 }
