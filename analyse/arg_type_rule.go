@@ -368,7 +368,14 @@ func variablesTypedWhenTrue(node ast.Node, scope *functionScope) map[string]Type
 		switch n.Operator {
 		case "&&", "and":
 			types := variablesTypedWhenTrue(n.Left, scope)
-			for name, typ := range variablesTypedWhenTrue(n.Right, scope) {
+			rightScope := scope
+			if scope != nil && len(types) > 0 {
+				rightScope = scope.clone()
+				for name, typ := range types {
+					rightScope.setVariable(name, typ)
+				}
+			}
+			for name, typ := range variablesTypedWhenTrue(n.Right, rightScope) {
 				types[name] = typ
 			}
 			return types
@@ -386,10 +393,22 @@ func variablesTypedWhenTrue(node ast.Node, scope *functionScope) map[string]Type
 			if name, ok := nullComparisonVariable(n.Left, n.Right); ok {
 				return map[string]Type{name: ParseType("null")}
 			}
+			if n.Operator == "===" {
+				if name, ok := emptyStringComparedVariable(n.Left, n.Right); ok {
+					return map[string]Type{name: ParseType("empty-string")}
+				}
+			}
 		case "!=", "!==":
 			if name, ok := nullComparisonVariable(n.Left, n.Right); ok {
 				if typ, ok := nonNullVariableType(scope, name); ok {
 					return map[string]Type{name: typ}
+				}
+			}
+			if n.Operator == "!==" {
+				if name, ok := emptyStringComparedVariable(n.Left, n.Right); ok {
+					if typ, ok := nonEmptyStringComparisonType(scope, name); ok {
+						return map[string]Type{name: typ}
+					}
 				}
 			}
 		}
@@ -441,9 +460,22 @@ func variablesTypedWhenFalse(node ast.Node, scope *functionScope) map[string]Typ
 			}
 			return types
 		case "==", "===":
+			if n.Operator == "===" {
+				if name, ok := emptyStringComparedVariable(n.Left, n.Right); ok {
+					if typ, ok := nonEmptyStringComparisonType(scope, name); ok {
+						return map[string]Type{name: typ}
+					}
+				}
+			}
 			if name, ok := falseComparisonVariable(n.Left, n.Right); ok {
 				if typ, ok := variableWithoutBuiltin(scope, name, "false"); ok {
 					return map[string]Type{name: typ}
+				}
+			}
+		case "!=", "!==":
+			if n.Operator == "!==" {
+				if name, ok := emptyStringComparedVariable(n.Left, n.Right); ok {
+					return map[string]Type{name: ParseType("empty-string")}
 				}
 			}
 		}
@@ -453,6 +485,31 @@ func variablesTypedWhenFalse(node ast.Node, scope *functionScope) map[string]Typ
 		}
 	}
 	return map[string]Type{}
+}
+
+func emptyStringComparedVariable(left, right ast.Node) (string, bool) {
+	if variable, ok := left.(*ast.VariableNode); ok {
+		if value, literal := stringLiteralValue(argumentValue(right)); literal && value == "" {
+			return variable.Name, true
+		}
+	}
+	if variable, ok := right.(*ast.VariableNode); ok {
+		if value, literal := stringLiteralValue(argumentValue(left)); literal && value == "" {
+			return variable.Name, true
+		}
+	}
+	return "", false
+}
+
+func nonEmptyStringComparisonType(scope *functionScope, name string) (Type, bool) {
+	if scope == nil {
+		return EmptyType(), false
+	}
+	current, ok := scope.variable(name)
+	if !ok || !current.hasBuiltin("string") {
+		return EmptyType(), false
+	}
+	return current.replacingBuiltin("string", "non-empty-string"), true
 }
 
 func nonNullVariableType(scope *functionScope, variableName string) (Type, bool) {

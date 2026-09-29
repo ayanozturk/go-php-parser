@@ -470,6 +470,24 @@
         "argument.type",
         "argument.type"
       ]
+    },
+    {
+      "id": "argument-non-empty-string-narrowing-clean",
+      "capability": "a strict non-empty string guard narrows nullable strings",
+      "file": "argument-non-empty-string-narrowing-clean.php",
+      "engineCodes": [],
+      "phpstanIdentifiers": []
+    },
+    {
+      "id": "argument-non-empty-string-narrowing-mismatch",
+      "capability": "the strict empty-string branch fails non-empty-string parameters",
+      "file": "argument-non-empty-string-narrowing-mismatch.php",
+      "engineCodes": [
+        "A.ARG.TYPE"
+      ],
+      "phpstanIdentifiers": [
+        "argument.type"
+      ]
     }
   ]
 }

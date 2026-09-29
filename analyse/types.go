@@ -573,6 +573,42 @@ func (t Type) withoutBuiltin(name string) Type {
 	return refined
 }
 
+func (t Type) replacingBuiltin(name, replacement string) Type {
+	if t.IsEmpty() || !t.hasBuiltin(name) {
+		return t
+	}
+	replacementAtom, ok := normalizeTypeAtom(replacement)
+	if !ok {
+		return t
+	}
+	refined := Type{atoms: make(map[string]typeAtom, len(t.atoms))}
+	for key, atom := range t.atoms {
+		if key == name {
+			refined.atoms[replacementAtom.key] = replacementAtom
+			continue
+		}
+		refined.atoms[key] = atom
+	}
+	for _, alternative := range t.alternatives {
+		members := make([]string, 0, len(alternative))
+		seen := make(map[string]struct{}, len(alternative))
+		for _, key := range alternative {
+			if key == name {
+				key = replacementAtom.key
+			}
+			if _, duplicate := seen[key]; duplicate {
+				continue
+			}
+			seen[key] = struct{}{}
+			members = append(members, key)
+		}
+		if len(members) > 0 {
+			refined.alternatives = append(refined.alternatives, members)
+		}
+	}
+	return refined
+}
+
 func (t Type) sortedAtoms() []typeAtom {
 	atoms := make([]typeAtom, 0, len(t.atoms))
 	for _, atom := range t.atoms {

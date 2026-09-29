@@ -199,6 +199,25 @@ function run(): void {
 	}
 }
 
+func TestArgumentTypesNarrowEmptyStringComparisons(t *testing.T) {
+	const source = `<?php
+/** @param non-empty-string $value */
+function acceptNonEmpty(string $value): void {}
+function run(?string $value): void {
+    if (is_string($value) && $value !== '') {
+        acceptNonEmpty($value);
+    }
+    if (is_string($value) && $value === '') {
+        acceptNonEmpty($value);
+    }
+}
+`
+	issues := runAnalysisLevelOnFiles(t, map[string]string{"empty-string-narrowing.php": source}, 5)
+	if got := len(filterNonEmptyArgTypeIssues(issues)); got != 1 {
+		t.Fatalf("expected only the empty-string branch to mismatch non-empty-string, got %#v", issues)
+	}
+}
+
 func TestUnboundContravariantClassTemplateParameterRemainsMixedForArguments(t *testing.T) {
 	const source = `<?php
 /** @template-contravariant Tin */
