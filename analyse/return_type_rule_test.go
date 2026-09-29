@@ -74,6 +74,28 @@ function outOfRange(): int { return 11; }
 	}
 }
 
+func TestNonEmptyReturnRefinementsUseLiteralEmptiness(t *testing.T) {
+	issues := analysePHP(t, `<?php
+/** @return non-empty-string */
+function label(): string { return 'ready'; }
+/** @return non-empty-array<int, int> */
+function values(): array { return [1]; }
+`)
+	if hasReturnTypeIssue(issues) {
+		t.Fatalf("expected non-empty literals to satisfy refined return types, got %#v", issues)
+	}
+
+	issues = analysePHP(t, `<?php
+/** @return non-empty-string */
+function blankLabel(): string { return ''; }
+/** @return non-empty-array<int, int> */
+function emptyValues(): array { return []; }
+`)
+	if got := countIssuesWithCode(issues, "A.RETURN.TYPE"); got != 2 {
+		t.Fatalf("expected empty string and array literals to mismatch refined return types, got %#v", issues)
+	}
+}
+
 func TestClassPHPDocTypeAliasExpandsForMethodReturn(t *testing.T) {
 	php := `<?php
 /**

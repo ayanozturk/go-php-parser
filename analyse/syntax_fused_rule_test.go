@@ -141,14 +141,14 @@ class C {
 		"mixedClassAndFunctionIssues/nilLevel": {
 			{Code: "Level6.MissingPropertyType", Message: "Property $field has no type specified.", Line: 6, Column: 5},
 			{Code: "Level6.MissingParameterType", Message: "Parameter $x has no type specified.", Line: 7, Column: 25},
-			{Code: "A.RETURN.TYPE", Message: "Function f: return type mismatch, declared: int, actual: [string] at 14:1", Line: 14, Column: 1},
+			{Code: "A.RETURN.TYPE", Message: "Function f: return type mismatch, declared: int, actual: [non-empty-string] at 14:1", Line: 14, Column: 1},
 		},
 		"mixedClassAndFunctionIssues/level0": {},
 		"mixedClassAndFunctionIssues/level2": {},
 		"mixedClassAndFunctionIssues/level6": {
 			{Code: "Level6.MissingPropertyType", Message: "Property $field has no type specified.", Line: 6, Column: 5},
 			{Code: "Level6.MissingParameterType", Message: "Parameter $x has no type specified.", Line: 7, Column: 25},
-			{Code: "A.RETURN.TYPE", Message: "Function f: return type mismatch, declared: int, actual: [string] at 14:1", Line: 14, Column: 1},
+			{Code: "A.RETURN.TYPE", Message: "Function f: return type mismatch, declared: int, actual: [non-empty-string] at 14:1", Line: 14, Column: 1},
 		},
 		"undefinedClassAndGoto/nilLevel": {
 			{Code: "Level6.MissingReturnType", Message: "Function or method run has no return type specified.", Line: 2, Column: 1},

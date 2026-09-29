@@ -750,7 +750,7 @@ func atomsCompatibleWithContext(declared, actual typeAtom, scope *functionScope,
 		if declared.key == "bool" && (actual.key == "true" || actual.key == "false") {
 			return true
 		}
-		if declared.key == "iterable" && actual.key == "array" {
+		if declared.key == "iterable" && (actual.key == "array" || actual.key == "non-empty-array" || actual.key == "empty-array") {
 			return true
 		}
 	}

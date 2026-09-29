@@ -63,6 +63,26 @@
       ]
     },
     {
+      "id": "non-empty-return-clean",
+      "capability": "non-empty string and array literals satisfy refined return types",
+      "file": "non-empty-return-clean.php",
+      "engineCodes": [],
+      "phpstanIdentifiers": []
+    },
+    {
+      "id": "non-empty-return-mismatch",
+      "capability": "empty string and array literals fail non-empty return types",
+      "file": "non-empty-return-mismatch.php",
+      "engineCodes": [
+        "A.RETURN.TYPE",
+        "A.RETURN.TYPE"
+      ],
+      "phpstanIdentifiers": [
+        "return.type",
+        "return.type"
+      ]
+    },
+    {
       "id": "clean-nullable-null-return",
       "capability": "clean nullable null returns",
       "file": "clean-nullable-null-return.php",
