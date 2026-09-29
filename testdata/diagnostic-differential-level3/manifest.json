@@ -43,6 +43,26 @@
       "phpstanIdentifiers": []
     },
     {
+      "id": "refined-integer-return-clean",
+      "capability": "integer literals within positive, non-negative, and bounded return refinements are accepted",
+      "file": "refined-integer-return-clean.php",
+      "engineCodes": [],
+      "phpstanIdentifiers": []
+    },
+    {
+      "id": "refined-integer-return-mismatch",
+      "capability": "integer literals outside positive and bounded return refinements are rejected",
+      "file": "refined-integer-return-mismatch.php",
+      "engineCodes": [
+        "A.RETURN.TYPE",
+        "A.RETURN.TYPE"
+      ],
+      "phpstanIdentifiers": [
+        "return.type",
+        "return.type"
+      ]
+    },
+    {
       "id": "clean-nullable-null-return",
       "capability": "clean nullable null returns",
       "file": "clean-nullable-null-return.php",

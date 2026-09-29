@@ -50,6 +50,30 @@ func TestShortArrayLiteralReturnMatchesArrayType(t *testing.T) {
 	}
 }
 
+func TestIntegerRefinedReturnTypesUseLiteralAndRangeBounds(t *testing.T) {
+	issues := analysePHP(t, `<?php
+/** @return positive-int */
+function positive(): int { return 5; }
+/** @return int<1, 10> */
+function inRange(): int { return 10; }
+/** @return non-negative-int */
+function zeroIsNonNegative(): int { return 0; }
+`)
+	if hasReturnTypeIssue(issues) {
+		t.Fatalf("expected in-range integer literals to satisfy refined return types, got %#v", issues)
+	}
+
+	issues = analysePHP(t, `<?php
+/** @return positive-int */
+function notPositive(): int { return 0; }
+/** @return int<1, 10> */
+function outOfRange(): int { return 11; }
+`)
+	if got := countIssuesWithCode(issues, "A.RETURN.TYPE"); got != 2 {
+		t.Fatalf("expected zero and out-of-range literals to mismatch refined return types, got %#v", issues)
+	}
+}
+
 func TestClassPHPDocTypeAliasExpandsForMethodReturn(t *testing.T) {
 	php := `<?php
 /**
