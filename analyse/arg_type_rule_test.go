@@ -231,6 +231,7 @@ function nonPositive(int $value): void {}
 function greaterThanZero(int $value): void {
     if ($value > 0) { positive($value); } else { nonPositive($value); }
 }
+
 function atLeastZero(int $value): void {
     if ($value >= 0) { nonNegative($value); } else { negative($value); }
 }
@@ -244,6 +245,27 @@ function atMostZero(int $value): void {
 	issues := runAnalysisLevelOnFiles(t, map[string]string{"integer-sign-narrowing.php": source}, 5)
 	if got := len(filterNonEmptyArgTypeIssues(issues)); got != 0 {
 		t.Fatalf("expected zero-comparison branches to satisfy their integer sign refinements, got %#v", issues)
+	}
+}
+
+func TestArgumentTypesNarrowIntegerBoundComparisons(t *testing.T) {
+	const source = `<?php
+/** @param int<1, 10> $value */
+function oneToTen(int $value): void {}
+/** @param int<-10, -1> $value */
+function minusTenToMinusOne(int $value): void {}
+function bounded(int $value): void {
+    if ($value >= 1 && $value <= 10) { oneToTen($value); }
+    if ($value <= -1 && $value >= -10) { minusTenToMinusOne($value); }
+    if (1 <= $value && 10 >= $value) { oneToTen($value); }
+}
+function falseBranch(int $value): void {
+    if ($value > 10) { return; } else { oneToTen($value); }
+}
+`
+	issues := runAnalysisLevelOnFiles(t, map[string]string{"integer-bound-narrowing.php": source}, 5)
+	if got := len(filterNonEmptyArgTypeIssues(issues)); got != 0 {
+		t.Fatalf("expected bounded comparison branches to satisfy their integer ranges, got %#v", issues)
 	}
 }
 

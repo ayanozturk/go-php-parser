@@ -508,6 +508,26 @@
         "argument.type",
         "argument.type"
       ]
+    },
+    {
+      "id": "argument-integer-bound-narrowing-clean",
+      "capability": "integer comparisons narrow to literal bounds in true and false branches",
+      "file": "argument-integer-bound-narrowing-clean.php",
+      "engineCodes": [],
+      "phpstanIdentifiers": []
+    },
+    {
+      "id": "argument-integer-bound-narrowing-mismatch",
+      "capability": "integer bounds reject values outside a declared interval",
+      "file": "argument-integer-bound-narrowing-mismatch.php",
+      "engineCodes": [
+        "A.ARG.TYPE",
+        "A.ARG.TYPE"
+      ],
+      "phpstanIdentifiers": [
+        "argument.type",
+        "argument.type"
+      ]
     }
   ]
 }

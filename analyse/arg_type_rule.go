@@ -520,31 +520,120 @@ func integerComparisonRefinement(node *ast.BinaryExpr, whenTrue bool, scope *fun
 		return "", EmptyType(), false
 	}
 	value, ok := integerLiteralValue(valueNode)
-	if !ok || value != 0 {
+	if !ok {
 		return "", EmptyType(), false
 	}
 	current, ok := scope.variable(variable.Name)
-	if !ok || !current.hasBuiltin("int") || len(current.atoms) != 1 {
+	if !ok || len(current.atoms) != 1 {
 		return "", EmptyType(), false
 	}
-	trueType, falseType := EmptyType(), EmptyType()
+	var currentAtom typeAtom
+	for _, atom := range current.sortedAtoms() {
+		currentAtom = atom
+	}
+	currentInterval, ok := integerAtomInterval(currentAtom)
+	if !ok {
+		return "", EmptyType(), false
+	}
+	targetInterval, ok := integerComparisonInterval(operator, value, whenTrue)
+	if !ok {
+		return "", EmptyType(), false
+	}
+	refined, intersects := intersectIntegerIntervals(currentInterval, targetInterval)
+	if !intersects {
+		return "", EmptyType(), false
+	}
+	return variable.Name, typeFromIntegerInterval(refined), true
+}
+
+func integerComparisonInterval(operator string, value int64, whenTrue bool) (integerInterval, bool) {
+	const maxInt64 = int64(1<<63 - 1)
+	const minInt64 = -1 << 63
+	interval := integerInterval{lowerUnbounded: true, upperUnbounded: true, lowerText: "min", upperText: "max"}
+	setLower := func(bound int64) {
+		interval.lower, interval.lowerUnbounded = bound, false
+		interval.lowerText = strconv.FormatInt(bound, 10)
+	}
+	setUpper := func(bound int64) {
+		interval.upper, interval.upperUnbounded = bound, false
+		interval.upperText = strconv.FormatInt(bound, 10)
+	}
 	switch operator {
 	case ">":
-		trueType, falseType = ParseType("positive-int"), ParseType("non-positive-int")
+		if whenTrue {
+			if value == maxInt64 {
+				return integerInterval{}, false
+			}
+			setLower(value + 1)
+		} else {
+			setUpper(value)
+		}
 	case ">=":
-		trueType, falseType = ParseType("non-negative-int"), ParseType("negative-int")
+		if whenTrue {
+			setLower(value)
+		} else {
+			if value == minInt64 {
+				return integerInterval{}, false
+			}
+			setUpper(value - 1)
+		}
 	case "<":
-		trueType, falseType = ParseType("negative-int"), ParseType("non-negative-int")
+		if whenTrue {
+			if value == minInt64 {
+				return integerInterval{}, false
+			}
+			setUpper(value - 1)
+		} else {
+			setLower(value)
+		}
 	case "<=":
-		trueType, falseType = ParseType("non-positive-int"), ParseType("positive-int")
+		if whenTrue {
+			setUpper(value)
+		} else {
+			if value == maxInt64 {
+				return integerInterval{}, false
+			}
+			setLower(value + 1)
+		}
+	default:
+		return integerInterval{}, false
 	}
-	if whenTrue && !trueType.IsEmpty() {
-		return variable.Name, trueType, true
+	return interval, true
+}
+
+func intersectIntegerIntervals(left, right integerInterval) (integerInterval, bool) {
+	result := integerInterval{lowerUnbounded: true, upperUnbounded: true, lowerText: "min", upperText: "max"}
+	switch {
+	case left.lowerUnbounded:
+		result.lower, result.lowerUnbounded, result.lowerText = right.lower, right.lowerUnbounded, right.lowerText
+	case right.lowerUnbounded:
+		result.lower, result.lowerUnbounded, result.lowerText = left.lower, left.lowerUnbounded, left.lowerText
+	case left.lower >= right.lower:
+		result.lower, result.lowerUnbounded, result.lowerText = left.lower, false, left.lowerText
+	default:
+		result.lower, result.lowerUnbounded, result.lowerText = right.lower, false, right.lowerText
 	}
-	if !whenTrue && !falseType.IsEmpty() {
-		return variable.Name, falseType, true
+	switch {
+	case left.upperUnbounded:
+		result.upper, result.upperUnbounded, result.upperText = right.upper, right.upperUnbounded, right.upperText
+	case right.upperUnbounded:
+		result.upper, result.upperUnbounded, result.upperText = left.upper, left.upperUnbounded, left.upperText
+	case left.upper <= right.upper:
+		result.upper, result.upperUnbounded, result.upperText = left.upper, false, left.upperText
+	default:
+		result.upper, result.upperUnbounded, result.upperText = right.upper, false, right.upperText
 	}
-	return "", EmptyType(), false
+	if !result.lowerUnbounded && !result.upperUnbounded && result.lower > result.upper {
+		return integerInterval{}, false
+	}
+	return result, true
+}
+
+func typeFromIntegerInterval(interval integerInterval) Type {
+	if !interval.lowerUnbounded && !interval.upperUnbounded && interval.lower == interval.upper {
+		return ParseType(strconv.FormatInt(interval.lower, 10))
+	}
+	return ParseType("int<" + interval.lowerText + "," + interval.upperText + ">")
 }
 
 func integerLiteralValue(node ast.Node) (int64, bool) {
