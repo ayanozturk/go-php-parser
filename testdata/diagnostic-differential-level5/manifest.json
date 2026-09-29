@@ -414,6 +414,24 @@
       "phpstanIdentifiers": [
         "argument.type"
       ]
+    },
+    {
+      "id": "argument-positive-int-clean",
+      "capability": "positive and non-negative integer refinements accept literals in range",
+      "file": "argument-positive-int-clean.php",
+      "engineCodes": [],
+      "phpstanIdentifiers": []
+    },
+    {
+      "id": "argument-positive-int-mismatch",
+      "capability": "positive-int rejects the zero literal",
+      "file": "argument-positive-int-mismatch.php",
+      "engineCodes": [
+        "A.ARG.TYPE"
+      ],
+      "phpstanIdentifiers": [
+        "argument.type"
+      ]
     }
   ]
 }

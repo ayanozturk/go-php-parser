@@ -28,6 +28,8 @@ A completed 19-file WordPress sample with heap profiles at the post-index and po
 
 The next refinement slice preserves `non-empty-array` through PHPDoc normalization and argument checks: populated array literals satisfy it, empty literals fail at level 5, and unrefined `array` variables fail at level 7. PHPStan 2.2.5 differential packs pass 50/50 cases at level 5 and 12/12 at level 7, including clean and mismatch controls for the new boundaries.
 
+Integer literal and sign refinements now distinguish positive, negative, non-negative, and non-positive values in argument checks. PHPStan 2.2.5 differential packs pass 52/52 cases at level 5 and 13/13 at level 7; zero is rejected by `positive-int`, while an unrefined integer fails at level 7. General `int<min,max>` interval bounds and flow propagation remain open.
+
 ### 2. Complete type semantics in gated slices
 
 - [x] Infer scalar, quoted-string-literal, and nested scalar values from array-shape offsets; gate clean and mismatching call arguments at PHPStan level 5.

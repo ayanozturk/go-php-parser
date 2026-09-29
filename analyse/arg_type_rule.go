@@ -3,6 +3,7 @@ package analyse
 import (
 	"fmt"
 	"github.com/ayanozturk/go-php-parser/ast"
+	"strconv"
 	"strings"
 )
 
@@ -1207,6 +1208,9 @@ func argumentTypeIssueMinimumLevel(expected, actual Type, scope *functionScope, 
 	if expected.hasBuiltin("non-empty-array") && actual.hasBuiltin("array") && len(actual.atoms) == 1 {
 		return 7
 	}
+	if expected.hasAnyIntegerRefinement() && actual.hasBuiltin("int") && len(actual.atoms) == 1 {
+		return 7
+	}
 	if actual.AcceptsWithContext(expected, scope, ctx) {
 		return 8
 	}
@@ -1330,6 +1334,10 @@ func inferArgumentTypeWithFacts(filename string, expr ast.Node, scope *functionS
 		if typ, known := inferredArrayLiteralEmptiness(node); known {
 			return typ
 		}
+	case *ast.IntegerLiteral:
+		return ParseType(strconv.FormatInt(node.Value, 10))
+	case *ast.IntegerNode:
+		return ParseType(strconv.FormatInt(node.Value, 10))
 	}
 	return actual
 }

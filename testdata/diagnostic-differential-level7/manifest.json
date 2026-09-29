@@ -118,6 +118,17 @@
       "phpstanIdentifiers": [
         "argument.type"
       ]
+    },
+    {
+      "id": "argument-positive-int-variable-mismatch",
+      "capability": "an unrefined integer does not satisfy positive-int",
+      "file": "argument-positive-int-variable-mismatch.php",
+      "engineCodes": [
+        "A.ARG.TYPE"
+      ],
+      "phpstanIdentifiers": [
+        "argument.type"
+      ]
     }
   ]
 }

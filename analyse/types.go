@@ -2,6 +2,7 @@ package analyse
 
 import (
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 )
@@ -42,6 +43,10 @@ var builtinTypeNames = map[string]struct{}{
 	"object":           {},
 	"resource":         {},
 	"string":           {},
+	"positive-int":     {},
+	"negative-int":     {},
+	"non-negative-int": {},
+	"non-positive-int": {},
 	"true":             {},
 	"void":             {},
 }
@@ -530,6 +535,10 @@ func (t Type) hasBuiltin(name string) bool {
 	return ok
 }
 
+func (t Type) hasAnyIntegerRefinement() bool {
+	return t.hasBuiltin("positive-int") || t.hasBuiltin("negative-int") || t.hasBuiltin("non-negative-int") || t.hasBuiltin("non-positive-int")
+}
+
 func (t Type) withoutBuiltin(name string) Type {
 	if t.IsEmpty() || !t.hasBuiltin(name) {
 		return t
@@ -577,6 +586,9 @@ func normalizeTypeAtom(raw string) (typeAtom, bool) {
 	raw = canonicalizeDocType(raw)
 
 	if isIntLiteralType(raw) {
+		if _, err := strconv.ParseInt(raw, 10, 64); err == nil {
+			return typeAtom{key: "int-literal:" + raw, display: raw, kind: typeKindBuiltin}, true
+		}
 		return typeAtom{key: "int", display: "int", kind: typeKindBuiltin}, true
 	}
 
@@ -616,6 +628,14 @@ func isIntLiteralType(raw string) bool {
 	return true
 }
 
+func integerLiteralAtomValue(atom typeAtom) (int64, bool) {
+	if !strings.HasPrefix(atom.key, "int-literal:") {
+		return 0, false
+	}
+	value, err := strconv.ParseInt(strings.TrimPrefix(atom.key, "int-literal:"), 10, 64)
+	return value, err == nil
+}
+
 func atomsCompatible(declared, actual typeAtom) bool {
 	return atomsCompatibleWithContext(declared, actual, nil, nil)
 }
@@ -625,6 +645,24 @@ func atomsCompatibleWithContext(declared, actual typeAtom, scope *functionScope,
 		return true
 	}
 	if declared.kind == typeKindBuiltin && actual.kind == typeKindBuiltin {
+		if declared.key == "int" && (actual.key == "positive-int" || actual.key == "negative-int" || actual.key == "non-negative-int" || actual.key == "non-positive-int" || strings.HasPrefix(actual.key, "int-literal:")) {
+			return true
+		}
+		if declared.key == "float" && strings.HasPrefix(actual.key, "int-literal:") {
+			return true
+		}
+		if actualValue, ok := integerLiteralAtomValue(actual); ok {
+			switch declared.key {
+			case "positive-int":
+				return actualValue > 0
+			case "negative-int":
+				return actualValue < 0
+			case "non-negative-int":
+				return actualValue >= 0
+			case "non-positive-int":
+				return actualValue <= 0
+			}
+		}
 		if declared.key == "string" && actual.key == "non-empty-string" {
 			return true
 		}
@@ -708,7 +746,7 @@ func canonicalizeDocType(raw string) string {
 	case "class-string", "interface-string", "trait-string", "literal-string", "numeric-string", "lowercase-string":
 		return "string"
 	case "positive-int", "negative-int", "non-negative-int", "non-positive-int":
-		return "int"
+		return base
 	case "scalar":
 		return "bool|float|int|string"
 	}

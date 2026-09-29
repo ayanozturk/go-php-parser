@@ -146,6 +146,31 @@ function run(array $unknown): void {
 	}
 }
 
+func TestArgumentTypesEnforceIntegerRefinementBoundaries(t *testing.T) {
+	const source = `<?php
+/** @param positive-int $value */
+function acceptPositive(int $value): void {}
+/** @param non-negative-int $value */
+function acceptNonNegative(int $value): void {}
+/** @param int $unknown */
+function run(int $unknown): void {
+    acceptPositive(1);
+    acceptPositive(0);
+    acceptPositive($unknown);
+    acceptNonNegative(0);
+}
+`
+	files := map[string]string{"integer-refinements.php": source}
+	issues := runAnalysisLevelOnFiles(t, files, 5)
+	if got := len(filterNonEmptyArgTypeIssues(issues)); got != 1 {
+		t.Fatalf("expected only zero to mismatch positive-int at level 5, got %#v", issues)
+	}
+	issues = runAnalysisLevelOnFiles(t, files, 7)
+	if got := len(filterNonEmptyArgTypeIssues(issues)); got != 2 {
+		t.Fatalf("expected zero and unrefined int to mismatch positive-int at level 7, got %#v", issues)
+	}
+}
+
 func TestUnboundContravariantClassTemplateParameterRemainsMixedForArguments(t *testing.T) {
 	const source = `<?php
 /** @template-contravariant Tin */
