@@ -1945,7 +1945,7 @@ func applyAssignmentScope(scope *functionScope, assignment *ast.AssignmentNode, 
 	}
 
 	assignedType := inferType(assignment.Right, scope, ctx)
-	if refined := refineLiteralEmptiness(assignment.Right, assignedType); !refined.IsEmpty() {
+	if refined := refineLiteralAssignmentType(assignment.Right, assignedType); !refined.IsEmpty() {
 		assignedType = refined
 	}
 	switch left := assignment.Left.(type) {

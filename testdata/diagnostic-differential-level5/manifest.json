@@ -528,6 +528,24 @@
         "argument.type",
         "argument.type"
       ]
+    },
+    {
+      "id": "argument-integer-assignment-refinement-clean",
+      "capability": "integer literal and comparison refinements survive simple assignments",
+      "file": "argument-integer-assignment-refinement-clean.php",
+      "engineCodes": [],
+      "phpstanIdentifiers": []
+    },
+    {
+      "id": "argument-integer-assignment-refinement-mismatch",
+      "capability": "integer literal assignment outside a declared interval is rejected",
+      "file": "argument-integer-assignment-refinement-mismatch.php",
+      "engineCodes": [
+        "A.ARG.TYPE"
+      ],
+      "phpstanIdentifiers": [
+        "argument.type"
+      ]
     }
   ]
 }

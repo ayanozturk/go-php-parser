@@ -319,7 +319,7 @@ class Example {
 	if !ok {
 		t.Fatal("expected generated inferred-type fact for assignment RHS")
 	}
-	if fact.Type != "int" || fact.Subject != "method:example:run" {
+	if fact.Type != "42" || fact.Subject != "method:example:run" {
 		t.Fatalf("unexpected generated assignment fact: %#v", fact)
 	}
 

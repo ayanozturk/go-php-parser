@@ -269,6 +269,41 @@ function falseBranch(int $value): void {
 	}
 }
 
+func TestArgumentTypesPreserveIntegerRefinementsThroughAssignments(t *testing.T) {
+	const source = `<?php
+/** @param int<5, 5> $value */
+function exactlyFive(int $value): void {}
+/** @param int<1, 10> $value */
+function oneToTen(int $value): void {}
+function clean(): void {
+    $literal = 5;
+    exactlyFive($literal);
+    $literalCopy = $literal;
+    exactlyFive($literalCopy);
+}
+function narrowed(int $value): void {
+    if ($value >= 1 && $value <= 10) {
+        $copy = $value;
+        oneToTen($copy);
+    }
+}
+function mismatch(): void {
+    $literal = 4;
+    exactlyFive($literal);
+}
+`
+	issues := runAnalysisLevelOnFiles(t, map[string]string{"integer-assignment-refinement.php": source}, 5)
+	var mismatches []AnalysisIssue
+	for _, issue := range issues {
+		if issue.Code == "A.ARG.TYPE" {
+			mismatches = append(mismatches, issue)
+		}
+	}
+	if len(mismatches) != 1 {
+		t.Fatalf("expected only the non-matching integer literal assignment to fail, got %#v", issues)
+	}
+}
+
 func TestUnboundContravariantClassTemplateParameterRemainsMixedForArguments(t *testing.T) {
 	const source = `<?php
 /** @template-contravariant Tin */

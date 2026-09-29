@@ -1570,6 +1570,21 @@ func refineLiteralEmptiness(expr ast.Node, inferred Type) Type {
 	return EmptyType()
 }
 
+func refineLiteralAssignmentType(expr ast.Node, inferred Type) Type {
+	if refined := refineLiteralEmptiness(expr, inferred); !refined.IsEmpty() {
+		return refined
+	}
+	if inferred.hasBuiltin("int") && len(inferred.atoms) == 1 {
+		switch node := expr.(type) {
+		case *ast.IntegerLiteral:
+			return ParseType(strconv.FormatInt(node.Value, 10))
+		case *ast.IntegerNode:
+			return ParseType(strconv.FormatInt(node.Value, 10))
+		}
+	}
+	return EmptyType()
+}
+
 func inferredArrayLiteralEmptiness(node *ast.ArrayNode) (Type, bool) {
 	if node == nil {
 		return Type{}, false
