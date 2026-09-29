@@ -27,6 +27,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"runtime/pprof"
 	"sort"
 	"strings"
 	"sync"
@@ -56,6 +57,8 @@ func main() {
 	level := flag.Int("level", -1, "analysis level to run (-1 = every registered rule, matching a nil AnalysisLevel)")
 	output := flag.String("output", "", "file to write the JSON snapshot to (required unless --baseline is set)")
 	baseline := flag.String("baseline", "", "previously captured snapshot JSON to diff the current run against")
+	memProfile := flag.String("memprofile", "", "optional Go heap profile to write after building the project index")
+	memProfileAfter := flag.String("memprofile-after", "", "optional Go heap profile to write after corpus analysis")
 	maxDiffExamples := flag.Int("max-diff-examples", 20, "max per-file diff examples to print")
 	flag.Parse()
 
@@ -80,7 +83,7 @@ func main() {
 		files = files[:*limit]
 	}
 
-	current, err := buildSnapshot(*root, files, *workers, *level)
+	current, err := buildSnapshot(*root, files, *workers, *level, *memProfile, *memProfileAfter)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "analysis-corpus-snapshot: %v\n", err)
 		os.Exit(1)
@@ -131,7 +134,7 @@ func collectPHPFiles(root string) ([]string, error) {
 	return files, nil
 }
 
-func buildSnapshot(root string, files []string, workers, level int) (*snapshot, error) {
+func buildSnapshot(root string, files []string, workers, level int, memProfile, memProfileAfter string) (*snapshot, error) {
 	var parseErrors []string
 	var mu sync.Mutex
 	projectFiles := make([]string, 0, len(files))
@@ -161,6 +164,11 @@ func buildSnapshot(root string, files []string, workers, level int) (*snapshot, 
 		return nil, fmt.Errorf("build project index: %w", err)
 	}
 	runtime.GC()
+	if memProfile != "" {
+		if err := writeHeapProfile(memProfile); err != nil {
+			return nil, err
+		}
+	}
 	snap, err := analyse.NewSemanticSnapshotWithIndexOnly(project, projectFiles, nil)
 	if err != nil {
 		return nil, fmt.Errorf("build semantic snapshot: %w", err)
@@ -218,6 +226,11 @@ func buildSnapshot(root string, files []string, workers, level int) (*snapshot, 
 	close(targetJobs)
 	runWg.Wait()
 	sort.Strings(parseErrors)
+	if memProfileAfter != "" {
+		if err := writeHeapProfile(memProfileAfter); err != nil {
+			return nil, err
+		}
+	}
 
 	return &snapshot{
 		SchemaVersion: reportSchemaVersion,
@@ -228,6 +241,22 @@ func buildSnapshot(root string, files []string, workers, level int) (*snapshot, 
 		ParseErrors:   parseErrors,
 		Issues:        results,
 	}, nil
+}
+
+func writeHeapProfile(path string) error {
+	runtime.GC()
+	profile, err := os.Create(path)
+	if err != nil {
+		return fmt.Errorf("create heap profile %s: %w", path, err)
+	}
+	if err := pprof.WriteHeapProfile(profile); err != nil {
+		_ = profile.Close()
+		return fmt.Errorf("write heap profile %s: %w", path, err)
+	}
+	if err := profile.Close(); err != nil {
+		return fmt.Errorf("close heap profile %s: %w", path, err)
+	}
+	return nil
 }
 
 func writeSnapshot(path string, snap *snapshot) error {

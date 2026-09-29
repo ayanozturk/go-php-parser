@@ -32,7 +32,7 @@ acceptsInt('wrong');
 		paths = append(paths, path)
 	}
 
-	got, err := buildSnapshot(root, paths, 2, 5)
+	got, err := buildSnapshot(root, paths, 2, 5, "", "")
 	if err != nil {
 		t.Fatal(err)
 	}
