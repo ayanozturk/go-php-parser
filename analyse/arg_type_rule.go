@@ -1316,23 +1316,14 @@ func checkResolvedCallArgTypes(target string, method ResolvedMethod, args []ast.
 
 func inferArgumentTypeWithFacts(filename string, expr ast.Node, scope *functionScope, ctx *AnalysisContext) Type {
 	actual := inferTypeWithFacts(filename, expr, scope, ctx)
+	if refined := refineLiteralEmptiness(expr, actual); !refined.IsEmpty() {
+		return refined
+	}
 	switch node := expr.(type) {
-	case *ast.StringLiteral:
-		if isPlainStringType(actual) {
-			return inferredStringLiteralArgumentType(node.Value)
-		}
-	case *ast.StringNode:
-		if isPlainStringType(actual) {
-			return inferredStringLiteralArgumentType(node.Value)
-		}
 	case *ast.ArrayAccessNode:
 		field := lookupArrayShapeField(arrayShapeFieldsOf(node.Var, scope, ctx), node.Index, scope)
 		if field.stringRefinement != "" && isPlainStringType(actual) {
 			return ParseType(field.stringRefinement)
-		}
-	case *ast.ArrayNode:
-		if typ, known := inferredArrayLiteralEmptiness(node); known {
-			return typ
 		}
 	case *ast.IntegerLiteral:
 		return ParseType(strconv.FormatInt(node.Value, 10))
@@ -1340,6 +1331,26 @@ func inferArgumentTypeWithFacts(filename string, expr ast.Node, scope *functionS
 		return ParseType(strconv.FormatInt(node.Value, 10))
 	}
 	return actual
+}
+
+func refineLiteralEmptiness(expr ast.Node, inferred Type) Type {
+	switch node := expr.(type) {
+	case *ast.StringLiteral:
+		if isPlainStringType(inferred) {
+			return inferredStringLiteralArgumentType(node.Value)
+		}
+	case *ast.StringNode:
+		if isPlainStringType(inferred) {
+			return inferredStringLiteralArgumentType(node.Value)
+		}
+	case *ast.ArrayNode:
+		if inferred.hasBuiltin("array") && len(inferred.atoms) == 1 {
+			if typ, known := inferredArrayLiteralEmptiness(node); known {
+				return typ
+			}
+		}
+	}
+	return EmptyType()
 }
 
 func inferredArrayLiteralEmptiness(node *ast.ArrayNode) (Type, bool) {

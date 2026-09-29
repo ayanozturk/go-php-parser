@@ -392,22 +392,11 @@ func collectObservedReturns(filename string, nodes []ast.Node, scope *functionSc
 
 func inferReturnTypeWithFacts(filename string, expr ast.Node, scope *functionScope, ctx *AnalysisContext) Type {
 	inferred := inferTypeWithFacts(filename, expr, scope, ctx)
+	if refined := refineLiteralEmptiness(expr, inferred); !refined.IsEmpty() {
+		return refined
+	}
 	if expr != nil {
 		switch node := expr.(type) {
-		case *ast.StringLiteral:
-			if isPlainStringType(inferred) {
-				return inferredStringLiteralArgumentType(node.Value)
-			}
-		case *ast.StringNode:
-			if isPlainStringType(inferred) {
-				return inferredStringLiteralArgumentType(node.Value)
-			}
-		case *ast.ArrayNode:
-			if inferred.hasBuiltin("array") && len(inferred.atoms) == 1 {
-				if literalType, known := inferredArrayLiteralEmptiness(node); known {
-					return literalType
-				}
-			}
 		case *ast.IntegerLiteral:
 			if inferred.hasBuiltin("int") && len(inferred.atoms) == 1 {
 				return ParseType(strconv.FormatInt(node.Value, 10))
@@ -1956,6 +1945,9 @@ func applyAssignmentScope(scope *functionScope, assignment *ast.AssignmentNode, 
 	}
 
 	assignedType := inferType(assignment.Right, scope, ctx)
+	if refined := refineLiteralEmptiness(assignment.Right, assignedType); !refined.IsEmpty() {
+		assignedType = refined
+	}
 	switch left := assignment.Left.(type) {
 	case *ast.VariableNode:
 		scope.clearCallableReturn(left.Name)

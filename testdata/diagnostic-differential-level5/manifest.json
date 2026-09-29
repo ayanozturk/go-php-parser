@@ -450,6 +450,26 @@
       "phpstanIdentifiers": [
         "argument.type"
       ]
+    },
+    {
+      "id": "argument-non-empty-assignment-clean",
+      "capability": "non-empty string and array assignments preserve their refinements",
+      "file": "argument-non-empty-assignment-clean.php",
+      "engineCodes": [],
+      "phpstanIdentifiers": []
+    },
+    {
+      "id": "argument-non-empty-assignment-mismatch",
+      "capability": "empty string and array assignments do not satisfy non-empty parameters",
+      "file": "argument-non-empty-assignment-mismatch.php",
+      "engineCodes": [
+        "A.ARG.TYPE",
+        "A.ARG.TYPE"
+      ],
+      "phpstanIdentifiers": [
+        "argument.type",
+        "argument.type"
+      ]
     }
   ]
 }

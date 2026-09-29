@@ -176,6 +176,29 @@ function run(int $unknown): void {
 	}
 }
 
+func TestArgumentTypesPreserveNonEmptyLiteralAssignments(t *testing.T) {
+	const source = `<?php
+/** @param non-empty-string $value */
+function acceptText(string $value): void {}
+/** @param non-empty-array<int, int> $values */
+function acceptValues(array $values): void {}
+function run(): void {
+    $text = 'ready';
+    $values = [1];
+    acceptText($text);
+    acceptValues($values);
+    $blank = '';
+    $empty = [];
+    acceptText($blank);
+    acceptValues($empty);
+}
+`
+	issues := runAnalysisLevelOnFiles(t, map[string]string{"non-empty-assignments.php": source}, 5)
+	if got := len(filterNonEmptyArgTypeIssues(issues)); got != 2 {
+		t.Fatalf("expected only empty string and array assignments to mismatch, got %#v", issues)
+	}
+}
+
 func TestUnboundContravariantClassTemplateParameterRemainsMixedForArguments(t *testing.T) {
 	const source = `<?php
 /** @template-contravariant Tin */
