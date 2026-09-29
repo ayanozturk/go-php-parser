@@ -1204,6 +1204,9 @@ func argumentTypeIssueMinimumLevel(expected, actual Type, scope *functionScope, 
 	if expected.hasBuiltin("non-empty-string") && actual.hasBuiltin("string") && len(actual.atoms) == 1 {
 		return 7
 	}
+	if expected.hasBuiltin("non-empty-array") && actual.hasBuiltin("array") && len(actual.atoms) == 1 {
+		return 7
+	}
 	if actual.AcceptsWithContext(expected, scope, ctx) {
 		return 8
 	}
@@ -1323,8 +1326,28 @@ func inferArgumentTypeWithFacts(filename string, expr ast.Node, scope *functionS
 		if field.stringRefinement != "" && isPlainStringType(actual) {
 			return ParseType(field.stringRefinement)
 		}
+	case *ast.ArrayNode:
+		if typ, known := inferredArrayLiteralEmptiness(node); known {
+			return typ
+		}
 	}
 	return actual
+}
+
+func inferredArrayLiteralEmptiness(node *ast.ArrayNode) (Type, bool) {
+	if node == nil {
+		return Type{}, false
+	}
+	if len(node.Elements) == 0 {
+		return ParseType("empty-array"), true
+	}
+	for _, element := range node.Elements {
+		item, ok := element.(*ast.ArrayItemNode)
+		if !ok || item == nil || item.Unpack {
+			return Type{}, false
+		}
+	}
+	return ParseType("non-empty-array"), true
 }
 
 func isPlainStringType(typ Type) bool {

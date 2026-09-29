@@ -121,6 +121,31 @@ func filterNonEmptyArgTypeIssues(issues []AnalysisIssue) []AnalysisIssue {
 	return result
 }
 
+func TestArgumentTypesEnforceNonEmptyArrayBoundaries(t *testing.T) {
+	const source = `<?php
+/** @param non-empty-array<int, int> $values */
+function acceptNonEmptyArray(array $values): void {}
+/** @param array<int, int> $values */
+function acceptArray(array $values): void {}
+/** @param array<int, int> $unknown */
+function run(array $unknown): void {
+    acceptNonEmptyArray([1]);
+    acceptNonEmptyArray([]);
+    acceptNonEmptyArray($unknown);
+    acceptArray([]);
+}
+`
+	files := map[string]string{"non-empty-array.php": source}
+	issues := runAnalysisLevelOnFiles(t, files, 5)
+	if got := len(filterNonEmptyArgTypeIssues(issues)); got != 1 {
+		t.Fatalf("expected only the empty literal to mismatch non-empty-array at level 5, got %#v", issues)
+	}
+	issues = runAnalysisLevelOnFiles(t, files, 7)
+	if got := len(filterNonEmptyArgTypeIssues(issues)); got != 2 {
+		t.Fatalf("expected empty and unrefined arrays to mismatch non-empty-array at level 7, got %#v", issues)
+	}
+}
+
 func TestUnboundContravariantClassTemplateParameterRemainsMixedForArguments(t *testing.T) {
 	const source = `<?php
 /** @template-contravariant Tin */

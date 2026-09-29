@@ -107,6 +107,17 @@
       "phpstanIdentifiers": [
         "argument.type"
       ]
+    },
+    {
+      "id": "argument-non-empty-array-variable-mismatch",
+      "capability": "an unrefined array argument does not satisfy non-empty-array",
+      "file": "argument-non-empty-array-variable-mismatch.php",
+      "engineCodes": [
+        "A.ARG.TYPE"
+      ],
+      "phpstanIdentifiers": [
+        "argument.type"
+      ]
     }
   ]
 }

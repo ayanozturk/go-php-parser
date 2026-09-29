@@ -396,6 +396,24 @@
         "argument.type",
         "argument.type"
       ]
+    },
+    {
+      "id": "argument-non-empty-array-clean",
+      "capability": "a non-empty array accepts a populated array literal",
+      "file": "argument-non-empty-array-clean.php",
+      "engineCodes": [],
+      "phpstanIdentifiers": []
+    },
+    {
+      "id": "argument-non-empty-array-mismatch",
+      "capability": "a non-empty array rejects an empty array literal",
+      "file": "argument-non-empty-array-mismatch.php",
+      "engineCodes": [
+        "A.ARG.TYPE"
+      ],
+      "phpstanIdentifiers": [
+        "argument.type"
+      ]
     }
   ]
 }

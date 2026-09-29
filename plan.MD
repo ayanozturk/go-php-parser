@@ -26,6 +26,8 @@ Fresh reference differential evidence: PHPStan 2.2.5 level 5 passes 48/48 cases 
 
 A completed 19-file WordPress sample with heap profiles at the post-index and post-analysis boundaries retained about 5.8 MB and 4.7 MB respectively; cumulative sampled allocations were about 31 MB and 40 MB. This small sample confirms the streamed index does not retain per-file ASTs at scale, but it does not explain the earlier multi-GB process footprint or establish a full-corpus memory/performance baseline. The corpus snapshot command now supports optional profiles at both boundaries for follow-up measurements.
 
+The next refinement slice preserves `non-empty-array` through PHPDoc normalization and argument checks: populated array literals satisfy it, empty literals fail at level 5, and unrefined `array` variables fail at level 7. PHPStan 2.2.5 differential packs pass 50/50 cases at level 5 and 12/12 at level 7, including clean and mismatch controls for the new boundaries.
+
 ### 2. Complete type semantics in gated slices
 
 - [x] Infer scalar, quoted-string-literal, and nested scalar values from array-shape offsets; gate clean and mismatching call arguments at PHPStan level 5.

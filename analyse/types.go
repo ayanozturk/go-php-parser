@@ -29,6 +29,7 @@ var builtinTypeNames = map[string]struct{}{
 	"bool":             {},
 	"callable":         {},
 	"empty-string":     {},
+	"empty-array":      {},
 	"false":            {},
 	"float":            {},
 	"int":              {},
@@ -37,6 +38,7 @@ var builtinTypeNames = map[string]struct{}{
 	"never":            {},
 	"null":             {},
 	"non-empty-string": {},
+	"non-empty-array":  {},
 	"object":           {},
 	"resource":         {},
 	"string":           {},
@@ -629,6 +631,9 @@ func atomsCompatibleWithContext(declared, actual typeAtom, scope *functionScope,
 		if declared.key == "string" && actual.key == "empty-string" {
 			return true
 		}
+		if declared.key == "array" && (actual.key == "non-empty-array" || actual.key == "empty-array") {
+			return true
+		}
 		if declared.key == "float" && actual.key == "int" {
 			return true
 		}
@@ -690,7 +695,9 @@ func canonicalizeDocType(raw string) string {
 			return "int|string"
 		}
 		return "array"
-	case "array", "non-empty-array", "associative-array":
+	case "non-empty-array":
+		return "non-empty-array"
+	case "array", "associative-array":
 		return "array"
 	case "non-empty-string":
 		return "non-empty-string"
