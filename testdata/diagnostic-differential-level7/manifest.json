@@ -129,6 +129,17 @@
       "phpstanIdentifiers": [
         "argument.type"
       ]
+    },
+    {
+      "id": "argument-int-range-variable-mismatch",
+      "capability": "an unrefined integer does not satisfy an integer range",
+      "file": "argument-int-range-variable-mismatch.php",
+      "engineCodes": [
+        "A.ARG.TYPE"
+      ],
+      "phpstanIdentifiers": [
+        "argument.type"
+      ]
     }
   ]
 }

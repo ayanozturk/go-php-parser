@@ -432,6 +432,24 @@
       "phpstanIdentifiers": [
         "argument.type"
       ]
+    },
+    {
+      "id": "argument-int-range-clean",
+      "capability": "integer range accepts values within both bounded and unbounded intervals",
+      "file": "argument-int-range-clean.php",
+      "engineCodes": [],
+      "phpstanIdentifiers": []
+    },
+    {
+      "id": "argument-int-range-mismatch",
+      "capability": "bounded integer range rejects an out-of-range literal",
+      "file": "argument-int-range-mismatch.php",
+      "engineCodes": [
+        "A.ARG.TYPE"
+      ],
+      "phpstanIdentifiers": [
+        "argument.type"
+      ]
     }
   ]
 }

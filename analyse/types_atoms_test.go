@@ -66,3 +66,24 @@ func TestNonEmptyStringPreservesItsSubtypeBoundary(t *testing.T) {
 		t.Fatal("non-empty-string must not accept an unrefined string")
 	}
 }
+
+func TestIntegerRangesAndLiteralSubtyping(t *testing.T) {
+	cases := []struct {
+		declared, actual string
+		want             bool
+	}{
+		{"int<1, 10>", "5", true},
+		{"int<1,10>", "0", false},
+		{"int<min, max>", "positive-int", true},
+		{"int<0, max>", "non-negative-int", true},
+		{"int<0, max>", "negative-int", false},
+		{"int<1,10>", "positive-int", false},
+		{"int", "int<1,10>", true},
+		{"float", "int<1,10>", true},
+	}
+	for _, tc := range cases {
+		if got := ParseType(tc.declared).Accepts(ParseType(tc.actual)); got != tc.want {
+			t.Errorf("%s Accepts %s = %v, want %v", tc.declared, tc.actual, got, tc.want)
+		}
+	}
+}

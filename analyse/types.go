@@ -536,7 +536,15 @@ func (t Type) hasBuiltin(name string) bool {
 }
 
 func (t Type) hasAnyIntegerRefinement() bool {
-	return t.hasBuiltin("positive-int") || t.hasBuiltin("negative-int") || t.hasBuiltin("non-negative-int") || t.hasBuiltin("non-positive-int")
+	if t.hasBuiltin("positive-int") || t.hasBuiltin("negative-int") || t.hasBuiltin("non-negative-int") || t.hasBuiltin("non-positive-int") {
+		return true
+	}
+	for key := range t.atoms {
+		if strings.HasPrefix(key, "int-range:") {
+			return true
+		}
+	}
+	return false
 }
 
 func (t Type) withoutBuiltin(name string) Type {
@@ -584,6 +592,9 @@ func normalizeTypeAtom(raw string) (typeAtom, bool) {
 
 	raw = strings.TrimPrefix(raw, "\\")
 	raw = canonicalizeDocType(raw)
+	if bounds, ok := parseIntegerRange(raw); ok {
+		return typeAtom{key: "int-range:" + bounds.lowerText + "," + bounds.upperText, display: "int<" + bounds.lowerText + ", " + bounds.upperText + ">", kind: typeKindBuiltin}, true
+	}
 
 	if isIntLiteralType(raw) {
 		if _, err := strconv.ParseInt(raw, 10, 64); err == nil {
@@ -636,6 +647,72 @@ func integerLiteralAtomValue(atom typeAtom) (int64, bool) {
 	return value, err == nil
 }
 
+type integerInterval struct {
+	lower, upper         int64
+	lowerUnbounded       bool
+	upperUnbounded       bool
+	lowerText, upperText string
+}
+
+func parseIntegerRange(raw string) (integerInterval, bool) {
+	if len(raw) < len("int<,>") || !strings.HasPrefix(asciiLowerIdent(raw), "int<") || raw[len(raw)-1] != '>' {
+		return integerInterval{}, false
+	}
+	parts := strings.Split(raw[len("int<"):len(raw)-1], ",")
+	if len(parts) != 2 {
+		return integerInterval{}, false
+	}
+	lowerText := strings.TrimSpace(asciiLowerIdent(parts[0]))
+	upperText := strings.TrimSpace(asciiLowerIdent(parts[1]))
+	interval := integerInterval{lowerUnbounded: lowerText == "min", upperUnbounded: upperText == "max", lowerText: lowerText, upperText: upperText}
+	if !interval.lowerUnbounded {
+		value, err := strconv.ParseInt(lowerText, 10, 64)
+		if err != nil {
+			return integerInterval{}, false
+		}
+		interval.lower = value
+	}
+	if !interval.upperUnbounded {
+		value, err := strconv.ParseInt(upperText, 10, 64)
+		if err != nil {
+			return integerInterval{}, false
+		}
+		interval.upper = value
+	}
+	if !interval.lowerUnbounded && !interval.upperUnbounded && interval.lower > interval.upper {
+		return integerInterval{}, false
+	}
+	return interval, true
+}
+
+func integerAtomInterval(atom typeAtom) (integerInterval, bool) {
+	if value, ok := integerLiteralAtomValue(atom); ok {
+		return integerInterval{lower: value, upper: value, lowerText: strconv.FormatInt(value, 10), upperText: strconv.FormatInt(value, 10)}, true
+	}
+	switch atom.key {
+	case "int":
+		return integerInterval{lowerUnbounded: true, upperUnbounded: true, lowerText: "min", upperText: "max"}, true
+	case "positive-int":
+		return integerInterval{lower: 1, upperUnbounded: true, lowerText: "1", upperText: "max"}, true
+	case "negative-int":
+		return integerInterval{lowerUnbounded: true, upper: -1, lowerText: "min", upperText: "-1"}, true
+	case "non-negative-int":
+		return integerInterval{lower: 0, upperUnbounded: true, lowerText: "0", upperText: "max"}, true
+	case "non-positive-int":
+		return integerInterval{lowerUnbounded: true, upper: 0, lowerText: "min", upperText: "0"}, true
+	}
+	if strings.HasPrefix(atom.key, "int-range:") {
+		return parseIntegerRange("int<" + strings.TrimPrefix(atom.key, "int-range:") + ">")
+	}
+	return integerInterval{}, false
+}
+
+func integerIntervalSubset(actual, declared integerInterval) bool {
+	lowerWithin := declared.lowerUnbounded || (!actual.lowerUnbounded && actual.lower >= declared.lower)
+	upperWithin := declared.upperUnbounded || (!actual.upperUnbounded && actual.upper <= declared.upper)
+	return lowerWithin && upperWithin
+}
+
 func atomsCompatible(declared, actual typeAtom) bool {
 	return atomsCompatibleWithContext(declared, actual, nil, nil)
 }
@@ -645,22 +722,14 @@ func atomsCompatibleWithContext(declared, actual typeAtom, scope *functionScope,
 		return true
 	}
 	if declared.kind == typeKindBuiltin && actual.kind == typeKindBuiltin {
-		if declared.key == "int" && (actual.key == "positive-int" || actual.key == "negative-int" || actual.key == "non-negative-int" || actual.key == "non-positive-int" || strings.HasPrefix(actual.key, "int-literal:")) {
-			return true
+		if declaredInterval, declaredOK := integerAtomInterval(declared); declaredOK {
+			if actualInterval, actualOK := integerAtomInterval(actual); actualOK {
+				return integerIntervalSubset(actualInterval, declaredInterval)
+			}
 		}
-		if declared.key == "float" && strings.HasPrefix(actual.key, "int-literal:") {
-			return true
-		}
-		if actualValue, ok := integerLiteralAtomValue(actual); ok {
-			switch declared.key {
-			case "positive-int":
-				return actualValue > 0
-			case "negative-int":
-				return actualValue < 0
-			case "non-negative-int":
-				return actualValue >= 0
-			case "non-positive-int":
-				return actualValue <= 0
+		if declared.key == "float" {
+			if _, ok := integerAtomInterval(actual); ok {
+				return true
 			}
 		}
 		if declared.key == "string" && actual.key == "non-empty-string" {
@@ -704,6 +773,9 @@ func atomsCompatibleWithContext(declared, actual typeAtom, scope *functionScope,
 
 func canonicalizeDocType(raw string) string {
 	lower := asciiLowerIdent(strings.TrimSpace(raw))
+	if strings.HasPrefix(lower, "int<") && strings.HasSuffix(lower, ">") {
+		return lower
+	}
 	if strings.HasPrefix(lower, "[") && strings.HasSuffix(lower, "]") {
 		return "array"
 	}
