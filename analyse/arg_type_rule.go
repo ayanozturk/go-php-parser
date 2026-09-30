@@ -404,6 +404,11 @@ func variablesTypedWhenTrue(node ast.Node, scope *functionScope) map[string]Type
 				}
 			}
 		case "!=", "!==":
+			if n.Operator == "!==" {
+				if name, typ, ok := integerInequalityRefinement(n, scope); ok {
+					return map[string]Type{name: typ}
+				}
+			}
 			if name, ok := nullComparisonVariable(n.Left, n.Right); ok {
 				if typ, ok := nonNullVariableType(scope, name); ok {
 					return map[string]Type{name: typ}
@@ -469,6 +474,11 @@ func variablesTypedWhenFalse(node ast.Node, scope *functionScope) map[string]Typ
 			}
 			return types
 		case "==", "===":
+			if n.Operator == "===" {
+				if name, typ, ok := integerInequalityRefinement(n, scope); ok {
+					return map[string]Type{name: typ}
+				}
+			}
 			if n.Operator == "===" {
 				if name, ok := emptyStringComparedVariable(n.Left, n.Right); ok {
 					if typ, ok := nonEmptyStringComparisonType(scope, name); ok {
@@ -588,6 +598,61 @@ func integerEqualityRefinement(node *ast.BinaryExpr, scope *functionScope) (stri
 		if (interval.lowerUnbounded || value >= interval.lower) && (interval.upperUnbounded || value <= interval.upper) {
 			return variable.Name, ParseType(strconv.FormatInt(value, 10)), true
 		}
+	}
+	return "", EmptyType(), false
+}
+
+// integerInequalityRefinement removes a strict integer comparison literal when
+// it is an endpoint of the current range. Interior exclusions need a disjoint
+// integer type that this interval model cannot represent.
+func integerInequalityRefinement(node *ast.BinaryExpr, scope *functionScope) (string, Type, bool) {
+	if node == nil || scope == nil || (node.Operator != "===" && node.Operator != "!==") {
+		return "", EmptyType(), false
+	}
+	variable, ok := node.Left.(*ast.VariableNode)
+	literal := node.Right
+	if !ok {
+		variable, ok = node.Right.(*ast.VariableNode)
+		literal = node.Left
+	}
+	if !ok {
+		return "", EmptyType(), false
+	}
+	value, ok := integerLiteralValue(literal)
+	if !ok {
+		return "", EmptyType(), false
+	}
+	current, ok := scope.variable(variable.Name)
+	if !ok || len(current.atoms) != 1 {
+		return "", EmptyType(), false
+	}
+	var atom typeAtom
+	for _, candidate := range current.sortedAtoms() {
+		atom = candidate
+	}
+	interval, ok := integerAtomInterval(atom)
+	if !ok {
+		return "", EmptyType(), false
+	}
+	const maxInt64 = int64(1<<63 - 1)
+	const minInt64 = -1 << 63
+	if !interval.lowerUnbounded && interval.lower == value {
+		if !interval.upperUnbounded && interval.upper == value || value == maxInt64 {
+			return "", EmptyType(), false
+		}
+		interval.lower = value + 1
+		interval.lowerUnbounded = false
+		interval.lowerText = strconv.FormatInt(interval.lower, 10)
+		return variable.Name, typeFromIntegerInterval(interval), true
+	}
+	if !interval.upperUnbounded && interval.upper == value {
+		if !interval.lowerUnbounded && interval.lower == value || value == minInt64 {
+			return "", EmptyType(), false
+		}
+		interval.upper = value - 1
+		interval.upperUnbounded = false
+		interval.upperText = strconv.FormatInt(interval.upper, 10)
+		return variable.Name, typeFromIntegerInterval(interval), true
 	}
 	return "", EmptyType(), false
 }

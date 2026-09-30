@@ -331,6 +331,40 @@ function checked(int $value): void {
 	}
 }
 
+func TestArgumentTypesNarrowStrictIntegerEndpointExclusions(t *testing.T) {
+	const source = `<?php
+/** @param int<6, 10> $value */
+function aboveFive(int $value): void {}
+/** @param int<5, 9> $value */
+function belowTen(int $value): void {}
+/** @param int<5, 5> $value */
+function exactlyFive(int $value): void {}
+/** @param int<10, 10> $value */
+function exactlyTen(int $value): void {}
+function checkLower(int $value): void {
+    aboveFive($value);
+    if ($value >= 5 && $value <= 10) {
+        if ($value !== 5) { aboveFive($value); } else { exactlyFive($value); }
+    }
+}
+function checkUpper(int $value): void {
+    if ($value >= 5 && $value <= 10) {
+        if ($value === 10) { exactlyTen($value); } else { belowTen($value); }
+    }
+}
+`
+	issues := runAnalysisLevelOnFiles(t, map[string]string{"integer-endpoint-exclusion.php": source}, 7)
+	var mismatches []AnalysisIssue
+	for _, issue := range issues {
+		if issue.Code == "A.ARG.TYPE" {
+			mismatches = append(mismatches, issue)
+		}
+	}
+	if len(mismatches) != 1 {
+		t.Fatalf("expected the unrefined argument to fail while endpoint exclusion branches pass, got %#v", issues)
+	}
+}
+
 func TestUnboundContravariantClassTemplateParameterRemainsMixedForArguments(t *testing.T) {
 	const source = `<?php
 /** @template-contravariant Tin */

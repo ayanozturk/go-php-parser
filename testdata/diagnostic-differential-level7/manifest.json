@@ -151,6 +151,17 @@
       "phpstanIdentifiers": [
         "argument.type"
       ]
+    },
+    {
+      "id": "argument-int-strict-endpoint-exclusion",
+      "capability": "strict equality exclusion narrows an integer range endpoint on the unequal branch",
+      "file": "argument-int-strict-endpoint-exclusion.php",
+      "engineCodes": [
+        "A.ARG.TYPE"
+      ],
+      "phpstanIdentifiers": [
+        "argument.type"
+      ]
     }
   ]
 }
