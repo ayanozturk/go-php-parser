@@ -602,9 +602,9 @@ func integerEqualityRefinement(node *ast.BinaryExpr, scope *functionScope) (stri
 	return "", EmptyType(), false
 }
 
-// integerInequalityRefinement removes a strict integer comparison literal when
-// it is an endpoint of the current range. Interior exclusions need a disjoint
-// integer type that this interval model cannot represent.
+// integerInequalityRefinement removes a strict integer comparison literal from
+// the current integer range. An interior exclusion is represented as a union
+// of the ranges on either side of the literal.
 func integerInequalityRefinement(node *ast.BinaryExpr, scope *functionScope) (string, Type, bool) {
 	if node == nil || scope == nil || (node.Operator != "===" && node.Operator != "!==") {
 		return "", EmptyType(), false
@@ -636,23 +636,30 @@ func integerInequalityRefinement(node *ast.BinaryExpr, scope *functionScope) (st
 	}
 	const maxInt64 = int64(1<<63 - 1)
 	const minInt64 = -1 << 63
-	if !interval.lowerUnbounded && interval.lower == value {
-		if !interval.upperUnbounded && interval.upper == value || value == maxInt64 {
-			return "", EmptyType(), false
-		}
-		interval.lower = value + 1
-		interval.lowerUnbounded = false
-		interval.lowerText = strconv.FormatInt(interval.lower, 10)
-		return variable.Name, typeFromIntegerInterval(interval), true
+	if (!interval.lowerUnbounded && value < interval.lower) || (!interval.upperUnbounded && value > interval.upper) {
+		return "", EmptyType(), false
 	}
-	if !interval.upperUnbounded && interval.upper == value {
-		if !interval.lowerUnbounded && interval.lower == value || value == minInt64 {
-			return "", EmptyType(), false
-		}
-		interval.upper = value - 1
-		interval.upperUnbounded = false
-		interval.upperText = strconv.FormatInt(interval.upper, 10)
-		return variable.Name, typeFromIntegerInterval(interval), true
+
+	var narrowed []Type
+	if (interval.lowerUnbounded && value > minInt64) || (!interval.lowerUnbounded && value > interval.lower) {
+		lower := interval
+		lower.upper = value - 1
+		lower.upperUnbounded = false
+		lower.upperText = strconv.FormatInt(lower.upper, 10)
+		narrowed = append(narrowed, typeFromIntegerInterval(lower))
+	}
+	if (interval.upperUnbounded && value < maxInt64) || (!interval.upperUnbounded && value < interval.upper) {
+		upper := interval
+		upper.lower = value + 1
+		upper.lowerUnbounded = false
+		upper.lowerText = strconv.FormatInt(upper.lower, 10)
+		narrowed = append(narrowed, typeFromIntegerInterval(upper))
+	}
+	if len(narrowed) == 1 {
+		return variable.Name, narrowed[0], true
+	}
+	if len(narrowed) == 2 {
+		return variable.Name, ParseType(narrowed[0].String() + "|" + narrowed[1].String()), true
 	}
 	return "", EmptyType(), false
 }

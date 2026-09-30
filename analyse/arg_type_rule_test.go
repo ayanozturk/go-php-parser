@@ -365,6 +365,36 @@ function checkUpper(int $value): void {
 	}
 }
 
+func TestArgumentTypesNarrowStrictIntegerInteriorExclusions(t *testing.T) {
+	const source = `<?php
+/** @param int<5, 6>|int<8, 10> $value */
+function notSeven(int $value): void {}
+/** @param int<7, 7> $value */
+function exactlySeven(int $value): void {}
+function unrefined(int $value): void { notSeven($value); }
+function excluded(int $value): void {
+    if ($value >= 5 && $value <= 10) {
+        if ($value !== 7) { notSeven($value); } else { exactlySeven($value); }
+    }
+}
+function equalityElse(int $value): void {
+    if ($value >= 5 && $value <= 10) {
+        if ($value === 7) { exactlySeven($value); } else { notSeven($value); }
+    }
+}
+`
+	issues := runAnalysisLevelOnFiles(t, map[string]string{"integer-interior-exclusion.php": source}, 7)
+	var mismatches []AnalysisIssue
+	for _, issue := range issues {
+		if issue.Code == "A.ARG.TYPE" {
+			mismatches = append(mismatches, issue)
+		}
+	}
+	if len(mismatches) != 1 {
+		t.Fatalf("expected the unrefined argument to fail while both interior-exclusion paths pass, got %#v", issues)
+	}
+}
+
 func TestUnboundContravariantClassTemplateParameterRemainsMixedForArguments(t *testing.T) {
 	const source = `<?php
 /** @template-contravariant Tin */

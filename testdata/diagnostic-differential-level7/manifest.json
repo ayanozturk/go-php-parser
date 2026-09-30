@@ -162,6 +162,17 @@
       "phpstanIdentifiers": [
         "argument.type"
       ]
+    },
+    {
+      "id": "argument-int-strict-interior-exclusion",
+      "capability": "strict equality exclusion splits an integer range around an interior literal",
+      "file": "argument-int-strict-interior-exclusion.php",
+      "engineCodes": [
+        "A.ARG.TYPE"
+      ],
+      "phpstanIdentifiers": [
+        "argument.type"
+      ]
     }
   ]
 }
