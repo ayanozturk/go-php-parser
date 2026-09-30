@@ -4,9 +4,15 @@ Status: in progress
 
 Roadmap source: short-term item 2
 
-Scope: complete the semantic and type system
+Scope: PHPStan 2.2.5 level-1 rules (user reprioritization); semantic/type-system work is paused below this slice.
 
 The preceding compatibility plan was delivered on `main`. This plan is now active.
+
+## Current approved slice
+
+The user redirected implementation priority to the default PHPStan level-1 rule set. Add neutral differential fixtures, implement supported checks, update capability/rule inventory documentation, run the full Go suite and PHPStan 2.2.5 differential pack, then commit and push. The broader semantic/type-system objective below remains open for resumption after this slice.
+
+Acceptance evidence: the level-1 pack has 36 exact-reference cases covering undefined-variable flow, extra function/constructor arguments, `$this` magic access, undefined constants, unused constructor and closure captures, redundant `isset`/`empty`/`??` checks, and no-constructor instantiation.
 
 ## Objective
 

@@ -1,13 +1,13 @@
 # PHPStan-compatible rules: level 5
 
-<!-- rule-inventory: level=5 introduced=1 cumulative=25 -->
+<!-- rule-inventory: level=5 introduced=1 cumulative=26 -->
 
 [Back to the README static-analysis section](../../README.md#static-analysis) · [Open the analyser capability matrix](../analyser-capability-matrix.md)
 
 ## Rule inventory
 
 - **Introduced at this level:** 1 registered levelled rule, `A.ARG.TYPE`.
-- **Cumulative registered levelled rules:** 25.
+- **Cumulative registered levelled rules:** 26.
 - **Checked-in differential pack:** 64 cases in `testdata/diagnostic-differential-level5`.
 
 ## Coverage and boundaries

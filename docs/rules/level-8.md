@@ -1,13 +1,13 @@
 # PHPStan-compatible rules: level 8
 
-<!-- rule-inventory: level=8 introduced=1 cumulative=32 -->
+<!-- rule-inventory: level=8 introduced=1 cumulative=33 -->
 
 [Back to the README static-analysis section](../../README.md#static-analysis) · [Open the analyser capability matrix](../analyser-capability-matrix.md)
 
 ## Rule inventory
 
 - **Introduced at this level:** 1 registered levelled rule, `Level8.MethodNonObject`.
-- **Cumulative registered levelled rules:** 32.
+- **Cumulative registered levelled rules:** 33.
 - **Checked-in differential pack:** 51 cases in `testdata/diagnostic-differential-level8`.
 
 ## Coverage and boundaries

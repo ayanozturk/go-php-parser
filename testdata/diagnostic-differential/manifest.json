@@ -297,7 +297,7 @@
     },
     {
       "id": "extra-constructor-arguments",
-      "capability": "constructor arguments on a class without a constructor",
+      "capability": "arguments passed to a class without a constructor are deferred to level 1",
       "file": "extra-constructor-arguments.php",
       "engineCodes": [
         "Level0.Invocation"
@@ -848,7 +848,6 @@
       "capability": "duplicate named arguments",
       "file": "duplicate-named-argument.php",
       "engineCodes": [
-        "Level0.Invocation",
         "Level0.Invocation"
       ],
       "phpstanIdentifiers": [
@@ -977,29 +976,45 @@
       "id": "property-native-callable",
       "capability": "native callable property types",
       "file": "property-native-callable.php",
-      "engineCodes": ["Level0.PropertyCallableType"],
-      "phpstanIdentifiers": ["property.callableType"]
+      "engineCodes": [
+        "Level0.PropertyCallableType"
+      ],
+      "phpstanIdentifiers": [
+        "property.callableType"
+      ]
     },
     {
       "id": "property-nullable-callable",
       "capability": "nullable callable property types",
       "file": "property-nullable-callable.php",
-      "engineCodes": ["Level0.PropertyCallableType"],
-      "phpstanIdentifiers": ["property.callableType"]
+      "engineCodes": [
+        "Level0.PropertyCallableType"
+      ],
+      "phpstanIdentifiers": [
+        "property.callableType"
+      ]
     },
     {
       "id": "property-union-callable",
       "capability": "union callable property types",
       "file": "property-union-callable.php",
-      "engineCodes": ["Level0.PropertyCallableType"],
-      "phpstanIdentifiers": ["property.callableType"]
+      "engineCodes": [
+        "Level0.PropertyCallableType"
+      ],
+      "phpstanIdentifiers": [
+        "property.callableType"
+      ]
     },
     {
       "id": "property-promoted-callable",
       "capability": "promoted callable property types",
       "file": "property-promoted-callable.php",
-      "engineCodes": ["Level0.PropertyCallableType"],
-      "phpstanIdentifiers": ["property.callableType"]
+      "engineCodes": [
+        "Level0.PropertyCallableType"
+      ],
+      "phpstanIdentifiers": [
+        "property.callableType"
+      ]
     },
     {
       "id": "property-documented-callable",
@@ -1021,7 +1036,9 @@
       "file": "uninitialized-readonly-property.php",
       "engineSupport": "unsupported",
       "engineCodes": [],
-      "phpstanIdentifiers": ["property.uninitializedReadonly"]
+      "phpstanIdentifiers": [
+        "property.uninitializedReadonly"
+      ]
     },
     {
       "id": "incompatible-parameter-variance",
@@ -1029,7 +1046,9 @@
       "file": "incompatible-parameter-variance.php",
       "engineSupport": "unsupported",
       "engineCodes": [],
-      "phpstanIdentifiers": ["method.childParameterType"]
+      "phpstanIdentifiers": [
+        "method.childParameterType"
+      ]
     }
   ]
 }

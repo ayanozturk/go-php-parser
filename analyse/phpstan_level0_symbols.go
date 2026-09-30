@@ -30,7 +30,13 @@ func checkSymbolOnNode(filename string, node ast.Node, class *ast.ClassNode, cur
 		}
 		constructor := constructorFor(resolved.Name, ctx)
 		checkConstructorAccess(filename, n.GetPos(), resolved.Name, class, ft, ctx.Resolver, constructor, issues)
-		checkCallArguments(filename, n.GetPos(), "Class "+resolved.Name+" constructor", "__construct", n.Args, constructor, issues)
+		if len(n.Args) > 0 {
+			if _, hasConstructor := resolveMethodView(ctx.Resolver, resolved.Name, "__construct"); !hasConstructor {
+				*issues = append(*issues, issueSpan(filename, n, level0InvocationCode, fmt.Sprintf("Class %s does not have a constructor and must be instantiated without any parameters.", resolved.Name)))
+				return
+			}
+		}
+		checkCallArguments(filename, n.GetPos(), "Class "+resolved.Name+" constructor", "__construct", n.Args, constructor, ctx, issues)
 	case *ast.FunctionCallNode:
 		name := functionCallName(n)
 		if name == "" {
@@ -60,7 +66,7 @@ func checkSymbolOnNode(filename string, node ast.Node, class *ast.ClassNode, cur
 				return
 			}
 			checkMethodVisibility(filename, n.GetPos(), method, resolvedClass, class, ft, ctx.Resolver, !isSpecialClassName(className), issues)
-			checkCallArguments(filename, n.GetPos(), "Static method "+resolvedClass+"::"+method.Name+"()", method.Name, n.Args, method, issues)
+			checkCallArguments(filename, n.GetPos(), "Static method "+resolvedClass+"::"+method.Name+"()", method.Name, n.Args, method, ctx, issues)
 			return
 		}
 		resolvedName := resolveFunctionNameForCall(name, ft, ctx)
@@ -72,7 +78,7 @@ func checkSymbolOnNode(filename string, node ast.Node, class *ast.ClassNode, cur
 			return
 		}
 		if fn, ok := resolveFunctionView(ctx.Resolver, resolvedName); ok {
-			checkCallArguments(filename, n.GetPos(), "Function "+fn.Name, fn.Name, n.Args, ResolvedMethod{Name: fn.Name, Params: fn.Params}, issues)
+			checkCallArguments(filename, n.GetPos(), "Function "+fn.Name, fn.Name, n.Args, ResolvedMethod{Name: fn.Name, Params: fn.Params}, ctx, issues)
 		}
 	case *ast.MethodCallNode:
 		if receiver, ok := n.Object.(*ast.VariableNode); ok && receiver.Name == "this" {
@@ -96,11 +102,14 @@ func checkSymbolOnNode(filename string, node ast.Node, class *ast.ClassNode, cur
 				if guards.hasMethod(className, n.Method) {
 					return
 				}
+				if classHasMagicMember(ctx.Resolver, className, "__call") && !analysisLevelAtLeast(ctx, 1) {
+					return
+				}
 				*issues = append(*issues, issueSpan(filename, n, level0SymbolsCode, fmt.Sprintf("Call to an undefined method %s::%s().", className, n.Method)))
 				return
 			}
 			checkMethodVisibility(filename, n.GetPos(), method, className, class, ft, ctx.Resolver, false, issues)
-			checkCallArguments(filename, n.GetPos(), "Method "+className+"::"+method.Name+"()", method.Name, n.Args, method, issues)
+			checkCallArguments(filename, n.GetPos(), "Method "+className+"::"+method.Name+"()", method.Name, n.Args, method, ctx, issues)
 			return
 		}
 		className := methodCallClassName(n.Object, ft)
@@ -112,7 +121,7 @@ func checkSymbolOnNode(filename string, node ast.Node, class *ast.ClassNode, cur
 			return
 		}
 		checkMethodVisibility(filename, n.GetPos(), method, className, class, ft, ctx.Resolver, false, issues)
-		checkCallArguments(filename, n.GetPos(), "Method "+className+"::"+method.Name+"()", method.Name, n.Args, method, issues)
+		checkCallArguments(filename, n.GetPos(), "Method "+className+"::"+method.Name+"()", method.Name, n.Args, method, ctx, issues)
 	case *ast.ClassConstFetchNode:
 		if strings.HasPrefix(n.Class, "$") {
 			return
@@ -175,12 +184,23 @@ func checkSymbolOnNode(filename string, node ast.Node, class *ast.ClassNode, cur
 			return
 		}
 		if _, ok := ctx.Resolver.ResolveProperty(className, n.Property); !ok {
+			if classHasMagicMember(ctx.Resolver, className, "__get") && !analysisLevelAtLeast(ctx, 1) {
+				return
+			}
 			if resolvedClass, classOK := ctx.Resolver.ResolveClass(className); classOK && resolvedClass.Kind == "trait" {
 				return
 			}
 			*issues = append(*issues, issueSpan(filename, n, level0SymbolsCode, fmt.Sprintf("Access to an undefined property %s::$%s.", className, n.Property)))
 		}
 	}
+}
+
+func classHasMagicMember(resolver SymbolResolver, className, methodName string) bool {
+	if resolver == nil {
+		return false
+	}
+	_, ok := resolveMethodView(resolver, className, methodName)
+	return ok
 }
 
 func propertyFetchClassName(n *ast.PropertyFetchNode, class *ast.ClassNode, currentFn *ast.FunctionNode, ft FileTypeContext, ctx *AnalysisContext) string {

@@ -5,7 +5,7 @@ import (
 	"github.com/ayanozturk/go-php-parser/ast"
 )
 
-func checkCallArguments(filename string, pos ast.Position, target, name string, args []ast.Node, method ResolvedMethod, issues *[]AnalysisIssue) {
+func checkCallArguments(filename string, pos ast.Position, target, name string, args []ast.Node, method ResolvedMethod, ctx *AnalysisContext, issues *[]AnalysisIssue) {
 	if method.Name == "" && len(method.Params) == 0 {
 		return
 	}
@@ -14,7 +14,7 @@ func checkCallArguments(filename string, pos ast.Position, target, name string, 
 		required, max, variadic := parameterBounds(method.Params)
 		if actualCount < required {
 			*issues = append(*issues, issue(filename, pos, level0InvocationCode, fmt.Sprintf("%s invoked with %d %s, at least %d required.", target, actualCount, pluralizeParameters(actualCount), required)))
-		} else if !variadic && actualCount > max {
+		} else if !variadic && actualCount > max && analysisLevelAtLeast(ctx, 1) {
 			*issues = append(*issues, issue(filename, pos, level0InvocationCode, fmt.Sprintf("%s invoked with %d %s, at most %d allowed.", target, actualCount, pluralizeParameters(actualCount), max)))
 		}
 	}
