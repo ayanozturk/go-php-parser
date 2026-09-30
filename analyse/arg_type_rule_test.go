@@ -304,6 +304,33 @@ function mismatch(): void {
 	}
 }
 
+func TestArgumentTypesNarrowStrictIntegerEqualityBranches(t *testing.T) {
+	const source = `<?php
+/** @param int<5, 5> $value */
+function exactlyFive(int $value): void {}
+function checked(int $value): void {
+    exactlyFive($value);
+    if ($value === 5) {
+        exactlyFive($value);
+    }
+    if ($value !== 5) {
+        return;
+    }
+    exactlyFive($value);
+}
+`
+	issues := runAnalysisLevelOnFiles(t, map[string]string{"integer-equality-narrowing.php": source}, 7)
+	var mismatches []AnalysisIssue
+	for _, issue := range issues {
+		if issue.Code == "A.ARG.TYPE" {
+			mismatches = append(mismatches, issue)
+		}
+	}
+	if len(mismatches) != 1 {
+		t.Fatalf("expected the unrefined argument to fail while both strict equality branches pass, got %#v", issues)
+	}
+}
+
 func TestUnboundContravariantClassTemplateParameterRemainsMixedForArguments(t *testing.T) {
 	const source = `<?php
 /** @template-contravariant Tin */

@@ -140,6 +140,17 @@
       "phpstanIdentifiers": [
         "argument.type"
       ]
+    },
+    {
+      "id": "argument-int-strict-equality-narrowing",
+      "capability": "strict integer equality narrows both matching branches to a literal",
+      "file": "argument-int-strict-equality-narrowing.php",
+      "engineCodes": [
+        "A.ARG.TYPE"
+      ],
+      "phpstanIdentifiers": [
+        "argument.type"
+      ]
     }
   ]
 }

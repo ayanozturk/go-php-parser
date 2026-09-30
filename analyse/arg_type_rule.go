@@ -394,6 +394,11 @@ func variablesTypedWhenTrue(node ast.Node, scope *functionScope) map[string]Type
 				return map[string]Type{name: ParseType("null")}
 			}
 			if n.Operator == "===" {
+				if name, typ, ok := integerEqualityRefinement(n, scope); ok {
+					return map[string]Type{name: typ}
+				}
+			}
+			if n.Operator == "===" {
 				if name, ok := emptyStringComparedVariable(n.Left, n.Right); ok {
 					return map[string]Type{name: ParseType("empty-string")}
 				}
@@ -478,6 +483,11 @@ func variablesTypedWhenFalse(node ast.Node, scope *functionScope) map[string]Typ
 			}
 		case "!=", "!==":
 			if n.Operator == "!==" {
+				if name, typ, ok := integerEqualityRefinement(n, scope); ok {
+					return map[string]Type{name: typ}
+				}
+			}
+			if n.Operator == "!==" {
 				if name, ok := emptyStringComparedVariable(n.Left, n.Right); ok {
 					return map[string]Type{name: ParseType("empty-string")}
 				}
@@ -544,6 +554,42 @@ func integerComparisonRefinement(node *ast.BinaryExpr, whenTrue bool, scope *fun
 		return "", EmptyType(), false
 	}
 	return variable.Name, typeFromIntegerInterval(refined), true
+}
+
+// integerEqualityRefinement narrows the equality branch of a strict integer
+// comparison to its literal value. Loose comparisons are intentionally left
+// alone because PHP's coercion rules can make them true for non-integer types.
+func integerEqualityRefinement(node *ast.BinaryExpr, scope *functionScope) (string, Type, bool) {
+	if node == nil || scope == nil || (node.Operator != "===" && node.Operator != "!==") {
+		return "", EmptyType(), false
+	}
+	variable, ok := node.Left.(*ast.VariableNode)
+	literal := node.Right
+	if !ok {
+		variable, ok = node.Right.(*ast.VariableNode)
+		literal = node.Left
+	}
+	if !ok {
+		return "", EmptyType(), false
+	}
+	value, ok := integerLiteralValue(literal)
+	if !ok {
+		return "", EmptyType(), false
+	}
+	current, ok := scope.variable(variable.Name)
+	if !ok {
+		return "", EmptyType(), false
+	}
+	for _, atom := range current.sortedAtoms() {
+		interval, integer := integerAtomInterval(atom)
+		if !integer {
+			continue
+		}
+		if (interval.lowerUnbounded || value >= interval.lower) && (interval.upperUnbounded || value <= interval.upper) {
+			return variable.Name, ParseType(strconv.FormatInt(value, 10)), true
+		}
+	}
+	return "", EmptyType(), false
 }
 
 func integerComparisonInterval(operator string, value int64, whenTrue bool) (integerInterval, bool) {
