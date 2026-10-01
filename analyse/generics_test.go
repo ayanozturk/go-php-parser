@@ -46,6 +46,13 @@ func TestExpandPHPDocTypeAliasesBeyondEightLevels(t *testing.T) {
 	}
 }
 
+func TestExpandPHPDocTypeAliasCycleHasBoundedFallback(t *testing.T) {
+	aliases := map[string]string{"AliasA": "AliasB", "AliasB": "AliasA"}
+	if got := expandPHPDocTypeAliases("AliasA", aliases); got != "AliasA" {
+		t.Fatalf("cyclic alias expansion = %q, want stable fallback AliasA", got)
+	}
+}
+
 func TestExpandPHPDocTypeAliasesLeavesQuotedIdentifiersUntouched(t *testing.T) {
 	aliases := map[string]string{"Ready": "array<int>"}
 	got := expandPHPDocTypeAliases(`array{'Ready': Ready, "Ready": list<Ready>}`, aliases)

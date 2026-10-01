@@ -497,3 +497,25 @@ class ShiftAssignment {
 		}
 	}
 }
+
+func TestPHPDocGenericSubtypeRecursionLimitIsConservative(t *testing.T) {
+	project := BuildProjectIndex(map[string][]ast.Node{"types.php": parsePHPForProjectIndex(t, `<?php
+class BaseType {}
+class ChildType extends BaseType {}
+/** @template-covariant T */
+class NestedType {}
+`)})
+	wrap := func(base string, depth int) string {
+		for i := 0; i < depth; i++ {
+			base = "NestedType<" + base + ">"
+		}
+		return base
+	}
+	ctx := &AnalysisContext{Resolver: project}
+	if !phpDocTypeIsSubtype(wrap("ChildType", phpDocGenericRelationDepthLimit-1), wrap("BaseType", phpDocGenericRelationDepthLimit-1), FileTypeContext{}, ctx) {
+		t.Fatal("a nested generic subtype below the recursion limit should resolve")
+	}
+	if phpDocTypeIsSubtype(wrap("ChildType", phpDocGenericRelationDepthLimit), wrap("BaseType", phpDocGenericRelationDepthLimit), FileTypeContext{}, ctx) {
+		t.Fatal("a nested generic subtype beyond the recursion limit should stop conservatively")
+	}
+}
