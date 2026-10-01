@@ -75,7 +75,7 @@ func (idx *ProjectIndex) indexNodes(filename string, nodes []ast.Node, ft FileTy
 			}
 			returnType = collapsePHPDocConditionalType(returnType, nativeReturn)
 			returnType = expandPHPDocTypeAliases(returnType, phpDocTypeAliasBindings(n.PHPDoc))
-			if indexed, ok := resolvePHPDocOffsetAccess(returnType, ft); ok {
+			if indexed, ok := resolvePHPDocIndexedTypes(returnType, ft); ok {
 				returnType = indexed
 			}
 			callableReturn := callableReturnType(returnType, ft)
@@ -481,7 +481,7 @@ func methodFromFunction(filename, className string, fn *ast.FunctionNode, ft Fil
 	}
 	returnType = collapsePHPDocConditionalType(returnType, nativeReturn)
 	returnType = expandPHPDocTypeAliases(returnType, aliases)
-	if indexed, ok := resolvePHPDocOffsetAccess(returnType, ft); ok {
+	if indexed, ok := resolvePHPDocIndexedTypes(returnType, ft); ok {
 		returnType = indexed
 	}
 	templates := mergeTemplateNames(templateNames(templateParams), nil)

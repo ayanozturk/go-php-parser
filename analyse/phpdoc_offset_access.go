@@ -2,6 +2,13 @@ package analyse
 
 import "strings"
 
+func resolvePHPDocIndexedTypes(raw string, typeCtx FileTypeContext) (string, bool) {
+	if projected, ok := resolvePHPDocKeyValueProjection(raw, typeCtx); ok {
+		return projected, true
+	}
+	return resolvePHPDocOffsetAccess(raw, typeCtx)
+}
+
 // resolvePHPDocOffsetAccess resolves PHPDoc offset access after aliases and
 // template bindings have been applied. Unresolved template expressions are
 // left intact so a later call-site substitution can resolve them.
@@ -47,6 +54,66 @@ func resolvePHPDocOffsetAccess(raw string, typeCtx FileTypeContext) (string, boo
 		}
 	}
 	return "", false
+}
+
+// resolvePHPDocKeyValueProjection resolves key-of<T> and value-of<T> for
+// concrete array shapes and built-in generic iterables. Template expressions
+// remain unchanged until their bindings are available.
+func resolvePHPDocKeyValueProjection(raw string, typeCtx FileTypeContext) (string, bool) {
+	instance, ok := parseExactGenericTypeFromString(strings.TrimSpace(raw))
+	if !ok || len(instance.TypeArguments) != 1 {
+		return "", false
+	}
+	projection := asciiLowerIdent(strings.TrimSpace(instance.ClassName))
+	if projection != "key-of" && projection != "value-of" {
+		return "", false
+	}
+	base := strings.TrimSpace(instance.TypeArguments[0])
+	if fields := parseArrayShapeFields(base, typeCtx); len(fields) > 0 {
+		if projection == "key-of" {
+			stringKey, intKey := false, false
+			for key := range fields {
+				if isNumericArrayKey(key) {
+					intKey = true
+				} else {
+					stringKey = true
+				}
+			}
+			if stringKey && intKey {
+				return "int|string", true
+			}
+			if intKey {
+				return "int", true
+			}
+			if stringKey {
+				return "string", true
+			}
+			return "never", true
+		}
+		var values Type
+		for _, field := range fields {
+			if field.typ.IsEmpty() {
+				return "", false
+			}
+			values = unionInferredTypes(values, field.typ)
+		}
+		if !values.IsEmpty() {
+			return values.String(), true
+		}
+		return "", false
+	}
+	iterable, ok := parseExactGenericTypeFromString(base)
+	if !ok || !isBuiltinArrayGeneric(iterable.ClassName) {
+		return "", false
+	}
+	key, value, ok := iterableTypesFromGeneric(iterable)
+	if !ok {
+		return "", false
+	}
+	if projection == "key-of" {
+		return key.String(), !key.IsEmpty()
+	}
+	return value.String(), !value.IsEmpty()
 }
 
 // splitPHPDocOffsetAccess returns the base type and key from a trailing

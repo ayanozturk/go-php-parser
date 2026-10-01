@@ -67,7 +67,7 @@ func appendCallablePHPDocIssues(filename string, declaration ast.Node, params []
 
 	for _, documented := range doc.Params {
 		effectiveType := expandPHPDocTypeAliases(documented.Type, aliases)
-		if indexed, ok := resolvePHPDocOffsetAccess(effectiveType, ft); ok {
+		if indexed, ok := resolvePHPDocIndexedTypes(effectiveType, ft); ok {
 			effectiveType = indexed
 		}
 		appendPHPDocTypeIssues(filename, declaration, effectiveType, templates, ft, ctx, issues)
@@ -94,7 +94,7 @@ func appendCallablePHPDocIssues(filename string, declaration ast.Node, params []
 		return
 	}
 	expandedReturn := expandPHPDocTypeAliases(doc.ReturnType, aliases)
-	if indexed, ok := resolvePHPDocOffsetAccess(expandedReturn, ft); ok {
+	if indexed, ok := resolvePHPDocIndexedTypes(expandedReturn, ft); ok {
 		expandedReturn = indexed
 	}
 	appendTemplateVarianceIssue(filename, declaration, class, doc, expandedReturn, GenericCovariant, "return type", ft, ctx, issues)
@@ -212,6 +212,13 @@ func appendPHPDocTypeIssues(filename string, declaration ast.Node, raw string, t
 		}
 		appendPHPDocTypeIssues(filename, declaration, returnType, templates, ft, ctx, issues)
 		return
+	}
+	if instance, ok := parseExactGenericTypeFromString(raw); ok && len(instance.TypeArguments) == 1 {
+		base := asciiLowerIdent(strings.TrimSpace(instance.ClassName))
+		if base == "key-of" || base == "value-of" {
+			appendPHPDocTypeIssues(filename, declaration, instance.TypeArguments[0], templates, ft, ctx, issues)
+			return
+		}
 	}
 	if instance, ok := parseExactGenericTypeFromString(raw); ok {
 		appendPHPDocGenericBaseIssues(filename, declaration, instance, templates, ft, ctx, issues)

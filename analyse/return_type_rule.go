@@ -896,7 +896,7 @@ func declaredFunctionReturnTypeInClass(fn *ast.FunctionNode, class *ast.ClassNod
 			classDoc = class.PHPDoc
 		}
 		raw = expandPHPDocTypeAliases(raw, phpDocTypeAliasBindings(classDoc, fn.PHPDoc))
-		if indexed, ok := resolvePHPDocOffsetAccess(raw, typeCtx); ok {
+		if indexed, ok := resolvePHPDocIndexedTypes(raw, typeCtx); ok {
 			raw = indexed
 		}
 		return ParseType(normalizeTemplateAwareType(raw, typeCtx, templates))
@@ -2248,7 +2248,7 @@ func inferredMethodReturnTypeWithBindings(method ResolvedMethod, calleeClass str
 func inferredMethodReturnTypePreserving(method ResolvedMethod, calleeClass string, ctx *AnalysisContext, bindings map[string]string, preserve map[string]struct{}) Type {
 	returnType := ApplyTemplateBindings(method.ReturnType, bindings)
 	returnType = collapsePHPDocConditionalType(returnType, method.NativeReturnType)
-	if indexed, ok := resolvePHPDocOffsetAccess(returnType, FileTypeContext{}); ok {
+	if indexed, ok := resolvePHPDocIndexedTypes(returnType, FileTypeContext{}); ok {
 		returnType = indexed
 	}
 	return bindCalleeSignatureType(expandUnboundClassTemplatesExcept(returnType, method.DeclaringClass, ctx, preserve), method.DeclaringClass, calleeClass, ctx)

@@ -380,6 +380,33 @@
       "phpstanIdentifiers": []
     },
     {
+      "id": "argument-phpdoc-key-value-projection-clean",
+      "capability": "key-of and value-of project shape and generic array types",
+      "file": "argument-phpdoc-key-value-projection-clean.php",
+      "engineCodes": [],
+      "phpstanIdentifiers": []
+    },
+    {
+      "id": "argument-phpdoc-key-value-projection-mismatch",
+      "capability": "key-of and value-of array shape projections reject incompatible arguments",
+      "file": "argument-phpdoc-key-value-projection-mismatch.php",
+      "engineCodes": [
+        "A.ARG.TYPE",
+        "A.ARG.TYPE"
+      ],
+      "phpstanIdentifiers": [
+        "argument.type",
+        "argument.type"
+      ]
+    },
+    {
+      "id": "argument-phpdoc-key-value-projection-template-boundary",
+      "capability": "key-of and value-of preserve unresolved template projections",
+      "file": "argument-phpdoc-key-value-projection-template-boundary.php",
+      "engineCodes": [],
+      "phpstanIdentifiers": []
+    },
+    {
       "id": "argument-unbound-class-template-param-clean",
       "capability": "an unbound class template parameter accepts unconstrained values",
       "file": "argument-unbound-class-template-param-clean.php",

@@ -25,6 +25,29 @@ func TestResolvePHPDocOffsetAccess(t *testing.T) {
 	}
 }
 
+func TestResolvePHPDocKeyValueProjections(t *testing.T) {
+	tests := []struct {
+		name string
+		typ  string
+		want string
+		ok   bool
+	}{
+		{name: "shape keys", typ: `key-of<array{foo: int, bar: string}>`, want: "string", ok: true},
+		{name: "shape values", typ: `value-of<array{foo: int, bar: string}>`, want: "int|string", ok: true},
+		{name: "generic array keys", typ: `key-of<array<int, string>>`, want: "int", ok: true},
+		{name: "generic array values", typ: `value-of<array<int, string>>`, want: "string", ok: true},
+		{name: "unresolved template", typ: `value-of<T>`},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, ok := resolvePHPDocIndexedTypes(tt.typ, FileTypeContext{})
+			if ok != tt.ok || got != tt.want {
+				t.Fatalf("resolvePHPDocIndexedTypes(%q) = (%q, %v), want (%q, %v)", tt.typ, got, ok, tt.want, tt.ok)
+			}
+		})
+	}
+}
+
 func TestArgumentTypesInferPHPDocOffsetAccessAndGenericArrayOffsets(t *testing.T) {
 	const source = `<?php
 /** @phpstan-type Summary array{count: int, label: string} */

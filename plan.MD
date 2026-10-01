@@ -20,11 +20,12 @@ Complete the core PHPDoc type model and its interactions with inference, subtypi
 - [x] Expand nested local `@phpstan-type`/`@psalm-type` aliases through generic and callable types, resolve imported class aliases in alias bodies, and retain exact token boundaries with clean, mismatch, and boundary fixtures.
 - [x] Model parameter-dependent conditional PHPDoc return types, select branches from call arguments, and feed the result into argument checking with clean, mismatch, and unresolved-condition boundary fixtures.
 - [x] Resolve PHPDoc indexed access against array-shape literal keys and generic array key/value types, retaining unresolved `T[K]` expressions; add clean, mismatch, and boundary fixtures.
-- [ ] Cover `key-of`/`value-of` projections, callable signatures, shape edge cases, non-empty types, literal types, and integer ranges.
+- [x] Resolve `key-of`/`value-of` projections for array shapes and generic key/value arrays while preserving unresolved template projections; add clean, mismatch, and boundary fixtures.
+- [ ] Cover callable signatures, shape edge cases, non-empty types, literal types, and integer ranges.
 - Complete normalization, subtyping, substitution, narrowing/widening, recursion limits, and `self`/`static`/`parent`/`$this` behavior.
 - Give each correction neutral positive, negative, and boundary fixtures at the relevant PHPStan level.
 
-Immediate next slice: resolve `key-of`/`value-of` PHPDoc projections for array shapes and generic key/value arrays, with clean, mismatch, and unresolved-template boundary fixtures.
+Immediate next slice: strengthen PHPDoc callable signature validation and inference, with clean, mismatch, and unresolved-signature boundary fixtures.
 
 ### 3. Extend flow and project semantics
 
