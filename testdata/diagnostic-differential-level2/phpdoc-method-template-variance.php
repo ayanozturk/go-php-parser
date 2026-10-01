@@ -1,6 +1,9 @@
 <?php
 class InvalidCallableTemplate
 {
-    /** @template-covariant T */
-    public function provide(): void {}
+    /**
+     * @template-covariant T
+     * @param T $value
+     */
+    public function provide($value): void {}
 }

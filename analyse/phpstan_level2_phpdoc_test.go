@@ -128,6 +128,58 @@ function nonNegative(): int { return 0; }
 	}
 }
 
+func TestLevel2PHPDocTypeAliasesExpandNestedImportedAndCallableTypes(t *testing.T) {
+	const source = `<?php
+namespace Source\Dto {
+    class ImportedItem {}
+}
+
+namespace App {
+    use Source\Dto\ImportedItem as ItemAlias;
+
+    /**
+     * @phpstan-type ItemList list<ItemAlias>
+     * @phpstan-type ItemIndex array<string, ItemList>
+     * @phpstan-type ItemFactory callable(ItemAlias): ItemIndex
+     */
+    class LocalTypes {
+        /** @param ItemIndex $items */
+        public function cleanIndex(array $items): void {}
+
+        /** @param ItemFactory $factory */
+        public function cleanFactory(callable $factory): void {}
+
+        /** @param ItemList $items */
+        public function incompatible(int $items): void {}
+
+        /** @param ItemListSuffix $value */
+        public function aliasNameBoundary($value): void {}
+    }
+}
+`
+	files := map[string]string{"phpdoc-alias.php": source}
+	issues := runAnalysisLevelOnFiles(t, files, 2)
+	want := map[string]int{
+		level2PHPDocClassCode:     1,
+		level2PHPDocParamTypeCode: 1,
+	}
+	got := make(map[string]int)
+	for _, issue := range issues {
+		got[issue.Code]++
+	}
+	if len(issues) != 2 || len(got) != len(want) {
+		t.Fatalf("expected only alias suffix and native mismatch issues, got %#v", issues)
+	}
+	for code, count := range want {
+		if got[code] != count {
+			t.Fatalf("%s count = %d, want %d; issues: %#v", code, got[code], count, issues)
+		}
+	}
+	if issues := runAnalysisLevelOnFiles(t, files, 1); len(issues) != 0 {
+		t.Fatalf("level 2 alias diagnostics should stay disabled at level 1, got %#v", issues)
+	}
+}
+
 func TestLevel2PHPDocValidationAcceptsRefinedBuiltinForms(t *testing.T) {
 	const source = `<?php
 class Service {}

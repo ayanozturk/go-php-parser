@@ -157,8 +157,8 @@ func expandPHPDocTypeAliases(raw string, aliases map[string]string) string {
 	if raw == "" || len(aliases) == 0 {
 		return raw
 	}
-	for i := 0; i < 8; i++ {
-		next := ApplyTemplateBindings(raw, aliases)
+	for i := 0; i < 32; i++ {
+		next := substitutePHPDocTypeAliasTokens(raw, aliases)
 		if next == raw {
 			return raw
 		}

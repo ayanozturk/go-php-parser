@@ -1,6 +1,7 @@
 package analyse
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/ayanozturk/go-php-parser/ast"
@@ -32,6 +33,26 @@ func filterArgTypeIssuesInGenerics(issues []AnalysisIssue) []AnalysisIssue {
 		}
 	}
 	return filtered
+}
+
+func TestExpandPHPDocTypeAliasesBeyondEightLevels(t *testing.T) {
+	aliases := make(map[string]string, 11)
+	for index := 0; index < 10; index++ {
+		aliases[fmt.Sprintf("Alias%d", index)] = fmt.Sprintf("Alias%d", index+1)
+	}
+	aliases["Alias10"] = "array<int>"
+	if got := expandPHPDocTypeAliases("Alias0", aliases); got != "array<int>" {
+		t.Fatalf("expanded alias = %q, want array<int>", got)
+	}
+}
+
+func TestExpandPHPDocTypeAliasesLeavesQuotedIdentifiersUntouched(t *testing.T) {
+	aliases := map[string]string{"Ready": "array<int>"}
+	got := expandPHPDocTypeAliases(`array{'Ready': Ready, "Ready": list<Ready>}`, aliases)
+	want := `array{'Ready': array<int>, "Ready": list<array<int>>}`
+	if got != want {
+		t.Fatalf("expanded alias = %q, want %q", got, want)
+	}
 }
 
 func TestGenericMethodCallWithPHPDocTypeHint(t *testing.T) {

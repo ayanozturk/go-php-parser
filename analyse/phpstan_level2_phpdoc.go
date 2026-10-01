@@ -59,10 +59,15 @@ func appendCallablePHPDocIssues(filename string, declaration ast.Node, params []
 		}
 	}
 	templates := phpDocTemplateNames(class, doc)
-	templates = mergePHPDocNames(templates, ctx.phpDocTypeAliases)
+	var classDoc *ast.PHPDocNode
+	if class != nil {
+		classDoc = class.PHPDoc
+	}
+	aliases := phpDocTypeAliasBindings(classDoc, doc)
 
 	for _, documented := range doc.Params {
-		appendPHPDocTypeIssues(filename, declaration, documented.Type, templates, ft, ctx, issues)
+		effectiveType := expandPHPDocTypeAliases(documented.Type, aliases)
+		appendPHPDocTypeIssues(filename, declaration, effectiveType, templates, ft, ctx, issues)
 		param, ok := phpDocParameter(params, documented.Name)
 		if !ok {
 			*issues = append(*issues, issueSpan(filename, declaration, level2PHPDocParamNameCode, fmt.Sprintf(
@@ -70,12 +75,12 @@ func appendCallablePHPDocIssues(filename string, declaration ast.Node, params []
 			)))
 			continue
 		}
-		appendTemplateVarianceIssue(filename, declaration, class, doc, documented.Type, GenericContravariant, "parameter $"+documented.Name, ft, ctx, issues)
+		appendTemplateVarianceIssue(filename, declaration, class, doc, effectiveType, GenericContravariant, "parameter $"+documented.Name, ft, ctx, issues)
 		native := paramTypeName(param)
-		if native == "" || phpDocUsesTemplate(documented.Type, templates) {
+		if native == "" || phpDocUsesTemplate(effectiveType, templates) {
 			continue
 		}
-		if !phpDocTypeFitsNative(documented.Type, native, ft, ctx) {
+		if !phpDocTypeFitsNative(effectiveType, native, ft, ctx) {
 			*issues = append(*issues, issueSpan(filename, param, level2PHPDocParamTypeCode, fmt.Sprintf(
 				"PHPDoc type %s for parameter $%s is not compatible with native type %s.", documented.Type, documented.Name, native,
 			)))
@@ -85,10 +90,11 @@ func appendCallablePHPDocIssues(filename string, declaration ast.Node, params []
 	if doc.ReturnType == "" {
 		return
 	}
-	effectiveReturn := collapsePHPDocConditionalType(doc.ReturnType, nativeReturn)
-	appendTemplateVarianceIssue(filename, declaration, class, doc, doc.ReturnType, GenericCovariant, "return type", ft, ctx, issues)
+	expandedReturn := expandPHPDocTypeAliases(doc.ReturnType, aliases)
+	appendTemplateVarianceIssue(filename, declaration, class, doc, expandedReturn, GenericCovariant, "return type", ft, ctx, issues)
+	effectiveReturn := collapsePHPDocConditionalType(expandedReturn, nativeReturn)
 	appendPHPDocTypeIssues(filename, declaration, effectiveReturn, templates, ft, ctx, issues)
-	if phpDocTypeIsConditional(doc.ReturnType) {
+	if phpDocTypeIsConditional(effectiveReturn) {
 		return
 	}
 	if nativeReturn != "" && !phpDocUsesTemplate(effectiveReturn, templates) && !phpDocTypeFitsNative(effectiveReturn, nativeReturn, ft, ctx) {
@@ -147,11 +153,15 @@ func appendPropertyPHPDocIssues(filename string, property *ast.PropertyNode, cla
 		return
 	}
 	templates := phpDocTemplateNames(class, property.PHPDoc)
-	templates = mergePHPDocNames(templates, ctx.phpDocTypeAliases)
 	documented := property.PHPDoc.VarType
-	appendPHPDocTypeIssues(filename, property, documented, templates, ft, ctx, issues)
+	var classDoc *ast.PHPDocNode
+	if class != nil {
+		classDoc = class.PHPDoc
+	}
+	effectiveType := expandPHPDocTypeAliases(documented, phpDocTypeAliasBindings(classDoc, property.PHPDoc))
+	appendPHPDocTypeIssues(filename, property, effectiveType, templates, ft, ctx, issues)
 	nativeHint := ast.TypeText(property.TypeHint)
-	if nativeHint == "" || phpDocUsesTemplate(documented, templates) || phpDocTypeFitsNative(documented, nativeHint, ft, ctx) {
+	if nativeHint == "" || phpDocUsesTemplate(effectiveType, templates) || phpDocTypeFitsNative(effectiveType, nativeHint, ft, ctx) {
 		return
 	}
 	*issues = append(*issues, issueSpan(filename, property, level2PHPDocPropertyTypeCode, fmt.Sprintf(
@@ -378,7 +388,6 @@ func phpDocTemplateNames(class *ast.ClassNode, doc *ast.PHPDocNode) map[string]s
 			}
 			templates[asciiLowerIdent(template.Name)] = struct{}{}
 		}
-		addPHPDocAliasNames(candidate, &templates)
 	}
 	if class != nil {
 		add(class.PHPDoc)
@@ -387,7 +396,26 @@ func phpDocTemplateNames(class *ast.ClassNode, doc *ast.PHPDocNode) map[string]s
 	return templates
 }
 
-func addPHPDocAliasNames(doc *ast.PHPDocNode, names *map[string]struct{}) {
+func collectPHPDocTypeAliases(nodes []ast.Node) map[string]struct{} {
+	var aliases map[string]struct{}
+	walkAllWithoutTypeContext(nodes, func(node ast.Node) {
+		collectPHPDocAliasNamesOnNode(node, &aliases)
+	})
+	return aliases
+}
+
+func collectPHPDocAliasNamesOnNode(node ast.Node, aliases *map[string]struct{}) {
+	switch n := node.(type) {
+	case *ast.ClassNode:
+		collectPHPDocAliasNames(n.PHPDoc, aliases)
+	case *ast.FunctionNode:
+		collectPHPDocAliasNames(n.PHPDoc, aliases)
+	case *ast.PropertyNode:
+		collectPHPDocAliasNames(n.PHPDoc, aliases)
+	}
+}
+
+func collectPHPDocAliasNames(doc *ast.PHPDocNode, aliases *map[string]struct{}) {
 	if doc == nil {
 		return
 	}
@@ -395,44 +423,11 @@ func addPHPDocAliasNames(doc *ast.PHPDocNode, names *map[string]struct{}) {
 		if strings.TrimSpace(alias.Name) == "" {
 			continue
 		}
-		if *names == nil {
-			*names = make(map[string]struct{})
+		if *aliases == nil {
+			*aliases = make(map[string]struct{})
 		}
-		(*names)[asciiLowerIdent(alias.Name)] = struct{}{}
+		(*aliases)[asciiLowerIdent(alias.Name)] = struct{}{}
 	}
-}
-
-func collectPHPDocTypeAliases(nodes []ast.Node) map[string]struct{} {
-	var aliases map[string]struct{}
-	walkAllWithoutTypeContext(nodes, func(node ast.Node) {
-		collectPHPDocAliasOnNode(node, &aliases)
-	})
-	return aliases
-}
-
-func collectPHPDocAliasOnNode(node ast.Node, aliases *map[string]struct{}) {
-	switch n := node.(type) {
-	case *ast.ClassNode:
-		addPHPDocAliasNames(n.PHPDoc, aliases)
-	case *ast.FunctionNode:
-		addPHPDocAliasNames(n.PHPDoc, aliases)
-	case *ast.PropertyNode:
-		addPHPDocAliasNames(n.PHPDoc, aliases)
-	}
-}
-
-func mergePHPDocNames(left, right map[string]struct{}) map[string]struct{} {
-	if len(right) == 0 {
-		return left
-	}
-	merged := make(map[string]struct{}, len(left)+len(right))
-	for name := range left {
-		merged[name] = struct{}{}
-	}
-	for name := range right {
-		merged[name] = struct{}{}
-	}
-	return merged
 }
 
 func phpDocUsesTemplate(raw string, templates map[string]struct{}) bool {

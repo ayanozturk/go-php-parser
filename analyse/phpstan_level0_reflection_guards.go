@@ -26,7 +26,7 @@ func collectReflectionGuards(nodes []ast.Node, ctx *AnalysisContext, fileCtx Fil
 	var aliases map[string]struct{}
 	walkAllWithFileContext(nodes, fileCtx, ctx, func(node ast.Node, class *ast.ClassNode, _ *ast.FunctionNode, ft FileTypeContext) {
 		if needAliases {
-			collectPHPDocAliasOnNode(node, &aliases)
+			collectPHPDocAliasNamesOnNode(node, &aliases)
 		}
 		call, ok := node.(*ast.FunctionCallNode)
 		if !ok {

@@ -795,6 +795,20 @@
       "file": "phpdoc-generic-inherited-bound.php",
       "engineCodes": ["Level2.PHPDocGenericNotSubtype", "Level2.PHPDocGenericNotSubtype"],
       "phpstanIdentifiers": ["generics.notSubtype", "generics.notSubtype"]
+    },
+    {
+      "id": "phpdoc-imported-alias-clean",
+      "capability": "nested PHPDoc type aliases expand imported types in generics and callables",
+      "file": "phpdoc-imported-alias-clean.php",
+      "engineCodes": [],
+      "phpstanIdentifiers": []
+    },
+    {
+      "id": "phpdoc-imported-alias-mismatch",
+      "capability": "expanded PHPDoc aliases retain native mismatch and exact-name checks",
+      "file": "phpdoc-imported-alias-mismatch.php",
+      "engineCodes": ["Level2.PHPDocClass", "Level2.PHPDocParamType"],
+      "phpstanIdentifiers": ["class.notFound", "parameter.phpDocType"]
     }
   ]
 }

@@ -13,22 +13,22 @@ interface InvariantBox {}
 final class NestedVariance
 {
     /** @return ReadBox<T> */
-    public function readThroughCovariant() {}
+    public function readThroughCovariant() { throw new \LogicException(); }
 
     /** @param ReadBox<T> $value */
     public function invalidWriteThroughCovariant($value): void {}
 
     /** @return WriteBox<T> */
-    public function invalidReadThroughContravariant() {}
+    public function invalidReadThroughContravariant() { throw new \LogicException(); }
 
     /** @param WriteBox<T> $value */
     public function writeThroughContravariant($value): void {}
 
     /** @return InvariantBox<T> */
-    public function invalidInvariantReturn() {}
+    public function invalidInvariantReturn() { throw new \LogicException(); }
 
     /** @return callable(T): void */
-    public function invalidCallableInput() {}
+    public function invalidCallableInput() { throw new \LogicException(); }
 
     /** @param callable(T): void $callback */
     public function acceptCallableInput($callback): void {}
@@ -37,5 +37,5 @@ final class NestedVariance
     public function invalidCallableOutput($callback): void {}
 
     /** @return callable(): T */
-    public function callableOutput() {}
+    public function callableOutput() { throw new \LogicException(); }
 }
