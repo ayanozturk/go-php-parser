@@ -15,8 +15,8 @@ not comparative performance claims.
 
 ## Reproduction inputs
 
-- Parser checkout before the implementation: `971406dd`; the complete tested
-  source tree is recorded in the commit alongside this report.
+- Parser checkout tested: `5b7b1ec3` (including the loop-flow and accounting
+  changes in this report).
 - Corpus revisions, pinned by `test_projects/manifest.json`:
   - Symfony: `ae256f91a9cacc470fe77eca87aedd81c65ca55e`.
   - WordPress: `daaca56d3d6a9a42a0c87f6eda766c33a77c1d05`.
