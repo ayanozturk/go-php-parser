@@ -103,6 +103,15 @@ func genericIterableBaseName(className string) string {
 	return asciiLowerIdent(name)
 }
 
+func isBuiltinArrayGeneric(className string) bool {
+	switch genericIterableBaseName(className) {
+	case "array", "non-empty-array", "list", "non-empty-list", "associative-array", "iterable":
+		return true
+	default:
+		return false
+	}
+}
+
 func iterableTypesFromArraySuffix(typeStr string) (Type, Type, bool) {
 	typeStr = strings.TrimSpace(typeStr)
 	if !strings.HasSuffix(typeStr, "[]") {

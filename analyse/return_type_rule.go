@@ -518,6 +518,16 @@ func inferType(expr ast.Node, scope *functionScope, ctx *AnalysisContext) Type {
 		if field := lookupArrayShapeField(arrayShapeFieldsOf(n.Var, scope, ctx), n.Index, scope); !field.typ.IsEmpty() {
 			return field.typ
 		}
+		if variable, ok := n.Var.(*ast.VariableNode); ok && scope != nil {
+			if instance, found := scope.genericContext[variable.Name]; found {
+				if _, value, iterable := iterableTypesFromGeneric(instance); iterable && !value.IsEmpty() {
+					return value
+				}
+			}
+		}
+		if _, value, ok := iterableTypesFromInferred(inferType(n.Var, scope, ctx)); ok && !value.IsEmpty() {
+			return value
+		}
 		return MixedType()
 	case *ast.ConcatNode:
 		return ParseType("string")
@@ -886,6 +896,9 @@ func declaredFunctionReturnTypeInClass(fn *ast.FunctionNode, class *ast.ClassNod
 			classDoc = class.PHPDoc
 		}
 		raw = expandPHPDocTypeAliases(raw, phpDocTypeAliasBindings(classDoc, fn.PHPDoc))
+		if indexed, ok := resolvePHPDocOffsetAccess(raw, typeCtx); ok {
+			raw = indexed
+		}
 		return ParseType(normalizeTemplateAwareType(raw, typeCtx, templates))
 	}
 	if fn.ReturnType == nil {
@@ -985,7 +998,9 @@ func newFunctionScopeWithContext(ctx *AnalysisContext, class *ast.ClassNode, fn 
 			}
 
 			// Check if param type is a generic class with declared type arguments
-			if genInst, ok := parseGenericTypeFromString(paramType.String()); ok {
+			if genInst, ok := parseExactGenericTypeFromString(documentedType); ok && isBuiltinArrayGeneric(genInst.ClassName) {
+				scope.setGenericContext(param.Name, genInst)
+			} else if genInst, ok := parseGenericTypeFromString(paramType.String()); ok {
 				scope.setGenericContext(param.Name, genInst)
 			} else {
 				// Also check if the param type itself is a class that has generic parents
@@ -2233,6 +2248,9 @@ func inferredMethodReturnTypeWithBindings(method ResolvedMethod, calleeClass str
 func inferredMethodReturnTypePreserving(method ResolvedMethod, calleeClass string, ctx *AnalysisContext, bindings map[string]string, preserve map[string]struct{}) Type {
 	returnType := ApplyTemplateBindings(method.ReturnType, bindings)
 	returnType = collapsePHPDocConditionalType(returnType, method.NativeReturnType)
+	if indexed, ok := resolvePHPDocOffsetAccess(returnType, FileTypeContext{}); ok {
+		returnType = indexed
+	}
 	return bindCalleeSignatureType(expandUnboundClassTemplatesExcept(returnType, method.DeclaringClass, ctx, preserve), method.DeclaringClass, calleeClass, ctx)
 }
 

@@ -353,6 +353,33 @@
       ]
     },
     {
+      "id": "argument-phpdoc-offset-access-clean",
+      "capability": "PHPDoc shape offset access and generic array values retain their types",
+      "file": "argument-phpdoc-offset-access-clean.php",
+      "engineCodes": [],
+      "phpstanIdentifiers": []
+    },
+    {
+      "id": "argument-phpdoc-offset-access-mismatch",
+      "capability": "indexed PHPDoc shape values and generic array values reject incompatible arguments",
+      "file": "argument-phpdoc-offset-access-mismatch.php",
+      "engineCodes": [
+        "A.ARG.TYPE",
+        "A.ARG.TYPE"
+      ],
+      "phpstanIdentifiers": [
+        "argument.type",
+        "argument.type"
+      ]
+    },
+    {
+      "id": "argument-phpdoc-offset-access-template-boundary",
+      "capability": "generic T[K] signatures remain valid while template types are unresolved",
+      "file": "argument-phpdoc-offset-access-template-boundary.php",
+      "engineCodes": [],
+      "phpstanIdentifiers": []
+    },
+    {
       "id": "argument-unbound-class-template-param-clean",
       "capability": "an unbound class template parameter accepts unconstrained values",
       "file": "argument-unbound-class-template-param-clean.php",

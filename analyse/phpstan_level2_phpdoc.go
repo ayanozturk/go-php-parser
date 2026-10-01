@@ -67,6 +67,9 @@ func appendCallablePHPDocIssues(filename string, declaration ast.Node, params []
 
 	for _, documented := range doc.Params {
 		effectiveType := expandPHPDocTypeAliases(documented.Type, aliases)
+		if indexed, ok := resolvePHPDocOffsetAccess(effectiveType, ft); ok {
+			effectiveType = indexed
+		}
 		appendPHPDocTypeIssues(filename, declaration, effectiveType, templates, ft, ctx, issues)
 		param, ok := phpDocParameter(params, documented.Name)
 		if !ok {
@@ -91,6 +94,9 @@ func appendCallablePHPDocIssues(filename string, declaration ast.Node, params []
 		return
 	}
 	expandedReturn := expandPHPDocTypeAliases(doc.ReturnType, aliases)
+	if indexed, ok := resolvePHPDocOffsetAccess(expandedReturn, ft); ok {
+		expandedReturn = indexed
+	}
 	appendTemplateVarianceIssue(filename, declaration, class, doc, expandedReturn, GenericCovariant, "return type", ft, ctx, issues)
 	if conditional, ok := parsePHPDocConditionalType(expandedReturn); ok {
 		branchUnion := conditional.thenType + "|" + conditional.elseType

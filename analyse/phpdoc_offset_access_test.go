@@ -1,0 +1,57 @@
+package analyse
+
+import "testing"
+
+func TestResolvePHPDocOffsetAccess(t *testing.T) {
+	tests := []struct {
+		name string
+		typ  string
+		want string
+		ok   bool
+	}{
+		{name: "shape literal key", typ: `array{foo: int, bar: string}['foo']`, want: "int", ok: true},
+		{name: "generic array value", typ: `array<int, string>[int]`, want: "string", ok: true},
+		{name: "list value", typ: `list<bool>[int]`, want: "bool", ok: true},
+		{name: "unknown shape key", typ: `array{foo: int}['missing']`},
+		{name: "unresolved template", typ: `T[K]`},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, ok := resolvePHPDocOffsetAccess(tt.typ, FileTypeContext{})
+			if ok != tt.ok || got != tt.want {
+				t.Fatalf("resolvePHPDocOffsetAccess(%q) = (%q, %v), want (%q, %v)", tt.typ, got, ok, tt.want, tt.ok)
+			}
+		})
+	}
+}
+
+func TestArgumentTypesInferPHPDocOffsetAccessAndGenericArrayOffsets(t *testing.T) {
+	const source = `<?php
+/** @phpstan-type Summary array{count: int, label: string} */
+class SummaryProvider {
+    /** @return Summary['count'] */
+    public function count(): int { return 1; }
+}
+
+/** @param array<int, string> $items */
+function check(array $items, SummaryProvider $provider): void {
+    acceptInt($provider->count());
+    acceptString($items[0]);
+    acceptString($provider->count());
+    acceptInt($items[0]);
+}
+
+function acceptInt(int $value): void {}
+function acceptString(string $value): void {}
+`
+	issues := runAnalysisLevelOnFiles(t, map[string]string{"offset.php": source}, 5)
+	var mismatches []AnalysisIssue
+	for _, issue := range issues {
+		if issue.Code == "A.ARG.TYPE" {
+			mismatches = append(mismatches, issue)
+		}
+	}
+	if len(mismatches) != 2 {
+		t.Fatalf("expected the indexed shape type and generic value type to flag their reversed calls, got %#v", mismatches)
+	}
+}
