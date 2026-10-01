@@ -26,29 +26,38 @@ type typeAtom struct {
 }
 
 var builtinTypeNames = map[string]struct{}{
-	"array":            {},
-	"bool":             {},
-	"callable":         {},
-	"empty-string":     {},
-	"empty-array":      {},
-	"false":            {},
-	"float":            {},
-	"int":              {},
-	"iterable":         {},
-	"mixed":            {},
-	"never":            {},
-	"null":             {},
-	"non-empty-string": {},
-	"non-empty-array":  {},
-	"object":           {},
-	"resource":         {},
-	"string":           {},
-	"positive-int":     {},
-	"negative-int":     {},
-	"non-negative-int": {},
-	"non-positive-int": {},
-	"true":             {},
-	"void":             {},
+	"array":                      {},
+	"bool":                       {},
+	"callable":                   {},
+	"empty-string":               {},
+	"empty-array":                {},
+	"false":                      {},
+	"float":                      {},
+	"int":                        {},
+	"iterable":                   {},
+	"literal-string":             {},
+	"lowercase-string":           {},
+	"mixed":                      {},
+	"never":                      {},
+	"null":                       {},
+	"non-empty-string":           {},
+	"non-empty-lowercase-string": {},
+	"non-empty-numeric-string":   {},
+	"non-empty-uppercase-string": {},
+	"non-empty-array":            {},
+	"non-falsy-string":           {},
+	"numeric-string":             {},
+	"object":                     {},
+	"resource":                   {},
+	"string":                     {},
+	"positive-int":               {},
+	"negative-int":               {},
+	"non-negative-int":           {},
+	"non-positive-int":           {},
+	"true":                       {},
+	"truthy-string":              {},
+	"uppercase-string":           {},
+	"void":                       {},
 }
 
 const (
@@ -772,7 +781,38 @@ func atomsCompatibleWithContext(declared, actual typeAtom, scope *functionScope,
 				return value != ""
 			case "empty-string":
 				return value == ""
+			case "non-empty-lowercase-string":
+				return value != "" && value == strings.ToLower(value)
+			case "lowercase-string":
+				return value == strings.ToLower(value)
+			case "non-empty-uppercase-string":
+				return value != "" && value == strings.ToUpper(value)
+			case "uppercase-string":
+				return value == strings.ToUpper(value)
+			case "numeric-string":
+				return isPHPNumericString(value)
+			case "non-empty-numeric-string":
+				return value != "" && isPHPNumericString(value)
+			case "non-falsy-string", "truthy-string":
+				return value != "" && value != "0"
 			}
+		}
+		if declared.key == "string" && isStringRefinement(actual.key) {
+			return true
+		}
+		switch declared.key {
+		case "non-empty-string":
+			if actual.key == "non-empty-lowercase-string" || actual.key == "non-empty-uppercase-string" || actual.key == "non-empty-numeric-string" || actual.key == "non-falsy-string" || actual.key == "truthy-string" {
+				return true
+			}
+		case "lowercase-string":
+			return actual.key == "non-empty-lowercase-string"
+		case "uppercase-string":
+			return actual.key == "non-empty-uppercase-string"
+		case "numeric-string":
+			return actual.key == "non-empty-numeric-string"
+		case "non-falsy-string", "truthy-string":
+			return actual.key == "truthy-string" || actual.key == "non-falsy-string"
 		}
 		if declaredInterval, declaredOK := integerAtomInterval(declared); declaredOK {
 			if actualInterval, actualOK := integerAtomInterval(actual); actualOK {
@@ -821,6 +861,58 @@ func atomsCompatibleWithContext(declared, actual typeAtom, scope *functionScope,
 		return classHierarchyCompatible(declared.display, actual.display, scope, ctx)
 	}
 	return false
+}
+
+func isStringRefinement(key string) bool {
+	switch key {
+	case "empty-string", "non-empty-string", "literal-string", "numeric-string", "lowercase-string", "uppercase-string", "non-empty-lowercase-string", "non-empty-uppercase-string", "non-empty-numeric-string", "non-falsy-string", "truthy-string":
+		return true
+	default:
+		return false
+	}
+}
+
+func isPHPNumericString(value string) bool {
+	value = strings.Trim(value, " \t\n\r\v\f")
+	if value == "" {
+		return false
+	}
+	idx := 0
+	if value[idx] == '+' || value[idx] == '-' {
+		idx++
+		if idx == len(value) {
+			return false
+		}
+	}
+	digits := 0
+	for idx < len(value) && value[idx] >= '0' && value[idx] <= '9' {
+		idx++
+		digits++
+	}
+	if idx < len(value) && value[idx] == '.' {
+		idx++
+		for idx < len(value) && value[idx] >= '0' && value[idx] <= '9' {
+			idx++
+			digits++
+		}
+	}
+	if digits == 0 {
+		return false
+	}
+	if idx < len(value) && (value[idx] == 'e' || value[idx] == 'E') {
+		idx++
+		if idx < len(value) && (value[idx] == '+' || value[idx] == '-') {
+			idx++
+		}
+		exponentStart := idx
+		for idx < len(value) && value[idx] >= '0' && value[idx] <= '9' {
+			idx++
+		}
+		if idx == exponentStart {
+			return false
+		}
+	}
+	return idx == len(value)
 }
 
 func stringLiteralAtomValue(atom typeAtom) (string, bool) {
@@ -894,12 +986,14 @@ func canonicalizeDocType(raw string) string {
 		return "array"
 	case "non-empty-string":
 		return "non-empty-string"
-	case "non-empty-lowercase-string":
-		return "string"
+	case "non-empty-lowercase-string", "non-empty-uppercase-string", "non-empty-numeric-string", "non-falsy-string", "truthy-string":
+		return base
 	case "empty-string":
 		return "empty-string"
-	case "class-string", "interface-string", "trait-string", "literal-string", "numeric-string", "lowercase-string":
+	case "class-string", "interface-string", "trait-string":
 		return "string"
+	case "literal-string", "numeric-string", "lowercase-string", "uppercase-string":
+		return base
 	case "positive-int", "negative-int", "non-negative-int", "non-positive-int":
 		return base
 	case "scalar":
@@ -918,8 +1012,24 @@ func splitTopLevelTypes(raw string, sep rune) []string {
 	depthAngle := 0
 	depthParen := 0
 	depthBrace := 0
-	for idx, r := range raw {
-		switch r {
+	var quote byte
+	for idx := 0; idx < len(raw); idx++ {
+		c := raw[idx]
+		if quote != 0 {
+			if c == '\\' {
+				idx++
+				continue
+			}
+			if c == quote {
+				quote = 0
+			}
+			continue
+		}
+		if c == '\'' || c == '"' {
+			quote = c
+			continue
+		}
+		switch c {
 		case '<':
 			depthAngle++
 		case '>':
@@ -939,9 +1049,9 @@ func splitTopLevelTypes(raw string, sep rune) []string {
 				depthBrace--
 			}
 		default:
-			if r == sep && depthAngle == 0 && depthParen == 0 && depthBrace == 0 {
+			if rune(c) == sep && depthAngle == 0 && depthParen == 0 && depthBrace == 0 {
 				parts = append(parts, raw[start:idx])
-				start = idx + len(string(r))
+				start = idx + 1
 			}
 		}
 	}

@@ -549,9 +549,11 @@
       "capability": "bounded integer range rejects an out-of-range literal",
       "file": "argument-int-range-mismatch.php",
       "engineCodes": [
+        "A.ARG.TYPE",
         "A.ARG.TYPE"
       ],
       "phpstanIdentifiers": [
+        "argument.type",
         "argument.type"
       ]
     },
@@ -699,6 +701,30 @@
         "A.ARG.TYPE"
       ],
       "phpstanIdentifiers": [
+        "argument.type",
+        "argument.type",
+        "argument.type"
+      ]
+    },
+    {
+      "id": "string-refinements-clean",
+      "capability": "non-empty lowercase, numeric, and non-falsy strings accept matching literals and assignments",
+      "file": "string-refinements-clean.php",
+      "engineCodes": [],
+      "phpstanIdentifiers": []
+    },
+    {
+      "id": "string-refinements-mismatch",
+      "capability": "non-empty lowercase, numeric, and non-falsy strings reject mismatching literals",
+      "file": "string-refinements-mismatch.php",
+      "engineCodes": [
+        "A.ARG.TYPE",
+        "A.ARG.TYPE",
+        "A.ARG.TYPE",
+        "A.ARG.TYPE"
+      ],
+      "phpstanIdentifiers": [
+        "argument.type",
         "argument.type",
         "argument.type",
         "argument.type"

@@ -20,8 +20,29 @@ func substituteTemplateTokens(raw string, bindings map[string]string, skipGeneri
 	}
 	var out strings.Builder
 	depth := 0
+	var quote rune
 	for start := 0; start < len(raw); {
 		r, size := utf8.DecodeRuneInString(raw[start:])
+		if quote != 0 {
+			out.WriteString(raw[start : start+size])
+			if r == '\\' && start+size < len(raw) {
+				_, nextSize := utf8.DecodeRuneInString(raw[start+size:])
+				out.WriteString(raw[start+size : start+size+nextSize])
+				start += size + nextSize
+				continue
+			}
+			if r == quote {
+				quote = 0
+			}
+			start += size
+			continue
+		}
+		if r == '\'' || r == '"' {
+			quote = r
+			out.WriteString(raw[start : start+size])
+			start += size
+			continue
+		}
 		switch r {
 		case '<':
 			depth++
@@ -649,8 +670,24 @@ func splitArrayShapeEntry(entry string) (string, string, bool) {
 		return "", "", false
 	}
 	depthAngle, depthParen, depthBrace := 0, 0, 0
-	for idx, r := range entry {
-		switch r {
+	var quote byte
+	for idx := 0; idx < len(entry); idx++ {
+		c := entry[idx]
+		if quote != 0 {
+			if c == '\\' {
+				idx++
+				continue
+			}
+			if c == quote {
+				quote = 0
+			}
+			continue
+		}
+		if c == '\'' || c == '"' {
+			quote = c
+			continue
+		}
+		switch c {
 		case '<':
 			depthAngle++
 		case '>':

@@ -39,6 +39,7 @@ func TestResolvePHPDocKeyValueProjections(t *testing.T) {
 		{name: "shape keys", typ: `key-of<array{foo: int, bar: string}>`, want: "'bar'|'foo'", ok: true},
 		{name: "mixed literal keys", typ: `key-of<array{foo: int, 0: bool}>`, want: "'foo'|0", ok: true},
 		{name: "escaped string key", typ: `key-of<array{'it\'s': int}>`, want: `'it\'s'`, ok: true},
+		{name: "delimiter string key", typ: `key-of<array{'north:south': 'ready|busy'}>`, want: `'north:south'`, ok: true},
 		{name: "shape values", typ: `value-of<array{foo: int, bar: string}>`, want: "int|string", ok: true},
 		{name: "union shape values", typ: `value-of<array{foo: int}|array{bar: string}>`, want: "int|string", ok: true},
 		{name: "generic array keys", typ: `key-of<array<int, string>>`, want: "int", ok: true},

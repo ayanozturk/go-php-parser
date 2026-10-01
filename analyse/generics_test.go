@@ -55,6 +55,14 @@ func TestExpandPHPDocTypeAliasesLeavesQuotedIdentifiersUntouched(t *testing.T) {
 	}
 }
 
+func TestApplyTemplateBindingsLeavesQuotedIdentifiersUntouched(t *testing.T) {
+	got := ApplyTemplateBindings(`array{'T': T, "T": list<T>, 'it\'s T': T}`, map[string]string{"T": "User"})
+	want := `array{'T': User, "T": list<User>, 'it\'s T': User}`
+	if got != want {
+		t.Fatalf("template substitution = %q, want %q", got, want)
+	}
+}
+
 func TestGenericMethodCallWithPHPDocTypeHint(t *testing.T) {
 	// With generic binding Collection<User>, the first() method should
 	// return User (not T), so return statements are properly typed.

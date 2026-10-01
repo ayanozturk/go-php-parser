@@ -24,11 +24,12 @@ Complete the core PHPDoc type model and its interactions with inference, subtypi
 - [x] Flow callable parameter and return signatures through `callable`/`Closure` invocations, checking incompatible arguments while keeping mixed-value boundaries clean.
 - [x] Preserve optional and nested array-shape fields during indexed access and project value unions across union-shaped arrays, with clean, mismatch, and boundary fixtures.
 - [x] Preserve quoted PHPDoc string literals as exact types through shape values, `key-of` projections, assignments, hover, and return diagnostics, with clean, mismatch, and boundary fixtures.
-- [ ] Complete non-empty string refinements and remaining integer-range boundaries.
+- [x] Complete non-empty string refinements and integer-range boundaries with clean, mismatch, and boundary fixtures.
 - Complete normalization, subtyping, substitution, narrowing/widening, recursion limits, and `self`/`static`/`parent`/`$this` behavior.
+- [x] Keep generic template substitution out of quoted PHPDoc string literals while binding surrounding shape types.
 - Give each correction neutral positive, negative, and boundary fixtures at the relevant PHPStan level.
 
-Immediate next slice: complete PHPDoc string refinement compatibility and the remaining integer-range cases with clean, mismatch, and boundary fixtures.
+Immediate next slice: verify PHPDoc generic normalization and subtype behavior across nested unions/intersections while preserving aliases and exact literal token boundaries.
 
 ### 3. Extend flow and project semantics
 
