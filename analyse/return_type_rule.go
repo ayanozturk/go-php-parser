@@ -115,7 +115,7 @@ type functionScope struct {
 	properties           *scopeTypeLayer
 	variablesOwned       bool
 	propertiesOwned      bool
-	callableReturns      map[string]Type
+	callableSignatures   map[string]callableSignature
 	callablesShared      bool
 	arrayShapeCallables  map[string]map[string]arrayShapeField
 	arrayShapesShared    bool
@@ -125,6 +125,11 @@ type functionScope struct {
 	// e.g., "$coll" → (className: "Collection", typeArguments: ["User"])
 	genericContext       map[string]GenericInstance
 	genericContextShared bool
+}
+
+type callableSignature struct {
+	returnType Type
+	params     []ResolvedParam
 }
 
 // functionScopeContext is immutable after scope construction. Branch clones
@@ -759,7 +764,7 @@ func inferCallableInvocationReturn(expr ast.Node, scope *functionScope, ctx *Ana
 	switch callable := expr.(type) {
 	case *ast.VariableNode:
 		if scope != nil {
-			return scope.callableReturns[callable.Name]
+			return scope.callableSignatures[callable.Name].returnType
 		}
 	case *ast.ArrayAccessNode:
 		return inferArrayShapeCallableReturn(callable, scope, ctx)
@@ -980,6 +985,9 @@ func newFunctionScopeWithContext(ctx *AnalysisContext, class *ast.ClassNode, fn 
 			scope.setVariable(param.Name, paramType)
 			if returnType := callableReturnType(documentedType, typeCtx); !returnType.IsEmpty() {
 				scope.setCallableReturn(param.Name, returnType)
+			}
+			if params := resolvedCallableParamTypes(documentedType, typeCtx, phpDocTemplateNames(class, fn.PHPDoc)); len(params) > 0 {
+				scope.setCallableParams(param.Name, params)
 			}
 			if fields := parseArrayShapeFields(documentedType, typeCtx); len(fields) > 0 {
 				scope.setArrayShapeCallables(param.Name, fields)
@@ -1651,7 +1659,7 @@ func (s *functionScope) clone() *functionScope {
 		properties:           s.properties,
 		variablesOwned:       false,
 		propertiesOwned:      false,
-		callableReturns:      s.callableReturns,
+		callableSignatures:   s.callableSignatures,
 		callablesShared:      true,
 		arrayShapeCallables:  s.arrayShapeCallables,
 		arrayShapesShared:    true,
@@ -1774,31 +1782,79 @@ func (s *functionScope) exceptionSource(variable string) *ast.NewNode {
 }
 
 func (s *functionScope) setCallableReturn(name string, typ Type) {
-	if s == nil || typ.IsEmpty() {
+	if s == nil || name == "" || typ.IsEmpty() {
 		return
 	}
-	if s.callablesShared {
-		s.callableReturns = copyTypeMap(s.callableReturns)
-		s.callablesShared = false
-	}
-	if s.callableReturns == nil {
-		s.callableReturns = make(map[string]Type)
-	}
-	s.callableReturns[name] = typ
+	s.makeCallableSignaturesOwned()
+	signature := s.callableSignatures[name]
+	signature.returnType = typ
+	s.callableSignatures[name] = signature
 }
 
 func (s *functionScope) clearCallableReturn(name string) {
-	if s == nil || s.callableReturns == nil {
+	if s == nil || s.callableSignatures == nil {
 		return
 	}
-	if _, exists := s.callableReturns[name]; !exists {
+	signature, exists := s.callableSignatures[name]
+	if !exists || signature.returnType.IsEmpty() {
 		return
 	}
+	s.makeCallableSignaturesOwned()
+	signature.returnType = EmptyType()
+	if len(signature.params) == 0 {
+		delete(s.callableSignatures, name)
+	} else {
+		s.callableSignatures[name] = signature
+	}
+}
+
+func (s *functionScope) setCallableParams(name string, params []ResolvedParam) {
+	if s == nil || name == "" || len(params) == 0 {
+		return
+	}
+	s.makeCallableSignaturesOwned()
+	signature := s.callableSignatures[name]
+	signature.params = append([]ResolvedParam(nil), params...)
+	s.callableSignatures[name] = signature
+}
+
+func (s *functionScope) clearCallableParams(name string) {
+	if s == nil || s.callableSignatures == nil {
+		return
+	}
+	signature, exists := s.callableSignatures[name]
+	if !exists || len(signature.params) == 0 {
+		return
+	}
+	s.makeCallableSignaturesOwned()
+	signature.params = nil
+	if signature.returnType.IsEmpty() {
+		delete(s.callableSignatures, name)
+	} else {
+		s.callableSignatures[name] = signature
+	}
+}
+
+func (s *functionScope) makeCallableSignaturesOwned() {
 	if s.callablesShared {
-		s.callableReturns = copyTypeMap(s.callableReturns)
+		s.callableSignatures = copyCallableSignatures(s.callableSignatures)
 		s.callablesShared = false
 	}
-	delete(s.callableReturns, name)
+	if s.callableSignatures == nil {
+		s.callableSignatures = make(map[string]callableSignature)
+	}
+}
+
+func copyCallableSignatures(src map[string]callableSignature) map[string]callableSignature {
+	if len(src) == 0 {
+		return nil
+	}
+	dst := make(map[string]callableSignature, len(src))
+	for name, signature := range src {
+		signature.params = append([]ResolvedParam(nil), signature.params...)
+		dst[name] = signature
+	}
+	return dst
 }
 
 func (s *functionScope) setArrayShapeCallables(name string, fields map[string]arrayShapeField) {
@@ -2014,6 +2070,7 @@ func applyVarDocScope(scope *functionScope, doc *ast.PHPDocNode, assignment *ast
 		return
 	}
 	scope.clearCallableReturn(name)
+	scope.clearCallableParams(name)
 	scope.clearArrayShapeCallables(name)
 	scope.clearArrayIndexKeys(name)
 	scope.clearGenericContext(name)
@@ -2028,6 +2085,9 @@ func applyVarDocScope(scope *functionScope, doc *ast.PHPDocNode, assignment *ast
 	}
 	if returnType := callableReturnType(raw, scope.typeCtx); !returnType.IsEmpty() {
 		scope.setCallableReturn(name, returnType)
+	}
+	if params := resolvedCallableParamTypes(raw, scope.typeCtx, nil); len(params) > 0 {
+		scope.setCallableParams(name, params)
 	}
 }
 
@@ -2062,6 +2122,7 @@ func applyAssignmentScope(scope *functionScope, assignment *ast.AssignmentNode, 
 	switch left := assignment.Left.(type) {
 	case *ast.VariableNode:
 		scope.clearCallableReturn(left.Name)
+		scope.clearCallableParams(left.Name)
 		scope.clearArrayShapeCallables(left.Name)
 		scope.clearArrayIndexKeys(left.Name)
 		scope.clearGenericContext(left.Name)

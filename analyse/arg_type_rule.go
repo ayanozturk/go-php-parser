@@ -1319,7 +1319,17 @@ func checkMethodCallArgTypes(call *ast.MethodCallNode, scope *functionScope, ctx
 }
 
 func checkFunctionCallArgTypes(call *ast.FunctionCallNode, scope *functionScope, ctx *AnalysisContext, filename string, issues *[]AnalysisIssue) {
-	if call == nil || ctx == nil || ctx.Resolver == nil {
+	if call == nil {
+		return
+	}
+	if variable, ok := call.Name.(*ast.VariableNode); ok && scope != nil {
+		params := scope.callableSignatures[variable.Name].params
+		if len(params) > 0 {
+			checkResolvedCallArgTypes("Callable", ResolvedMethod{Name: variable.Name, Params: params}, call.Args, scope, ctx, filename, issues, "")
+		}
+		return
+	}
+	if ctx == nil || ctx.Resolver == nil {
 		return
 	}
 	name := functionCallName(call)

@@ -1,6 +1,9 @@
 package analyse
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestResolvePHPDocOffsetAccess(t *testing.T) {
 	tests := []struct {
@@ -76,5 +79,32 @@ function acceptString(string $value): void {}
 	}
 	if len(mismatches) != 2 {
 		t.Fatalf("expected the indexed shape type and generic value type to flag their reversed calls, got %#v", mismatches)
+	}
+}
+
+func TestArgumentTypesCheckPHPDocCallableParametersAndReturnTypes(t *testing.T) {
+	const source = `<?php
+/** @param callable(int): string $callback */
+function invokeCallable(callable $callback): void {
+    acceptString($callback(1));
+    acceptString($callback('wrong'));
+}
+
+/** @param Closure(int): string $callback */
+function invokeClosure(Closure $callback): void {
+    acceptString($callback(1));
+}
+
+function acceptString(string $value): void {}
+`
+	issues := runAnalysisLevelOnFiles(t, map[string]string{"callable.php": source}, 5)
+	var mismatches []AnalysisIssue
+	for _, issue := range issues {
+		if issue.Code == "A.ARG.TYPE" {
+			mismatches = append(mismatches, issue)
+		}
+	}
+	if len(mismatches) != 1 || !strings.Contains(mismatches[0].Message, "Callable") {
+		t.Fatalf("expected only the invalid callable argument to be reported, got %#v", mismatches)
 	}
 }

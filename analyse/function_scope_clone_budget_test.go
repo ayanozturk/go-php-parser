@@ -36,11 +36,11 @@ func functionScopeCloneBudgetFixture() *functionScope {
 				"run": {"service": {typ: ParseType("Service")}},
 			},
 		},
-		variables:       rootScopeTypeLayer(map[string]Type{"seed": ParseType("int")}),
-		properties:      rootScopeTypeLayer(map[string]Type{"state": ParseType("string")}),
-		variablesOwned:  true,
-		propertiesOwned: true,
-		callableReturns: map[string]Type{"factory": ParseType("Service")},
+		variables:          rootScopeTypeLayer(map[string]Type{"seed": ParseType("int")}),
+		properties:         rootScopeTypeLayer(map[string]Type{"state": ParseType("string")}),
+		variablesOwned:     true,
+		propertiesOwned:    true,
+		callableSignatures: map[string]callableSignature{"factory": {returnType: ParseType("Service")}},
 		arrayShapeCallables: map[string]map[string]arrayShapeField{
 			"factories": {"service": {callable: ParseType("Service")}},
 		},
@@ -135,10 +135,10 @@ func TestFunctionScopeCloneAllMutableStateWritesAreIsolated(t *testing.T) {
 	assertCloneBudgetProperty(t, clone, "branch", "float")
 	assertCloneBudgetProperty(t, root, "state", "string")
 	assertCloneBudgetPropertyMissing(t, root, "branch")
-	assertScopeType(t, root.callableReturns, "factory", "Service")
-	assertScopeType(t, clone.callableReturns, "factory", "OtherService")
-	assertScopeType(t, clone.callableReturns, "cloneOnly", "bool")
-	if _, ok := root.callableReturns["cloneOnly"]; ok {
+	assertScopeCallableReturn(t, root, "factory", "Service")
+	assertScopeCallableReturn(t, clone, "factory", "OtherService")
+	assertScopeCallableReturn(t, clone, "cloneOnly", "bool")
+	if _, ok := root.callableSignatures["cloneOnly"]; ok {
 		t.Fatal("clone-only callable return leaked into root")
 	}
 	if got := root.arrayShapeCallables["factories"]["service"].callable.String(); got != "Service" {
@@ -175,7 +175,7 @@ func TestFunctionScopeCloneAllMutableStateWritesAreIsolated(t *testing.T) {
 	if clone.variables == root.variables || clone.properties == root.properties {
 		t.Fatal("variable/property writes did not detach clone layers")
 	}
-	if cloneMapPointer(clone.callableReturns) == cloneMapPointer(root.callableReturns) {
+	if cloneMapPointer(clone.callableSignatures) == cloneMapPointer(root.callableSignatures) {
 		t.Fatal("callable-return write did not detach clone map")
 	}
 	if cloneMapPointer(clone.arrayShapeCallables) == cloneMapPointer(root.arrayShapeCallables) {

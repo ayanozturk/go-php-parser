@@ -407,6 +407,31 @@
       "phpstanIdentifiers": []
     },
     {
+      "id": "argument-phpdoc-callable-signature-clean",
+      "capability": "callable and Closure parameter and return signatures flow through invocations",
+      "file": "argument-phpdoc-callable-signature-clean.php",
+      "engineCodes": [],
+      "phpstanIdentifiers": []
+    },
+    {
+      "id": "argument-phpdoc-callable-signature-mismatch",
+      "capability": "callable parameter signatures reject incompatible invocation arguments",
+      "file": "argument-phpdoc-callable-signature-mismatch.php",
+      "engineCodes": [
+        "A.ARG.TYPE"
+      ],
+      "phpstanIdentifiers": [
+        "argument.type"
+      ]
+    },
+    {
+      "id": "argument-phpdoc-callable-signature-boundary",
+      "capability": "mixed callable arguments remain unresolved and do not create false mismatches",
+      "file": "argument-phpdoc-callable-signature-boundary.php",
+      "engineCodes": [],
+      "phpstanIdentifiers": []
+    },
+    {
       "id": "argument-unbound-class-template-param-clean",
       "capability": "an unbound class template parameter accepts unconstrained values",
       "file": "argument-unbound-class-template-param-clean.php",

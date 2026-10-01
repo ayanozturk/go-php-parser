@@ -10,6 +10,38 @@ import (
 	"github.com/ayanozturk/go-php-parser/syntax"
 )
 
+func assertScopeCallableReturn(t *testing.T, scope *functionScope, name, want string) {
+	t.Helper()
+	got := scope.callableSignatures[name].returnType.String()
+	if got != want {
+		t.Fatalf("callable %s return type = %q, want %q", name, got, want)
+	}
+}
+
+func TestFunctionScopeCallableParameterClonesRemainIndependent(t *testing.T) {
+	root := &functionScope{callableSignatures: map[string]callableSignature{
+		"factory": {params: []ResolvedParam{{Name: "arg1", Type: "int"}}},
+	}}
+	parent := root.clone()
+	left := parent.clone()
+	right := parent.clone()
+	left.setCallableParams("factory", []ResolvedParam{{Name: "arg1", Type: "bool"}})
+	right.setCallableParams("factory", []ResolvedParam{{Name: "arg1", Type: "string"}})
+
+	if got := root.callableSignatures["factory"].params[0].Type; got != "int" {
+		t.Fatalf("root callable parameter type = %q, want int", got)
+	}
+	if got := left.callableSignatures["factory"].params[0].Type; got != "bool" {
+		t.Fatalf("left callable parameter type = %q, want bool", got)
+	}
+	if got := right.callableSignatures["factory"].params[0].Type; got != "string" {
+		t.Fatalf("right callable parameter type = %q, want string", got)
+	}
+	if functionScopeMapPointer(left.callableSignatures) == functionScopeMapPointer(right.callableSignatures) {
+		t.Fatal("callable parameter sibling writes did not detach their maps")
+	}
+}
+
 func TestFunctionScopeCloneSharesReadOnlyLayers(t *testing.T) {
 	original := seededFunctionScope()
 	clone := original.clone()
@@ -148,7 +180,7 @@ func TestFunctionScopeChainedAndSiblingClonesRemainIndependent(t *testing.T) {
 }
 
 func TestFunctionScopeCallableReturnClonesRemainIndependent(t *testing.T) {
-	root := &functionScope{callableReturns: map[string]Type{"factory": ParseType("InitialService")}}
+	root := &functionScope{callableSignatures: map[string]callableSignature{"factory": {returnType: ParseType("InitialService")}}}
 	parent := root.clone()
 	left := parent.clone()
 	right := parent.clone()
@@ -159,38 +191,38 @@ func TestFunctionScopeCallableReturnClonesRemainIndependent(t *testing.T) {
 	right.setCallableReturn("rightOnly", ParseType("int"))
 	parent.clearCallableReturn("factory")
 
-	assertScopeType(t, root.callableReturns, "factory", "InitialService")
-	assertScopeType(t, left.callableReturns, "factory", "LeftService")
-	assertScopeType(t, right.callableReturns, "factory", "RightService")
-	if _, ok := parent.callableReturns["factory"]; ok {
+	assertScopeCallableReturn(t, root, "factory", "InitialService")
+	assertScopeCallableReturn(t, left, "factory", "LeftService")
+	assertScopeCallableReturn(t, right, "factory", "RightService")
+	if _, ok := parent.callableSignatures["factory"]; ok {
 		t.Fatal("parent callable return deletion leaked into root or siblings")
 	}
-	if _, ok := left.callableReturns["rightOnly"]; ok {
+	if _, ok := left.callableSignatures["rightOnly"]; ok {
 		t.Fatal("right sibling callable return leaked into left sibling")
 	}
-	if _, ok := right.callableReturns["leftOnly"]; ok {
+	if _, ok := right.callableSignatures["leftOnly"]; ok {
 		t.Fatal("left sibling callable return leaked into right sibling")
 	}
-	if functionScopeMapPointer(left.callableReturns) == functionScopeMapPointer(right.callableReturns) {
+	if functionScopeMapPointer(left.callableSignatures) == functionScopeMapPointer(right.callableSignatures) {
 		t.Fatal("callable return sibling writes did not detach their maps")
 	}
 }
 
 func TestFunctionScopeClearMissingCallableReturnPreservesSharing(t *testing.T) {
-	root := &functionScope{callableReturns: map[string]Type{"factory": ParseType("InitialService")}}
+	root := &functionScope{callableSignatures: map[string]callableSignature{"factory": {returnType: ParseType("InitialService")}}}
 	clone := root.clone()
-	before := functionScopeMapPointer(clone.callableReturns)
+	before := functionScopeMapPointer(clone.callableSignatures)
 
 	clone.clearCallableReturn("missing")
 
 	if !root.callablesShared || !clone.callablesShared {
 		t.Fatalf("missing callable return clear changed sharing flags: root=%v clone=%v", root.callablesShared, clone.callablesShared)
 	}
-	if got := functionScopeMapPointer(clone.callableReturns); got != before {
+	if got := functionScopeMapPointer(clone.callableSignatures); got != before {
 		t.Fatalf("missing callable return clear detached backing map: before=%x after=%x", before, got)
 	}
-	assertScopeType(t, root.callableReturns, "factory", "InitialService")
-	assertScopeType(t, clone.callableReturns, "factory", "InitialService")
+	assertScopeCallableReturn(t, root, "factory", "InitialService")
+	assertScopeCallableReturn(t, clone, "factory", "InitialService")
 }
 
 func TestFunctionScopeClassStringMetadataClonesRemainIndependent(t *testing.T) {

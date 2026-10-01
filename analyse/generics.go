@@ -692,7 +692,7 @@ func normalizeArrayShapeKey(raw string) string {
 func callableReturnType(raw string, typeCtx FileTypeContext) Type {
 	raw = strings.TrimSpace(raw)
 	open := strings.Index(raw, "(")
-	if open < 0 || !strings.EqualFold(strings.TrimSpace(raw[:open]), "callable") {
+	if open < 0 || (!strings.EqualFold(strings.TrimSpace(raw[:open]), "callable") && !strings.EqualFold(strings.TrimPrefix(strings.TrimSpace(raw[:open]), `\\`), "Closure")) {
 		return EmptyType()
 	}
 	depth := 0
