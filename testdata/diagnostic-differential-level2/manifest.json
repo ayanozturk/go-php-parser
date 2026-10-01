@@ -741,6 +741,34 @@
       "file": "laravel-collection-foreach-clean.php",
       "engineCodes": [],
       "phpstanIdentifiers": []
+    },
+    {
+      "id": "phpdoc-template-covariant-clean",
+      "capability": "covariant output and contravariant input template positions",
+      "file": "phpdoc-template-covariant-clean.php",
+      "engineCodes": [],
+      "phpstanIdentifiers": []
+    },
+    {
+      "id": "phpdoc-template-covariant-parameter",
+      "capability": "covariant class templates are rejected in parameter positions",
+      "file": "phpdoc-template-covariant-parameter.php",
+      "engineCodes": ["Level2.PHPDocTemplateVariance"],
+      "phpstanIdentifiers": ["generics.variance"]
+    },
+    {
+      "id": "phpdoc-template-contravariant-return",
+      "capability": "contravariant class templates are rejected in return positions",
+      "file": "phpdoc-template-contravariant-return.php",
+      "engineCodes": ["Level2.PHPDocTemplateVariance"],
+      "phpstanIdentifiers": ["generics.variance"]
+    },
+    {
+      "id": "phpdoc-method-template-variance",
+      "capability": "variance annotations are restricted to class and interface templates",
+      "file": "phpdoc-method-template-variance.php",
+      "engineCodes": ["Level2.PHPDocMethodVariance"],
+      "phpstanIdentifiers": ["method.variance"]
     }
   ]
 }

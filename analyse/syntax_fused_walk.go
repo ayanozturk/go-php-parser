@@ -87,6 +87,14 @@ func runFusedConfiguredCSTWalk(root *syntax.RedNode, rootFt FileTypeContext, o f
 	lowerClass := func(class *syntax.RedNode) *ast.ClassNode {
 		return memoLowerClassLike(ctx, class, res.File)
 	}
+	lowerPHPDocClass := func(class *syntax.RedNode) *ast.ClassNode {
+		if class != nil && class.Kind() == syntax.KindInterfaceDecl {
+			if iface := syntax.LowerInterfaceDeclNode(class, res.File); iface != nil {
+				return &ast.ClassNode{Name: iface.Name, PHPDoc: iface.PHPDoc}
+			}
+		}
+		return lowerClass(class)
+	}
 
 	runClassModel := o.collectLevel0 && ctx != nil && ctx.Resolver != nil
 	runTypeRefs := o.collectLevel0
@@ -230,7 +238,7 @@ func runFusedConfiguredCSTWalk(root *syntax.RedNode, rootFt FileTypeContext, o f
 		case syntax.KindFunctionDecl, syntax.KindMethodDecl:
 			if class != nil && class.Kind() == syntax.KindInterfaceDecl {
 				if im := memoLowerInterfaceMethod(ctx, n, res.File); im != nil {
-					appendPHPDocIssuesOnNode(o.filename, im, lowerClass(class), ft, ctx, o.phpDoc)
+					appendPHPDocIssuesOnNode(o.filename, im, lowerPHPDocClass(class), ft, ctx, o.phpDoc)
 					if o.collectMissingTypes {
 						appendMissingTypeIssuesOnNode(o.filename, im, lowerClass(class), ft, ctx, o.missingType)
 					}
@@ -241,7 +249,7 @@ func runFusedConfiguredCSTWalk(root *syntax.RedNode, rootFt FileTypeContext, o f
 				return
 			}
 			if fn := memoLowerFunctionDecl(ctx, n, res.File); fn != nil {
-				appendPHPDocIssuesOnNode(o.filename, fn, lowerClass(class), ft, ctx, o.phpDoc)
+				appendPHPDocIssuesOnNode(o.filename, fn, lowerPHPDocClass(class), ft, ctx, o.phpDoc)
 				if o.collectMissingTypes {
 					appendMissingTypeIssuesOnNode(o.filename, fn, lowerClass(class), ft, ctx, o.missingType)
 				}
@@ -251,7 +259,7 @@ func runFusedConfiguredCSTWalk(root *syntax.RedNode, rootFt FileTypeContext, o f
 			}
 		case syntax.KindClosureExpr:
 			if fn := memoLowerExpr(ctx, n, res.File); fn != nil {
-				appendPHPDocIssuesOnNode(o.filename, fn, lowerClass(class), ft, ctx, o.phpDoc)
+				appendPHPDocIssuesOnNode(o.filename, fn, lowerPHPDocClass(class), ft, ctx, o.phpDoc)
 				if o.collectMissingTypes {
 					appendMissingTypeIssuesOnNode(o.filename, fn, lowerClass(class), ft, ctx, o.missingType)
 				}
@@ -261,7 +269,7 @@ func runFusedConfiguredCSTWalk(root *syntax.RedNode, rootFt FileTypeContext, o f
 			}
 		case syntax.KindPropertyDecl:
 			for _, p := range memoLowerPropertyDeclInClass(ctx, class, n, res.File) {
-				appendPHPDocIssuesOnNode(o.filename, p, lowerClass(class), ft, ctx, o.phpDoc)
+				appendPHPDocIssuesOnNode(o.filename, p, lowerPHPDocClass(class), ft, ctx, o.phpDoc)
 				if o.collectMissingTypes {
 					appendMissingTypeIssuesOnNode(o.filename, p, lowerClass(class), ft, ctx, o.missingType)
 				}

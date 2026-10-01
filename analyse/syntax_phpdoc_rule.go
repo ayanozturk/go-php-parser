@@ -44,6 +44,14 @@ func checkPHPDocIssuesFromParsed(filename string, res *syntax.ParseResult, ctx *
 	lowerClass := func(class *syntax.RedNode) *ast.ClassNode {
 		return memoLowerClassLike(ctx, class, res.File)
 	}
+	lowerPHPDocClass := func(class *syntax.RedNode) *ast.ClassNode {
+		if class != nil && class.Kind() == syntax.KindInterfaceDecl {
+			if iface := syntax.LowerInterfaceDeclNode(class, res.File); iface != nil {
+				return &ast.ClassNode{Name: iface.Name, PHPDoc: iface.PHPDoc}
+			}
+		}
+		return lowerClass(class)
+	}
 
 	var issues []AnalysisIssue
 	walkSyntaxConfigured(res.File.Root, rootFt, func(n, class, currentFn *syntax.RedNode, ft FileTypeContext, inStatementBody bool) {
@@ -51,20 +59,20 @@ func checkPHPDocIssuesFromParsed(filename string, res *syntax.ParseResult, ctx *
 		case syntax.KindFunctionDecl, syntax.KindMethodDecl:
 			if class != nil && class.Kind() == syntax.KindInterfaceDecl {
 				if im := syntax.LowerInterfaceMethodDeclNode(n, res.File); im != nil {
-					appendPHPDocIssuesOnNode(filename, im, lowerClass(class), ft, ctx, &issues)
+					appendPHPDocIssuesOnNode(filename, im, lowerPHPDocClass(class), ft, ctx, &issues)
 				}
 				return
 			}
 			if fn := memoLowerFunctionDecl(ctx, n, res.File); fn != nil {
-				appendPHPDocIssuesOnNode(filename, fn, lowerClass(class), ft, ctx, &issues)
+				appendPHPDocIssuesOnNode(filename, fn, lowerPHPDocClass(class), ft, ctx, &issues)
 			}
 		case syntax.KindClosureExpr:
 			if fn := syntax.LowerExprNode(n, res.File); fn != nil {
-				appendPHPDocIssuesOnNode(filename, fn, lowerClass(class), ft, ctx, &issues)
+				appendPHPDocIssuesOnNode(filename, fn, lowerPHPDocClass(class), ft, ctx, &issues)
 			}
 		case syntax.KindPropertyDecl:
 			for _, p := range memoLowerPropertyDeclInClass(ctx, class, n, res.File) {
-				appendPHPDocIssuesOnNode(filename, p, lowerClass(class), ft, ctx, &issues)
+				appendPHPDocIssuesOnNode(filename, p, lowerPHPDocClass(class), ft, ctx, &issues)
 			}
 		}
 	})

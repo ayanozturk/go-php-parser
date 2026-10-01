@@ -288,11 +288,12 @@ func TestParsePHPDocGenerics(t *testing.T) {
 	doc := ParsePHPDoc(`/**
  * @template T of EntityInterface
  * @template-covariant TValue
+ * @template-contravariant TInput of object
  * @template-extends BaseRepository<T>
  * @implements IteratorAggregate<string, list<TValue>>
  */`)
 
-	if len(doc.Templates) != 2 || doc.Templates[0].Name != "T" || doc.Templates[0].Bound != "EntityInterface" || doc.Templates[1].Name != "TValue" {
+	if len(doc.Templates) != 3 || doc.Templates[0].Name != "T" || doc.Templates[0].Bound != "EntityInterface" || doc.Templates[1].Name != "TValue" || doc.Templates[1].Variance != "covariant" || doc.Templates[2].Name != "TInput" || doc.Templates[2].Bound != "object" || doc.Templates[2].Variance != "contravariant" {
 		t.Fatalf("unexpected templates: %#v", doc.Templates)
 	}
 	if len(doc.Extends) != 1 || doc.Extends[0].Name != "BaseRepository" || len(doc.Extends[0].TypeArguments) != 1 || doc.Extends[0].TypeArguments[0] != "T" {

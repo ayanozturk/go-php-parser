@@ -1,6 +1,6 @@
 # PHPStan-compatible rules: level 5
 
-<!-- rule-inventory: level=5 introduced=1 cumulative=25 -->
+<!-- rule-inventory: level=5 introduced=1 cumulative=27 -->
 
 [Back to the README static-analysis section](../../README.md#static-analysis) · [Open the analyser capability matrix](../analyser-capability-matrix.md)
 

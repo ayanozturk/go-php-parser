@@ -14,7 +14,7 @@ func TestSemanticSnapshotIsolatedFromInputsAndResolvedValueMutation(t *testing.T
 		"src/Repository.php": parsePHPForProjectIndex(t, `<?php
 namespace App;
 
-/** @template T of object */
+/** @template-covariant T of object */
 class Repository {
     /** @return T */
     public function find(int $id): object {}
@@ -25,6 +25,9 @@ class Repository {
      */
     public function generic($value): void {}
 }
+
+/** @template-contravariant TValue */
+interface Consumer {}
 `),
 	}
 
@@ -54,6 +57,18 @@ class Repository {
 	}
 	if !reflect.DeepEqual(classAgain.TemplateBounds, []string{"object"}) {
 		t.Fatalf("class template bounds leaked caller mutation: %#v", classAgain.TemplateBounds)
+	}
+	if !reflect.DeepEqual(classAgain.TemplateVariances, []GenericVariance{GenericCovariant}) {
+		t.Fatalf("class template variance was not preserved: %#v", classAgain.TemplateVariances)
+	}
+	class.TemplateVariances[0] = GenericContravariant
+	classAfterVarianceMutation, _ := snapshot.ResolveClass(`App\Repository`)
+	if !reflect.DeepEqual(classAfterVarianceMutation.TemplateVariances, []GenericVariance{GenericCovariant}) {
+		t.Fatalf("class template variance leaked caller mutation: %#v", classAfterVarianceMutation.TemplateVariances)
+	}
+	consumer, ok := snapshot.ResolveClass(`App\Consumer`)
+	if !ok || !reflect.DeepEqual(consumer.TemplateVariances, []GenericVariance{GenericContravariant}) {
+		t.Fatalf("interface template variance was not preserved: %#v", consumer)
 	}
 	if classAgain.ID != class.ID {
 		t.Fatalf("class ID changed across case-insensitive lookup: %q != %q", classAgain.ID, class.ID)

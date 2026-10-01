@@ -8,15 +8,17 @@ import (
 )
 
 const (
-	level2PHPDocClassCode        = "Level2.PHPDocClass"
-	level2PHPDocGenericLessCode  = "Level2.PHPDocGenericLessTypes"
-	level2PHPDocGenericMoreCode  = "Level2.PHPDocGenericMoreTypes"
-	level2PHPDocGenericBoundCode = "Level2.PHPDocGenericNotSubtype"
-	level2PHPDocNotGenericCode   = "Level2.PHPDocNotGeneric"
-	level2PHPDocParamNameCode    = "Level2.PHPDocParamName"
-	level2PHPDocParamTypeCode    = "Level2.PHPDocParamType"
-	level2PHPDocPropertyTypeCode = "Level2.PHPDocPropertyType"
-	level2PHPDocReturnTypeCode   = "Level2.PHPDocReturnType"
+	level2PHPDocClassCode            = "Level2.PHPDocClass"
+	level2PHPDocGenericLessCode      = "Level2.PHPDocGenericLessTypes"
+	level2PHPDocGenericMoreCode      = "Level2.PHPDocGenericMoreTypes"
+	level2PHPDocGenericBoundCode     = "Level2.PHPDocGenericNotSubtype"
+	level2PHPDocMethodVarianceCode   = "Level2.PHPDocMethodVariance"
+	level2PHPDocTemplateVarianceCode = "Level2.PHPDocTemplateVariance"
+	level2PHPDocNotGenericCode       = "Level2.PHPDocNotGeneric"
+	level2PHPDocParamNameCode        = "Level2.PHPDocParamName"
+	level2PHPDocParamTypeCode        = "Level2.PHPDocParamType"
+	level2PHPDocPropertyTypeCode     = "Level2.PHPDocPropertyType"
+	level2PHPDocReturnTypeCode       = "Level2.PHPDocReturnType"
 )
 
 func phpDocIssuesForFile(filename string, nodes []ast.Node, ctx *AnalysisContext) []AnalysisIssue {
@@ -49,6 +51,13 @@ func appendCallablePHPDocIssues(filename string, declaration ast.Node, params []
 	if doc == nil {
 		return
 	}
+	for _, template := range doc.Templates {
+		if template.Variance != "" {
+			*issues = append(*issues, issueSpan(filename, declaration, level2PHPDocMethodVarianceCode, fmt.Sprintf(
+				"Variance annotations are only allowed on class and interface template types; %s is declared on a callable.", template.Name,
+			)))
+		}
+	}
 	templates := phpDocTemplateNames(class, doc)
 	templates = mergePHPDocNames(templates, ctx.phpDocTypeAliases)
 
@@ -61,6 +70,7 @@ func appendCallablePHPDocIssues(filename string, declaration ast.Node, params []
 			)))
 			continue
 		}
+		appendTemplateVarianceIssue(filename, declaration, class, doc, documented.Type, GenericContravariant, "parameter $"+documented.Name, issues)
 		native := paramTypeName(param)
 		if native == "" || phpDocUsesTemplate(documented.Type, templates) {
 			continue
@@ -76,6 +86,7 @@ func appendCallablePHPDocIssues(filename string, declaration ast.Node, params []
 		return
 	}
 	effectiveReturn := collapsePHPDocConditionalType(doc.ReturnType, nativeReturn)
+	appendTemplateVarianceIssue(filename, declaration, class, doc, doc.ReturnType, GenericCovariant, "return type", issues)
 	appendPHPDocTypeIssues(filename, declaration, effectiveReturn, templates, ft, ctx, issues)
 	if phpDocTypeIsConditional(doc.ReturnType) {
 		return
@@ -85,6 +96,75 @@ func appendCallablePHPDocIssues(filename string, declaration ast.Node, params []
 			"PHPDoc return type %s is not compatible with native return type %s.", doc.ReturnType, nativeReturn,
 		)))
 	}
+}
+
+func appendTemplateVarianceIssue(filename string, declaration ast.Node, class *ast.ClassNode, doc *ast.PHPDocNode, raw string, position GenericVariance, description string, issues *[]AnalysisIssue) {
+	if class == nil || class.PHPDoc == nil {
+		return
+	}
+	for _, template := range class.PHPDoc.Templates {
+		shadowed := false
+		if doc != nil {
+			for _, local := range doc.Templates {
+				if asciiLowerIdent(local.Name) == asciiLowerIdent(template.Name) {
+					shadowed = true
+					break
+				}
+			}
+		}
+		if shadowed {
+			continue
+		}
+		variance := GenericInvariant
+		switch template.Variance {
+		case string(GenericCovariant):
+			variance = GenericCovariant
+		case string(GenericContravariant):
+			variance = GenericContravariant
+		default:
+			continue
+		}
+		if !directPHPDocTemplateUse(raw, template.Name) {
+			continue
+		}
+		if variance == GenericCovariant && position != GenericContravariant || variance == GenericContravariant && position != GenericCovariant {
+			continue
+		}
+		*issues = append(*issues, issueSpan(filename, declaration, level2PHPDocTemplateVarianceCode, fmt.Sprintf(
+			"Template type %s is declared %s but occurs in %s.", template.Name, variance, description,
+		)))
+	}
+}
+
+// directPHPDocTemplateUse checks a template in a direct type position, across
+// nullable, union, intersection, and array-shorthand forms. Nested generic and
+// callable positions need the referenced declaration's variance metadata and
+// are intentionally left to a later type-relation slice.
+func directPHPDocTemplateUse(raw, templateName string) bool {
+	raw = stripBalancedOuterTypeParens(strings.TrimSpace(raw))
+	if strings.HasPrefix(raw, "?") {
+		return directPHPDocTemplateUse(strings.TrimSpace(strings.TrimPrefix(raw, "?")), templateName)
+	}
+	if strings.HasSuffix(raw, "[]") {
+		return directPHPDocTemplateUse(strings.TrimSpace(strings.TrimSuffix(raw, "[]")), templateName)
+	}
+	for _, separator := range []rune{'|', '&'} {
+		if parts := splitTopLevelTypes(raw, separator); len(parts) > 1 {
+			for _, part := range parts {
+				if directPHPDocTemplateUse(part, templateName) {
+					return true
+				}
+			}
+			return false
+		}
+	}
+	if _, ok := parseGenericTypeFromString(raw); ok {
+		return false
+	}
+	if _, _, ok := phpDocCallableSignature(raw); ok {
+		return false
+	}
+	return strings.EqualFold(strings.TrimSpace(raw), templateName)
 }
 
 func phpDocParameter(params []ast.Node, name string) (*ast.ParamNode, bool) {
@@ -424,6 +504,8 @@ func init() {
 		{level2PHPDocGenericLessCode},
 		{level2PHPDocGenericMoreCode},
 		{level2PHPDocGenericBoundCode},
+		{level2PHPDocMethodVarianceCode},
+		{level2PHPDocTemplateVarianceCode},
 		{level2PHPDocNotGenericCode},
 		{level2PHPDocParamNameCode},
 		{level2PHPDocParamTypeCode},

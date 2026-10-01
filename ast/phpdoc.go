@@ -28,6 +28,9 @@ type PHPDocNode struct {
 type PHPDocTemplate struct {
 	Name  string
 	Bound string
+	// Variance is "covariant" or "contravariant" when the declaration uses
+	// @template-covariant or @template-contravariant; empty means invariant.
+	Variance string
 }
 
 // PHPDocTypeAlias describes a local @phpstan-type or @psalm-type binding.
@@ -113,7 +116,7 @@ func ParsePHPDoc(rawContent string) *PHPDocNode {
 					phpdoc.VarName = strings.TrimPrefix(name, "$")
 				}
 			case isTemplateTag(tag):
-				if template, ok := parsePHPDocTemplate(value); ok {
+				if template, ok := parsePHPDocTemplate(tag, value); ok {
 					phpdoc.Templates = append(phpdoc.Templates, template)
 				}
 			case isTypeAliasTag(tag):
@@ -566,12 +569,18 @@ func isImplementsTag(tag string) bool {
 	}
 }
 
-func parsePHPDocTemplate(value string) (PHPDocTemplate, bool) {
+func parsePHPDocTemplate(tag, value string) (PHPDocTemplate, bool) {
 	parts := strings.Fields(value)
 	if len(parts) == 0 {
 		return PHPDocTemplate{}, false
 	}
 	template := PHPDocTemplate{Name: parts[0]}
+	switch tag {
+	case "template-covariant":
+		template.Variance = "covariant"
+	case "template-contravariant":
+		template.Variance = "contravariant"
+	}
 	if len(parts) >= 3 && (strings.EqualFold(parts[1], "of") || strings.EqualFold(parts[1], "as")) {
 		template.Bound = parts[2]
 	}

@@ -14,6 +14,16 @@ type GenericInstance struct {
 	TypeArguments []string
 }
 
+// GenericVariance describes how a generic class or interface relates
+// subtypes of one of its template parameters.
+type GenericVariance string
+
+const (
+	GenericInvariant     GenericVariance = "invariant"
+	GenericCovariant     GenericVariance = "covariant"
+	GenericContravariant GenericVariance = "contravariant"
+)
+
 type SymbolResolver interface {
 	ClassExists(name string) bool
 	FunctionExists(name string) bool
@@ -140,6 +150,7 @@ type ResolvedClass struct {
 	Implements            []string
 	TemplateParams        []string
 	TemplateBounds        []string
+	TemplateVariances     []GenericVariance
 	GenericParents        []ResolvedGenericParent
 	Traits                []string
 	Kind                  string

@@ -1,6 +1,7 @@
 package analyse
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/ayanozturk/go-php-parser/ast"
@@ -264,6 +265,66 @@ function inspectKnownNested(array $value): void {}
 	}
 	if len(issues) != 4 {
 		t.Fatalf("expected four nested/bound PHPDoc issues, got %#v", issues)
+	}
+}
+
+func TestLevel2PHPDocTemplateVarianceChecksDirectCallablePositions(t *testing.T) {
+	const source = `<?php
+/** @template-covariant T */
+class Producer {
+    /** @return T|null */
+    public function get() {}
+    /** @param T|null $value */
+    public function invalidSet($value): void {}
+    /** @param TEntity $value */
+    public function unrelated($value): void {}
+    /** @template T @param T $value */
+    public function localTemplate($value): void {}
+}
+
+/** @template-contravariant T */
+class Consumer {
+    /** @param T $value */
+    public function consume($value): void {}
+    /** @return T */
+    public function invalidExpose() {}
+}
+class TEntity {}
+
+class CallableVariance {
+    /** @template-covariant T */
+    public function invalidTemplateTag() {}
+}
+`
+	files := map[string]string{"variance.php": source}
+	issues := runAnalysisLevelOnFiles(t, files, 2)
+	var violations []AnalysisIssue
+	methodVarianceFound := false
+	for _, issue := range issues {
+		if issue.Code == level2PHPDocTemplateVarianceCode {
+			violations = append(violations, issue)
+		}
+		methodVarianceFound = methodVarianceFound || issue.Code == level2PHPDocMethodVarianceCode
+	}
+	if len(issues) != 3 {
+		t.Fatalf("expected only the two position violations and one invalid method tag, got %#v", issues)
+	}
+	if len(violations) != 2 {
+		t.Fatalf("expected one covariant parameter and one contravariant return violation, got %#v", issues)
+	}
+	if !methodVarianceFound {
+		t.Fatalf("variance tags on callable templates should be rejected, got %#v", issues)
+	}
+	if !strings.Contains(violations[0].Message, "covariant") && !strings.Contains(violations[1].Message, "covariant") {
+		t.Fatalf("missing covariant parameter violation: %#v", violations)
+	}
+	if !strings.Contains(violations[0].Message, "contravariant") && !strings.Contains(violations[1].Message, "contravariant") {
+		t.Fatalf("missing contravariant return violation: %#v", violations)
+	}
+	for _, issue := range runAnalysisLevelOnFiles(t, files, 1) {
+		if issue.Code == level2PHPDocTemplateVarianceCode || issue.Code == level2PHPDocMethodVarianceCode {
+			t.Fatalf("level 2 variance diagnostics should stay disabled at level 1, got %#v", issue)
+		}
 	}
 }
 

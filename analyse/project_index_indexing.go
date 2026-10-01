@@ -19,12 +19,14 @@ func (idx *ProjectIndex) indexNodes(filename string, nodes []ast.Node, ft FileTy
 		case *ast.ClassNode:
 			name := ft.resolveClassLike(n.Name)
 			templates, templateBounds, genericParents := resolvedGenericMetadata(n.PHPDoc, ft)
+			templateVariances := resolvedTemplateVariances(n.PHPDoc)
 			class := ResolvedClass{
 				Name:                  name,
 				Extends:               resolvedList(ft, optionalList(n.Extends)),
 				Implements:            resolvedList(ft, n.Implements),
 				TemplateParams:        templates,
 				TemplateBounds:        templateBounds,
+				TemplateVariances:     templateVariances,
 				GenericParents:        genericParents,
 				Traits:                traitUsesFromMembers(n.Properties, ft),
 				Kind:                  "class",
@@ -38,7 +40,8 @@ func (idx *ProjectIndex) indexNodes(filename string, nodes []ast.Node, ft FileTy
 		case *ast.InterfaceNode:
 			name := ft.resolveClassLike(n.Name)
 			templates, templateBounds, genericParents := resolvedGenericMetadata(n.PHPDoc, ft)
-			idx.addClass(filename, ResolvedClass{Name: name, Extends: resolvedList(ft, n.Extends), TemplateParams: templates, TemplateBounds: templateBounds, GenericParents: genericParents, Kind: "interface"}, n)
+			templateVariances := resolvedTemplateVariances(n.PHPDoc)
+			idx.addClass(filename, ResolvedClass{Name: name, Extends: resolvedList(ft, n.Extends), TemplateParams: templates, TemplateBounds: templateBounds, TemplateVariances: templateVariances, GenericParents: genericParents, Kind: "interface"}, n)
 			idx.indexInterfaceMembers(filename, name, n.Members, ft, n.PHPDoc, templates)
 		case *ast.TraitNode:
 			if n.Name != nil {
@@ -543,6 +546,24 @@ func resolvedGenericMetadata(doc *ast.PHPDocNode, ft FileTypeContext) ([]string,
 		parents = append(parents, parent)
 	}
 	return templates, templateBounds, parents
+}
+
+func resolvedTemplateVariances(doc *ast.PHPDocNode) []GenericVariance {
+	if doc == nil || len(doc.Templates) == 0 {
+		return nil
+	}
+	variances := make([]GenericVariance, len(doc.Templates))
+	for index, template := range doc.Templates {
+		switch template.Variance {
+		case string(GenericCovariant):
+			variances[index] = GenericCovariant
+		case string(GenericContravariant):
+			variances[index] = GenericContravariant
+		default:
+			variances[index] = GenericInvariant
+		}
+	}
+	return variances
 }
 
 func constantFromNode(filename, className string, c *ast.ConstantNode, ft FileTypeContext) ResolvedConstant {
