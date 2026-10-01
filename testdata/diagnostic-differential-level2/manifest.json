@@ -769,6 +769,32 @@
       "file": "phpdoc-method-template-variance.php",
       "engineCodes": ["Level2.PHPDocMethodVariance"],
       "phpstanIdentifiers": ["method.variance"]
+    },
+    {
+      "id": "phpdoc-template-nested-variance",
+      "capability": "variance composes through nested generics and callable signatures",
+      "file": "phpdoc-template-nested-variance.php",
+      "engineCodes": [
+        "Level2.PHPDocTemplateVariance",
+        "Level2.PHPDocTemplateVariance",
+        "Level2.PHPDocTemplateVariance",
+        "Level2.PHPDocTemplateVariance",
+        "Level2.PHPDocTemplateVariance"
+      ],
+      "phpstanIdentifiers": [
+        "generics.variance",
+        "generics.variance",
+        "generics.variance",
+        "generics.variance",
+        "generics.variance"
+      ]
+    },
+    {
+      "id": "phpdoc-generic-inherited-bound",
+      "capability": "generic bounds account for variance and inherited substitutions",
+      "file": "phpdoc-generic-inherited-bound.php",
+      "engineCodes": ["Level2.PHPDocGenericNotSubtype", "Level2.PHPDocGenericNotSubtype"],
+      "phpstanIdentifiers": ["generics.notSubtype", "generics.notSubtype"]
     }
   ]
 }

@@ -328,6 +328,101 @@ class CallableVariance {
 	}
 }
 
+func TestLevel2PHPDocTemplateVarianceComposesNestedGenericAndCallablePositions(t *testing.T) {
+	const source = `<?php
+/** @template-covariant T */
+interface ReadBox {}
+/** @template-contravariant T */
+interface WriteBox {}
+/** @template T */
+interface InvariantBox {}
+
+/** @template-covariant T */
+class NestedVariance {
+    /** @return ReadBox<T> */ public function readThroughCovariant() {}
+    /** @param ReadBox<T> $value */ public function writeThroughCovariant($value): void {}
+    /** @return WriteBox<T> */ public function invalidReadThroughContravariant() {}
+    /** @param WriteBox<T> $value */ public function writeThroughContravariant($value): void {}
+    /** @return InvariantBox<T> */ public function invalidInvariantReturn() {}
+    /** @return callable(T): void */ public function invalidCallableInput() {}
+    /** @param callable(T): void $callback */ public function acceptCallableInput($callback): void {}
+    /** @param callable(): T $callback */ public function invalidCallableOutput($callback): void {}
+    /** @return callable(): T */ public function callableOutput() {}
+}
+`
+	issues := runAnalysisLevelOnFiles(t, map[string]string{"nested-variance.php": source}, 2)
+	var varianceIssues []AnalysisIssue
+	for _, issue := range issues {
+		if issue.Code == level2PHPDocTemplateVarianceCode {
+			varianceIssues = append(varianceIssues, issue)
+		}
+	}
+	if len(issues) != 5 || len(varianceIssues) != 5 {
+		t.Fatalf("expected five composed variance violations and no other issues, got %#v", issues)
+	}
+}
+
+func TestLevel2PHPDocGenericBoundsFollowVarianceAndInheritedSubstitutions(t *testing.T) {
+	const source = `<?php
+class Animal {}
+class Dog extends Animal {}
+
+/** @template-covariant T */
+class ReadOnlyBox {}
+/** @template-contravariant T */
+class WriteOnlyBox {}
+/** @template T */
+class InvariantBox {}
+
+/** @template T */
+interface GenericParent {}
+/** @template-covariant T */
+interface CovariantParent {}
+/** @template T @implements CovariantParent<T> */
+class ChildParent implements CovariantParent {}
+/** @implements CovariantParent<Dog> */
+class DogChildParent implements CovariantParent {}
+/** @template T @extends ChildParent<T> */
+class GrandchildParent extends ChildParent implements CovariantParent {}
+
+/** @template T of ReadOnlyBox<Animal> */
+class ReadOnlyBound {}
+/** @template T of WriteOnlyBox<Dog> */
+class WriteOnlyBound {}
+/** @template T of InvariantBox<Animal> */
+class InvariantBound {}
+/** @template T of CovariantParent<Animal> */
+class ParentBound {}
+/** @template T of CovariantParent<Animal> */
+class ParentTemplateBound {}
+
+/** @param ReadOnlyBound<ReadOnlyBox<Dog>> $value */
+function covariantBoundPasses($value): void {}
+/** @param WriteOnlyBound<WriteOnlyBox<Animal>> $value */
+function contravariantBoundPasses($value): void {}
+/** @param InvariantBound<InvariantBox<Dog>> $value */
+function invariantBoundFails($value): void {}
+/** @param ReadOnlyBound<mixed> $value */
+function mixedBoundFails($value): void {}
+/** @param ParentBound<DogChildParent> $value */
+function fixedInheritedArgumentPasses($value): void {}
+/** @param ParentTemplateBound<ChildParent<Dog>> $value */
+function substitutedInheritedArgumentPasses($value): void {}
+/** @param ParentTemplateBound<GrandchildParent<Dog>> $value */
+function transitivelySubstitutedInheritedArgumentPasses($value): void {}
+`
+	issues := runAnalysisLevelOnFiles(t, map[string]string{"inherited-generics.php": source}, 2)
+	var boundIssues []AnalysisIssue
+	for _, issue := range issues {
+		if issue.Code == level2PHPDocGenericBoundCode {
+			boundIssues = append(boundIssues, issue)
+		}
+	}
+	if len(issues) != 2 || len(boundIssues) != 2 {
+		t.Fatalf("expected only the invariant and mixed generic-bound mismatches, got %#v", issues)
+	}
+}
+
 func TestLevel2PHPDocPropertyTypeDoesNotUsePrecedingConstantPHPDoc(t *testing.T) {
 	const source = `<?php
 class ShiftAssignment {

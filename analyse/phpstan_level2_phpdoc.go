@@ -70,7 +70,7 @@ func appendCallablePHPDocIssues(filename string, declaration ast.Node, params []
 			)))
 			continue
 		}
-		appendTemplateVarianceIssue(filename, declaration, class, doc, documented.Type, GenericContravariant, "parameter $"+documented.Name, issues)
+		appendTemplateVarianceIssue(filename, declaration, class, doc, documented.Type, GenericContravariant, "parameter $"+documented.Name, ft, ctx, issues)
 		native := paramTypeName(param)
 		if native == "" || phpDocUsesTemplate(documented.Type, templates) {
 			continue
@@ -86,7 +86,7 @@ func appendCallablePHPDocIssues(filename string, declaration ast.Node, params []
 		return
 	}
 	effectiveReturn := collapsePHPDocConditionalType(doc.ReturnType, nativeReturn)
-	appendTemplateVarianceIssue(filename, declaration, class, doc, doc.ReturnType, GenericCovariant, "return type", issues)
+	appendTemplateVarianceIssue(filename, declaration, class, doc, doc.ReturnType, GenericCovariant, "return type", ft, ctx, issues)
 	appendPHPDocTypeIssues(filename, declaration, effectiveReturn, templates, ft, ctx, issues)
 	if phpDocTypeIsConditional(doc.ReturnType) {
 		return
@@ -98,7 +98,7 @@ func appendCallablePHPDocIssues(filename string, declaration ast.Node, params []
 	}
 }
 
-func appendTemplateVarianceIssue(filename string, declaration ast.Node, class *ast.ClassNode, doc *ast.PHPDocNode, raw string, position GenericVariance, description string, issues *[]AnalysisIssue) {
+func appendTemplateVarianceIssue(filename string, declaration ast.Node, class *ast.ClassNode, doc *ast.PHPDocNode, raw string, position GenericVariance, description string, ft FileTypeContext, ctx *AnalysisContext, issues *[]AnalysisIssue) {
 	if class == nil || class.PHPDoc == nil {
 		return
 	}
@@ -124,47 +124,13 @@ func appendTemplateVarianceIssue(filename string, declaration ast.Node, class *a
 		default:
 			continue
 		}
-		if !directPHPDocTemplateUse(raw, template.Name) {
-			continue
-		}
-		if variance == GenericCovariant && position != GenericContravariant || variance == GenericContravariant && position != GenericCovariant {
+		if !phpDocTemplateHasVarianceConflict(raw, template.Name, variance, position, ft, ctx) {
 			continue
 		}
 		*issues = append(*issues, issueSpan(filename, declaration, level2PHPDocTemplateVarianceCode, fmt.Sprintf(
 			"Template type %s is declared %s but occurs in %s.", template.Name, variance, description,
 		)))
 	}
-}
-
-// directPHPDocTemplateUse checks a template in a direct type position, across
-// nullable, union, intersection, and array-shorthand forms. Nested generic and
-// callable positions need the referenced declaration's variance metadata and
-// are intentionally left to a later type-relation slice.
-func directPHPDocTemplateUse(raw, templateName string) bool {
-	raw = stripBalancedOuterTypeParens(strings.TrimSpace(raw))
-	if strings.HasPrefix(raw, "?") {
-		return directPHPDocTemplateUse(strings.TrimSpace(strings.TrimPrefix(raw, "?")), templateName)
-	}
-	if strings.HasSuffix(raw, "[]") {
-		return directPHPDocTemplateUse(strings.TrimSpace(strings.TrimSuffix(raw, "[]")), templateName)
-	}
-	for _, separator := range []rune{'|', '&'} {
-		if parts := splitTopLevelTypes(raw, separator); len(parts) > 1 {
-			for _, part := range parts {
-				if directPHPDocTemplateUse(part, templateName) {
-					return true
-				}
-			}
-			return false
-		}
-	}
-	if _, ok := parseGenericTypeFromString(raw); ok {
-		return false
-	}
-	if _, _, ok := phpDocCallableSignature(raw); ok {
-		return false
-	}
-	return strings.EqualFold(strings.TrimSpace(raw), templateName)
 }
 
 func phpDocParameter(params []ast.Node, name string) (*ast.ParamNode, bool) {
@@ -272,8 +238,7 @@ func appendPHPDocGenericBaseIssues(filename string, declaration ast.Node, instan
 				continue
 			}
 			bound := ParseType(resolved.TemplateBounds[index])
-			actual := ParseType(normalizeTypeWithContext(erasePHPDocGenericArguments(argument), ft))
-			if !bound.IsEmpty() && !actual.IsEmpty() && !bound.AcceptsWithContext(actual, nil, ctx) {
+			if !bound.IsEmpty() && !phpDocTypeIsSubtype(argument, resolved.TemplateBounds[index], ft, ctx) {
 				*issues = append(*issues, issueSpan(filename, declaration, level2PHPDocGenericBoundCode, fmt.Sprintf(
 					"Type argument %s is not a subtype of template bound %s for %s.", argument, resolved.TemplateBounds[index], name,
 				)))
