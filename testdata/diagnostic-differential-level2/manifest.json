@@ -809,6 +809,27 @@
       "file": "phpdoc-imported-alias-mismatch.php",
       "engineCodes": ["Level2.PHPDocClass", "Level2.PHPDocParamType"],
       "phpstanIdentifiers": ["class.notFound", "parameter.phpDocType"]
+    },
+    {
+      "id": "phpdoc-conditional-return-clean",
+      "capability": "conditional PHPDoc return branches match the native union type",
+      "file": "phpdoc-conditional-return-clean.php",
+      "engineCodes": [],
+      "phpstanIdentifiers": []
+    },
+    {
+      "id": "phpdoc-conditional-return-mismatch",
+      "capability": "every conditional PHPDoc return branch must fit the native return type",
+      "file": "phpdoc-conditional-return-mismatch.php",
+      "engineCodes": ["Level2.PHPDocReturnType"],
+      "phpstanIdentifiers": ["return.phpDocType"]
+    },
+    {
+      "id": "phpdoc-conditional-return-boundary",
+      "capability": "negated conditional return predicates retain their complete branch union",
+      "file": "phpdoc-conditional-return-boundary.php",
+      "engineCodes": [],
+      "phpstanIdentifiers": []
     }
   ]
 }

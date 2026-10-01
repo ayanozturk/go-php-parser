@@ -173,6 +173,9 @@ type ResolvedMethod struct {
 	Name           string
 	DeclaringClass string
 	ReturnType     string
+	// ConditionalReturnType retains parameter-dependent PHPDoc return syntax
+	// for call-site branch selection; ReturnType remains its broad fallback.
+	ConditionalReturnType string
 	// NativeReturnType holds only the PHP-declared return type (empty when
 	// the method has no native return type, even if PHPDoc declares one).
 	// PHP's return-type covariance rules apply solely to native
@@ -214,14 +217,15 @@ type ResolvedConstant struct {
 }
 
 type ResolvedFunction struct {
-	ID                 SymbolID
-	Declaration        SourceLocation
-	Name               string
-	ReturnType         string
-	CallableReturnType string
-	Params             []ResolvedParam
-	Deprecated         bool
-	DeprecationMessage string
+	ID                    SymbolID
+	Declaration           SourceLocation
+	Name                  string
+	ReturnType            string
+	ConditionalReturnType string
+	CallableReturnType    string
+	Params                []ResolvedParam
+	Deprecated            bool
+	DeprecationMessage    string
 }
 
 type ResolvedParam struct {

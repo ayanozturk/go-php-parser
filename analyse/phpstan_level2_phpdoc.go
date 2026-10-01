@@ -92,11 +92,18 @@ func appendCallablePHPDocIssues(filename string, declaration ast.Node, params []
 	}
 	expandedReturn := expandPHPDocTypeAliases(doc.ReturnType, aliases)
 	appendTemplateVarianceIssue(filename, declaration, class, doc, expandedReturn, GenericCovariant, "return type", ft, ctx, issues)
-	effectiveReturn := collapsePHPDocConditionalType(expandedReturn, nativeReturn)
-	appendPHPDocTypeIssues(filename, declaration, effectiveReturn, templates, ft, ctx, issues)
-	if phpDocTypeIsConditional(effectiveReturn) {
+	if conditional, ok := parsePHPDocConditionalType(expandedReturn); ok {
+		branchUnion := conditional.thenType + "|" + conditional.elseType
+		appendPHPDocTypeIssues(filename, declaration, branchUnion, templates, ft, ctx, issues)
+		if nativeReturn != "" && !phpDocUsesTemplate(branchUnion, templates) && !phpDocTypeFitsNative(branchUnion, nativeReturn, ft, ctx) {
+			*issues = append(*issues, issueSpan(filename, declaration, level2PHPDocReturnTypeCode, fmt.Sprintf(
+				"PHPDoc return type %s is not compatible with native return type %s.", doc.ReturnType, nativeReturn,
+			)))
+		}
 		return
 	}
+	effectiveReturn := collapsePHPDocConditionalType(expandedReturn, nativeReturn)
+	appendPHPDocTypeIssues(filename, declaration, effectiveReturn, templates, ft, ctx, issues)
 	if nativeReturn != "" && !phpDocUsesTemplate(effectiveReturn, templates) && !phpDocTypeFitsNative(effectiveReturn, nativeReturn, ft, ctx) {
 		*issues = append(*issues, issueSpan(filename, declaration, level2PHPDocReturnTypeCode, fmt.Sprintf(
 			"PHPDoc return type %s is not compatible with native return type %s.", doc.ReturnType, nativeReturn,

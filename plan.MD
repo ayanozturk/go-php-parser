@@ -18,11 +18,12 @@ Complete the core PHPDoc type model and its interactions with inference, subtypi
 
 - [x] Preserve declaration-site template variance and check nested generic/callable parameter and return positions; enforce generic bound compatibility through declared variance and inherited `@extends`/`@implements` substitutions.
 - [x] Expand nested local `@phpstan-type`/`@psalm-type` aliases through generic and callable types, resolve imported class aliases in alias bodies, and retain exact token boundaries with clean, mismatch, and boundary fixtures.
-- [ ] Cover conditional types, indexed access, key/value projections, callable signatures, shapes, non-empty types, literal types, and integer ranges.
+- [x] Model parameter-dependent conditional PHPDoc return types, select branches from call arguments, and feed the result into argument checking with clean, mismatch, and unresolved-condition boundary fixtures.
+- [ ] Cover indexed access, key/value projections, callable signatures, shapes, non-empty types, literal types, and integer ranges.
 - Complete normalization, subtyping, substitution, narrowing/widening, recursion limits, and `self`/`static`/`parent`/`$this` behavior.
 - Give each correction neutral positive, negative, and boundary fixtures at the relevant PHPStan level.
 
-Immediate next slice: model parameter-dependent conditional PHPDoc types and use their branches in return checking, with clean, mismatch, and boundary fixtures.
+Immediate next slice: resolve PHPDoc indexed-access types against array shapes and generic key/value types, with clean, mismatch, and boundary fixtures.
 
 ### 3. Extend flow and project semantics
 

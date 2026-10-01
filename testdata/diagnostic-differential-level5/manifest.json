@@ -546,6 +546,27 @@
       "phpstanIdentifiers": [
         "argument.type"
       ]
+    },
+    {
+      "id": "argument-conditional-return-clean",
+      "capability": "literal arguments select compatible parameter-dependent PHPDoc return branches",
+      "file": "argument-conditional-return-clean.php",
+      "engineCodes": [],
+      "phpstanIdentifiers": []
+    },
+    {
+      "id": "argument-conditional-return-mismatch",
+      "capability": "conditional PHPDoc return branches reject arguments that mismatch the selected type",
+      "file": "argument-conditional-return-mismatch.php",
+      "engineCodes": ["A.ARG.TYPE", "A.ARG.TYPE", "A.ARG.TYPE", "A.ARG.TYPE"],
+      "phpstanIdentifiers": ["argument.type", "argument.type", "argument.type", "argument.type"]
+    },
+    {
+      "id": "argument-conditional-return-boundary",
+      "capability": "unresolved conditional arguments retain the union of both return branches",
+      "file": "argument-conditional-return-boundary.php",
+      "engineCodes": [],
+      "phpstanIdentifiers": []
     }
   ]
 }

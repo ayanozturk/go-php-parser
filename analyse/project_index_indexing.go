@@ -65,8 +65,13 @@ func (idx *ProjectIndex) indexNodes(filename string, nodes []ast.Node, ft FileTy
 			name := ft.resolveFunctionDeclarationName(n.Name)
 			nativeReturn := nativeTypeDNF(n.ReturnType, ft)
 			returnType := nativeReturn
+			conditionalReturn := ""
 			if n.PHPDoc != nil && n.PHPDoc.ReturnType != "" {
 				returnType = n.PHPDoc.ReturnType
+				if _, conditional := parsePHPDocConditionalType(returnType); conditional {
+					returnType = expandPHPDocTypeAliases(returnType, phpDocTypeAliasBindings(n.PHPDoc))
+					conditionalReturn = normalizePHPDocConditionalType(returnType, ft, phpDocTemplateNames(nil, n.PHPDoc))
+				}
 			}
 			returnType = collapsePHPDocConditionalType(returnType, nativeReturn)
 			returnType = expandPHPDocTypeAliases(returnType, phpDocTypeAliasBindings(n.PHPDoc))
@@ -75,7 +80,7 @@ func (idx *ProjectIndex) indexNodes(filename string, nodes []ast.Node, ft FileTy
 			if !callableReturn.IsEmpty() {
 				normalizedReturn = "callable"
 			}
-			fn := ResolvedFunction{Name: name, Declaration: sourceLocation(filename, n), ReturnType: normalizedReturn, CallableReturnType: callableReturn.dnfString(), Params: paramsFromNodesWithPHPDoc(n.Params, n.PHPDoc, ft, nil, phpDocTypeAliasBindings(n.PHPDoc))}
+			fn := ResolvedFunction{Name: name, Declaration: sourceLocation(filename, n), ReturnType: normalizedReturn, ConditionalReturnType: conditionalReturn, CallableReturnType: callableReturn.dnfString(), Params: paramsFromNodesWithPHPDoc(n.Params, n.PHPDoc, ft, nil, phpDocTypeAliasBindings(n.PHPDoc))}
 			if n.PHPDoc != nil {
 				fn.Deprecated = n.PHPDoc.Deprecated
 				fn.DeprecationMessage = n.PHPDoc.DeprecationMessage
@@ -164,16 +169,21 @@ func (idx *ProjectIndex) indexInterfaceMembers(filename, className string, membe
 	for _, member := range members {
 		switch m := member.(type) {
 		case *ast.InterfaceMethodNode:
+			aliases := phpDocTypeAliasBindings(classDoc, m.PHPDoc)
 			nativeReturn := ""
 			if m.ReturnType != nil {
 				nativeReturn = nativeTypeDNF(m.ReturnType, ft)
 			}
 			returnType := nativeReturn
+			conditionalReturn := ""
 			if m.PHPDoc != nil && m.PHPDoc.ReturnType != "" {
 				returnType = m.PHPDoc.ReturnType
+				if _, conditional := parsePHPDocConditionalType(returnType); conditional {
+					returnType = expandPHPDocTypeAliases(returnType, aliases)
+					conditionalReturn = returnType
+				}
 			}
 			returnType = collapsePHPDocConditionalType(returnType, nativeReturn)
-			aliases := phpDocTypeAliasBindings(classDoc, m.PHPDoc)
 			returnType = expandPHPDocTypeAliases(returnType, aliases)
 			templates := templateNames(templateParams)
 			if m.PHPDoc != nil {
@@ -184,6 +194,9 @@ func (idx *ProjectIndex) indexInterfaceMembers(filename, className string, membe
 			for name := range aliases {
 				templates = mergeTemplateNames(templates, []string{name})
 			}
+			if conditionalReturn != "" {
+				conditionalReturn = normalizePHPDocConditionalType(conditionalReturn, ft, templates)
+			}
 			callableReturn := callableReturnType(returnType, ft)
 			normalizedReturn := normalizeTemplateAwareType(returnType, ft, templates)
 			if !callableReturn.IsEmpty() {
@@ -193,7 +206,7 @@ func (idx *ProjectIndex) indexInterfaceMembers(filename, className string, membe
 			if nativeReturn != "" {
 				nativeReturnType = normalizeTemplateAwareType(nativeReturn, ft, templates)
 			}
-			idx.addMethod(className, ResolvedMethod{Name: m.Name, DeclaringClass: className, Declaration: sourceLocation(filename, m), ReturnType: normalizedReturn, NativeReturnType: nativeReturnType, CallableReturnType: callableReturn.dnfString(), Params: paramsFromNodesWithPHPDoc(m.Params, m.PHPDoc, ft, templates, aliases), TemplateParams: resolvedMethodTemplateParams(m.PHPDoc), TemplateBounds: resolvedMethodTemplateBounds(m.PHPDoc, ft, templates), Visibility: "public", Abstract: true})
+			idx.addMethod(className, ResolvedMethod{Name: m.Name, DeclaringClass: className, Declaration: sourceLocation(filename, m), ReturnType: normalizedReturn, ConditionalReturnType: conditionalReturn, NativeReturnType: nativeReturnType, CallableReturnType: callableReturn.dnfString(), Params: paramsFromNodesWithPHPDoc(m.Params, m.PHPDoc, ft, templates, aliases), TemplateParams: resolvedMethodTemplateParams(m.PHPDoc), TemplateBounds: resolvedMethodTemplateBounds(m.PHPDoc, ft, templates), Visibility: "public", Abstract: true})
 		case *ast.PropertyNode:
 			rawType := nativeTypeDNF(m.TypeHint, ft)
 			docType := ""
@@ -456,8 +469,12 @@ func methodFromFunction(filename, className string, fn *ast.FunctionNode, ft Fil
 	aliases := phpDocTypeAliasBindings(classDoc, fn.PHPDoc)
 	nativeReturn := nativeTypeDNF(fn.ReturnType, ft)
 	returnType := nativeReturn
+	conditionalReturn := ""
 	if fn.PHPDoc != nil && fn.PHPDoc.ReturnType != "" {
 		returnType = fn.PHPDoc.ReturnType
+		if _, conditional := parsePHPDocConditionalType(returnType); conditional {
+			conditionalReturn = expandPHPDocTypeAliases(returnType, aliases)
+		}
 	}
 	returnType = collapsePHPDocConditionalType(returnType, nativeReturn)
 	returnType = expandPHPDocTypeAliases(returnType, aliases)
@@ -470,6 +487,9 @@ func methodFromFunction(filename, className string, fn *ast.FunctionNode, ft Fil
 	for name := range aliases {
 		templates = mergeTemplateNames(templates, []string{name})
 	}
+	if conditionalReturn != "" {
+		conditionalReturn = normalizePHPDocConditionalType(conditionalReturn, ft, templates)
+	}
 	callableReturn := callableReturnType(returnType, ft)
 	normalizedReturn := normalizeTemplateAwareType(returnType, ft, templates)
 	if !callableReturn.IsEmpty() {
@@ -480,19 +500,20 @@ func methodFromFunction(filename, className string, fn *ast.FunctionNode, ft Fil
 		nativeReturnType = normalizeTemplateAwareType(nativeReturn, ft, templates)
 	}
 	method := ResolvedMethod{
-		Name:               fn.Name,
-		DeclaringClass:     className,
-		Declaration:        sourceLocation(filename, fn),
-		ReturnType:         normalizedReturn,
-		NativeReturnType:   nativeReturnType,
-		CallableReturnType: callableReturn.dnfString(),
-		Params:             paramsFromNodesWithPHPDoc(fn.Params, fn.PHPDoc, ft, templates, aliases),
-		TemplateParams:     resolvedMethodTemplateParams(fn.PHPDoc),
-		TemplateBounds:     resolvedMethodTemplateBounds(fn.PHPDoc, ft, templates),
-		Visibility:         functionVisibility(fn),
-		IsStatic:           hasModifier(fn.Modifiers, "static"),
-		Abstract:           hasModifier(fn.Modifiers, "abstract"),
-		Final:              hasModifier(fn.Modifiers, "final"),
+		Name:                  fn.Name,
+		DeclaringClass:        className,
+		Declaration:           sourceLocation(filename, fn),
+		ReturnType:            normalizedReturn,
+		ConditionalReturnType: conditionalReturn,
+		NativeReturnType:      nativeReturnType,
+		CallableReturnType:    callableReturn.dnfString(),
+		Params:                paramsFromNodesWithPHPDoc(fn.Params, fn.PHPDoc, ft, templates, aliases),
+		TemplateParams:        resolvedMethodTemplateParams(fn.PHPDoc),
+		TemplateBounds:        resolvedMethodTemplateBounds(fn.PHPDoc, ft, templates),
+		Visibility:            functionVisibility(fn),
+		IsStatic:              hasModifier(fn.Modifiers, "static"),
+		Abstract:              hasModifier(fn.Modifiers, "abstract"),
+		Final:                 hasModifier(fn.Modifiers, "final"),
 	}
 	if fn.PHPDoc != nil {
 		method.Deprecated = fn.PHPDoc.Deprecated

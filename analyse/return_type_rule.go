@@ -604,6 +604,9 @@ func inferFunctionCallType(n *ast.FunctionCallNode, scope *functionScope, ctx *A
 		}
 		resolvedName := resolveFunctionNameForCall(name, typeCtx, ctx)
 		if function, ok := resolveFunctionView(ctx.Resolver, resolvedName); ok && strings.TrimSpace(function.ReturnType) != "" {
+			if conditional := phpDocConditionalReturnTypeForCall(function.ConditionalReturnType, function.Params, n.Args, scope, ctx); !conditional.IsEmpty() {
+				return conditional
+			}
 			return ParseType(function.ReturnType)
 		}
 	}
@@ -657,7 +660,89 @@ func inferStaticMethodCallType(call *ast.FunctionCallNode, scope *functionScope,
 		return Type{}, false
 	}
 	bindings := bindCallSiteMethodTemplates(method, call.Args, scope, ctx, "")
-	return inferredMethodReturnTypePreserving(method, className, ctx, bindings, classTemplatePreserveSet(scope, ctx)), true
+	return inferredMethodReturnTypeForCall(method, className, ctx, bindings, classTemplatePreserveSet(scope, ctx), call.Args, scope), true
+}
+
+func phpDocConditionalReturnTypeForCall(raw string, params []ResolvedParam, args []ast.Node, scope *functionScope, ctx *AnalysisContext) Type {
+	conditional, ok := parsePHPDocConditionalType(raw)
+	if !ok {
+		return EmptyType()
+	}
+	var argument ast.Node
+	position := 0
+	for _, argumentNode := range args {
+		if named, ok := argumentNode.(*ast.NamedArgumentNode); ok {
+			for index, param := range params {
+				if strings.EqualFold(param.Name, named.Name) && index < len(params) {
+					argument = argumentValue(argumentNode)
+					break
+				}
+			}
+			if argument != nil {
+				break
+			}
+			continue
+		}
+		if _, unpacked := argumentNode.(*ast.UnpackedArgumentNode); unpacked {
+			break
+		}
+		if position < len(params) && strings.EqualFold(params[position].Name, conditional.variable) {
+			argument = argumentValue(argumentNode)
+			break
+		}
+		position++
+	}
+	if argument == nil {
+		return EmptyType()
+	}
+	var typeCtx FileTypeContext
+	if scope != nil {
+		typeCtx = scope.typeCtx
+	}
+	if !phpDocConditionalTestTypesAreKnown(conditional.tested, typeCtx, ctx) {
+		return EmptyType()
+	}
+	tested := ParseType(conditional.tested)
+	branch := conditional.thenType + "|" + conditional.elseType
+	actual := inferType(argument, scope, ctx)
+	if !actual.IsEmpty() && !actual.hasBuiltin("mixed") && !tested.IsEmpty() {
+		known, matches := false, false
+		if tested.AcceptsWithContext(actual, scope, ctx) {
+			known, matches = true, true
+		} else if !actual.AcceptsWithContext(tested, scope, ctx) {
+			known = true
+		}
+		if known {
+			if conditional.negated {
+				matches = !matches
+			}
+			if matches {
+				branch = conditional.thenType
+			} else {
+				branch = conditional.elseType
+			}
+		}
+	}
+	return ParseType(branch)
+}
+
+func phpDocConditionalTestTypesAreKnown(raw string, typeCtx FileTypeContext, ctx *AnalysisContext) bool {
+	for _, name := range referencedClassTypes(raw, typeCtx) {
+		if ctx == nil || ctx.Resolver == nil {
+			return false
+		}
+		if _, known := ctx.Resolver.ResolveClass(name); !known {
+			return false
+		}
+	}
+	if instance, ok := parseExactGenericTypeFromString(raw); ok {
+		for _, argument := range instance.TypeArguments {
+			if !phpDocConditionalTestTypesAreKnown(argument, typeCtx, ctx) {
+				return false
+			}
+		}
+	}
+	return true
 }
 
 func inferCallableInvocationReturn(expr ast.Node, scope *functionScope, ctx *AnalysisContext) Type {
@@ -1033,11 +1118,22 @@ func buildClassScopeDataWithSeen(class *ast.ClassNode, typeCtx FileTypeContext, 
 			continue
 		}
 		methodType := declaredFunctionReturnTypeInClass(method, class, typeCtx)
+		conditionalReturn := ""
+		if method.PHPDoc != nil {
+			if _, conditional := parsePHPDocConditionalType(method.PHPDoc.ReturnType); conditional {
+				conditionalReturn = normalizePHPDocConditionalType(
+					expandPHPDocTypeAliases(method.PHPDoc.ReturnType, phpDocTypeAliasBindings(class.PHPDoc, method.PHPDoc)),
+					typeCtx,
+					phpDocTemplateNames(class, method.PHPDoc),
+				)
+			}
+		}
 		resolved := ResolvedMethod{
-			Name:               method.Name,
-			ReturnType:         methodType.dnfString(),
-			CallableReturnType: callableReturnType(methodReturnTypeAnnotation(method), typeCtx).dnfString(),
-			Params:             make([]ResolvedParam, 0, len(method.Params)),
+			Name:                  method.Name,
+			ReturnType:            methodType.dnfString(),
+			ConditionalReturnType: conditionalReturn,
+			CallableReturnType:    callableReturnType(methodReturnTypeAnnotation(method), typeCtx).dnfString(),
+			Params:                make([]ResolvedParam, 0, len(method.Params)),
 		}
 		for _, paramNode := range method.Params {
 			param, ok := paramNode.(*ast.ParamNode)
@@ -2140,6 +2236,17 @@ func inferredMethodReturnTypePreserving(method ResolvedMethod, calleeClass strin
 	return bindCalleeSignatureType(expandUnboundClassTemplatesExcept(returnType, method.DeclaringClass, ctx, preserve), method.DeclaringClass, calleeClass, ctx)
 }
 
+func inferredMethodReturnTypeForCall(method ResolvedMethod, calleeClass string, ctx *AnalysisContext, bindings map[string]string, preserve map[string]struct{}, args []ast.Node, scope *functionScope) Type {
+	if method.ConditionalReturnType != "" {
+		raw := ApplyTemplateBindings(method.ConditionalReturnType, bindings)
+		if selected := phpDocConditionalReturnTypeForCall(raw, method.Params, args, scope, ctx); !selected.IsEmpty() {
+			bound := expandUnboundClassTemplatesExcept(selected.String(), method.DeclaringClass, ctx, preserve)
+			return bindCalleeSignatureType(bound, method.DeclaringClass, calleeClass, ctx)
+		}
+	}
+	return inferredMethodReturnTypePreserving(method, calleeClass, ctx, bindings, preserve)
+}
+
 func bindCallSiteMethodTemplates(method ResolvedMethod, args []ast.Node, scope *functionScope, ctx *AnalysisContext, filename string) map[string]string {
 	if len(method.Params) == 0 {
 		return nil
@@ -2544,11 +2651,11 @@ func inferMethodCallTypeInFile(filename string, node *ast.MethodCallNode, scope 
 		}
 		if scope != nil && ctx != nil && ctx.Resolver != nil {
 			if method, ok := ctx.Resolver.ResolveMethod(scope.className, node.Method); ok {
-				return inferredMethodReturnTypePreserving(method, callee, ctx, bindCallSiteMethodTemplates(method, node.Args, scope, ctx, filename), preserve)
+				return inferredMethodReturnTypeForCall(method, callee, ctx, bindCallSiteMethodTemplates(method, node.Args, scope, ctx, filename), preserve, node.Args, scope)
 			}
 		}
 		if method, ok := resolveSameClassMethod(scope, node.Method); ok {
-			return inferredMethodReturnTypePreserving(method, callee, ctx, bindCallSiteMethodTemplates(method, node.Args, scope, ctx, filename), preserve)
+			return inferredMethodReturnTypeForCall(method, callee, ctx, bindCallSiteMethodTemplates(method, node.Args, scope, ctx, filename), preserve, node.Args, scope)
 		}
 	}
 
@@ -2557,7 +2664,7 @@ func inferMethodCallTypeInFile(filename string, node *ast.MethodCallNode, scope 
 			if genInst, hasGeneric := scope.genericContext[varNode.Name]; hasGeneric {
 				if method, ok := resolveMethodWithGenerics(ctx.Resolver, genInst.ClassName, node.Method, genInst.TypeArguments); ok {
 					callPreserve := mergeTemplateNames(copyTemplateNameSet(preserve), templateNamesFromMap(unboundTemplateArgNames(genInst.TypeArguments, ctx)))
-					return inferredMethodReturnTypePreserving(method, genInst.ClassName, ctx, bindCallSiteMethodTemplates(method, node.Args, scope, ctx, filename), callPreserve)
+					return inferredMethodReturnTypeForCall(method, genInst.ClassName, ctx, bindCallSiteMethodTemplates(method, node.Args, scope, ctx, filename), callPreserve, node.Args, scope)
 				}
 			}
 		}
@@ -2580,18 +2687,18 @@ func inferMethodCallTypeInFile(filename string, node *ast.MethodCallNode, scope 
 	preserve = mergeTemplateNames(preserve, templateNamesSlice(unboundTemplateArgNames(typeArgs, ctx)))
 	if scope != nil && strings.EqualFold(className, scope.className) {
 		if method, ok := resolveSameClassMethod(scope, node.Method); ok {
-			return inferredMethodReturnTypePreserving(method, className, ctx, bindCallSiteMethodTemplates(method, node.Args, scope, ctx, filename), preserve)
+			return inferredMethodReturnTypeForCall(method, className, ctx, bindCallSiteMethodTemplates(method, node.Args, scope, ctx, filename), preserve, node.Args, scope)
 		}
 	}
 	if ctx != nil && ctx.Resolver != nil {
 		if method, ok := resolveMethodWithGenerics(ctx.Resolver, className, node.Method, typeArgs); ok {
-			return inferredMethodReturnTypePreserving(method, className, ctx, bindCallSiteMethodTemplates(method, node.Args, scope, ctx, filename), preserve)
+			return inferredMethodReturnTypeForCall(method, className, ctx, bindCallSiteMethodTemplates(method, node.Args, scope, ctx, filename), preserve, node.Args, scope)
 		}
 	}
 	if scope != nil {
 		if classData, ok := analysisClassScopeDataByName(ctx, className, scope.typeCtx); ok {
 			if method, ok := classData.methods[asciiLowerIdent(node.Method)]; ok {
-				return inferredMethodReturnTypePreserving(method, className, ctx, bindCallSiteMethodTemplates(method, node.Args, scope, ctx, filename), preserve)
+				return inferredMethodReturnTypeForCall(method, className, ctx, bindCallSiteMethodTemplates(method, node.Args, scope, ctx, filename), preserve, node.Args, scope)
 			}
 		}
 	}

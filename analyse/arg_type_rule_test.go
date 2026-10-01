@@ -877,6 +877,52 @@ class Demo extends AbstractController
 	}
 }
 
+func TestConditionalPHPDocFunctionAndMethodReturnsSelectCallBranches(t *testing.T) {
+	const source = `<?php
+function acceptConditionalInt(int $value): void {}
+function acceptConditionalString(string $value): void {}
+function acceptConditionalUnion(int|string $value): void {}
+
+/**
+ * @param bool $asInt
+ * @return ($asInt is true ? int : string)
+ */
+function conditionalFunction($asInt) {
+    return $asInt ? 1 : 'text';
+}
+
+class ConditionalProvider {
+    /**
+     * @param bool $asInt
+     * @return ($asInt is true ? int : string)
+     */
+    public function value($asInt) {
+        return $asInt ? 1 : 'text';
+    }
+}
+
+function verifyConditionalReturns(bool $unknown): void {
+    $provider = new ConditionalProvider();
+    acceptConditionalInt(conditionalFunction(true));
+    acceptConditionalString(conditionalFunction(false));
+    acceptConditionalString($provider->value(false));
+    acceptConditionalUnion(conditionalFunction($unknown));
+    acceptConditionalString(conditionalFunction(true));
+    acceptConditionalInt($provider->value(false));
+}
+`
+	issues := runAnalysisLevelOnFiles(t, map[string]string{"conditional-calls.php": source}, 5)
+	var mismatches []AnalysisIssue
+	for _, found := range issues {
+		if found.Code == "A.ARG.TYPE" {
+			mismatches = append(mismatches, found)
+		}
+	}
+	if len(mismatches) != 2 {
+		t.Fatalf("expected the wrong function and method call branches to fail, got %#v", issues)
+	}
+}
+
 func TestInterfaceDispatchTemplateAcceptsEvent(t *testing.T) {
 	files := map[string]string{
 		"dispatcher.php": `<?php

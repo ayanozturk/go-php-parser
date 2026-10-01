@@ -168,53 +168,98 @@ func expandPHPDocTypeAliases(raw string, aliases map[string]string) string {
 }
 
 func phpDocTypeIsConditional(raw string) bool {
-	return strings.Contains(raw, " is ") || strings.Contains(raw, " is not ")
+	_, ok := parsePHPDocConditionalType(raw)
+	return ok
 }
 
 func collapsePHPDocConditionalType(raw, native string) string {
 	raw = strings.TrimSpace(raw)
-	if !phpDocTypeIsConditional(raw) {
+	conditional, ok := parsePHPDocConditionalType(raw)
+	if !ok {
 		return raw
 	}
 	if native = strings.TrimSpace(native); native != "" {
 		return native
 	}
-	thenType, elseType, ok := phpDocConditionalBranches(raw)
-	if !ok {
-		return "mixed"
+	return conditional.thenType + "|" + conditional.elseType
+}
+
+type phpDocConditionalType struct {
+	variable string
+	tested   string
+	negated  bool
+	thenType string
+	elseType string
+}
+
+func parsePHPDocConditionalType(raw string) (phpDocConditionalType, bool) {
+	raw = stripBalancedOuterTypeParens(strings.TrimSpace(raw))
+	question := indexTopLevelByte(raw, '?')
+	if question < 0 {
+		return phpDocConditionalType{}, false
 	}
-	return thenType + "|" + elseType
+	colon := indexTopLevelByte(raw[question+1:], ':')
+	if colon < 0 {
+		return phpDocConditionalType{}, false
+	}
+	colon += question + 1
+	variable, tested, negated, ok := splitPHPDocConditionalCondition(strings.TrimSpace(raw[:question]))
+	thenType := strings.TrimSpace(raw[question+1 : colon])
+	elseType := strings.TrimSpace(raw[colon+1:])
+	if !ok || thenType == "" || elseType == "" {
+		return phpDocConditionalType{}, false
+	}
+	return phpDocConditionalType{variable: variable, tested: tested, negated: negated, thenType: thenType, elseType: elseType}, true
 }
 
 func phpDocConditionalBranches(raw string) (string, string, bool) {
-	raw = stripBalancedOuterTypeParens(strings.TrimSpace(raw))
-	if i := strings.Index(raw, "$"); i > 0 {
-		raw = raw[i:]
-	}
-	isIdx := strings.Index(raw, " is not ")
-	if isIdx < 0 {
-		isIdx = strings.Index(raw, " is ")
-	}
-	if isIdx < 0 {
+	conditional, ok := parsePHPDocConditionalType(raw)
+	if !ok {
 		return "", "", false
 	}
-	question := indexTopLevelByte(raw[isIdx:], '?')
-	if question < 0 {
-		return "", "", false
+	return conditional.thenType, conditional.elseType, true
+}
+
+func splitPHPDocConditionalCondition(condition string) (variable, tested string, negated, ok bool) {
+	condition = strings.TrimSpace(condition)
+	if !strings.HasPrefix(condition, "$") {
+		return "", "", false, false
 	}
-	question += isIdx
-	colon := indexTopLevelByte(raw[question+1:], ':')
-	if colon < 0 {
-		return "", "", false
+	separator := " is not "
+	index := strings.Index(condition, separator)
+	if index >= 0 {
+		negated = true
+	} else {
+		separator = " is "
+		index = strings.Index(condition, separator)
 	}
-	colon += question + 1
-	thenType := strings.TrimSpace(raw[question+1 : colon])
-	elseType := strings.TrimSpace(raw[colon+1:])
-	elseType = strings.TrimSpace(strings.TrimSuffix(elseType, ")"))
-	if thenType == "" || elseType == "" {
-		return "", "", false
+	if index < 0 {
+		return "", "", false, false
 	}
-	return thenType, elseType, true
+	name := strings.TrimSpace(condition[1:index])
+	if name == "" || strings.ContainsAny(name, "$\\/()<>|&!?=:,[]{} \t\r\n") {
+		return "", "", false, false
+	}
+	tested = strings.TrimSpace(condition[index+len(separator):])
+	if tested == "" {
+		return "", "", false, false
+	}
+	return name, tested, negated, true
+}
+
+func normalizePHPDocConditionalType(raw string, typeCtx FileTypeContext, templates map[string]struct{}) string {
+	conditional, ok := parsePHPDocConditionalType(raw)
+	if !ok {
+		return raw
+	}
+	negation := ""
+	if conditional.negated {
+		negation = " not"
+	}
+	tested := normalizeTemplateAwareType(conditional.tested, typeCtx, templates)
+	thenType := normalizeTemplateAwareType(conditional.thenType, typeCtx, templates)
+	elseType := normalizeTemplateAwareType(conditional.elseType, typeCtx, templates)
+	return "($" + conditional.variable + " is" + negation + " " + tested + " ? " + thenType + " : " + elseType + ")"
 }
 
 func indexTopLevelByte(raw string, target byte) int {
