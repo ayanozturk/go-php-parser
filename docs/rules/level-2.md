@@ -8,7 +8,7 @@
 
 - **Introduced at this level:** 17 registered levelled rules: `A.ASSIGN.OP.INVALID`, `A.BINARY.OP.INVALID`, `A.VOID.PURE`, `Level2.MethodExistence`, `Level2.MethodNonObject`, `Level2.MethodVisibility`, `Level2.PHPDocClass`, `Level2.PHPDocGenericLessTypes`, `Level2.PHPDocGenericMoreTypes`, `Level2.PHPDocMethodVariance`, `Level2.PHPDocNotGeneric`, `Level2.PHPDocGenericNotSubtype`, `Level2.PHPDocParamName`, `Level2.PHPDocParamType`, `Level2.PHPDocPropertyType`, `Level2.PHPDocReturnType`, and `Level2.PHPDocTemplateVariance`.
 - **Cumulative registered levelled rules:** 20.
-- **Checked-in differential pack:** 116 cases in `testdata/diagnostic-differential-level2`.
+- **Checked-in differential pack:** 118 cases in `testdata/diagnostic-differential-level2`.
 
 ## Coverage and boundaries
 

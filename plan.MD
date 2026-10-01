@@ -28,9 +28,10 @@ Complete the core PHPDoc type model and its interactions with inference, subtypi
 - Complete normalization, subtyping, substitution, narrowing/widening, recursion limits, and `self`/`static`/`parent`/`$this` behavior.
 - [x] Keep generic template substitution out of quoted PHPDoc string literals while binding surrounding shape types.
 - [x] Resolve PHPDoc `self`, `static`, `parent`, and `$this` method return types at call sites, preserving the declaring and receiver class boundaries.
+- [x] Verify nested generic subtype checks across union/intersection bounds, including clean and mismatch PHPStan fixtures.
 - Give each correction neutral positive, negative, and boundary fixtures at the relevant PHPStan level.
 
-Immediate next slice: verify generic normalization and subtyping across nested unions/intersections, including inherited substitutions and unresolved-template boundaries.
+Immediate next slice: exercise recursion-depth and cycle boundaries in PHPDoc alias expansion and nested generic subtype checks, with conservative, terminating outcomes.
 
 ### 3. Extend flow and project semantics
 

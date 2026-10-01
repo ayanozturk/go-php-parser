@@ -830,6 +830,26 @@
       "file": "phpdoc-conditional-return-boundary.php",
       "engineCodes": [],
       "phpstanIdentifiers": []
+    },
+    {
+      "id": "phpdoc-generic-nested-intersection-union-clean",
+      "capability": "nested generic bounds accept valid union and intersection subtypes",
+      "file": "phpdoc-generic-nested-intersection-union-clean.php",
+      "engineCodes": [],
+      "phpstanIdentifiers": []
+    },
+    {
+      "id": "phpdoc-generic-nested-intersection-union-mismatch",
+      "capability": "nested generic bounds reject invalid union and intersection subtypes",
+      "file": "phpdoc-generic-nested-intersection-union-mismatch.php",
+      "engineCodes": [
+        "Level2.PHPDocGenericNotSubtype",
+        "Level2.PHPDocGenericNotSubtype"
+      ],
+      "phpstanIdentifiers": [
+        "generics.notSubtype",
+        "generics.notSubtype"
+      ]
     }
   ]
 }
