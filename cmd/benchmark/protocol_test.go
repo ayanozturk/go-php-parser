@@ -78,6 +78,35 @@ func TestValidatePhaseAccountingCanIgnoreDiagnosticDifferencesForValidation(t *t
 	}
 }
 
+func TestExpectedParseErrorAccountingIsExact(t *testing.T) {
+	want, err := parseExpectedParseErrors("src/b.php, src/a.php")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(want, []string{"src/a.php", "src/b.php"}) {
+		t.Fatalf("normalized expected paths = %v", want)
+	}
+	run := runMetrics{FilesDiscovered: 3, FilesParsed: 2, FilesFailed: 1, ParseErrorFiles: []string{"src/a.php"}}
+	if err := validateExpectedParseErrors(run, []string{"src/a.php"}); err != nil {
+		t.Fatalf("expected parse error rejected: %v", err)
+	}
+	if err := validateExpectedParseErrors(run, nil); err == nil {
+		t.Fatal("unexpected parser error was accepted")
+	}
+	run.ReadErrorFiles = []string{"src/b.php"}
+	if err := validateExpectedParseErrors(run, []string{"src/a.php"}); err == nil {
+		t.Fatal("read failure was accepted")
+	}
+}
+
+func TestParseExpectedParseErrorsRejectsUnsafeAndDuplicatePaths(t *testing.T) {
+	for _, input := range []string{"../outside.php", "/absolute.php", "src/a.php,src/a.php"} {
+		if _, err := parseExpectedParseErrors(input); err == nil {
+			t.Errorf("parseExpectedParseErrors(%q) accepted invalid paths", input)
+		}
+	}
+}
+
 func TestValidatePhaseCVRejectsEitherComparedSideAboveThreshold(t *testing.T) {
 	for _, label := range []string{"candidate", "baseline"} {
 		reason := validatePhaseCV(label, phaseReport{

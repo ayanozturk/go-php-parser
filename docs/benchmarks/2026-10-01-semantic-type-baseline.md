@@ -2,20 +2,21 @@
 
 ## Scope and outcome
 
-This baseline records focused type-system checks and fresh full-registry results
-for the pinned Symfony, PSL, and Magento corpora. Ten-run cold measurements
-passed the harness variance and accounting gates for PSL and Magento. Symfony
-has a stable cold sample, but its validation run failed to parse one file, so
-the harness correctly rejected it. WordPress could not complete either a full
-registry snapshot or a cold benchmark within a safe memory envelope on this
-desktop. The active plan's four-corpus baseline gate remains open.
+This baseline records focused type-system checks and full-registry results for
+the four pinned Symfony, WordPress, PSL, and Magento corpora. Ten-run cold
+measurements pass the variance gate on all four. The benchmark classifies the
+single known malformed Symfony fixture by exact relative path; all other
+parser errors and every read failure remain rejection conditions. WordPress
+now completes after bounding optional guaranteed-loop-exit flow refinement.
+The active plan's four-corpus baseline gate is complete.
 
 No Mago binary was available on this host. These are single-engine baselines,
 not comparative performance claims.
 
 ## Reproduction inputs
 
-- Parser checkout: `11cc3f9fd61d3c2b5cd945550d8d75a6f45ff05a`.
+- Parser checkout before the implementation: `971406dd`; the complete tested
+  source tree is recorded in the commit alongside this report.
 - Corpus revisions, pinned by `test_projects/manifest.json`:
   - Symfony: `ae256f91a9cacc470fe77eca87aedd81c65ca55e`.
   - WordPress: `daaca56d3d6a9a42a0c87f6eda766c33a77c1d05`.
@@ -27,7 +28,12 @@ not comparative performance claims.
   full-analysis runs, 250 ms settling delay, no extra runs, warm loop skipped.
 - Benchmark command for each root:
   `go run ./cmd/benchmark --root test_projects/<name> --cold-runs 10 --extra-cold-runs 0 --skip-warm --workers 4 --json --output /tmp/go-php-parser-<name>-benchmark-current.json`.
-- Snapshot command for each completed root:
+- Symfony's accepted command adds
+  `--expected-parse-errors src/Symfony/Component/Config/Tests/Fixtures/ParseError.php`.
+  The expected-path list is matched exactly against parser-error paths; any
+  read error, missing expected error, or additional parser error rejects the
+  run. Per-run paths are included in JSON.
+- Snapshot command for each root:
   `go run ./cmd/analysis-corpus-snapshot --root test_projects/<name> --workers 4 --output /tmp/go-php-parser-<name>-current.json`.
 - Focused checks:
   `GOWORK=off go test ./...`;
@@ -39,52 +45,59 @@ committed. The fetched corpora are pinned and ignored by Git.
 
 ## Full-registry issue snapshots
 
-| Corpus | PHP files visited | Files with issue entries | Parse diagnostics | Issue entries |
+| Corpus | Semantic targets | Files with issue entries | Parse diagnostics | Issue entries |
 | --- | ---: | ---: | ---: | ---: |
 | Symfony | 10,026 | 10,026 | 1 | 103,912 |
 | PSL | 3,319 | 3,319 | 17 | 35,436 |
 | Magento | 25,389 | 25,389 | 1 | 281,641 |
-| WordPress | incomplete | — | — | — |
+| WordPress | 3,187 | 3,187 | 0 | 78,687 |
 
 The snapshot runner excludes files with parser diagnostics from the indexed
-project, records those paths in `parseErrors`, and still records an empty or
-non-empty issue set for every successfully indexed target. The benchmark
-harness has different file-accounting semantics; do not compare its diagnostic
-totals directly with snapshot issue-entry counts.
+project, records those paths in `parseErrors`, and records an issue set for
+every successfully indexed target. WordPress has 3,188 discovered PHP paths in
+the benchmark; one path under `src/js/_enqueues/vendor/` is excluded from
+semantic targets as vendored code, leaving 3,187 snapshot targets. The
+benchmark still parses and accounts for all 3,188 files. The Symfony snapshot
+has one parser diagnostic for the malformed fixture listed below. The
+benchmark's diagnostic totals are not directly comparable with snapshot issue
+entry counts.
 
 ## Process-cold measurements
 
 All benchmark runs used the full discovered PHP path (`.`), all registered
-rules, four workers, and ten measured cold runs. The harness's strict validation
-result is shown separately from the raw timing sample.
+rules, four workers, and ten measured cold runs. The strict validation result
+is shown separately from the raw timing sample.
 
 | Corpus | Files discovered / parsed / failed | LOC | Bytes | Diagnostics per run | Mean | CV | Max RSS | Harness validation |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- |
 | PSL | 3,336 / 3,336 / 0 | 316,742 | 9,436,242 | 36,153 | 1.695 s | 0.99% | 164.2 MiB | Pass |
-| Symfony | 10,028 / 10,027 / 1 | 1,847,951 | 80,347,084 | 103,912 | 8.118 s | 0.40% | 1,027.9 MiB | Reject: one failed file |
+| Symfony | 10,028 / 10,027 / 1 | 1,847,951 | 80,347,084 | 103,912 | 10.495 s | 2.32% | 724.7 MiB | Pass: expected parse error |
 | Magento | 25,390 / 25,390 / 0 | 3,174,100 | 97,609,952 | 281,667 | 14.841 s | 0.72% | 1,044.3 MiB | Pass |
-| WordPress | incomplete | — | — | — | — | — | at least 17.1 GiB | Stopped for memory safety |
+| WordPress | 3,188 / 3,188 / 0 | 1,115,826 | 36,103,588 | 78,687 | 4.271 s | 0.66% | 218.9 MiB | Pass |
 
-The Symfony CV is below 5%, but its one failed file means the sample is not an
-accepted full-workload baseline. PSL and Magento pass the harness's file
-accounting and CV checks. No Mago comparison was run.
+All four accepted runs passed exact file accounting and the 5% CV threshold.
+Symfony's one failed parse is named exactly as an expected malformed test
+fixture; the run has no read failures or other parser-error paths. No Mago
+comparison was run.
 
 ## WordPress memory finding
 
-The pinned checkout contains 5,362 PHP files. A full-registry snapshot attempt
-reached about 24.3 GB RSS and was killed by the OS (exit 137). A second attempt
-used `GOMEMLIMIT=4GiB GOGC=50 GOMAXPROCS=4` and two analysis workers; RSS still
-grew to about 16.6 GB, so it was interrupted before reaching the previous
-failure point. Its post-index heap profile showed about 32 MB of live Go heap,
-which places the large memory growth in the per-file analysis phase rather than
-the project-index build.
+The first full-registry snapshot attempt reached about 24.3 GB RSS and was
+killed by the OS (exit 137). A heap profile isolated the growth to
+`simulateLoopFlowStatements` while refining guaranteed `while`-loop exits: a
+branch-heavy loop in WordPress's post-list table produced exponentially many
+cloned flow scopes. A 128-path budget now bounds both AST and CST simulations;
+on overflow, the optional refinement keeps the incoming scope. Six independent
+branches remain below the cap and preserve precision; eight exceed it and
+retain the conservative nullable result.
 
-A process-cold benchmark attempt over the full discovered WordPress tree reached
-about 17.1 GB RSS during validation and was stopped before it produced a report.
-The earlier accepted WordPress/Mago report from 2026-09-01 used a different
-source revision and a `src,tests,vendor` workload with `src/js` excluded; the
-pinned checkout fetched here has no `vendor` directory. That historical result
-does not close the current pinned-corpus baseline.
+After the fix, the full pinned WordPress snapshot completed with 3,187 semantic
+targets and no parser errors. A full-index 25-file analysis probe completed in
+about 32 seconds with about 2.7 MB live Go heap after GC; the previously heavy
+post-list-table target completed in about 10 seconds with about 2.1 MB live
+heap after GC. The ten-run full benchmark peaked at 229,580,800 bytes RSS
+(218.9 MiB) and reported no failed files. Issue-set comparisons for PSL,
+Symfony, and Magento against their pre-change snapshots had zero mismatches.
 
 ## Focused type checks and microbenchmarks
 
@@ -104,8 +117,8 @@ is claimed.
 
 ## Next work
 
-Make WordPress full-registry analysis memory-bounded and identify the per-file
-allocation or retention source before attempting another all-corpus run. Then
-repair or classify the Symfony failed-file path and rerun the accepted baseline
-protocol. Keep type-system work gated by the focused differential and unit
-checks above while this corpus baseline remains open.
+The active plan moves to template bounds, variance, and generic
+inheritance/substitution. Keep subsequent type-system slices gated by focused
+clean, mismatch, and boundary fixtures plus the relevant level 3/5/7
+differential suites. Preserve the 128-path loop-flow budget as a conservative
+fallback for optional precision refinement.

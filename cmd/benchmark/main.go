@@ -54,6 +54,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"reflect"
 	"runtime"
 	"runtime/pprof"
 	"sort"
@@ -74,15 +75,17 @@ import (
 // runs, and by the worker itself (from runtime.MemStats) as a same-process
 // fallback for the warm-loop phase, where there is no child process to ask.
 type runMetrics struct {
-	DurationMs         int64 `json:"durationMs"`
-	FilesDiscovered    int   `json:"filesDiscovered"`
-	FilesParsed        int   `json:"filesParsed"`
-	FilesFailed        int   `json:"filesFailed"`
-	TotalLOC           int   `json:"totalLoc"`
-	TotalBytes         int64 `json:"totalBytes"`
-	DiagnosticsEmitted int   `json:"diagnosticsEmitted"`
-	GoMemSysPeakBytes  int64 `json:"goMemSysPeakBytes"`
-	PeakRSSBytes       int64 `json:"peakRssBytes,omitempty"`
+	DurationMs         int64    `json:"durationMs"`
+	FilesDiscovered    int      `json:"filesDiscovered"`
+	FilesParsed        int      `json:"filesParsed"`
+	FilesFailed        int      `json:"filesFailed"`
+	TotalLOC           int      `json:"totalLoc"`
+	TotalBytes         int64    `json:"totalBytes"`
+	DiagnosticsEmitted int      `json:"diagnosticsEmitted"`
+	GoMemSysPeakBytes  int64    `json:"goMemSysPeakBytes"`
+	PeakRSSBytes       int64    `json:"peakRssBytes,omitempty"`
+	ParseErrorFiles    []string `json:"parseErrorFiles,omitempty"`
+	ReadErrorFiles     []string `json:"readErrorFiles,omitempty"`
 }
 
 // phaseReport aggregates N measured runs of the same phase per the
@@ -170,6 +173,7 @@ func main() {
 	settleMs := flag.Int("settle-ms", 250, "pause between process-cold subprocesses so frequency scaling and background load can settle")
 	coldWarmups := flag.Int("cold-warmups", 1, "unmeasured process-cold full-analysis subprocesses per engine after validation and before measured runs")
 	extraColdRuns := flag.Int("extra-cold-runs", 10, "additional measured runs per engine when the CV gate fails; 0 disables extension. The gate still uses every measured sample.")
+	expectedParseErrorsFlag := flag.String("expected-parse-errors", "", "comma-separated relative-to-root PHP paths expected to have parser diagnostics; any mismatch or read error rejects the run")
 
 	// Internal re-exec entrypoint: when set, this process performs exactly
 	// one measured phase and prints its runMetrics as a single JSON line to
@@ -190,6 +194,11 @@ func main() {
 	excludes, err := parseBenchmarkPaths(*excludesFlag, true)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "benchmark: invalid --excludes: %v\n", err)
+		os.Exit(1)
+	}
+	expectedParseErrors, err := parseExpectedParseErrors(*expectedParseErrorsFlag)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "benchmark: invalid --expected-parse-errors: %v\n", err)
 		os.Exit(1)
 	}
 
@@ -286,9 +295,9 @@ func main() {
 		report.Validation.Accepted = false
 		report.Validation.Reasons = append(report.Validation.Reasons, "candidate validation: "+err.Error())
 	}
-	if validationRun.FilesFailed > 0 {
+	if err := validateExpectedParseErrors(validationRun, expectedParseErrors); err != nil {
 		report.Validation.Accepted = false
-		report.Validation.Reasons = append(report.Validation.Reasons, fmt.Sprintf("candidate validation parsed %d/%d files (%d failed)", validationRun.FilesParsed, validationRun.FilesDiscovered, validationRun.FilesFailed))
+		report.Validation.Reasons = append(report.Validation.Reasons, "candidate validation: "+err.Error())
 	}
 
 	var baselineValidation runMetrics
@@ -610,9 +619,44 @@ func validatePhaseAccounting(reference runMetrics, runs []runMetrics, includeDia
 		if run.FilesDiscovered != reference.FilesDiscovered || run.FilesParsed != reference.FilesParsed || run.FilesFailed != reference.FilesFailed || run.TotalLOC != reference.TotalLOC || run.TotalBytes != reference.TotalBytes {
 			return fmt.Errorf("run %d file accounting differs from validation", i+1)
 		}
+		if !reflect.DeepEqual(run.ParseErrorFiles, reference.ParseErrorFiles) || !reflect.DeepEqual(run.ReadErrorFiles, reference.ReadErrorFiles) {
+			return fmt.Errorf("run %d failed-file paths differ from validation", i+1)
+		}
 		if includeDiagnostics && run.DiagnosticsEmitted != reference.DiagnosticsEmitted {
 			return fmt.Errorf("run %d diagnostics = %d, validation = %d", i+1, run.DiagnosticsEmitted, reference.DiagnosticsEmitted)
 		}
+	}
+	return nil
+}
+
+func parseExpectedParseErrors(raw string) ([]string, error) {
+	if strings.TrimSpace(raw) == "" {
+		return nil, nil
+	}
+	paths := strings.Split(raw, ",")
+	for i := range paths {
+		paths[i] = filepath.ToSlash(filepath.Clean(strings.TrimSpace(paths[i])))
+		if paths[i] == "." || paths[i] == ".." || strings.HasPrefix(paths[i], "../") || filepath.IsAbs(paths[i]) {
+			return nil, fmt.Errorf("path %q must be relative to the corpus root", paths[i])
+		}
+	}
+	sort.Strings(paths)
+	for i := 1; i < len(paths); i++ {
+		if paths[i] == paths[i-1] {
+			return nil, fmt.Errorf("duplicate path %q", paths[i])
+		}
+	}
+	return paths, nil
+}
+
+func validateExpectedParseErrors(run runMetrics, expected []string) error {
+	if len(run.ReadErrorFiles) != 0 {
+		return fmt.Errorf("%d file read failure(s): %s", len(run.ReadErrorFiles), strings.Join(run.ReadErrorFiles, ", "))
+	}
+	actual := append([]string(nil), run.ParseErrorFiles...)
+	sort.Strings(actual)
+	if !reflect.DeepEqual(actual, expected) {
+		return fmt.Errorf("parser-error paths = [%s], expected [%s] (parsed %d/%d files)", strings.Join(actual, ", "), strings.Join(expected, ", "), run.FilesParsed, run.FilesDiscovered)
 	}
 	return nil
 }
@@ -693,6 +737,7 @@ func runWorker(phase, root string, paths, excludes []string, level, workers, rep
 	}
 
 	parsed, contents, parseMetrics := parseFiles(files, workers)
+	makeFailurePathsRelative(root, &parseMetrics)
 	defer releaseBenchmarkContents(contents)
 
 	switch phase {
@@ -715,6 +760,7 @@ func runWorker(phase, root string, paths, excludes []string, level, workers, rep
 				// runAnalysis drops vendored/host trees for RSS; rebuild
 				// the corpus AST before the next warm index+analyse pass.
 				parsed, contents, parseMetrics = parseFiles(files, workers)
+				makeFailurePathsRelative(root, &parseMetrics)
 			}
 			peakSys := startMemSampler()
 			start := time.Now()
@@ -768,12 +814,14 @@ func runProfile(root string, paths, excludes []string, level, workers, iteration
 	}
 
 	parsed, contents, parseMetrics := parseFiles(files, workers)
+	makeFailurePathsRelative(root, &parseMetrics)
 	defer releaseBenchmarkContents(contents)
 	var diagnostics int
 	for i := 0; i < iterations; i++ {
 		start := time.Now()
 		if i > 0 {
 			parsed, contents, parseMetrics = parseFiles(files, workers)
+			makeFailurePathsRelative(root, &parseMetrics)
 		}
 		project := analyse.BuildProjectIndex(parsed)
 		diagnostics = runAnalysis(parsed, contents, project, levelPtr, workers)
@@ -896,12 +944,13 @@ const maxReportedParseFailures = 20
 // analysis, plus file-accounting metrics.
 func parseFiles(files []string, workers int) (map[string][]ast.Node, map[string][]byte, runMetrics) {
 	type parseOutcome struct {
-		path    string
-		nodes   []ast.Node
-		content []byte
-		loc     int
-		bytes   int64
-		failed  bool
+		path        string
+		nodes       []ast.Node
+		content     []byte
+		loc         int
+		bytes       int64
+		readFailed  bool
+		parseFailed bool
 	}
 
 	n := len(files)
@@ -926,7 +975,7 @@ func parseFiles(files []string, workers int) (map[string][]ast.Node, map[string]
 				path := files[idx]
 				content, err := os.ReadFile(path)
 				if err != nil {
-					outcomes[idx] = parseOutcome{path: path, failed: true}
+					outcomes[idx] = parseOutcome{path: path, readFailed: true}
 					continue
 				}
 				var nodes []ast.Node
@@ -936,7 +985,7 @@ func parseFiles(files []string, workers int) (map[string][]ast.Node, map[string]
 				// later that owns both semantics and rules (see runAnalysis).
 				nodes, diags = syntax.ParseASTForIndex(content)
 				if len(diags) > 0 {
-					outcomes[idx] = parseOutcome{path: path, failed: true, bytes: int64(len(content))}
+					outcomes[idx] = parseOutcome{path: path, parseFailed: true, bytes: int64(len(content))}
 					continue
 				}
 				out := parseOutcome{
@@ -960,9 +1009,14 @@ func parseFiles(files []string, workers int) (map[string][]ast.Node, map[string]
 	metrics := runMetrics{FilesDiscovered: n}
 	failed := make([]string, 0)
 	for _, outcome := range outcomes {
-		if outcome.failed {
+		if outcome.readFailed || outcome.parseFailed {
 			metrics.FilesFailed++
 			metrics.TotalBytes += outcome.bytes
+			if outcome.parseFailed {
+				metrics.ParseErrorFiles = append(metrics.ParseErrorFiles, outcome.path)
+			} else {
+				metrics.ReadErrorFiles = append(metrics.ReadErrorFiles, outcome.path)
+			}
 			if len(failed) < maxReportedParseFailures {
 				failed = append(failed, outcome.path)
 			}
@@ -974,6 +1028,8 @@ func parseFiles(files []string, workers int) (map[string][]ast.Node, map[string]
 		metrics.TotalLOC += outcome.loc
 		metrics.TotalBytes += outcome.bytes
 	}
+	sort.Strings(metrics.ParseErrorFiles)
+	sort.Strings(metrics.ReadErrorFiles)
 	if len(failed) > 0 {
 		fmt.Fprintf(os.Stderr, "benchmark worker: %d parse failure(s); sample:\n", metrics.FilesFailed)
 		for _, path := range failed {
@@ -981,6 +1037,20 @@ func parseFiles(files []string, workers int) (map[string][]ast.Node, map[string]
 		}
 	}
 	return parsed, contents, metrics
+}
+
+func makeFailurePathsRelative(root string, metrics *runMetrics) {
+	makeRelative := func(paths []string) {
+		for i, path := range paths {
+			rel, err := filepath.Rel(root, path)
+			if err == nil {
+				paths[i] = filepath.ToSlash(rel)
+			}
+		}
+		sort.Strings(paths)
+	}
+	makeRelative(metrics.ParseErrorFiles)
+	makeRelative(metrics.ReadErrorFiles)
 }
 
 func countLines(content []byte) int {

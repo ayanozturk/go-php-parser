@@ -477,6 +477,9 @@ func (w *argCallCSTWalker) applyGuaranteedWhileExit(prefix []*syntax.RedNode, lo
 	}
 	entry := loopFlowPath{scope: scopeForConditionTrue(scope, condition, w.ctx), assigned: map[string]struct{}{}}
 	result := w.simulateCSTLoopStatements(syntax.StatementBodyList(syntax.WhileBody(loop)), []loopFlowPath{entry})
+	if result.overflow {
+		return
+	}
 	exits := append(append([]loopFlowPath(nil), result.normal...), result.continues...)
 	exits = append(exits, result.breaks...)
 	if len(exits) == 0 {
@@ -507,6 +510,9 @@ func (w *argCallCSTWalker) applyGuaranteedWhileExit(prefix []*syntax.RedNode, lo
 }
 
 func (w *argCallCSTWalker) simulateCSTLoopStatements(stmts []*syntax.RedNode, inputs []loopFlowPath) loopFlowResult {
+	if len(inputs) > maxLoopFlowPaths {
+		return loopFlowResult{overflow: true}
+	}
 	result := loopFlowResult{normal: inputs}
 	for _, stmt := range stmts {
 		if len(result.normal) == 0 {
@@ -515,13 +521,22 @@ func (w *argCallCSTWalker) simulateCSTLoopStatements(stmts []*syntax.RedNode, in
 		next := loopFlowResult{}
 		for _, input := range result.normal {
 			step := w.simulateCSTLoopStatement(stmt, input)
+			if step.overflow {
+				return loopFlowResult{overflow: true}
+			}
 			next.normal = append(next.normal, step.normal...)
 			next.breaks = append(next.breaks, step.breaks...)
 			next.continues = append(next.continues, step.continues...)
+			if loopFlowPathCount(next) > maxLoopFlowPaths {
+				return loopFlowResult{overflow: true}
+			}
 		}
 		result.normal = next.normal
 		result.breaks = append(result.breaks, next.breaks...)
 		result.continues = append(result.continues, next.continues...)
+		if loopFlowPathCount(result) > maxLoopFlowPaths {
+			return loopFlowResult{overflow: true}
+		}
 	}
 	return result
 }

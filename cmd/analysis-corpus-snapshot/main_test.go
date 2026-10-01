@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"sort"
 	"strconv"
+	"strings"
 	"testing"
 
 	"github.com/ayanozturk/go-php-parser/analyse"
@@ -32,7 +33,7 @@ acceptsInt('wrong');
 		paths = append(paths, path)
 	}
 
-	got, err := buildSnapshot(root, paths, 2, 5, "", "")
+	got, err := buildSnapshot(root, paths, 2, 5, 0, 0, "", "", 0, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -74,5 +75,41 @@ acceptsInt('wrong');
 
 	if !reflect.DeepEqual(got.Issues, want) {
 		t.Fatalf("streaming issue set differs from eager snapshot:\n got: %#v\nwant: %#v", got.Issues, want)
+	}
+}
+
+func TestBuildSnapshotAnalysisRangeReusesFullProjectIndex(t *testing.T) {
+	root := t.TempDir()
+	files := map[string]string{
+		"a-caller.php": `<?php
+acceptsInt('wrong');
+`,
+		"z-contract.php": `<?php
+function acceptsInt(int $value): void {}
+`,
+	}
+	paths := make([]string, 0, len(files))
+	for name, source := range files {
+		path := filepath.Join(root, name)
+		if err := os.WriteFile(path, []byte(source), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		paths = append(paths, path)
+	}
+
+	got, err := buildSnapshot(root, paths, 1, 5, 0, 1, "", "", 0, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	caller := filepath.Join(root, "a-caller.php")
+	if len(got.Issues) != 1 {
+		t.Fatalf("target range returned %d issue files, want 1: %#v", len(got.Issues), got.Issues)
+	}
+	issues, ok := got.Issues[caller]
+	if !ok {
+		t.Fatalf("target range did not analyze first sorted file %s: %#v", caller, got.Issues)
+	}
+	if len(issues) != 1 || !strings.Contains(issues[0], "A.ARG.TYPE|") {
+		t.Fatalf("target analysis did not resolve the declaration from the indexed non-target file: %#v", issues)
 	}
 }

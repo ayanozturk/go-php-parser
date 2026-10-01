@@ -7,6 +7,8 @@ import (
 	"github.com/ayanozturk/go-php-parser/ast"
 )
 
+const maxLoopFlowPaths = 128
+
 // applyGuaranteedWhileExitAssignments carries types assigned on every path
 // that can leave a definitely-entered while loop. It deliberately ignores
 // later iterations: requiring the assignment on every first-iteration
@@ -19,6 +21,12 @@ func applyGuaranteedWhileExitAssignments(prefix []ast.Node, loop *ast.WhileNode,
 
 	entry := loopFlowPath{scope: scopeForConditionTrue(scope, loop.Condition, ctx), assigned: map[string]struct{}{}}
 	result := simulateLoopFlowStatements(loop.Body, []loopFlowPath{entry}, ctx)
+	if result.overflow {
+		// This is an optional precision refinement. When the first-iteration
+		// control-flow tree exceeds the path budget, preserve the incoming scope
+		// rather than allowing branch combinations to grow exponentially.
+		return
+	}
 	exits := append(append([]loopFlowPath(nil), result.normal...), result.continues...)
 	exits = append(exits, result.breaks...)
 	if len(exits) == 0 {
@@ -58,9 +66,13 @@ type loopFlowResult struct {
 	normal    []loopFlowPath
 	breaks    []loopFlowPath
 	continues []loopFlowPath
+	overflow  bool
 }
 
 func simulateLoopFlowStatements(statements []ast.Node, inputs []loopFlowPath, ctx *AnalysisContext) loopFlowResult {
+	if len(inputs) > maxLoopFlowPaths {
+		return loopFlowResult{overflow: true}
+	}
 	result := loopFlowResult{normal: inputs}
 	for _, statement := range statements {
 		if len(result.normal) == 0 {
@@ -69,15 +81,28 @@ func simulateLoopFlowStatements(statements []ast.Node, inputs []loopFlowPath, ct
 		next := loopFlowResult{}
 		for _, input := range result.normal {
 			step := simulateLoopFlowStatement(statement, input, ctx)
+			if step.overflow {
+				return loopFlowResult{overflow: true}
+			}
 			next.normal = append(next.normal, step.normal...)
 			next.breaks = append(next.breaks, step.breaks...)
 			next.continues = append(next.continues, step.continues...)
+			if loopFlowPathCount(next) > maxLoopFlowPaths {
+				return loopFlowResult{overflow: true}
+			}
 		}
 		result.normal = next.normal
 		result.breaks = append(result.breaks, next.breaks...)
 		result.continues = append(result.continues, next.continues...)
+		if loopFlowPathCount(result) > maxLoopFlowPaths {
+			return loopFlowResult{overflow: true}
+		}
 	}
 	return result
+}
+
+func loopFlowPathCount(result loopFlowResult) int {
+	return len(result.normal) + len(result.breaks) + len(result.continues)
 }
 
 func simulateLoopFlowStatement(statement ast.Node, input loopFlowPath, ctx *AnalysisContext) loopFlowResult {
@@ -160,9 +185,15 @@ func simulateLoopFlowTry(node *ast.TryNode, input loopFlowPath, ctx *AnalysisCon
 func mergeLoopFlowResults(results ...loopFlowResult) loopFlowResult {
 	var merged loopFlowResult
 	for _, result := range results {
+		if result.overflow {
+			return loopFlowResult{overflow: true}
+		}
 		merged.normal = append(merged.normal, result.normal...)
 		merged.breaks = append(merged.breaks, result.breaks...)
 		merged.continues = append(merged.continues, result.continues...)
+		if loopFlowPathCount(merged) > maxLoopFlowPaths {
+			return loopFlowResult{overflow: true}
+		}
 	}
 	return merged
 }

@@ -54,10 +54,14 @@ func main() {
 	root := flag.String("root", "", "root directory to scan (required)")
 	workers := flag.Int("workers", runtime.NumCPU(), "number of worker goroutines")
 	limit := flag.Int("limit", 0, "max files to scan (0 = all)")
+	analysisOffset := flag.Int("analysis-offset", 0, "number of indexed files to skip before analysis (0 = first file)")
+	analysisLimit := flag.Int("analysis-limit", 0, "max indexed files to analyze (0 = all)")
 	level := flag.Int("level", -1, "analysis level to run (-1 = every registered rule, matching a nil AnalysisLevel)")
 	output := flag.String("output", "", "file to write the JSON snapshot to (required unless --baseline is set)")
 	baseline := flag.String("baseline", "", "previously captured snapshot JSON to diff the current run against")
 	memProfile := flag.String("memprofile", "", "optional Go heap profile to write after building the project index")
+	memProfileDuringAnalysis := flag.String("memprofile-during-analysis", "", "optional Go heap profile path for a delayed capture during target analysis")
+	memProfileAnalysisDelay := flag.Duration("memprofile-analysis-delay", 0, "delay before --memprofile-during-analysis is captured (for example 15s)")
 	memProfileAfter := flag.String("memprofile-after", "", "optional Go heap profile to write after corpus analysis")
 	maxDiffExamples := flag.Int("max-diff-examples", 20, "max per-file diff examples to print")
 	flag.Parse()
@@ -83,7 +87,7 @@ func main() {
 		files = files[:*limit]
 	}
 
-	current, err := buildSnapshot(*root, files, *workers, *level, *memProfile, *memProfileAfter)
+	current, err := buildSnapshot(*root, files, *workers, *level, *analysisOffset, *analysisLimit, *memProfile, *memProfileDuringAnalysis, *memProfileAnalysisDelay, *memProfileAfter)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "analysis-corpus-snapshot: %v\n", err)
 		os.Exit(1)
@@ -134,7 +138,7 @@ func collectPHPFiles(root string) ([]string, error) {
 	return files, nil
 }
 
-func buildSnapshot(root string, files []string, workers, level int, memProfile, memProfileAfter string) (*snapshot, error) {
+func buildSnapshot(root string, files []string, workers, level, analysisOffset, analysisLimit int, memProfile, memProfileDuringAnalysis string, memProfileAnalysisDelay time.Duration, memProfileAfter string) (*snapshot, error) {
 	var parseErrors []string
 	var mu sync.Mutex
 	projectFiles := make([]string, 0, len(files))
@@ -169,11 +173,34 @@ func buildSnapshot(root string, files []string, workers, level int, memProfile, 
 			return nil, err
 		}
 	}
-	snap, err := analyse.NewSemanticSnapshotWithIndexOnly(project, projectFiles, nil)
+	if analysisOffset < 0 {
+		analysisOffset = 0
+	}
+	if analysisOffset > len(projectFiles) {
+		analysisOffset = len(projectFiles)
+	}
+	targetFiles := projectFiles[analysisOffset:]
+	if analysisLimit > 0 && len(targetFiles) > analysisLimit {
+		targetFiles = targetFiles[:analysisLimit]
+	}
+	snap, err := analyse.NewSemanticSnapshotWithIndexOnly(project, targetFiles, nil)
 	if err != nil {
 		return nil, fmt.Errorf("build semantic snapshot: %w", err)
 	}
 	targets := snap.Files()
+	var analysisProfileTimer *time.Timer
+	var analysisProfileDone chan struct{}
+	if memProfileDuringAnalysis != "" && memProfileAnalysisDelay > 0 {
+		analysisProfileDone = make(chan struct{})
+		analysisProfileTimer = time.AfterFunc(memProfileAnalysisDelay, func() {
+			defer close(analysisProfileDone)
+			if err := writeHeapProfile(memProfileDuringAnalysis); err != nil {
+				fmt.Fprintf(os.Stderr, "analysis-corpus-snapshot: writing delayed heap profile: %v\n", err)
+				return
+			}
+			fmt.Fprintf(os.Stderr, "analysis-corpus-snapshot: wrote delayed heap profile to %s\n", memProfileDuringAnalysis)
+		})
+	}
 	results := make(map[string][]string, len(targets))
 	var resultsMu sync.Mutex
 	targetJobs := make(chan string)
@@ -225,6 +252,9 @@ func buildSnapshot(root string, files []string, workers, level int, memProfile, 
 	}
 	close(targetJobs)
 	runWg.Wait()
+	if analysisProfileTimer != nil && !analysisProfileTimer.Stop() {
+		<-analysisProfileDone
+	}
 	sort.Strings(parseErrors)
 	if memProfileAfter != "" {
 		if err := writeHeapProfile(memProfileAfter); err != nil {
