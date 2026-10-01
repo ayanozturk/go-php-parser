@@ -751,6 +751,26 @@
         "argument.type",
         "argument.type"
       ]
+    },
+    {
+      "id": "string-literal-narrowing-clean",
+      "capability": "strict equality branches narrow exact PHPDoc strings and branch joins preserve valid literal unions",
+      "file": "string-literal-narrowing-clean.php",
+      "engineCodes": [],
+      "phpstanIdentifiers": []
+    },
+    {
+      "id": "string-literal-narrowing-mismatch",
+      "capability": "strict equality branches reject incompatible exact PHPDoc strings",
+      "file": "string-literal-narrowing-mismatch.php",
+      "engineCodes": [
+        "A.ARG.TYPE",
+        "A.ARG.TYPE"
+      ],
+      "phpstanIdentifiers": [
+        "argument.type",
+        "argument.type"
+      ]
     }
   ]
 }

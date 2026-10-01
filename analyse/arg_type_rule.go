@@ -397,6 +397,11 @@ func variablesTypedWhenTrue(node ast.Node, scope *functionScope) map[string]Type
 				if name, ok := emptyStringComparedVariable(n.Left, n.Right); ok {
 					return map[string]Type{name: ParseType("empty-string")}
 				}
+				if name, value, ok := stringLiteralComparedVariable(n.Left, n.Right); ok {
+					if typ, refined := refineStringLiteralComparison(scope, name, value, true); refined {
+						return map[string]Type{name: typ}
+					}
+				}
 			}
 		case "!=", "!==":
 			if name, ok := nullComparisonVariable(n.Left, n.Right); ok {
@@ -407,6 +412,11 @@ func variablesTypedWhenTrue(node ast.Node, scope *functionScope) map[string]Type
 			if n.Operator == "!==" {
 				if name, ok := emptyStringComparedVariable(n.Left, n.Right); ok {
 					if typ, ok := nonEmptyStringComparisonType(scope, name); ok {
+						return map[string]Type{name: typ}
+					}
+				}
+				if name, value, ok := stringLiteralComparedVariable(n.Left, n.Right); ok {
+					if typ, refined := refineStringLiteralComparison(scope, name, value, false); refined {
 						return map[string]Type{name: typ}
 					}
 				}
@@ -470,6 +480,11 @@ func variablesTypedWhenFalse(node ast.Node, scope *functionScope) map[string]Typ
 						return map[string]Type{name: typ}
 					}
 				}
+				if name, value, ok := stringLiteralComparedVariable(n.Left, n.Right); ok {
+					if typ, refined := refineStringLiteralComparison(scope, name, value, false); refined {
+						return map[string]Type{name: typ}
+					}
+				}
 			}
 			if name, ok := falseComparisonVariable(n.Left, n.Right); ok {
 				if typ, ok := variableWithoutBuiltin(scope, name, "false"); ok {
@@ -480,6 +495,11 @@ func variablesTypedWhenFalse(node ast.Node, scope *functionScope) map[string]Typ
 			if n.Operator == "!==" {
 				if name, ok := emptyStringComparedVariable(n.Left, n.Right); ok {
 					return map[string]Type{name: ParseType("empty-string")}
+				}
+				if name, value, ok := stringLiteralComparedVariable(n.Left, n.Right); ok {
+					if typ, refined := refineStringLiteralComparison(scope, name, value, true); refined {
+						return map[string]Type{name: typ}
+					}
 				}
 			}
 		case ">", ">=", "<", "<=":
@@ -659,6 +679,54 @@ func emptyStringComparedVariable(left, right ast.Node) (string, bool) {
 		}
 	}
 	return "", false
+}
+
+func stringLiteralComparedVariable(left, right ast.Node) (string, string, bool) {
+	if variable, ok := left.(*ast.VariableNode); ok {
+		if value, literal := stringLiteralValue(argumentValue(right)); literal {
+			return variable.Name, value, true
+		}
+	}
+	if variable, ok := right.(*ast.VariableNode); ok {
+		if value, literal := stringLiteralValue(argumentValue(left)); literal {
+			return variable.Name, value, true
+		}
+	}
+	return "", "", false
+}
+
+func refineStringLiteralComparison(scope *functionScope, variableName, value string, equal bool) (Type, bool) {
+	if scope == nil {
+		return EmptyType(), false
+	}
+	current, ok := scope.variable(variableName)
+	if !ok || current.IsEmpty() {
+		return EmptyType(), false
+	}
+	literal := ParseType(quotePHPDocStringLiteral(value))
+	if equal {
+		if !current.AcceptsWithContext(literal, scope, nil) {
+			return EmptyType(), false
+		}
+		return literal, true
+	}
+	var remaining []Type
+	for _, atom := range current.sortedAtoms() {
+		atomValue, isLiteral := stringLiteralAtomValue(atom)
+		if !isLiteral {
+			return EmptyType(), false
+		}
+		if atomValue != value {
+			remaining = append(remaining, ParseType(atom.display))
+		}
+	}
+	if len(remaining) == len(current.atoms) {
+		return current, true
+	}
+	if len(remaining) == 0 {
+		return ParseType("never"), true
+	}
+	return unionInferredTypes(remaining...), true
 }
 
 func nonEmptyStringComparisonType(scope *functionScope, name string) (Type, bool) {

@@ -335,6 +335,35 @@ function mismatch(): void {
 	}
 }
 
+func TestArgumentTypesNarrowExactStringLiteralBranches(t *testing.T) {
+	const source = `<?php
+/** @param 'red' $color */
+function acceptRed($color): void {}
+/** @param 'blue' $color */
+function acceptBlue($color): void {}
+/** @param 'red'|'blue' $color */
+function check($color, bool $enabled): void {
+    if ($color === 'red') { acceptRed($color); } else { acceptBlue($color); }
+    if ($color !== 'red') { acceptBlue($color); } else { acceptRed($color); }
+    if ($enabled && $color === 'red') { acceptRed($color); }
+}
+/** @param 'red'|'blue' $color */
+function mismatch($color): void {
+    if ($color === 'red') { acceptBlue($color); } else { acceptRed($color); }
+}
+`
+	issues := runAnalysisLevelOnFiles(t, map[string]string{"string-literal-branch.php": source}, 5)
+	var mismatches []AnalysisIssue
+	for _, issue := range issues {
+		if issue.Code == "A.ARG.TYPE" {
+			mismatches = append(mismatches, issue)
+		}
+	}
+	if len(mismatches) != 2 {
+		t.Fatalf("expected only the two deliberately reversed literal branches to fail, got %#v", issues)
+	}
+}
+
 func TestUnboundContravariantClassTemplateParameterRemainsMixedForArguments(t *testing.T) {
 	const source = `<?php
 /** @template-contravariant Tin */
