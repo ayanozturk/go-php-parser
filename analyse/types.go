@@ -176,6 +176,13 @@ func parseTypeAlternatives(raw string) [][]typeAtom {
 	if raw == "" {
 		return nil
 	}
+	if isQuotedPHPDocString(raw) {
+		atom, ok := normalizeTypeAtom(raw)
+		if !ok {
+			return nil
+		}
+		return [][]typeAtom{{atom}}
+	}
 	if parts := splitTopLevelTypes(raw, '|'); len(parts) > 1 {
 		var alternatives [][]typeAtom
 		for _, part := range parts {
@@ -625,6 +632,10 @@ func normalizeTypeAtom(raw string) (typeAtom, bool) {
 	if raw == "" {
 		return typeAtom{}, false
 	}
+	if isQuotedPHPDocString(raw) {
+		value := phpDocStringLiteralValue(raw)
+		return typeAtom{key: "string-literal:" + value, display: raw, kind: typeKindBuiltin}, true
+	}
 
 	raw = strings.TrimPrefix(raw, "\\")
 	raw = canonicalizeDocType(raw)
@@ -654,6 +665,21 @@ func normalizeTypeAtom(raw string) (typeAtom, bool) {
 		display: trimmed,
 		kind:    typeKindClass,
 	}, true
+}
+
+func phpDocStringLiteralValue(raw string) string {
+	raw = strings.TrimSpace(raw)
+	if len(raw) < 2 {
+		return raw
+	}
+	if raw[0] == '"' {
+		if value, err := strconv.Unquote(raw); err == nil {
+			return value
+		}
+	}
+	value := raw[1 : len(raw)-1]
+	value = strings.ReplaceAll(value, `\\'`, `'`)
+	return strings.ReplaceAll(value, `\\\\`, `\\`)
 }
 
 func isIntLiteralType(raw string) bool {
@@ -774,6 +800,15 @@ func atomsCompatibleWithContext(declared, actual typeAtom, scope *functionScope,
 		if declared.key == "string" && actual.key == "empty-string" {
 			return true
 		}
+		if declared.key == "string" && strings.HasPrefix(actual.key, "string-literal:") {
+			return true
+		}
+		if declared.key == "empty-string" && actual.key == "string-literal:" {
+			return true
+		}
+		if declared.key == "non-empty-string" && strings.HasPrefix(actual.key, "string-literal:") && actual.key != "string-literal:" {
+			return true
+		}
 		if declared.key == "array" && (actual.key == "non-empty-array" || actual.key == "empty-array") {
 			return true
 		}
@@ -808,6 +843,9 @@ func atomsCompatibleWithContext(declared, actual typeAtom, scope *functionScope,
 }
 
 func canonicalizeDocType(raw string) string {
+	if isQuotedPHPDocString(strings.TrimSpace(raw)) {
+		return strings.TrimSpace(raw)
+	}
 	lower := asciiLowerIdent(strings.TrimSpace(raw))
 	if strings.HasPrefix(lower, "int<") && strings.HasSuffix(lower, ">") {
 		return lower

@@ -547,7 +547,7 @@ func arrayShapeValueType(raw string, typeCtx FileTypeContext) Type {
 		for _, part := range parts {
 			part = strings.TrimSpace(part)
 			if isQuotedPHPDocString(part) {
-				normalized = append(normalized, "string")
+				normalized = append(normalized, part)
 				continue
 			}
 			normalized = append(normalized, normalizeTypeWithContext(part, typeCtx))
@@ -555,7 +555,7 @@ func arrayShapeValueType(raw string, typeCtx FileTypeContext) Type {
 		return ParseType(strings.Join(normalized, "|"))
 	}
 	if isQuotedPHPDocString(raw) {
-		return ParseType("string")
+		return ParseType(raw)
 	}
 	return ParseType(normalizeTypeWithContext(raw, typeCtx))
 }
@@ -607,7 +607,7 @@ func projectedArrayShapeFieldType(raw string, typeCtx FileTypeContext, templates
 		return unionTypes(values...)
 	}
 	if isQuotedPHPDocString(raw) {
-		return ParseType("string")
+		return ParseType(raw)
 	}
 	return ParseType(normalizeTemplateAwareType(raw, typeCtx, templates))
 }
@@ -618,7 +618,24 @@ func isQuotedPHPDocString(raw string) bool {
 		return false
 	}
 	quote := raw[0]
-	return (quote == '\'' || quote == '"') && raw[len(raw)-1] == quote
+	if (quote != '\'' && quote != '"') || raw[len(raw)-1] != quote {
+		return false
+	}
+	escaped := false
+	for i := 1; i < len(raw)-1; i++ {
+		if escaped {
+			escaped = false
+			continue
+		}
+		if raw[i] == '\\' {
+			escaped = true
+			continue
+		}
+		if raw[i] == quote {
+			return false
+		}
+	}
+	return true
 }
 
 func arrayShapeBody(raw string) (string, bool) {

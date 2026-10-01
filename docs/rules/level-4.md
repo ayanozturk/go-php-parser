@@ -12,6 +12,6 @@
 
 ## Coverage and boundaries
 
-`Generic.CodeAnalysis.UnreachableCode` reports selected statements that cannot execute after terminating control flow, such as `return` and `throw`. The pinned PHPStan 2.2.5 differential pack covers both terminators, a clean conditional-return control, and confirms that `value-of` argument mismatches remain silent at level 4 before argument checking begins at level 5. This is a focused dead-code check, not a complete reachability proof for every PHP construct or path-sensitive condition.
+`Generic.CodeAnalysis.UnreachableCode` reports selected statements that cannot execute after terminating control flow, such as `return` and `throw`. The pinned PHPStan 2.2.5 differential pack covers both terminators, a clean conditional-return control, and confirms that `value-of` and quoted PHPDoc string argument mismatches remain silent at level 4 before argument checking begins at level 5. This is a focused dead-code check, not a complete reachability proof for every PHP construct or path-sensitive condition.
 
 Levels 0 through 3 are cumulative.

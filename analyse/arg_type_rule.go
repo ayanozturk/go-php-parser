@@ -1531,10 +1531,10 @@ func classTemplateParamBound(raw, className string, ctx *AnalysisContext) (name,
 }
 
 func argumentTypeIssueMinimumLevel(expected, actual Type, scope *functionScope, ctx *AnalysisContext) int {
-	if actual.hasBuiltin("false") && expected.AcceptsWithContext(actual.withoutBuiltin("false"), scope, ctx) {
+	if actual.hasBuiltin("false") && argumentExpectedTypeAcceptsActual(expected, actual.withoutBuiltin("false"), scope, ctx) {
 		return 7
 	}
-	if actual.hasBuiltin("null") && expected.AcceptsWithContext(actual.withoutBuiltin("null"), scope, ctx) {
+	if actual.hasBuiltin("null") && argumentExpectedTypeAcceptsActual(expected, actual.withoutBuiltin("null"), scope, ctx) {
 		return 8
 	}
 	if expected.hasBuiltin("non-empty-string") && actual.hasBuiltin("string") && len(actual.atoms) == 1 {
@@ -1550,6 +1550,19 @@ func argumentTypeIssueMinimumLevel(expected, actual Type, scope *functionScope, 
 		return 8
 	}
 	return 5
+}
+
+func argumentExpectedTypeAcceptsActual(expected, actual Type, scope *functionScope, ctx *AnalysisContext) bool {
+	if actual.hasBuiltin("string") && len(actual.atoms) == 1 {
+		for _, atom := range expected.atoms {
+			if strings.HasPrefix(atom.key, "string-literal:") {
+				// PHPStan 2.2.5 level 5 accepts a broad string at an exact
+				// literal parameter boundary even though the types differ.
+				return true
+			}
+		}
+	}
+	return expected.AcceptsWithContext(actual, scope, ctx)
 }
 
 func checkResolvedCallArgTypes(target string, method ResolvedMethod, args []ast.Node, scope *functionScope, ctx *AnalysisContext, filename string, issues *[]AnalysisIssue, calleeClass string) {
@@ -1622,7 +1635,7 @@ func checkResolvedCallArgTypes(target string, method ResolvedMethod, args []ast.
 		}
 
 		actual := inferArgumentTypeWithFacts(filename, argExpr, scope, ctx)
-		if expected.AcceptsWithContext(actual, scope, ctx) {
+		if argumentExpectedTypeAcceptsActual(expected, actual, scope, ctx) {
 			usedParams[paramIndex] = struct{}{}
 			continue
 		}
@@ -1651,6 +1664,16 @@ func checkResolvedCallArgTypes(target string, method ResolvedMethod, args []ast.
 
 func inferArgumentTypeWithFacts(filename string, expr ast.Node, scope *functionScope, ctx *AnalysisContext) Type {
 	actual := inferTypeWithFacts(filename, expr, scope, ctx)
+	switch node := expr.(type) {
+	case *ast.StringLiteral:
+		if isPlainStringType(actual) {
+			return stringLiteralType(node.Value)
+		}
+	case *ast.StringNode:
+		if isPlainStringType(actual) {
+			return stringLiteralType(node.Value)
+		}
+	}
 	if refined := refineLiteralEmptiness(expr, actual); !refined.IsEmpty() {
 		return refined
 	}
@@ -1728,6 +1751,12 @@ func inferredStringLiteralArgumentType(value string) Type {
 		return ParseType("empty-string")
 	}
 	return ParseType("non-empty-string")
+}
+
+func stringLiteralType(value string) Type {
+	key := "string-literal:" + value
+	atom := typeAtom{key: key, display: strconv.Quote(value), kind: typeKindBuiltin}
+	return Type{atoms: map[string]typeAtom{key: atom}, alternatives: [][]string{{key}}}
 }
 
 func resolveMethodForCall(call *ast.MethodCallNode, scope *functionScope, ctx *AnalysisContext, filename string) (ResolvedMethod, bool) {

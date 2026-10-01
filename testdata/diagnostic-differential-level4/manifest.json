@@ -42,6 +42,13 @@
       "file": "value-of-shape-argument-below-level-5.php",
       "engineCodes": [],
       "phpstanIdentifiers": []
+    },
+    {
+      "id": "argument-phpdoc-string-literals-below-level-5",
+      "capability": "quoted PHPDoc string argument mismatches remain silent below level 5",
+      "file": "argument-phpdoc-string-literals-below-level-5.php",
+      "engineCodes": [],
+      "phpstanIdentifiers": []
     }
   ]
 }

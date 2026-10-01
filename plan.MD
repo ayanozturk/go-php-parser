@@ -6,18 +6,18 @@ Roadmap source: short-term item 2 — complete the semantic and type system
 
 ## Current slice
 
-Preserve quoted PHPDoc string literals as exact types through normalization, union handling, and function/method/constructor argument compatibility. Keep literal strings distinct from general `string` while ensuring every literal remains a subtype of `string`.
+Carry exact quoted PHPDoc string literals through function/method return types, typed properties, and semantic inferred-type facts so callers can use literal precision at argument boundaries. Preserve explicit semantic facts as authoritative and keep general `string` behavior consistent with PHPStan 2.2.5.
 
-Keep this slice focused on string literals at argument boundaries. Literal-string return/property inference and projections beyond the finite-shape `value-of` support are future work.
+Keep this slice focused on return/property propagation. Callable signatures, class-constant `value-of`, and broader flow/conditional type behavior remain future work.
 
 ## Acceptance evidence
 
-- Add neutral PHPStan 2.2.5 differential fixtures for exact literal acceptance, wrong-literal rejection, literal unions, and general-string clean/mismatch controls.
-- Confirm the mismatch threshold with a clean level-4 fixture and a level-5 reporting fixture.
-- Preserve existing PHPDoc array-shape offsets and `value-of<array{...}>` argument cases.
-- Add focused unit tests for literal-string normalization and subtype behavior.
-- Run the full Go suite, level-4/5 engine differential packs, and their PHPStan reference comparisons.
-- Update the capability matrix and affected level documentation.
+- Add neutral PHPStan 2.2.5 differential fixtures for literal return and property values, including clean and mismatched argument controls.
+- Confirm the reporting level for return/property mismatches with the pinned reference analyser.
+- Preserve existing exact-literal unions, finite-shape `value-of`, and semantic inferred-type fact behavior.
+- Add focused unit tests for literal propagation through returns and properties.
+- Run the full Go suite and the affected PHPStan reference comparisons.
+- Update the capability matrix and affected rule documentation.
 - Commit and push the completed slice.
 
 ## Parent objective

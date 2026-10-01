@@ -559,6 +559,23 @@
         "argument.type",
         "argument.type"
       ]
+    },
+    {
+      "id": "argument-phpdoc-string-literals",
+      "capability": "exact PHPDoc string literals, unions, and general string arguments",
+      "file": "argument-phpdoc-string-literals.php",
+      "engineCodes": [
+        "A.ARG.TYPE",
+        "A.ARG.TYPE",
+        "A.ARG.TYPE",
+        "A.ARG.TYPE"
+      ],
+      "phpstanIdentifiers": [
+        "argument.type",
+        "argument.type",
+        "argument.type",
+        "argument.type"
+      ]
     }
   ]
 }

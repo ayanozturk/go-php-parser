@@ -67,6 +67,34 @@ func TestNonEmptyStringPreservesItsSubtypeBoundary(t *testing.T) {
 	}
 }
 
+func TestQuotedPHPDocStringLiteralNormalizationAndSubtyping(t *testing.T) {
+	if got := ParseType(`'Ready'`).String(); got != `'Ready'` {
+		t.Fatalf("literal normalization = %q, want exact case-preserved literal", got)
+	}
+	if !ParseType(`string`).Accepts(ParseType(`'Ready'`)) {
+		t.Fatal("string should accept an exact string literal")
+	}
+	if !ParseType(`non-empty-string`).Accepts(ParseType(`'Ready'`)) {
+		t.Fatal("non-empty-string should accept a non-empty exact literal")
+	}
+	if ParseType(`non-empty-string`).Accepts(ParseType(`''`)) {
+		t.Fatal("non-empty-string should reject the empty exact literal")
+	}
+	if !ParseType(`'Ready'|'Busy'`).Accepts(ParseType(`'Ready'`)) {
+		union, member := ParseType(`'Ready'|'Busy'`), ParseType(`'Ready'`)
+		t.Fatalf("literal union %q (%#v) should accept member %q (%#v)", union.String(), union.atoms, member.String(), member.atoms)
+	}
+	if ParseType(`'Ready'`).Accepts(ParseType(`'ready'`)) {
+		t.Fatal("literal strings should remain case-sensitive")
+	}
+	if ParseType(`'Ready'`).Accepts(ParseType(`string`)) {
+		t.Fatal("an unrefined string should remain distinct from an exact literal in the type lattice")
+	}
+	if !argumentExpectedTypeAcceptsActual(ParseType(`'Ready'`), ParseType(`string`), nil, nil) {
+		t.Fatal("level-5 PHPStan behavior accepts an unrefined string at a literal parameter")
+	}
+}
+
 func TestIntegerRangesAndLiteralSubtyping(t *testing.T) {
 	cases := []struct {
 		declared, actual string
