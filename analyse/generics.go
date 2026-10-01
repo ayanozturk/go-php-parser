@@ -351,6 +351,12 @@ func normalizeTemplateAwareTypeExpression(raw string, ctx FileTypeContext, templ
 		element := strings.TrimSpace(strings.TrimSuffix(raw, "[]"))
 		return "array<" + normalizeTemplateAwareTypeExpression(element, ctx, templates) + ">"
 	}
+	if instance, ok := parseGenericTypeFromString(raw); ok && strings.EqualFold(strings.TrimPrefix(instance.ClassName, `\`), "value-of") && len(instance.TypeArguments) == 1 {
+		if projected, supported := projectArrayShapeValueTypes(instance.TypeArguments[0], ctx, templates); supported {
+			return projected
+		}
+		return "mixed"
+	}
 	if instance, ok := parseGenericTypeFromString(raw); ok {
 		name := instance.ClassName
 		switch asciiLowerIdent(name) {
@@ -552,6 +558,58 @@ func arrayShapeValueType(raw string, typeCtx FileTypeContext) Type {
 		return ParseType("string")
 	}
 	return ParseType(normalizeTypeWithContext(raw, typeCtx))
+}
+
+// projectArrayShapeValueTypes resolves value-of over an explicit finite array
+// shape. Unknown spreads and malformed entries return unsupported so callers
+// can conservatively use mixed rather than inventing a partial projection.
+func projectArrayShapeValueTypes(raw string, typeCtx FileTypeContext, templates map[string]struct{}) (string, bool) {
+	body, ok := arrayShapeBody(raw)
+	if !ok {
+		return "", false
+	}
+	entries := splitTopLevelTypes(body, ',')
+	if len(entries) == 0 {
+		return "", false
+	}
+	values := make([]Type, 0, len(entries))
+	for _, entry := range entries {
+		_, value, valid := splitArrayShapeEntry(entry)
+		if !valid || strings.TrimSpace(value) == "" {
+			return "", false
+		}
+		valueType := projectedArrayShapeFieldType(value, typeCtx, templates)
+		if valueType.IsEmpty() {
+			return "", false
+		}
+		values = append(values, valueType)
+	}
+	projected := unionTypes(values...)
+	if projected.IsEmpty() {
+		return "", false
+	}
+	return projected.dnfString(), true
+}
+
+func projectedArrayShapeFieldType(raw string, typeCtx FileTypeContext, templates map[string]struct{}) Type {
+	raw = stripBalancedOuterTypeParens(strings.TrimSpace(raw))
+	if phpDocUsesTemplate(raw, templates) {
+		return EmptyType()
+	}
+	if _, nestedShape := arrayShapeBody(raw); nestedShape {
+		return EmptyType()
+	}
+	if parts := splitTopLevelTypes(raw, '|'); len(parts) > 1 {
+		values := make([]Type, 0, len(parts))
+		for _, part := range parts {
+			values = append(values, projectedArrayShapeFieldType(part, typeCtx, templates))
+		}
+		return unionTypes(values...)
+	}
+	if isQuotedPHPDocString(raw) {
+		return ParseType("string")
+	}
+	return ParseType(normalizeTemplateAwareType(raw, typeCtx, templates))
 }
 
 func isQuotedPHPDocString(raw string) bool {

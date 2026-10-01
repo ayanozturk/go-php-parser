@@ -145,6 +145,10 @@ func appendPHPDocTypeIssues(filename string, declaration ast.Node, raw string, t
 		return
 	}
 	if instance, ok := parseExactGenericTypeFromString(raw); ok {
+		if strings.EqualFold(strings.TrimPrefix(instance.ClassName, `\`), "value-of") && len(instance.TypeArguments) == 1 {
+			appendPHPDocTypeIssues(filename, declaration, instance.TypeArguments[0], templates, ft, ctx, issues)
+			return
+		}
 		appendPHPDocGenericBaseIssues(filename, declaration, instance, templates, ft, ctx, issues)
 		for _, argument := range instance.TypeArguments {
 			appendPHPDocTypeIssues(filename, declaration, argument, templates, ft, ctx, issues)

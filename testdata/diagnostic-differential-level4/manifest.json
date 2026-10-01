@@ -35,6 +35,13 @@
       "file": "clean-conditional-return.php",
       "engineCodes": [],
       "phpstanIdentifiers": []
+    },
+    {
+      "id": "value-of-shape-argument-below-level-5",
+      "capability": "value-of projected argument mismatches remain silent below level 5",
+      "file": "value-of-shape-argument-below-level-5.php",
+      "engineCodes": [],
+      "phpstanIdentifiers": []
     }
   ]
 }

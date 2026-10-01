@@ -85,6 +85,29 @@ function acceptBool(bool $value): void {}
 	}
 }
 
+func TestArgumentTypesProjectValueOfFromArrayShapes(t *testing.T) {
+	const source = `<?php
+/** @param value-of<array{count: int, label: string}> $value */
+function acceptProjectedValue($value): void {}
+function run(): void {
+    acceptProjectedValue(1);
+    acceptProjectedValue('ready');
+    acceptProjectedValue(true);
+    acceptProjectedValue([]);
+}
+`
+	issues := runAnalysisLevelOnFiles(t, map[string]string{"value-of.php": source}, 5)
+	var mismatches []AnalysisIssue
+	for _, issue := range issues {
+		if issue.Code == "A.ARG.TYPE" {
+			mismatches = append(mismatches, issue)
+		}
+	}
+	if len(mismatches) != 2 {
+		t.Fatalf("expected bool and array projection mismatches, got %#v", mismatches)
+	}
+}
+
 func TestArgumentTypesEnforceNonEmptyString(t *testing.T) {
 	const source = `<?php
 /** @param non-empty-string $value */

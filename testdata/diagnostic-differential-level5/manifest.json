@@ -546,6 +546,19 @@
       "phpstanIdentifiers": [
         "argument.type"
       ]
+    },
+    {
+      "id": "argument-value-of-shape",
+      "capability": "value-of projects declared value types from finite PHPDoc array shapes",
+      "file": "argument-value-of-shape.php",
+      "engineCodes": [
+        "A.ARG.TYPE",
+        "A.ARG.TYPE"
+      ],
+      "phpstanIdentifiers": [
+        "argument.type",
+        "argument.type"
+      ]
     }
   ]
 }

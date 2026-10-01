@@ -239,6 +239,14 @@ func normalizeTypeExpressionWithContext(raw string, ctx FileTypeContext) string 
 		}
 		return strings.Join(parts, "&")
 	}
+	if instance, ok := parseGenericTypeFromString(raw); ok && strings.EqualFold(strings.TrimPrefix(instance.ClassName, `\`), "value-of") && len(instance.TypeArguments) == 1 {
+		if projected, supported := projectArrayShapeValueTypes(instance.TypeArguments[0], ctx, nil); supported {
+			return projected
+		}
+		// Keep unsupported value projections conservative. Treating the
+		// projection syntax as a class name would create false mismatches.
+		return "mixed"
+	}
 	if instance, ok := parseGenericTypeFromString(raw); ok {
 		name := normalizeTypeExpressionWithContext(instance.ClassName, ctx)
 		args := make([]string, len(instance.TypeArguments))

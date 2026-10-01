@@ -61,7 +61,7 @@ func TestCheckedInEngineDifferentialBaseline(t *testing.T) {
 	if err != nil {
 		t.Fatalf("run engine level-4 differential baseline: %v", err)
 	}
-	if level4Report.Totals.Cases != 3 || level4Report.Totals.EngineMismatches != 0 {
+	if level4Report.Totals.Cases != 4 || level4Report.Totals.EngineMismatches != 0 {
 		t.Fatalf("unexpected level-4 differential baseline: %#v", level4Report.Totals)
 	}
 	if level4Report.Reference != nil {
@@ -72,7 +72,7 @@ func TestCheckedInEngineDifferentialBaseline(t *testing.T) {
 	if err != nil {
 		t.Fatalf("run engine level-5 differential baseline: %v", err)
 	}
-	if level5Report.Totals.Cases != 64 || level5Report.Totals.EngineMismatches != 0 {
+	if level5Report.Totals.Cases != 65 || level5Report.Totals.EngineMismatches != 0 {
 		t.Fatalf("unexpected level-5 differential baseline: %#v", level5Report.Totals)
 	}
 	if level5Report.Reference != nil {
