@@ -67,6 +67,27 @@ func TestNonEmptyStringPreservesItsSubtypeBoundary(t *testing.T) {
 	}
 }
 
+func TestPHPDocStringLiteralSubtypingAndEscaping(t *testing.T) {
+	allowed := ParseType(`'red'|'blue'`)
+	if !allowed.Accepts(ParseType(`'red'`)) {
+		t.Fatal("a string literal union should accept one of its members")
+	}
+	if allowed.Accepts(ParseType(`'green'`)) {
+		t.Fatal("a string literal union should reject an unlisted member")
+	}
+	if !ParseType("string").Accepts(ParseType(`'red'`)) {
+		t.Fatal("string should accept a string literal")
+	}
+	if !ParseType("empty-string").Accepts(ParseType(`''`)) || ParseType("non-empty-string").Accepts(ParseType(`''`)) {
+		t.Fatal("empty-string refinements should remain compatible with exact empty literals")
+	}
+	for _, literal := range []string{`'it\'s'`, `'a\\b'`} {
+		if got := ParseType(literal).String(); got != literal {
+			t.Errorf("ParseType(%q).String() = %q", literal, got)
+		}
+	}
+}
+
 func TestIntegerRangesAndLiteralSubtyping(t *testing.T) {
 	cases := []struct {
 		declared, actual string

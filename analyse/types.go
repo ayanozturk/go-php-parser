@@ -204,7 +204,10 @@ func parseTypeAlternatives(raw string) [][]typeAtom {
 		return alternatives
 	}
 
-	canonical := canonicalizeDocType(strings.TrimPrefix(raw, "\\"))
+	canonical := raw
+	if !isQuotedPHPDocString(raw) {
+		canonical = canonicalizeDocType(strings.TrimPrefix(raw, "\\"))
+	}
 	if canonical != raw && (len(splitTopLevelTypes(canonical, '|')) > 1 || len(splitTopLevelTypes(canonical, '&')) > 1) {
 		return parseTypeAlternatives(canonical)
 	}
@@ -625,6 +628,9 @@ func normalizeTypeAtom(raw string) (typeAtom, bool) {
 	if raw == "" {
 		return typeAtom{}, false
 	}
+	if value, literal := phpDocStringLiteralValue(raw); literal {
+		return typeAtom{key: "string-literal:" + value, display: quotePHPDocStringLiteral(value), kind: typeKindBuiltin}, true
+	}
 
 	raw = strings.TrimPrefix(raw, "\\")
 	raw = canonicalizeDocType(raw)
@@ -758,6 +764,16 @@ func atomsCompatibleWithContext(declared, actual typeAtom, scope *functionScope,
 		return true
 	}
 	if declared.kind == typeKindBuiltin && actual.kind == typeKindBuiltin {
+		if value, literal := stringLiteralAtomValue(actual); literal {
+			switch declared.key {
+			case "string", "literal-string":
+				return true
+			case "non-empty-string":
+				return value != ""
+			case "empty-string":
+				return value == ""
+			}
+		}
 		if declaredInterval, declaredOK := integerAtomInterval(declared); declaredOK {
 			if actualInterval, actualOK := integerAtomInterval(actual); actualOK {
 				return integerIntervalSubset(actualInterval, declaredInterval)
@@ -805,6 +821,37 @@ func atomsCompatibleWithContext(declared, actual typeAtom, scope *functionScope,
 		return classHierarchyCompatible(declared.display, actual.display, scope, ctx)
 	}
 	return false
+}
+
+func stringLiteralAtomValue(atom typeAtom) (string, bool) {
+	if !strings.HasPrefix(atom.key, "string-literal:") {
+		return "", false
+	}
+	return strings.TrimPrefix(atom.key, "string-literal:"), true
+}
+
+func phpDocStringLiteralValue(raw string) (string, bool) {
+	raw = strings.TrimSpace(raw)
+	if len(raw) < 2 || !isQuotedPHPDocString(raw) {
+		return "", false
+	}
+	if raw[0] == '"' {
+		value, err := strconv.Unquote(raw)
+		if err == nil {
+			return value, true
+		}
+		return raw[1 : len(raw)-1], true
+	}
+	value := raw[1 : len(raw)-1]
+	value = strings.ReplaceAll(value, `\'`, `'`)
+	value = strings.ReplaceAll(value, `\\`, `\`)
+	return value, true
+}
+
+func quotePHPDocStringLiteral(value string) string {
+	value = strings.ReplaceAll(value, `\`, `\\`)
+	value = strings.ReplaceAll(value, "'", `\'`)
+	return "'" + value + "'"
 }
 
 func canonicalizeDocType(raw string) string {

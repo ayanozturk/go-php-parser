@@ -126,22 +126,16 @@ func resolvePHPDocKeyValueProjection(raw string, typeCtx FileTypeContext) (strin
 	}
 	if fields := parseArrayShapeFields(base, typeCtx); len(fields) > 0 {
 		if projection == "key-of" {
-			stringKey, intKey := false, false
+			var keys Type
 			for key := range fields {
 				if isNumericArrayKey(key) {
-					intKey = true
+					keys = unionInferredTypes(keys, ParseType(key))
 				} else {
-					stringKey = true
+					keys = unionInferredTypes(keys, ParseType(quotePHPDocStringLiteral(key)))
 				}
 			}
-			if stringKey && intKey {
-				return "int|string", true
-			}
-			if intKey {
-				return "int", true
-			}
-			if stringKey {
-				return "string", true
+			if !keys.IsEmpty() {
+				return keys.String(), true
 			}
 			return "never", true
 		}

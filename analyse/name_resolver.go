@@ -223,6 +223,9 @@ func normalizeTypeExpressionWithContext(raw string, ctx FileTypeContext) string 
 	if raw == "" {
 		return ""
 	}
+	if isQuotedPHPDocString(raw) {
+		return raw
+	}
 	if parts := splitTopLevelTypes(raw, '|'); len(parts) > 1 {
 		for idx, part := range parts {
 			normalized := normalizeTypeExpressionWithContext(part, ctx)

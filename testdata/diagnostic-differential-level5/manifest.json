@@ -662,8 +662,18 @@
       "id": "argument-conditional-return-mismatch",
       "capability": "conditional PHPDoc return branches reject arguments that mismatch the selected type",
       "file": "argument-conditional-return-mismatch.php",
-      "engineCodes": ["A.ARG.TYPE", "A.ARG.TYPE", "A.ARG.TYPE", "A.ARG.TYPE"],
-      "phpstanIdentifiers": ["argument.type", "argument.type", "argument.type", "argument.type"]
+      "engineCodes": [
+        "A.ARG.TYPE",
+        "A.ARG.TYPE",
+        "A.ARG.TYPE",
+        "A.ARG.TYPE"
+      ],
+      "phpstanIdentifiers": [
+        "argument.type",
+        "argument.type",
+        "argument.type",
+        "argument.type"
+      ]
     },
     {
       "id": "argument-conditional-return-boundary",
@@ -671,6 +681,28 @@
       "file": "argument-conditional-return-boundary.php",
       "engineCodes": [],
       "phpstanIdentifiers": []
+    },
+    {
+      "id": "string-literal-arguments-clean",
+      "capability": "PHPDoc string literal arguments and key projections accept allowed values",
+      "file": "string-literal-arguments-clean.php",
+      "engineCodes": [],
+      "phpstanIdentifiers": []
+    },
+    {
+      "id": "string-literal-arguments-mismatch",
+      "capability": "PHPDoc string literal arguments and key projections reject disallowed values including assigned literals",
+      "file": "string-literal-arguments-mismatch.php",
+      "engineCodes": [
+        "A.ARG.TYPE",
+        "A.ARG.TYPE",
+        "A.ARG.TYPE"
+      ],
+      "phpstanIdentifiers": [
+        "argument.type",
+        "argument.type",
+        "argument.type"
+      ]
     }
   ]
 }

@@ -1616,10 +1616,7 @@ func isPlainStringType(typ Type) bool {
 }
 
 func inferredStringLiteralArgumentType(value string) Type {
-	if value == "" {
-		return ParseType("empty-string")
-	}
-	return ParseType("non-empty-string")
+	return ParseType(quotePHPDocStringLiteral(value))
 }
 
 func resolveMethodForCall(call *ast.MethodCallNode, scope *functionScope, ctx *AnalysisContext, filename string) (ResolvedMethod, bool) {

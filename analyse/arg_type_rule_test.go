@@ -304,6 +304,37 @@ function mismatch(): void {
 	}
 }
 
+func TestArgumentTypesPreservePHPDocStringLiteralsThroughAssignments(t *testing.T) {
+	const source = `<?php
+/** @param 'red'|'blue' $color */
+function acceptColor($color): void {}
+/** @param key-of<array{red: int, blue: int}> $key */
+function acceptKey($key): void {}
+function clean(): void {
+    $color = 'red';
+    acceptColor('blue');
+    acceptColor($color);
+    acceptKey('red');
+}
+function mismatch(): void {
+    $color = 'green';
+    acceptColor('green');
+    acceptColor($color);
+    acceptKey('green');
+}
+`
+	issues := runAnalysisLevelOnFiles(t, map[string]string{"string-literal-refinement.php": source}, 5)
+	var mismatches []AnalysisIssue
+	for _, issue := range issues {
+		if issue.Code == "A.ARG.TYPE" {
+			mismatches = append(mismatches, issue)
+		}
+	}
+	if len(mismatches) != 3 {
+		t.Fatalf("expected only the out-of-union literals and their assigned value to fail, got %#v", issues)
+	}
+}
+
 func TestUnboundContravariantClassTemplateParameterRemainsMixedForArguments(t *testing.T) {
 	const source = `<?php
 /** @template-contravariant Tin */

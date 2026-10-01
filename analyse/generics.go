@@ -373,6 +373,12 @@ func normalizeTemplateAwareTypeExpression(raw string, ctx FileTypeContext, templ
 	if raw == "" {
 		return ""
 	}
+	if isQuotedPHPDocString(raw) {
+		return raw
+	}
+	if projected, ok := resolvePHPDocKeyValueProjection(raw, ctx); ok {
+		return projected
+	}
 	if parts := splitTopLevelTypes(raw, '|'); len(parts) > 1 {
 		for idx, part := range parts {
 			normalized := normalizeTemplateAwareTypeExpression(part, ctx, templates)
@@ -586,7 +592,7 @@ func arrayShapeValueType(raw string, typeCtx FileTypeContext) Type {
 		for _, part := range parts {
 			part = strings.TrimSpace(part)
 			if isQuotedPHPDocString(part) {
-				normalized = append(normalized, "string")
+				normalized = append(normalized, part)
 				continue
 			}
 			normalized = append(normalized, normalizeTypeWithContext(part, typeCtx))
@@ -594,7 +600,7 @@ func arrayShapeValueType(raw string, typeCtx FileTypeContext) Type {
 		return ParseType(strings.Join(normalized, "|"))
 	}
 	if isQuotedPHPDocString(raw) {
-		return ParseType("string")
+		return ParseType(raw)
 	}
 	return ParseType(normalizeTypeWithContext(raw, typeCtx))
 }
@@ -681,10 +687,8 @@ func normalizeArrayShapeKey(raw string) string {
 	raw = strings.TrimSpace(raw)
 	raw = strings.TrimSuffix(raw, "?")
 	raw = strings.TrimSpace(raw)
-	if len(raw) >= 2 {
-		if (raw[0] == '\'' && raw[len(raw)-1] == '\'') || (raw[0] == '"' && raw[len(raw)-1] == '"') {
-			return raw[1 : len(raw)-1]
-		}
+	if value, quoted := phpDocStringLiteralValue(raw); quoted {
+		return value
 	}
 	return raw
 }

@@ -93,8 +93,8 @@ func TestArrayShapeFieldsRetainScalarAndLiteralValueTypes(t *testing.T) {
 	if got := fields["count"].typ.String(); got != "int" {
 		t.Fatalf("count field type = %q, want int", got)
 	}
-	if got := fields["label"].typ.String(); got != "string" {
-		t.Fatalf("literal label field type = %q, want string", got)
+	if got := fields["label"].typ.String(); got != "'busy'|'ready'" {
+		t.Fatalf("literal label field type = %q, want 'busy'|'ready'", got)
 	}
 	if got := fields["nested"].nested["active"].typ.String(); got != "bool" {
 		t.Fatalf("nested active field type = %q, want bool", got)
