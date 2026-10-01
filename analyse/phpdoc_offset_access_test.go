@@ -15,6 +15,7 @@ func TestResolvePHPDocOffsetAccess(t *testing.T) {
 		{name: "shape literal key", typ: `array{foo: int, bar: string}['foo']`, want: "int", ok: true},
 		{name: "generic array value", typ: `array<int, string>[int]`, want: "string", ok: true},
 		{name: "list value", typ: `list<bool>[int]`, want: "bool", ok: true},
+		{name: "nested shape access", typ: `array{nested: array{active: bool}}['nested']['active']`, want: "bool", ok: true},
 		{name: "unknown shape key", typ: `array{foo: int}['missing']`},
 		{name: "unresolved template", typ: `T[K]`},
 	}
@@ -37,6 +38,7 @@ func TestResolvePHPDocKeyValueProjections(t *testing.T) {
 	}{
 		{name: "shape keys", typ: `key-of<array{foo: int, bar: string}>`, want: "string", ok: true},
 		{name: "shape values", typ: `value-of<array{foo: int, bar: string}>`, want: "int|string", ok: true},
+		{name: "union shape values", typ: `value-of<array{foo: int}|array{bar: string}>`, want: "int|string", ok: true},
 		{name: "generic array keys", typ: `key-of<array<int, string>>`, want: "int", ok: true},
 		{name: "generic array values", typ: `value-of<array<int, string>>`, want: "string", ok: true},
 		{name: "unresolved template", typ: `value-of<T>`},

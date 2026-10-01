@@ -1,6 +1,10 @@
 package analyse
 
-import "strings"
+import (
+	"sort"
+	"strconv"
+	"strings"
+)
 
 func resolvePHPDocIndexedTypes(raw string, typeCtx FileTypeContext) (string, bool) {
 	if projected, ok := resolvePHPDocKeyValueProjection(raw, typeCtx); ok {
@@ -18,7 +22,7 @@ func resolvePHPDocOffsetAccess(raw string, typeCtx FileTypeContext) (string, boo
 	if len(parts) > 1 {
 		resolved := make([]string, 0, len(parts))
 		for _, part := range parts {
-			value, ok := resolvePHPDocOffsetAccess(part, typeCtx)
+			value, ok := resolvePHPDocIndexedTypes(part, typeCtx)
 			if !ok {
 				return "", false
 			}
@@ -31,29 +35,67 @@ func resolvePHPDocOffsetAccess(raw string, typeCtx FileTypeContext) (string, boo
 	if !ok {
 		return "", false
 	}
-	if fields := parseArrayShapeFields(base, typeCtx); len(fields) > 0 {
+	resolvedBase := base
+	if projected, ok := resolvePHPDocIndexedTypes(base, typeCtx); ok {
+		resolvedBase = projected
+	}
+	if fields := parseArrayShapeFields(resolvedBase, typeCtx); len(fields) > 0 {
 		keys := splitTopLevelTypes(key, '|')
-		var result Type
+		var result []string
 		for _, candidate := range keys {
 			field, exists := fields[normalizeArrayShapeKey(candidate)]
-			if !exists || field.typ.IsEmpty() {
+			if !exists {
 				return "", false
 			}
-			result = unionInferredTypes(result, field.typ)
+			fieldType := arrayShapeFieldType(field)
+			if fieldType == "" {
+				return "", false
+			}
+			result = append(result, fieldType)
 		}
-		if !result.IsEmpty() {
-			return result.String(), true
+		if len(result) > 0 {
+			return strings.Join(result, "|"), true
 		}
 		return "", false
 	}
 
-	instance, generic := parseExactGenericTypeFromString(base)
+	instance, generic := parseExactGenericTypeFromString(resolvedBase)
 	if generic {
 		if _, value, iterable := iterableTypesFromGeneric(instance); iterable && !value.IsEmpty() {
 			return value.String(), true
 		}
 	}
 	return "", false
+}
+
+func arrayShapeFieldType(field arrayShapeField) string {
+	if !field.typ.IsEmpty() {
+		return field.typ.String()
+	}
+	if len(field.nested) > 0 {
+		keys := make([]string, 0, len(field.nested))
+		for key := range field.nested {
+			keys = append(keys, key)
+		}
+		sort.Strings(keys)
+		entries := make([]string, 0, len(keys))
+		for _, key := range keys {
+			value := arrayShapeFieldType(field.nested[key])
+			if value == "" {
+				return ""
+			}
+			shapeKey := key
+			if _, err := strconv.ParseInt(key, 10, 64); err != nil {
+				shapeKey = "'" + strings.ReplaceAll(strings.ReplaceAll(key, `\\`, `\\\\`), "'", `\\'`) + "'"
+			}
+			entries = append(entries, shapeKey+": "+value)
+		}
+		return "array{" + strings.Join(entries, ", ") + "}"
+	}
+	if !field.callable.IsEmpty() {
+		return "callable"
+	}
+	return ""
 }
 
 // resolvePHPDocKeyValueProjection resolves key-of<T> and value-of<T> for
@@ -69,6 +111,19 @@ func resolvePHPDocKeyValueProjection(raw string, typeCtx FileTypeContext) (strin
 		return "", false
 	}
 	base := strings.TrimSpace(instance.TypeArguments[0])
+	base = stripBalancedOuterTypeParens(base)
+	parts := splitTopLevelTypes(base, '|')
+	if len(parts) > 1 {
+		var projected []string
+		for _, part := range parts {
+			value, resolved := resolvePHPDocKeyValueProjection(projection+"<"+strings.TrimSpace(part)+">", typeCtx)
+			if !resolved {
+				return "", false
+			}
+			projected = append(projected, value)
+		}
+		return ParseType(strings.Join(projected, "| ")).String(), true
+	}
 	if fields := parseArrayShapeFields(base, typeCtx); len(fields) > 0 {
 		if projection == "key-of" {
 			stringKey, intKey := false, false
@@ -92,10 +147,11 @@ func resolvePHPDocKeyValueProjection(raw string, typeCtx FileTypeContext) (strin
 		}
 		var values Type
 		for _, field := range fields {
-			if field.typ.IsEmpty() {
+			valueType := arrayShapeFieldType(field)
+			if valueType == "" {
 				return "", false
 			}
-			values = unionInferredTypes(values, field.typ)
+			values = unionInferredTypes(values, ParseType(valueType))
 		}
 		if !values.IsEmpty() {
 			return values.String(), true

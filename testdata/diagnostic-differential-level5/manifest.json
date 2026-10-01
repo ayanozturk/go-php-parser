@@ -432,6 +432,31 @@
       "phpstanIdentifiers": []
     },
     {
+      "id": "argument-phpdoc-nested-shape-offset-clean",
+      "capability": "nested indexed PHPDoc shape types and optional shape offsets retain their types",
+      "file": "argument-phpdoc-nested-shape-offset-clean.php",
+      "engineCodes": [],
+      "phpstanIdentifiers": []
+    },
+    {
+      "id": "argument-phpdoc-nested-shape-offset-mismatch",
+      "capability": "nested indexed PHPDoc shape types reject incompatible arguments",
+      "file": "argument-phpdoc-nested-shape-offset-mismatch.php",
+      "engineCodes": [
+        "A.ARG.TYPE"
+      ],
+      "phpstanIdentifiers": [
+        "argument.type"
+      ]
+    },
+    {
+      "id": "argument-phpdoc-union-shape-projection-boundary",
+      "capability": "value-of projections preserve unions across shape alternatives",
+      "file": "argument-phpdoc-union-shape-projection-boundary.php",
+      "engineCodes": [],
+      "phpstanIdentifiers": []
+    },
+    {
       "id": "argument-unbound-class-template-param-clean",
       "capability": "an unbound class template parameter accepts unconstrained values",
       "file": "argument-unbound-class-template-param-clean.php",
