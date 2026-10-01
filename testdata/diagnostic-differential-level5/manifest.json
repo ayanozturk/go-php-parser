@@ -729,6 +729,28 @@
         "argument.type",
         "argument.type"
       ]
+    },
+    {
+      "id": "relative-return-types-clean",
+      "capability": "self static parent and $this method return types resolve for their call-site class",
+      "file": "relative-return-types-clean.php",
+      "engineCodes": [],
+      "phpstanIdentifiers": []
+    },
+    {
+      "id": "relative-return-types-mismatch",
+      "capability": "self parent and $this preserve their declaring receiver class boundaries",
+      "file": "relative-return-types-mismatch.php",
+      "engineCodes": [
+        "A.ARG.TYPE",
+        "A.ARG.TYPE",
+        "A.ARG.TYPE"
+      ],
+      "phpstanIdentifiers": [
+        "argument.type",
+        "argument.type",
+        "argument.type"
+      ]
     }
   ]
 }

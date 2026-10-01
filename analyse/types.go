@@ -1083,6 +1083,11 @@ func relativeClassReplacement(atom typeAtom, selfName, staticName, parentName st
 			return strings.TrimPrefix(staticName, `\`)
 		}
 		return strings.TrimPrefix(selfName, `\`)
+	case "$this":
+		if staticName != "" {
+			return strings.TrimPrefix(staticName, `\`)
+		}
+		return strings.TrimPrefix(selfName, `\`)
 	case "parent":
 		return strings.TrimPrefix(parentName, `\`)
 	default:
