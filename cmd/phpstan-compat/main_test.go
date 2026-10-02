@@ -202,6 +202,38 @@ func TestLoadCrosswalkDefaultGlobFindsCheckedInManifests(t *testing.T) {
 	if crosswalk[5] == nil || !crosswalk[5]["A.ARG.TYPE"]["argument.type"] {
 		t.Fatalf("level 5 missing A.ARG.TYPE -> argument.type: %#v", crosswalk[5])
 	}
+	versionsByPack := make(map[string]string, len(sources))
+	for _, source := range sources {
+		versionsByPack[filepath.Base(filepath.Dir(source.Path))] = source.Version
+	}
+	if versionsByPack["diagnostic-differential-level5"] != "2.2.16" || versionsByPack["diagnostic-differential-level7"] != "2.2.16" {
+		t.Fatalf("expected refreshed level-5 and level-7 baselines to retain their source versions: %#v", versionsByPack)
+	}
+}
+
+func TestPHPStanMajorVersionAcceptsV2AndNewer(t *testing.T) {
+	for _, version := range []string{
+		"PHPStan - PHP Static Analysis Tool 2.2.5",
+		"PHPStan - PHP Static Analysis Tool 2.2.16",
+		"PHPStan 3.0.0",
+	} {
+		major, ok := phpstanMajorVersion(version)
+		if !ok || major < 2 {
+			t.Errorf("phpstanMajorVersion(%q) = (%d, %t), want a PHPStan v2+ version", version, major, ok)
+		}
+	}
+}
+
+func TestPHPStanMajorVersionRejectsOlderAndUnknownVersions(t *testing.T) {
+	for _, version := range []string{
+		"PHPStan - PHP Static Analysis Tool 1.12.32",
+		"PHPStan development build",
+	} {
+		major, ok := phpstanMajorVersion(version)
+		if ok && major >= 2 {
+			t.Errorf("phpstanMajorVersion(%q) = (%d, %t), want a version below v2 or unknown", version, major, ok)
+		}
+	}
 }
 
 func TestExpandCrosswalkGlobFallsBackToModuleRoot(t *testing.T) {

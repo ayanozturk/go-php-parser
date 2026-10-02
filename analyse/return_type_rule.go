@@ -32,14 +32,12 @@ type expressionTypeInferer func(filename string, expr ast.Node, scope *functionS
 // A clone shares its immutable layer chain; the first write adds a small
 // writable delta instead of copying every type visible at that branch.
 type scopeTypeLayer struct {
-	values                     map[string]Type
-	parent                     *scopeTypeLayer
-	depth                      int
-	name                       string
-	typ                        Type
-	hasOne                     bool
-	integerJoinVariableChanges map[string]bool
-	hasIntegerJoinChanges      bool
+	values map[string]Type
+	parent *scopeTypeLayer
+	depth  int
+	name   string
+	typ    Type
+	hasOne bool
 }
 
 const maxScopeTypeLayerDepth = 16
@@ -56,7 +54,7 @@ func deltaScopeTypeLayer(parent *scopeTypeLayer) *scopeTypeLayer {
 		return rootScopeTypeLayer(nil)
 	}
 	if parent.depth < maxScopeTypeLayerDepth {
-		return &scopeTypeLayer{parent: parent, depth: parent.depth + 1, hasIntegerJoinChanges: parent.hasIntegerJoinChanges}
+		return &scopeTypeLayer{parent: parent, depth: parent.depth + 1}
 	}
 
 	capacity := 0
@@ -67,7 +65,6 @@ func deltaScopeTypeLayer(parent *scopeTypeLayer) *scopeTypeLayer {
 		}
 	}
 	values := make(map[string]Type, capacity)
-	integerJoinVariableChanges := make(map[string]bool)
 	layers := make([]*scopeTypeLayer, 0, parent.depth)
 	for current := parent; current != nil; current = current.parent {
 		layers = append(layers, current)
@@ -76,19 +73,11 @@ func deltaScopeTypeLayer(parent *scopeTypeLayer) *scopeTypeLayer {
 		for name, typ := range layers[i].values {
 			values[name] = typ
 		}
-		for name, joined := range layers[i].integerJoinVariableChanges {
-			integerJoinVariableChanges[name] = joined
-		}
 		if layers[i].hasOne {
 			values[layers[i].name] = layers[i].typ
 		}
 	}
-	root := rootScopeTypeLayer(values)
-	if len(integerJoinVariableChanges) != 0 {
-		root.integerJoinVariableChanges = integerJoinVariableChanges
-		root.hasIntegerJoinChanges = true
-	}
-	return root
+	return rootScopeTypeLayer(values)
 }
 
 func (l *scopeTypeLayer) get(name string) (Type, bool) {
@@ -118,26 +107,6 @@ func (l *scopeTypeLayer) set(name string, typ Type) {
 		l.values = make(map[string]Type)
 	}
 	l.values[name] = typ
-}
-
-func (l *scopeTypeLayer) setIntegerJoinVariable(name string, joined bool) {
-	if l == nil || name == "" {
-		return
-	}
-	if l.integerJoinVariableChanges == nil {
-		l.integerJoinVariableChanges = make(map[string]bool)
-	}
-	l.integerJoinVariableChanges[name] = joined
-	l.hasIntegerJoinChanges = true
-}
-
-func (l *scopeTypeLayer) isIntegerJoinVariable(name string) bool {
-	for current := l; current != nil; current = current.parent {
-		if joined, found := current.integerJoinVariableChanges[name]; found {
-			return joined
-		}
-	}
-	return false
 }
 
 type functionScope struct {
@@ -2017,31 +1986,7 @@ func (s *functionScope) setVariable(name string, typ Type) {
 		s.variables = deltaScopeTypeLayer(s.variables)
 		s.variablesOwned = true
 	}
-	if s.variables.hasIntegerJoinChanges && s.variables.isIntegerJoinVariable(name) {
-		s.variables.setIntegerJoinVariable(name, false)
-	}
 	s.variables.set(name, typ)
-}
-
-func (s *functionScope) markIntegerJoinVariable(name string) {
-	if s == nil || name == "" {
-		return
-	}
-	if s.variables == nil {
-		s.variables = rootScopeTypeLayer(nil)
-		s.variablesOwned = true
-	} else if !s.variablesOwned {
-		s.variables = deltaScopeTypeLayer(s.variables)
-		s.variablesOwned = true
-	}
-	s.variables.setIntegerJoinVariable(name, true)
-}
-
-func (s *functionScope) isIntegerJoinVariable(name string) bool {
-	if s == nil {
-		return false
-	}
-	return s.variables.isIntegerJoinVariable(name)
 }
 
 func (s *functionScope) setProperty(name string, typ Type) {

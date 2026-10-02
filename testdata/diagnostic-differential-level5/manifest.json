@@ -3,7 +3,7 @@
   "reference": {
     "tool": "PHPStan",
     "level": 5,
-    "version": "2.2.5",
+    "version": "2.2.16",
     "configuration": "../phpstan-differential.neon"
   },
   "cases": [
@@ -839,29 +839,20 @@
     },
     {
       "id": "disjunctive-and-range-joins-mismatch",
-      "capability": "disjunctive string unions and widened integer joins reject incompatible arguments",
+      "capability": "PHPStan reports tautological disjunctions at level 5; argument mismatches are checked at level 7",
       "file": "disjunctive-and-range-joins-mismatch.php",
-      "engineCodes": [
-        "A.ARG.TYPE",
-        "A.ARG.TYPE"
-      ],
+      "engineCodes": [],
       "phpstanIdentifiers": [
-        "argument.type",
-        "argument.type"
+        "booleanOr.alwaysTrue",
+        "identical.alwaysTrue"
       ]
     },
     {
       "id": "disjunctive-and-range-joins-boundary",
-      "capability": "unknown disjunction paths and unbounded integer joins stay conservative",
+      "capability": "unresolved disjunctions and unbounded integer joins have no level-5 argument diagnostics",
       "file": "disjunctive-and-range-joins-boundary.php",
-      "engineCodes": [
-        "A.ARG.TYPE",
-        "A.ARG.TYPE"
-      ],
-      "phpstanIdentifiers": [
-        "argument.type",
-        "argument.type"
-      ]
+      "engineCodes": [],
+      "phpstanIdentifiers": []
     }
   ]
 }

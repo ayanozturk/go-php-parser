@@ -1033,34 +1033,8 @@ func joinFallthroughVariableTypes(outer *functionScope, fallthroughs []*function
 		joined = widenJoinedIntegerType(joined)
 		if !joined.IsEmpty() {
 			outer.setVariable(name, joined)
-			if hasBoundedAndUnboundedIntegerBranches(name, fallthroughs) {
-				outer.markIntegerJoinVariable(name)
-			}
 		}
 	}
-}
-
-func hasBoundedAndUnboundedIntegerBranches(name string, branches []*functionScope) bool {
-	bounded, unbounded := false, false
-	for _, branch := range branches {
-		if branch == nil {
-			continue
-		}
-		typ, found := branch.variable(name)
-		if !found || len(typ.atoms) != 1 {
-			continue
-		}
-		interval, ok := integerAtomInterval(typ.sortedAtoms()[0])
-		if !ok {
-			continue
-		}
-		if interval.lowerUnbounded || interval.upperUnbounded {
-			unbounded = true
-		} else {
-			bounded = true
-		}
-	}
-	return bounded && unbounded
 }
 
 // widenJoinedIntegerType forms the smallest integer interval covering the
@@ -1695,7 +1669,7 @@ func classTemplateParamBound(raw, className string, ctx *AnalysisContext) (name,
 	return "", "", false
 }
 
-func argumentTypeIssueMinimumLevel(expected, actual Type, argument ast.Node, scope *functionScope, ctx *AnalysisContext) int {
+func argumentTypeIssueMinimumLevel(expected, actual Type, scope *functionScope, ctx *AnalysisContext) int {
 	if actual.hasBuiltin("false") && argumentExpectedTypeAcceptsActual(expected, actual.withoutBuiltin("false"), scope, ctx) {
 		return 7
 	}
@@ -1709,16 +1683,13 @@ func argumentTypeIssueMinimumLevel(expected, actual Type, argument ast.Node, sco
 		return 7
 	}
 	if expected.hasAnyIntegerRefinement() && actual.hasBuiltin("int") && len(actual.atoms) == 1 {
-		if variable, ok := argument.(*ast.VariableNode); ok && scope.isIntegerJoinVariable(variable.Name) {
-			return 5
-		}
 		return 7
 	}
-	if isStringLiteralSet(expected) && isStringLiteralSet(actual) {
-		return 5
+	if isStringLiteralSet(expected) && isStringLiteralSet(actual) && actual.AcceptsWithContext(expected, scope, ctx) {
+		return 7
 	}
-	if isBoundedIntegerInterval(expected) && isBoundedIntegerInterval(actual) {
-		return 5
+	if isBoundedIntegerInterval(expected) && isBoundedIntegerInterval(actual) && actual.AcceptsWithContext(expected, scope, ctx) {
+		return 7
 	}
 	if actual.AcceptsWithContext(expected, scope, ctx) {
 		return 8
@@ -1833,7 +1804,7 @@ func checkResolvedCallArgTypes(target string, method ResolvedMethod, args []ast.
 			usedParams[paramIndex] = struct{}{}
 			continue
 		}
-		if !analysisLevelAtLeast(ctx, argumentTypeIssueMinimumLevel(expected, actual, argExpr, scope, ctx)) {
+		if !analysisLevelAtLeast(ctx, argumentTypeIssueMinimumLevel(expected, actual, scope, ctx)) {
 			usedParams[paramIndex] = struct{}{}
 			continue
 		}

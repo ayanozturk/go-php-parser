@@ -15,6 +15,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"sort"
 	"strconv"
@@ -25,6 +26,8 @@ import (
 )
 
 const schemaVersion = 1
+
+var phpstanVersionPattern = regexp.MustCompile(`(^|[^0-9])v?([0-9]+)\.[0-9]+\.[0-9]+([^0-9]|$)`)
 
 type diagnostic struct {
 	Path       string `json:"path"`
@@ -60,20 +63,20 @@ type levelMetrics struct {
 }
 
 type report struct {
-	SchemaVersion   int               `json:"schemaVersion"`
-	GeneratedAt     string            `json:"generatedAt"`
-	Root            string            `json:"root"`
-	Paths           []string          `json:"paths"`
-	PHPStanVersion  string            `json:"phpstanVersion"`
-	PHPStanConfig   string            `json:"phpstanConfig,omitempty"`
-	PHPStanConfigSHA256 string         `json:"phpstanConfigSHA256,omitempty"`
-	PHPVersion      string            `json:"phpVersion,omitempty"`
-	ReportManifestSHA256 string       `json:"reportManifestSHA256"`
-	IndexManifestSHA256 string        `json:"indexManifestSHA256"`
-	Matching        string            `json:"matching"`
-	HeadlineMetric  string            `json:"headlineMetric"`
-	CrosswalkSource []crosswalkSource `json:"crosswalkSources"`
-	Levels          []levelMetrics    `json:"levels"`
+	SchemaVersion        int               `json:"schemaVersion"`
+	GeneratedAt          string            `json:"generatedAt"`
+	Root                 string            `json:"root"`
+	Paths                []string          `json:"paths"`
+	PHPStanVersion       string            `json:"phpstanVersion"`
+	PHPStanConfig        string            `json:"phpstanConfig,omitempty"`
+	PHPStanConfigSHA256  string            `json:"phpstanConfigSHA256,omitempty"`
+	PHPVersion           string            `json:"phpVersion,omitempty"`
+	ReportManifestSHA256 string            `json:"reportManifestSHA256"`
+	IndexManifestSHA256  string            `json:"indexManifestSHA256"`
+	Matching             string            `json:"matching"`
+	HeadlineMetric       string            `json:"headlineMetric"`
+	CrosswalkSource      []crosswalkSource `json:"crosswalkSources"`
+	Levels               []levelMetrics    `json:"levels"`
 }
 
 type crosswalkSource struct {
@@ -186,8 +189,9 @@ func run(root string, reportPaths, indexPaths []string, levelsText, phpstanBin, 
 	if err != nil {
 		return report{}, err
 	}
-	if len(sources) == 0 || !strings.HasSuffix(strings.TrimSpace(version), " "+sources[0].Version) {
-		return report{}, fmt.Errorf("PHPStan reference version mismatch: crosswalk pins %s, executable reports %s", firstCrosswalkVersion(sources), version)
+	major, ok := phpstanMajorVersion(version)
+	if len(sources) == 0 || !ok || major < 2 {
+		return report{}, fmt.Errorf("PHPStan v2 or newer is required, executable reports %s", version)
 	}
 	reportManifestHash, err := fileManifestSHA256(absRoot, reportable)
 	if err != nil {
@@ -212,11 +216,11 @@ func run(root string, reportPaths, indexPaths []string, levelsText, phpstanBin, 
 
 	result := report{
 		SchemaVersion: schemaVersion,
-		GeneratedAt: time.Now().UTC().Format(time.RFC3339),
-		Root: filepath.ToSlash(absRoot), Paths: reportPaths,
+		GeneratedAt:   time.Now().UTC().Format(time.RFC3339),
+		Root:          filepath.ToSlash(absRoot), Paths: reportPaths,
 		PHPStanVersion: version, PHPStanConfig: phpstanConfig, PHPStanConfigSHA256: configHash,
 		PHPVersion: phpVersion(absRoot), ReportManifestSHA256: reportManifestHash, IndexManifestSHA256: indexManifestHash,
-		Matching: "exact normalized path + start line + compatible identifier",
+		Matching:       "exact normalized path + start line + compatible identifier",
 		HeadlineMetric: "F1 (harmonic mean of diagnostic precision and recall)", CrosswalkSource: sources,
 	}
 	for _, level := range levels {
@@ -395,7 +399,6 @@ func loadCrosswalk(pattern string) (map[int]map[string]map[string]bool, []crossw
 	sort.Strings(paths)
 	result := make(map[int]map[string]map[string]bool)
 	sources := make([]crosswalkSource, 0, len(paths))
-	pinnedVersion := ""
 	for _, path := range paths {
 		content, err := os.ReadFile(path)
 		if err != nil {
@@ -409,11 +412,6 @@ func loadCrosswalk(pattern string) (map[int]map[string]map[string]bool, []crossw
 		}
 		if manifest.SchemaVersion != schemaVersion || manifest.Reference.Tool != "PHPStan" || manifest.Reference.Version == "" || manifest.Reference.Configuration == "" {
 			return nil, nil, fmt.Errorf("unsupported crosswalk manifest %s", path)
-		}
-		if pinnedVersion == "" {
-			pinnedVersion = manifest.Reference.Version
-		} else if pinnedVersion != manifest.Reference.Version {
-			return nil, nil, fmt.Errorf("crosswalk mixes PHPStan versions %s and %s", pinnedVersion, manifest.Reference.Version)
 		}
 		level := manifest.Reference.Level
 		if level < 0 || level > 10 {
@@ -441,13 +439,6 @@ func loadCrosswalk(pattern string) (map[int]map[string]map[string]bool, []crossw
 		sources = append(sources, crosswalkSource{Path: filepath.ToSlash(path), SHA256: fmt.Sprintf("%x", sha256.Sum256(content)), Version: manifest.Reference.Version})
 	}
 	return result, sources, nil
-}
-
-func firstCrosswalkVersion(sources []crosswalkSource) string {
-	if len(sources) == 0 {
-		return "<none>"
-	}
-	return sources[0].Version
 }
 
 func collectPHPFiles(paths []string) ([]string, error) {
@@ -514,6 +505,18 @@ func phpstanVersion(root, binary string) (string, error) {
 		return "", fmt.Errorf("%s --version: %w: %s", binary, err, strings.TrimSpace(string(output)))
 	}
 	return strings.TrimSpace(string(output)), nil
+}
+
+func phpstanMajorVersion(version string) (int, bool) {
+	matches := phpstanVersionPattern.FindStringSubmatch(version)
+	if len(matches) != 4 {
+		return 0, false
+	}
+	major, err := strconv.Atoi(matches[2])
+	if err != nil {
+		return 0, false
+	}
+	return major, true
 }
 
 func resolveExecutable(root, binary string) string {
