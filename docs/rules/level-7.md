@@ -1,13 +1,13 @@
 # PHPStan-compatible rules: level 7
 
-<!-- rule-inventory: level=7 introduced=1 cumulative=33 -->
+<!-- rule-inventory: level=7 introduced=1 cumulative=34 -->
 
 [Back to the README static-analysis section](../../README.md#static-analysis) · [Open the analyser capability matrix](../analyser-capability-matrix.md)
 
 ## Rule inventory
 
 - **Introduced at this level:** 1 registered levelled rule, `Level7.MethodUnion`.
-- **Cumulative registered levelled rules:** 31.
+- **Cumulative registered levelled rules:** 32.
 - **Checked-in differential pack:** 11 cases in `testdata/diagnostic-differential-level7`.
 
 ## Coverage and boundaries

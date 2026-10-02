@@ -85,6 +85,29 @@ function acceptBool(bool $value): void {}
 	}
 }
 
+func TestArgumentTypesProjectValueOfFromArrayShapes(t *testing.T) {
+	const source = `<?php
+/** @param value-of<array{count: int, label: string}> $value */
+function acceptProjectedValue($value): void {}
+function run(): void {
+    acceptProjectedValue(1);
+    acceptProjectedValue('ready');
+    acceptProjectedValue(true);
+    acceptProjectedValue([]);
+}
+`
+	issues := runAnalysisLevelOnFiles(t, map[string]string{"value-of.php": source}, 5)
+	var mismatches []AnalysisIssue
+	for _, issue := range issues {
+		if issue.Code == "A.ARG.TYPE" {
+			mismatches = append(mismatches, issue)
+		}
+	}
+	if len(mismatches) != 2 {
+		t.Fatalf("expected bool and array projection mismatches, got %#v", mismatches)
+	}
+}
+
 func TestArgumentTypesEnforceNonEmptyString(t *testing.T) {
 	const source = `<?php
 /** @param non-empty-string $value */
@@ -196,6 +219,32 @@ function run(): void {
 	issues := runAnalysisLevelOnFiles(t, map[string]string{"non-empty-assignments.php": source}, 5)
 	if got := len(filterNonEmptyArgTypeIssues(issues)); got != 2 {
 		t.Fatalf("expected only empty string and array assignments to mismatch, got %#v", issues)
+	}
+}
+
+func TestArgumentTypesPreserveExactStringLiteralsThroughFlow(t *testing.T) {
+	const source = `<?php
+/** @param 'ready' $value */
+function acceptReadyLiteral($value): void {}
+/** @param 'ready'|'busy' $value */
+function acceptReadyOrBusyLiteral($value): void {}
+function assignments(bool $flag): void {
+    $ready = 'ready';
+    acceptReadyLiteral($ready);
+    $busy = 'busy';
+    acceptReadyLiteral($busy);
+    if ($flag) { $joined = 'ready'; } else { $joined = 'busy'; }
+    acceptReadyOrBusyLiteral($joined);
+}
+/** @param 'ready'|'busy' $value */
+function narrowLiteralUnion($value): void {
+    if ($value !== 'busy') { acceptReadyLiteral($value); }
+    if ($value === 'busy') { acceptReadyLiteral($value); }
+}
+`
+	issues := runAnalysisLevelOnFiles(t, map[string]string{"string-literal-flow.php": source}, 5)
+	if got := countIssuesWithCode(issues, "A.ARG.TYPE"); got != 2 {
+		t.Fatalf("expected direct and branch-narrowed wrong literals to mismatch, got %#v", issues)
 	}
 }
 
@@ -2634,4 +2683,95 @@ class Example {
 		t.Fatalf("expected method call with receiver, got %#v", statement.Expr)
 	}
 	return nodes, call.Object
+}
+
+func TestArgumentTypesNarrowStrictIntegerEqualityBranches(t *testing.T) {
+	const source = `<?php
+/** @param int<5, 5> $value */
+function exactlyFive(int $value): void {}
+function checked(int $value): void {
+    exactlyFive($value);
+    if ($value === 5) {
+        exactlyFive($value);
+    }
+    if ($value !== 5) {
+        return;
+    }
+    exactlyFive($value);
+}
+`
+	issues := runAnalysisLevelOnFiles(t, map[string]string{"integer-equality-narrowing.php": source}, 7)
+	var mismatches []AnalysisIssue
+	for _, issue := range issues {
+		if issue.Code == "A.ARG.TYPE" {
+			mismatches = append(mismatches, issue)
+		}
+	}
+	if len(mismatches) != 1 {
+		t.Fatalf("expected the unrefined argument to fail while both strict equality branches pass, got %#v", issues)
+	}
+}
+
+func TestArgumentTypesNarrowStrictIntegerEndpointExclusions(t *testing.T) {
+	const source = `<?php
+/** @param int<6, 10> $value */
+function aboveFive(int $value): void {}
+/** @param int<5, 9> $value */
+function belowTen(int $value): void {}
+/** @param int<5, 5> $value */
+function exactlyFive(int $value): void {}
+/** @param int<10, 10> $value */
+function exactlyTen(int $value): void {}
+function checkLower(int $value): void {
+    aboveFive($value);
+    if ($value >= 5 && $value <= 10) {
+        if ($value !== 5) { aboveFive($value); } else { exactlyFive($value); }
+    }
+}
+function checkUpper(int $value): void {
+    if ($value >= 5 && $value <= 10) {
+        if ($value === 10) { exactlyTen($value); } else { belowTen($value); }
+    }
+}
+`
+	issues := runAnalysisLevelOnFiles(t, map[string]string{"integer-endpoint-exclusion.php": source}, 7)
+	var mismatches []AnalysisIssue
+	for _, issue := range issues {
+		if issue.Code == "A.ARG.TYPE" {
+			mismatches = append(mismatches, issue)
+		}
+	}
+	if len(mismatches) != 1 {
+		t.Fatalf("expected the unrefined argument to fail while endpoint exclusion branches pass, got %#v", issues)
+	}
+}
+
+func TestArgumentTypesNarrowStrictIntegerInteriorExclusions(t *testing.T) {
+	const source = `<?php
+/** @param int<5, 6>|int<8, 10> $value */
+function notSeven(int $value): void {}
+/** @param int<7, 7> $value */
+function exactlySeven(int $value): void {}
+function unrefined(int $value): void { notSeven($value); }
+function excluded(int $value): void {
+    if ($value >= 5 && $value <= 10) {
+        if ($value !== 7) { notSeven($value); } else { exactlySeven($value); }
+    }
+}
+function equalityElse(int $value): void {
+    if ($value >= 5 && $value <= 10) {
+        if ($value === 7) { exactlySeven($value); } else { notSeven($value); }
+    }
+}
+`
+	issues := runAnalysisLevelOnFiles(t, map[string]string{"integer-interior-exclusion.php": source}, 7)
+	var mismatches []AnalysisIssue
+	for _, issue := range issues {
+		if issue.Code == "A.ARG.TYPE" {
+			mismatches = append(mismatches, issue)
+		}
+	}
+	if len(mismatches) != 1 {
+		t.Fatalf("expected the unrefined argument to fail while both interior-exclusion paths pass, got %#v", issues)
+	}
 }

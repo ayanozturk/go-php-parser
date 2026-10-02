@@ -394,6 +394,11 @@ func variablesTypedWhenTrue(node ast.Node, scope *functionScope) map[string]Type
 				return map[string]Type{name: ParseType("null")}
 			}
 			if n.Operator == "===" {
+				if name, typ, ok := integerEqualityRefinement(n, scope); ok {
+					return map[string]Type{name: typ}
+				}
+			}
+			if n.Operator == "===" {
 				if name, ok := emptyStringComparedVariable(n.Left, n.Right); ok {
 					return map[string]Type{name: ParseType("empty-string")}
 				}
@@ -404,6 +409,11 @@ func variablesTypedWhenTrue(node ast.Node, scope *functionScope) map[string]Type
 				}
 			}
 		case "!=", "!==":
+			if n.Operator == "!==" {
+				if name, typ, ok := integerInequalityRefinement(n, scope); ok {
+					return map[string]Type{name: typ}
+				}
+			}
 			if name, ok := nullComparisonVariable(n.Left, n.Right); ok {
 				if typ, ok := nonNullVariableType(scope, name); ok {
 					return map[string]Type{name: typ}
@@ -475,6 +485,11 @@ func variablesTypedWhenFalse(node ast.Node, scope *functionScope) map[string]Typ
 			return types
 		case "==", "===":
 			if n.Operator == "===" {
+				if name, typ, ok := integerInequalityRefinement(n, scope); ok {
+					return map[string]Type{name: typ}
+				}
+			}
+			if n.Operator == "===" {
 				if name, ok := emptyStringComparedVariable(n.Left, n.Right); ok {
 					if typ, ok := nonEmptyStringComparisonType(scope, name); ok {
 						return map[string]Type{name: typ}
@@ -492,6 +507,11 @@ func variablesTypedWhenFalse(node ast.Node, scope *functionScope) map[string]Typ
 				}
 			}
 		case "!=", "!==":
+			if n.Operator == "!==" {
+				if name, typ, ok := integerEqualityRefinement(n, scope); ok {
+					return map[string]Type{name: typ}
+				}
+			}
 			if n.Operator == "!==" {
 				if name, ok := emptyStringComparedVariable(n.Left, n.Right); ok {
 					return map[string]Type{name: ParseType("empty-string")}
@@ -564,6 +584,104 @@ func integerComparisonRefinement(node *ast.BinaryExpr, whenTrue bool, scope *fun
 		return "", EmptyType(), false
 	}
 	return variable.Name, typeFromIntegerInterval(refined), true
+}
+
+// integerEqualityRefinement narrows the equality branch of a strict integer
+// comparison to its literal value. Loose comparisons are intentionally left
+// alone because PHP's coercion rules can make them true for non-integer types.
+func integerEqualityRefinement(node *ast.BinaryExpr, scope *functionScope) (string, Type, bool) {
+	if node == nil || scope == nil || (node.Operator != "===" && node.Operator != "!==") {
+		return "", EmptyType(), false
+	}
+	variable, ok := node.Left.(*ast.VariableNode)
+	literal := node.Right
+	if !ok {
+		variable, ok = node.Right.(*ast.VariableNode)
+		literal = node.Left
+	}
+	if !ok {
+		return "", EmptyType(), false
+	}
+	value, ok := integerLiteralValue(literal)
+	if !ok {
+		return "", EmptyType(), false
+	}
+	current, ok := scope.variable(variable.Name)
+	if !ok {
+		return "", EmptyType(), false
+	}
+	for _, atom := range current.sortedAtoms() {
+		interval, integer := integerAtomInterval(atom)
+		if !integer {
+			continue
+		}
+		if (interval.lowerUnbounded || value >= interval.lower) && (interval.upperUnbounded || value <= interval.upper) {
+			return variable.Name, ParseType(strconv.FormatInt(value, 10)), true
+		}
+	}
+	return "", EmptyType(), false
+}
+
+// integerInequalityRefinement removes a strict integer comparison literal from
+// the current integer range. An interior exclusion is represented as a union
+// of the ranges on either side of the literal.
+func integerInequalityRefinement(node *ast.BinaryExpr, scope *functionScope) (string, Type, bool) {
+	if node == nil || scope == nil || (node.Operator != "===" && node.Operator != "!==") {
+		return "", EmptyType(), false
+	}
+	variable, ok := node.Left.(*ast.VariableNode)
+	literal := node.Right
+	if !ok {
+		variable, ok = node.Right.(*ast.VariableNode)
+		literal = node.Left
+	}
+	if !ok {
+		return "", EmptyType(), false
+	}
+	value, ok := integerLiteralValue(literal)
+	if !ok {
+		return "", EmptyType(), false
+	}
+	current, ok := scope.variable(variable.Name)
+	if !ok || len(current.atoms) != 1 {
+		return "", EmptyType(), false
+	}
+	var atom typeAtom
+	for _, candidate := range current.sortedAtoms() {
+		atom = candidate
+	}
+	interval, ok := integerAtomInterval(atom)
+	if !ok {
+		return "", EmptyType(), false
+	}
+	const maxInt64 = int64(1<<63 - 1)
+	const minInt64 = -1 << 63
+	if (!interval.lowerUnbounded && value < interval.lower) || (!interval.upperUnbounded && value > interval.upper) {
+		return "", EmptyType(), false
+	}
+
+	var narrowed []Type
+	if (interval.lowerUnbounded && value > minInt64) || (!interval.lowerUnbounded && value > interval.lower) {
+		lower := interval
+		lower.upper = value - 1
+		lower.upperUnbounded = false
+		lower.upperText = strconv.FormatInt(lower.upper, 10)
+		narrowed = append(narrowed, typeFromIntegerInterval(lower))
+	}
+	if (interval.upperUnbounded && value < maxInt64) || (!interval.upperUnbounded && value < interval.upper) {
+		upper := interval
+		upper.lower = value + 1
+		upper.lowerUnbounded = false
+		upper.lowerText = strconv.FormatInt(upper.lower, 10)
+		narrowed = append(narrowed, typeFromIntegerInterval(upper))
+	}
+	if len(narrowed) == 1 {
+		return variable.Name, narrowed[0], true
+	}
+	if len(narrowed) == 2 {
+		return variable.Name, ParseType(narrowed[0].String() + "|" + narrowed[1].String()), true
+	}
+	return "", EmptyType(), false
 }
 
 func integerComparisonInterval(operator string, value int64, whenTrue bool) (integerInterval, bool) {
@@ -1491,10 +1609,10 @@ func classTemplateParamBound(raw, className string, ctx *AnalysisContext) (name,
 }
 
 func argumentTypeIssueMinimumLevel(expected, actual Type, scope *functionScope, ctx *AnalysisContext) int {
-	if actual.hasBuiltin("false") && expected.AcceptsWithContext(actual.withoutBuiltin("false"), scope, ctx) {
+	if actual.hasBuiltin("false") && argumentExpectedTypeAcceptsActual(expected, actual.withoutBuiltin("false"), scope, ctx) {
 		return 7
 	}
-	if actual.hasBuiltin("null") && expected.AcceptsWithContext(actual.withoutBuiltin("null"), scope, ctx) {
+	if actual.hasBuiltin("null") && argumentExpectedTypeAcceptsActual(expected, actual.withoutBuiltin("null"), scope, ctx) {
 		return 8
 	}
 	if expected.hasBuiltin("non-empty-string") && actual.hasBuiltin("string") && len(actual.atoms) == 1 {
@@ -1510,6 +1628,19 @@ func argumentTypeIssueMinimumLevel(expected, actual Type, scope *functionScope, 
 		return 8
 	}
 	return 5
+}
+
+func argumentExpectedTypeAcceptsActual(expected, actual Type, scope *functionScope, ctx *AnalysisContext) bool {
+	if actual.hasBuiltin("string") && len(actual.atoms) == 1 {
+		for _, atom := range expected.atoms {
+			if strings.HasPrefix(atom.key, "string-literal:") {
+				// PHPStan 2.2.5 level 5 accepts a broad string at an exact
+				// literal parameter boundary even though the types differ.
+				return true
+			}
+		}
+	}
+	return expected.AcceptsWithContext(actual, scope, ctx)
 }
 
 func checkResolvedCallArgTypes(target string, method ResolvedMethod, args []ast.Node, scope *functionScope, ctx *AnalysisContext, filename string, issues *[]AnalysisIssue, calleeClass string) {
@@ -1582,7 +1713,7 @@ func checkResolvedCallArgTypes(target string, method ResolvedMethod, args []ast.
 		}
 
 		actual := inferArgumentTypeWithFacts(filename, argExpr, scope, ctx)
-		if expected.AcceptsWithContext(actual, scope, ctx) {
+		if argumentExpectedTypeAcceptsActual(expected, actual, scope, ctx) {
 			usedParams[paramIndex] = struct{}{}
 			continue
 		}
@@ -1611,6 +1742,16 @@ func checkResolvedCallArgTypes(target string, method ResolvedMethod, args []ast.
 
 func inferArgumentTypeWithFacts(filename string, expr ast.Node, scope *functionScope, ctx *AnalysisContext) Type {
 	actual := inferTypeWithFacts(filename, expr, scope, ctx)
+	switch node := expr.(type) {
+	case *ast.StringLiteral:
+		if isPlainStringType(actual) {
+			return stringLiteralType(node.Value)
+		}
+	case *ast.StringNode:
+		if isPlainStringType(actual) {
+			return stringLiteralType(node.Value)
+		}
+	}
 	if refined := refineLiteralEmptiness(expr, actual); !refined.IsEmpty() {
 		return refined
 	}
@@ -1649,6 +1790,14 @@ func refineLiteralEmptiness(expr ast.Node, inferred Type) Type {
 }
 
 func refineLiteralAssignmentType(expr ast.Node, inferred Type) Type {
+	if isPlainStringType(inferred) {
+		switch node := expr.(type) {
+		case *ast.StringLiteral:
+			return stringLiteralType(node.Value)
+		case *ast.StringNode:
+			return stringLiteralType(node.Value)
+		}
+	}
 	if refined := refineLiteralEmptiness(expr, inferred); !refined.IsEmpty() {
 		return refined
 	}
@@ -1685,6 +1834,12 @@ func isPlainStringType(typ Type) bool {
 
 func inferredStringLiteralArgumentType(value string) Type {
 	return ParseType(quotePHPDocStringLiteral(value))
+}
+
+func stringLiteralType(value string) Type {
+	key := "string-literal:" + value
+	atom := typeAtom{key: key, display: strconv.Quote(value), kind: typeKindBuiltin}
+	return Type{atoms: map[string]typeAtom{key: atom}, alternatives: [][]string{{key}}}
 }
 
 func resolveMethodForCall(call *ast.MethodCallNode, scope *functionScope, ctx *AnalysisContext, filename string) (ResolvedMethod, bool) {

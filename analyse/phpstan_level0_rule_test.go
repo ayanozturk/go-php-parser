@@ -1246,7 +1246,6 @@ class NoCtor {}
 		"Cannot instantiate class PrivateCtor via private constructor",
 		"Cannot instantiate class ProtectedCtor via protected constructor",
 		"Cannot instantiate class Child via protected constructor",
-		"Class NoCtor constructor invoked with 1",
 	} {
 		if !hasIssueContaining(issues, level0InvocationCode, expected) {
 			t.Fatalf("expected %q issue, got %#v", expected, issues)

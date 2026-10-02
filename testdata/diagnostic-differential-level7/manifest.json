@@ -140,6 +140,39 @@
       "phpstanIdentifiers": [
         "argument.type"
       ]
+    },
+    {
+      "id": "argument-int-strict-equality-narrowing",
+      "capability": "strict integer equality narrows both matching branches to a literal",
+      "file": "argument-int-strict-equality-narrowing.php",
+      "engineCodes": [
+        "A.ARG.TYPE"
+      ],
+      "phpstanIdentifiers": [
+        "argument.type"
+      ]
+    },
+    {
+      "id": "argument-int-strict-endpoint-exclusion",
+      "capability": "strict equality exclusion narrows an integer range endpoint on the unequal branch",
+      "file": "argument-int-strict-endpoint-exclusion.php",
+      "engineCodes": [
+        "A.ARG.TYPE"
+      ],
+      "phpstanIdentifiers": [
+        "argument.type"
+      ]
+    },
+    {
+      "id": "argument-int-strict-interior-exclusion",
+      "capability": "strict equality exclusion splits an integer range around an interior literal",
+      "file": "argument-int-strict-interior-exclusion.php",
+      "engineCodes": [
+        "A.ARG.TYPE"
+      ],
+      "phpstanIdentifiers": [
+        "argument.type"
+      ]
     }
   ]
 }

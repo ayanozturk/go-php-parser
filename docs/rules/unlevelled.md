@@ -1,6 +1,6 @@
 # Unlevelled analysis rules
 
-<!-- rule-inventory: unlevelled=4 levelled=35 total=39 -->
+<!-- rule-inventory: unlevelled=4 levelled=36 total=40 -->
 
 [Back to the README static-analysis section](../../README.md#static-analysis) · [Open the analyser capability matrix](../analyser-capability-matrix.md)
 

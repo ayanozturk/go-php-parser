@@ -771,6 +771,64 @@
         "argument.type",
         "argument.type"
       ]
+    },
+    {
+      "id": "argument-value-of-shape",
+      "capability": "value-of projects declared value types from finite PHPDoc array shapes",
+      "file": "argument-value-of-shape.php",
+      "engineCodes": [
+        "A.ARG.TYPE",
+        "A.ARG.TYPE"
+      ],
+      "phpstanIdentifiers": [
+        "argument.type",
+        "argument.type"
+      ]
+    },
+    {
+      "id": "argument-phpdoc-string-literals",
+      "capability": "exact PHPDoc string literals, unions, and general string arguments",
+      "file": "argument-phpdoc-string-literals.php",
+      "engineCodes": [
+        "A.ARG.TYPE",
+        "A.ARG.TYPE",
+        "A.ARG.TYPE",
+        "A.ARG.TYPE"
+      ],
+      "phpstanIdentifiers": [
+        "argument.type",
+        "argument.type",
+        "argument.type",
+        "argument.type"
+      ]
+    },
+    {
+      "id": "literal-return-property-propagation",
+      "capability": "PHPDoc literal returns and properties propagate to argument checks",
+      "file": "literal-return-property-propagation.php",
+      "engineCodes": [
+        "A.RETURN.TYPE",
+        "A.ARG.TYPE",
+        "A.PROP.TYPE"
+      ],
+      "phpstanIdentifiers": [
+        "return.type",
+        "argument.type",
+        "assign.propertyType"
+      ]
+    },
+    {
+      "id": "argument-string-literal-flow",
+      "capability": "exact string literals survive assignments, joins, and strict comparison narrowing",
+      "file": "argument-string-literal-flow.php",
+      "engineCodes": [
+        "A.ARG.TYPE",
+        "A.ARG.TYPE"
+      ],
+      "phpstanIdentifiers": [
+        "argument.type",
+        "argument.type"
+      ]
     }
   ]
 }

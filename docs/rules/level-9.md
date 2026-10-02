@@ -1,13 +1,13 @@
 # PHPStan-compatible rules: level 9
 
-<!-- rule-inventory: level=9 introduced=1 cumulative=35 -->
+<!-- rule-inventory: level=9 introduced=1 cumulative=36 -->
 
 [Back to the README static-analysis section](../../README.md#static-analysis) · [Open the analyser capability matrix](../analyser-capability-matrix.md)
 
 ## Rule inventory
 
 - **Introduced at this level:** 1 registered levelled rule, `A.DEPRECATED.CALL`.
-- **Cumulative registered levelled rules:** 33.
+- **Cumulative registered levelled rules:** 34.
 - **Checked-in differential pack:** None currently checked in.
 
 ## Coverage and boundaries

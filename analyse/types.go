@@ -185,6 +185,13 @@ func parseTypeAlternatives(raw string) [][]typeAtom {
 	if raw == "" {
 		return nil
 	}
+	if isQuotedPHPDocString(raw) {
+		atom, ok := normalizeTypeAtom(raw)
+		if !ok {
+			return nil
+		}
+		return [][]typeAtom{{atom}}
+	}
 	if parts := splitTopLevelTypes(raw, '|'); len(parts) > 1 {
 		var alternatives [][]typeAtom
 		for _, part := range parts {
@@ -547,6 +554,15 @@ func (t Type) hasBuiltin(name string) bool {
 	return ok
 }
 
+func (t Type) hasStringLiteralAtom() bool {
+	for key := range t.atoms {
+		if strings.HasPrefix(key, "string-literal:") {
+			return true
+		}
+	}
+	return false
+}
+
 func (t Type) hasAnyIntegerRefinement() bool {
 	if t.hasBuiltin("positive-int") || t.hasBuiltin("negative-int") || t.hasBuiltin("non-negative-int") || t.hasBuiltin("non-positive-int") {
 		return true
@@ -830,6 +846,15 @@ func atomsCompatibleWithContext(declared, actual typeAtom, scope *functionScope,
 		if declared.key == "string" && actual.key == "empty-string" {
 			return true
 		}
+		if declared.key == "string" && strings.HasPrefix(actual.key, "string-literal:") {
+			return true
+		}
+		if declared.key == "empty-string" && actual.key == "string-literal:" {
+			return true
+		}
+		if declared.key == "non-empty-string" && strings.HasPrefix(actual.key, "string-literal:") && actual.key != "string-literal:" {
+			return true
+		}
 		if declared.key == "array" && (actual.key == "non-empty-array" || actual.key == "empty-array") {
 			return true
 		}
@@ -947,6 +972,9 @@ func quotePHPDocStringLiteral(value string) string {
 }
 
 func canonicalizeDocType(raw string) string {
+	if isQuotedPHPDocString(strings.TrimSpace(raw)) {
+		return strings.TrimSpace(raw)
+	}
 	lower := asciiLowerIdent(strings.TrimSpace(raw))
 	if strings.HasPrefix(lower, "int<") && strings.HasSuffix(lower, ">") {
 		return lower

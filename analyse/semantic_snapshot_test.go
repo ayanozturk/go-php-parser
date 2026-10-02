@@ -210,6 +210,10 @@ class Provider {
         return 42;
     }
 }
+
+function exactAnswer(): string {
+    return 'Ready';
+}
 `
 	parsed := map[string][]ast.Node{
 		filename: parsePHPForProjectIndex(t, src),
@@ -222,7 +226,7 @@ class Provider {
 	function := parsed[filename][0].(*ast.FunctionNode)
 	functionReturn := function.Body[1].(*ast.ReturnNode)
 	functionFact, ok := snapshot.Fact(inferredTypeFactKey(filename, functionReturn.Expr))
-	if !ok || functionFact.Type != "'ok'" || functionFact.Subject != "function:answer" {
+	if !ok || functionFact.Type != `"ok"` || functionFact.Subject != "function:answer" {
 		t.Fatalf("unexpected function return fact: %#v, %v", functionFact, ok)
 	}
 	class := parsed[filename][1].(*ast.ClassNode)
@@ -231,6 +235,12 @@ class Provider {
 	methodFact, ok := snapshot.Fact(inferredTypeFactKey(filename, methodReturn.Expr))
 	if !ok || methodFact.Type != "int" || methodFact.Subject != "method:provider:count" {
 		t.Fatalf("unexpected method return fact: %#v, %v", methodFact, ok)
+	}
+	exactFunction := parsed[filename][2].(*ast.FunctionNode)
+	exactReturn := exactFunction.Body[0].(*ast.ReturnNode)
+	exactFact, ok := snapshot.Fact(inferredTypeFactKey(filename, exactReturn.Expr))
+	if !ok || !ParseType(exactFact.Type).Accepts(ParseType(`'Ready'`)) || !ParseType(`'Ready'`).Accepts(ParseType(exactFact.Type)) {
+		t.Fatalf("generated fact lost exact string literal precision: %#v, %v", exactFact, ok)
 	}
 
 	ctx := snapshot.NewAnalysisContext()
@@ -279,7 +289,7 @@ class Example {
 	if !ok {
 		t.Fatal("expected generated inferred-type fact for method argument")
 	}
-	if fact.Type != "'ok'" || fact.Subject != "method:example:run" {
+	if fact.Type != `"ok"` || fact.Subject != "method:example:run" {
 		t.Fatalf("unexpected generated argument fact: %#v", fact)
 	}
 }
@@ -490,7 +500,7 @@ class Example {
 		node  ast.Node
 		typ   string
 	}{
-		{label: "assignment target", node: variable, typ: "'waiting'"},
+		{label: "assignment target", node: variable, typ: `"waiting"`},
 		{label: "condition", node: condition, typ: "bool"},
 	}
 	for _, check := range checks {

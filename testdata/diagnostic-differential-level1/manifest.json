@@ -11,8 +11,12 @@
       "id": "branch-defined-variable",
       "capability": "possibly undefined variables after a non-exhaustive branch",
       "file": "branch-defined-variable.php",
-      "engineCodes": ["Level1.Variables"],
-      "phpstanIdentifiers": ["variable.undefined"]
+      "engineCodes": [
+        "Level1.Variables"
+      ],
+      "phpstanIdentifiers": [
+        "variable.undefined"
+      ]
     },
     {
       "id": "exhaustive-branch-defined-variable",
@@ -25,8 +29,12 @@
       "id": "while-defined-variable",
       "capability": "possibly undefined variables after a while loop",
       "file": "while-defined-variable.php",
-      "engineCodes": ["Level1.Variables"],
-      "phpstanIdentifiers": ["variable.undefined"]
+      "engineCodes": [
+        "Level1.Variables"
+      ],
+      "phpstanIdentifiers": [
+        "variable.undefined"
+      ]
     },
     {
       "id": "do-while-defined-variable",
@@ -39,15 +47,23 @@
       "id": "undefined-variable",
       "capability": "always undefined variables",
       "file": "undefined-variable.php",
-      "engineCodes": ["Level1.Variables"],
-      "phpstanIdentifiers": ["variable.undefined"]
+      "engineCodes": [
+        "Level1.Variables"
+      ],
+      "phpstanIdentifiers": [
+        "variable.undefined"
+      ]
     },
     {
       "id": "closure-by-value-undefined-variable",
       "capability": "undefined variables captured by value and read in a closure",
       "file": "closure-by-value-undefined-variable.php",
-      "engineCodes": ["Level1.Variables"],
-      "phpstanIdentifiers": ["variable.undefined"]
+      "engineCodes": [
+        "Level1.Variables"
+      ],
+      "phpstanIdentifiers": [
+        "variable.undefined"
+      ]
     },
     {
       "id": "closure-by-reference-definition",
@@ -70,7 +86,9 @@
       "engineCodes": [
         "Level1.Variables"
       ],
-      "phpstanIdentifiers": ["variable.undefined"]
+      "phpstanIdentifiers": [
+        "variable.undefined"
+      ]
     },
     {
       "id": "instance-method-by-reference",
@@ -97,8 +115,12 @@
       "id": "dynamic-receiver-by-reference",
       "capability": "undefined variables passed through a dynamic receiver",
       "file": "dynamic-receiver-by-reference.php",
-      "engineCodes": ["Level1.Variables"],
-      "phpstanIdentifiers": ["variable.undefined"]
+      "engineCodes": [
+        "Level1.Variables"
+      ],
+      "phpstanIdentifiers": [
+        "variable.undefined"
+      ]
     },
     {
       "id": "nested-break-two-defined-variable",
@@ -111,29 +133,45 @@
       "id": "nested-continue-two-undefined-variable",
       "capability": "undefined variables after a nested continue two transfer",
       "file": "nested-continue-two-undefined-variable.php",
-      "engineCodes": ["Level1.Variables"],
-      "phpstanIdentifiers": ["variable.undefined"]
+      "engineCodes": [
+        "Level1.Variables"
+      ],
+      "phpstanIdentifiers": [
+        "variable.undefined"
+      ]
     },
     {
       "id": "switch-continue-two-undefined-variable",
       "capability": "undefined variables after continue two through a switch",
       "file": "switch-continue-two-undefined-variable.php",
-      "engineCodes": ["Level1.Variables"],
-      "phpstanIdentifiers": ["variable.undefined"]
+      "engineCodes": [
+        "Level1.Variables"
+      ],
+      "phpstanIdentifiers": [
+        "variable.undefined"
+      ]
     },
     {
       "id": "break-two-finally-undefined-variable",
       "capability": "undefined variables after break two through finally",
       "file": "break-two-finally-undefined-variable.php",
-      "engineCodes": ["Level1.Variables"],
-      "phpstanIdentifiers": ["variable.undefined"]
+      "engineCodes": [
+        "Level1.Variables"
+      ],
+      "phpstanIdentifiers": [
+        "variable.undefined"
+      ]
     },
     {
       "id": "known-dynamic-read",
       "capability": "undefined variables resolved by a known dynamic name",
       "file": "known-dynamic-read.php",
-      "engineCodes": ["Level1.Variables"],
-      "phpstanIdentifiers": ["variable.undefined"]
+      "engineCodes": [
+        "Level1.Variables"
+      ],
+      "phpstanIdentifiers": [
+        "variable.undefined"
+      ]
     },
     {
       "id": "dynamic-writes-do-not-define",
@@ -166,8 +204,12 @@
       "id": "unknown-array-extract",
       "capability": "possibly undefined variables after an unknown-array extract",
       "file": "unknown-array-extract.php",
-      "engineCodes": ["Level1.Variables"],
-      "phpstanIdentifiers": ["variable.undefined"]
+      "engineCodes": [
+        "Level1.Variables"
+      ],
+      "phpstanIdentifiers": [
+        "variable.undefined"
+      ]
     },
     {
       "id": "builtin-reference-output-parameters",
@@ -195,15 +237,135 @@
       "id": "foreach-after-loop-possibly-undefined",
       "capability": "foreach values may be undefined after an empty iterable",
       "file": "foreach-after-loop-possibly-undefined.php",
-      "engineCodes": ["Level1.Variables"],
-      "phpstanIdentifiers": ["variable.undefined"]
+      "engineCodes": [
+        "Level1.Variables"
+      ],
+      "phpstanIdentifiers": [
+        "variable.undefined"
+      ]
     },
     {
       "id": "interpolated-undefined-variable",
       "capability": "undefined variables inside interpolated strings",
       "file": "interpolated-undefined-variable.php",
-      "engineCodes": ["Level1.Variables"],
-      "phpstanIdentifiers": ["variable.undefined"]
+      "engineCodes": [
+        "Level1.Variables"
+      ],
+      "phpstanIdentifiers": [
+        "variable.undefined"
+      ]
+    },
+    {
+      "id": "extra-function-arguments",
+      "capability": "extra positional function arguments",
+      "file": "extra-function-arguments.php",
+      "engineCodes": [
+        "Level0.Invocation"
+      ],
+      "phpstanIdentifiers": [
+        "arguments.count"
+      ]
+    },
+    {
+      "id": "magic-this-members",
+      "capability": "unknown $this method and property on a class with magic accessors at level 1",
+      "file": "magic-this-members.php",
+      "engineCodes": [
+        "Level0.Symbols",
+        "Level0.Symbols"
+      ],
+      "phpstanIdentifiers": [
+        "method.notFound",
+        "property.notFound"
+      ]
+    },
+    {
+      "id": "magic-this-members-clean",
+      "capability": "declared $this members remain clean",
+      "file": "magic-this-members-clean.php",
+      "engineCodes": [],
+      "phpstanIdentifiers": []
+    },
+    {
+      "id": "constructor-unused-parameter",
+      "capability": "unused non-promoted constructor parameters",
+      "file": "constructor-unused-parameter.php",
+      "engineCodes": [
+        "Level1.Core"
+      ],
+      "phpstanIdentifiers": [
+        "constructor.unusedParameter"
+      ]
+    },
+    {
+      "id": "closure-unused-use",
+      "capability": "unused closure use captures",
+      "file": "closure-unused-use.php",
+      "engineCodes": [
+        "Level1.Core"
+      ],
+      "phpstanIdentifiers": [
+        "closure.unusedUse"
+      ]
+    },
+    {
+      "id": "undefined-constant",
+      "capability": "undefined global constant reads",
+      "file": "undefined-constant.php",
+      "engineCodes": [
+        "Level1.Core"
+      ],
+      "phpstanIdentifiers": [
+        "constant.notFound"
+      ]
+    },
+    {
+      "id": "isset-empty-coalesce-types",
+      "capability": "redundant isset, empty and null-coalescing checks on known values",
+      "file": "isset-empty-coalesce-types.php",
+      "engineCodes": [
+        "Level1.Core",
+        "Level1.Core",
+        "Level1.Core"
+      ],
+      "phpstanIdentifiers": [
+        "isset.variable",
+        "nullCoalesce.variable",
+        "empty.variable"
+      ]
+    },
+    {
+      "id": "extra-method-and-constructor-arguments",
+      "capability": "extra constructor arguments and level-2 method argument-count boundary",
+      "file": "extra-method-and-constructor-arguments.php",
+      "engineCodes": [
+        "Level0.Invocation"
+      ],
+      "phpstanIdentifiers": [
+        "arguments.count"
+      ]
+    },
+    {
+      "id": "empty-falsey-type",
+      "capability": "empty() checks on definitely-falsey and unknown boolean values",
+      "file": "empty-falsey-type.php",
+      "engineCodes": [
+        "Level1.Core"
+      ],
+      "phpstanIdentifiers": [
+        "empty.variable"
+      ]
+    },
+    {
+      "id": "no-constructor-arguments",
+      "capability": "arguments passed to a class with no constructor",
+      "file": "no-constructor-arguments.php",
+      "engineCodes": [
+        "Level0.Invocation"
+      ],
+      "phpstanIdentifiers": [
+        "new.noConstructor"
+      ]
     }
   ]
 }

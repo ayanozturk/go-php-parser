@@ -116,6 +116,28 @@ func TestArrayShapeFieldsRetainScalarAndLiteralValueTypes(t *testing.T) {
 	}
 }
 
+func TestValueOfProjectsExplicitArrayShapeValues(t *testing.T) {
+	typeCtx := FileTypeContext{}
+	if got := normalizeTypeWithContext(`value-of<array{count: int, label: string}>`, typeCtx); got != "int|string" {
+		t.Fatalf("value-of projection = %q, want int|string", got)
+	}
+	if got := normalizeTypeWithContext(`value-of<array{meta: array{active: bool}, id: int}>`, typeCtx); got != "mixed" {
+		t.Fatalf("nested value-of projection = %q, want conservative mixed", got)
+	}
+	if got := normalizeTypeWithContext(`value-of<array{first?: int, second: string}>`, typeCtx); got != "int|string" {
+		t.Fatalf("optional-field value-of projection = %q, want int|string", got)
+	}
+	if got := normalizeTypeWithContext(`value-of<array{object: Foo&Bar, count: int}>`, typeCtx); got != "(Bar&Foo)|int" {
+		t.Fatalf("intersection value-of projection = %q, want (Bar&Foo)|int", got)
+	}
+	if got := normalizeTypeWithContext(`value-of<array{count: int, ...}>`, typeCtx); got != "mixed" {
+		t.Fatalf("open-shape value-of projection = %q, want conservative mixed", got)
+	}
+	if got := normalizeTemplateAwareType(`value-of<array{value: T}>`, typeCtx, templateNames([]string{"T"})); got != "mixed" {
+		t.Fatalf("template value-of projection = %q, want conservative mixed", got)
+	}
+}
+
 func parseGenericReturnFixture(t *testing.T, source string) ([]ast.Node, ast.Node) {
 	t.Helper()
 	nodes, diags := syntax.ParseAST([]byte(source))

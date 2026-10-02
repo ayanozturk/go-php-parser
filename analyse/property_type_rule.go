@@ -47,6 +47,9 @@ func recordAssignmentTypeIssues(assign *ast.AssignmentNode, scope *functionScope
 		}
 		actual = result
 	}
+	if assign.Operator == "=" {
+		actual = inferPropertyAssignedValueType(filename, assign.Right, scope, ctx)
+	}
 	if !analysisLevelAtLeast(ctx, 3) {
 		return
 	}
@@ -72,6 +75,21 @@ func recordAssignmentTypeIssues(assign *ast.AssignmentNode, scope *functionScope
 		Code:     "A.PROP.TYPE",
 		Message:  fmt.Sprintf("Property %s expects %s, got %s", propertyName, expected.String(), actualLabel),
 	})
+}
+
+func inferPropertyAssignedValueType(filename string, expr ast.Node, scope *functionScope, ctx *AnalysisContext) Type {
+	inferred, authoritativeFact := inferTypeWithFactSource(filename, expr, scope, ctx)
+	if authoritativeFact || !isPlainStringType(inferred) {
+		return inferred
+	}
+	switch node := expr.(type) {
+	case *ast.StringLiteral:
+		return stringLiteralType(node.Value)
+	case *ast.StringNode:
+		return stringLiteralType(node.Value)
+	default:
+		return inferred
+	}
 }
 
 func recordBinaryOpIssue(expr *ast.BinaryExpr, scope *functionScope, ctx *AnalysisContext, filename string) {
@@ -107,6 +125,12 @@ func inferAssignmentTargetType(left ast.Node, scope *functionScope, ctx *Analysi
 }
 
 func compoundAssignmentResult(operator string, left, right Type) (Type, bool, bool) {
+	if left.hasStringLiteralAtom() {
+		left = ParseType("string")
+	}
+	if right.hasStringLiteralAtom() {
+		right = ParseType("string")
+	}
 	leftName, leftOK := singleCompoundBuiltin(left)
 	rightName, rightOK := singleCompoundBuiltin(right)
 	if !leftOK || !rightOK {

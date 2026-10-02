@@ -396,7 +396,23 @@ func collectObservedReturns(filename string, nodes []ast.Node, scope *functionSc
 }
 
 func inferReturnTypeWithFacts(filename string, expr ast.Node, scope *functionScope, ctx *AnalysisContext) Type {
-	inferred := inferTypeWithFacts(filename, expr, scope, ctx)
+	inferred, authoritativeFact := inferTypeWithFactSource(filename, expr, scope, ctx)
+	if inferred.hasStringLiteralAtom() {
+		return inferred
+	}
+	if authoritativeFact {
+		return inferred
+	}
+	switch node := expr.(type) {
+	case *ast.StringLiteral:
+		if isPlainStringType(inferred) {
+			return stringLiteralType(node.Value)
+		}
+	case *ast.StringNode:
+		if isPlainStringType(inferred) {
+			return stringLiteralType(node.Value)
+		}
+	}
 	if refined := refineLiteralEmptiness(expr, inferred); !refined.IsEmpty() {
 		return refined
 	}
@@ -462,6 +478,11 @@ func collectObservedReturnsUsing(filename string, nodes []ast.Node, scope *funct
 }
 
 func inferTypeWithFacts(filename string, expr ast.Node, scope *functionScope, ctx *AnalysisContext) Type {
+	inferred, _ := inferTypeWithFactSource(filename, expr, scope, ctx)
+	return inferred
+}
+
+func inferTypeWithFactSource(filename string, expr ast.Node, scope *functionScope, ctx *AnalysisContext) (Type, bool) {
 	if filename != "" && expr != nil && ctx != nil && ctx.Facts != nil {
 		start, end := expr.GetPos(), expr.GetEndPos()
 		if end.Offset > start.Offset {
@@ -478,7 +499,11 @@ func inferTypeWithFacts(filename string, expr ast.Node, scope *functionScope, ct
 			// as relative and incorrectly prepend the current namespace.
 			if fact, ok := ctx.Facts.Fact(key); ok && strings.TrimSpace(fact.Type) != "" {
 				if inferred := ParseType(fact.Type); !inferred.IsEmpty() {
-					return inferred
+					generated := false
+					if reader, ok := ctx.Facts.(interface{ generatedInferredTypeFact(SemanticFactKey) bool }); ok {
+						generated = reader.generatedInferredTypeFact(key)
+					}
+					return inferred, !generated
 				}
 			}
 
@@ -495,12 +520,12 @@ func inferTypeWithFacts(filename string, expr ast.Node, scope *functionScope, ct
 					narrowedType = normalizeTypeWithContext(narrowedType, scope.typeCtx)
 				}
 				if narrowed := ParseType(narrowedType); !narrowed.IsEmpty() {
-					return narrowed
+					return narrowed, false
 				}
 			}
 		}
 	}
-	return inferType(expr, scope, ctx)
+	return inferType(expr, scope, ctx), false
 }
 
 // inferType determines a simple type label for a given AST node.
@@ -1116,7 +1141,7 @@ func buildClassScopeDataWithSeen(class *ast.ClassNode, typeCtx FileTypeContext, 
 				data.propertyCallableReturns[property.Name] = callableReturn
 			} else {
 				documented := ParseType(normalizeTypeWithContext(property.PHPDoc.VarType, typeCtx))
-				if propertyType.IsEmpty() || documented.hasMockObjectType() || documented.hasIntersectionAlternative() {
+				if propertyType.IsEmpty() || documented.hasMockObjectType() || documented.hasIntersectionAlternative() || propertyType.hasBuiltin("string") && documented.hasStringLiteralAtom() {
 					if !documented.IsEmpty() {
 						propertyType = documented
 					}

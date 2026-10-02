@@ -96,6 +96,20 @@ function emptyValues(): array { return []; }
 	}
 }
 
+func TestQuotedPHPDocLiteralReturnTypesPreserveExactValues(t *testing.T) {
+	issues := analysePHP(t, `<?php
+/** @return 'ready' */
+function readyLabel(): string { return 'ready'; }
+/** @return 'ready'|'busy' */
+function busyLabel(): string { return 'busy'; }
+/** @return 'ready' */
+function wrongLabel(): string { return 'wrong'; }
+`)
+	if got := countIssuesWithCode(issues, "A.RETURN.TYPE"); got != 1 {
+		t.Fatalf("expected only the wrong exact literal return to mismatch, got %#v", issues)
+	}
+}
+
 func TestClassPHPDocTypeAliasExpandsForMethodReturn(t *testing.T) {
 	php := `<?php
 /**
