@@ -31,9 +31,8 @@ Complete the core PHPDoc type model and its interactions with inference, subtypi
 - [x] Verify nested generic subtype checks across union/intersection bounds, including clean and mismatch PHPStan fixtures.
 - [x] Bound PHPDoc alias expansion cycles and nested generic subtype recursion, with terminating and conservative boundary tests.
 - [x] Verify exact PHPDoc string narrowing with strict equality and inequality, compound true-branch predicates, and valid assignment joins; confirm clean and mismatch behavior against PHPStan alongside existing integer-range boundary and compound-predicate gates.
+- [x] Verify disjunctive exact-string narrowing and integer-range joins, including unbounded branch joins, with clean, mismatch, and boundary fixtures.
 - Give each correction neutral positive, negative, and boundary fixtures at the relevant PHPStan level.
-
-Immediate next slice: verify exact-string narrowing through disjunctive predicates and assignment joins, and integer-range widening at branch joins, with clean, mismatch, and boundary fixtures.
 
 ### 3. Extend flow and project semantics
 

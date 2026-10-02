@@ -142,120 +142,120 @@ const (
 )
 
 var kindNames = [...]string{
-	KindError:                      "Error",
-	KindToken:                      "Token",
-	KindMissing:                    "Missing",
-	KindFile:                       "File",
-	KindTokenList:                  "TokenList",
-	KindName:                       "Name",
-	KindUnqualifiedName:            "UnqualifiedName",
-	KindQualifiedName:              "QualifiedName",
-	KindFullyQualifiedName:         "FullyQualifiedName",
-	KindRelativeName:               "RelativeName",
-	KindNameList:                   "NameList",
-	KindNamedType:                  "NamedType",
-	KindNullableType:               "NullableType",
-	KindUnionType:                  "UnionType",
-	KindIntersectionType:           "IntersectionType",
-	KindParenthesizedType:          "ParenthesizedType",
-	KindPrimitiveType:              "PrimitiveType",
-	KindCallableType:               "CallableType",
-	KindAttributeList:              "AttributeList",
-	KindAttributeGroup:             "AttributeGroup",
-	KindAttribute:                  "Attribute",
-	KindArgList:                    "ArgList",
-	KindArg:                        "Arg",
-	KindNamedArg:                   "NamedArg",
-	KindStringLiteral:              "StringLiteral",
-	KindHeredoc:                    "Heredoc",
-	KindNowdoc:                     "Nowdoc",
-	KindStringPart:                 "StringPart",
-	KindVariablePart:               "VariablePart",
-	KindEncapsulatedExpr:           "EncapsulatedExpr",
-	KindModifierList:                "ModifierList",
-	KindClassDecl:                  "ClassDecl",
-	KindInterfaceDecl:              "InterfaceDecl",
-	KindTraitDecl:                  "TraitDecl",
-	KindEnumDecl:                   "EnumDecl",
-	KindFunctionDecl:               "FunctionDecl",
-	KindMethodDecl:                 "MethodDecl",
-	KindPropertyDecl:               "PropertyDecl",
-	KindClassConstDecl:             "ClassConstDecl",
-	KindEnumCase:                   "EnumCase",
-	KindParam:                      "Param",
-	KindParamList:                  "ParamList",
-	KindMemberList:                 "MemberList",
-	KindExtendsClause:              "ExtendsClause",
-	KindImplementsClause:           "ImplementsClause",
-	KindUseTraitClause:             "UseTraitClause",
-	KindNamespaceDecl:              "NamespaceDecl",
-	KindUseDecl:                    "UseDecl",
-	KindUseClause:                  "UseClause",
-	KindUseGroup:                   "UseGroup",
-	KindCallableParam:              "CallableParam",
-	KindCallableParamList:          "CallableParamList",
-	KindStatementList:              "StatementList",
-	KindEmptyStmt:                  "EmptyStmt",
-	KindConstDecl:                  "ConstDecl",
-	KindDeclareStmt:                "DeclareStmt",
-	KindGlobalStmt:                 "GlobalStmt",
-	KindStaticVarStmt:              "StaticVarStmt",
-	KindEchoStmt:                   "EchoStmt",
-	KindReturnStmt:                 "ReturnStmt",
-	KindExpressionStmt:             "ExpressionStmt",
-	KindIfStmt:                     "IfStmt",
-	KindElseIfClause:               "ElseIfClause",
-	KindElseClause:                 "ElseClause",
-	KindWhileStmt:                  "WhileStmt",
-	KindDoWhileStmt:                "DoWhileStmt",
-	KindForStmt:                    "ForStmt",
-	KindForeachStmt:                "ForeachStmt",
-	KindSwitchStmt:                 "SwitchStmt",
-	KindCaseClause:                 "CaseClause",
-	KindDefaultClause:              "DefaultClause",
-	KindMatchExpr:                  "MatchExpr",
-	KindMatchArm:                   "MatchArm",
-	KindTryStmt:                    "TryStmt",
-	KindCatchClause:                "CatchClause",
-	KindFinallyClause:              "FinallyClause",
-	KindBreakStmt:                  "BreakStmt",
-	KindContinueStmt:               "ContinueStmt",
-	KindThrowStmt:                  "ThrowStmt",
-	KindUnsetStmt:                  "UnsetStmt",
-	KindGotoStmt:                   "GotoStmt",
-	KindLabelStmt:                  "LabelStmt",
-	KindTraitAdaptationList:        "TraitAdaptationList",
-	KindTraitAdaptation:            "TraitAdaptation",
-	KindVariableExpr:               "VariableExpr",
-	KindLiteralExpr:                "LiteralExpr",
-	KindBinaryExpr:                 "BinaryExpr",
-	KindUnaryExpr:                  "UnaryExpr",
-	KindAssignExpr:                 "AssignExpr",
-	KindTernaryExpr:                "TernaryExpr",
-	KindCallExpr:                   "CallExpr",
-	KindMemberAccessExpr:           "MemberAccessExpr",
-	KindNullsafeMemberAccessExpr:   "NullsafeMemberAccessExpr",
-	KindArrayAccessExpr:            "ArrayAccessExpr",
-	KindStaticMemberAccessExpr:     "StaticMemberAccessExpr",
-	KindNewExpr:                    "NewExpr",
-	KindCloneExpr:                  "CloneExpr",
-	KindCastExpr:                   "CastExpr",
-	KindParenExpr:                  "ParenExpr",
-	KindArrayExpr:                  "ArrayExpr",
-	KindArrayElement:               "ArrayElement",
-	KindListExpr:                   "ListExpr",
-	KindPrintExpr:                  "PrintExpr",
-	KindIncludeExpr:                "IncludeExpr",
-	KindThrowExpr:                  "ThrowExpr",
-	KindYieldExpr:                  "YieldExpr",
-	KindVariableVariableExpr:       "VariableVariableExpr",
-	KindFirstClassCallableExpr:     "FirstClassCallableExpr",
-	KindClosureExpr:                "ClosureExpr",
-	KindArrowFunctionExpr:          "ArrowFunctionExpr",
-	KindAnonymousClass:             "AnonymousClass",
-	KindClosureUseClause:           "ClosureUseClause",
-	KindPropertyHookList:           "PropertyHookList",
-	KindPropertyHook:               "PropertyHook",
+	KindError:                    "Error",
+	KindToken:                    "Token",
+	KindMissing:                  "Missing",
+	KindFile:                     "File",
+	KindTokenList:                "TokenList",
+	KindName:                     "Name",
+	KindUnqualifiedName:          "UnqualifiedName",
+	KindQualifiedName:            "QualifiedName",
+	KindFullyQualifiedName:       "FullyQualifiedName",
+	KindRelativeName:             "RelativeName",
+	KindNameList:                 "NameList",
+	KindNamedType:                "NamedType",
+	KindNullableType:             "NullableType",
+	KindUnionType:                "UnionType",
+	KindIntersectionType:         "IntersectionType",
+	KindParenthesizedType:        "ParenthesizedType",
+	KindPrimitiveType:            "PrimitiveType",
+	KindCallableType:             "CallableType",
+	KindAttributeList:            "AttributeList",
+	KindAttributeGroup:           "AttributeGroup",
+	KindAttribute:                "Attribute",
+	KindArgList:                  "ArgList",
+	KindArg:                      "Arg",
+	KindNamedArg:                 "NamedArg",
+	KindStringLiteral:            "StringLiteral",
+	KindHeredoc:                  "Heredoc",
+	KindNowdoc:                   "Nowdoc",
+	KindStringPart:               "StringPart",
+	KindVariablePart:             "VariablePart",
+	KindEncapsulatedExpr:         "EncapsulatedExpr",
+	KindModifierList:             "ModifierList",
+	KindClassDecl:                "ClassDecl",
+	KindInterfaceDecl:            "InterfaceDecl",
+	KindTraitDecl:                "TraitDecl",
+	KindEnumDecl:                 "EnumDecl",
+	KindFunctionDecl:             "FunctionDecl",
+	KindMethodDecl:               "MethodDecl",
+	KindPropertyDecl:             "PropertyDecl",
+	KindClassConstDecl:           "ClassConstDecl",
+	KindEnumCase:                 "EnumCase",
+	KindParam:                    "Param",
+	KindParamList:                "ParamList",
+	KindMemberList:               "MemberList",
+	KindExtendsClause:            "ExtendsClause",
+	KindImplementsClause:         "ImplementsClause",
+	KindUseTraitClause:           "UseTraitClause",
+	KindNamespaceDecl:            "NamespaceDecl",
+	KindUseDecl:                  "UseDecl",
+	KindUseClause:                "UseClause",
+	KindUseGroup:                 "UseGroup",
+	KindCallableParam:            "CallableParam",
+	KindCallableParamList:        "CallableParamList",
+	KindStatementList:            "StatementList",
+	KindEmptyStmt:                "EmptyStmt",
+	KindConstDecl:                "ConstDecl",
+	KindDeclareStmt:              "DeclareStmt",
+	KindGlobalStmt:               "GlobalStmt",
+	KindStaticVarStmt:            "StaticVarStmt",
+	KindEchoStmt:                 "EchoStmt",
+	KindReturnStmt:               "ReturnStmt",
+	KindExpressionStmt:           "ExpressionStmt",
+	KindIfStmt:                   "IfStmt",
+	KindElseIfClause:             "ElseIfClause",
+	KindElseClause:               "ElseClause",
+	KindWhileStmt:                "WhileStmt",
+	KindDoWhileStmt:              "DoWhileStmt",
+	KindForStmt:                  "ForStmt",
+	KindForeachStmt:              "ForeachStmt",
+	KindSwitchStmt:               "SwitchStmt",
+	KindCaseClause:               "CaseClause",
+	KindDefaultClause:            "DefaultClause",
+	KindMatchExpr:                "MatchExpr",
+	KindMatchArm:                 "MatchArm",
+	KindTryStmt:                  "TryStmt",
+	KindCatchClause:              "CatchClause",
+	KindFinallyClause:            "FinallyClause",
+	KindBreakStmt:                "BreakStmt",
+	KindContinueStmt:             "ContinueStmt",
+	KindThrowStmt:                "ThrowStmt",
+	KindUnsetStmt:                "UnsetStmt",
+	KindGotoStmt:                 "GotoStmt",
+	KindLabelStmt:                "LabelStmt",
+	KindTraitAdaptationList:      "TraitAdaptationList",
+	KindTraitAdaptation:          "TraitAdaptation",
+	KindVariableExpr:             "VariableExpr",
+	KindLiteralExpr:              "LiteralExpr",
+	KindBinaryExpr:               "BinaryExpr",
+	KindUnaryExpr:                "UnaryExpr",
+	KindAssignExpr:               "AssignExpr",
+	KindTernaryExpr:              "TernaryExpr",
+	KindCallExpr:                 "CallExpr",
+	KindMemberAccessExpr:         "MemberAccessExpr",
+	KindNullsafeMemberAccessExpr: "NullsafeMemberAccessExpr",
+	KindArrayAccessExpr:          "ArrayAccessExpr",
+	KindStaticMemberAccessExpr:   "StaticMemberAccessExpr",
+	KindNewExpr:                  "NewExpr",
+	KindCloneExpr:                "CloneExpr",
+	KindCastExpr:                 "CastExpr",
+	KindParenExpr:                "ParenExpr",
+	KindArrayExpr:                "ArrayExpr",
+	KindArrayElement:             "ArrayElement",
+	KindListExpr:                 "ListExpr",
+	KindPrintExpr:                "PrintExpr",
+	KindIncludeExpr:              "IncludeExpr",
+	KindThrowExpr:                "ThrowExpr",
+	KindYieldExpr:                "YieldExpr",
+	KindVariableVariableExpr:     "VariableVariableExpr",
+	KindFirstClassCallableExpr:   "FirstClassCallableExpr",
+	KindClosureExpr:              "ClosureExpr",
+	KindArrowFunctionExpr:        "ArrowFunctionExpr",
+	KindAnonymousClass:           "AnonymousClass",
+	KindClosureUseClause:         "ClosureUseClause",
+	KindPropertyHookList:         "PropertyHookList",
+	KindPropertyHook:             "PropertyHook",
 }
 
 func (k Kind) String() string {
@@ -335,13 +335,20 @@ func (g *GreenNode) IsToken() bool {
 // Interner deduplicates identical position-independent green subtrees.
 // src is the owned file buffer used to fingerprint token text when Literal is empty.
 type Interner struct {
-	src    []byte
-	nodes  map[string]*GreenNode
-	keyBuf []byte // reused for Token/Node map keys; lookup via string(buf) avoids hit alloc
+	src            []byte
+	nodes          map[string]*GreenNode
+	composites     map[uint64]*GreenNode
+	collisions     map[uint64][]*GreenNode
+	compositeCount int
+	keyBuf         []byte // reused for Token/OpaqueSpan keys; lookup via string(buf) avoids hit alloc
 }
 
 func NewInterner(src []byte) *Interner {
-	return &Interner{src: src, nodes: make(map[string]*GreenNode)}
+	return &Interner{
+		src:        src,
+		nodes:      make(map[string]*GreenNode),
+		composites: make(map[uint64]*GreenNode),
+	}
 }
 
 // opaqueSpanSentinel makes IsToken() true for width-only body blobs so Print
@@ -402,33 +409,65 @@ func (in *Interner) Missing(tok token.Token) *GreenNode {
 
 func (in *Interner) Node(kind Kind, children ...*GreenNode) *GreenNode {
 	w := 0
-	ks := kind.String()
-	b := in.keyBuf[:0]
-	need := 2 + len(ks) + len(children)*18
-	if cap(b) < need {
-		b = make([]byte, 0, need)
-	}
-	b = append(b, 'n', ':')
-	b = append(b, ks...)
+	h := uint64(14695981039346656037)
+	h ^= uint64(kind)
+	h *= 1099511628211
+	contentStartRel := 0
+	hasContentStart := false
 	for _, c := range children {
-		b = append(b, ':')
-		if c == nil {
-			b = append(b, '0')
-			continue
+		var ptr uint64
+		if c != nil {
+			w += c.width
+			ptr = uint64(uintptr(unsafe.Pointer(c)))
+			if !hasContentStart {
+				contentStartRel = c.contentStartRel
+				hasContentStart = true
+			}
 		}
-		w += c.width
-		b = strconv.AppendUint(b, uint64(uintptr(unsafe.Pointer(c))), 16)
+		h ^= ptr
+		h *= 1099511628211
 	}
-	in.keyBuf = b
-	if n, ok := in.nodes[string(b)]; ok {
-		return n
+	h ^= uint64(len(children))
+	h *= 1099511628211
+	hash := h
+	if n := in.composites[hash]; n != nil {
+		if greenNodeMatches(n, kind, children) {
+			return n
+		}
+		for _, candidate := range in.collisions[hash] {
+			if greenNodeMatches(candidate, kind, children) {
+				return candidate
+			}
+		}
+		if len(in.collisions[hash]) == 0 {
+			if in.collisions == nil {
+				in.collisions = make(map[uint64][]*GreenNode)
+			}
+			in.collisions[hash] = []*GreenNode{n}
+		}
 	}
-	key := string(b)
+
 	ch := append([]*GreenNode(nil), children...)
-	startRel := greenCompositeContentStartRel(ch)
-	n := &GreenNode{kind: kind, width: w, children: ch, contentStartRel: startRel, contentEndRel: w}
-	in.nodes[key] = n
+	n := &GreenNode{kind: kind, width: w, children: ch, contentStartRel: contentStartRel, contentEndRel: w}
+	if in.composites[hash] == nil {
+		in.composites[hash] = n
+	} else {
+		in.collisions[hash] = append(in.collisions[hash], n)
+	}
+	in.compositeCount++
 	return n
+}
+
+func greenNodeMatches(node *GreenNode, kind Kind, children []*GreenNode) bool {
+	if node.kind != kind || len(node.children) != len(children) {
+		return false
+	}
+	for i, child := range children {
+		if node.children[i] != child {
+			return false
+		}
+	}
+	return true
 }
 
 func greenTokenContentBounds(width int, tok token.Token) (startRel, endRel int) {
@@ -437,23 +476,12 @@ func greenTokenContentBounds(width int, tok token.Token) (startRel, endRel int) 
 	return startRel, endRel
 }
 
-func greenCompositeContentStartRel(children []*GreenNode) int {
-	childOff := 0
-	for _, c := range children {
-		if c == nil {
-			continue
-		}
-		return childOff + c.contentStartRel
-	}
-	return 0
-}
-
 // Len reports how many distinct greens are currently interned (tests/metrics).
 func (in *Interner) Len() int {
 	if in == nil {
 		return 0
 	}
-	return len(in.nodes)
+	return len(in.nodes) + in.compositeCount
 }
 
 func (in *Interner) materializeLiterals(tok token.Token) token.Token {

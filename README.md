@@ -2,44 +2,25 @@
 
 A PHP parser, code-style checker, and project-aware static analyzer written in Go.
 
-`go-php-parser` turns PHP source into a detailed Abstract Syntax Tree, checks it against a registered set of style rules (PSR-12 and friends), and runs a project-aware analyzer that resolves symbols, types, and control flow across the configured files. Diagnostics are emitted in deterministic source order with stable exit codes, and the same engine backs the `analyze` command and the PHP Strom language server.
+`go-php-parser` parses PHP into a lossless concrete syntax tree and a lower-level AST, applies configurable style rules, and analyzes symbols, PHPDoc types, and control flow across a project. It provides the analysis engine used by the `analyze` command and the PHP Strom language server, with diagnostics emitted in deterministic source order.
 
 The long-term target is a production-grade, full PHP static analyzer. The active implementation checklist is in [plan.MD](plan.MD); future work and sequencing are maintained in the [project roadmap](roadmap.md).
 
 ## Features
 
-### Language Support
+- **PHP parsing:** PHP 8 syntax, a lossless concrete syntax tree that preserves source text and trivia, an AST lowering API, and source positions for syntax nodes.
+- **Editor support:** tolerant parsing with error nodes, reusable parse results, and the shared analysis engine used by the [PHP Strom language server](https://github.com/ayanozturk/vscode-php-strom).
+- **Project analysis:** cross-file symbol resolution, PHPDoc types and aliases, generic and shape types, argument/return/property checks, and control-flow narrowing and joins.
+- **Configurable diagnostics:** analysis levels 0–10 plus unlevelled rules, deterministic diagnostic ordering, and stable command exit codes.
+- **Code style:** configurable style rules, including the PSR-12 checks documented below.
+- **Developer tooling:** command-line project discovery, configuration inspection, file listing, style-rule inventory, corpus checks, and benchmarks.
 
-- PHP 8+ syntax
-- Function declarations with parameters
-- Variable declarations and assignments
-- Control structures (if, elseif, else)
-- String literals (single and double quoted)
-- String interpolation
-- Integer and float literals
-- Boolean literals (true, false)
-- Null literal
-- Comments (single-line and doc comments)
-- Basic expressions and operators
-
-### AST Features
-
-- Detailed position tracking (line, column, offset)
-- Hierarchical node structure
-- Support for:
-  - Function nodes
-  - Variable nodes
-  - Parameter nodes
-  - Assignment nodes
-  - Expression nodes
-  - Control structure nodes
-  - Comment nodes
-  - Literal nodes (string, integer, float, boolean, null)
+The analyzer is under active development; see [plan.MD](plan.MD) for the current implementation scope and known acceptance gates.
 
 ## Installation
 
 ```bash
-git clone https://github.com/yourusername/go-php-parser.git
+git clone https://github.com/ayanozturk/go-php-parser.git
 cd go-php-parser
 go mod download
 ```

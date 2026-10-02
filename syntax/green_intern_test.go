@@ -109,6 +109,34 @@ func TestInternerSharesIdenticalNodes(t *testing.T) {
 	}
 }
 
+func TestInternerDistinguishesCompositeShapes(t *testing.T) {
+	in := NewInterner(nil)
+	a := in.Token(token.Token{Type: token.T_STRING, Literal: "a"})
+	b := in.Token(token.Token{Type: token.T_STRING, Literal: "b"})
+
+	want := in.Node(KindArrayExpr, a, b)
+	if got := in.Node(KindArrayExpr, a, b); got != want {
+		t.Fatal("identical composite children must intern")
+	}
+	for _, got := range []*GreenNode{
+		in.Node(KindArrayExpr, b, a),
+		in.Node(KindListExpr, a, b),
+		in.Node(KindArrayExpr, a, nil, b),
+	} {
+		if got == want {
+			t.Fatal("different composite shapes must not share a green")
+		}
+	}
+
+	withTrivia := in.Token(token.Token{
+		Type: token.T_STRING, Literal: "a",
+		LeadingTrivia: []token.Token{{Type: token.T_WHITESPACE, Literal: " "}},
+	})
+	if got := in.Node(KindArrayExpr, nil, withTrivia); got.contentStartRel != 1 {
+		t.Fatalf("contentStartRel with a leading nil child = %d, want 1", got.contentStartRel)
+	}
+}
+
 func TestInternerDoesNotShareDifferentLiteralsSameWidth(t *testing.T) {
 	in := NewInterner(nil)
 	a := in.Token(token.Token{Type: token.T_STRING, Literal: "ab"})

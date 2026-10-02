@@ -1033,8 +1033,34 @@ func joinFallthroughVariableTypes(outer *functionScope, fallthroughs []*function
 		joined = widenJoinedIntegerType(joined)
 		if !joined.IsEmpty() {
 			outer.setVariable(name, joined)
+			if hasBoundedAndUnboundedIntegerBranches(name, fallthroughs) {
+				outer.markIntegerJoinVariable(name)
+			}
 		}
 	}
+}
+
+func hasBoundedAndUnboundedIntegerBranches(name string, branches []*functionScope) bool {
+	bounded, unbounded := false, false
+	for _, branch := range branches {
+		if branch == nil {
+			continue
+		}
+		typ, found := branch.variable(name)
+		if !found || len(typ.atoms) != 1 {
+			continue
+		}
+		interval, ok := integerAtomInterval(typ.sortedAtoms()[0])
+		if !ok {
+			continue
+		}
+		if interval.lowerUnbounded || interval.upperUnbounded {
+			unbounded = true
+		} else {
+			bounded = true
+		}
+	}
+	return bounded && unbounded
 }
 
 // widenJoinedIntegerType forms the smallest integer interval covering the
@@ -1669,7 +1695,7 @@ func classTemplateParamBound(raw, className string, ctx *AnalysisContext) (name,
 	return "", "", false
 }
 
-func argumentTypeIssueMinimumLevel(expected, actual Type, scope *functionScope, ctx *AnalysisContext) int {
+func argumentTypeIssueMinimumLevel(expected, actual Type, argument ast.Node, scope *functionScope, ctx *AnalysisContext) int {
 	if actual.hasBuiltin("false") && argumentExpectedTypeAcceptsActual(expected, actual.withoutBuiltin("false"), scope, ctx) {
 		return 7
 	}
@@ -1683,12 +1709,41 @@ func argumentTypeIssueMinimumLevel(expected, actual Type, scope *functionScope, 
 		return 7
 	}
 	if expected.hasAnyIntegerRefinement() && actual.hasBuiltin("int") && len(actual.atoms) == 1 {
+		if variable, ok := argument.(*ast.VariableNode); ok && scope.isIntegerJoinVariable(variable.Name) {
+			return 5
+		}
 		return 7
+	}
+	if isStringLiteralSet(expected) && isStringLiteralSet(actual) {
+		return 5
+	}
+	if isBoundedIntegerInterval(expected) && isBoundedIntegerInterval(actual) {
+		return 5
 	}
 	if actual.AcceptsWithContext(expected, scope, ctx) {
 		return 8
 	}
 	return 5
+}
+
+func isStringLiteralSet(typ Type) bool {
+	if len(typ.atoms) == 0 {
+		return false
+	}
+	for _, atom := range typ.sortedAtoms() {
+		if _, ok := stringLiteralAtomValue(atom); !ok {
+			return false
+		}
+	}
+	return true
+}
+
+func isBoundedIntegerInterval(typ Type) bool {
+	if len(typ.atoms) != 1 {
+		return false
+	}
+	interval, ok := integerAtomInterval(typ.sortedAtoms()[0])
+	return ok && !interval.lowerUnbounded && !interval.upperUnbounded
 }
 
 func argumentExpectedTypeAcceptsActual(expected, actual Type, scope *functionScope, ctx *AnalysisContext) bool {
@@ -1778,7 +1833,7 @@ func checkResolvedCallArgTypes(target string, method ResolvedMethod, args []ast.
 			usedParams[paramIndex] = struct{}{}
 			continue
 		}
-		if !analysisLevelAtLeast(ctx, argumentTypeIssueMinimumLevel(expected, actual, scope, ctx)) {
+		if !analysisLevelAtLeast(ctx, argumentTypeIssueMinimumLevel(expected, actual, argExpr, scope, ctx)) {
 			usedParams[paramIndex] = struct{}{}
 			continue
 		}
@@ -1803,6 +1858,14 @@ func checkResolvedCallArgTypes(target string, method ResolvedMethod, args []ast.
 
 func inferArgumentTypeWithFacts(filename string, expr ast.Node, scope *functionScope, ctx *AnalysisContext) Type {
 	actual := inferTypeWithFacts(filename, expr, scope, ctx)
+	// Generated expression facts are collected before this call-site walk and
+	// can miss branch-local narrowing or assignment joins. The live function
+	// scope is authoritative for a local variable at the point of the call.
+	if variable, ok := expr.(*ast.VariableNode); ok && scope != nil {
+		if contextual, found := scope.variable(variable.Name); found && !contextual.IsEmpty() {
+			actual = contextual
+		}
+	}
 	switch node := expr.(type) {
 	case *ast.StringLiteral:
 		if isPlainStringType(actual) {
