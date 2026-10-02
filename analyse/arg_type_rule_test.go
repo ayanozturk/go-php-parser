@@ -396,6 +396,7 @@ function check($color, bool $enabled): void {
     if ($color !== 'red') { acceptBlue($color); } else { acceptRed($color); }
     if ($enabled && $color === 'red') { acceptRed($color); }
 }
+
 /** @param 'red'|'blue' $color */
 function mismatch($color): void {
     if ($color === 'red') { acceptBlue($color); } else { acceptRed($color); }
@@ -410,6 +411,45 @@ function mismatch($color): void {
 	}
 	if len(mismatches) != 2 {
 		t.Fatalf("expected only the two deliberately reversed literal branches to fail, got %#v", issues)
+	}
+}
+
+func TestArgumentTypesNarrowExactStringDisjunctionsAndJoins(t *testing.T) {
+	nodes := parsePHPForLevel0(t, `<?php if ($color === 'red' || $color === 'blue') {}`)
+	var condition ast.Node
+	for _, node := range nodes {
+		if conditional, ok := node.(*ast.IfNode); ok {
+			condition = conditional.Condition
+			break
+		}
+	}
+	if condition == nil {
+		t.Fatal("expected an if condition")
+	}
+	scope := newFunctionScope(nil, &ast.FunctionNode{}, FileTypeContext{})
+	scope.setVariable("color", ParseType("'red'|'blue'|'green'"))
+	narrowed := variablesTypedWhenTrue(condition, scope)["color"]
+	if !narrowed.Accepts(ParseType("'red'|'blue'")) || narrowed.Accepts(ParseType("'green'")) {
+		t.Fatalf("OR true path should narrow to red|blue, got %s", narrowed.dnfString())
+	}
+
+	outer := newFunctionScope(nil, &ast.FunctionNode{}, FileTypeContext{})
+	low, high := newFunctionScope(nil, &ast.FunctionNode{}, FileTypeContext{}), newFunctionScope(nil, &ast.FunctionNode{}, FileTypeContext{})
+	low.setVariable("value", ParseType("1"))
+	high.setVariable("value", ParseType("10"))
+	joinFallthroughVariableTypes(outer, []*functionScope{low, high})
+	joined, _ := outer.variable("value")
+	if !ParseType("int<1,10>").Accepts(joined) || joined.Accepts(ParseType("11")) {
+		t.Fatalf("integer branch join should widen to the inclusive 1..10 interval, got %s", joined.dnfString())
+	}
+
+	boundary := newFunctionScope(nil, &ast.FunctionNode{}, FileTypeContext{})
+	unbounded := newFunctionScope(nil, &ast.FunctionNode{}, FileTypeContext{})
+	unbounded.setVariable("value", ParseType("int"))
+	joinFallthroughVariableTypes(boundary, []*functionScope{low, unbounded})
+	boundaryType, _ := boundary.variable("value")
+	if ParseType("int<1,10>").Accepts(boundaryType) {
+		t.Fatalf("an unbounded branch must keep the joined integer type broad, got %s", boundaryType.dnfString())
 	}
 }
 

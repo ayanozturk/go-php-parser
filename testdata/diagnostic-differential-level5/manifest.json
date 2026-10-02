@@ -829,6 +829,39 @@
         "argument.type",
         "argument.type"
       ]
+    },
+    {
+      "id": "disjunctive-and-range-joins-clean",
+      "capability": "disjunctive exact strings and integer assignment joins retain bounded types",
+      "file": "disjunctive-and-range-joins-clean.php",
+      "engineCodes": [],
+      "phpstanIdentifiers": []
+    },
+    {
+      "id": "disjunctive-and-range-joins-mismatch",
+      "capability": "disjunctive string unions and widened integer joins reject incompatible arguments",
+      "file": "disjunctive-and-range-joins-mismatch.php",
+      "engineCodes": [
+        "A.ARG.TYPE",
+        "A.ARG.TYPE"
+      ],
+      "phpstanIdentifiers": [
+        "argument.type",
+        "argument.type"
+      ]
+    },
+    {
+      "id": "disjunctive-and-range-joins-boundary",
+      "capability": "unknown disjunction paths and unbounded integer joins stay conservative",
+      "file": "disjunctive-and-range-joins-boundary.php",
+      "engineCodes": [
+        "A.ARG.TYPE",
+        "A.ARG.TYPE"
+      ],
+      "phpstanIdentifiers": [
+        "argument.type",
+        "argument.type"
+      ]
     }
   ]
 }

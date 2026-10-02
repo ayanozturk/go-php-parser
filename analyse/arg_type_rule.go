@@ -366,6 +366,27 @@ func variablesTypedWhenTrue(node ast.Node, scope *functionScope) map[string]Type
 	switch n := node.(type) {
 	case *ast.BinaryExpr:
 		switch n.Operator {
+		case "||", "or":
+			// A true disjunction may come from either side. The right side is
+			// evaluated under the left side's false refinements; only variables
+			// narrowed on both successful paths can be narrowed after the OR.
+			left := variablesTypedWhenTrue(n.Left, scope)
+			falseLeft := variablesTypedWhenFalse(n.Left, scope)
+			rightScope := scope
+			if scope != nil && len(falseLeft) > 0 {
+				rightScope = scope.clone()
+				for name, typ := range falseLeft {
+					rightScope.setVariable(name, typ)
+				}
+			}
+			right := variablesTypedWhenTrue(n.Right, rightScope)
+			joined := make(map[string]Type)
+			for name, leftType := range left {
+				if rightType, ok := right[name]; ok {
+					joined[name] = unionInferredTypes(leftType, rightType)
+				}
+			}
+			return joined
 		case "&&", "and":
 			types := variablesTypedWhenTrue(n.Left, scope)
 			rightScope := scope
@@ -1009,10 +1030,50 @@ func joinFallthroughVariableTypes(outer *functionScope, fallthroughs []*function
 				joined = unionInferredTypes(joined, outerType)
 			}
 		}
+		joined = widenJoinedIntegerType(joined)
 		if !joined.IsEmpty() {
 			outer.setVariable(name, joined)
 		}
 	}
+}
+
+// widenJoinedIntegerType forms the smallest integer interval covering the
+// integer alternatives at a control-flow join. It leaves mixed unions intact.
+func widenJoinedIntegerType(typ Type) Type {
+	if typ.IsEmpty() {
+		return typ
+	}
+	atoms := typ.sortedAtoms()
+	var lower, upper int64
+	lowerUnbounded, upperUnbounded := false, false
+	for i, atom := range atoms {
+		interval, ok := integerAtomInterval(atom)
+		if !ok {
+			return typ
+		}
+		if i == 0 {
+			lower, upper = interval.lower, interval.upper
+			lowerUnbounded, upperUnbounded = interval.lowerUnbounded, interval.upperUnbounded
+			continue
+		}
+		if interval.lowerUnbounded || (!lowerUnbounded && interval.lower < lower) {
+			lower, lowerUnbounded = interval.lower, interval.lowerUnbounded
+		}
+		if interval.upperUnbounded || (!upperUnbounded && interval.upper > upper) {
+			upper, upperUnbounded = interval.upper, interval.upperUnbounded
+		}
+	}
+	if lowerUnbounded && upperUnbounded {
+		return ParseType("int")
+	}
+	lowerText, upperText := strconv.FormatInt(lower, 10), strconv.FormatInt(upper, 10)
+	if lowerUnbounded {
+		lowerText = "min"
+	}
+	if upperUnbounded {
+		upperText = "max"
+	}
+	return ParseType("int<" + lowerText + "," + upperText + ">")
 }
 
 func collectOwnedVariableNames(scope *functionScope, names map[string]struct{}) {
