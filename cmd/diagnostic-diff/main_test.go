@@ -167,3 +167,28 @@ func TestDecodePHPStanIdentifiers(t *testing.T) {
 		t.Fatalf("unexpected identifiers: %#v", identifiers)
 	}
 }
+
+func TestPHPStanMajorVersionAcceptsV2AndNewer(t *testing.T) {
+	for _, version := range []string{
+		"PHPStan - PHP Static Analysis Tool 2.2.5",
+		"PHPStan - PHP Static Analysis Tool 2.2.16",
+		"PHPStan 3.0.0",
+	} {
+		major, ok := phpstanMajorVersion(version)
+		if !ok || major < 2 {
+			t.Errorf("phpstanMajorVersion(%q) = (%d, %t), want a PHPStan v2+ version", version, major, ok)
+		}
+	}
+}
+
+func TestPHPStanMajorVersionRejectsOlderAndUnknownVersions(t *testing.T) {
+	for _, version := range []string{
+		"PHPStan - PHP Static Analysis Tool 1.12.32",
+		"PHPStan development build",
+	} {
+		major, ok := phpstanMajorVersion(version)
+		if ok && major >= 2 {
+			t.Errorf("phpstanMajorVersion(%q) = (%d, %t), want a version below v2 or unknown", version, major, ok)
+		}
+	}
+}

@@ -10,7 +10,9 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/ayanozturk/go-php-parser/analyse"
@@ -21,6 +23,8 @@ import (
 
 const reportSchemaVersion = 1
 
+var phpstanVersionPattern = regexp.MustCompile(`(^|[^0-9])v?([0-9]+)\.[0-9]+\.[0-9]+([^0-9]|$)`)
+
 type manifest struct {
 	SchemaVersion int               `json:"schemaVersion"`
 	Reference     manifestReference `json:"reference"`
@@ -29,7 +33,7 @@ type manifest struct {
 
 type manifestReference struct {
 	Tool          string `json:"tool"`
-	Version       string `json:"version"`
+	Version       string `json:"version"` // Version used to record expected PHPStan identifiers.
 	Level         int    `json:"level"`
 	Configuration string `json:"configuration"`
 }
@@ -92,7 +96,7 @@ type phpstanOutput struct {
 
 func main() {
 	fixtures := flag.String("fixtures", "testdata/diagnostic-differential", "directory containing manifest.json and PHP fixtures")
-	phpstanBin := flag.String("phpstan-bin", "phpstan", "PHPStan executable used for the reference run")
+	phpstanBin := flag.String("phpstan-bin", "phpstan", "PHPStan v2+ executable used for the reference run")
 	engineOnly := flag.Bool("engine-only", false, "validate only the checked-in engine expectations")
 	jsonOutput := flag.Bool("json", false, "write the machine-readable report to stdout")
 	flag.Parse()
@@ -137,8 +141,9 @@ func runDifferential(fixtures, phpstanBin string, engineOnly bool) (differential
 		if err != nil {
 			return differentialReport{}, fmt.Errorf("reference analyser unavailable (use --engine-only for the local gate): %w", err)
 		}
-		if !strings.HasSuffix(strings.TrimSpace(version), " "+manifest.Reference.Version) {
-			return differentialReport{}, fmt.Errorf("reference analyser version mismatch: manifest pins %s, executable reports %s", manifest.Reference.Version, version)
+		major, ok := phpstanMajorVersion(version)
+		if !ok || major < 2 {
+			return differentialReport{}, fmt.Errorf("reference analyser requires PHPStan v2 or newer; executable reports %s", version)
 		}
 		report.Reference = &toolReport{
 			Tool:              manifest.Reference.Tool,
@@ -216,7 +221,7 @@ func loadManifest(path string) (manifest, error) {
 		return manifest{}, fmt.Errorf("unsupported manifest schema version %d", result.SchemaVersion)
 	}
 	if result.Reference.Tool == "" || result.Reference.Version == "" || result.Reference.Configuration == "" || len(result.Cases) == 0 {
-		return manifest{}, errors.New("manifest requires a pinned reference tool, version, configuration, and at least one case")
+		return manifest{}, errors.New("manifest requires a reference tool, baseline version, configuration, and at least one case")
 	}
 	seen := make(map[string]struct{}, len(result.Cases))
 	for i := range result.Cases {
@@ -286,6 +291,18 @@ func phpstanVersion(binary string) (string, error) {
 		return "", fmt.Errorf("%s --version: %w: %s", binary, err, strings.TrimSpace(string(output)))
 	}
 	return strings.TrimSpace(string(output)), nil
+}
+
+func phpstanMajorVersion(version string) (int, bool) {
+	matches := phpstanVersionPattern.FindStringSubmatch(version)
+	if len(matches) != 4 {
+		return 0, false
+	}
+	major, err := strconv.Atoi(matches[2])
+	if err != nil {
+		return 0, false
+	}
+	return major, true
 }
 
 func runPHPStan(binary, path string, level int, configuration string) ([]string, error) {
