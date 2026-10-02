@@ -222,6 +222,32 @@ function run(): void {
 	}
 }
 
+func TestArgumentTypesPreserveExactStringLiteralsThroughFlow(t *testing.T) {
+	const source = `<?php
+/** @param 'ready' $value */
+function acceptReadyLiteral($value): void {}
+/** @param 'ready'|'busy' $value */
+function acceptReadyOrBusyLiteral($value): void {}
+function assignments(bool $flag): void {
+    $ready = 'ready';
+    acceptReadyLiteral($ready);
+    $busy = 'busy';
+    acceptReadyLiteral($busy);
+    if ($flag) { $joined = 'ready'; } else { $joined = 'busy'; }
+    acceptReadyOrBusyLiteral($joined);
+}
+/** @param 'ready'|'busy' $value */
+function narrowLiteralUnion($value): void {
+    if ($value !== 'busy') { acceptReadyLiteral($value); }
+    if ($value === 'busy') { acceptReadyLiteral($value); }
+}
+`
+	issues := runAnalysisLevelOnFiles(t, map[string]string{"string-literal-flow.php": source}, 5)
+	if got := countIssuesWithCode(issues, "A.ARG.TYPE"); got != 2 {
+		t.Fatalf("expected direct and branch-narrowed wrong literals to mismatch, got %#v", issues)
+	}
+}
+
 func TestArgumentTypesNarrowEmptyStringComparisons(t *testing.T) {
 	const source = `<?php
 /** @param non-empty-string $value */

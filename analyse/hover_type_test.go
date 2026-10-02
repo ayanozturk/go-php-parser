@@ -120,10 +120,10 @@ function run(): void {
 		t.Fatalf("expected filename-aware type API to use int fact, got %q, %v", typ, ok)
 	}
 	legacy, ok := InferHoverTargetAtPosition(nodes, pos.Line, pos.Column, variable.Name, ctx)
-	if !ok || legacy.Type != "non-empty-string" {
-		t.Fatalf("expected legacy hover API to retain literal string refinement, got %#v, %v", legacy, ok)
+	if !ok || legacy.Type != `"raw"` {
+		t.Fatalf("expected legacy hover API to preserve the exact string literal, got %#v, %v", legacy, ok)
 	}
-	if typ, ok := InferTypeAtPosition(nodes, pos.Line, pos.Column, variable.Name, ctx); !ok || typ != "non-empty-string" {
+	if typ, ok := InferTypeAtPosition(nodes, pos.Line, pos.Column, variable.Name, ctx); !ok || typ != `"raw"` {
 		t.Fatalf("InferTypeAtPosition should mirror legacy hover fallback, got %q, %v", typ, ok)
 	}
 }

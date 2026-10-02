@@ -211,7 +211,7 @@ function exactAnswer(): string {
 	function := parsed[filename][0].(*ast.FunctionNode)
 	functionReturn := function.Body[1].(*ast.ReturnNode)
 	functionFact, ok := snapshot.Fact(inferredTypeFactKey(filename, functionReturn.Expr))
-	if !ok || functionFact.Type != "non-empty-string" || functionFact.Subject != "function:answer" {
+	if !ok || functionFact.Type != `"ok"` || functionFact.Subject != "function:answer" {
 		t.Fatalf("unexpected function return fact: %#v, %v", functionFact, ok)
 	}
 	class := parsed[filename][1].(*ast.ClassNode)
@@ -274,7 +274,7 @@ class Example {
 	if !ok {
 		t.Fatal("expected generated inferred-type fact for method argument")
 	}
-	if fact.Type != "non-empty-string" || fact.Subject != "method:example:run" {
+	if fact.Type != `"ok"` || fact.Subject != "method:example:run" {
 		t.Fatalf("unexpected generated argument fact: %#v", fact)
 	}
 }
@@ -485,7 +485,7 @@ class Example {
 		node  ast.Node
 		typ   string
 	}{
-		{label: "assignment target", node: variable, typ: "non-empty-string"},
+		{label: "assignment target", node: variable, typ: `"waiting"`},
 		{label: "condition", node: condition, typ: "bool"},
 	}
 	for _, check := range checks {

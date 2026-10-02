@@ -591,6 +591,19 @@
         "argument.type",
         "assign.propertyType"
       ]
+    },
+    {
+      "id": "argument-string-literal-flow",
+      "capability": "exact string literals survive assignments, joins, and strict comparison narrowing",
+      "file": "argument-string-literal-flow.php",
+      "engineCodes": [
+        "A.ARG.TYPE",
+        "A.ARG.TYPE"
+      ],
+      "phpstanIdentifiers": [
+        "argument.type",
+        "argument.type"
+      ]
     }
   ]
 }

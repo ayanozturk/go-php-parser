@@ -62,6 +62,13 @@
         "return.type",
         "assign.propertyType"
       ]
+    },
+    {
+      "id": "argument-string-literal-flow-below-level-5",
+      "capability": "literal assignment and flow argument mismatches remain silent below level 5",
+      "file": "argument-string-literal-flow-below-level-5.php",
+      "engineCodes": [],
+      "phpstanIdentifiers": []
     }
   ]
 }

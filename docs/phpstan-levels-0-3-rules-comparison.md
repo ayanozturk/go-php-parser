@@ -8,7 +8,7 @@ Source for PHPStan level descriptions: [PHPStan Rule Levels](https://phpstan.org
 
 This comparison is limited to analysis behavior. The project also implements PSR/formatting style rules, but those do not directly correspond to PHPStan's rule levels.
 
-Executable parity evidence is tracked separately in [the analyser capability matrix](analyser-capability-matrix.md). Current differential packs gate 98 / 36 / 105 / 48 cases at levels 0–3, 67 cases at level 5, 30 at level 6, 17 at level 7, and 51 at level 8. Differential manifests pin PHPStan 2.2.5. Descriptive rows in this document are not parity claims unless backed by a checked-in differential fixture there.
+Executable parity evidence is tracked separately in [the analyser capability matrix](analyser-capability-matrix.md). Current differential packs gate 98 / 36 / 105 / 48 cases at levels 0–3, 68 cases at level 5, 30 at level 6, 17 at level 7, and 51 at level 8. Differential manifests pin PHPStan 2.2.5. Descriptive rows in this document are not parity claims unless backed by a checked-in differential fixture there.
 
 ## Coverage Summary
 

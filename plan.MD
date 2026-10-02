@@ -1,21 +1,21 @@
 # Current implementation plan
 
-Status: in progress
+Status: ready
 
 Roadmap source: short-term item 2 — complete the semantic and type system
 
-## Current slice
+## Next slice
 
-Carry exact quoted PHPDoc string literals through local variable assignments and common flow joins/narrowing so later function, method, and constructor arguments retain their exact values. Preserve semantic inferred-type facts as authoritative and retain the level-specific broad-string behavior verified against PHPStan 2.2.5.
+Carry exact quoted PHPDoc string literal types through expression-level value selection (ternary, match, and null-coalescing expressions) so later function, method, and constructor arguments retain the selected values. Keep the work scoped to expression inference and existing local flow; do not expand callable signature or class-constant `value-of` handling in this slice.
 
-Keep this slice focused on local flow. Callable signatures, class-constant `value-of`, and more complex conditional types remain future work.
+Preserve semantic inferred-type facts as authoritative and retain the level-specific broad-string behavior verified against PHPStan 2.2.5.
 
 ## Acceptance evidence
 
-- Add neutral PHPStan 2.2.5 differential fixtures for exact literal assignment, compatible and incompatible argument calls, and branch/assignment-join behavior.
-- Confirm which flow cases preserve exact literals at level 5 and add below-level controls where applicable.
-- Preserve current exact-literal return/property propagation, finite-shape `value-of`, and explicit semantic-fact behavior.
-- Add focused unit tests for assignment, joins, and narrowing.
+- Add neutral PHPStan 2.2.5 differential fixtures for ternary, match, and null-coalescing expressions with compatible and incompatible literal argument calls.
+- Confirm the level threshold for every expression form and add below-level controls where applicable.
+- Preserve exact assignment/join/narrowing, return/property propagation, finite-shape `value-of`, and explicit semantic-fact behavior.
+- Add focused unit tests for selected literal expression types and unions.
 - Run the full Go suite and affected PHPStan reference comparisons.
 - Update the capability matrix and affected rule documentation.
 - Commit and push the completed slice.
