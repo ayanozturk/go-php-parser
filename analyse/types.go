@@ -542,6 +542,15 @@ func (t Type) hasBuiltin(name string) bool {
 	return ok
 }
 
+func (t Type) hasStringLiteralAtom() bool {
+	for key := range t.atoms {
+		if strings.HasPrefix(key, "string-literal:") {
+			return true
+		}
+	}
+	return false
+}
+
 func (t Type) hasAnyIntegerRefinement() bool {
 	if t.hasBuiltin("positive-int") || t.hasBuiltin("negative-int") || t.hasBuiltin("non-negative-int") || t.hasBuiltin("non-positive-int") {
 		return true

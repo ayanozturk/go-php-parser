@@ -6,17 +6,17 @@ Roadmap source: short-term item 2 — complete the semantic and type system
 
 ## Current slice
 
-Carry exact quoted PHPDoc string literals through function/method return types, typed properties, and semantic inferred-type facts so callers can use literal precision at argument boundaries. Preserve explicit semantic facts as authoritative and keep general `string` behavior consistent with PHPStan 2.2.5.
+Carry exact quoted PHPDoc string literals through local variable assignments and common flow joins/narrowing so later function, method, and constructor arguments retain their exact values. Preserve semantic inferred-type facts as authoritative and retain the level-specific broad-string behavior verified against PHPStan 2.2.5.
 
-Keep this slice focused on return/property propagation. Callable signatures, class-constant `value-of`, and broader flow/conditional type behavior remain future work.
+Keep this slice focused on local flow. Callable signatures, class-constant `value-of`, and more complex conditional types remain future work.
 
 ## Acceptance evidence
 
-- Add neutral PHPStan 2.2.5 differential fixtures for literal return and property values, including clean and mismatched argument controls.
-- Confirm the reporting level for return/property mismatches with the pinned reference analyser.
-- Preserve existing exact-literal unions, finite-shape `value-of`, and semantic inferred-type fact behavior.
-- Add focused unit tests for literal propagation through returns and properties.
-- Run the full Go suite and the affected PHPStan reference comparisons.
+- Add neutral PHPStan 2.2.5 differential fixtures for exact literal assignment, compatible and incompatible argument calls, and branch/assignment-join behavior.
+- Confirm which flow cases preserve exact literals at level 5 and add below-level controls where applicable.
+- Preserve current exact-literal return/property propagation, finite-shape `value-of`, and explicit semantic-fact behavior.
+- Add focused unit tests for assignment, joins, and narrowing.
+- Run the full Go suite and affected PHPStan reference comparisons.
 - Update the capability matrix and affected rule documentation.
 - Commit and push the completed slice.
 

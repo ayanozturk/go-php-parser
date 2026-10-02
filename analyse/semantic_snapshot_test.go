@@ -195,6 +195,10 @@ class Provider {
         return 42;
     }
 }
+
+function exactAnswer(): string {
+    return 'Ready';
+}
 `
 	parsed := map[string][]ast.Node{
 		filename: parsePHPForProjectIndex(t, src),
@@ -216,6 +220,12 @@ class Provider {
 	methodFact, ok := snapshot.Fact(inferredTypeFactKey(filename, methodReturn.Expr))
 	if !ok || methodFact.Type != "int" || methodFact.Subject != "method:provider:count" {
 		t.Fatalf("unexpected method return fact: %#v, %v", methodFact, ok)
+	}
+	exactFunction := parsed[filename][2].(*ast.FunctionNode)
+	exactReturn := exactFunction.Body[0].(*ast.ReturnNode)
+	exactFact, ok := snapshot.Fact(inferredTypeFactKey(filename, exactReturn.Expr))
+	if !ok || !ParseType(exactFact.Type).Accepts(ParseType(`'Ready'`)) || !ParseType(`'Ready'`).Accepts(ParseType(exactFact.Type)) {
+		t.Fatalf("generated fact lost exact string literal precision: %#v, %v", exactFact, ok)
 	}
 
 	ctx := snapshot.NewAnalysisContext()

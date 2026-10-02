@@ -49,6 +49,19 @@
       "file": "argument-phpdoc-string-literals-below-level-5.php",
       "engineCodes": [],
       "phpstanIdentifiers": []
+    },
+    {
+      "id": "literal-return-property-propagation",
+      "capability": "PHPDoc literal return and property mismatches are reported below level 5",
+      "file": "literal-return-property-propagation.php",
+      "engineCodes": [
+        "A.RETURN.TYPE",
+        "A.PROP.TYPE"
+      ],
+      "phpstanIdentifiers": [
+        "return.type",
+        "assign.propertyType"
+      ]
     }
   ]
 }

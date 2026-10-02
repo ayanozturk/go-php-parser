@@ -43,7 +43,7 @@ function n(): never {}
 
 	want := map[string][]wantIssue{
 		"declaredVsActual": {
-			{Message: "Function f: return type mismatch, declared: int, actual: [non-empty-string] at 2:1", Line: 2, Column: 1},
+			{Message: `Function f: return type mismatch, declared: int, actual: ["x"] at 2:1`, Line: 2, Column: 1},
 		},
 		"correctReturn": {},
 		"voidReturnsValue": {
@@ -56,7 +56,7 @@ function n(): never {}
 		"allPathsReturn": {},
 		"methodInClass":  {},
 		"closureMismatch": {
-			{Message: "Function : return type mismatch, declared: int, actual: [non-empty-string] at 2:7", Line: 2, Column: 7},
+			{Message: `Function : return type mismatch, declared: int, actual: ["x"] at 2:7`, Line: 2, Column: 7},
 		},
 		"interfaceMethod": {},
 		"neverFallthrough": {

@@ -134,6 +134,9 @@ func richerGenericType(native, documented string, ft FileTypeContext) string {
 	if nativeNorm == "string" && docNorm == "non-empty-string" {
 		return docNorm
 	}
+	if nativeNorm == "string" && ParseType(docNorm).hasStringLiteralAtom() {
+		return docNorm
+	}
 	docInst, docOK := parseGenericTypeFromString(docNorm)
 	if !docOK || len(docInst.TypeArguments) == 0 {
 		return nativeNorm

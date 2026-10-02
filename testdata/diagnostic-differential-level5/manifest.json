@@ -576,6 +576,21 @@
         "argument.type",
         "argument.type"
       ]
+    },
+    {
+      "id": "literal-return-property-propagation",
+      "capability": "PHPDoc literal returns and properties propagate to argument checks",
+      "file": "literal-return-property-propagation.php",
+      "engineCodes": [
+        "A.RETURN.TYPE",
+        "A.ARG.TYPE",
+        "A.PROP.TYPE"
+      ],
+      "phpstanIdentifiers": [
+        "return.type",
+        "argument.type",
+        "assign.propertyType"
+      ]
     }
   ]
 }

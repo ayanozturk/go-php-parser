@@ -63,6 +63,32 @@ func TestPropertyAssignmentTypeCompatible(t *testing.T) {
 	}
 }
 
+func TestQuotedPHPDocPropertyLiteralPropagatesToReadsAndAssignments(t *testing.T) {
+	source := `<?php
+class StatusHolder {
+    /** @var 'ready' */
+    public string $status;
+}
+/** @param 'ready' $status */
+function acceptReadyStatus($status): void {}
+function checkStatus(StatusHolder $holder): void {
+    acceptReadyStatus($holder->status);
+    $holder->status = 'ready';
+    $holder->status = 'busy';
+}
+
+	`
+	nodes := parsePHPForProjectIndex(t, source)
+	project := BuildProjectIndex(map[string][]ast.Node{"test.php": nodes})
+	issues := RunAnalysisRulesWithContext("test.php", nodes, &AnalysisContext{Content: []byte(source), Resolver: project})
+	if got := countIssuesWithCode(issues, "A.PROP.TYPE"); got != 1 {
+		t.Fatalf("expected only the wrong exact property assignment to mismatch, got %#v", issues)
+	}
+	if got := countIssuesWithCode(issues, "A.ARG.TYPE"); got != 0 {
+		t.Fatalf("expected the exact PHPDoc property read to satisfy its literal parameter, got %#v", issues)
+	}
+}
+
 func TestStaticPropertyAssignmentTypeMismatch(t *testing.T) {
 	php := `<?php
     class Example {

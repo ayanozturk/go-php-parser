@@ -571,6 +571,14 @@ func (s *SemanticSnapshot) addGeneratedInferredTypeFact(filename string, expr as
 	if inferred.IsEmpty() {
 		return
 	}
+	if isPlainStringType(inferred) {
+		switch literal := expr.(type) {
+		case *ast.StringLiteral:
+			inferred = stringLiteralType(literal.Value)
+		case *ast.StringNode:
+			inferred = stringLiteralType(literal.Value)
+		}
+	}
 	s.facts.putGeneratedInferred(key, s.functionSymbolID(fileCtx, class, function), inferred.dnfString())
 }
 
@@ -661,6 +669,22 @@ func (s *SemanticSnapshot) Fact(key SemanticFactKey) (SemanticFact, bool) {
 		return SemanticFact{}, false
 	}
 	return s.facts.fact(key)
+}
+
+func (s *SemanticSnapshot) generatedInferredTypeFact(key SemanticFactKey) bool {
+	if s == nil || key.Kind != FactKindInferredType {
+		return false
+	}
+	offset, compact := compactSemanticFactOffset(key.StartOffset, key.EndOffset)
+	if !compact {
+		return false
+	}
+	fileFacts := s.facts[key.File]
+	if fileFacts == nil {
+		return false
+	}
+	_, ok := fileFacts.generatedInferred[offset]
+	return ok
 }
 
 // FactsForFile returns facts in deterministic source order.
