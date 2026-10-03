@@ -73,6 +73,17 @@
       "phpstanIdentifiers": []
     },
     {
+      "id": "closure-by-reference-uninvoked",
+      "capability": "by-reference closure writes do not occur before invocation",
+      "file": "closure-by-reference-uninvoked.php",
+      "engineCodes": [
+        "Level1.Variables"
+      ],
+      "phpstanIdentifiers": [
+        "variable.undefined"
+      ]
+    },
+    {
       "id": "by-reference-output-parameter",
       "capability": "variables defined through a by-reference function parameter",
       "file": "by-reference-output-parameter.php",

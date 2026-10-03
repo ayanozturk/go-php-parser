@@ -239,9 +239,10 @@ function inspect(): void {
 	snapshot := variableFlowSnapshot(t, filename, nodes)
 
 	assertVariableReadStates(t, snapshot, filename, "missing", []VariableDefinedness{VariableUndefined, VariableDefinitelyDefined})
-	for _, name := range []string{"captured", "output", "parsed", "alias"} {
+	for _, name := range []string{"output", "parsed", "alias"} {
 		assertVariableReadState(t, snapshot, filename, name, VariableDefinitelyDefined)
 	}
+	assertVariableReadState(t, snapshot, filename, "captured", VariableUndefined)
 	assertVariableReadState(t, snapshot, filename, "source", VariableUndefined)
 	assertVariableReadStates(t, snapshot, filename, "items", []VariableDefinedness{VariableUndefined, VariableDefinitelyDefined})
 
@@ -249,7 +250,10 @@ function inspect(): void {
 	if !hasIssueContaining(levelOne, level1VariablesCode, "Variable $missing might not be defined.") {
 		t.Fatalf("by-value undefined capture was not reported: %#v", levelOne)
 	}
-	for _, name := range []string{"captured", "output", "parsed", "alias"} {
+	if !hasIssueContaining(levelOne, level1VariablesCode, "Variable $captured might not be defined.") {
+		t.Fatalf("by-reference capture was treated as executed before invocation: %#v", levelOne)
+	}
+	for _, name := range []string{"output", "parsed", "alias"} {
 		if hasIssueContaining(levelOne, level1VariablesCode, "$"+name) {
 			t.Fatalf("reference-defined $%s was reported: %#v", name, levelOne)
 		}
