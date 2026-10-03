@@ -74,14 +74,10 @@
     },
     {
       "id": "closure-by-reference-uninvoked",
-      "capability": "by-reference closure writes do not occur before invocation",
+      "capability": "by-reference captures are defined before closure invocation",
       "file": "closure-by-reference-uninvoked.php",
-      "engineCodes": [
-        "Level1.Variables"
-      ],
-      "phpstanIdentifiers": [
-        "variable.undefined"
-      ]
+      "engineCodes": [],
+      "phpstanIdentifiers": []
     },
     {
       "id": "by-reference-output-parameter",

@@ -131,7 +131,6 @@ type variableFlowAnalyzer struct {
 	variableNames            []string
 	dynamicNameVariables     map[string]struct{}
 	extractSourceVariables   map[string]struct{}
-	closureReferenceWrites   map[string][]string
 }
 
 func buildVariableFlowFacts(filename string, nodes []ast.Node, includeDefinitelyDefined bool, resolver SymbolResolver) []variableReadFact {
@@ -142,7 +141,6 @@ func buildVariableFlowFacts(filename string, nodes []ast.Node, includeDefinitely
 		typeContext:              CollectFileTypeContext(nodes),
 		readIndex:                make(map[any]int),
 		variableIDs:              make(map[string]int),
-		closureReferenceWrites:   make(map[string][]string),
 	}
 	analyzer.collectDynamicVariableSources(nodes)
 	analyzer.statements(nodes, initialVariableFlowState(analyzer))
@@ -571,17 +569,6 @@ func (a *variableFlowAnalyzer) statements(statements []ast.Node, input *variable
 	return result
 }
 
-func (a *variableFlowAnalyzer) functionStatements(function *ast.FunctionNode, input *variableFlowState) variableFlowResult {
-	if function == nil {
-		return variableFlowResult{normal: input}
-	}
-	previousWrites := a.closureReferenceWrites
-	a.closureReferenceWrites = make(map[string][]string)
-	result := a.statements(function.Body, input)
-	a.closureReferenceWrites = previousWrites
-	return result
-}
-
 func (a *variableFlowAnalyzer) statement(node ast.Node, state *variableFlowState) variableFlowResult {
 	if node == nil {
 		return variableFlowResult{normal: state}
@@ -592,7 +579,7 @@ func (a *variableFlowAnalyzer) statement(node ast.Node, state *variableFlowState
 	case *ast.BlockNode:
 		return a.statements(n.Statements, state)
 	case *ast.FunctionNode:
-		a.functionStatements(n, functionVariableFlowState(a, n, false))
+		a.statements(n.Body, functionVariableFlowState(a, n, false))
 		return variableFlowResult{normal: state}
 	case *ast.ClassNode:
 		a.propertyHooks(n.Properties)
@@ -600,7 +587,7 @@ func (a *variableFlowAnalyzer) statement(node ast.Node, state *variableFlowState
 		a.currentClassName = a.typeContext.resolveClassLike(n.Name)
 		for _, method := range n.Methods {
 			if function, ok := method.(*ast.FunctionNode); ok {
-				a.functionStatements(function, functionVariableFlowState(a, function, true))
+				a.statements(function.Body, functionVariableFlowState(a, function, true))
 			}
 		}
 		a.currentClassName = previousClassName
@@ -615,7 +602,7 @@ func (a *variableFlowAnalyzer) statement(node ast.Node, state *variableFlowState
 		}
 		for _, member := range n.Body {
 			if function, ok := member.(*ast.FunctionNode); ok {
-				a.functionStatements(function, functionVariableFlowState(a, function, true))
+				a.statements(function.Body, functionVariableFlowState(a, function, true))
 			}
 		}
 		a.currentClassName = previousClassName
@@ -625,7 +612,7 @@ func (a *variableFlowAnalyzer) statement(node ast.Node, state *variableFlowState
 		a.currentClassName = a.typeContext.resolveClassLike(n.Name)
 		for _, member := range n.Methods {
 			if function, ok := member.(*ast.FunctionNode); ok {
-				a.functionStatements(function, functionVariableFlowState(a, function, true))
+				a.statements(function.Body, functionVariableFlowState(a, function, true))
 			}
 		}
 		a.currentClassName = previousClassName
@@ -1027,12 +1014,6 @@ func (a *variableFlowAnalyzer) assignment(node *ast.AssignmentNode, state *varia
 	if !ok {
 		return
 	}
-	delete(a.closureReferenceWrites, variable.Name)
-	if closure, ok := node.Right.(*ast.FunctionNode); ok && closure.Name == "" {
-		if writes := closureReferenceWrites(closure); len(writes) > 0 {
-			a.closureReferenceWrites[variable.Name] = writes
-		}
-	}
 	if _, tracked := a.dynamicNameVariables[variable.Name]; tracked {
 		if value, ok := stringLiteralValue(node.Right); ok {
 			state.setKnownString(variable.Name, value)
@@ -1057,42 +1038,6 @@ func (a *variableFlowAnalyzer) assignmentTargetExpressions(node ast.Node, state 
 	case *ast.VariableVariableNode:
 		a.expression(n.Expr, state, false)
 	}
-}
-
-func closureReferenceWrites(closure *ast.FunctionNode) []string {
-	if closure == nil {
-		return nil
-	}
-	captured := make(map[string]struct{})
-	for _, use := range closure.Uses {
-		if use.ByRef {
-			captured[use.Name] = struct{}{}
-		}
-	}
-	written := make(map[string]struct{})
-	for _, statement := range closure.Body {
-		expression, ok := statement.(*ast.ExpressionStmt)
-		if !ok {
-			continue
-		}
-		assignment, ok := expression.Expr.(*ast.AssignmentNode)
-		if !ok || assignment.Operator != "=" {
-			continue
-		}
-		variable, ok := assignment.Left.(*ast.VariableNode)
-		if !ok {
-			continue
-		}
-		if _, ok := captured[variable.Name]; ok {
-			written[variable.Name] = struct{}{}
-		}
-	}
-	result := make([]string, 0, len(written))
-	for name := range written {
-		result = append(result, name)
-	}
-	sort.Strings(result)
-	return result
 }
 
 func defineVariableFlowTarget(node ast.Node, state *variableFlowState) {
@@ -1274,11 +1219,6 @@ func (a *variableFlowAnalyzer) expression(node ast.Node, state *variableFlowStat
 		if name == "extract" {
 			a.extractVariables(n.Args, state)
 		}
-		if variable, ok := n.Name.(*ast.VariableNode); ok {
-			for _, captured := range a.closureReferenceWrites[variable.Name] {
-				state.set(captured, VariableDefinitelyDefined)
-			}
-		}
 	case *ast.MethodCallNode:
 		a.expression(n.Object, state, suppressed)
 		a.callArguments(n.Args, a.methodCallParams(n), state, suppressed)
@@ -1375,7 +1315,9 @@ func (a *variableFlowAnalyzer) expression(node ast.Node, state *variableFlowStat
 			}
 			for index := range n.Uses {
 				capture := &n.Uses[index]
-				if !capture.ByRef {
+				if capture.ByRef {
+					state.set(capture.Name, VariableDefinitelyDefined)
+				} else {
 					a.recordReadAt(capture, capture.Name, capture.Pos, capture.EndPos, state.definedness(capture.Name), false)
 				}
 				closureState.set(capture.Name, VariableDefinitelyDefined)
@@ -1385,7 +1327,7 @@ func (a *variableFlowAnalyzer) expression(node ast.Node, state *variableFlowStat
 					closureState.set(param.Name, VariableDefinitelyDefined)
 				}
 			}
-			a.functionStatements(n, closureState)
+			a.statements(n.Body, closureState)
 		}
 	case *ast.FirstClassCallableNode:
 		a.expression(n.Target, state, suppressed)

@@ -36,7 +36,7 @@ Complete the core PHPDoc type model and its interactions with inference, subtypi
 
 ### 3. Extend flow and project semantics
 
-- [x] Apply direct, unconditional by-reference closure writes when a named local closure is invoked, while leaving captured variables undefined before invocation; cover invoked and uninvoked behavior in unit and level-1 differential fixtures.
+- [x] Confirm PHPStan treats a by-reference closure capture as defined at closure creation, including before invocation; keep the uninvoked boundary clean while by-value undefined captures remain diagnostic.
 - Extend CFG and variable/property flow through loops, exceptions, generators, closures, references, property initialization, readonly constraints, and dynamic properties.
 - Add interprocedural summaries and invalidate dependants only when exported semantic facts change.
 - Define executable extension contracts for dynamic returns, assertions, generated members, reflection, service containers, and ORMs.
