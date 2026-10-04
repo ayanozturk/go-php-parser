@@ -7,26 +7,34 @@ import (
 )
 
 const (
-	identLowerCacheMaxEntries  = 16384
-	identLowerCacheMaxKeyBytes = 1 << 20
+	identLowerCacheMaxEntries  = 8192
+	identLowerCacheMaxKeyBytes = 1 << 19
 )
 
 type boundedStringCache struct {
-	values   sync.Map
-	mu       sync.Mutex
+	mu       sync.RWMutex
+	values   map[string]string
 	order    []string
 	head     int
 	keyBytes int
 }
 
-var identLowerCache = &boundedStringCache{order: make([]string, 0, identLowerCacheMaxEntries)}
+const identLowerCacheShardCount = 8
+
+type shardedStringCache struct {
+	shards [identLowerCacheShardCount]boundedStringCache
+}
+
+var identLowerCache = &shardedStringCache{}
 
 func (c *boundedStringCache) load(key string) (string, bool) {
-	value, ok := c.values.Load(key)
+	c.mu.RLock()
+	value, ok := c.values[key]
+	c.mu.RUnlock()
 	if !ok {
 		return "", false
 	}
-	return value.(string), true
+	return value, true
 }
 
 func (c *boundedStringCache) store(key, value string) {
@@ -35,23 +43,53 @@ func (c *boundedStringCache) store(key, value string) {
 	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	if _, loaded := c.values.Load(key); loaded {
+	if _, loaded := c.values[key]; loaded {
 		return
 	}
-	for len(c.order)-c.head >= identLowerCacheMaxEntries || c.keyBytes+len(key) > identLowerCacheMaxKeyBytes {
+	if len(key) > identLowerCacheMaxKeyBytes/identLowerCacheShardCount {
+		return
+	}
+	if c.values == nil {
+		// Grow maps only with observed keys; eagerly reserving every shard's
+		// maximum made the bounded cache's cold RSS unnecessarily large.
+		c.values = make(map[string]string)
+		c.order = make([]string, 0, identLowerCacheMaxEntries/identLowerCacheShardCount)
+	}
+	maxEntries := identLowerCacheMaxEntries / identLowerCacheShardCount
+	maxKeyBytes := identLowerCacheMaxKeyBytes / identLowerCacheShardCount
+	for len(c.order)-c.head >= maxEntries || c.keyBytes+len(key) > maxKeyBytes {
 		oldest := c.order[c.head]
 		c.head++
 		c.keyBytes -= len(oldest)
-		c.values.Delete(oldest)
+		delete(c.values, oldest)
 	}
 	if c.head > 0 && c.head*2 >= len(c.order) {
 		copy(c.order, c.order[c.head:])
 		c.order = c.order[:len(c.order)-c.head]
 		c.head = 0
 	}
-	c.values.Store(key, value)
+	c.values[key] = value
 	c.order = append(c.order, key)
 	c.keyBytes += len(key)
+}
+
+func (c *shardedStringCache) shard(key string) *boundedStringCache {
+	// Identifier keys are short. FNV-1a gives a stable, low-cost spread without
+	// putting all writes behind sync.Map's global miss promotion lock.
+	h := uint32(2166136261)
+	for i := 0; i < len(key); i++ {
+		h ^= uint32(key[i])
+		h *= 16777619
+	}
+	return &c.shards[h&(identLowerCacheShardCount-1)]
+}
+
+func (c *shardedStringCache) load(key string) (string, bool) {
+	return c.shard(key).load(key)
+}
+
+func (c *shardedStringCache) store(key, value string) {
+	c.shard(key).store(key, value)
 }
 
 // asciiLowerIdent lowercases PHP identifiers without the unicode.ToLower

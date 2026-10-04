@@ -1,7 +1,9 @@
 package analyse
 
 import (
+	"strconv"
 	"strings"
+	"sync"
 	"testing"
 )
 
@@ -72,4 +74,41 @@ func TestIndexKeyASCIILower(t *testing.T) {
 	if got := indexKey(in); got != in {
 		t.Fatalf("lowercase indexKey should keep the input string, got %q", got)
 	}
+}
+
+func TestBoundedStringCacheEvictsOldestEntries(t *testing.T) {
+	cache := &boundedStringCache{}
+	maxEntries := identLowerCacheMaxEntries / identLowerCacheShardCount
+	for i := 0; i <= maxEntries; i++ {
+		key := "key" + strconv.Itoa(i)
+		cache.store(key, key+"-lower")
+	}
+	if len(cache.values) > maxEntries {
+		t.Fatalf("cache entries = %d, want at most %d", len(cache.values), maxEntries)
+	}
+	if _, ok := cache.load("key0"); ok {
+		t.Fatal("expected oldest cache entry to be evicted")
+	}
+	if got, ok := cache.load("key" + strconv.Itoa(maxEntries)); !ok || got != "key"+strconv.Itoa(maxEntries)+"-lower" {
+		t.Fatalf("newest cache entry = %q, present=%v", got, ok)
+	}
+}
+
+func TestASCIILowerIdentConcurrent(t *testing.T) {
+	t.Parallel()
+	var wg sync.WaitGroup
+	for worker := 0; worker < 16; worker++ {
+		wg.Add(1)
+		go func(worker int) {
+			defer wg.Done()
+			for i := 0; i < 1000; i++ {
+				input := "Vendor\\Service" + strconv.Itoa((worker+i)%128)
+				if got, want := asciiLowerIdent(input), strings.ToLower(input); got != want {
+					t.Errorf("asciiLowerIdent(%q) = %q, want %q", input, got, want)
+					return
+				}
+			}
+		}(worker)
+	}
+	wg.Wait()
 }
