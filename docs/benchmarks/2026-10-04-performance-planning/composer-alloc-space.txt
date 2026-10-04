@@ -1,0 +1,67 @@
+File: benchmark
+Type: alloc_space
+Time: Oct 4, 2026 at 6:27am (UTC)
+Showing nodes accounting for 1627.29MB, 82.45% of 1973.68MB total
+Dropped 488 nodes (cum <= 9.87MB)
+Showing top 60 nodes out of 286
+      flat  flat%   sum%        cum   cum%
+  317.07MB 16.06% 16.06%   416.60MB 21.11%  github.com/ayanozturk/go-php-parser/lexer.LexAllContext
+  142.86MB  7.24% 23.30%   185.87MB  9.42%  github.com/ayanozturk/go-php-parser/syntax.(*Interner).Token
+  123.10MB  6.24% 29.54%   123.10MB  6.24%  github.com/ayanozturk/go-php-parser/syntax.(*Interner).Node
+  117.52MB  5.95% 35.49%   124.02MB  6.28%  github.com/ayanozturk/go-php-parser/lexer.(*Lexer).collectLeadingTrivia
+   67.92MB  3.44% 38.94%    67.92MB  3.44%  github.com/ayanozturk/go-php-parser/analyse.semanticFactStore.putGeneratedInferred
+   63.53MB  3.22% 42.15%    63.53MB  3.22%  github.com/ayanozturk/go-php-parser/analyse.Type.withRelativeClassNames
+   59.55MB  3.02% 45.17%    63.58MB  3.22%  github.com/ayanozturk/go-php-parser/analyse.stringLiteralType
+   52.68MB  2.67% 47.84%   874.22MB 44.29%  github.com/ayanozturk/go-php-parser/syntax.ParseWithContext
+   37.50MB  1.90% 49.74%    37.50MB  1.90%  github.com/ayanozturk/go-php-parser/analyse.splitTopLevelTypes
+   36.51MB  1.85% 51.59%    36.51MB  1.85%  github.com/ayanozturk/go-php-parser/syntax.stripTriviaPositions
+      28MB  1.42% 53.01%       28MB  1.42%  github.com/ayanozturk/go-php-parser/analyse.resolveClassLikeInContext
+   26.50MB  1.34% 54.35%    26.50MB  1.34%  github.com/ayanozturk/go-php-parser/syntax.lowerVariableExpr
+   24.50MB  1.24% 55.59%    95.08MB  4.82%  github.com/ayanozturk/go-php-parser/syntax.lowerCallExpr
+      22MB  1.11% 56.71%       22MB  1.11%  strings.(*Builder).grow
+      22MB  1.11% 57.82%    24.50MB  1.24%  github.com/ayanozturk/go-php-parser/analyse.Type.dnfString
+      21MB  1.06% 58.89%    37.62MB  1.91%  github.com/ayanozturk/go-php-parser/syntax.lowerLiteralExpr
+   19.50MB  0.99% 59.88%    36.51MB  1.85%  github.com/ayanozturk/go-php-parser/ast.ParsePHPDoc
+      19MB  0.96% 60.84%    79.02MB  4.00%  github.com/ayanozturk/go-php-parser/analyse.newFunctionScopeWithContext
+   18.54MB  0.94% 61.78%    19.54MB  0.99%  os.ReadFile
+   18.50MB  0.94% 62.72%   152.06MB  7.70%  github.com/ayanozturk/go-php-parser/syntax.lowerFunctionWithBody
+   18.50MB  0.94% 63.65%    26.50MB  1.34%  github.com/ayanozturk/go-php-parser/syntax.(*RedNode).Children
+   18.12MB  0.92% 64.57%    18.12MB  0.92%  strings.(*Builder).WriteByte (inline)
+      18MB  0.91% 65.48%       18MB  0.91%  github.com/ayanozturk/go-php-parser/analyse.rootScopeTypeLayer (inline)
+   16.01MB  0.81% 66.29%    32.51MB  1.65%  github.com/ayanozturk/go-php-parser/analyse.buildClassScopeDataWithSeen
+      16MB  0.81% 67.10%       16MB  0.81%  github.com/ayanozturk/go-php-parser/analyse.(*functionScope).clone
+   15.50MB  0.79% 67.89%       17MB  0.86%  github.com/ayanozturk/go-php-parser/analyse.Type.sortedAtoms
+   15.02MB  0.76% 68.65%    15.02MB  0.76%  github.com/ayanozturk/go-php-parser/lexer.(*Lexer).text (inline)
+   14.01MB  0.71% 69.36%    14.01MB  0.71%  strings.genSplit
+   13.77MB   0.7% 70.06%    43.27MB  2.19%  github.com/ayanozturk/go-php-parser/analyse.memoLowerExpr
+   12.91MB  0.65% 70.71%    47.92MB  2.43%  github.com/ayanozturk/go-php-parser/syntax.(*Parser).pullThrough
+   12.56MB  0.64% 71.35%    12.56MB  0.64%  github.com/ayanozturk/go-php-parser/analyse.(*flowFileStore).putGraph
+   12.50MB  0.63% 71.98%    34.01MB  1.72%  github.com/ayanozturk/go-php-parser/syntax.lowerArrayElementFromGreen
+      12MB  0.61% 72.59%   154.63MB  7.83%  github.com/ayanozturk/go-php-parser/syntax.lowerStmt
+   11.50MB  0.58% 73.17%    11.50MB  0.58%  github.com/ayanozturk/go-php-parser/analyse.(*scopeTypeLayer).set (inline)
+   11.50MB  0.58% 73.76%    11.50MB  0.58%  github.com/ayanozturk/go-php-parser/analyse.cloneResolvedMethod
+      11MB  0.56% 74.31%       11MB  0.56%  github.com/ayanozturk/go-php-parser/syntax.StatementBodyList.func1
+   10.50MB  0.53% 74.85%       11MB  0.56%  github.com/ayanozturk/go-php-parser/analyse.collectFileTypeContextFromNodes
+   10.50MB  0.53% 75.38%       11MB  0.56%  github.com/ayanozturk/go-php-parser/analyse.deltaScopeTypeLayer
+   10.50MB  0.53% 75.91%       19MB  0.96%  github.com/ayanozturk/go-php-parser/syntax.lowerParam
+   10.50MB  0.53% 76.44%    59.55MB  3.02%  github.com/ayanozturk/go-php-parser/syntax.lowerAssignExpr
+      10MB  0.51% 76.95%       10MB  0.51%  github.com/ayanozturk/go-php-parser/syntax.firstSignificantToken
+    9.50MB  0.48% 77.43%    20.12MB  1.02%  github.com/ayanozturk/go-php-parser/analyse.ParseType
+    9.50MB  0.48% 77.91%       15MB  0.76%  github.com/ayanozturk/go-php-parser/analyse.variablesTypedWhenTrue
+    8.50MB  0.43% 78.34%    34.50MB  1.75%  github.com/ayanozturk/go-php-parser/syntax.lowerBinaryExpr
+       7MB  0.35% 78.70%   276.04MB 13.99%  github.com/ayanozturk/go-php-parser/syntax.(*Parser).parseFunctionDecl
+       7MB  0.35% 79.05%    69.12MB  3.50%  github.com/ayanozturk/go-php-parser/syntax.lowerArgListFromGreen.func1
+    6.55MB  0.33% 79.38%    14.55MB  0.74%  github.com/ayanozturk/go-php-parser/analyse.checkSymbolOnNode
+    6.50MB  0.33% 79.71%       14MB  0.71%  github.com/ayanozturk/go-php-parser/ast.logicalPHPDocLines
+    6.50MB  0.33% 80.04%   162.13MB  8.21%  github.com/ayanozturk/go-php-parser/syntax.lowerExpr
+    5.50MB  0.28% 80.32%    18.50MB  0.94%  github.com/ayanozturk/go-php-parser/analyse.tryCSTCallExprForMemo
+       5MB  0.25% 80.57%   319.86MB 16.21%  github.com/ayanozturk/go-php-parser/syntax.(*Parser).parseBraceDelimitedList
+       5MB  0.25% 80.83%    74.84MB  3.79%  github.com/ayanozturk/go-php-parser/syntax.(*Parser).parseCallArgList
+    4.50MB  0.23% 81.06%       13MB  0.66%  github.com/ayanozturk/go-php-parser/syntax.Walk
+    4.50MB  0.23% 81.28%    36.01MB  1.82%  github.com/ayanozturk/go-php-parser/syntax.lowerArrayExpr.func1
+    4.50MB  0.23% 81.51%       10MB  0.51%  github.com/ayanozturk/go-php-parser/analyse.stubCallArgsFromCST
+    4.50MB  0.23% 81.74%    13.50MB  0.68%  github.com/ayanozturk/go-php-parser/syntax.NameText
+       4MB   0.2% 81.94%       15MB  0.76%  github.com/ayanozturk/go-php-parser/analyse.CollectFileTypeContext
+    3.50MB  0.18% 82.12%    40.15MB  2.03%  github.com/ayanozturk/go-php-parser/syntax.(*Parser).parseArrayExpr
+    3.50MB  0.18% 82.30%    38.01MB  1.93%  github.com/ayanozturk/go-php-parser/syntax.lowerArrayExpr
+       3MB  0.15% 82.45%    12.75MB  0.65%  github.com/ayanozturk/go-php-parser/analyse.(*variableFlowAnalyzer).ifStatement

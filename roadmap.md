@@ -67,6 +67,8 @@ Targets:
 
 ### 6. Reach comparable full-analysis performance
 
+The [2× execution plan](docs/plan-performance-2x.md) defines ordered, profile-backed work packages and a separate self-baseline target: at least 2× faster cold full analysis on each required corpus, with no peak-RSS regression (3× stretch). This supplements the Mago comparison below.
+
 - Profile structural hot paths only after semantic workload and corpus accounting are stable.
 - Keep tokens, nodes, and semantic facts compact; intern normalized identities; bound cache lifetimes; and use deterministic parallel reduction.
 - Benchmark WordPress, Symfony, PSL, and Magento against a contemporaneous Mago version wherever both tools complete.

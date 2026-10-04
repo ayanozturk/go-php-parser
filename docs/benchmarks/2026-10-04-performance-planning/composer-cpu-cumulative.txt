@@ -1,0 +1,68 @@
+File: benchmark
+Type: cpu
+Time: Oct 4, 2026 at 6:26am (UTC)
+Duration: 4.14s, Total samples = 7.78s (187.80%)
+Showing nodes accounting for 0.78s, 10.03% of 7.78s total
+Dropped 530 nodes (cum <= 0.04s)
+Showing top 60 nodes out of 446
+      flat  flat%   sum%        cum   cum%
+         0     0%     0%      6.04s 77.63%  main.runAnalysis.func1
+         0     0%     0%      2.86s 36.76%  github.com/ayanozturk/go-php-parser/analyse.RunAnalysisRulesWithContext
+     0.01s  0.13%  0.13%      1.82s 23.39%  github.com/ayanozturk/go-php-parser/analyse.walkStatementsForArgTypesUsing
+     0.01s  0.13%  0.26%      1.71s 21.98%  github.com/ayanozturk/go-php-parser/analyse.walkExprForArgTypesUsing
+     0.20s  2.57%  2.83%      1.71s 21.98%  runtime.mallocgc
+         0     0%  2.83%      1.64s 21.08%  github.com/ayanozturk/go-php-parser/syntax.ParseWith (inline)
+         0     0%  2.83%      1.64s 21.08%  github.com/ayanozturk/go-php-parser/syntax.ParseWithContext
+         0     0%  2.83%      1.62s 20.82%  github.com/ayanozturk/go-php-parser/analyse.(*SemanticSnapshot).AnalysisContextForFile
+         0     0%  2.83%      1.62s 20.82%  github.com/ayanozturk/go-php-parser/analyse.(*SemanticSnapshot).buildFileSemantics
+         0     0%  2.83%      1.56s 20.05%  github.com/ayanozturk/go-php-parser/syntax.ParseAndLower
+         0     0%  2.83%      1.54s 19.79%  runtime.systemstack
+     0.01s  0.13%  2.96%      1.43s 18.38%  github.com/ayanozturk/go-php-parser/analyse.(*argCallCSTWalker).walkTopLevel
+         0     0%  2.96%      1.43s 18.38%  github.com/ayanozturk/go-php-parser/analyse.ensureArgCallDiagnostics
+         0     0%  2.96%      1.43s 18.38%  github.com/ayanozturk/go-php-parser/analyse.ensureArgCallDiagnosticsFromCST
+         0     0%  2.96%      1.42s 18.25%  github.com/ayanozturk/go-php-parser/analyse.(*ArgumentCountRule).CheckIssues (inline)
+         0     0%  2.96%      1.42s 18.25%  github.com/ayanozturk/go-php-parser/analyse.init.0.func1
+         0     0%  2.96%      1.41s 18.12%  github.com/ayanozturk/go-php-parser/analyse.(*argCallCSTWalker).walkDeclaration
+         0     0%  2.96%      1.39s 17.87%  github.com/ayanozturk/go-php-parser/analyse.(*argCallCSTWalker).walkDeclarations (inline)
+         0     0%  2.96%      1.32s 16.97%  github.com/ayanozturk/go-php-parser/analyse.(*SemanticSnapshot).generateInferredTypeFactsForFile
+         0     0%  2.96%      1.31s 16.84%  github.com/ayanozturk/go-php-parser/analyse.(*SemanticSnapshot).generateInferredTypeFactsForFile.func1
+     0.01s  0.13%  3.08%      1.17s 15.04%  github.com/ayanozturk/go-php-parser/analyse.(*argCallCSTWalker).walkStatementList
+         0     0%  3.08%      1.17s 15.04%  github.com/ayanozturk/go-php-parser/analyse.ensureSharedFileDiagnostics
+         0     0%  3.08%      1.17s 15.04%  github.com/ayanozturk/go-php-parser/analyse.ensureSharedFileDiagnosticsFromCST
+         0     0%  3.08%      1.17s 15.04%  github.com/ayanozturk/go-php-parser/analyse.ensureStructuralIssues
+         0     0%  3.08%      1.17s 15.04%  github.com/ayanozturk/go-php-parser/analyse.init.17.func3
+         0     0%  3.08%      1.17s 15.04%  github.com/ayanozturk/go-php-parser/analyse.returnTypeIssuesForFile
+         0     0%  3.08%      1.15s 14.78%  github.com/ayanozturk/go-php-parser/analyse.(*argCallCSTWalker).walkStatement
+         0     0%  3.08%      1.15s 14.78%  github.com/ayanozturk/go-php-parser/syntax.Parse (inline)
+     0.02s  0.26%  3.34%      1.15s 14.78%  github.com/ayanozturk/go-php-parser/syntax.withPooledRed
+         0     0%  3.34%      1.11s 14.27%  github.com/ayanozturk/go-php-parser/syntax.(*Parser).tryParseStructured
+     0.33s  4.24%  7.58%      1.08s 13.88%  runtime.scanobject
+     0.03s  0.39%  7.97%         1s 12.85%  github.com/ayanozturk/go-php-parser/analyse.walkSyntaxConfigured.func1
+         0     0%  7.97%      0.99s 12.72%  github.com/ayanozturk/go-php-parser/analyse.runFusedConfiguredCSTWalk
+         0     0%  7.97%      0.99s 12.72%  github.com/ayanozturk/go-php-parser/analyse.walkSyntaxConfigured
+     0.07s   0.9%  8.87%      0.99s 12.72%  github.com/ayanozturk/go-php-parser/syntax.(*RedNode).ForEachChildDesc
+         0     0%  8.87%      0.97s 12.47%  github.com/ayanozturk/go-php-parser/analyse.observeSemanticExpression (inline)
+         0     0%  8.87%      0.95s 12.21%  github.com/ayanozturk/go-php-parser/syntax.(*Parser).parseClassLikeDecl
+         0     0%  8.87%      0.92s 11.83%  github.com/ayanozturk/go-php-parser/analyse.(*SemanticSnapshot).addGeneratedInferredTypeFact
+         0     0%  8.87%      0.92s 11.83%  github.com/ayanozturk/go-php-parser/analyse.(*SemanticSnapshot).generateInferredTypeFactsForFile.func1.1
+         0     0%  8.87%      0.92s 11.83%  github.com/ayanozturk/go-php-parser/syntax.(*Parser).parseBraceDelimitedList
+         0     0%  8.87%      0.91s 11.70%  github.com/ayanozturk/go-php-parser/syntax.(*Parser).parseMemberList (inline)
+     0.02s  0.26%  9.13%      0.89s 11.44%  github.com/ayanozturk/go-php-parser/syntax.forEachChildDescGreen
+     0.01s  0.13%  9.25%      0.88s 11.31%  github.com/ayanozturk/go-php-parser/analyse.runFusedConfiguredCSTWalk.func5
+         0     0%  9.25%      0.85s 10.93%  github.com/ayanozturk/go-php-parser/syntax.(*Parser).parseClassLikeDecl.(*Parser).parseMemberList.func1
+         0     0%  9.25%      0.85s 10.93%  github.com/ayanozturk/go-php-parser/syntax.(*Parser).tryParseMember
+         0     0%  9.25%      0.84s 10.80%  github.com/ayanozturk/go-php-parser/syntax.(*Parser).parseFunctionDecl
+     0.03s  0.39%  9.64%      0.74s  9.51%  runtime.newobject (partial-inline)
+         0     0%  9.64%      0.73s  9.38%  github.com/ayanozturk/go-php-parser/syntax.lowerExpr
+         0     0%  9.64%      0.71s  9.13%  runtime.gcBgMarkWorker
+         0     0%  9.64%      0.69s  8.87%  runtime.gcBgMarkWorker.func2
+     0.01s  0.13%  9.77%      0.69s  8.87%  runtime.gcDrain
+         0     0%  9.77%      0.68s  8.74%  github.com/ayanozturk/go-php-parser/syntax.lowerStmt
+     0.02s  0.26% 10.03%      0.66s  8.48%  github.com/ayanozturk/go-php-parser/analyse.inferType
+         0     0% 10.03%      0.65s  8.35%  github.com/ayanozturk/go-php-parser/syntax.lowerExprAt
+         0     0% 10.03%      0.63s  8.10%  github.com/ayanozturk/go-php-parser/syntax.lowerFunctionWithBody
+         0     0% 10.03%      0.62s  7.97%  github.com/ayanozturk/go-php-parser/syntax.lowerExprAt.func1
+         0     0% 10.03%      0.62s  7.97%  main.parseFiles.func1
+         0     0% 10.03%      0.62s  7.97%  runtime.gcDrainMarkWorkerDedicated (inline)
+         0     0% 10.03%      0.61s  7.84%  github.com/ayanozturk/go-php-parser/syntax.lowerClassWithMethodBodies
+         0     0% 10.03%      0.60s  7.71%  github.com/ayanozturk/go-php-parser/syntax.ParseASTForIndex

@@ -225,7 +225,9 @@ go run ./cmd/phpstan-compat \
 
 ### Full-Analyser Benchmark
 
-To measure the analysis engine itself (not the style checker) against the checked-in `test_projects` corpus — index-only, process-cold full analysis, and warm-loop full analysis, with timing, RSS, and diagnostic counts per the [roadmap performance gates](roadmap.md#8-reach-comparable-full-analysis-performance):
+The [2× performance execution plan](docs/plan-performance-2x.md) prioritizes cache churn, semantic reuse, and compact token storage, with per-corpus acceptance gates. See the [current profiles and baseline evidence](docs/benchmarks/2026-10-04-performance-planning.md); the speedup is a target, not yet delivered.
+
+To measure the analysis engine itself (not the style checker) against the checked-in `test_projects` corpus — index-only, process-cold full analysis, and warm-loop full analysis, with timing, RSS, and diagnostic counts per the [roadmap performance gates](roadmap.md#6-reach-comparable-full-analysis-performance):
 
 ```bash
 go run ./cmd/benchmark --root test_projects/symfony --json --output benchmark-report.json
@@ -251,7 +253,7 @@ Cold-full-analysis runs each re-exec the binary as a fresh subprocess (10 by def
 
 ### Pinned Benchmark Corpora
 
-`test_projects/*` (other than `manifest.json`) are fetched on demand, not committed — each is large (tens to hundreds of MB) and Git has no reliable way to pin an external directory's exact revision without either committing its full content or a real submodule. `go run ./cmd/fetch-test-projects` reads `test_projects/manifest.json` and checks out each project's exact pinned commit (a shallow, single-commit fetch, not a full clone) into `test_projects/<name>`, skipping projects already at the pinned commit. The manifest records the Mago benchmark's three required workloads (`php-standard-library`, `wordpress-develop`, `magento2`) alongside this project's own representative framework corpora (Composer, Drupal, Laravel, PHPUnit, Symfony), each with its exact commit per the [roadmap performance gates](roadmap.md#8-reach-comparable-full-analysis-performance).
+`test_projects/*` (other than `manifest.json`) are fetched on demand, not committed — each is large (tens to hundreds of MB) and Git has no reliable way to pin an external directory's exact revision without either committing its full content or a real submodule. `go run ./cmd/fetch-test-projects` reads `test_projects/manifest.json` and checks out each project's exact pinned commit (a shallow, single-commit fetch, not a full clone) into `test_projects/<name>`, skipping projects already at the pinned commit. The manifest records the Mago benchmark's three required workloads (`php-standard-library`, `wordpress-develop`, `magento2`) alongside this project's own representative framework corpora (Composer, Drupal, Laravel, PHPUnit, Symfony), each with its exact commit per the [roadmap performance gates](roadmap.md#6-reach-comparable-full-analysis-performance).
 
 ```bash
 go run ./cmd/fetch-test-projects                       # fetch everything in the manifest

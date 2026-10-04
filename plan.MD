@@ -46,6 +46,7 @@ Complete the core PHPDoc type model and its interactions with inference, subtypi
 ### 4. Verify ecosystem behavior
 
 - Run documented correctness, race, corpus, and performance gates on Symfony, WordPress, PSL, and Magento.
+- Use the [profile-backed 2× performance plan](docs/plan-performance-2x.md) for the future optimization iteration and its measurement protocol. The [planning baseline](docs/benchmarks/2026-10-04-performance-planning.md) is evidence, not completion of the performance goal; this semantic implementation queue remains active.
 - Keep capability and rule documentation synchronized with measured behavior.
 
 ## Acceptance gates

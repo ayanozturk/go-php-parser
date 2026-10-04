@@ -2,6 +2,8 @@
 
 Status: proposal register; not the active implementation plan.
 
+For the requested concrete optimization sequence, see the [2× execution plan](plan-performance-2x.md) and [current profile evidence](benchmarks/2026-10-04-performance-planning.md).
+
 Scope: `go-php-parser` lexer, syntax/CST, lowering, semantic analyser, and
 project index, plus the indexer/editor integration in the sibling
 `vscode-php-strom` repository.
@@ -63,9 +65,10 @@ before promoting an item here.
 
 **Target policy:** source plans propose incompatible numerical goals (40-50%
 subsystem cuts, 2x parser throughput, <=0.75x Mago time, and <=1.0x Mago RSS),
-while the current parser roadmap uses a <=1.5x full-analysis target. None of
-these extra thresholds is adopted here. Ratify goals only after a trustworthy
-current baseline and comparable Mago workload exist.
+while the current parser roadmap uses a <=1.5x full-analysis target. The user-requested [2× full-analysis goal](plan-performance-2x.md) is now adopted
+as a separate self-baseline target, with per-corpus correctness and memory gates.
+The other extra thresholds remain proposals; ratify Mago targets only with a
+trustworthy comparable workload.
 
 ### 1. Lexer throughput and storage
 

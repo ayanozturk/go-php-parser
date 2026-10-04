@@ -1,0 +1,7 @@
+benchmark: profiling 565 files under test_projects/composer-src (3 iteration(s))
+  iteration 1/3: 1.231482213s, 8347 diagnostics
+  iteration 2/3: 1.317703806s, 8347 diagnostics
+  iteration 3/3: 1.27760223s, 8347 diagnostics
+benchmark: parsed 565/565 files, 8347 diagnostics on the final iteration
+benchmark: wrote CPU profile to /tmp/php-performance-plan/composer.cpu (inspect with `go tool pprof /tmp/php-performance-plan/benchmark /tmp/php-performance-plan/composer.cpu`)
+benchmark: wrote heap profile to /tmp/php-performance-plan/composer.heap (inspect with `go tool pprof /tmp/php-performance-plan/benchmark /tmp/php-performance-plan/composer.heap`)
