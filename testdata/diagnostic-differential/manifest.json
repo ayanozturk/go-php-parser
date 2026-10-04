@@ -1032,13 +1032,32 @@
     },
     {
       "id": "uninitialized-readonly-property",
-      "capability": "readonly properties without constructor initialization",
+      "capability": "readonly property missing constructor initialization",
       "file": "uninitialized-readonly-property.php",
-      "engineSupport": "unsupported",
-      "engineCodes": [],
+      "engineCodes": [
+        "Level0.ClassModel"
+      ],
       "phpstanIdentifiers": [
         "property.uninitializedReadonly"
       ]
+    },
+    {
+      "id": "conditionally-uninitialized-readonly-property",
+      "capability": "readonly properties initialized on only some constructor paths",
+      "file": "conditionally-uninitialized-readonly-property.php",
+      "engineCodes": [
+        "Level0.ClassModel"
+      ],
+      "phpstanIdentifiers": [
+        "property.uninitializedReadonly"
+      ]
+    },
+    {
+      "id": "initialized-readonly-property",
+      "capability": "readonly properties assigned on every constructor path",
+      "file": "initialized-readonly-property.php",
+      "engineCodes": [],
+      "phpstanIdentifiers": []
     },
     {
       "id": "incompatible-parameter-variance",

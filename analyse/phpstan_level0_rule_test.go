@@ -1350,6 +1350,69 @@ readonly class Child extends ReadonlyParent {
 	}
 }
 
+func TestLevel0DetectsReadonlyPropertiesNotInitializedOnEveryConstructorPath(t *testing.T) {
+	issues := runLevel0OnFiles(t, map[string]string{
+		"uninitialized.php": `<?php
+class UninitializedValue {
+    public readonly int $value;
+}
+`,
+		"conditional.php": `<?php
+class ConditionalValue {
+    public readonly int $value;
+    public function __construct(bool $initialize) {
+        if ($initialize) {
+            $this->value = 1;
+        }
+    }
+}
+`,
+		"other-method.php": `<?php
+class OtherMethodValue {
+    public readonly int $value;
+    public function initialize(): void { $this->value = 1; }
+}
+`,
+		"initialized.php": `<?php
+class InitializedValue {
+    public readonly int $value;
+    public function __construct() { $this->value = 1; }
+}
+`,
+		"branch-initialized.php": `<?php
+class BranchInitializedValue {
+    public readonly int $value;
+    public function __construct(bool $left) {
+        if ($left) {
+            $this->value = 1;
+        } else {
+            $this->value = 2;
+        }
+    }
+}
+`,
+		"promoted.php": `<?php
+class PromotedValue {
+    public function __construct(public readonly int $value) {}
+}
+`,
+	})
+	var initializationIssues []AnalysisIssue
+	for _, issue := range issues {
+		if issue.Code == level0ClassModelCode && strings.Contains(issue.Message, "uninitialized readonly property") {
+			initializationIssues = append(initializationIssues, issue)
+		}
+	}
+	if len(initializationIssues) != 3 {
+		t.Fatalf("expected uninitialized, conditional, and non-constructor writes to report; got %#v", initializationIssues)
+	}
+	for _, expected := range []string{"UninitializedValue has an uninitialized readonly property $value", "ConditionalValue has an uninitialized readonly property $value", "OtherMethodValue has an uninitialized readonly property $value"} {
+		if !hasIssueContaining(initializationIssues, level0ClassModelCode, expected) {
+			t.Errorf("expected uninitialized readonly diagnostic for %s, got %#v", expected, initializationIssues)
+		}
+	}
+}
+
 func TestLevel0EnumSanity(t *testing.T) {
 	issues := runLevel0OnFiles(t, map[string]string{
 		"test.php": `<?php

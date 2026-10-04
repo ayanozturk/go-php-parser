@@ -118,10 +118,10 @@ Focused regression tests currently cover:
 | Reflection guards | File-level suppression for selected unknown classes, functions, constants, imports, type references, and `$this` methods guarded by `class_exists`, `interface_exists`, `trait_exists`, `enum_exists`, `function_exists`, `method_exists`, and `defined`. |
 | Throw expressions | Resolved non-throwable classes (for example `DateTime`) reported; built-in `Exception` hierarchy treated as throwable. |
 | Readonly inheritance | Readonly classes cannot extend non-readonly parents; non-readonly classes cannot extend readonly parents. |
-| Readonly properties | Readonly classes cannot declare non-readonly properties; overriding a readonly parent property requires readonly. |
+| Readonly properties | Readonly classes cannot declare non-readonly properties; overriding a readonly parent property requires readonly; report readonly instance properties without guaranteed constructor initialization, including partial branch assignment. Promoted properties and assignments on every constructor path remain clean. |
 | Constructor and call legality | Private/protected constructor access (including inherited constructors), extra constructor args when no constructor exists, static/instance method call direction, private/protected method access with declaring-class checks, protected methods from subclasses, protected calls on known receivers outside class scope. |
 | `$this` in static methods | `$this` property/method access inside static methods is reported. |
 | Final method overrides | Child classes cannot override a parent `final` method. |
-| Readonly class properties | Non-readonly properties and promoted constructor params in readonly classes; readonly parent property overrides. |
+| Readonly class properties | Non-readonly properties and promoted constructor params in readonly classes; readonly parent property overrides; uninitialized readonly instance properties reported when constructor assignment is missing or conditional. |
 | Variables and language checks | Always undefined variable reads, `isset`/`empty` allowances, simple `compact('var')` checks, undefined labels, and duplicate array keys. |
 | Level filtering | `analysis_level: 0` does not emit current higher-level return/property/argument type or unreachable-code diagnostics. |

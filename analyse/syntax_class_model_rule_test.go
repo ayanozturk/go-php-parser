@@ -201,6 +201,7 @@ class Derived extends Base {
 			{Message: "Enum Foo cannot implement Serializable.", Line: 2, Column: 1},
 		},
 		"readonlyPropertyOverrideMismatch": {
+			{Message: "Class Base has an uninitialized readonly property $x. Assign it in the constructor.", Line: 3, Column: 5},
 			{Message: "Property Foo::$x overriding readonly property must be readonly.", Line: 6, Column: 5},
 		},
 		"cleanClassHierarchy": {},

@@ -177,7 +177,7 @@ These areas have repository unit coverage but no checked-in PHPStan differential
 
 | Capability | Status | Dependency |
 | --- | --- | --- |
-| Readonly property initialization | Unsupported: `property.uninitializedReadonly` | The level-0 differential pack checks the PHPStan 2.2.5 finding and records that this engine emits no matching diagnostic. |
+| Readonly property initialization | Partial, differential-gated | `uninitialized-readonly-property`, `conditionally-uninitialized-readonly-property`, and `initialized-readonly-property` check missing, partial-branch, and guaranteed constructor initialization against PHPStan. The current gate accepts direct constructor assignments and assignments present on every if/else path; complex control-flow and indirect initialization remain unverified. |
 | Parameter contravariance in trait/interface/parent contracts | Unsupported: `method.childParameterType` | The level-0 differential pack records an interface implementation that narrows its accepted parameter type. Return covariance and selected inherited return mismatches are gated separately. |
 | Complete arbitrary-expression unknown method checks | Partial | Remaining unprobed expression forms after property/`@return`/`match`/const indexes; PHPStan reclassifies unknown nullable methods to `method.nonObject` at level 8 while this engine keeps the level-2 `method.notFound` |
 | PHPDoc validation parity | Not implemented | Complete PHPDoc type validation and source mapping |

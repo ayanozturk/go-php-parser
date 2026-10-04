@@ -56,6 +56,7 @@ func appendClassModelOnNode(filename string, node ast.Node, ft FileTypeContext, 
 		checkConsistentConstructorLegality(filename, className, n, ctx, issues)
 		checkClassConstantLegality(filename, className, n, ctx, issues)
 		checkReadonlyClassProperties(filename, className, n, ctx, issues)
+		checkReadonlyPropertyInitialization(filename, className, n, issues)
 	case *ast.InterfaceNode:
 		interfaceName := ft.resolveClassLike(n.Name)
 		for _, parent := range n.Extends {
@@ -180,6 +181,91 @@ func checkReadonlyClassProperties(filename, className string, class *ast.ClassNo
 			}
 		}
 	}
+}
+
+func checkReadonlyPropertyInitialization(filename, className string, class *ast.ClassNode, issues *[]AnalysisIssue) {
+	if class == nil || issues == nil {
+		return
+	}
+	classReadonly := class.Modifiers.HasName("readonly")
+	constructor := classConstructor(class)
+	for _, member := range class.Properties {
+		property, ok := member.(*ast.PropertyNode)
+		if !ok || property.IsStatic || !(property.IsReadonly || classReadonly) || property.DefaultValue != nil {
+			continue
+		}
+		if promotedReadonlyPropertyInitialized(constructor, property.Name) || constructorDefinitelyInitializesThisProperty(constructor, property.Name) {
+			continue
+		}
+		*issues = append(*issues, issueSpan(filename, property, level0ClassModelCode, fmt.Sprintf(
+			"Class %s has an uninitialized readonly property $%s. Assign it in the constructor.", className, property.Name,
+		)))
+	}
+}
+
+func classConstructor(class *ast.ClassNode) *ast.FunctionNode {
+	if class == nil {
+		return nil
+	}
+	for _, member := range class.Methods {
+		if method, ok := member.(*ast.FunctionNode); ok && strings.EqualFold(method.Name, "__construct") {
+			return method
+		}
+	}
+	return nil
+}
+
+func promotedReadonlyPropertyInitialized(constructor *ast.FunctionNode, name string) bool {
+	if constructor == nil {
+		return false
+	}
+	for _, member := range constructor.Params {
+		parameter, ok := member.(*ast.ParamNode)
+		if ok && parameter.IsPromoted && parameter.Name == name {
+			return true
+		}
+	}
+	return false
+}
+
+func constructorDefinitelyInitializesThisProperty(constructor *ast.FunctionNode, name string) bool {
+	return constructor != nil && statementsDefinitelyAssignThisProperty(constructor.Body, name)
+}
+
+func statementsDefinitelyAssignThisProperty(statements []ast.Node, name string) bool {
+	for _, statement := range statements {
+		switch node := statement.(type) {
+		case *ast.ExpressionStmt:
+			if assignment, ok := node.Expr.(*ast.AssignmentNode); ok && assignment.Operator == "=" {
+				if property, ok := directThisPropertyName(assignment.Left); ok && property == name {
+					return true
+				}
+			}
+		case *ast.BlockNode:
+			if statementsDefinitelyAssignThisProperty(node.Statements, name) {
+				return true
+			}
+		case *ast.IfNode:
+			if node.Else == nil || !statementsDefinitelyAssignThisProperty(node.Body, name) || !statementsDefinitelyAssignThisProperty(node.Else.Body, name) {
+				continue
+			}
+			allBranchesAssign := true
+			for _, branch := range node.ElseIfs {
+				if branch == nil || !statementsDefinitelyAssignThisProperty(branch.Body, name) {
+					allBranchesAssign = false
+					break
+				}
+			}
+			if allBranchesAssign {
+				return true
+			}
+		case *ast.DoWhileNode:
+			if statementsDefinitelyAssignThisProperty(node.Body, name) {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // ancestorRecursionGuard bounds recursive ancestor walks so a self-referential
