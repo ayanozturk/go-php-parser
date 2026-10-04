@@ -542,8 +542,9 @@ func (s *SemanticSnapshot) generateInferredTypeFactsForFile(filename string, nod
 			}
 		case *ast.FunctionNode:
 			scope := analysisFunctionScope(ctx, class, n, fileCtx)
+			subject := s.functionSymbolID(fileCtx, class, n)
 			walkStatementsForArgTypesUsing(n.Body, scope, ctx, filename, nil, func(filename string, expr ast.Node, scope *functionScope, ctx *AnalysisContext) {
-				s.addGeneratedInferredTypeFact(filename, expr, fileCtx, class, n, func() Type {
+				s.addGeneratedInferredTypeFact(filename, expr, subject, func() Type {
 					return inferType(expr, scope, ctx)
 				})
 			})
@@ -555,7 +556,7 @@ func (s *SemanticSnapshot) generateInferredTypeFactsForFile(filename string, nod
 	}
 }
 
-func (s *SemanticSnapshot) addGeneratedInferredTypeFact(filename string, expr ast.Node, fileCtx FileTypeContext, class *ast.ClassNode, function *ast.FunctionNode, infer func() Type) {
+func (s *SemanticSnapshot) addGeneratedInferredTypeFact(filename string, expr ast.Node, subject SymbolID, infer func() Type) {
 	if expr == nil || infer == nil {
 		return
 	}
@@ -579,7 +580,7 @@ func (s *SemanticSnapshot) addGeneratedInferredTypeFact(filename string, expr as
 			inferred = stringLiteralType(literal.Value)
 		}
 	}
-	s.facts.putGeneratedInferred(key, s.functionSymbolID(fileCtx, class, function), inferred.dnfString())
+	s.facts.putGeneratedInferred(key, subject, inferred.dnfString())
 }
 
 func (s *SemanticSnapshot) functionSymbolID(fileCtx FileTypeContext, class *ast.ClassNode, function *ast.FunctionNode) SymbolID {

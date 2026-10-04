@@ -1154,7 +1154,10 @@ func (t Type) withRelativeClassNames(selfName, staticName, parentName string) Ty
 		if replacement == "" || strings.EqualFold(replacement, atom.display) {
 			continue
 		}
-		if _, ok := normalizeTypeAtom(replacement); ok {
+		// Relative replacements come from declared class names. Checking that
+		// normalization will have a non-empty class name avoids constructing a
+		// temporary typeAtom here, which the rebuild pass creates only once.
+		if strings.TrimPrefix(strings.TrimSpace(replacement), `\`) != "" {
 			needsMapping = true
 			break
 		}

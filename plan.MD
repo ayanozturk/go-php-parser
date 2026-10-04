@@ -25,5 +25,8 @@ Deliver at least 2× faster process-cold full analysis on each pinned PSL, Symfo
 - Execution details, targets, gates, and commands: [docs/plan-performance-2x.md](docs/plan-performance-2x.md).
 - Initial profiles and PSL/Composer baselines: [docs/benchmarks/2026-10-04-performance-planning.md](docs/benchmarks/2026-10-04-performance-planning.md).
 - The initial fresh evidence covers only PSL and Composer; it does not establish the four-corpus baseline or any speedup.
+- Landed implementation slices: `fa015a4f` avoids unchanged relative-type allocations, and `d42492b0` replaces the normalization cache with an 8-shard bounded map. The PSL A/B comparison for the cache measured 1.099× (95% paired interval 1.075–1.123); the Composer 30-run comparison did not pass the 5% CV gate. Exact issue snapshots and the `analyse` race suite pass for these changes.
+- P2 currently hoists generated-fact subject resolution out of the per-expression callback and avoids duplicate normalization during the relative-type probe. The 10-run PSL A/B measured 1.022× (95% paired interval 1.004–1.041), with exact PSL/Composer snapshot parity and the full `analyse` suite passing. It is a measured small step, not proof that P2's cumulative budget is met.
+- P0 remains open: establish valid cold A/B and issue-set baselines on Symfony, WordPress, and Magento, then repeat candidate acceptance on all four required corpora and production CLI.
 - Preserve all files, vendor declarations, bodies, rules, parser recovery, diagnostics, and analysis budgets. No reductions or path truncation count as an optimization.
 - Update this plan and the linked execution record as gates complete. Do not check off performance delivery until acceptance evidence exists.
