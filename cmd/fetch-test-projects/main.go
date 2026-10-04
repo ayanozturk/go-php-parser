@@ -5,7 +5,7 @@
 // repository (see .gitignore) — every checkout must instead be
 // reproducible from the manifest's pinned commit, per the
 // comparable-performance contract in
-// roadmap.md#8-reach-comparable-full-analysis-performance.
+// roadmap.md#6-improve-and-maintain-full-analysis-performance.
 //
 // Usage:
 //

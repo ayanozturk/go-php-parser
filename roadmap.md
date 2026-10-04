@@ -65,19 +65,19 @@ Targets:
 - cancellation acknowledgement: p95 at most 25 ms;
 - no stale diagnostics after a newer document version is accepted.
 
-### 6. Reach comparable full-analysis performance
+### 6. Improve and maintain full-analysis performance
 
-The [2× execution plan](docs/plan-performance-2x.md) defines ordered, profile-backed work packages and a separate self-baseline target: at least 2× faster cold full analysis on each required corpus, with no peak-RSS regression (3× stretch). This supplements the Mago comparison below.
+Performance work must preserve and gradually improve the project's own best accepted full-analysis results. Compare each change on the same pinned workload, toolchain, worker settings, and environment, with complete file and diagnostic accounting. A new best is recorded only after a repeatable improvement; performance claims against other analysers are not release gates.
 
 - Profile structural hot paths only after semantic workload and corpus accounting are stable.
 - Keep tokens, nodes, and semantic facts compact; intern normalized identities; bound cache lifetimes; and use deterministic parallel reduction.
-- Benchmark WordPress, Symfony, PSL, and Magento against a contemporaneous Mago version wherever both tools complete.
+- Benchmark WordPress, Symfony, PSL, and Magento on every performance-sensitive change against the project's current best result for each workload.
 - Use process-cold, interleaved runs with identical workloads, complete file/diagnostic accounting, peak RSS, allocations, and CV at most 5%.
 - Publish raw machine-readable evidence from a stable host or CI.
 
 Done when:
 
-- cold full analysis is at most 1.5 times the contemporaneous Mago mean on comparable required workloads;
+- each pinned workload maintains or improves its accepted cold full-analysis time and peak memory;
 - reliability, semantic coverage, peak RSS, variance, and file-accounting gates all pass;
 - no result depends on excluding vendor, reducing rules, skipping bodies, or comparing index-only work with full analysis.
 

@@ -20,8 +20,8 @@ Scope: stabilize the parser, analyser, CLI, and PHP Strom integration for a 1.0 
 
 - Release gates, current blockers, and commands: [docs/releasing-1.0.md](docs/releasing-1.0.md).
 - Performance is a continuous release-quality gate on our own best accepted results. Each change should preserve or improve the current best. Compare on identical pinned workloads, toolchain, worker settings, and environment; require at least ten process-cold repetitions, CV ≤5%, complete file/diagnostic parity, and no time or peak-memory regression beyond measurement noise. Promote a new best score only when the improvement is repeatable. The active gate is our rolling best, without a fixed speedup multiplier or other-analyser comparison.
-- Historical performance measurements and raw records are retained as evidence: [performance iteration 1](docs/benchmarks/2026-10-04-performance-iteration-1.md). They document what improved and what remains noisy; they are not the active acceptance target.
+- Establish a fresh rolling best for the release workload set before using per-change scores as a gate.
 - Existing CI runs `go test ./...`, `go vet ./...`, and short parser/PHPDoc fuzz jobs on Linux. It does not yet establish cross-platform execution or the full corpus release gates.
 - The latest release-surface correction aligns `make build` with the documented `go-phpcs` executable and replaces obsolete CLI examples. Continue checking user-facing commands against the command registry and command tests.
 - Preserve lossless parsing, deterministic diagnostics, file accounting, public compatibility, and existing rule semantics. Every behavior fix needs a regression case and current rule documentation where applicable.
-- Keep historical performance reports as evidence; active acceptance uses the rolling best-result record defined above.
+- Use only the rolling best-result record for active decisions; do not carry forward scores from superseded plans.
