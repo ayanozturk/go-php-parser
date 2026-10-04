@@ -15,7 +15,7 @@ The long-term target is a production-grade, full PHP static analyzer. The active
 - **Code style:** configurable style rules, including the PSR-12 checks documented below.
 - **Developer tooling:** command-line project discovery, configuration inspection, file listing, style-rule inventory, corpus checks, and benchmarks.
 
-The analyzer is under active development; see [plan.MD](plan.MD) for the current implementation scope and known acceptance gates.
+The analyzer is under active development; see [plan.MD](plan.MD) for the current implementation scope and known acceptance gates. Release scope and the open 1.0 readiness checks are tracked in [docs/releasing-1.0.md](docs/releasing-1.0.md).
 
 ## Installation
 
@@ -158,31 +158,15 @@ List the registered style rule codes supported by this tool:
 
 The [style rule guide](docs/rules/style.md) explains every registered style check, with an example and why it helps. You can enable or disable codes under `rules:` in `config.yaml`; if the setting is omitted, all registered style rules run.
 
-### Basic Usage
+### Inspecting syntax
+
+Print the lowered AST for one PHP file:
 
 ```bash
-go run main.go demo_project
+./go-phpcs ast path/to/Example.php
 ```
 
-This will parse the PHP files under the target directory and output the AST in a tree-like structure. You can also point it at a single file:
-
-```bash
-go run main.go demo_constants.php
-```
-
-### Directory Scanning & Parallelism
-
-You can scan all PHP files in a directory as defined in `config.yaml`:
-
-```bash
-go run main.go
-```
-
-To control parallelism (number of concurrent workers), use the `-p` flag. By default, the number of workers is set to the number of CPU cores on your machine:
-
-```bash
-go run main.go -p 4   # Use 4 workers in parallel
-```
+To check all files selected by the project configuration, use `./go-phpcs` (style checks) or `./go-phpcs analyze` (project-aware analysis). Use `./go-phpcs -p 4 analyze` to set the worker count; by default it uses the number of CPUs visible to Go.
 
 ### Compatibility Metrics
 

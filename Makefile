@@ -41,7 +41,7 @@ style:
 	go run main.go style
 
 build:
-	go build -o tusk
+	go build -o go-phpcs .
 
 compat-metrics: test-projects
 	go run ./cmd/compat-metrics
