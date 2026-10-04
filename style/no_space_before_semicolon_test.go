@@ -41,7 +41,7 @@ func TestNoSpaceBeforeSemicolonHasExactWhitespaceSpan(t *testing.T) {
 	if issue.Line != 1 || issue.Column != 7 || issue.EndLine != 1 || issue.EndColumn != 8 {
 		t.Fatalf("expected the single whitespace byte range [7,8), got %+v", issue)
 	}
-	got := issue.AsDiagnostic(source, "go-php-parser")
+	got := issue.AsDiagnostic(source, "tusk")
 	if got.Span != (diag.ByteSpan{Start: 6, End: 7}) {
 		t.Fatalf("expected exact byte span [6,7), got %+v", got.Span)
 	}

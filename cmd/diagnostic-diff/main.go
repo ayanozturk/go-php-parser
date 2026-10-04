@@ -126,7 +126,7 @@ func runDifferential(fixtures, phpstanBin string, engineOnly bool) (differential
 	if err != nil {
 		return differentialReport{}, err
 	}
-	report := differentialReport{SchemaVersion: reportSchemaVersion, Engine: "go-php-parser", Totals: reportTotals{Cases: len(manifest.Cases)}}
+	report := differentialReport{SchemaVersion: reportSchemaVersion, Engine: "tusk", Totals: reportTotals{Cases: len(manifest.Cases)}}
 
 	if !engineOnly {
 		configuration, err := filepath.Abs(filepath.Clean(filepath.Join(fixtures, manifest.Reference.Configuration)))

@@ -1,6 +1,6 @@
 # PHP Strom integration review
 
-This document records the August 2026 review of `go-php-parser` as the parser and analysis engine used by the sibling `vscode-php-strom` project.
+This document records the August 2026 review of Tusk (Go module path `github.com/ayanozturk/go-php-parser`) as the parser and analysis engine used by the sibling `vscode-php-strom` project.
 
 ## Current relationship
 

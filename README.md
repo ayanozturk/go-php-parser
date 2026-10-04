@@ -1,8 +1,8 @@
-# go-php-parser
+# Tusk
 
 A PHP parser, code-style checker, and project-aware static analyzer written in Go.
 
-`go-php-parser` parses PHP into a lossless concrete syntax tree and a lower-level AST, applies configurable style rules, and analyzes symbols, PHPDoc types, and control flow across a project. It provides the analysis engine used by the `analyze` command and the PHP Strom language server, with diagnostics emitted in deterministic source order.
+Tusk parses PHP into a lossless concrete syntax tree and a lower-level AST, applies configurable style rules, and analyzes symbols, PHPDoc types, and control flow across a project. It provides the analysis engine used by the `analyze` command and the PHP Strom language server, with diagnostics emitted in deterministic source order.
 
 The long-term target is a production-grade, full PHP static analyzer. The active implementation checklist is in [plan.MD](plan.MD); future work and sequencing are maintained in the [project roadmap](roadmap.md).
 
@@ -19,98 +19,101 @@ The analyzer is under active development; see [plan.MD](plan.MD) for the current
 
 ## Installation
 
+Building from source requires Go 1.23 or newer. GNU Make is needed for the `make build` command.
+
 ```bash
 git clone https://github.com/ayanozturk/go-php-parser.git
 cd go-php-parser
 go mod download
-```
-
-## Usage
-
-### Option 1
-
-Build the binary once:
-
-```bash
 make build
 ```
 
-This produces a binary named `go-phpcs`.
+The resulting executable is `tusk` (`tusk.exe` when built for Windows). Without Make, build it directly with `go build -o tusk .` (use `tusk.exe` as the output name for Windows).
 
-#### Pointing go-phpcs at your project
+## Usage
 
-The binary auto-discovers a config in the current working directory, in this order:
+The command is optional; with no command, `tusk` runs `style`. Project commands use the configuration found in the current working directory, or the file supplied with `-config` before the command.
 
-1. `tusk.yaml`
-2. `go-phpcs.yaml`
-3. `go-phpcs.yml`
-4. `config.yaml`
+| Command | Purpose |
+| --- | --- |
+| `init` | Create the default `tusk.yaml` in the current directory |
+| `style [file]` | Check style for the configured project or one file |
+| `analyze [file-or-folder]` | Analyze the configured project; an optional path limits reported files |
+| `ast [file]` | Print the lowered AST for configured files or one file |
+| `tokens [file]` | Print lexer tokens for configured files or one file |
+| `config` | Print the effective configuration |
+| `list-files` | List files selected by the effective configuration |
+| `list-style-rules` | List registered style rule codes; no config is needed |
 
-To bootstrap a fresh project, generate a default `config.yaml` and edit it:
+### Project configuration
+
+#### Pointing tusk at your project
+
+Commands that scan or inspect a project require a config in the current working directory unless `-config` is supplied. The CLI does not search parent directories or the executable's directory. It discovers only `tusk.yaml`; other filenames are not read automatically.
+
+To create the default `tusk.yaml` in the current directory, run:
 
 ```bash
-./go-phpcs init
+./tusk init
 ```
 
-You can also place the binary alongside an existing `config.yaml` from this repo and edit it to target the directory you want to check. The binary will pick up the nearest config automatically.
+Edit `tusk.yaml`'s `path` to point to the PHP project root. To use a config in another location, pass `-config path/to/tusk.yaml` before the command name.
 
 To inspect which config, path, extensions, ignore list, rules, and analysis level are actually in effect, run:
 
 ```bash
-./go-phpcs config
+./tusk config
 ```
 
 To print exactly which files the resolved config will scan:
 
 ```bash
-./go-phpcs list-files
+./tusk list-files
 ```
 
 #### Running the style checker
 
 ```bash
-./go-phpcs
+./tusk
 ```
 
 Optionally export the report into a file:
 
 ```bash
-./go-phpcs -o report.log
+./tusk -o report.log
 ```
 
-### Option 2
+### Run from source without building
 
-Clone your project into a folder within this project (for example `demo_project/`).
-
-Update `config.yaml` with your folder name.
-
-Run the style checks:
+From the repository root, run the CLI with Go and specify the project config:
 
 ```bash
-make run
+go run . -config path/to/tusk.yaml analyze
 ```
+
+For the style checker, omit `analyze` or pass `style`. The equivalent Make target is `make run ARGS="-config path/to/tusk.yaml analyze"`.
 
 ### Static analysis
 
-Run project-aware static analysis for the files selected by `config.yaml`:
+Run project-aware static analysis for the files selected by the resolved config:
 
 ```bash
-./go-phpcs analyze
+./tusk analyze
 ```
 
 Or analyze one file using the same project pipeline:
 
 ```bash
-./go-phpcs analyze src/Example.php
+./tusk analyze src/Example.php
 ```
 
 Or scope the analysis to a subfolder (the whole project is still indexed for cross-file symbol resolution, but only files under `src/Module` are reported on):
 
 ```bash
-./go-phpcs analyze src/Module
+./tusk analyze src/Module
 ```
 
-The folder walk respects the configured `extensions` and `ignore` lists, so `./go-phpcs analyze src` and a config pointed at `src` produce the same file set.
+The folder walk respects the configured `extensions` and `ignore` lists, so `./tusk analyze src` and a config pointed at `src` produce the same file set.
 
 Set `analysis_level` to zero or greater to run rules up to that level. Leaving it unset runs every registered analysis rule.
 
@@ -153,20 +156,20 @@ Run `go run ./cmd/rule-inventory` after adding or moving an analysis rule. The G
 List the registered style rule codes supported by this tool:
 
 ```bash
-./go-phpcs list-style-rules
+./tusk list-style-rules
 ```
 
-The [style rule guide](docs/rules/style.md) explains every registered style check, with an example and why it helps. You can enable or disable codes under `rules:` in `config.yaml`; if the setting is omitted, all registered style rules run.
+The [style rule guide](docs/rules/style.md) explains every registered style check, with an example and why it helps. You can enable or disable codes under `rules:` in the selected config file; if the setting is omitted, all registered style rules run.
 
 ### Inspecting syntax
 
 Print the lowered AST for one PHP file:
 
 ```bash
-./go-phpcs ast path/to/Example.php
+./tusk ast path/to/Example.php
 ```
 
-To check all files selected by the project configuration, use `./go-phpcs` (style checks) or `./go-phpcs analyze` (project-aware analysis). Use `./go-phpcs -p 4 analyze` to set the worker count; by default it uses the number of CPUs visible to Go.
+To check all files selected by the project configuration, use `./tusk` (style checks) or `./tusk analyze` (project-aware analysis). Use `./tusk -p 4 analyze` to set the worker count; by default it uses the number of CPUs visible to Go.
 
 ### Compatibility Metrics
 
@@ -282,7 +285,7 @@ Sys: 298.92 MB
 
 ### Configuration
 
-File scanning is controlled by `config.yaml`:
+File scanning is controlled by the selected config file (by default, `tusk.yaml`):
 
 ```yaml
 path: ./demo_project
@@ -303,8 +306,8 @@ package main
 import (
     "fmt"
 
-    "go-php-parser/ast"
-    "go-php-parser/syntax"
+    "github.com/ayanozturk/go-php-parser/printer"
+    "github.com/ayanozturk/go-php-parser/syntax"
 )
 
 func main() {
@@ -323,14 +326,14 @@ func main() {
         return
     }
 
-    ast.PrintAST(nodes, 0)
+    printer.PrintAST(nodes, 0)
 }
 ```
 
 ## Project Structure
 
 ```
-go-php-parser/
+tusk/
 ├── ast/         # AST node definitions
 ├── lexer/       # Tokenizer implementation
 ├── parser/      # Parser implementation

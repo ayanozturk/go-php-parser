@@ -1,7 +1,8 @@
 parser-test.log
 demo_project
 results.log
-go-phpcs
+tusk
+tusk.exe
 cpu.prof
 mem.prof
 coverage.out
@@ -23,7 +24,6 @@ cpu.out
 # and publish raw reports as CI/run artifacts rather than committing them.
 /docs/benchmarks/*wordpress*.json
 php-parser
-tusk
 cover.out
 config.yaml.bak
 

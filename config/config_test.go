@@ -79,7 +79,7 @@ func TestLoadConfig_InvalidYAML(t *testing.T) {
 }
 
 func TestLoadConfigRejectsNegativeAnalysisLevel(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "go-phpcs.yaml")
+	path := filepath.Join(t.TempDir(), "tusk.yaml")
 	if err := os.WriteFile(path, []byte("path: .\nanalysis_level: -1\n"), 0644); err != nil {
 		t.Fatalf("write config: %v", err)
 	}
@@ -88,9 +88,9 @@ func TestLoadConfigRejectsNegativeAnalysisLevel(t *testing.T) {
 	}
 }
 
-func TestDiscoverConfigPrefersGoPHPCSYAML(t *testing.T) {
+func TestDiscoverConfigFindsTuskYAML(t *testing.T) {
 	dir := t.TempDir()
-	for _, name := range []string{"config.yaml", "go-phpcs.yml", "go-phpcs.yaml"} {
+	for _, name := range []string{"config.yaml", "tusk.yml", "tusk.yaml"} {
 		if err := os.WriteFile(filepath.Join(dir, name), []byte("path: .\n"), 0644); err != nil {
 			t.Fatalf("failed to write %s: %v", name, err)
 		}
@@ -101,26 +101,22 @@ func TestDiscoverConfigPrefersGoPHPCSYAML(t *testing.T) {
 		t.Fatalf("DiscoverConfig failed: %v", err)
 	}
 
-	want := filepath.Join(dir, "go-phpcs.yaml")
+	want := filepath.Join(dir, "tusk.yaml")
 	if got != want {
 		t.Fatalf("unexpected discovered config: got %q, want %q", got, want)
 	}
 }
 
-func TestDiscoverConfigFallsBackToLegacyConfigYAML(t *testing.T) {
+func TestDiscoverConfigIgnoresLegacyConfigNames(t *testing.T) {
 	dir := t.TempDir()
-	if err := os.WriteFile(filepath.Join(dir, "config.yaml"), []byte("path: .\n"), 0644); err != nil {
-		t.Fatalf("failed to write config.yaml: %v", err)
+	for _, name := range []string{"config.yaml", "tusk.yml"} {
+		if err := os.WriteFile(filepath.Join(dir, name), []byte("path: .\n"), 0644); err != nil {
+			t.Fatalf("failed to write %s: %v", name, err)
+		}
 	}
 
-	got, err := DiscoverConfig(dir)
-	if err != nil {
-		t.Fatalf("DiscoverConfig failed: %v", err)
-	}
-
-	want := filepath.Join(dir, "config.yaml")
-	if got != want {
-		t.Fatalf("unexpected discovered config: got %q, want %q", got, want)
+	if got, err := DiscoverConfig(dir); err == nil {
+		t.Fatalf("expected only tusk.yaml to be discovered, got %q", got)
 	}
 }
 
@@ -146,9 +142,9 @@ func TestPrintEffectiveConfig(t *testing.T) {
 	}
 
 	var buf bytes.Buffer
-	PrintEffectiveConfig(&buf, cfg, "go-phpcs.yaml")
+	PrintEffectiveConfig(&buf, cfg, "tusk.yaml")
 
-	want := `config_file: "go-phpcs.yaml"
+	want := `config_file: "tusk.yaml"
 path: "./src"
 includes: []
 extensions:
@@ -360,7 +356,7 @@ func TestWriteDefaultConfig_Success(t *testing.T) {
 }
 
 func TestWriteDefaultConfig_AlreadyExists(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "go-phpcs.yaml")
+	path := filepath.Join(t.TempDir(), "tusk.yaml")
 	if err := os.WriteFile(path, []byte("path: .\n"), 0644); err != nil {
 		t.Fatalf("seed: %v", err)
 	}
@@ -411,7 +407,7 @@ func TestDiscoverConfigEmptyDirUsesDot(t *testing.T) {
 
 func TestDiscoverConfigPrefersTuskYAML(t *testing.T) {
 	dir := t.TempDir()
-	for _, name := range []string{"config.yaml", "go-phpcs.yaml", "tusk.yaml"} {
+	for _, name := range []string{"config.yaml", "tusk.yml", "tusk.yaml"} {
 		if err := os.WriteFile(filepath.Join(dir, name), []byte("path: .\n"), 0644); err != nil {
 			t.Fatalf("write %s: %v", name, err)
 		}
@@ -431,16 +427,8 @@ func TestDiscoverConfigSkipsDirectoryNamedLikeConfig(t *testing.T) {
 	if err := os.Mkdir(filepath.Join(dir, "tusk.yaml"), 0755); err != nil {
 		t.Fatalf("mkdir decoy: %v", err)
 	}
-	want := filepath.Join(dir, "go-phpcs.yml")
-	if err := os.WriteFile(want, []byte("path: .\n"), 0644); err != nil {
-		t.Fatalf("write: %v", err)
-	}
-	got, err := DiscoverConfig(dir)
-	if err != nil {
-		t.Fatalf("DiscoverConfig: %v", err)
-	}
-	if got != want {
-		t.Fatalf("got %q want %q", got, want)
+	if got, err := DiscoverConfig(dir); err == nil {
+		t.Fatalf("expected directory named tusk.yaml to be skipped, got %q", got)
 	}
 }
 

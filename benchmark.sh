@@ -23,7 +23,7 @@ LINES=$(find "$TARGET_DIR" -name "*.php" 2>/dev/null -exec wc -l {} \; 2>/dev/nu
 
 if [[ "$MODE" == "cold" || "$MODE" == "both" ]]; then
 	echo "Cold run (no cache)..."
-	rm -rf ~/.cache/go-phpcs
+	rm -rf ~/.cache/tusk
 	START=$(date +%s.%N)
 	echo "  Analyzing..." >&2
 	./php-parser 2>&1 | tail -5

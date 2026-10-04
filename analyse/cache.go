@@ -45,7 +45,7 @@ const (
 	// Bump whenever serialized fields or symbol-index construction semantics
 	// change; otherwise a new binary can reuse semantically stale signatures.
 	cacheVersion = 14
-	cacheFile    = "go-phpcs-index.json"
+	cacheFile    = "tusk-index.json"
 )
 
 // NewCacheManager creates a cache manager. cacheDir should be a writable directory.

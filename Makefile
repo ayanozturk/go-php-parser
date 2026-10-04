@@ -11,7 +11,7 @@ profile:
 # Visualize the cpu.prof profile in the browser (pprof web UI)
 profile-web:
 	lsof -ti :8080 | xargs kill || true
-	go tool pprof -http=:8080 go-phpcs cpu.prof
+	go tool pprof -http=:8080 tusk cpu.prof
 
 ast:
 	go run main.go ast
@@ -41,7 +41,7 @@ style:
 	go run main.go style
 
 build:
-	go build -o go-phpcs .
+	go build -o tusk$(shell go env GOEXE) .
 
 compat-metrics: test-projects
 	go run ./cmd/compat-metrics

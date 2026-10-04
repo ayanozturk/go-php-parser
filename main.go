@@ -80,7 +80,7 @@ func run() int {
 	}
 
 	if !args.HasExplicitFile() && len(filesToScan) == 0 {
-		fmt.Fprintln(outWriter, "Usage: go-phpcs <command> <file>")
+		fmt.Fprintln(outWriter, "Usage: tusk <command> <file>")
 		command.PrintUsageTo(outWriter)
 		return 2
 	}

@@ -6,7 +6,7 @@ This document tracks stabilization for the parser, analyzer, CLI, and PHP Strom 
 
 | Gate | Required evidence | Current state |
 | --- | --- | --- |
-| Build and CLI contract | `make build` creates `go-phpcs`; documented commands, config discovery, output formats, and exit codes match command tests | In progress: target and stale README examples corrected; local build/help smoke, full tests, and vet passed; command-contract review remains |
+| Build and CLI contract | `make build` creates `tusk` (`tusk.exe` on Windows); documented commands, current-directory config discovery, output formats, and exit codes match command tests | Passed locally: full tests and vet; native and Windows executable builds; smoke runs for init, style, analyze, AST, tokens, config, file listing, style-rule listing, source invocation, and Make invocation |
 | Go API and module contract | Supported Go toolchain range, public packages/symbols, compatibility policy, module path, and dependency licenses reviewed | Open |
 | Platform support | CI builds and tests on every declared OS/architecture; release archives are reproducible and contain the expected executable and license | In progress: CI build matrix added for Ubuntu, macOS, and Windows; local Windows amd64 and macOS amd64 cross-builds passed; native full test execution and release archive reproducibility remain open |
 | Parser correctness | Lossless identity, gold trees, Zend token parity, corpus identity/accounting, and malformed-input fuzz gates pass | Open; full Go tests and race suite pass locally; corpus identity/accounting and scheduled fuzz evidence remain open. See `AGENTS.md` and syntax CI/fuzz jobs |
@@ -29,8 +29,10 @@ go test ./syntax -run '^$' -fuzz '^FuzzSyntaxIndexParserMalformedPHP$' -fuzztime
 go test ./ast -run '^$' -fuzz '^FuzzParsePHPDoc$' -fuzztime 2m
 go test ./analyse -run '^$' -fuzz '^FuzzParseType$' -fuzztime 2m
 make build
-./go-phpcs --help
+./tusk --help
 ```
+
+The CLI's built-in `--help` output lists Go flags; command names and descriptions are verified by `go test ./command`. Smoke-test config initialization in a temporary working directory (`tusk init` must create `tusk.yaml`) and run representative style, AST, token, config, file-list, and analysis commands against an explicit `tusk.yaml` with `-config` before the command.
 
 The fuzz commands are scheduled smoke checks, not exhaustive proof. Also run the corpus identity, differential, PHPStan comparison, PHP Strom integration, cross-platform, and performance workloads required by the rows above. Record exact corpus commits, configuration, Go version, run counts, file/byte totals, parse failures, diagnostics, peak RSS, coefficient of variation, and artifact hashes. Do not turn a missing or unsupported workload into a passing result.
 

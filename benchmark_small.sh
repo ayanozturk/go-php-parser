@@ -29,7 +29,7 @@ echo "Sample: $FILES files, $LINES lines"
 
 echo ""
 echo "=== COLD RUN ==="
-rm -rf ~/.cache/go-phpcs
+rm -rf ~/.cache/tusk
 START=$(date +%s%N)
 ./php-parser -config /dev/null "$SAMPLE_DIR" 2>&1 | grep -E "scanning|scanned|errors|HeapAlloc|Sys" | head -10
 END=$(date +%s%N)

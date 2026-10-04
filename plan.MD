@@ -8,7 +8,7 @@ Scope: stabilize the parser, analyser, CLI, and PHP Strom integration for a 1.0 
 
 ## Work sequence
 
-1. [ ] Make the install/build and command-line documentation match the shipped CLI; add and maintain a 1.0 release checklist.
+1. [x] Make the install/build and command-line documentation match the shipped CLI; add and maintain a 1.0 release checklist.
 2. [ ] Freeze the supported Go versions, operating systems, architectures, PHP syntax scope, public Go API, configuration schema, and diagnostic/exit-code contracts.
 3. [ ] Run the correctness gates: full Go tests and vet, race tests, parser lossless and token-parity corpora, differential fixtures, fuzz smoke, and cross-platform builds. Fix release-blocking failures with focused regression coverage.
 4. [ ] Complete the reviewed-corpus compatibility and diagnostic-quality thresholds; publish the methods, exact corpus revisions, and results.
@@ -22,6 +22,6 @@ Scope: stabilize the parser, analyser, CLI, and PHP Strom integration for a 1.0 
 - Performance is a continuous release-quality gate on our own best accepted results. Each change should preserve or improve the current best. Compare on identical pinned workloads, toolchain, worker settings, and environment; require at least ten process-cold repetitions, CV ≤5%, complete file/diagnostic parity, and no time or peak-memory regression beyond measurement noise. Promote a new best score only when the improvement is repeatable. The active gate is our rolling best, without a fixed speedup multiplier or other-analyser comparison.
 - Establish a fresh rolling best for the release workload set before using per-change scores as a gate.
 - Existing CI runs `go test ./...`, `go vet ./...`, and short parser/PHPDoc fuzz jobs on Linux. It does not yet establish cross-platform execution or the full corpus release gates.
-- The latest release-surface correction aligns `make build` with the documented `go-phpcs` executable and replaces obsolete CLI examples. Continue checking user-facing commands against the command registry and command tests.
+- Tusk is the only user-facing binary and config name: `make build` emits `tusk`/`tusk.exe`, and automatic config discovery accepts only `tusk.yaml`. The README, source-run examples, command names, output source, and integration comments now use Tusk consistently. `go test ./...`, `go vet ./...`, native/Windows builds, and representative CLI flows pass.
 - Preserve lossless parsing, deterministic diagnostics, file accounting, public compatibility, and existing rule semantics. Every behavior fix needs a regression case and current rule documentation where applicable.
 - Use only the rolling best-result record for active decisions; do not carry forward scores from superseded plans.

@@ -34,7 +34,7 @@ type AnalyzeResult struct {
 func (r AnalyzeResult) Diagnostics(sourceByFile map[string][]byte) []diag.Diagnostic {
 	var values []diag.Diagnostic
 	for _, issue := range r.Issues {
-		values = append(values, issue.AsDiagnostic(sourceByFile[issue.Filename], "go-php-parser"))
+		values = append(values, issue.AsDiagnostic(sourceByFile[issue.Filename], "tusk"))
 	}
 	for _, detail := range r.ParseErrors {
 		values = append(values, detail.Diagnostics...)

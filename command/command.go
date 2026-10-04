@@ -125,7 +125,7 @@ func PrintUsage() {
 }
 
 func PrintUsageTo(w io.Writer) {
-	fmt.Fprintln(w, "Usage: go-phpcs <command> [file-or-folder]")
+	fmt.Fprintln(w, "Usage: tusk <command> [file-or-folder]")
 	fmt.Fprintln(w, "Commands:")
 	names := make([]string, 0, len(Commands))
 	for name := range Commands {

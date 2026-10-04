@@ -139,7 +139,7 @@ func TestGenerateBenchmarkReportWithResults(t *testing.T) {
 	}
 	html := string(data)
 	for _, want := range []string{
-		"go-phpcs Performance Dashboard",
+		"tusk Performance Dashboard",
 		"Latest Cold Time",
 		"Avg Warm Time",
 		"✓",

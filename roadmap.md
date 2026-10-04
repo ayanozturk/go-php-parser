@@ -37,7 +37,7 @@ Done when:
 ### 4. Finish CLI and PHP Strom adoption features
 
 - Add `lint`, `format`, `config`, and `guard` without breaking `style`.
-- Add `go-phpcs.yaml`/`.yml` discovery, `--config`, and resolved-config output.
+- Keep `tusk.yaml` discovery, `-config`, and resolved-config output consistent across commands.
 - Add adoption baselines with stale-entry warnings.
 - Support text, JSON, GitHub, and Checkstyle output through the shared diagnostic schema.
 - Keep autofix opt-in, refuse formatting on parse errors, and apply fixers in stable rule-code order.

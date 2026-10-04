@@ -39,7 +39,7 @@ func (args CliArgs) HasExplicitFile() bool {
 }
 
 func ParseCLIArgs(filesToScan []string) CliArgs {
-	configPath := flag.String("config", "", "Path to config file (default: discover go-phpcs.yaml, go-phpcs.yml, config.yaml)")
+	configPath := flag.String("config", "", "Path to config file (default: tusk.yaml in the current directory)")
 	profile := flag.Bool("profile", false, "Enable CPU and memory profiling (cpu.prof, mem.prof)")
 	outputFile := flag.String("output", "", "Write all output (including summary) to this file")
 	outputFileShort := flag.String("o", "", "Write all output (including summary) to this file (shorthand)")
@@ -233,7 +233,7 @@ func RunScanOrCommand(args CliArgs, c *config.Config, filesToScan []string, outW
 		cacheDir := ""
 		homeDir, err := os.UserHomeDir()
 		if err == nil {
-			cacheDir = filepath.Join(homeDir, ".cache", "go-phpcs")
+			cacheDir = filepath.Join(homeDir, ".cache", "tusk")
 		}
 		result := command.AnalyzeFilesIncrementalScoped(files, analysisTargets, c.AnalysisLevel, matcher, args.parallelism, cacheDir)
 		if len(targets) > 0 {

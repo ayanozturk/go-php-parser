@@ -50,7 +50,7 @@ func TestEndFileNewlineDiagnosticMapsToByteEOF(t *testing.T) {
 	if len(issues) != 1 {
 		t.Fatalf("expected one missing-newline issue, got %#v", issues)
 	}
-	got := issues[0].AsDiagnostic(source, "go-php-parser")
+	got := issues[0].AsDiagnostic(source, "tusk")
 	if got.Span != (diag.ByteSpan{Start: len(source), End: len(source)}) {
 		t.Fatalf("expected zero-width byte span at EOF %d, got %+v", len(source), got.Span)
 	}

@@ -94,7 +94,7 @@ func generateBenchmarkHTML(h BenchmarkHistory) string {
 	return fmt.Sprintf(`<!DOCTYPE html>
 <html>
 <head>
-	<title>go-phpcs Performance Dashboard</title>
+	<title>tusk Performance Dashboard</title>
 	<style>
 		body { font-family: Arial, sans-serif; margin: 20px; background: #f5f5f5; }
 		h1 { color: #333; }
@@ -109,7 +109,7 @@ func generateBenchmarkHTML(h BenchmarkHistory) string {
 	</style>
 </head>
 <body>
-	<h1>go-phpcs Performance Dashboard</h1>
+	<h1>tusk Performance Dashboard</h1>
 	<p>Last benchmark: %s</p>
 
 	<div class="stats">

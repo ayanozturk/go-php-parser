@@ -15,9 +15,6 @@ import (
 
 var DefaultConfigFilenames = []string{
 	"tusk.yaml",
-	"go-phpcs.yaml",
-	"go-phpcs.yml",
-	"config.yaml",
 }
 
 const DefaultConfigContent = `path: .
