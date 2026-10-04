@@ -128,3 +128,14 @@ func TestRefineTypeByInstanceofKeepsMockIntersection(t *testing.T) {
 	assertRefined(t, `UserInterface|null`, `User`, `User`)
 	assertRefined(t, `App\User|null`, `App\User`, `App\User`)
 }
+
+func TestWithRelativeClassNamesUnchangedDoesNotAllocate(t *testing.T) {
+	t.Parallel()
+	typ := ParseType("int|string|null")
+	allocs := testing.AllocsPerRun(100, func() {
+		_ = typ.withRelativeClassNames(`App\\Status`, `App\\Status`, `App\\BaseStatus`)
+	})
+	if allocs != 0 {
+		t.Fatalf("unchanged relative class mapping allocations = %.2f, want 0", allocs)
+	}
+}

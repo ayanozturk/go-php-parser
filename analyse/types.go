@@ -1146,7 +1146,23 @@ func (t Type) withRelativeClassNames(selfName, staticName, parentName string) Ty
 		return t
 	}
 
-	mapped := false
+	// Most call sites have no relative class atoms. Scan for a real mapping
+	// first so that unchanged types keep their original maps and allocate zero.
+	needsMapping := false
+	for _, atom := range t.atoms {
+		replacement := relativeClassReplacement(atom, selfName, staticName, parentName)
+		if replacement == "" || strings.EqualFold(replacement, atom.display) {
+			continue
+		}
+		if _, ok := normalizeTypeAtom(replacement); ok {
+			needsMapping = true
+			break
+		}
+	}
+	if !needsMapping {
+		return t
+	}
+
 	newAtoms := make(map[string]typeAtom, len(t.atoms))
 	keyMap := make(map[string]string, len(t.atoms))
 	for key, atom := range t.atoms {
@@ -1162,12 +1178,8 @@ func (t Type) withRelativeClassNames(selfName, staticName, parentName string) Ty
 			keyMap[key] = key
 			continue
 		}
-		mapped = true
 		newAtoms[newAtom.key] = newAtom
 		keyMap[key] = newAtom.key
-	}
-	if !mapped {
-		return t
 	}
 
 	newAlts := make([][]string, 0, len(t.alternatives))

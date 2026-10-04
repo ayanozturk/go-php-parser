@@ -2,56 +2,28 @@
 
 Status: in progress
 
-Roadmap source: short-term item 2
+Roadmap source: short-term item 2 (performance priority explicitly selected by the user)
 
-Scope: complete the semantic and type system
-
-The preceding compatibility plan was delivered on `main`. This plan is now active.
+Scope: implement and measure the profile-backed 2× full-analysis performance plan.
 
 ## Objective
 
-Complete the core PHPDoc type model and its interactions with inference, subtyping, flow analysis, project summaries, and extension contracts while preserving executable correctness gates.
+Deliver at least 2× faster process-cold full analysis on each pinned PSL, Symfony, WordPress, and Magento workload against equivalent code, preserving complete behavior and workload accounting. Aim for 3× where evidence supports it; keep peak RSS at or below baseline. Composer is a required regression corpus. The semantic/type-system work is paused while this plan is active; its unchecked work remains on the roadmap and is not marked complete.
 
 ## Work sequence
 
-### 2. Complete type semantics in gated slices
+1. [ ] Establish release-toolchain, four-corpus cold, profile, and exact issue-set baselines. Record compiler, build flags, corpus manifests, environment, phase data, and resource counters. Add instrumentation needed to see exclusive phases.
+2. [ ] P1: compare bounded identifier-cache designs and remove no-op allocations in relative class type mapping. Land each independently only with corpus parity and measured full-workload results.
+3. [ ] P2: share semantic inference and other immutable per-function results with complete flow/scope/generation keys; retain extension consumers and flow/path budgets.
+4. [ ] P3: prototype compact internal token/trivia storage and remove measured red-node wrapper allocations; preserve public APIs and lossless recovery.
+5. [ ] P4: reduce declaration/lowering duplication; consider structural type identities only if profiles still justify them.
+6. [ ] P5: tune worker scheduling, Go toolchain, and PGO as separately reported experiments.
+7. [ ] Meet per-corpus 2× cold engine and CLI acceptance gates, no peak-RSS regression, exact diagnostics, and Composer non-regression. Keep Mago comparisons separate.
 
-- [x] Preserve declaration-site template variance and check nested generic/callable parameter and return positions; enforce generic bound compatibility through declared variance and inherited `@extends`/`@implements` substitutions.
-- [x] Expand nested local `@phpstan-type`/`@psalm-type` aliases through generic and callable types, resolve imported class aliases in alias bodies, and retain exact token boundaries with clean, mismatch, and boundary fixtures.
-- [x] Model parameter-dependent conditional PHPDoc return types, select branches from call arguments, and feed the result into argument checking with clean, mismatch, and unresolved-condition boundary fixtures.
-- [x] Resolve PHPDoc indexed access against array-shape literal keys and generic array key/value types, retaining unresolved `T[K]` expressions; add clean, mismatch, and boundary fixtures.
-- [x] Resolve `key-of`/`value-of` projections for array shapes and generic key/value arrays while preserving unresolved template projections; add clean, mismatch, and boundary fixtures.
-- [x] Flow callable parameter and return signatures through `callable`/`Closure` invocations, checking incompatible arguments while keeping mixed-value boundaries clean.
-- [x] Preserve optional and nested array-shape fields during indexed access and project value unions across union-shaped arrays, with clean, mismatch, and boundary fixtures.
-- [x] Preserve quoted PHPDoc string literals as exact types through shape values, `key-of` projections, assignments, hover, and return diagnostics, with clean, mismatch, and boundary fixtures.
-- [x] Complete non-empty string refinements and integer-range boundaries with clean, mismatch, and boundary fixtures.
-- Complete normalization, subtyping, substitution, narrowing/widening, recursion limits, and `self`/`static`/`parent`/`$this` behavior.
-- [x] Keep generic template substitution out of quoted PHPDoc string literals while binding surrounding shape types.
-- [x] Resolve PHPDoc `self`, `static`, `parent`, and `$this` method return types at call sites, preserving the declaring and receiver class boundaries.
-- [x] Verify nested generic subtype checks across union/intersection bounds, including clean and mismatch PHPStan fixtures.
-- [x] Bound PHPDoc alias expansion cycles and nested generic subtype recursion, with terminating and conservative boundary tests.
-- [x] Verify exact PHPDoc string narrowing with strict equality and inequality, compound true-branch predicates, and valid assignment joins; confirm clean and mismatch behavior against PHPStan alongside existing integer-range boundary and compound-predicate gates.
-- [x] Verify disjunctive exact-string narrowing and integer-range joins, including unbounded branch joins, with clean, mismatch, and boundary fixtures.
-- Give each correction neutral positive, negative, and boundary fixtures at the relevant PHPStan level.
+## Active evidence and constraints
 
-### 3. Extend flow and project semantics
-
-- [x] Confirm PHPStan treats a by-reference closure capture as defined at closure creation, including before invocation; keep the uninvoked boundary clean while by-value undefined captures remain diagnostic.
-- [x] Report readonly instance properties that lack guaranteed constructor initialization, including conditional and promoted-property boundaries; match PHPStan level-0 clean and diagnostic fixtures.
-- Extend CFG and variable/property flow through loops, exceptions, generators, closures, references, property initialization, readonly constraints, and dynamic properties.
-  - [x] Prove readonly initialization across unconditional `finally` and fully assigned try/catch paths; keep conditional-finally paths diagnostic against PHPStan level 0.
-- Add interprocedural summaries and invalidate dependants only when exported semantic facts change.
-- Define executable extension contracts for dynamic returns, assertions, generated members, reflection, service containers, and ORMs.
-
-### 4. Verify ecosystem behavior
-
-- Run documented correctness, race, corpus, and performance gates on Symfony, WordPress, PSL, and Magento.
-- Use the [profile-backed 2× performance plan](docs/plan-performance-2x.md) for the future optimization iteration and its measurement protocol. The [planning baseline](docs/benchmarks/2026-10-04-performance-planning.md) is evidence, not completion of the performance goal; this semantic implementation queue remains active.
-- Keep capability and rule documentation synchronized with measured behavior.
-
-## Acceptance gates
-
-- Generic, shape, callable, flow, property, trait/interface, and summary suites meet their documented gates.
-- Symfony, Doctrine, Composer, PHPUnit, and Laravel compatibility packs pass.
-- WordPress, Symfony, PSL, and Magento complete without panic, timeout, race, or silent omission.
-- Performance and corpus claims include complete workload and file accounting.
+- Execution details, targets, gates, and commands: [docs/plan-performance-2x.md](docs/plan-performance-2x.md).
+- Initial profiles and PSL/Composer baselines: [docs/benchmarks/2026-10-04-performance-planning.md](docs/benchmarks/2026-10-04-performance-planning.md).
+- The initial fresh evidence covers only PSL and Composer; it does not establish the four-corpus baseline or any speedup.
+- Preserve all files, vendor declarations, bodies, rules, parser recovery, diagnostics, and analysis budgets. No reductions or path truncation count as an optimization.
+- Update this plan and the linked execution record as gates complete. Do not check off performance delivery until acceptance evidence exists.
