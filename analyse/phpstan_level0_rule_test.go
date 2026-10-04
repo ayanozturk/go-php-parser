@@ -1396,6 +1396,37 @@ class PromotedValue {
     public function __construct(public readonly int $value) {}
 }
 `,
+		"finally-initialized.php": `<?php
+class FinallyInitializedValue {
+    public readonly int $value;
+    public function __construct() {
+        try { throw new RuntimeException(); }
+        finally { $this->value = 1; }
+    }
+}
+`,
+		"try-catch-initialized.php": `<?php
+class TryCatchInitializedValue {
+    public readonly int $value;
+    public function __construct(bool $fail) {
+        try {
+            if ($fail) { throw new RuntimeException(); }
+            $this->value = 1;
+        } catch (RuntimeException $error) {
+            $this->value = 2;
+        }
+    }
+}
+`,
+		"conditional-finally.php": `<?php
+class ConditionalFinallyValue {
+    public readonly int $value;
+    public function __construct(bool $initialize) {
+        try { echo "work"; }
+        finally { if ($initialize) { $this->value = 1; } }
+    }
+}
+`,
 	})
 	var initializationIssues []AnalysisIssue
 	for _, issue := range issues {
@@ -1403,10 +1434,10 @@ class PromotedValue {
 			initializationIssues = append(initializationIssues, issue)
 		}
 	}
-	if len(initializationIssues) != 3 {
-		t.Fatalf("expected uninitialized, conditional, and non-constructor writes to report; got %#v", initializationIssues)
+	if len(initializationIssues) != 4 {
+		t.Fatalf("expected uninitialized, conditional, non-constructor, and conditional-finally writes to report; got %#v", initializationIssues)
 	}
-	for _, expected := range []string{"UninitializedValue has an uninitialized readonly property $value", "ConditionalValue has an uninitialized readonly property $value", "OtherMethodValue has an uninitialized readonly property $value"} {
+	for _, expected := range []string{"UninitializedValue has an uninitialized readonly property $value", "ConditionalValue has an uninitialized readonly property $value", "OtherMethodValue has an uninitialized readonly property $value", "ConditionalFinallyValue has an uninitialized readonly property $value"} {
 		if !hasIssueContaining(initializationIssues, level0ClassModelCode, expected) {
 			t.Errorf("expected uninitialized readonly diagnostic for %s, got %#v", expected, initializationIssues)
 		}

@@ -1060,6 +1060,31 @@
       "phpstanIdentifiers": []
     },
     {
+      "id": "readonly-assigned-in-finally",
+      "capability": "readonly property initialized unconditionally in finally",
+      "file": "readonly-in-finally.php",
+      "engineCodes": [],
+      "phpstanIdentifiers": []
+    },
+    {
+      "id": "readonly-assigned-across-try-catch",
+      "capability": "readonly property initialized on normal and caught exception paths",
+      "file": "readonly-in-try-catch.php",
+      "engineCodes": [],
+      "phpstanIdentifiers": []
+    },
+    {
+      "id": "readonly-conditional-finally",
+      "capability": "readonly property initialized conditionally in finally",
+      "file": "readonly-conditional-finally.php",
+      "engineCodes": [
+        "Level0.ClassModel"
+      ],
+      "phpstanIdentifiers": [
+        "property.uninitializedReadonly"
+      ]
+    },
+    {
       "id": "incompatible-parameter-variance",
       "capability": "contravariant interface parameter contracts",
       "file": "incompatible-parameter-variance.php",

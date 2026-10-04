@@ -259,6 +259,24 @@ func statementsDefinitelyAssignThisProperty(statements []ast.Node, name string) 
 			if allBranchesAssign {
 				return true
 			}
+		case *ast.TryNode:
+			// A guaranteed assignment in finally runs after normal completion,
+			// a caught exception, or an exception escaping the constructor.
+			if statementsDefinitelyAssignThisProperty(node.Finally, name) {
+				return true
+			}
+			// Otherwise, require the try body and every catch body to guarantee
+			// initialization before accepting the constructor path.
+			allBranchesAssign := statementsDefinitelyAssignThisProperty(node.Body, name)
+			for _, catch := range node.Catches {
+				if catch == nil || !statementsDefinitelyAssignThisProperty(catch.Body, name) {
+					allBranchesAssign = false
+					break
+				}
+			}
+			if allBranchesAssign {
+				return true
+			}
 		case *ast.DoWhileNode:
 			if statementsDefinitelyAssignThisProperty(node.Body, name) {
 				return true
