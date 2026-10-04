@@ -1,0 +1,774 @@
+{
+  "generatedAt": "2026-10-04T08:03:59Z",
+  "root": "test_projects/composer-src",
+  "goVersion": "go1.23.12",
+  "os": "linux",
+  "arch": "amd64",
+  "numCpu": 3,
+  "workers": 4,
+  "host": {
+    "goMaxProcs": 4,
+    "processColdWarmups": 2,
+    "settleMs": 250,
+    "extraColdRunBudget": 0,
+    "loadAverage1": 1.62,
+    "loadAverage5": 2.12,
+    "loadAverage15": 1.74
+  },
+  "analysisLevel": null,
+  "paths": [
+    "."
+  ],
+  "validationRun": {
+    "durationMs": 1398,
+    "filesDiscovered": 565,
+    "filesParsed": 565,
+    "filesFailed": 0,
+    "totalLoc": 115283,
+    "totalBytes": 4175432,
+    "diagnosticsEmitted": 8347,
+    "goMemSysPeakBytes": 84173080,
+    "peakRssBytes": 86032384
+  },
+  "baseline": {
+    "binary": "/tmp/php-performance-implementation/type-benchmark",
+    "validationRun": {
+      "durationMs": 1291,
+      "filesDiscovered": 565,
+      "filesParsed": 565,
+      "filesFailed": 0,
+      "totalLoc": 115283,
+      "totalBytes": 4175432,
+      "diagnosticsEmitted": 8347,
+      "goMemSysPeakBytes": 88105240,
+      "peakRssBytes": 85770240
+    },
+    "coldFullAnalysis": {
+      "runs": [
+        {
+          "durationMs": 1240,
+          "filesDiscovered": 565,
+          "filesParsed": 565,
+          "filesFailed": 0,
+          "totalLoc": 115283,
+          "totalBytes": 4175432,
+          "diagnosticsEmitted": 8347,
+          "goMemSysPeakBytes": 88236312,
+          "peakRssBytes": 89817088
+        },
+        {
+          "durationMs": 1355,
+          "filesDiscovered": 565,
+          "filesParsed": 565,
+          "filesFailed": 0,
+          "totalLoc": 115283,
+          "totalBytes": 4175432,
+          "diagnosticsEmitted": 8347,
+          "goMemSysPeakBytes": 88105240,
+          "peakRssBytes": 86650880
+        },
+        {
+          "durationMs": 1401,
+          "filesDiscovered": 565,
+          "filesParsed": 565,
+          "filesFailed": 0,
+          "totalLoc": 115283,
+          "totalBytes": 4175432,
+          "diagnosticsEmitted": 8347,
+          "goMemSysPeakBytes": 83910936,
+          "peakRssBytes": 85803008
+        },
+        {
+          "durationMs": 1450,
+          "filesDiscovered": 565,
+          "filesParsed": 565,
+          "filesFailed": 0,
+          "totalLoc": 115283,
+          "totalBytes": 4175432,
+          "diagnosticsEmitted": 8347,
+          "goMemSysPeakBytes": 88367384,
+          "peakRssBytes": 84738048
+        },
+        {
+          "durationMs": 1401,
+          "filesDiscovered": 565,
+          "filesParsed": 565,
+          "filesFailed": 0,
+          "totalLoc": 115283,
+          "totalBytes": 4175432,
+          "diagnosticsEmitted": 8347,
+          "goMemSysPeakBytes": 88367384,
+          "peakRssBytes": 86376448
+        },
+        {
+          "durationMs": 1360,
+          "filesDiscovered": 565,
+          "filesParsed": 565,
+          "filesFailed": 0,
+          "totalLoc": 115283,
+          "totalBytes": 4175432,
+          "diagnosticsEmitted": 8347,
+          "goMemSysPeakBytes": 88105240,
+          "peakRssBytes": 87093248
+        },
+        {
+          "durationMs": 1393,
+          "filesDiscovered": 565,
+          "filesParsed": 565,
+          "filesFailed": 0,
+          "totalLoc": 115283,
+          "totalBytes": 4175432,
+          "diagnosticsEmitted": 8347,
+          "goMemSysPeakBytes": 88432920,
+          "peakRssBytes": 84840448
+        },
+        {
+          "durationMs": 1331,
+          "filesDiscovered": 565,
+          "filesParsed": 565,
+          "filesFailed": 0,
+          "totalLoc": 115283,
+          "totalBytes": 4175432,
+          "diagnosticsEmitted": 8347,
+          "goMemSysPeakBytes": 88367384,
+          "peakRssBytes": 85905408
+        },
+        {
+          "durationMs": 1291,
+          "filesDiscovered": 565,
+          "filesParsed": 565,
+          "filesFailed": 0,
+          "totalLoc": 115283,
+          "totalBytes": 4175432,
+          "diagnosticsEmitted": 8347,
+          "goMemSysPeakBytes": 83976472,
+          "peakRssBytes": 85041152
+        },
+        {
+          "durationMs": 1396,
+          "filesDiscovered": 565,
+          "filesParsed": 565,
+          "filesFailed": 0,
+          "totalLoc": 115283,
+          "totalBytes": 4175432,
+          "diagnosticsEmitted": 8347,
+          "goMemSysPeakBytes": 88432920,
+          "peakRssBytes": 87351296
+        },
+        {
+          "durationMs": 1357,
+          "filesDiscovered": 565,
+          "filesParsed": 565,
+          "filesFailed": 0,
+          "totalLoc": 115283,
+          "totalBytes": 4175432,
+          "diagnosticsEmitted": 8347,
+          "goMemSysPeakBytes": 88367384,
+          "peakRssBytes": 90107904
+        },
+        {
+          "durationMs": 1346,
+          "filesDiscovered": 565,
+          "filesParsed": 565,
+          "filesFailed": 0,
+          "totalLoc": 115283,
+          "totalBytes": 4175432,
+          "diagnosticsEmitted": 8347,
+          "goMemSysPeakBytes": 88301848,
+          "peakRssBytes": 88080384
+        },
+        {
+          "durationMs": 1120,
+          "filesDiscovered": 565,
+          "filesParsed": 565,
+          "filesFailed": 0,
+          "totalLoc": 115283,
+          "totalBytes": 4175432,
+          "diagnosticsEmitted": 8347,
+          "goMemSysPeakBytes": 88367384,
+          "peakRssBytes": 86376448
+        },
+        {
+          "durationMs": 1225,
+          "filesDiscovered": 565,
+          "filesParsed": 565,
+          "filesFailed": 0,
+          "totalLoc": 115283,
+          "totalBytes": 4175432,
+          "diagnosticsEmitted": 8347,
+          "goMemSysPeakBytes": 88432920,
+          "peakRssBytes": 85852160
+        },
+        {
+          "durationMs": 1238,
+          "filesDiscovered": 565,
+          "filesParsed": 565,
+          "filesFailed": 0,
+          "totalLoc": 115283,
+          "totalBytes": 4175432,
+          "diagnosticsEmitted": 8347,
+          "goMemSysPeakBytes": 92561688,
+          "peakRssBytes": 91828224
+        },
+        {
+          "durationMs": 1245,
+          "filesDiscovered": 565,
+          "filesParsed": 565,
+          "filesFailed": 0,
+          "totalLoc": 115283,
+          "totalBytes": 4175432,
+          "diagnosticsEmitted": 8347,
+          "goMemSysPeakBytes": 88301848,
+          "peakRssBytes": 83320832
+        },
+        {
+          "durationMs": 1313,
+          "filesDiscovered": 565,
+          "filesParsed": 565,
+          "filesFailed": 0,
+          "totalLoc": 115283,
+          "totalBytes": 4175432,
+          "diagnosticsEmitted": 8347,
+          "goMemSysPeakBytes": 92299544,
+          "peakRssBytes": 92311552
+        },
+        {
+          "durationMs": 1256,
+          "filesDiscovered": 565,
+          "filesParsed": 565,
+          "filesFailed": 0,
+          "totalLoc": 115283,
+          "totalBytes": 4175432,
+          "diagnosticsEmitted": 8347,
+          "goMemSysPeakBytes": 92561688,
+          "peakRssBytes": 92008448
+        },
+        {
+          "durationMs": 1485,
+          "filesDiscovered": 565,
+          "filesParsed": 565,
+          "filesFailed": 0,
+          "totalLoc": 115283,
+          "totalBytes": 4175432,
+          "diagnosticsEmitted": 8347,
+          "goMemSysPeakBytes": 92299544,
+          "peakRssBytes": 90378240
+        },
+        {
+          "durationMs": 1402,
+          "filesDiscovered": 565,
+          "filesParsed": 565,
+          "filesFailed": 0,
+          "totalLoc": 115283,
+          "totalBytes": 4175432,
+          "diagnosticsEmitted": 8347,
+          "goMemSysPeakBytes": 88367384,
+          "peakRssBytes": 85757952
+        },
+        {
+          "durationMs": 1346,
+          "filesDiscovered": 565,
+          "filesParsed": 565,
+          "filesFailed": 0,
+          "totalLoc": 115283,
+          "totalBytes": 4175432,
+          "diagnosticsEmitted": 8347,
+          "goMemSysPeakBytes": 88105240,
+          "peakRssBytes": 86908928
+        },
+        {
+          "durationMs": 1367,
+          "filesDiscovered": 565,
+          "filesParsed": 565,
+          "filesFailed": 0,
+          "totalLoc": 115283,
+          "totalBytes": 4175432,
+          "diagnosticsEmitted": 8347,
+          "goMemSysPeakBytes": 88105240,
+          "peakRssBytes": 88014848
+        },
+        {
+          "durationMs": 1417,
+          "filesDiscovered": 565,
+          "filesParsed": 565,
+          "filesFailed": 0,
+          "totalLoc": 115283,
+          "totalBytes": 4175432,
+          "diagnosticsEmitted": 8347,
+          "goMemSysPeakBytes": 87843096,
+          "peakRssBytes": 85155840
+        },
+        {
+          "durationMs": 1220,
+          "filesDiscovered": 565,
+          "filesParsed": 565,
+          "filesFailed": 0,
+          "totalLoc": 115283,
+          "totalBytes": 4175432,
+          "diagnosticsEmitted": 8347,
+          "goMemSysPeakBytes": 88105240,
+          "peakRssBytes": 86368256
+        },
+        {
+          "durationMs": 1364,
+          "filesDiscovered": 565,
+          "filesParsed": 565,
+          "filesFailed": 0,
+          "totalLoc": 115283,
+          "totalBytes": 4175432,
+          "diagnosticsEmitted": 8347,
+          "goMemSysPeakBytes": 88498456,
+          "peakRssBytes": 88600576
+        },
+        {
+          "durationMs": 1265,
+          "filesDiscovered": 565,
+          "filesParsed": 565,
+          "filesFailed": 0,
+          "totalLoc": 115283,
+          "totalBytes": 4175432,
+          "diagnosticsEmitted": 8347,
+          "goMemSysPeakBytes": 92692760,
+          "peakRssBytes": 91676672
+        },
+        {
+          "durationMs": 1422,
+          "filesDiscovered": 565,
+          "filesParsed": 565,
+          "filesFailed": 0,
+          "totalLoc": 115283,
+          "totalBytes": 4175432,
+          "diagnosticsEmitted": 8347,
+          "goMemSysPeakBytes": 88105240,
+          "peakRssBytes": 87171072
+        },
+        {
+          "durationMs": 1373,
+          "filesDiscovered": 565,
+          "filesParsed": 565,
+          "filesFailed": 0,
+          "totalLoc": 115283,
+          "totalBytes": 4175432,
+          "diagnosticsEmitted": 8347,
+          "goMemSysPeakBytes": 92823832,
+          "peakRssBytes": 90406912
+        },
+        {
+          "durationMs": 1226,
+          "filesDiscovered": 565,
+          "filesParsed": 565,
+          "filesFailed": 0,
+          "totalLoc": 115283,
+          "totalBytes": 4175432,
+          "diagnosticsEmitted": 8347,
+          "goMemSysPeakBytes": 88367384,
+          "peakRssBytes": 86597632
+        },
+        {
+          "durationMs": 1276,
+          "filesDiscovered": 565,
+          "filesParsed": 565,
+          "filesFailed": 0,
+          "totalLoc": 115283,
+          "totalBytes": 4175432,
+          "diagnosticsEmitted": 8347,
+          "goMemSysPeakBytes": 83910936,
+          "peakRssBytes": 84484096
+        }
+      ],
+      "meanMs": 1329.3666666666666,
+      "medianMs": 1350.5,
+      "minMs": 1120,
+      "maxMs": 1485,
+      "stdDevMs": 81.94204591593311,
+      "coefficientOfVariation": 0.06163991317865634,
+      "coefficientOfVariationDropMax": 0.05890270274424544,
+      "maxPeakRssBytes": 92311552
+    }
+  },
+  "validation": {
+    "accepted": false,
+    "maxCoefficientOfVariation": 0.05,
+    "reasons": [
+      "candidate cold CV 0.0620 exceeds 0.0500",
+      "baseline cold CV 0.0616 exceeds 0.0500"
+    ]
+  },
+  "indexOnly": {
+    "runs": [
+      {
+        "durationMs": 149,
+        "filesDiscovered": 565,
+        "filesParsed": 565,
+        "filesFailed": 0,
+        "totalLoc": 115283,
+        "totalBytes": 4175432,
+        "diagnosticsEmitted": 0,
+        "goMemSysPeakBytes": 40523016,
+        "peakRssBytes": 40808448
+      }
+    ],
+    "meanMs": 149,
+    "medianMs": 149,
+    "minMs": 149,
+    "maxMs": 149,
+    "stdDevMs": 0,
+    "coefficientOfVariation": 0,
+    "maxPeakRssBytes": 40808448
+  },
+  "coldFullAnalysis": {
+    "runs": [
+      {
+        "durationMs": 1324,
+        "filesDiscovered": 565,
+        "filesParsed": 565,
+        "filesFailed": 0,
+        "totalLoc": 115283,
+        "totalBytes": 4175432,
+        "diagnosticsEmitted": 8347,
+        "goMemSysPeakBytes": 79716632,
+        "peakRssBytes": 81276928
+      },
+      {
+        "durationMs": 1296,
+        "filesDiscovered": 565,
+        "filesParsed": 565,
+        "filesFailed": 0,
+        "totalLoc": 115283,
+        "totalBytes": 4175432,
+        "diagnosticsEmitted": 8347,
+        "goMemSysPeakBytes": 88170776,
+        "peakRssBytes": 84647936
+      },
+      {
+        "durationMs": 1288,
+        "filesDiscovered": 565,
+        "filesParsed": 565,
+        "filesFailed": 0,
+        "totalLoc": 115283,
+        "totalBytes": 4175432,
+        "diagnosticsEmitted": 8347,
+        "goMemSysPeakBytes": 88367384,
+        "peakRssBytes": 84185088
+      },
+      {
+        "durationMs": 1337,
+        "filesDiscovered": 565,
+        "filesParsed": 565,
+        "filesFailed": 0,
+        "totalLoc": 115283,
+        "totalBytes": 4175432,
+        "diagnosticsEmitted": 8347,
+        "goMemSysPeakBytes": 88170776,
+        "peakRssBytes": 85872640
+      },
+      {
+        "durationMs": 1405,
+        "filesDiscovered": 565,
+        "filesParsed": 565,
+        "filesFailed": 0,
+        "totalLoc": 115283,
+        "totalBytes": 4175432,
+        "diagnosticsEmitted": 8347,
+        "goMemSysPeakBytes": 92627224,
+        "peakRssBytes": 90963968
+      },
+      {
+        "durationMs": 1331,
+        "filesDiscovered": 565,
+        "filesParsed": 565,
+        "filesFailed": 0,
+        "totalLoc": 115283,
+        "totalBytes": 4175432,
+        "diagnosticsEmitted": 8347,
+        "goMemSysPeakBytes": 84238616,
+        "peakRssBytes": 85401600
+      },
+      {
+        "durationMs": 1514,
+        "filesDiscovered": 565,
+        "filesParsed": 565,
+        "filesFailed": 0,
+        "totalLoc": 115283,
+        "totalBytes": 4175432,
+        "diagnosticsEmitted": 8347,
+        "goMemSysPeakBytes": 83845400,
+        "peakRssBytes": 82345984
+      },
+      {
+        "durationMs": 1360,
+        "filesDiscovered": 565,
+        "filesParsed": 565,
+        "filesFailed": 0,
+        "totalLoc": 115283,
+        "totalBytes": 4175432,
+        "diagnosticsEmitted": 8347,
+        "goMemSysPeakBytes": 84173080,
+        "peakRssBytes": 84774912
+      },
+      {
+        "durationMs": 1323,
+        "filesDiscovered": 565,
+        "filesParsed": 565,
+        "filesFailed": 0,
+        "totalLoc": 115283,
+        "totalBytes": 4175432,
+        "diagnosticsEmitted": 8347,
+        "goMemSysPeakBytes": 83910936,
+        "peakRssBytes": 80408576
+      },
+      {
+        "durationMs": 1405,
+        "filesDiscovered": 565,
+        "filesParsed": 565,
+        "filesFailed": 0,
+        "totalLoc": 115283,
+        "totalBytes": 4175432,
+        "diagnosticsEmitted": 8347,
+        "goMemSysPeakBytes": 83845400,
+        "peakRssBytes": 80519168
+      },
+      {
+        "durationMs": 1385,
+        "filesDiscovered": 565,
+        "filesParsed": 565,
+        "filesFailed": 0,
+        "totalLoc": 115283,
+        "totalBytes": 4175432,
+        "diagnosticsEmitted": 8347,
+        "goMemSysPeakBytes": 83845400,
+        "peakRssBytes": 82468864
+      },
+      {
+        "durationMs": 1341,
+        "filesDiscovered": 565,
+        "filesParsed": 565,
+        "filesFailed": 0,
+        "totalLoc": 115283,
+        "totalBytes": 4175432,
+        "diagnosticsEmitted": 8347,
+        "goMemSysPeakBytes": 83648792,
+        "peakRssBytes": 84324352
+      },
+      {
+        "durationMs": 1314,
+        "filesDiscovered": 565,
+        "filesParsed": 565,
+        "filesFailed": 0,
+        "totalLoc": 115283,
+        "totalBytes": 4175432,
+        "diagnosticsEmitted": 8347,
+        "goMemSysPeakBytes": 88367384,
+        "peakRssBytes": 87699456
+      },
+      {
+        "durationMs": 1253,
+        "filesDiscovered": 565,
+        "filesParsed": 565,
+        "filesFailed": 0,
+        "totalLoc": 115283,
+        "totalBytes": 4175432,
+        "diagnosticsEmitted": 8347,
+        "goMemSysPeakBytes": 79585560,
+        "peakRssBytes": 78917632
+      },
+      {
+        "durationMs": 1181,
+        "filesDiscovered": 565,
+        "filesParsed": 565,
+        "filesFailed": 0,
+        "totalLoc": 115283,
+        "totalBytes": 4175432,
+        "diagnosticsEmitted": 8347,
+        "goMemSysPeakBytes": 83910936,
+        "peakRssBytes": 84439040
+      },
+      {
+        "durationMs": 1338,
+        "filesDiscovered": 565,
+        "filesParsed": 565,
+        "filesFailed": 0,
+        "totalLoc": 115283,
+        "totalBytes": 4175432,
+        "diagnosticsEmitted": 8347,
+        "goMemSysPeakBytes": 83845400,
+        "peakRssBytes": 82681856
+      },
+      {
+        "durationMs": 1372,
+        "filesDiscovered": 565,
+        "filesParsed": 565,
+        "filesFailed": 0,
+        "totalLoc": 115283,
+        "totalBytes": 4175432,
+        "diagnosticsEmitted": 8347,
+        "goMemSysPeakBytes": 84042008,
+        "peakRssBytes": 81551360
+      },
+      {
+        "durationMs": 1296,
+        "filesDiscovered": 565,
+        "filesParsed": 565,
+        "filesFailed": 0,
+        "totalLoc": 115283,
+        "totalBytes": 4175432,
+        "diagnosticsEmitted": 8347,
+        "goMemSysPeakBytes": 88039704,
+        "peakRssBytes": 87171072
+      },
+      {
+        "durationMs": 1409,
+        "filesDiscovered": 565,
+        "filesParsed": 565,
+        "filesFailed": 0,
+        "totalLoc": 115283,
+        "totalBytes": 4175432,
+        "diagnosticsEmitted": 8347,
+        "goMemSysPeakBytes": 83910936,
+        "peakRssBytes": 84131840
+      },
+      {
+        "durationMs": 1361,
+        "filesDiscovered": 565,
+        "filesParsed": 565,
+        "filesFailed": 0,
+        "totalLoc": 115283,
+        "totalBytes": 4175432,
+        "diagnosticsEmitted": 8347,
+        "goMemSysPeakBytes": 88105240,
+        "peakRssBytes": 84537344
+      },
+      {
+        "durationMs": 1359,
+        "filesDiscovered": 565,
+        "filesParsed": 565,
+        "filesFailed": 0,
+        "totalLoc": 115283,
+        "totalBytes": 4175432,
+        "diagnosticsEmitted": 8347,
+        "goMemSysPeakBytes": 88170776,
+        "peakRssBytes": 86970368
+      },
+      {
+        "durationMs": 1415,
+        "filesDiscovered": 565,
+        "filesParsed": 565,
+        "filesFailed": 0,
+        "totalLoc": 115283,
+        "totalBytes": 4175432,
+        "diagnosticsEmitted": 8347,
+        "goMemSysPeakBytes": 88301848,
+        "peakRssBytes": 83628032
+      },
+      {
+        "durationMs": 1367,
+        "filesDiscovered": 565,
+        "filesParsed": 565,
+        "filesFailed": 0,
+        "totalLoc": 115283,
+        "totalBytes": 4175432,
+        "diagnosticsEmitted": 8347,
+        "goMemSysPeakBytes": 83976472,
+        "peakRssBytes": 85704704
+      },
+      {
+        "durationMs": 1135,
+        "filesDiscovered": 565,
+        "filesParsed": 565,
+        "filesFailed": 0,
+        "totalLoc": 115283,
+        "totalBytes": 4175432,
+        "diagnosticsEmitted": 8347,
+        "goMemSysPeakBytes": 84238616,
+        "peakRssBytes": 85069824
+      },
+      {
+        "durationMs": 1495,
+        "filesDiscovered": 565,
+        "filesParsed": 565,
+        "filesFailed": 0,
+        "totalLoc": 115283,
+        "totalBytes": 4175432,
+        "diagnosticsEmitted": 8347,
+        "goMemSysPeakBytes": 88039704,
+        "peakRssBytes": 86265856
+      },
+      {
+        "durationMs": 1346,
+        "filesDiscovered": 565,
+        "filesParsed": 565,
+        "filesFailed": 0,
+        "totalLoc": 115283,
+        "totalBytes": 4175432,
+        "diagnosticsEmitted": 8347,
+        "goMemSysPeakBytes": 84238616,
+        "peakRssBytes": 85262336
+      },
+      {
+        "durationMs": 1452,
+        "filesDiscovered": 565,
+        "filesParsed": 565,
+        "filesFailed": 0,
+        "totalLoc": 115283,
+        "totalBytes": 4175432,
+        "diagnosticsEmitted": 8347,
+        "goMemSysPeakBytes": 79716632,
+        "peakRssBytes": 81514496
+      },
+      {
+        "durationMs": 1323,
+        "filesDiscovered": 565,
+        "filesParsed": 565,
+        "filesFailed": 0,
+        "totalLoc": 115283,
+        "totalBytes": 4175432,
+        "diagnosticsEmitted": 8347,
+        "goMemSysPeakBytes": 83910936,
+        "peakRssBytes": 81321984
+      },
+      {
+        "durationMs": 1203,
+        "filesDiscovered": 565,
+        "filesParsed": 565,
+        "filesFailed": 0,
+        "totalLoc": 115283,
+        "totalBytes": 4175432,
+        "diagnosticsEmitted": 8347,
+        "goMemSysPeakBytes": 83845400,
+        "peakRssBytes": 82903040
+      },
+      {
+        "durationMs": 1221,
+        "filesDiscovered": 565,
+        "filesParsed": 565,
+        "filesFailed": 0,
+        "totalLoc": 115283,
+        "totalBytes": 4175432,
+        "diagnosticsEmitted": 8347,
+        "goMemSysPeakBytes": 88105240,
+        "peakRssBytes": 87179264
+      }
+    ],
+    "meanMs": 1338.3,
+    "medianMs": 1339.5,
+    "minMs": 1135,
+    "maxMs": 1514,
+    "stdDevMs": 82.9851994836027,
+    "coefficientOfVariation": 0.062007920110291194,
+    "coefficientOfVariationDropMax": 0.05825275093646467,
+    "maxPeakRssBytes": 90963968
+  },
+  "warmFullAnalysis": {
+    "runs": null,
+    "meanMs": 0,
+    "medianMs": 0,
+    "minMs": 0,
+    "maxMs": 0,
+    "stdDevMs": 0,
+    "coefficientOfVariation": 0
+  },
+  "incremental": {
+    "supported": false,
+    "reason": "this CLI harness measures process-cold and warm full analysis only; editor-path incremental timing is gated by vscode-php-strom/cmd/benchmark-editor"
+  }
+}

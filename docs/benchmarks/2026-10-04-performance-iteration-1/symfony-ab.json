@@ -1,0 +1,399 @@
+{
+  "generatedAt": "2026-10-04T08:31:25Z",
+  "root": "test_projects/symfony",
+  "goVersion": "go1.23.12",
+  "os": "linux",
+  "arch": "amd64",
+  "numCpu": 3,
+  "workers": 4,
+  "host": {
+    "goMaxProcs": 4,
+    "processColdWarmups": 1,
+    "settleMs": 250,
+    "extraColdRunBudget": 0,
+    "loadAverage1": 2.04,
+    "loadAverage5": 2.08,
+    "loadAverage15": 1.88
+  },
+  "analysisLevel": null,
+  "paths": [
+    "."
+  ],
+  "validationRun": {
+    "durationMs": 17375,
+    "filesDiscovered": 10028,
+    "filesParsed": 10027,
+    "filesFailed": 1,
+    "totalLoc": 1847951,
+    "totalBytes": 80347084,
+    "diagnosticsEmitted": 108848,
+    "goMemSysPeakBytes": 1058696696,
+    "peakRssBytes": 963153920,
+    "parseErrorFiles": [
+      "src/Symfony/Component/Config/Tests/Fixtures/ParseError.php"
+    ]
+  },
+  "baseline": {
+    "binary": "/tmp/php-performance-implementation/baseline-benchmark",
+    "validationRun": {
+      "durationMs": 19660,
+      "filesDiscovered": 10028,
+      "filesParsed": 10027,
+      "filesFailed": 1,
+      "totalLoc": 1847951,
+      "totalBytes": 80347084,
+      "diagnosticsEmitted": 108848,
+      "goMemSysPeakBytes": 1058303480,
+      "peakRssBytes": 981037056,
+      "parseErrorFiles": [
+        "src/Symfony/Component/Config/Tests/Fixtures/ParseError.php"
+      ]
+    },
+    "coldFullAnalysis": {
+      "runs": [
+        {
+          "durationMs": 19773,
+          "filesDiscovered": 10028,
+          "filesParsed": 10027,
+          "filesFailed": 1,
+          "totalLoc": 1847951,
+          "totalBytes": 80347084,
+          "diagnosticsEmitted": 108848,
+          "goMemSysPeakBytes": 1037197800,
+          "peakRssBytes": 952950784,
+          "parseErrorFiles": [
+            "src/Symfony/Component/Config/Tests/Fixtures/ParseError.php"
+          ]
+        },
+        {
+          "durationMs": 19792,
+          "filesDiscovered": 10028,
+          "filesParsed": 10027,
+          "filesFailed": 1,
+          "totalLoc": 1847951,
+          "totalBytes": 80347084,
+          "diagnosticsEmitted": 108848,
+          "goMemSysPeakBytes": 1158949896,
+          "peakRssBytes": 1071161344,
+          "parseErrorFiles": [
+            "src/Symfony/Component/Config/Tests/Fixtures/ParseError.php"
+          ]
+        },
+        {
+          "durationMs": 19542,
+          "filesDiscovered": 10028,
+          "filesParsed": 10027,
+          "filesFailed": 1,
+          "totalLoc": 1847951,
+          "totalBytes": 80347084,
+          "diagnosticsEmitted": 108848,
+          "goMemSysPeakBytes": 1075670520,
+          "peakRssBytes": 985268224,
+          "parseErrorFiles": [
+            "src/Symfony/Component/Config/Tests/Fixtures/ParseError.php"
+          ]
+        },
+        {
+          "durationMs": 19650,
+          "filesDiscovered": 10028,
+          "filesParsed": 10027,
+          "filesFailed": 1,
+          "totalLoc": 1847951,
+          "totalBytes": 80347084,
+          "diagnosticsEmitted": 108848,
+          "goMemSysPeakBytes": 1110276616,
+          "peakRssBytes": 1015197696,
+          "parseErrorFiles": [
+            "src/Symfony/Component/Config/Tests/Fixtures/ParseError.php"
+          ]
+        },
+        {
+          "durationMs": 20338,
+          "filesDiscovered": 10028,
+          "filesParsed": 10027,
+          "filesFailed": 1,
+          "totalLoc": 1847951,
+          "totalBytes": 80347084,
+          "diagnosticsEmitted": 108848,
+          "goMemSysPeakBytes": 1071148536,
+          "peakRssBytes": 978595840,
+          "parseErrorFiles": [
+            "src/Symfony/Component/Config/Tests/Fixtures/ParseError.php"
+          ]
+        },
+        {
+          "durationMs": 20349,
+          "filesDiscovered": 10028,
+          "filesParsed": 10027,
+          "filesFailed": 1,
+          "totalLoc": 1847951,
+          "totalBytes": 80347084,
+          "diagnosticsEmitted": 108848,
+          "goMemSysPeakBytes": 1093692920,
+          "peakRssBytes": 1015869440,
+          "parseErrorFiles": [
+            "src/Symfony/Component/Config/Tests/Fixtures/ParseError.php"
+          ]
+        },
+        {
+          "durationMs": 20338,
+          "filesDiscovered": 10028,
+          "filesParsed": 10027,
+          "filesFailed": 1,
+          "totalLoc": 1847951,
+          "totalBytes": 80347084,
+          "diagnosticsEmitted": 108848,
+          "goMemSysPeakBytes": 1066626552,
+          "peakRssBytes": 978182144,
+          "parseErrorFiles": [
+            "src/Symfony/Component/Config/Tests/Fixtures/ParseError.php"
+          ]
+        },
+        {
+          "durationMs": 19539,
+          "filesDiscovered": 10028,
+          "filesParsed": 10027,
+          "filesFailed": 1,
+          "totalLoc": 1847951,
+          "totalBytes": 80347084,
+          "diagnosticsEmitted": 108848,
+          "goMemSysPeakBytes": 1088712184,
+          "peakRssBytes": 997699584,
+          "parseErrorFiles": [
+            "src/Symfony/Component/Config/Tests/Fixtures/ParseError.php"
+          ]
+        },
+        {
+          "durationMs": 20373,
+          "filesDiscovered": 10028,
+          "filesParsed": 10027,
+          "filesFailed": 1,
+          "totalLoc": 1847951,
+          "totalBytes": 80347084,
+          "diagnosticsEmitted": 108848,
+          "goMemSysPeakBytes": 1088122360,
+          "peakRssBytes": 991543296,
+          "parseErrorFiles": [
+            "src/Symfony/Component/Config/Tests/Fixtures/ParseError.php"
+          ]
+        },
+        {
+          "durationMs": 19215,
+          "filesDiscovered": 10028,
+          "filesParsed": 10027,
+          "filesFailed": 1,
+          "totalLoc": 1847951,
+          "totalBytes": 80347084,
+          "diagnosticsEmitted": 108848,
+          "goMemSysPeakBytes": 1050177016,
+          "peakRssBytes": 973971456,
+          "parseErrorFiles": [
+            "src/Symfony/Component/Config/Tests/Fixtures/ParseError.php"
+          ]
+        }
+      ],
+      "meanMs": 19890.9,
+      "medianMs": 19782.5,
+      "minMs": 19215,
+      "maxMs": 20373,
+      "stdDevMs": 403.26082130551686,
+      "coefficientOfVariation": 0.020273633737312884,
+      "coefficientOfVariationDropMax": 0.019653063107186185,
+      "maxPeakRssBytes": 1071161344
+    }
+  },
+  "validation": {
+    "accepted": true,
+    "maxCoefficientOfVariation": 0.05
+  },
+  "indexOnly": {
+    "runs": [
+      {
+        "durationMs": 4952,
+        "filesDiscovered": 10028,
+        "filesParsed": 10027,
+        "filesFailed": 1,
+        "totalLoc": 1847951,
+        "totalBytes": 80347084,
+        "diagnosticsEmitted": 0,
+        "goMemSysPeakBytes": 988897768,
+        "peakRssBytes": 982347776,
+        "parseErrorFiles": [
+          "src/Symfony/Component/Config/Tests/Fixtures/ParseError.php"
+        ]
+      }
+    ],
+    "meanMs": 4952,
+    "medianMs": 4952,
+    "minMs": 4952,
+    "maxMs": 4952,
+    "stdDevMs": 0,
+    "coefficientOfVariation": 0,
+    "maxPeakRssBytes": 982347776
+  },
+  "coldFullAnalysis": {
+    "runs": [
+      {
+        "durationMs": 18352,
+        "filesDiscovered": 10028,
+        "filesParsed": 10027,
+        "filesFailed": 1,
+        "totalLoc": 1847951,
+        "totalBytes": 80347084,
+        "diagnosticsEmitted": 108848,
+        "goMemSysPeakBytes": 1072131576,
+        "peakRssBytes": 982999040,
+        "parseErrorFiles": [
+          "src/Symfony/Component/Config/Tests/Fixtures/ParseError.php"
+        ]
+      },
+      {
+        "durationMs": 17116,
+        "filesDiscovered": 10028,
+        "filesParsed": 10027,
+        "filesFailed": 1,
+        "totalLoc": 1847951,
+        "totalBytes": 80347084,
+        "diagnosticsEmitted": 108848,
+        "goMemSysPeakBytes": 1054502392,
+        "peakRssBytes": 977477632,
+        "parseErrorFiles": [
+          "src/Symfony/Component/Config/Tests/Fixtures/ParseError.php"
+        ]
+      },
+      {
+        "durationMs": 17424,
+        "filesDiscovered": 10028,
+        "filesParsed": 10027,
+        "filesFailed": 1,
+        "totalLoc": 1847951,
+        "totalBytes": 80347084,
+        "diagnosticsEmitted": 108848,
+        "goMemSysPeakBytes": 1072066040,
+        "peakRssBytes": 983539712,
+        "parseErrorFiles": [
+          "src/Symfony/Component/Config/Tests/Fixtures/ParseError.php"
+        ]
+      },
+      {
+        "durationMs": 18327,
+        "filesDiscovered": 10028,
+        "filesParsed": 10027,
+        "filesFailed": 1,
+        "totalLoc": 1847951,
+        "totalBytes": 80347084,
+        "diagnosticsEmitted": 108848,
+        "goMemSysPeakBytes": 1042836984,
+        "peakRssBytes": 942968832,
+        "parseErrorFiles": [
+          "src/Symfony/Component/Config/Tests/Fixtures/ParseError.php"
+        ]
+      },
+      {
+        "durationMs": 17452,
+        "filesDiscovered": 10028,
+        "filesParsed": 10027,
+        "filesFailed": 1,
+        "totalLoc": 1847951,
+        "totalBytes": 80347084,
+        "diagnosticsEmitted": 108848,
+        "goMemSysPeakBytes": 1097494008,
+        "peakRssBytes": 1002450944,
+        "parseErrorFiles": [
+          "src/Symfony/Component/Config/Tests/Fixtures/ParseError.php"
+        ]
+      },
+      {
+        "durationMs": 18036,
+        "filesDiscovered": 10028,
+        "filesParsed": 10027,
+        "filesFailed": 1,
+        "totalLoc": 1847951,
+        "totalBytes": 80347084,
+        "diagnosticsEmitted": 108848,
+        "goMemSysPeakBytes": 1115257352,
+        "peakRssBytes": 1021214720,
+        "parseErrorFiles": [
+          "src/Symfony/Component/Config/Tests/Fixtures/ParseError.php"
+        ]
+      },
+      {
+        "durationMs": 17877,
+        "filesDiscovered": 10028,
+        "filesParsed": 10027,
+        "filesFailed": 1,
+        "totalLoc": 1847951,
+        "totalBytes": 80347084,
+        "diagnosticsEmitted": 108848,
+        "goMemSysPeakBytes": 1042378232,
+        "peakRssBytes": 965877760,
+        "parseErrorFiles": [
+          "src/Symfony/Component/Config/Tests/Fixtures/ParseError.php"
+        ]
+      },
+      {
+        "durationMs": 17416,
+        "filesDiscovered": 10028,
+        "filesParsed": 10027,
+        "filesFailed": 1,
+        "totalLoc": 1847951,
+        "totalBytes": 80347084,
+        "diagnosticsEmitted": 108848,
+        "goMemSysPeakBytes": 1063284216,
+        "peakRssBytes": 981028864,
+        "parseErrorFiles": [
+          "src/Symfony/Component/Config/Tests/Fixtures/ParseError.php"
+        ]
+      },
+      {
+        "durationMs": 17617,
+        "filesDiscovered": 10028,
+        "filesParsed": 10027,
+        "filesFailed": 1,
+        "totalLoc": 1847951,
+        "totalBytes": 80347084,
+        "diagnosticsEmitted": 108848,
+        "goMemSysPeakBytes": 1123580424,
+        "peakRssBytes": 1021431808,
+        "parseErrorFiles": [
+          "src/Symfony/Component/Config/Tests/Fixtures/ParseError.php"
+        ]
+      },
+      {
+        "durationMs": 17891,
+        "filesDiscovered": 10028,
+        "filesParsed": 10027,
+        "filesFailed": 1,
+        "totalLoc": 1847951,
+        "totalBytes": 80347084,
+        "diagnosticsEmitted": 108848,
+        "goMemSysPeakBytes": 1093823992,
+        "peakRssBytes": 999763968,
+        "parseErrorFiles": [
+          "src/Symfony/Component/Config/Tests/Fixtures/ParseError.php"
+        ]
+      }
+    ],
+    "meanMs": 17750.8,
+    "medianMs": 17747,
+    "minMs": 17116,
+    "maxMs": 18352,
+    "stdDevMs": 392.35361601494134,
+    "coefficientOfVariation": 0.022103432860205812,
+    "coefficientOfVariationDropMax": 0.020106361837682073,
+    "maxPeakRssBytes": 1021431808
+  },
+  "warmFullAnalysis": {
+    "runs": null,
+    "meanMs": 0,
+    "medianMs": 0,
+    "minMs": 0,
+    "maxMs": 0,
+    "stdDevMs": 0,
+    "coefficientOfVariation": 0
+  },
+  "incremental": {
+    "supported": false,
+    "reason": "this CLI harness measures process-cold and warm full analysis only; editor-path incremental timing is gated by vscode-php-strom/cmd/benchmark-editor"
+  }
+}

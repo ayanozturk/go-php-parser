@@ -1,0 +1,194 @@
+{
+  "generatedAt": "2026-10-04T08:24:03Z",
+  "root": "test_projects/wordpress-develop",
+  "goVersion": "go1.23.12",
+  "os": "linux",
+  "arch": "amd64",
+  "numCpu": 3,
+  "workers": 4,
+  "host": {
+    "goMaxProcs": 4,
+    "processColdWarmups": 1,
+    "settleMs": 250,
+    "extraColdRunBudget": 0,
+    "loadAverage1": 0.58,
+    "loadAverage5": 1.32,
+    "loadAverage15": 1.62
+  },
+  "analysisLevel": null,
+  "paths": [
+    "."
+  ],
+  "validationRun": {
+    "durationMs": 8593,
+    "filesDiscovered": 3188,
+    "filesParsed": 3188,
+    "filesFailed": 0,
+    "totalLoc": 1115826,
+    "totalBytes": 36103588,
+    "diagnosticsEmitted": 87121,
+    "goMemSysPeakBytes": 359723352,
+    "peakRssBytes": 344014848
+  },
+  "validation": {
+    "accepted": true,
+    "maxCoefficientOfVariation": 0.05
+  },
+  "indexOnly": {
+    "runs": [
+      {
+        "durationMs": 1044,
+        "filesDiscovered": 3188,
+        "filesParsed": 3188,
+        "filesFailed": 0,
+        "totalLoc": 1115826,
+        "totalBytes": 36103588,
+        "diagnosticsEmitted": 0,
+        "goMemSysPeakBytes": 233486648,
+        "peakRssBytes": 226582528
+      }
+    ],
+    "meanMs": 1044,
+    "medianMs": 1044,
+    "minMs": 1044,
+    "maxMs": 1044,
+    "stdDevMs": 0,
+    "coefficientOfVariation": 0,
+    "maxPeakRssBytes": 226582528
+  },
+  "coldFullAnalysis": {
+    "runs": [
+      {
+        "durationMs": 8434,
+        "filesDiscovered": 3188,
+        "filesParsed": 3188,
+        "filesFailed": 0,
+        "totalLoc": 1115826,
+        "totalBytes": 36103588,
+        "diagnosticsEmitted": 87121,
+        "goMemSysPeakBytes": 333899080,
+        "peakRssBytes": 330063872
+      },
+      {
+        "durationMs": 8460,
+        "filesDiscovered": 3188,
+        "filesParsed": 3188,
+        "filesFailed": 0,
+        "totalLoc": 1115826,
+        "totalBytes": 36103588,
+        "diagnosticsEmitted": 87121,
+        "goMemSysPeakBytes": 372109656,
+        "peakRssBytes": 356679680
+      },
+      {
+        "durationMs": 8715,
+        "filesDiscovered": 3188,
+        "filesParsed": 3188,
+        "filesFailed": 0,
+        "totalLoc": 1115826,
+        "totalBytes": 36103588,
+        "diagnosticsEmitted": 87121,
+        "goMemSysPeakBytes": 346940744,
+        "peakRssBytes": 332320768
+      },
+      {
+        "durationMs": 8649,
+        "filesDiscovered": 3188,
+        "filesParsed": 3188,
+        "filesFailed": 0,
+        "totalLoc": 1115826,
+        "totalBytes": 36103588,
+        "diagnosticsEmitted": 87121,
+        "goMemSysPeakBytes": 346940744,
+        "peakRssBytes": 327868416
+      },
+      {
+        "durationMs": 8637,
+        "filesDiscovered": 3188,
+        "filesParsed": 3188,
+        "filesFailed": 0,
+        "totalLoc": 1115826,
+        "totalBytes": 36103588,
+        "diagnosticsEmitted": 87121,
+        "goMemSysPeakBytes": 359723352,
+        "peakRssBytes": 338669568
+      },
+      {
+        "durationMs": 8680,
+        "filesDiscovered": 3188,
+        "filesParsed": 3188,
+        "filesFailed": 0,
+        "totalLoc": 1115826,
+        "totalBytes": 36103588,
+        "diagnosticsEmitted": 87121,
+        "goMemSysPeakBytes": 355397976,
+        "peakRssBytes": 339128320
+      },
+      {
+        "durationMs": 9211,
+        "filesDiscovered": 3188,
+        "filesParsed": 3188,
+        "filesFailed": 0,
+        "totalLoc": 1115826,
+        "totalBytes": 36103588,
+        "diagnosticsEmitted": 87121,
+        "goMemSysPeakBytes": 364179800,
+        "peakRssBytes": 341499904
+      },
+      {
+        "durationMs": 8754,
+        "filesDiscovered": 3188,
+        "filesParsed": 3188,
+        "filesFailed": 0,
+        "totalLoc": 1115826,
+        "totalBytes": 36103588,
+        "diagnosticsEmitted": 87121,
+        "goMemSysPeakBytes": 355397976,
+        "peakRssBytes": 334745600
+      },
+      {
+        "durationMs": 8666,
+        "filesDiscovered": 3188,
+        "filesParsed": 3188,
+        "filesFailed": 0,
+        "totalLoc": 1115826,
+        "totalBytes": 36103588,
+        "diagnosticsEmitted": 87121,
+        "goMemSysPeakBytes": 338289992,
+        "peakRssBytes": 338837504
+      },
+      {
+        "durationMs": 8650,
+        "filesDiscovered": 3188,
+        "filesParsed": 3188,
+        "filesFailed": 0,
+        "totalLoc": 1115826,
+        "totalBytes": 36103588,
+        "diagnosticsEmitted": 87121,
+        "goMemSysPeakBytes": 346678600,
+        "peakRssBytes": 318226432
+      }
+    ],
+    "meanMs": 8685.6,
+    "medianMs": 8658,
+    "minMs": 8434,
+    "maxMs": 9211,
+    "stdDevMs": 200.2923862756645,
+    "coefficientOfVariation": 0.023060282107818054,
+    "coefficientOfVariationDropMax": 0.011874543311232708,
+    "maxPeakRssBytes": 356679680
+  },
+  "warmFullAnalysis": {
+    "runs": null,
+    "meanMs": 0,
+    "medianMs": 0,
+    "minMs": 0,
+    "maxMs": 0,
+    "stdDevMs": 0,
+    "coefficientOfVariation": 0
+  },
+  "incremental": {
+    "supported": false,
+    "reason": "this CLI harness measures process-cold and warm full analysis only; editor-path incremental timing is gated by vscode-php-strom/cmd/benchmark-editor"
+  }
+}

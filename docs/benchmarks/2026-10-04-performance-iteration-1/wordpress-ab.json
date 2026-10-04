@@ -1,0 +1,330 @@
+{
+  "generatedAt": "2026-10-04T08:26:52Z",
+  "root": "test_projects/wordpress-develop",
+  "goVersion": "go1.23.12",
+  "os": "linux",
+  "arch": "amd64",
+  "numCpu": 3,
+  "workers": 4,
+  "host": {
+    "goMaxProcs": 4,
+    "processColdWarmups": 1,
+    "settleMs": 250,
+    "extraColdRunBudget": 0,
+    "loadAverage1": 1.68,
+    "loadAverage5": 1.57,
+    "loadAverage15": 1.67
+  },
+  "analysisLevel": null,
+  "paths": [
+    "."
+  ],
+  "validationRun": {
+    "durationMs": 8181,
+    "filesDiscovered": 3188,
+    "filesParsed": 3188,
+    "filesFailed": 0,
+    "totalLoc": 1115826,
+    "totalBytes": 36103588,
+    "diagnosticsEmitted": 87121,
+    "goMemSysPeakBytes": 312665416,
+    "peakRssBytes": 308166656
+  },
+  "baseline": {
+    "binary": "/tmp/php-performance-implementation/baseline-benchmark",
+    "validationRun": {
+      "durationMs": 8598,
+      "filesDiscovered": 3188,
+      "filesParsed": 3188,
+      "filesFailed": 0,
+      "totalLoc": 1115826,
+      "totalBytes": 36103588,
+      "diagnosticsEmitted": 87121,
+      "goMemSysPeakBytes": 372679000,
+      "peakRssBytes": 353198080
+    },
+    "coldFullAnalysis": {
+      "runs": [
+        {
+          "durationMs": 8420,
+          "filesDiscovered": 3188,
+          "filesParsed": 3188,
+          "filesFailed": 0,
+          "totalLoc": 1115826,
+          "totalBytes": 36103588,
+          "diagnosticsEmitted": 87121,
+          "goMemSysPeakBytes": 333964616,
+          "peakRssBytes": 332378112
+        },
+        {
+          "durationMs": 8422,
+          "filesDiscovered": 3188,
+          "filesParsed": 3188,
+          "filesFailed": 0,
+          "totalLoc": 1115826,
+          "totalBytes": 36103588,
+          "diagnosticsEmitted": 87121,
+          "goMemSysPeakBytes": 363721048,
+          "peakRssBytes": 339308544
+        },
+        {
+          "durationMs": 8369,
+          "filesDiscovered": 3188,
+          "filesParsed": 3188,
+          "filesFailed": 0,
+          "totalLoc": 1115826,
+          "totalBytes": 36103588,
+          "diagnosticsEmitted": 87121,
+          "goMemSysPeakBytes": 363786584,
+          "peakRssBytes": 361943040
+        },
+        {
+          "durationMs": 8447,
+          "filesDiscovered": 3188,
+          "filesParsed": 3188,
+          "filesFailed": 0,
+          "totalLoc": 1115826,
+          "totalBytes": 36103588,
+          "diagnosticsEmitted": 87121,
+          "goMemSysPeakBytes": 342680904,
+          "peakRssBytes": 327733248
+        },
+        {
+          "durationMs": 8514,
+          "filesDiscovered": 3188,
+          "filesParsed": 3188,
+          "filesFailed": 0,
+          "totalLoc": 1115826,
+          "totalBytes": 36103588,
+          "diagnosticsEmitted": 87121,
+          "goMemSysPeakBytes": 346613064,
+          "peakRssBytes": 320507904
+        },
+        {
+          "durationMs": 8445,
+          "filesDiscovered": 3188,
+          "filesParsed": 3188,
+          "filesFailed": 0,
+          "totalLoc": 1115826,
+          "totalBytes": 36103588,
+          "diagnosticsEmitted": 87121,
+          "goMemSysPeakBytes": 342549832,
+          "peakRssBytes": 329609216
+        },
+        {
+          "durationMs": 8389,
+          "filesDiscovered": 3188,
+          "filesParsed": 3188,
+          "filesFailed": 0,
+          "totalLoc": 1115826,
+          "totalBytes": 36103588,
+          "diagnosticsEmitted": 87121,
+          "goMemSysPeakBytes": 338552136,
+          "peakRssBytes": 325611520
+        },
+        {
+          "durationMs": 8152,
+          "filesDiscovered": 3188,
+          "filesParsed": 3188,
+          "filesFailed": 0,
+          "totalLoc": 1115826,
+          "totalBytes": 36103588,
+          "diagnosticsEmitted": 87121,
+          "goMemSysPeakBytes": 333899080,
+          "peakRssBytes": 317145088
+        },
+        {
+          "durationMs": 8563,
+          "filesDiscovered": 3188,
+          "filesParsed": 3188,
+          "filesFailed": 0,
+          "totalLoc": 1115826,
+          "totalBytes": 36103588,
+          "diagnosticsEmitted": 87121,
+          "goMemSysPeakBytes": 333374792,
+          "peakRssBytes": 313540608
+        },
+        {
+          "durationMs": 8340,
+          "filesDiscovered": 3188,
+          "filesParsed": 3188,
+          "filesFailed": 0,
+          "totalLoc": 1115826,
+          "totalBytes": 36103588,
+          "diagnosticsEmitted": 87121,
+          "goMemSysPeakBytes": 398500184,
+          "peakRssBytes": 379895808
+        }
+      ],
+      "meanMs": 8406.1,
+      "medianMs": 8421,
+      "minMs": 8152,
+      "maxMs": 8563,
+      "stdDevMs": 105.11750567816951,
+      "coefficientOfVariation": 0.012504907826241599,
+      "coefficientOfVariationDropMax": 0.011457800729673355,
+      "maxPeakRssBytes": 379895808
+    }
+  },
+  "validation": {
+    "accepted": true,
+    "maxCoefficientOfVariation": 0.05
+  },
+  "indexOnly": {
+    "runs": [
+      {
+        "durationMs": 1001,
+        "filesDiscovered": 3188,
+        "filesParsed": 3188,
+        "filesFailed": 0,
+        "totalLoc": 1115826,
+        "totalBytes": 36103588,
+        "diagnosticsEmitted": 0,
+        "goMemSysPeakBytes": 263641400,
+        "peakRssBytes": 251179008
+      }
+    ],
+    "meanMs": 1001,
+    "medianMs": 1001,
+    "minMs": 1001,
+    "maxMs": 1001,
+    "stdDevMs": 0,
+    "coefficientOfVariation": 0,
+    "maxPeakRssBytes": 251179008
+  },
+  "coldFullAnalysis": {
+    "runs": [
+      {
+        "durationMs": 8485,
+        "filesDiscovered": 3188,
+        "filesParsed": 3188,
+        "filesFailed": 0,
+        "totalLoc": 1115826,
+        "totalBytes": 36103588,
+        "diagnosticsEmitted": 87121,
+        "goMemSysPeakBytes": 329835848,
+        "peakRssBytes": 329334784
+      },
+      {
+        "durationMs": 8437,
+        "filesDiscovered": 3188,
+        "filesParsed": 3188,
+        "filesFailed": 0,
+        "totalLoc": 1115826,
+        "totalBytes": 36103588,
+        "diagnosticsEmitted": 87121,
+        "goMemSysPeakBytes": 342353224,
+        "peakRssBytes": 331620352
+      },
+      {
+        "durationMs": 8147,
+        "filesDiscovered": 3188,
+        "filesParsed": 3188,
+        "filesFailed": 0,
+        "totalLoc": 1115826,
+        "totalBytes": 36103588,
+        "diagnosticsEmitted": 87121,
+        "goMemSysPeakBytes": 355463512,
+        "peakRssBytes": 347336704
+      },
+      {
+        "durationMs": 8344,
+        "filesDiscovered": 3188,
+        "filesParsed": 3188,
+        "filesFailed": 0,
+        "totalLoc": 1115826,
+        "totalBytes": 36103588,
+        "diagnosticsEmitted": 87121,
+        "goMemSysPeakBytes": 368550232,
+        "peakRssBytes": 357412864
+      },
+      {
+        "durationMs": 8377,
+        "filesDiscovered": 3188,
+        "filesParsed": 3188,
+        "filesFailed": 0,
+        "totalLoc": 1115826,
+        "totalBytes": 36103588,
+        "diagnosticsEmitted": 87121,
+        "goMemSysPeakBytes": 342418760,
+        "peakRssBytes": 341204992
+      },
+      {
+        "durationMs": 8451,
+        "filesDiscovered": 3188,
+        "filesParsed": 3188,
+        "filesFailed": 0,
+        "totalLoc": 1115826,
+        "totalBytes": 36103588,
+        "diagnosticsEmitted": 87121,
+        "goMemSysPeakBytes": 346678600,
+        "peakRssBytes": 331112448
+      },
+      {
+        "durationMs": 8333,
+        "filesDiscovered": 3188,
+        "filesParsed": 3188,
+        "filesFailed": 0,
+        "totalLoc": 1115826,
+        "totalBytes": 36103588,
+        "diagnosticsEmitted": 87121,
+        "goMemSysPeakBytes": 329442632,
+        "peakRssBytes": 308260864
+      },
+      {
+        "durationMs": 7732,
+        "filesDiscovered": 3188,
+        "filesParsed": 3188,
+        "filesFailed": 0,
+        "totalLoc": 1115826,
+        "totalBytes": 36103588,
+        "diagnosticsEmitted": 87121,
+        "goMemSysPeakBytes": 342418760,
+        "peakRssBytes": 322314240
+      },
+      {
+        "durationMs": 8125,
+        "filesDiscovered": 3188,
+        "filesParsed": 3188,
+        "filesFailed": 0,
+        "totalLoc": 1115826,
+        "totalBytes": 36103588,
+        "diagnosticsEmitted": 87121,
+        "goMemSysPeakBytes": 329639240,
+        "peakRssBytes": 327208960
+      },
+      {
+        "durationMs": 8186,
+        "filesDiscovered": 3188,
+        "filesParsed": 3188,
+        "filesFailed": 0,
+        "totalLoc": 1115826,
+        "totalBytes": 36103588,
+        "diagnosticsEmitted": 87121,
+        "goMemSysPeakBytes": 325051720,
+        "peakRssBytes": 322772992
+      }
+    ],
+    "meanMs": 8261.7,
+    "medianMs": 8338.5,
+    "minMs": 7732,
+    "maxMs": 8485,
+    "stdDevMs": 214.41410867757745,
+    "coefficientOfVariation": 0.025952783165399063,
+    "coefficientOfVariationDropMax": 0.025732619479514756,
+    "maxPeakRssBytes": 357412864
+  },
+  "warmFullAnalysis": {
+    "runs": null,
+    "meanMs": 0,
+    "medianMs": 0,
+    "minMs": 0,
+    "maxMs": 0,
+    "stdDevMs": 0,
+    "coefficientOfVariation": 0
+  },
+  "incremental": {
+    "supported": false,
+    "reason": "this CLI harness measures process-cold and warm full analysis only; editor-path incremental timing is gated by vscode-php-strom/cmd/benchmark-editor"
+  }
+}
