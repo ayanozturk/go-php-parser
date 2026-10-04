@@ -7,8 +7,30 @@
 ## Rule inventory
 
 - **Introduced at this level:** 1 registered levelled rule, `Level8.MethodNonObject`.
-- **Cumulative registered levelled rules:** 33.
+- **Cumulative registered levelled rules:** 35.
 - **Checked-in differential pack:** 51 cases in `testdata/diagnostic-differential-level8`.
+
+## Registered rules, one by one
+
+### `Level8.MethodNonObject`
+
+**What it checks:** Reports selected method calls where nullable or otherwise non-object receiver values can reach the call.
+
+**Why it helps:** A nullable receiver can cause a runtime error unless the code proves it is an object first.
+
+**Example that reports:**
+
+```php
+<?php
+function save(?Repository $repo): void { $repo->flush(); }
+```
+
+**A safer form:**
+
+```php
+<?php
+function save(?Repository $repo): void { if ($repo !== null) { $repo->flush(); } }
+```
 
 ## Coverage and boundaries
 

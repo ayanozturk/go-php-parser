@@ -10,6 +10,59 @@
 - **Cumulative registered levelled rules:** 4 (including the two level-0 entries).
 - **Checked-in differential pack:** 36 cases in `testdata/diagnostic-differential-level1`, pinned to PHPStan 2.2.5.
 
+## Registered rules, one by one
+
+### `Level1.Variables`
+
+**What it checks:** Reports reads of variables that are definitely or possibly undefined according to supported branch and loop flow.
+
+**Why it helps:** Undefined reads often become notices or hide a missed assignment; control-flow analysis catches paths a text search cannot.
+
+**Example that reports:**
+
+```php
+<?php
+function label(bool $ready): string {
+    if ($ready) { $name = "ready"; }
+    return $name;
+}
+```
+
+**A safer form:**
+
+```php
+<?php
+function label(bool $ready): string {
+    $name = "waiting";
+    if ($ready) { $name = "ready"; }
+    return $name;
+}
+```
+
+### `Level1.Core`
+
+**What it checks:** Checks selected undefined global constants, unused constructor parameters and closure captures, and redundant isset/empty/null-coalescing checks when types prove their result.
+
+**Why it helps:** These checks expose likely typos and dead inputs, and remove defensive branches that cannot affect the result.
+
+**Example that reports:**
+
+```php
+<?php
+function mode(): string {
+    return APP_MDOE;
+}
+```
+
+**A safer form:**
+
+```php
+<?php
+function mode(): string {
+    return APP_MODE;
+}
+```
+
 ## Coverage
 
 `Level1.Variables` reports always-undefined and possibly-undefined variable reads using joined flow facts. It covers branches, short-circuit expressions, ternaries, bounded loops, `foreach` values read after the loop, `switch`, `try`/`catch`/`finally`, interpolated strings, globals and statics, destructuring, closure captures, references, selected by-reference outputs, known-string dynamic reads, `extract`, `compact`, and `isset`/`empty` suppression.

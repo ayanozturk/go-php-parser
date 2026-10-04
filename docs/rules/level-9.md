@@ -7,8 +7,32 @@
 ## Rule inventory
 
 - **Introduced at this level:** 1 registered levelled rule, `A.DEPRECATED.CALL`.
-- **Cumulative registered levelled rules:** 34.
+- **Cumulative registered levelled rules:** 36.
 - **Checked-in differential pack:** None currently checked in.
+
+## Registered rules, one by one
+
+### `A.DEPRECATED.CALL`
+
+**What it checks:** Reports calls marked deprecated by declaration metadata available to the analyzer.
+
+**Why it helps:** Deprecation notices provide time to migrate before an API is removed or changes incompatibly.
+
+**Example that reports:**
+
+```php
+<?php
+/** @deprecated Use newRead() */
+function oldRead(): void {}
+oldRead();
+```
+
+**A safer form:**
+
+```php
+<?php
+newRead();
+```
 
 ## Coverage and boundaries
 

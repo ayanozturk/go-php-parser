@@ -127,6 +127,8 @@ The analyzer parses each selected file once, builds one immutable project snapsh
 
 The counts below are registered engine rules, not PHPStan error-identifier counts. A single engine rule can cover several PHPStan identifiers through one shared traversal. “Cumulative” reflects the rules enabled when `analysis_level` is set to that level. Unlevelled rules run only when `analysis_level` is omitted.
 
+For a rule-by-rule guide with examples and reasons for each check, start at the [rule documentation index](docs/rules/README.md). It links to the analysis rules by level and to the style rule guide.
+
 <!-- analysis-rule-level-table:start -->
 | PHPStan level | Rules introduced | Cumulative levelled rules | Detail |
 | ---: | ---: | ---: | --- |
@@ -144,95 +146,17 @@ The counts below are registered engine rules, not PHPStan error-identifier count
 | Unlevelled | 4 | 40 total registered | [Unlevelled rules](docs/rules/unlevelled.md) |
 <!-- analysis-rule-level-table:end -->
 
-Run `go run ./cmd/rule-inventory` after adding or moving an analysis rule. The Go test suite compares this table and each detail page's inventory metadata with the live registry, so a rule-count change cannot land without updating both. The linked level documents describe current coverage and known boundaries; update that prose in the same change as its rule or level.
+Run `go run ./cmd/rule-inventory` after adding or moving an analysis rule. The Go test suite compares this table and each detail page's inventory metadata with the live registry. It also checks that every registered analysis and style rule has a documented entry, example, and rationale. Update the entry and coverage notes in the same change as any rule addition, removal, rename, or behavior change; see the rule-documentation instructions in [AGENTS.md](AGENTS.md).
 
 ### Listing All Style Rules
 
-You can list all available style rule codes supported by this tool using the `list-style-rules` command. This is useful for discovering which rules you can enable or disable in your `config.yaml`.
-
-Run the following command:
+List the registered style rule codes supported by this tool:
 
 ```bash
 ./go-phpcs list-style-rules
 ```
 
-This will print a list of all registered style rule codes, for example:
-
-```
-Available style rule codes:
-PSR12.Files.EndFileNoTrailingWhitespace
-PSR12.Files.EndFileNewline
-PSR12.Files.NoMultipleStatementsPerLine
-PSR12.Files.NoSpaceBeforeSemicolon
-PSR12.Files.NoBlankLineAfterPHPOpeningTag
-PSR12.Classes.OpenBraceOnOwnLine
-PSR12.Methods.VisibilityDeclared
-PSR1.Classes.ClassDeclaration.PascalCase
-PSR12.Classes.ClosingBraceOnOwnLine
-...
-```
-
-You can then copy any of these codes into your `config.yaml` under the `rules:` section to customize which checks are performed.
-
-## PSR-12 Style Checks
-
-This parser implements several PSR-12 style checks, including:
-
-- **No trailing whitespace** (`PSR12.Files.EndFileNoTrailingWhitespace`): Disallows trailing whitespace at the end of lines.
-- **File must end with a single blank line** (`PSR12.Files.EndFileNewline`): Ensures files end with exactly one blank line.
-- **No multiple statements per line** (`PSR12.Files.NoMultipleStatementsPerLine`): Disallows more than one statement (semicolon) per line.
-- **No space before semicolon** (`PSR12.Files.NoSpaceBeforeSemicolon`): Disallows any space or tab before a semicolon at the end of a statement.
-- **No blank line after opening <?php tag** (`PSR12.Files.NoBlankLineAfterPHPOpeningTag`): Disallows blank lines immediately after the opening PHP tag.
-- **Class opening brace on its own line** (`PSR12.Classes.OpenBraceOnOwnLine`): Requires that the opening brace for a class, interface, trait, or enum must appear on its own line, with no leading or trailing whitespace.
-- **Method visibility must be declared** (`PSR12.Methods.VisibilityDeclared`): Requires that every class method explicitly declares its visibility (`public`, `protected`, or `private`).
-
-Style issues are reported per file and line, and can be extended by adding new checkers in the `style/` package.
-
-
-## Available Style Rules
-
-You can enable or disable specific code style rules using the `rules:` key in your `config.yaml`. If no rules are specified, all available rules are run.
-
-**List of Available Rules:**
-
-- `PSR12.Files.EndFileNoTrailingWhitespace`
-- `PSR12.Files.EndFileNewline`
-- `PSR12.Files.NoMultipleStatementsPerLine`
-- `PSR12.Files.NoSpaceBeforeSemicolon`
-- `PSR12.Files.NoBlankLineAfterPHPOpeningTag`
-- `PSR12.Classes.OpenBraceOnOwnLine`
-- `PSR12.Methods.VisibilityDeclared`
-- `PSR12.Classes.ClosingBraceOnOwnLine`
-
-| Rule Code                                 | Description                                |
-|-------------------------------------------|--------------------------------------------|
-| PSR12.Files.EndFileNoTrailingWhitespace   | Enforces no trailing whitespace on lines    |
-| PSR12.Files.EndFileNewline                | File must end with a single blank line      |
-| PSR12.Files.NoMultipleStatementsPerLine   | Disallows more than one statement (semicolon) per line |
-| PSR12.Files.NoSpaceBeforeSemicolon        | Disallows any space or tab before a semicolon at the end of a statement |
-| PSR12.Files.NoBlankLineAfterPHPOpeningTag | Disallows blank lines after the opening <?php tag |
-| PSR1.Classes.ClassDeclaration.PascalCase | Enforces PascalCase for class names        |
-| PSR12.Classes.ClosingBraceOnOwnLine         | Closing brace must be on its own line, and not followed by code or comments. Reports a syntax error if the file contains only a closing brace |
-
-**Example config.yaml:**
-
-```yaml
-path: ./src
-extensions:
-  - php
-ignore:
-   - vendor
-rules:
-  - PSR12.Files.EndFileNoTrailingWhitespace
-  - PSR12.Files.EndFileNewline
-  - PSR12.Files.NoMultipleStatementsPerLine
-  - PSR12.Files.NoSpaceBeforeSemicolon
-  - PSR12.Files.NoBlankLineAfterPHPOpeningTag
-  - PSR1.Classes.ClassDeclaration.PascalCase
-  - PSR12.Classes.ClosingBraceOnOwnLine
-```
-
-Add or remove rule codes under `rules:` to control which checks are performed. If you don't specify `rules` it will execute all rules available.
+The [style rule guide](docs/rules/style.md) explains every registered style check, with an example and why it helps. You can enable or disable codes under `rules:` in `config.yaml`; if the setting is omitted, all registered style rules run.
 
 ### Basic Usage
 

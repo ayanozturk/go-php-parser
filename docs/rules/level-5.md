@@ -7,8 +7,32 @@
 ## Rule inventory
 
 - **Introduced at this level:** 1 registered levelled rule, `A.ARG.TYPE`.
-- **Cumulative registered levelled rules:** 25.
+- **Cumulative registered levelled rules:** 28.
 - **Checked-in differential pack:** 87 cases in `testdata/diagnostic-differential-level5`.
+
+## Registered rules, one by one
+
+### `A.ARG.TYPE`
+
+**What it checks:** Checks selected calls to known functions, methods, and constructors against parameter types, including supported PHPDoc and inferred types.
+
+**Why it helps:** Passing the wrong value can cause runtime type errors or incorrect library behavior; checking the call site localizes the correction.
+
+**Example that reports:**
+
+```php
+<?php
+function save(int $id): void {}
+save("abc");
+```
+
+**A safer form:**
+
+```php
+<?php
+function save(int $id): void {}
+save(42);
+```
 
 ## Coverage and boundaries
 

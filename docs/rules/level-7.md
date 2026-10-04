@@ -7,8 +7,34 @@
 ## Rule inventory
 
 - **Introduced at this level:** 1 registered levelled rule, `Level7.MethodUnion`.
-- **Cumulative registered levelled rules:** 32.
+- **Cumulative registered levelled rules:** 34.
 - **Checked-in differential pack:** 11 cases in `testdata/diagnostic-differential-level7`.
+
+## Registered rules, one by one
+
+### `Level7.MethodUnion`
+
+**What it checks:** Checks selected method calls on union or intersection receiver types when the method is not available on every possible receiver.
+
+**Why it helps:** A call that works for only some runtime values can fail depending on which branch produced the receiver.
+
+**Example that reports:**
+
+```php
+<?php
+function close(FileHandle|Socket $stream): void {
+    $stream->flush();
+}
+```
+
+**A safer form:**
+
+```php
+<?php
+function close(FileHandle|Socket $stream): void {
+    if ($stream instanceof FileHandle) { $stream->flush(); }
+}
+```
 
 ## Coverage and boundaries
 

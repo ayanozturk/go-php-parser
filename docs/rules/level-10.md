@@ -7,7 +7,7 @@
 ## Rule inventory
 
 - **Introduced at this level:** None.
-- **Cumulative registered levelled rules:** 34.
+- **Cumulative registered levelled rules:** 36.
 - **Checked-in differential pack:** None currently checked in.
 
 ## Coverage and boundaries

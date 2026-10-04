@@ -7,8 +7,36 @@
 ## Rule inventory
 
 - **Introduced at this level:** 1 registered levelled rule, `Generic.CodeAnalysis.UnreachableCode`.
-- **Cumulative registered levelled rules:** 25.
+- **Cumulative registered levelled rules:** 27.
 - **Checked-in differential pack:** 7 cases in `testdata/diagnostic-differential-level4`.
+
+## Registered rules, one by one
+
+### `Generic.CodeAnalysis.UnreachableCode`
+
+**What it checks:** Reports selected statements after a terminating return or throw that cannot be reached.
+
+**Why it helps:** Unreachable statements never run and can hide misplaced logic or stale code.
+
+**Example that reports:**
+
+```php
+<?php
+function value(): int {
+    return 1;
+    echo "never";
+}
+```
+
+**A safer form:**
+
+```php
+<?php
+function value(): int {
+    echo "before return";
+    return 1;
+}
+```
 
 ## Coverage and boundaries
 

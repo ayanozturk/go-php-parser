@@ -7,8 +7,112 @@
 ## Rule inventory
 
 - **Introduced at this level:** 5 registered levelled rules: `A.PROP.TYPE`, `A.RETURN.NEVER`, `A.RETURN.TYPE`, `A.RETURN.VOID`, and `Level3.ThrowType`.
-- **Cumulative registered levelled rules:** 24. The assignment, binary-operation, void-purity, method, and PHPDoc rules from level 2 are cumulative and are not introduced here.
+- **Cumulative registered levelled rules:** 26. The assignment, binary-operation, void-purity, method, and PHPDoc rules from level 2 are cumulative and are not introduced here.
 - **Checked-in differential pack:** 44 cases in `testdata/diagnostic-differential-level3`.
+
+## Registered rules, one by one
+
+### `A.PROP.TYPE`
+
+**What it checks:** Checks assignments to typed properties against the property’s declared type.
+
+**Why it helps:** Typed properties are runtime-enforced contracts; incompatible assignments fail when executed.
+
+**Example that reports:**
+
+```php
+<?php
+class Cart { public int $count; }
+$cart = new Cart();
+$cart->count = "many";
+```
+
+**A safer form:**
+
+```php
+<?php
+$cart->count = 3;
+```
+
+### `A.RETURN.NEVER`
+
+**What it checks:** Checks selected never-returning functions and methods for paths that return normally instead of terminating or throwing.
+
+**Why it helps:** A never contract tells callers execution cannot continue; violating it makes control-flow reasoning unsafe.
+
+**Example that reports:**
+
+```php
+<?php
+function stop(): never { return; }
+```
+
+**A safer form:**
+
+```php
+<?php
+function stop(): never { throw new RuntimeException(); }
+```
+
+### `A.RETURN.TYPE`
+
+**What it checks:** Compares returned expressions with declared return types for supported inferred expressions.
+
+**Why it helps:** Return mismatches violate the function contract and can cause downstream type errors.
+
+**Example that reports:**
+
+```php
+<?php
+function countItems(): int { return "three"; }
+```
+
+**A safer form:**
+
+```php
+<?php
+function countItems(): int { return 3; }
+```
+
+### `A.RETURN.VOID`
+
+**What it checks:** Reports returned values from functions or methods declared void.
+
+**Why it helps:** A void declaration promises no value; returning one makes the API contract inconsistent.
+
+**Example that reports:**
+
+```php
+<?php
+function logMessage(): void { return "done"; }
+```
+
+**A safer form:**
+
+```php
+<?php
+function logMessage(): void { echo "done"; return; }
+```
+
+### `Level3.ThrowType`
+
+**What it checks:** Checks selected throw expressions to ensure the thrown value is a Throwable.
+
+**Why it helps:** Throwing a non-exception value is invalid PHP and fails at runtime.
+
+**Example that reports:**
+
+```php
+<?php
+throw "failed";
+```
+
+**A safer form:**
+
+```php
+<?php
+throw new RuntimeException("failed");
+```
 
 ## Coverage and boundaries
 
