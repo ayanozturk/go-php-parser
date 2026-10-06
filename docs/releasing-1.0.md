@@ -8,9 +8,9 @@ This document tracks stabilization for the parser, analyzer, CLI, and PHP Strom 
 | --- | --- | --- |
 | Build and CLI contract | `make build` creates `tusk` (`tusk.exe` on Windows); documented commands, current-directory config discovery, output formats, and exit codes match command tests | Passed locally: full tests and vet; native and Windows executable builds; smoke runs for init, style, analyze, AST, tokens, config, file listing, style-rule listing, source invocation, and Make invocation |
 | Go API and module contract | Supported Go toolchain range, public packages/symbols, compatibility policy, module path, and dependency licenses reviewed | Contract documented in [compatibility-1.0.md](compatibility-1.0.md); dependency license review remains open |
-| Platform support | CI builds every declared OS/architecture and runs tests on declared native validation hosts; release archives are reproducible and contain the expected executable and license | CI builds Linux, macOS, and Windows for amd64 and arm64; full tests run on Linux/amd64. Native execution on every target and release archive reproducibility remain open |
-| Parser correctness | Lossless identity, gold trees, Zend token parity, corpus identity/accounting, and malformed-input fuzz gates pass | Open; full Go tests and race suite pass locally; corpus identity/accounting and scheduled fuzz evidence remain open. See `AGENTS.md` and syntax CI/fuzz jobs |
-| Analyzer correctness | Full tests, race suite, exact differential fixtures, reviewed-corpus quality thresholds, and complete corpus accounting pass | Open; full Go tests, race suite, and vet pass locally; reviewed-corpus quality and complete corpus accounting remain open. See [analyser capability matrix](analyser-capability-matrix.md) and roadmap release gate |
+| Platform support | CI builds every declared OS/architecture and runs tests on declared native validation hosts; release archives are reproducible and contain the expected executable and license | Local Go 1.23.12 builds passed for Linux, macOS, and Windows on amd64 and arm64; tests and vet passed on Linux/amd64. CI evidence for this commit, native execution on every target, and release archive reproducibility remain open |
+| Parser correctness | Lossless identity, gold trees, Zend token parity, corpus identity/accounting, and malformed-input fuzz gates pass | Passed locally on Go 1.23.12/Linux amd64: full tests, race suite, lexer token parity, all four 2-minute fuzz smoke runs, and identity/accounting at 100% for Symfony (10,028/10,028 files; 80,347,084 bytes) and WordPress (3,188/3,188 files; 36,103,588 bytes) |
+| Analyzer correctness | Full tests, race suite, exact differential fixtures, reviewed-corpus quality thresholds, and complete corpus accounting pass | Full tests, race suite, vet, and uncached engine differential fixtures pass locally. Reviewed-corpus quality and complete corpus accounting remain open. The exact fixture suite checks expected engine codes; external PHPStan reference runs are tracked under the reviewed-corpus gate. See [analyser capability matrix](analyser-capability-matrix.md) and roadmap release gate |
 | CLI and PHP Strom integration | Installation/config migration guide, exit-code contract, supported integration version, and pinned-module plus sibling-development tests pass | Open; see [PHP Strom integration review](phpstrom-integration-review.md) |
 | Performance and resources | Every change preserves or improves our best accepted process-cold CLI and engine results: at least 10 repetitions on identical pinned workloads, CV ≤5%, complete file/diagnostic parity, and no time or peak-memory regression beyond measurement noise | Open; establish fresh best-result baselines for the release workload set, then maintain the rolling record |
 | Release package | Changelog, known limitations, migration guidance, dependency/license notices, checksums, and rollback instructions reviewed | Open |
@@ -31,6 +31,18 @@ go test ./analyse -run '^$' -fuzz '^FuzzParseType$' -fuzztime 2m
 make build
 ./tusk --help
 ```
+
+### Latest correctness-gate evidence
+
+On 2026-10-06, Go 1.23.12 on Linux/amd64 passed `go test ./...`, `go vet ./...`,
+and `go test -race ./...`. The uncached
+`go test -count=1 ./cmd/diagnostic-diff ./lexer` passed. Four two-minute fuzz
+runs passed: the full syntax parser, declaration-tier syntax parser, PHPDoc
+parser, and type parser. The Symfony and
+WordPress lossless identity and accounting reports both had zero failing files
+and 100% source identity. Local `go build ./...` cross-builds passed for Linux,
+macOS, and Windows on both amd64 and arm64. These are local results; the CI run
+for the release candidate is still required.
 
 The CLI's built-in `--help` output lists Go flags; command names and descriptions are verified by `go test ./command`. Smoke-test config initialization in a temporary working directory (`tusk init` must create `tusk.yaml`) and run representative style, AST, token, config, file-list, and analysis commands against an explicit `tusk.yaml` with `-config` before the command.
 
