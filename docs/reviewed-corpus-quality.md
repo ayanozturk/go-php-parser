@@ -47,36 +47,48 @@ excludes tests, examples, and generated/vendor code. PHPStan analyzed every
 selected file without analysis errors; Tusk discovered and analyzed all 1,775.
 This passes the accounting portion of threshold 2 for this workload.
 
-The recorded run used PHP 8.4.24, PHPStan 2.2.16, and
-`testdata/phpstan-differential.neon` (SHA-256
-`8957a9648861d3008057cbcce506a38c9ab8b8e215b8fd75675459d98ad3b68b`). The
-configuration targets PHP 8.5. The report and index file-manifest SHA-256 are
-both `6a955366217506f2cabe420293b4ab19265e5d38e590ba8c7ddc81aa56cc1b34`.
-The metric crosswalk is built from the nine checked-in differential manifests;
-their individual hashes and versions are emitted in the JSON report. The run
+The reproducible run used PHP 8.4.24, PHPStan 2.2.16, PSL's Composer autoloader,
+and the PSL PHPStan extension 2.1.0. The extension dependencies are pinned by
+`testdata/phpstan-psl/composer.lock` (SHA-256
+`2a29f882adbd7b973e2742bba1b2a0e1ca6d2efd8f8e25dba2649b5d5ffb7819`); the
+PSL checkout's production dependencies are pinned by its upstream
+`composer.lock` (SHA-256
+`85e11c6f9b12cfb0794eb1ac9ab1e33c1f07d1111b9b589c7034660ef11ed111`). The
+PHPStan configuration `testdata/phpstan-psl.neon` (SHA-256
+`eca48699f663b6632c6b1ccdf27442d4886dfa52d814a853d118b5f237731d61`) targets
+PHP 8.5, loads the two Composer autoloaders, and includes the PSL extension.
+Tusk indexed the selected first-party files plus `vendor/revolt`; PHPStan
+received those first-party files and the same runtime dependency through
+Composer. The first-party manifest SHA-256 is
+`6a955366217506f2cabe420293b4ab19265e5d38e590ba8c7ddc81aa56cc1b34`; the
+combined index manifest SHA-256 is
+`38c2f5b1cf88c27c33daddabfdb90cc0616cd6a0ba8742eb35bd4f2f64c014ec`. The
+metric crosswalk uses the nine checked-in differential manifests listed
+below. The JSON report records their individual hashes and versions. The run
 command was:
 
 ```sh
 go run ./cmd/phpstan-compat \
   --root test_projects/psl \
   --paths '<all 73 packages/*/src directories>' \
+  --index-paths vendor/revolt \
   --levels 0,1,2,3,4,5,6,7,8 \
-  --phpstan-bin /workspace/.tools/bin/phpstan \
-  --phpstan-config testdata/phpstan-differential.neon \
+  --phpstan-bin ../../testdata/phpstan-psl/vendor/bin/phpstan \
+  --phpstan-config ../../testdata/phpstan-psl.neon \
   --workers 3 --json --output /tmp/tusk-psl-src-all-levels.json
 ```
 
 | Level | F1 | Precision | Recall | Reviewed F1 | Exact | Engine diagnostics | PHPStan diagnostics | Engine-only | PHPStan-only | Unreviewed PHPStan-only |
 | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| 0 | 30.80% | 18.47% | 92.68% | 31.08% | 152 | 823 | 164 | 671 | 12 | 9 |
-| 1 | 14.76% | 8.02% | 92.68% | 14.82% | 152 | 1,896 | 164 | 1,744 | 12 | 9 |
-| 2 | 13.37% | 8.96% | 26.29% | 15.79% | 184 | 2,053 | 700 | 1,869 | 516 | 422 |
-| 3 | 12.47% | 8.18% | 26.21% | 14.56% | 184 | 2,250 | 702 | 2,066 | 518 | 424 |
-| 4 | 12.13% | 8.18% | 23.47% | 14.56% | 184 | 2,250 | 784 | 2,066 | 600 | 506 |
-| 5 | 11.34% | 7.52% | 23.06% | 13.49% | 184 | 2,447 | 798 | 2,263 | 614 | 517 |
-| 6 | 11.00% | 7.22% | 23.10% | 12.97% | 188 | 2,604 | 814 | 2,416 | 626 | 519 |
-| 7 | 10.28% | 6.88% | 20.32% | 12.14% | 190 | 2,761 | 935 | 2,571 | 745 | 567 |
-| 8 | 10.23% | 6.83% | 20.43% | 12.05% | 192 | 2,813 | 940 | 2,621 | 748 | 567 |
+| 0 | 2.01% | 1.03% | 38.89% | 2.04% | 7 | 678 | 18 | 671 | 11 | 9 |
+| 1 | 0.79% | 0.40% | 38.89% | 0.80% | 7 | 1,751 | 18 | 1,744 | 11 | 9 |
+| 2 | 1.28% | 0.80% | 3.23% | 1.56% | 15 | 1,884 | 464 | 1,869 | 449 | 422 |
+| 3 | 1.17% | 0.72% | 3.21% | 1.41% | 15 | 2,088 | 468 | 2,073 | 453 | 424 |
+| 4 | 1.14% | 0.72% | 2.73% | 1.41% | 15 | 2,088 | 550 | 2,073 | 535 | 506 |
+| 5 | 1.05% | 0.66% | 2.67% | 1.29% | 15 | 2,285 | 562 | 2,270 | 547 | 515 |
+| 6 | 2.55% | 1.58% | 6.51% | 3.06% | 39 | 2,462 | 599 | 2,423 | 560 | 515 |
+| 7 | 2.46% | 1.57% | 5.69% | 2.95% | 41 | 2,619 | 721 | 2,578 | 680 | 563 |
+| 8 | 2.53% | 1.61% | 5.92% | 3.03% | 43 | 2,671 | 726 | 2,628 | 683 | 563 |
 
 The nine crosswalk inputs used in that run were:
 
@@ -94,38 +106,40 @@ The nine crosswalk inputs used in that run were:
 
 **Gate status: failed.** File accounting and execution succeeded, but the
 corpus has thousands of unmatched diagnostics that have not been individually
-reviewed and dispositioned. The low precision and the 567 unreviewed
-PHPStan-only findings at levels 7 and 8 are concrete blockers. These figures
-are a baseline from this exact workload and configuration; they are not a
-claim of PHPStan parity, an all-PHP score, or a historical performance
-benchmark.
+reviewed and dispositioned. At level 8, 2,628 findings are engine-only, 683
+are PHPStan-only, and 563 PHPStan-only findings use identifiers absent from
+the reviewed crosswalk. The engine-only counts are led by 1,060 `Level1.Core`,
+400 `Level0.Symbols`, and 269 `Level0.ClassModel` findings at level 8. These
+are concrete blockers. The numbers are a workload-specific diagnostic result,
+not a claim of PHPStan parity or a score across all PHP.
 
-The run does not load PSL's own PHPStan extension/configuration. Its Composer
-lock references `revolt/event-loop` 1.0.9, and this PHP environment lacks PSL's
-required `bcmath` and `intl` extensions. A later exploratory level 0/2 run
-loaded the Composer autoloader after installing locked production dependencies
-with platform requirements ignored; it is not comparable or release evidence.
-Before promoting a corpus result, pin and check in a reproducible reference
-configuration and ensure Tusk and PHPStan receive equivalent dependency and
-symbol context.
+The corpus checkout lacks the `bcmath` and `intl` PHP extensions required to
+execute PSL. Static analysis completed without executing PSL code, and
+Composer installs used `--ignore-platform-reqs`; this limitation is recorded
+because those native functions are part of PSL's runtime environment.
 
 ## Reproduction
 
-Run from the repository root with PHP 8.4 or 8.5 and PHPStan 2.2.16. Generate
-the report paths from the pinned checkout, sorted bytewise, by selecting every
-`packages/*/src` directory. Save the JSON output and verify its file-manifest,
-config, and crosswalk hashes. For fixture evidence, run each checked-in pack
-with the PHPStan version pinned by its manifest. Update this page whenever a
-corpus, manifest, configuration, threshold, or result changes.
+Run from the repository root with PHP 8.4 or 8.5. Fetch the pinned PSL checkout
+with `go run ./cmd/fetch-test-projects`, then generate the report paths
+from the pinned checkout, sorted bytewise, by selecting every `packages/*/src`
+directory. Install the support lock and PSL's production dependencies first.
+Save the JSON output and verify its file-manifest, index-manifest, config, and
+crosswalk hashes. For fixture evidence, run each checked-in pack with the
+PHPStan version pinned by its manifest. Update this page whenever a corpus,
+manifest, configuration, threshold, or result changes.
 
 ```sh
 mapfile -t source_dirs < <(find test_projects/psl/packages -mindepth 2 -maxdepth 2 -type d -name src | LC_ALL=C sort)
 paths=$(IFS=,; printf '%s' "${source_dirs[*]#test_projects/psl/}")
+(cd testdata/phpstan-psl && composer install --no-interaction --prefer-dist)
+(cd test_projects/psl && composer install --no-dev --ignore-platform-reqs --no-interaction --prefer-dist)
 go run ./cmd/phpstan-compat \
   --root test_projects/psl \
   --paths "$paths" \
+  --index-paths vendor/revolt \
   --levels 0,1,2,3,4,5,6,7,8 \
-  --phpstan-bin "$PHPSTAN_BIN" \
-  --phpstan-config testdata/phpstan-differential.neon \
+  --phpstan-bin ../../testdata/phpstan-psl/vendor/bin/phpstan \
+  --phpstan-config ../../testdata/phpstan-psl.neon \
   --workers 3 --json --output /tmp/tusk-psl-src-all-levels.json
 ```

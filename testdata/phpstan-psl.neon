@@ -1,0 +1,9 @@
+includes:
+    - %currentWorkingDirectory%/../../testdata/phpstan-psl/vendor/php-standard-library/phpstan-extension/extension.neon
+
+parameters:
+    level: 0
+    phpVersion: 80500
+    bootstrapFiles:
+        - %currentWorkingDirectory%/vendor/autoload.php
+        - %currentWorkingDirectory%/../../testdata/phpstan-psl/vendor/autoload.php

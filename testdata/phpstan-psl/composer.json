@@ -1,0 +1,15 @@
+{
+    "name": "tusk/reviewed-psl-corpus-reference",
+    "description": "Pinned PHPStan tooling for the PSL diagnostic compatibility corpus",
+    "license": "MIT",
+    "require": {
+        "phpstan/phpstan": "~2.2.16",
+        "php-standard-library/phpstan-extension": "~2.1.0"
+    },
+    "config": {
+        "sort-packages": true,
+        "allow-plugins": {
+            "phpstan/extension-installer": true
+        }
+    }
+}
