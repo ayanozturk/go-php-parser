@@ -187,6 +187,7 @@ function run(int $unknown): void {
     acceptBounded(0);
     acceptBounded($unknown);
 }
+
 `
 	files := map[string]string{"integer-refinements.php": source}
 	issues := runAnalysisLevelOnFiles(t, files, 5)
@@ -196,6 +197,30 @@ function run(int $unknown): void {
 	issues = runAnalysisLevelOnFiles(t, files, 7)
 	if got := len(filterNonEmptyArgTypeIssues(issues)); got != 4 {
 		t.Fatalf("expected out-of-range literals and unrefined ints to mismatch at level 7, got %#v", issues)
+	}
+}
+
+func TestFunctionScopeUsesPHPDocParameterRefinementsAlongsideNativeTypes(t *testing.T) {
+	const source = `<?php
+/** @param positive-int $value */
+function acceptPositive(int $value): void {}
+/** @param positive-int|null $value */
+function acceptPositiveOrNull(?int $value): void {}
+/** @param positive-int $value */
+function relayPositive(int $value): void { acceptPositive($value); }
+/** @param positive-int|null $value */
+function relayPositiveOrNull(?int $value): void { acceptPositiveOrNull($value); }
+function relayUnrefined(int $value): void { acceptPositive($value); }
+`
+	issues := runAnalysisLevelOnFiles(t, map[string]string{"native-phpdoc-refinement.php": source}, 7)
+	var mismatches []AnalysisIssue
+	for _, issue := range issues {
+		if issue.Code == "A.ARG.TYPE" {
+			mismatches = append(mismatches, issue)
+		}
+	}
+	if len(mismatches) != 1 || mismatches[0].Line != 10 {
+		t.Fatalf("expected native PHPDoc refinements to flow while unrefined int still mismatches, got %#v", mismatches)
 	}
 }
 

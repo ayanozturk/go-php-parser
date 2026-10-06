@@ -989,6 +989,7 @@ func newFunctionScopeWithContext(ctx *AnalysisContext, class *ast.ClassNode, fn 
 		scope.methodArrayShapes = classData.methodArrayShapes
 	}
 	templateBounds := localTemplateBounds(class, fn, typeCtx)
+	templates := phpDocTemplateNames(class, fn.PHPDoc)
 
 	for _, paramNode := range fn.Params {
 		param, ok := paramNode.(*ast.ParamNode)
@@ -1000,8 +1001,12 @@ func newFunctionScopeWithContext(ctx *AnalysisContext, class *ast.ClassNode, fn 
 			documentedType = fn.PHPDoc.GetParamTypeFromPHPDoc(param.Name)
 		}
 		paramType := TypeFromAST(param.TypeHint, typeCtx)
-		if paramType.IsEmpty() && documentedType != "" {
-			paramType = ParseType(normalizeTypeWithContext(documentedType, typeCtx))
+		if documentedType != "" {
+			nativeType := ""
+			if !paramType.IsEmpty() {
+				nativeType = paramType.String()
+			}
+			paramType = ParseType(normalizeTemplateAwareType(documentedParamTypePreservingNativeNull(nativeType, documentedType), typeCtx, templates))
 		}
 		if paramType.IsEmpty() && param.DefaultValue != nil {
 			paramType = inferType(param.DefaultValue, scope, nil)

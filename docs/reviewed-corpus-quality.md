@@ -47,7 +47,7 @@ excludes tests, examples, and generated/vendor code. PHPStan analyzed every
 selected file without analysis errors; Tusk discovered and analyzed all 1,775.
 This passes the accounting portion of threshold 2 for this workload.
 
-The reproducible run used PHP 8.4.24, PHPStan 2.2.16, PSL's Composer autoloader,
+The reproducible run at `2026-10-06T15:34:35Z` used PHP 8.4.24, PHPStan 2.2.16, PSL's Composer autoloader,
 and the PSL PHPStan extension 2.1.0. The extension dependencies are pinned by
 `testdata/phpstan-psl/composer.lock` (SHA-256
 `2a29f882adbd7b973e2742bba1b2a0e1ca6d2efd8f8e25dba2649b5d5ffb7819`); the
@@ -82,13 +82,13 @@ go run ./cmd/phpstan-compat \
 | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
 | 0 | 12.39% | 7.37% | 38.89% | 13.46% | 7 | 95 | 18 | 88 | 11 | 9 |
 | 1 | 3.92% | 2.06% | 38.89% | 4.02% | 7 | 339 | 18 | 332 | 11 | 9 |
-| 2 | 3.21% | 3.18% | 3.23% | 5.84% | 15 | 472 | 464 | 457 | 449 | 422 |
-| 3 | 2.57% | 2.15% | 3.21% | 4.04% | 15 | 698 | 468 | 683 | 453 | 424 |
-| 4 | 2.40% | 2.15% | 2.73% | 4.04% | 15 | 698 | 550 | 683 | 535 | 506 |
-| 5 | 1.92% | 1.50% | 2.67% | 2.87% | 15 | 1,000 | 562 | 985 | 547 | 515 |
-| 6 | 4.39% | 3.31% | 6.51% | 6.19% | 39 | 1,177 | 599 | 1,138 | 560 | 515 |
-| 7 | 4.05% | 3.11% | 5.83% | 5.56% | 42 | 1,352 | 721 | 1,310 | 679 | 563 |
-| 8 | 4.12% | 3.12% | 6.06% | 5.60% | 44 | 1,409 | 726 | 1,365 | 682 | 563 |
+| 2 | 3.20% | 3.17% | 3.23% | 5.83% | 15 | 473 | 464 | 458 | 449 | 422 |
+| 3 | 2.54% | 2.10% | 3.21% | 3.96% | 15 | 714 | 468 | 699 | 453 | 424 |
+| 4 | 2.37% | 2.10% | 2.73% | 3.96% | 15 | 714 | 550 | 699 | 535 | 506 |
+| 5 | 1.85% | 1.42% | 2.67% | 2.72% | 15 | 1,057 | 562 | 1,042 | 547 | 515 |
+| 6 | 4.26% | 3.16% | 6.51% | 5.92% | 39 | 1,234 | 599 | 1,195 | 560 | 515 |
+| 7 | 3.96% | 3.04% | 5.69% | 5.44% | 41 | 1,348 | 721 | 1,307 | 680 | 563 |
+| 8 | 4.05% | 3.08% | 5.92% | 5.52% | 43 | 1,396 | 726 | 1,353 | 683 | 563 |
 
 The nine crosswalk inputs used in that run were:
 
@@ -106,18 +106,21 @@ The nine crosswalk inputs used in that run were:
 
 **Gate status: failed.** File accounting and execution succeeded, but the
 corpus still has thousands of unmatched diagnostics that have not been
-individually reviewed and dispositioned. At level 8, 1,365 findings are
-engine-only, 682 are PHPStan-only, and 563 PHPStan-only findings use
+individually reviewed and dispositioned. At level 8, 1,353 findings are
+engine-only, 683 are PHPStan-only, and 563 PHPStan-only findings use
 identifiers absent from the reviewed crosswalk. The largest engine-only
-families are 528 `A.ARG.TYPE`, 231 `Level1.Core`, 151 `A.RETURN.TYPE`, 142
-`Level6.MissingIterableValueType`, and 84 `Level0.Symbols` findings. These are
+families are 500 `A.ARG.TYPE`, 231 `Level1.Core`, 149 `A.RETURN.TYPE`, 142
+`Level6.MissingIterableValueType`, 91 `A.PROP.TYPE`, and 84 `Level0.Symbols`
+findings. These are
 concrete blockers. The numbers are a workload-specific diagnostic result,
 not a claim of PHPStan parity or a score across all PHP.
 
 The current implementation recognizes PHP magic constants and `match`'s
 `default` arm, resolves function calls through imported namespace aliases,
-and counts concrete trait methods when checking interface contracts. The
-pinned level-0 and level-1 differential packs pass with zero mismatches.
+counts concrete trait methods when checking interface contracts, and applies
+PHPDoc parameter refinements alongside native parameter types in function
+scopes while retaining native nullability. The pinned differential packs pass
+with zero mismatches.
 
 The corpus checkout lacks the `bcmath` and `intl` PHP extensions required to
 execute PSL. Static analysis completed without executing PSL code, and
