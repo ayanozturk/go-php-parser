@@ -80,15 +80,15 @@ go run ./cmd/phpstan-compat \
 
 | Level | F1 | Precision | Recall | Reviewed F1 | Exact | Engine diagnostics | PHPStan diagnostics | Engine-only | PHPStan-only | Unreviewed PHPStan-only |
 | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| 0 | 2.01% | 1.03% | 38.89% | 2.04% | 7 | 678 | 18 | 671 | 11 | 9 |
-| 1 | 1.49% | 0.76% | 38.89% | 1.50% | 7 | 922 | 18 | 915 | 11 | 9 |
-| 2 | 1.97% | 1.42% | 3.23% | 2.73% | 15 | 1,055 | 464 | 1,040 | 449 | 422 |
-| 3 | 1.74% | 1.19% | 3.21% | 2.30% | 15 | 1,259 | 468 | 1,244 | 453 | 424 |
-| 4 | 1.66% | 1.19% | 2.73% | 2.30% | 15 | 1,259 | 550 | 1,244 | 535 | 506 |
-| 5 | 1.49% | 1.03% | 2.67% | 2.00% | 15 | 1,456 | 562 | 1,441 | 547 | 515 |
-| 6 | 3.49% | 2.39% | 6.51% | 4.54% | 39 | 1,633 | 599 | 1,594 | 560 | 515 |
-| 7 | 3.27% | 2.29% | 5.69% | 4.21% | 41 | 1,790 | 721 | 1,749 | 680 | 563 |
-| 8 | 3.35% | 2.33% | 5.92% | 4.29% | 43 | 1,842 | 726 | 1,799 | 683 | 563 |
+| 0 | 12.39% | 7.37% | 38.89% | 13.46% | 7 | 95 | 18 | 88 | 11 | 9 |
+| 1 | 3.92% | 2.06% | 38.89% | 4.02% | 7 | 339 | 18 | 332 | 11 | 9 |
+| 2 | 3.21% | 3.18% | 3.23% | 5.84% | 15 | 472 | 464 | 457 | 449 | 422 |
+| 3 | 2.57% | 2.15% | 3.21% | 4.04% | 15 | 698 | 468 | 683 | 453 | 424 |
+| 4 | 2.40% | 2.15% | 2.73% | 4.04% | 15 | 698 | 550 | 683 | 535 | 506 |
+| 5 | 1.92% | 1.50% | 2.67% | 2.87% | 15 | 1,000 | 562 | 985 | 547 | 515 |
+| 6 | 4.39% | 3.31% | 6.51% | 6.19% | 39 | 1,177 | 599 | 1,138 | 560 | 515 |
+| 7 | 4.05% | 3.11% | 5.83% | 5.56% | 42 | 1,352 | 721 | 1,310 | 679 | 563 |
+| 8 | 4.12% | 3.12% | 6.06% | 5.60% | 44 | 1,409 | 726 | 1,365 | 682 | 563 |
 
 The nine crosswalk inputs used in that run were:
 
@@ -106,19 +106,18 @@ The nine crosswalk inputs used in that run were:
 
 **Gate status: failed.** File accounting and execution succeeded, but the
 corpus still has thousands of unmatched diagnostics that have not been
-individually reviewed and dispositioned. At level 8, 1,799 findings are
-engine-only, 683 are PHPStan-only, and 563 PHPStan-only findings use
-identifiers absent from the reviewed crosswalk. The engine-only counts include
-401 `A.ARG.TYPE`, 400 `Level0.Symbols`, 269 `Level0.ClassModel`, and 231
-`Level1.Core` findings. These are concrete blockers. The numbers are a
-workload-specific diagnostic result, not a claim of PHPStan parity or a score
-across all PHP.
+individually reviewed and dispositioned. At level 8, 1,365 findings are
+engine-only, 682 are PHPStan-only, and 563 PHPStan-only findings use
+identifiers absent from the reviewed crosswalk. The largest engine-only
+families are 528 `A.ARG.TYPE`, 231 `Level1.Core`, 151 `A.RETURN.TYPE`, 142
+`Level6.MissingIterableValueType`, and 84 `Level0.Symbols` findings. These are
+concrete blockers. The numbers are a workload-specific diagnostic result,
+not a claim of PHPStan parity or a score across all PHP.
 
-The level-1 false-positive triage fixed two recurring cases: eight PHP magic
-constants and `match`'s `default` arm were being reported as undefined
-constants. That removes 829 engine-only findings from levels 1–8. The focused
-level-1 differential pack remains at 37 cases with zero engine and reference
-mismatches.
+The current implementation recognizes PHP magic constants and `match`'s
+`default` arm, resolves function calls through imported namespace aliases,
+and counts concrete trait methods when checking interface contracts. The
+pinned level-0 and level-1 differential packs pass with zero mismatches.
 
 The corpus checkout lacks the `bcmath` and `intl` PHP extensions required to
 execute PSL. Static analysis completed without executing PSL code, and

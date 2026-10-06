@@ -88,6 +88,11 @@ func resolveFunctionNameForCall(name string, ft FileTypeContext, ctx *AnalysisCo
 			return ft.Namespace + `\` + rest
 		}
 		first, remainder := splitNameSegment(name)
+		if remainder != "" {
+			if target, ok := ft.Aliases[asciiLowerIdent(first)]; ok {
+				return target + `\` + remainder
+			}
+		}
 		if target, ok := ft.FunctionAliases[asciiLowerIdent(first)]; ok {
 			if remainder == "" {
 				return target

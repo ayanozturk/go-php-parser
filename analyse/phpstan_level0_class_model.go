@@ -542,21 +542,12 @@ func collectUnimplementedParentAbstractMethodsSeen(resolver SymbolResolver, clas
 }
 
 func findConcreteClassMethod(resolver SymbolResolver, className, methodName string) (ResolvedMethod, bool) {
-	seen := map[string]struct{}{}
-	for className != "" {
-		key := indexKey(className)
-		if _, ok := seen[key]; ok {
-			return ResolvedMethod{}, false
-		}
-		seen[key] = struct{}{}
-		if method, ok := resolveOwnMethodView(resolver, className, methodName); ok && !method.Abstract {
-			return method, true
-		}
-		class, ok := resolver.ResolveClass(className)
-		if !ok || len(class.Extends) == 0 {
-			return ResolvedMethod{}, false
-		}
-		className = class.Extends[0]
+	if resolver == nil {
+		return ResolvedMethod{}, false
 	}
-	return ResolvedMethod{}, false
+	method, ok := resolver.ResolveMethod(className, methodName)
+	if !ok || method.Abstract {
+		return ResolvedMethod{}, false
+	}
+	return method, true
 }

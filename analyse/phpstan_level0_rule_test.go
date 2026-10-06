@@ -516,6 +516,29 @@ function ord(string $value): int
     return 0;
 }
 `,
+		"src/library.php": `<?php
+namespace Vendor\Library;
+
+function helper(): void {}
+`,
+		"src/psl.php": `<?php
+namespace Psl;
+
+function invariant_violation(string $message): never { throw new \RuntimeException($message); }
+`,
+		"src/namespace-alias.php": `<?php
+namespace App;
+
+use Vendor\Library;
+use Psl;
+
+function run(): void
+{
+    Library\helper();
+    Psl\invariant_violation('failed');
+    Psl\missing_function();
+}
+`,
 	})
 
 	for _, unexpected := range []string{
@@ -530,6 +553,62 @@ function ord(string $value): int
 		if hasIssueContaining(issues, level0SymbolsCode, unexpected) {
 			t.Fatalf("namespace-relative and imported functions should resolve, got %#v", issues)
 		}
+	}
+	if !hasIssueContaining(issues, level0SymbolsCode, "Function Psl\\missing_function not found") {
+		t.Fatalf("an unresolved function after a namespace alias should still be reported, got %#v", issues)
+	}
+}
+
+func TestLevel0ResolvesFunctionCallsThroughNamespaceAliases(t *testing.T) {
+	issues := runLevel0OnFiles(t, map[string]string{
+		"src/library.php": `<?php
+namespace Vendor\Library;
+
+function helper(): void {}
+`,
+		"src/psl.php": `<?php
+namespace Psl;
+
+function invariant_violation(string $message): never { throw new \RuntimeException($message); }
+`,
+		"src/consumer.php": `<?php
+namespace App;
+
+use Vendor\Library;
+use Psl;
+
+function run(): void
+{
+    Library\helper();
+    Psl\invariant_violation('failed');
+    Psl\missing_function();
+}
+`,
+	})
+	if hasIssueContaining(issues, level0SymbolsCode, "Function Library\\helper not found") || hasIssueContaining(issues, level0SymbolsCode, "Function Psl\\invariant_violation not found") {
+		t.Fatalf("function calls through namespace aliases should resolve, got %#v", issues)
+	}
+	if !hasIssueContaining(issues, level0SymbolsCode, "Function Psl\\missing_function not found") {
+		t.Fatalf("missing function through namespace alias should remain an error, got %#v", issues)
+	}
+}
+
+func TestLevel0AcceptsInterfaceMethodsProvidedByTrait(t *testing.T) {
+	issues := runLevel0OnFiles(t, map[string]string{"test.php": `<?php
+interface ReaderContract {
+    public function read(int $length): string;
+}
+
+trait ReaderImplementation {
+    public function read(int $length): string { return ''; }
+}
+
+class Reader implements ReaderContract {
+    use ReaderImplementation;
+}
+`})
+	if hasIssueContaining(issues, level0ClassModelCode, "must implement method read") {
+		t.Fatalf("a concrete trait method should satisfy the interface method, got %#v", issues)
 	}
 }
 
