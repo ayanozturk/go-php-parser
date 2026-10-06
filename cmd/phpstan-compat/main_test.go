@@ -30,6 +30,14 @@ func TestScoreUsesExactLocationAndIdentifierCrosswalk(t *testing.T) {
 	}
 }
 
+func TestNormalizePHPStanDiagnosticPathStripsTraitContext(t *testing.T) {
+	root := filepath.Join("/workspace", "project")
+	path := filepath.Join(root, "src", "ExampleTrait.php") + " (in context of class Example)"
+	if got, want := normalizePHPStanDiagnosticPath(root, path), "src/ExampleTrait.php"; got != want {
+		t.Fatalf("normalized PHPStan trait diagnostic path = %q, want %q", got, want)
+	}
+}
+
 func TestFileManifestSHA256IsStableAndTracksContents(t *testing.T) {
 	root := t.TempDir()
 	first := filepath.Join(root, "a.php")

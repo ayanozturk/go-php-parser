@@ -183,6 +183,6 @@ These areas have repository unit coverage but no checked-in PHPStan differential
 | PHPDoc validation parity | Not implemented | Complete PHPDoc type validation and source mapping |
 | Full level 0 parity | Not implemented | Expand the differential pack across the agreed corpus and close reviewed mismatches |
 | Reviewed fixture false-positive/false-negative threshold | Gate: zero engine and reference mismatches | Every supported case in the pinned differential packs must match both exact identifier lists; unsupported PHPStan findings are recorded separately and remain explicit. |
-| Corpus-wide F1 threshold | Not established | `cmd/phpstan-compat` now records unmatched diagnostics and exact input/config hashes; a non-empty reviewed corpus baseline is needed before setting a corpus-wide percentage threshold. |
+| Reviewed corpus quality gate | Defined; currently failing | Require 100% file accounting and zero execution failures; review and disposition every engine-only and PHPStan-only finding. F1 is reported with precision, recall, provenance, and unmatched counts, but is not an independent pass threshold. The pinned PSL run has complete accounting but unresolved differences; see [reviewed corpus quality](reviewed-corpus-quality.md). |
 
 The broader descriptive inventory remains in `docs/phpstan-levels-0-3-rules-comparison.md`. That document must not be treated as executable parity evidence unless a row is linked to this differential pack.

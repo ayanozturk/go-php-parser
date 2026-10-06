@@ -306,7 +306,7 @@ func runPHPStan(root, binary, configuration string, reportPaths, reportable []st
 
 	diagnostics := make([]diagnostic, 0)
 	for path, file := range decoded.Files {
-		normalized := normalizePath(root, path)
+		normalized := normalizePHPStanDiagnosticPath(root, path)
 		if !expectedFiles[normalized] {
 			return nil, 0, fmt.Errorf("diagnostic outside selected manifest: %s", normalized)
 		}
@@ -744,6 +744,16 @@ func normalizePath(root, path string) string {
 		return filepath.ToSlash(filepath.Clean(path))
 	}
 	return filepath.ToSlash(rel)
+}
+
+func normalizePHPStanDiagnosticPath(root, path string) string {
+	// PHPStan appends trait context to the diagnostic's source filename, for
+	// example "Trait.php (in context of class Example)". The diagnostic still
+	// belongs to the selected trait file for corpus accounting and matching.
+	if contextStart := strings.LastIndex(path, " (in context of class "); contextStart > 0 && strings.HasSuffix(path, ")") {
+		path = path[:contextStart]
+	}
+	return normalizePath(root, path)
 }
 
 func sortDiagnostics(values []diagnostic) {
