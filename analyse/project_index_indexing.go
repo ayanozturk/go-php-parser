@@ -63,6 +63,7 @@ func (idx *ProjectIndex) indexNodes(filename string, nodes []ast.Node, ft FileTy
 				continue
 			}
 			name := ft.resolveFunctionDeclarationName(n.Name)
+			templates := phpDocTemplateNames(nil, n.PHPDoc)
 			nativeReturn := nativeTypeDNF(n.ReturnType, ft)
 			returnType := nativeReturn
 			conditionalReturn := ""
@@ -70,7 +71,7 @@ func (idx *ProjectIndex) indexNodes(filename string, nodes []ast.Node, ft FileTy
 				returnType = n.PHPDoc.ReturnType
 				if _, conditional := parsePHPDocConditionalType(returnType); conditional {
 					returnType = expandPHPDocTypeAliases(returnType, phpDocTypeAliasBindings(n.PHPDoc))
-					conditionalReturn = normalizePHPDocConditionalType(returnType, ft, phpDocTemplateNames(nil, n.PHPDoc))
+					conditionalReturn = normalizePHPDocConditionalType(returnType, ft, templates)
 				}
 			}
 			returnType = collapsePHPDocConditionalType(returnType, nativeReturn)
@@ -79,11 +80,20 @@ func (idx *ProjectIndex) indexNodes(filename string, nodes []ast.Node, ft FileTy
 				returnType = indexed
 			}
 			callableReturn := callableReturnType(returnType, ft)
-			normalizedReturn := normalizeTypeWithContext(returnType, ft)
+			normalizedReturn := normalizeTemplateAwareType(returnType, ft, templates)
 			if !callableReturn.IsEmpty() {
 				normalizedReturn = "callable"
 			}
-			fn := ResolvedFunction{Name: name, Declaration: sourceLocation(filename, n), ReturnType: normalizedReturn, ConditionalReturnType: conditionalReturn, CallableReturnType: callableReturn.dnfString(), Params: paramsFromNodesWithPHPDoc(n.Params, n.PHPDoc, ft, nil, phpDocTypeAliasBindings(n.PHPDoc))}
+			fn := ResolvedFunction{
+				Name:                  name,
+				Declaration:           sourceLocation(filename, n),
+				ReturnType:            normalizedReturn,
+				ConditionalReturnType: conditionalReturn,
+				CallableReturnType:    callableReturn.dnfString(),
+				Params:                paramsFromNodesWithPHPDoc(n.Params, n.PHPDoc, ft, templates, phpDocTypeAliasBindings(n.PHPDoc)),
+				TemplateParams:        resolvedMethodTemplateParams(n.PHPDoc),
+				TemplateBounds:        resolvedMethodTemplateBounds(n.PHPDoc, ft, templates),
+			}
 			if n.PHPDoc != nil {
 				fn.Deprecated = n.PHPDoc.Deprecated
 				fn.DeprecationMessage = n.PHPDoc.DeprecationMessage

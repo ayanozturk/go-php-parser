@@ -27,11 +27,11 @@ disposition and the release notes.
 
 On 2026-10-06, the pinned PHPStan differential packs were run with their
 manifest-declared PHPStan versions. The level 5 and level 7 packs use PHPStan
-2.2.16; the other packs use PHPStan 2.2.5. Across 507 cases (levels 0–8),
+2.2.16; the other packs use PHPStan 2.2.5. Across 508 cases (levels 0–8),
 there were zero engine mismatches and zero PHPStan-reference mismatches. One
 level 0 case is explicitly unsupported and its PHPStan finding is retained.
-The remaining 506 supported cases matched exactly. The level case counts are
-103 / 37 / 118 / 48 / 7 / 94 / 30 / 19 / 51.
+The remaining 507 supported cases matched exactly. The level case counts are
+103 / 37 / 118 / 48 / 7 / 95 / 30 / 19 / 51.
 
 The exact fixtures and manifest hashes are checked in under
 `testdata/diagnostic-differential*/manifest.json`; `cmd/diagnostic-diff`
@@ -47,7 +47,7 @@ excludes tests, examples, and generated/vendor code. PHPStan analyzed every
 selected file without analysis errors; Tusk discovered and analyzed all 1,775.
 This passes the accounting portion of threshold 2 for this workload.
 
-The reproducible run at `2026-10-06T15:34:35Z` used PHP 8.4.24, PHPStan 2.2.16, PSL's Composer autoloader,
+The reproducible run at `2026-10-06T15:52:27Z` used PHP 8.4.24, PHPStan 2.2.16, PSL's Composer autoloader,
 and the PSL PHPStan extension 2.1.0. The extension dependencies are pinned by
 `testdata/phpstan-psl/composer.lock` (SHA-256
 `2a29f882adbd7b973e2742bba1b2a0e1ca6d2efd8f8e25dba2649b5d5ffb7819`); the
@@ -83,12 +83,12 @@ go run ./cmd/phpstan-compat \
 | 0 | 12.39% | 7.37% | 38.89% | 13.46% | 7 | 95 | 18 | 88 | 11 | 9 |
 | 1 | 3.92% | 2.06% | 38.89% | 4.02% | 7 | 339 | 18 | 332 | 11 | 9 |
 | 2 | 3.20% | 3.17% | 3.23% | 5.83% | 15 | 473 | 464 | 458 | 449 | 422 |
-| 3 | 2.54% | 2.10% | 3.21% | 3.96% | 15 | 714 | 468 | 699 | 453 | 424 |
-| 4 | 2.37% | 2.10% | 2.73% | 3.96% | 15 | 714 | 550 | 699 | 535 | 506 |
-| 5 | 1.85% | 1.42% | 2.67% | 2.72% | 15 | 1,057 | 562 | 1,042 | 547 | 515 |
-| 6 | 4.26% | 3.16% | 6.51% | 5.92% | 39 | 1,234 | 599 | 1,195 | 560 | 515 |
-| 7 | 3.96% | 3.04% | 5.69% | 5.44% | 41 | 1,348 | 721 | 1,307 | 680 | 563 |
-| 8 | 4.05% | 3.08% | 5.92% | 5.52% | 43 | 1,396 | 726 | 1,353 | 683 | 563 |
+| 3 | 2.54% | 2.11% | 3.21% | 3.97% | 15 | 712 | 468 | 697 | 453 | 424 |
+| 4 | 2.38% | 2.11% | 2.73% | 3.97% | 15 | 712 | 550 | 697 | 535 | 506 |
+| 5 | 1.95% | 1.53% | 2.67% | 2.93% | 15 | 978 | 562 | 963 | 547 | 515 |
+| 6 | 4.45% | 3.38% | 6.51% | 6.30% | 39 | 1,155 | 599 | 1,116 | 560 | 515 |
+| 7 | 4.12% | 3.23% | 5.69% | 5.75% | 41 | 1,269 | 721 | 1,228 | 680 | 563 |
+| 8 | 4.21% | 3.26% | 5.92% | 5.81% | 43 | 1,317 | 726 | 1,274 | 683 | 563 |
 
 The nine crosswalk inputs used in that run were:
 
@@ -99,17 +99,17 @@ The nine crosswalk inputs used in that run were:
 | 2 | `e8737c56f68ba5ea58f880e84c14ba128498bef37f5e8d05eaddfb1ebfbbc80a` | 2.2.5 |
 | 3 | `188362030a5f65300deee86052688d66dd2cf42835e9389b59c3bc60343ccc11` | 2.2.5 |
 | 4 | `11754f6148a84a4e2e53416644d367c42f9eb126fb5a714502feaf3f0e0cf084` | 2.2.5 |
-| 5 | `128fe1b3c793848f3ac066cc52253f0c23c1e6693de446373d7f68c6af524ce3` | 2.2.16 |
+| 5 | `08b1dffa0adf6d7339e2c5ffd775b6ef511a3b0fab63769632273b3d7d56c4cf` | 2.2.16 |
 | 6 | `c8bd3eaa62d24de4bc54e912b25444841c414b90202aa6beb73558e20a8f07e7` | 2.2.5 |
 | 7 | `7848c43236484c20c7ea6bad875be6dbd22673d795059b8ae55c639613a38853` | 2.2.16 |
 | 8 | `981ec1f2450069c77ea8288eb3e3c01d8e0b3ef1cd1d015eaf1c10601f3c3dc1` | 2.2.5 |
 
 **Gate status: failed.** File accounting and execution succeeded, but the
 corpus still has thousands of unmatched diagnostics that have not been
-individually reviewed and dispositioned. At level 8, 1,353 findings are
+individually reviewed and dispositioned. At level 8, 1,274 findings are
 engine-only, 683 are PHPStan-only, and 563 PHPStan-only findings use
 identifiers absent from the reviewed crosswalk. The largest engine-only
-families are 500 `A.ARG.TYPE`, 231 `Level1.Core`, 149 `A.RETURN.TYPE`, 142
+families are 423 `A.ARG.TYPE`, 231 `Level1.Core`, 147 `A.RETURN.TYPE`, 142
 `Level6.MissingIterableValueType`, 91 `A.PROP.TYPE`, and 84 `Level0.Symbols`
 findings. These are
 concrete blockers. The numbers are a workload-specific diagnostic result,
@@ -119,8 +119,9 @@ The current implementation recognizes PHP magic constants and `match`'s
 `default` arm, resolves function calls through imported namespace aliases,
 counts concrete trait methods when checking interface contracts, and applies
 PHPDoc parameter refinements alongside native parameter types in function
-scopes while retaining native nullability. The pinned differential packs pass
-with zero mismatches.
+scopes while retaining native nullability, and accounts for top-level function
+template parameters and bounds. The checked level 5, 7, and 8 differential
+packs pass with zero mismatches.
 
 The corpus checkout lacks the `bcmath` and `intl` PHP extensions required to
 execute PSL. Static analysis completed without executing PSL code, and

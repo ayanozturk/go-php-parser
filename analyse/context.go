@@ -224,6 +224,8 @@ type ResolvedFunction struct {
 	ConditionalReturnType string
 	CallableReturnType    string
 	Params                []ResolvedParam
+	TemplateParams        []string
+	TemplateBounds        []string
 	Deprecated            bool
 	DeprecationMessage    string
 }

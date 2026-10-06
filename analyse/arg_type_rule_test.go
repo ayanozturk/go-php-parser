@@ -224,6 +224,35 @@ function relayUnrefined(int $value): void { acceptPositive($value); }
 	}
 }
 
+func TestGenericFunctionArgumentsUsePHPDocTemplateBounds(t *testing.T) {
+	const source = `<?php
+/**
+ * @template T of int|float
+ * @param T $value
+ */
+function acceptNumber(int|float $value): void {}
+/**
+ * @template T
+ * @param T $value
+ */
+function acceptAny($value): void {}
+acceptNumber(1);
+acceptNumber(1.5);
+acceptNumber('wrong');
+acceptAny('any type');
+`
+	issues := runAnalysisLevelOnFiles(t, map[string]string{"generic-function-bound.php": source}, 5)
+	var mismatches []AnalysisIssue
+	for _, issue := range issues {
+		if issue.Code == "A.ARG.TYPE" {
+			mismatches = append(mismatches, issue)
+		}
+	}
+	if len(mismatches) != 1 || mismatches[0].Line != 14 {
+		t.Fatalf("expected only the argument outside the function template bound to mismatch, got %#v", mismatches)
+	}
+}
+
 func TestArgumentTypesPreserveNonEmptyLiteralAssignments(t *testing.T) {
 	const source = `<?php
 /** @param non-empty-string $value */

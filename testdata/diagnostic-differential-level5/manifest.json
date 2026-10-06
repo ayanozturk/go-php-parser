@@ -19,6 +19,17 @@
       ]
     },
     {
+      "id": "argument-function-template-bound",
+      "capability": "generic function parameter enforces its PHPDoc template bound",
+      "file": "argument-function-template-bound.php",
+      "engineCodes": [
+        "A.ARG.TYPE"
+      ],
+      "phpstanIdentifiers": [
+        "argument.type"
+      ]
+    },
+    {
       "id": "argument-method-mismatch",
       "capability": "method argument type mismatch",
       "file": "argument-method-mismatch.php",

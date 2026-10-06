@@ -1592,7 +1592,12 @@ func checkFunctionCallArgTypes(call *ast.FunctionCallNode, scope *functionScope,
 	if !ok || len(function.Params) == 0 {
 		return
 	}
-	checkResolvedCallArgTypes("Function "+function.Name, ResolvedMethod{Name: function.Name, Params: function.Params}, call.Args, scope, ctx, filename, issues, "")
+	checkResolvedCallArgTypes("Function "+function.Name, ResolvedMethod{
+		Name:           function.Name,
+		Params:         function.Params,
+		TemplateParams: function.TemplateParams,
+		TemplateBounds: function.TemplateBounds,
+	}, call.Args, scope, ctx, filename, issues, "")
 }
 
 func checkNewArgTypes(node *ast.NewNode, scope *functionScope, ctx *AnalysisContext, filename string, issues *[]AnalysisIssue) {
@@ -1613,9 +1618,6 @@ func methodCalleeClass(method ResolvedMethod, call *ast.MethodCallNode, scope *f
 }
 
 func expectedCallParamType(param ResolvedParam, method ResolvedMethod, calleeClass string, ctx *AnalysisContext) Type {
-	if name := openTemplateParamName(param.Type, ctx); name != "" {
-		return MixedType()
-	}
 	if bound, ok := resolvedMethodTemplateBound(param.Type, method); ok {
 		if strings.TrimSpace(bound) == "" {
 			return MixedType()
@@ -1627,6 +1629,9 @@ func expectedCallParamType(param ResolvedParam, method ResolvedMethod, calleeCla
 			return MixedType()
 		}
 		return ParseType(bound)
+	}
+	if name := openTemplateParamName(param.Type, ctx); name != "" {
+		return MixedType()
 	}
 	return bindCalleeSignatureType(expandUnboundClassTemplates(param.Type, method.DeclaringClass, ctx), method.DeclaringClass, calleeClass, ctx)
 }
