@@ -2,6 +2,33 @@ package analyse
 
 import "testing"
 
+func TestLevel1CoreAcceptsMagicConstantsAndMatchDefault(t *testing.T) {
+	issues := runAnalysisLevelOnFiles(t, map[string]string{"test.php": `<?php
+namespace Demo;
+
+function magicConstants(): string {
+    return __DIR__ . __FILE__ . __LINE__ . __NAMESPACE__ . __FUNCTION__;
+}
+
+function matchDefault(): string {
+    return match (true) {
+        default => 'fallback',
+    };
+}
+
+class MagicConstantContext {
+    public function values(): string { return __CLASS__ . __METHOD__; }
+}
+
+trait MagicConstantTrait {
+    public function traitName(): string { return __TRAIT__; }
+}
+`}, 1)
+	if hasIssueContaining(issues, level1CoreCode, "Constant") {
+		t.Fatalf("PHP magic constants and a match default arm must not be treated as undefined constants, got %#v", issues)
+	}
+}
+
 func TestLevel1ExtraArgumentsAndMagicMemberLevelGates(t *testing.T) {
 	files := map[string]string{"test.php": `<?php
 function takesOne(int $value): void {}

@@ -69,7 +69,7 @@ function mode(): string {
 
 `Level1.Core` adds these PHPStan level-1 checks:
 
-- Undefined global constant reads (`constant.notFound`).
+- Undefined global constant reads (`constant.notFound`); PHP magic constants and `match` default arms are recognized as language built-ins.
 - Unused non-promoted constructor parameters and unused closure `use` captures.
 - Redundant `isset()`, `empty()`, and `??` checks where the current parameter or PHPDoc type proves the result.
 

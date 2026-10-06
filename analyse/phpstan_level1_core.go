@@ -82,6 +82,9 @@ func checkLevel1Core(filename string, nodes []ast.Node, ctx *AnalysisContext) []
 			if strings.EqualFold(n.Value, "true") || strings.EqualFold(n.Value, "false") || strings.EqualFold(n.Value, "null") {
 				return
 			}
+			if isMagicConstantName(n.Value) || strings.EqualFold(n.Value, "default") {
+				return
+			}
 			if !globalConstantExists(n.Value, nodeFT, ctx.Resolver) {
 				issues = append(issues, AnalysisIssue{Filename: filename, Line: n.Pos.Line, Column: n.Pos.Column, Code: level1CoreCode, Message: fmt.Sprintf("Constant %s not found.", n.Value)})
 			}
@@ -118,6 +121,15 @@ func checkLevel1Core(filename string, nodes []ast.Node, ctx *AnalysisContext) []
 		}
 	}
 	return issues
+}
+
+func isMagicConstantName(name string) bool {
+	switch strings.ToUpper(strings.TrimSpace(name)) {
+	case "__LINE__", "__FILE__", "__DIR__", "__FUNCTION__", "__CLASS__", "__TRAIT__", "__METHOD__", "__NAMESPACE__":
+		return true
+	default:
+		return false
+	}
 }
 
 func classIsAttributeClass(class *ast.ClassNode, source []byte) bool {
