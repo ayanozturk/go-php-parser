@@ -9,7 +9,7 @@ Scope: stabilize the parser, analyser, CLI, and PHP Strom integration for a 1.0 
 ## Work sequence
 
 1. [x] Make the install/build and command-line documentation match the shipped CLI; add and maintain a 1.0 release checklist.
-2. [ ] Freeze the supported Go versions, operating systems, architectures, PHP syntax scope, public Go API, configuration schema, and diagnostic/exit-code contracts.
+2. [x] Freeze the supported Go versions, operating systems, architectures, PHP syntax scope, public Go API, configuration schema, and diagnostic/exit-code contracts in [docs/compatibility-1.0.md](docs/compatibility-1.0.md); CI explicitly builds the declared target matrix.
 3. [ ] Run the correctness gates: full Go tests and vet, race tests, parser lossless and token-parity corpora, differential fixtures, fuzz smoke, and cross-platform builds. Fix release-blocking failures with focused regression coverage.
 4. [ ] Complete the reviewed-corpus compatibility and diagnostic-quality thresholds; publish the methods, exact corpus revisions, and results.
 5. [ ] Establish best accepted full-analysis and CLI results for each pinned workload. For every change, run at least ten process-cold repetitions against the same best build with identical workload, toolchain, worker settings, and environment; require CV ≤5%, complete file/diagnostic parity, and no time or peak-memory regression beyond measurement noise. Keep the existing best result unless a repeatable improvement is measured.

@@ -8,7 +8,7 @@ The long-term target is a production-grade, full PHP static analyzer. The active
 
 ## Features
 
-- **PHP parsing:** PHP 8 syntax, a lossless concrete syntax tree that preserves source text and trivia, an AST lowering API, and source positions for syntax nodes.
+- **PHP parsing:** a lossless concrete syntax tree with a PHP 8.3 grammar baseline and selected PHP 8.4 syntax, source-preserving trivia, AST lowering, and source positions. See the [1.0 compatibility contract](docs/compatibility-1.0.md) for supported scope and known boundaries.
 - **Editor support:** tolerant parsing with error nodes, reusable parse results, and the shared analysis engine used by the [PHP Strom language server](https://github.com/ayanozturk/vscode-php-strom).
 - **Project analysis:** cross-file symbol resolution, PHPDoc types and aliases, generic and shape types, argument/return/property checks, and control-flow narrowing and joins.
 - **Configurable diagnostics:** analysis levels 0–10 plus unlevelled rules, deterministic diagnostic ordering, and stable command exit codes.
