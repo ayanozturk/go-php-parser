@@ -35,8 +35,8 @@ Scope: stabilize the parser, analyser, CLI, and PHP Strom integration for a 1.0 
 - [x] Fix the reproduced Go 1.27.1 allocation-test and split-lines-cache failures.
 - [x] Validate the larger callable slice with exact fixtures, matched PSL/Symfony/
   Composer snapshots, lossless corpora, and resource measurements.
-- [ ] Deliver the parser commit through the production Strom pin and verify pinned
-  and sibling-development server tests/vet.
+- [x] Deliver parser `48208dd1` through Strom `a43607a` and verify pinned
+  and sibling-development server tests/vet on Go 1.23.12.
 - [ ] Continue reviewed-corpus triage: remaining engine-only PSL argument/return
   families contain 356 and 109 findings. Structured parameter binding, dependent
   bounds, complex callable bodies, and shared integer-range normalization remain

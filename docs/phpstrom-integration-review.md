@@ -8,6 +8,20 @@ PHP Strom's production indexer, semantic cache, diagnostics, and several languag
 
 The review findings below are retained as historical context. The missing ESLint configuration and asynchronous diagnostic test-harness race found during that review have since been fixed. As of extension commit `5462c74` (parser `6372f1d`, pseudo-version `v0.0.0-20260831144126-6372f1de78af`), pinned and sibling-development Go tests, vet, and race suites pass, as do TypeScript lint/compile/package, all six server builds, the VS Code extension-host suite, the synthetic editor latency trace gate, structured analysis range contracts, and the current level-boundary, DNF/nullable, callable, nested/list shape, dynamic-index, clone/coalesce/match/nullsafe, template class-string, and non-object receiver integration contracts.
 
+## Latest callable-semantics delivery (2026-10-09)
+
+Strom commit `a43607a` pins parser `48208dd1` as
+`v0.0.0-20261009223717-48208dd17ad1`. Go 1.23.12/macOS arm64 server tests and
+vet pass both with `GOWORK=off` against the downloaded module and with the
+explicit sibling-development workspace against the local parser checkout.
+Module resolution was verified separately for both modes.
+
+A production diagnostics regression checks captured unannotated callback returns,
+callback parameter/return contracts, accepted clean controls, two invalid callback
+arguments, and one inferred return mismatch. This validates the production path
+that supplies source content and shared semantic facts. It does not establish
+new extension packaging, marketplace publication, or long-lived resource results.
+
 ## Recommended changes
 
 ### 1. Always collect parser errors
