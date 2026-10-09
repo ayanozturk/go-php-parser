@@ -226,6 +226,7 @@ func normalizeTypeExpressionWithContext(raw string, ctx FileTypeContext) string 
 	if isQuotedPHPDocString(raw) {
 		return raw
 	}
+
 	if parts := splitTopLevelTypes(raw, '|'); len(parts) > 1 {
 		for idx, part := range parts {
 			normalized := normalizeTypeExpressionWithContext(part, ctx)
@@ -241,6 +242,13 @@ func normalizeTypeExpressionWithContext(raw string, ctx FileTypeContext) string 
 			parts[idx] = normalizeTypeExpressionWithContext(part, ctx)
 		}
 		return strings.Join(parts, "&")
+	}
+	if _, _, ok := phpDocCallableSignature(raw); ok {
+		base := strings.TrimPrefix(strings.TrimSpace(raw[:strings.Index(raw, "(")]), `\`)
+		if strings.EqualFold(base, "Closure") {
+			return "Closure"
+		}
+		return "callable"
 	}
 	if instance, ok := parseGenericTypeFromString(raw); ok && strings.EqualFold(strings.TrimPrefix(instance.ClassName, `\`), "value-of") && len(instance.TypeArguments) == 1 {
 		if projected, supported := projectArrayShapeValueTypes(instance.TypeArguments[0], ctx, nil); supported {
@@ -265,6 +273,9 @@ func normalizeTypeExpressionWithContext(raw string, ctx FileTypeContext) string 
 	}
 	atom, ok := normalizeTypeAtom(canonical)
 	if ok && atom.kind == typeKindClass {
+		if strings.HasPrefix(raw, `\`) && strings.EqualFold(canonical, "Closure") {
+			return ctx.resolveClassLike(`\` + canonical)
+		}
 		return ctx.resolveClassLike(canonical)
 	}
 	return canonical

@@ -886,6 +886,74 @@
         "argument.type",
         "return.type"
       ]
+    },
+    {
+      "id": "callable-contracts-clean",
+      "capability": "callable variance, arity, scope and inferred generic returns",
+      "file": "callable-contracts-clean.php",
+      "engineCodes": [],
+      "phpstanIdentifiers": []
+    },
+    {
+      "id": "callable-contracts-mismatch",
+      "capability": "callable variance, arity, scope and inferred generic returns",
+      "file": "callable-contracts-mismatch.php",
+      "engineCodes": [
+        "A.ARG.TYPE",
+        "A.ARG.TYPE",
+        "A.ARG.TYPE",
+        "A.ARG.TYPE",
+        "A.ARG.TYPE",
+        "A.ARG.TYPE"
+      ],
+      "phpstanIdentifiers": [
+        "argument.type",
+        "argument.type",
+        "argument.type",
+        "argument.type",
+        "argument.type",
+        "argument.type"
+      ]
+    },
+    {
+      "id": "callable-inferred-scopes-clean",
+      "capability": "callable variance, arity, scope and inferred generic returns",
+      "file": "callable-inferred-scopes-clean.php",
+      "engineCodes": [],
+      "phpstanIdentifiers": []
+    },
+    {
+      "id": "callable-inferred-scopes-mismatch",
+      "capability": "callable variance, arity, scope and inferred generic returns",
+      "file": "callable-inferred-scopes-mismatch.php",
+      "engineCodes": [
+        "A.ARG.TYPE",
+        "A.RETURN.TYPE"
+      ],
+      "phpstanIdentifiers": [
+        "argument.type",
+        "return.type"
+      ]
+    },
+    {
+      "id": "callable-methods-clean",
+      "capability": "callable generic method binding, inherited signatures and explicit return assertions",
+      "file": "callable-methods-clean.php",
+      "engineCodes": [],
+      "phpstanIdentifiers": []
+    },
+    {
+      "id": "callable-methods-mismatch",
+      "capability": "callable generic method binding, inherited signatures and explicit return assertions",
+      "file": "callable-methods-mismatch.php",
+      "engineCodes": [
+        "A.ARG.TYPE",
+        "A.ARG.TYPE"
+      ],
+      "phpstanIdentifiers": [
+        "argument.type",
+        "argument.type"
+      ]
     }
   ]
 }

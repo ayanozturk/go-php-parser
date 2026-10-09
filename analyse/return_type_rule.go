@@ -111,16 +111,17 @@ func (l *scopeTypeLayer) set(name string, typ Type) {
 
 type functionScope struct {
 	*functionScopeContext
-	variables            *scopeTypeLayer
-	properties           *scopeTypeLayer
-	variablesOwned       bool
-	propertiesOwned      bool
-	callableSignatures   map[string]callableSignature
-	callablesShared      bool
-	arrayShapeCallables  map[string]map[string]arrayShapeField
-	arrayShapesShared    bool
-	arrayIndexKeys       map[string][]string
-	arrayIndexKeysShared bool
+	variables              *scopeTypeLayer
+	properties             *scopeTypeLayer
+	callableInferenceDepth uint8
+	variablesOwned         bool
+	propertiesOwned        bool
+	callableSignatures     map[string]callableSignature
+	callablesShared        bool
+	arrayShapeCallables    map[string]map[string]arrayShapeField
+	arrayShapesShared      bool
+	arrayIndexKeys         map[string][]string
+	arrayIndexKeysShared   bool
 	// genericContext maps variable names to their generic class instantiations
 	// e.g., "$coll" → (className: "Collection", typeArguments: ["User"])
 	genericContext       map[string]GenericInstance
@@ -136,6 +137,7 @@ type callableSignature struct {
 // share it instead of copying the class and file-context map headers into every
 // short-lived functionScope value.
 type functionScopeContext struct {
+	templateBounds          map[string]string
 	className               string
 	typeCtx                 FileTypeContext
 	typeAliases             map[string]string
@@ -195,6 +197,15 @@ func (r *ReturnTypeRule) checkFunctionReturnType(filename string, fn *ast.Functi
 	scope := analysisFunctionScope(ctx, class, fn, typeCtx)
 	for _, ret := range collectObservedReturns(filename, fn.Body, scope, ctx) {
 		actualType := ret.Type
+		// Preserve symbolic template identity where the declaration accepts it;
+		// otherwise its bound can establish compatibility with a native return.
+		if !declaredType.AcceptsWithContext(actualType, scope, ctx) {
+			if template, single := actualType.SingleClassName(); single {
+				if bound := scope.templateBounds[asciiLowerIdent(template)]; bound != "" {
+					actualType = ParseType(bound)
+				}
+			}
+		}
 		actualLabel := actualType.String()
 		if actualLabel == "" {
 			actualLabel = "mixed"
@@ -439,7 +450,26 @@ func collectObservedReturnsUsing(filename string, nodes []ast.Node, scope *funct
 			applyExpressionStmtVarDocBefore(scope, n)
 			applyExpressionStmtScope(scope, n, ctx)
 		case *ast.ReturnNode:
-			returns = append(returns, observedReturn{Type: infer(filename, n.Expr, scope, ctx), Pos: n.GetPos(), Expr: n.Expr})
+			typ := infer(filename, n.Expr, scope, ctx)
+			if n.PHPDoc != nil && n.PHPDoc.VarType != "" && scope != nil {
+				applies := n.PHPDoc.VarName == ""
+				if variable, ok := n.Expr.(*ast.VariableNode); ok && variable.Name == n.PHPDoc.VarName {
+					applies = true
+				}
+				if applies {
+					raw := expandPHPDocTypeAliases(n.PHPDoc.VarType, scope.typeAliases)
+					normalized := normalizeTemplateAwareType(raw, scope.typeCtx, scopeTemplateNames(scope))
+					if _, rangeType := parseIntegerRange(raw); rangeType {
+						// Integer-range assertion normalization is deferred until
+						// declaration and expression ranges share the same representation.
+						normalized = ""
+					}
+					if asserted := ParseType(normalized); !asserted.IsEmpty() {
+						typ = asserted
+					}
+				}
+			}
+			returns = append(returns, observedReturn{Type: typ, Pos: n.GetPos(), Expr: n.Expr})
 		case *ast.AssignmentNode:
 			applyAssignmentScope(scope, n, ctx)
 		case *ast.IfNode:
@@ -895,11 +925,10 @@ func inferCallableInvocationReturn(expr ast.Node, scope *functionScope, ctx *Ana
 			}
 		}
 	case *ast.FunctionNode, *ast.ArrowFunctionNode:
-		var typeCtx FileTypeContext
-		if scope != nil {
-			typeCtx = scope.typeCtx
+		if sig, ok := inferCallableExpressionSignature(callable, scope, ctx); ok {
+			return sig.returnType
 		}
-		return declaredCallableExpressionReturnType(callable, typeCtx)
+
 	}
 	return EmptyType()
 }
@@ -1055,6 +1084,7 @@ func newFunctionScopeWithContext(ctx *AnalysisContext, class *ast.ClassNode, fn 
 		scope.methodArrayShapes = classData.methodArrayShapes
 	}
 	templateBounds := localTemplateBounds(class, fn, typeCtx)
+	scope.templateBounds = templateBounds
 	templates := phpDocTemplateNames(class, fn.PHPDoc)
 
 	for _, paramNode := range fn.Params {
@@ -1072,17 +1102,20 @@ func newFunctionScopeWithContext(ctx *AnalysisContext, class *ast.ClassNode, fn 
 			if !paramType.IsEmpty() {
 				nativeType = paramType.String()
 			}
-			paramType = ParseType(normalizeTemplateAwareType(documentedParamTypePreservingNativeNull(nativeType, documentedType), typeCtx, templates))
+			paramType = ParseType(documentedParamTypePreservingNativeNull(nativeType, normalizeTemplateAwareType(documentedType, typeCtx, templates)))
 		}
 		if paramType.IsEmpty() && param.DefaultValue != nil {
 			paramType = inferType(param.DefaultValue, scope, nil)
 		}
 		if !paramType.IsEmpty() {
 			scope.setVariable(param.Name, paramType)
-			if returnType := callableReturnType(documentedType, typeCtx); !returnType.IsEmpty() {
+			if returnType := ParseType(normalizeTemplateAwareType(rawCallableReturnType(documentedType), typeCtx, templates)); !returnType.IsEmpty() {
 				scope.setCallableReturn(param.Name, returnType)
 			}
 			if params := resolvedCallableParamTypes(documentedType, typeCtx, phpDocTemplateNames(class, fn.PHPDoc)); len(params) > 0 {
+				for i := range params {
+					params[i].Type = bindCalleeSignatureType(params[i].Type, scope.className, scope.className, ctx).dnfString()
+				}
 				scope.setCallableParams(param.Name, params)
 			}
 			if fields := parseArrayShapeFields(documentedType, typeCtx); len(fields) > 0 {
@@ -1138,7 +1171,7 @@ func localTemplateBounds(class *ast.ClassNode, fn *ast.FunctionNode, typeCtx Fil
 		}
 		for _, template := range doc.Templates {
 			bound := normalizeTypeWithContext(template.Bound, typeCtx)
-			if _, ok := ParseType(bound).SingleClassName(); ok {
+			if !ParseType(bound).IsEmpty() {
 				bounds[asciiLowerIdent(template.Name)] = bound
 			} else {
 				bounds[asciiLowerIdent(template.Name)] = ""
@@ -1750,19 +1783,20 @@ func (s *functionScope) clone() *functionScope {
 	s.arrayIndexKeysShared = true
 	s.genericContextShared = true
 	clone := &functionScope{
-		functionScopeContext: s.functionScopeContext,
-		variables:            s.variables,
-		properties:           s.properties,
-		variablesOwned:       false,
-		propertiesOwned:      false,
-		callableSignatures:   s.callableSignatures,
-		callablesShared:      true,
-		arrayShapeCallables:  s.arrayShapeCallables,
-		arrayShapesShared:    true,
-		arrayIndexKeys:       s.arrayIndexKeys,
-		arrayIndexKeysShared: true,
-		genericContext:       s.genericContext,
-		genericContextShared: true,
+		functionScopeContext:   s.functionScopeContext,
+		variables:              s.variables,
+		properties:             s.properties,
+		variablesOwned:         false,
+		propertiesOwned:        false,
+		callableInferenceDepth: s.callableInferenceDepth,
+		callableSignatures:     s.callableSignatures,
+		callablesShared:        true,
+		arrayShapeCallables:    s.arrayShapeCallables,
+		arrayShapesShared:      true,
+		arrayIndexKeys:         s.arrayIndexKeys,
+		arrayIndexKeysShared:   true,
+		genericContext:         s.genericContext,
+		genericContextShared:   true,
 	}
 	return clone
 }
@@ -2217,6 +2251,7 @@ func applyAssignmentScope(scope *functionScope, assignment *ast.AssignmentNode, 
 	}
 	switch left := assignment.Left.(type) {
 	case *ast.VariableNode:
+		signature, signatureKnown := inferCallableExpressionSignature(assignment.Right, scope, ctx)
 		scope.clearCallableReturn(left.Name)
 		scope.clearCallableParams(left.Name)
 		scope.clearArrayShapeCallables(left.Name)
@@ -2226,7 +2261,10 @@ func applyAssignmentScope(scope *functionScope, assignment *ast.AssignmentNode, 
 		if keys := definiteArrayIndexKeys(assignment.Right, scope); len(keys) > 0 {
 			scope.setArrayIndexKeys(left.Name, keys)
 		}
-		if returnType := inferCallableInvocationReturn(assignment.Right, scope, ctx); !returnType.IsEmpty() {
+		if signatureKnown {
+			scope.setCallableReturn(left.Name, signature.returnType)
+			scope.setCallableParams(left.Name, signature.params)
+		} else if returnType := inferCallableInvocationReturn(assignment.Right, scope, ctx); !returnType.IsEmpty() {
 			scope.setCallableReturn(left.Name, returnType)
 		}
 		if source, ok := assignment.Right.(*ast.VariableNode); ok {
@@ -2449,11 +2487,17 @@ func bindCallSiteMethodTemplates(method ResolvedMethod, args []ast.Node, scope *
 		}
 		name := templateNameFromParamType(method.Params[paramIndex].Type, method.ReturnType, ctx)
 		argExpr := argumentValue(argNode)
-		var typeCtx FileTypeContext
-		if scope != nil {
-			typeCtx = scope.typeCtx
+		directTemplate := isKnownTemplateName(method.Params[paramIndex].Type, templateNames(method.TemplateParams))
+		if directTemplate {
+			name = method.Params[paramIndex].Type
 		}
-		callableReturn := declaredCallableExpressionReturnType(argExpr, typeCtx)
+		callableReturn := EmptyType()
+		if !directTemplate && phpDocUsesTemplate(method.Params[paramIndex].CallableReturnType, templateNames(method.TemplateParams)) {
+			callableReturn = inferCallableInvocationReturn(argExpr, scope, ctx)
+			if template := method.Params[paramIndex].CallableReturnType; isKnownTemplateName(template, templateNames(method.TemplateParams)) {
+				name = template
+			}
+		}
 		if name == "" && !callableReturn.IsEmpty() {
 			name = openTemplateParamName(method.ReturnType, ctx)
 		}
@@ -2549,34 +2593,11 @@ func templateNameFromCallableParamType(raw string, ctx *AnalysisContext) string 
 
 func rawCallableReturnType(raw string) string {
 	raw = stripBalancedOuterTypeParens(strings.TrimSpace(raw))
-	open := strings.Index(raw, "(")
-	if open < 0 || !strings.EqualFold(strings.TrimSpace(raw[:open]), "callable") {
+	_, result, ok := phpDocCallableSignature(raw)
+	if !ok {
 		return ""
 	}
-	depth := 0
-	closeIdx := -1
-	for idx, r := range raw[open:] {
-		switch r {
-		case '(':
-			depth++
-		case ')':
-			depth--
-			if depth == 0 {
-				closeIdx = open + idx
-			}
-		}
-		if closeIdx >= 0 {
-			break
-		}
-	}
-	if closeIdx < 0 {
-		return ""
-	}
-	suffix := strings.TrimSpace(raw[closeIdx+1:])
-	if !strings.HasPrefix(suffix, ":") {
-		return ""
-	}
-	return strings.TrimSpace(strings.TrimPrefix(suffix, ":"))
+	return result
 }
 
 func genericParentBinding(resolver SymbolResolver, className, methodName string) (string, []string) {
@@ -2936,4 +2957,15 @@ func init() {
 		rule := &ReturnTypeRule{}
 		return filterIssuesByCode(rule.CheckIssues(nodes, filename, ctx), "A.RETURN.TYPE")
 	})
+}
+
+func scopeTemplateNames(scope *functionScope) map[string]struct{} {
+	if scope == nil || len(scope.templateBounds) == 0 {
+		return nil
+	}
+	names := make(map[string]struct{}, len(scope.templateBounds))
+	for name := range scope.templateBounds {
+		names[name] = struct{}{}
+	}
+	return names
 }

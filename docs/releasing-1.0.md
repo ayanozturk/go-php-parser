@@ -67,8 +67,19 @@ race tests pass. The fresh PSL reference comparison and unchanged Symfony/
 Composer issue sets are recorded in [reviewed corpus quality](reviewed-corpus-quality.md).
 The diagnostic-quality and performance gates remain open.
 
-The host's Go 1.27.1 full suite failed before this change: parallel
-`testing.AllocsPerRun` panics in `TestWithRelativeClassNamesUnchangedDoesNotAllocate`,
-and `TestSplitLinesCachedAndDelete` fails pointer-based cache reuse. These
-failures require a separate compatibility fix; the minimum-toolchain result
-does not establish unrestricted newer-Go compatibility.
+### Larger callable-semantics follow-up
+
+The larger slice adds known callback signature variance/arity checks, supported
+unannotated closure/arrow return inference, inherited callback metadata, arbitrary
+method template names, and supported return assertions. The exact level-3 and
+level-5 packs now pass 52 and 103 cases against their pinned PHPStan versions.
+Go 1.23.12/macOS arm64 full tests and vet pass; Go 1.27.1 full tests with race
+instrumentation and vet pass. Symfony and WordPress lossless identity pass again.
+
+The reproduced newer-Go failures are fixed: the allocation test no longer runs
+in parallel, and split-lines cache keys keep backing-array identity visible to
+Go's garbage collector. Cache retention is documented in the supported API
+contract. Persisted index caches are invalidated for the new callback metadata.
+The current [corpus findings](reviewed-corpus-quality.md) and
+[resource measurements](benchmarks/2026-10-09-callable-semantics.md) leave the
+broader diagnostic-quality and performance release gates open.

@@ -37,6 +37,8 @@ $count += 2;
 ### `A.BINARY.OP.INVALID`
 
 **What it checks:** Checks selected binary operations with incompatible operand types.
+Array union accepts `array`, `empty-array`, and `non-empty-array` refinements,
+including arrays inferred from generic callback returns.
 
 **Why it helps:** Finding the mismatch early avoids runtime failures and clarifies the intended operation.
 

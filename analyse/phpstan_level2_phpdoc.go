@@ -341,18 +341,11 @@ func phpDocCallableSignature(raw string) ([]string, string, bool) {
 }
 
 func resolvedCallableParamTypes(raw string, typeCtx FileTypeContext, templates map[string]struct{}) []ResolvedParam {
-	paramTypes, _, ok := phpDocCallableSignature(raw)
-	if !ok || len(paramTypes) == 0 {
+	sig, ok := parseCallableContract(raw, typeCtx, templates)
+	if !ok {
 		return nil
 	}
-	params := make([]ResolvedParam, 0, len(paramTypes))
-	for index, paramType := range paramTypes {
-		params = append(params, ResolvedParam{
-			Name: fmt.Sprintf("arg%d", index+1),
-			Type: normalizeTemplateAwareType(paramType, typeCtx, templates),
-		})
-	}
-	return params
+	return sig.params
 }
 
 // appendUnknownPHPDocClass returns true when the class is known (or is a

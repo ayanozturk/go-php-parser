@@ -130,7 +130,7 @@ func TestRefineTypeByInstanceofKeepsMockIntersection(t *testing.T) {
 }
 
 func TestWithRelativeClassNamesUnchangedDoesNotAllocate(t *testing.T) {
-	t.Parallel()
+	// AllocsPerRun changes the process scheduler and cannot run in parallel.
 	typ := ParseType("int|string|null")
 	allocs := testing.AllocsPerRun(100, func() {
 		_ = typ.withRelativeClassNames(`App\\Status`, `App\\Status`, `App\\BaseStatus`)

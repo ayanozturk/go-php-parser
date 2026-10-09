@@ -225,6 +225,9 @@ func singleCompoundBuiltin(typ Type) (string, bool) {
 		if atom.kind != typeKindBuiltin || atom.key == "mixed" {
 			return "", false
 		}
+		if atom.key == "empty-array" || atom.key == "non-empty-array" {
+			return "array", true
+		}
 		return atom.key, true
 	}
 	return "", false

@@ -353,6 +353,8 @@ func (idx *ProjectIndex) resolveMethodWithTemplates(className, methodName string
 		method.NativeReturnType = ApplyTemplateBindings(method.NativeReturnType, bindings)
 		for i := range method.Params {
 			method.Params[i].Type = ApplyTemplateBindings(method.Params[i].Type, bindings)
+			method.Params[i].CallableReturnType = ApplyTemplateBindings(method.Params[i].CallableReturnType, bindings)
+			method.Params[i].CallableSignature = ApplyTemplateBindings(method.Params[i].CallableSignature, bindings)
 		}
 		for i := range method.TemplateBounds {
 			method.TemplateBounds[i] = ApplyTemplateBindings(method.TemplateBounds[i], bindings)

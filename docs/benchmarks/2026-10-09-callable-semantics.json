@@ -1,0 +1,236 @@
+{
+  "baselineCommit": "4b0bde77f4c7e907fa01a6d315f4c55acca585ac",
+  "candidate": "commit containing this report",
+  "acceptedBaseline": false,
+  "rejectionReason": "Baseline coefficient of variation exceeds the 5 percent gate",
+  "batches": [
+    {
+      "toolchain": "go1.23.12",
+      "host": "macOS-26.5.2-arm64-arm-64bit-Mach-O",
+      "workers": 3,
+      "GOMAXPROCS": 3,
+      "runs": [
+        {
+          "pair": 0,
+          "variant": "before",
+          "seconds": 0.795026957988739,
+          "peakRSSBytes": 85147648,
+          "filesDiscovered": 1800,
+          "filesAnalyzed": 1775,
+          "diagnostics": 1283,
+          "resultSHA256": "ec40bdfb8bac2f7ad6fbf84294cf937e542eb4c49fa3b9977b8649dc6bf13927"
+        },
+        {
+          "pair": 0,
+          "variant": "after",
+          "seconds": 0.6129274590057321,
+          "peakRSSBytes": 80838656,
+          "filesDiscovered": 1800,
+          "filesAnalyzed": 1775,
+          "diagnostics": 1203,
+          "resultSHA256": "cb62b590de803c1dfdb9a3bf4f8185cb2b23794a2872a0efbbec5b13b49031c1"
+        },
+        {
+          "pair": 1,
+          "variant": "after",
+          "seconds": 0.5949390410096385,
+          "peakRSSBytes": 89473024,
+          "filesDiscovered": 1800,
+          "filesAnalyzed": 1775,
+          "diagnostics": 1203,
+          "resultSHA256": "cb62b590de803c1dfdb9a3bf4f8185cb2b23794a2872a0efbbec5b13b49031c1"
+        },
+        {
+          "pair": 1,
+          "variant": "before",
+          "seconds": 0.5856757909641601,
+          "peakRSSBytes": 78069760,
+          "filesDiscovered": 1800,
+          "filesAnalyzed": 1775,
+          "diagnostics": 1283,
+          "resultSHA256": "ec40bdfb8bac2f7ad6fbf84294cf937e542eb4c49fa3b9977b8649dc6bf13927"
+        },
+        {
+          "pair": 2,
+          "variant": "before",
+          "seconds": 0.5892519999761134,
+          "peakRSSBytes": 75415552,
+          "filesDiscovered": 1800,
+          "filesAnalyzed": 1775,
+          "diagnostics": 1283,
+          "resultSHA256": "ec40bdfb8bac2f7ad6fbf84294cf937e542eb4c49fa3b9977b8649dc6bf13927"
+        },
+        {
+          "pair": 2,
+          "variant": "after",
+          "seconds": 0.6072641250211746,
+          "peakRSSBytes": 85884928,
+          "filesDiscovered": 1800,
+          "filesAnalyzed": 1775,
+          "diagnostics": 1203,
+          "resultSHA256": "cb62b590de803c1dfdb9a3bf4f8185cb2b23794a2872a0efbbec5b13b49031c1"
+        },
+        {
+          "pair": 3,
+          "variant": "after",
+          "seconds": 0.5964647500077263,
+          "peakRSSBytes": 84951040,
+          "filesDiscovered": 1800,
+          "filesAnalyzed": 1775,
+          "diagnostics": 1203,
+          "resultSHA256": "cb62b590de803c1dfdb9a3bf4f8185cb2b23794a2872a0efbbec5b13b49031c1"
+        },
+        {
+          "pair": 3,
+          "variant": "before",
+          "seconds": 0.5887046670541167,
+          "peakRSSBytes": 87441408,
+          "filesDiscovered": 1800,
+          "filesAnalyzed": 1775,
+          "diagnostics": 1283,
+          "resultSHA256": "ec40bdfb8bac2f7ad6fbf84294cf937e542eb4c49fa3b9977b8649dc6bf13927"
+        },
+        {
+          "pair": 4,
+          "variant": "before",
+          "seconds": 0.5852875409764238,
+          "peakRSSBytes": 82608128,
+          "filesDiscovered": 1800,
+          "filesAnalyzed": 1775,
+          "diagnostics": 1283,
+          "resultSHA256": "ec40bdfb8bac2f7ad6fbf84294cf937e542eb4c49fa3b9977b8649dc6bf13927"
+        },
+        {
+          "pair": 4,
+          "variant": "after",
+          "seconds": 0.6005497080041096,
+          "peakRSSBytes": 82886656,
+          "filesDiscovered": 1800,
+          "filesAnalyzed": 1775,
+          "diagnostics": 1203,
+          "resultSHA256": "cb62b590de803c1dfdb9a3bf4f8185cb2b23794a2872a0efbbec5b13b49031c1"
+        },
+        {
+          "pair": 5,
+          "variant": "after",
+          "seconds": 0.5980585840297863,
+          "peakRSSBytes": 87408640,
+          "filesDiscovered": 1800,
+          "filesAnalyzed": 1775,
+          "diagnostics": 1203,
+          "resultSHA256": "cb62b590de803c1dfdb9a3bf4f8185cb2b23794a2872a0efbbec5b13b49031c1"
+        },
+        {
+          "pair": 5,
+          "variant": "before",
+          "seconds": 0.5876337919617072,
+          "peakRSSBytes": 81297408,
+          "filesDiscovered": 1800,
+          "filesAnalyzed": 1775,
+          "diagnostics": 1283,
+          "resultSHA256": "ec40bdfb8bac2f7ad6fbf84294cf937e542eb4c49fa3b9977b8649dc6bf13927"
+        },
+        {
+          "pair": 6,
+          "variant": "before",
+          "seconds": 0.5984553339658305,
+          "peakRSSBytes": 81395712,
+          "filesDiscovered": 1800,
+          "filesAnalyzed": 1775,
+          "diagnostics": 1283,
+          "resultSHA256": "ec40bdfb8bac2f7ad6fbf84294cf937e542eb4c49fa3b9977b8649dc6bf13927"
+        },
+        {
+          "pair": 6,
+          "variant": "after",
+          "seconds": 0.5977628750260919,
+          "peakRSSBytes": 75382784,
+          "filesDiscovered": 1800,
+          "filesAnalyzed": 1775,
+          "diagnostics": 1203,
+          "resultSHA256": "cb62b590de803c1dfdb9a3bf4f8185cb2b23794a2872a0efbbec5b13b49031c1"
+        },
+        {
+          "pair": 7,
+          "variant": "after",
+          "seconds": 0.6110839580069296,
+          "peakRSSBytes": 82247680,
+          "filesDiscovered": 1800,
+          "filesAnalyzed": 1775,
+          "diagnostics": 1203,
+          "resultSHA256": "cb62b590de803c1dfdb9a3bf4f8185cb2b23794a2872a0efbbec5b13b49031c1"
+        },
+        {
+          "pair": 7,
+          "variant": "before",
+          "seconds": 0.589155749999918,
+          "peakRSSBytes": 77086720,
+          "filesDiscovered": 1800,
+          "filesAnalyzed": 1775,
+          "diagnostics": 1283,
+          "resultSHA256": "ec40bdfb8bac2f7ad6fbf84294cf937e542eb4c49fa3b9977b8649dc6bf13927"
+        },
+        {
+          "pair": 8,
+          "variant": "before",
+          "seconds": 0.5913564170477912,
+          "peakRSSBytes": 86654976,
+          "filesDiscovered": 1800,
+          "filesAnalyzed": 1775,
+          "diagnostics": 1283,
+          "resultSHA256": "ec40bdfb8bac2f7ad6fbf84294cf937e542eb4c49fa3b9977b8649dc6bf13927"
+        },
+        {
+          "pair": 8,
+          "variant": "after",
+          "seconds": 0.5927065839641728,
+          "peakRSSBytes": 85475328,
+          "filesDiscovered": 1800,
+          "filesAnalyzed": 1775,
+          "diagnostics": 1203,
+          "resultSHA256": "cb62b590de803c1dfdb9a3bf4f8185cb2b23794a2872a0efbbec5b13b49031c1"
+        },
+        {
+          "pair": 9,
+          "variant": "after",
+          "seconds": 0.6007719170302153,
+          "peakRSSBytes": 86097920,
+          "filesDiscovered": 1800,
+          "filesAnalyzed": 1775,
+          "diagnostics": 1203,
+          "resultSHA256": "cb62b590de803c1dfdb9a3bf4f8185cb2b23794a2872a0efbbec5b13b49031c1"
+        },
+        {
+          "pair": 9,
+          "variant": "before",
+          "seconds": 0.5856562500121072,
+          "peakRSSBytes": 77463552,
+          "filesDiscovered": 1800,
+          "filesAnalyzed": 1775,
+          "diagnostics": 1283,
+          "resultSHA256": "ec40bdfb8bac2f7ad6fbf84294cf937e542eb4c49fa3b9977b8649dc6bf13927"
+        }
+      ],
+      "summary": {
+        "before": {
+          "meanSeconds": 0.6096204499946907,
+          "cvPct": 10.704781322589973,
+          "meanPeakRSSBytes": 81258086.4,
+          "maxPeakRSSBytes": 87441408,
+          "resultHashes": [
+            "ec40bdfb8bac2f7ad6fbf84294cf937e542eb4c49fa3b9977b8649dc6bf13927"
+          ]
+        },
+        "after": {
+          "meanSeconds": 0.6012529001105577,
+          "cvPct": 1.146974481613647,
+          "meanPeakRSSBytes": 84064665.6,
+          "maxPeakRSSBytes": 89473024,
+          "resultHashes": [
+            "cb62b590de803c1dfdb9a3bf4f8185cb2b23794a2872a0efbbec5b13b49031c1"
+          ]
+        }
+      }
+    }
+  ]
+}

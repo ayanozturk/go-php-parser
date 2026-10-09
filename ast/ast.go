@@ -249,6 +249,7 @@ func (a *AssignmentNode) TokenLiteral() string {
 
 // ReturnNode represents a return statement
 type ReturnNode struct {
+	PHPDoc *PHPDocNode
 	Expr   Node
 	Pos    Position
 	EndPos Position

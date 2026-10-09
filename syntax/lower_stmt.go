@@ -100,7 +100,7 @@ func lowerStmt(n *RedNode, file *File) ast.Node {
 			EndPos: end,
 		}
 	case KindReturnStmt:
-		ret := &ast.ReturnNode{Pos: pos, EndPos: end}
+		ret := &ast.ReturnNode{PHPDoc: leadingDocFromNode(n), Pos: pos, EndPos: end}
 		if expr := firstExprChild(n); expr != nil {
 			ret.Expr = lowerExpr(expr, file)
 		}

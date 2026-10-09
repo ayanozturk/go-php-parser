@@ -8,7 +8,7 @@
 
 - **Introduced at this level:** 5 registered levelled rules: `A.PROP.TYPE`, `A.RETURN.NEVER`, `A.RETURN.TYPE`, `A.RETURN.VOID`, and `Level3.ThrowType`.
 - **Cumulative registered levelled rules:** 26. The assignment, binary-operation, void-purity, method, and PHPDoc rules from level 2 are cumulative and are not introduced here.
-- **Checked-in differential pack:** 44 cases in `testdata/diagnostic-differential-level3`.
+- **Checked-in differential pack:** 52 cases in `testdata/diagnostic-differential-level3`.
 
 ## Registered rules, one by one
 
@@ -75,11 +75,19 @@ function countItems(): int { return 3; }
 ```
 
 Named generic function returns use call-site bindings from direct template
-arguments and declared callable returns, including imported function aliases.
+arguments and declared or supported inferred callable returns, including imported function aliases.
 The level-3 clean/mismatch fixtures cover `preserve($value)` in an integer-returning
 wrapper. Repeated direct arguments join their inferred types; unresolved bindings
-use a bound or `mixed`. Structured parameter inference and unannotated callback
-return inference remain partial.
+use a bound or `mixed`. Supported unannotated arrows and simple closures infer returns in isolated
+parameter/capture scopes. Method direct/callback template binding also preserves
+arbitrary declared template names and inherited callback metadata. Structured
+parameter inference and complex callback control flow remain partial.
+
+Anonymous `@var` annotations immediately before a return, or named assertions
+matching the returned variable, refine its observed type after CST lowering.
+Declared scalar template bounds are honored; an
+assertion naming a different variable does not override the return. Integer-range
+assertions remain conservative pending shared declaration/expression normalization.
 
 ### `A.RETURN.VOID`
 
@@ -123,6 +131,6 @@ throw new RuntimeException("failed");
 
 ## Coverage and boundaries
 
-Level 3 checks declared return types, values returned from `void` functions and methods, `never` return contracts, typed-property assignments, and selected throw targets. Return inference covers arithmetic, comparison, logical, unary-not, unary-numeric, and spaceship results in addition to the previously covered literal, call, property, cast, conditional, coalesce, and match expressions. Boolean literals retain `true`/`false` precision, and the built-in `fopen` signature is `resource|false`. Generic `$this` return inference prefers project-index `ResolveMethod` over unbound same-class AST signatures. Method-level `@template T` binds from callable arguments (`callable(): T` and unions such as `callable(...): T|CallbackInterface<T>`) using declared closure/arrow return types rather than inferred `Closure`; enclosing class templates also retain their identity in local return checks. Typed receivers without generic args use class `@extends` generic parents for method return inference (for example `$repo->find()` on a child repository, including a multi-hop `ServiceEntityRepository` parent). Unbound class templates inside generic arguments such as `EntityRepository<T>` stay as `T` when the current class still owns that template. Normally completing `finally` blocks preserve the selected try/catch outcome for return completeness. Return and property checks use immutable semantic facts and known class/property metadata where available.
+Level 3 checks declared return types, values returned from `void` functions and methods, `never` return contracts, typed-property assignments, and selected throw targets. Return inference covers arithmetic, comparison, logical, unary-not, unary-numeric, and spaceship results in addition to the previously covered literal, call, property, cast, conditional, coalesce, and match expressions. Boolean literals retain `true`/`false` precision, and the built-in `fopen` signature is `resource|false`. Generic `$this` return inference prefers project-index `ResolveMethod` over unbound same-class AST signatures. Method-level `@template T` binds from callable arguments (`callable(): T` and unions such as `callable(...): T|CallbackInterface<T>`) using declared or supported inferred closure/arrow return types rather than inferred `Closure`; enclosing class templates also retain their identity in local return checks. Typed receivers without generic args use class `@extends` generic parents for method return inference (for example `$repo->find()` on a child repository, including a multi-hop `ServiceEntityRepository` parent). Unbound class templates inside generic arguments such as `EntityRepository<T>` stay as `T` when the current class still owns that template. Normally completing `finally` blocks preserve the selected try/catch outcome for return completeness. Return and property checks use immutable semantic facts and known class/property metadata where available.
 
 Coverage remains partial for PHPDoc types, dynamic expressions, complex unions, every assignment operator, and the complete PHPStan type system. Levels 0 through 2 are cumulative.

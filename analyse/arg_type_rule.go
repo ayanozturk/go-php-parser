@@ -1540,7 +1540,8 @@ func walkExprForArgTypesUsing(node ast.Node, scope *functionScope, ctx *Analysis
 		}
 		observeSemanticExpression(filename, n, scope, ctx, observe)
 	case *ast.ArrowFunctionNode:
-		walkExprForArgTypesUsing(n.Expr, scope, ctx, filename, issues, observe)
+		local := callableExpressionScope(n, scope, ctx)
+		walkExprForArgTypesUsing(n.Expr, local, ctx, filename, issues, observe)
 		observeSemanticExpression(filename, n, scope, ctx, observe)
 	}
 }
@@ -1799,22 +1800,53 @@ func checkResolvedCallArgTypes(target string, method ResolvedMethod, args []ast.
 
 		param := method.Params[paramIndex]
 		expected := expectedCallParamType(param, method, calleeClass, ctx)
+		if target == "Callable" && scope != nil {
+			if bound, declared := scope.templateBounds[asciiLowerIdent(param.Type)]; declared {
+				expected = ParseType(bound)
+				if expected.IsEmpty() {
+					expected = MixedType()
+				}
+			}
+		}
 		if expected.IsEmpty() {
 			usedParams[paramIndex] = struct{}{}
 			continue
 		}
 
 		actual := inferArgumentTypeWithFacts(filename, argExpr, scope, ctx)
-		if argumentExpectedTypeAcceptsActual(expected, actual, scope, ctx) {
+		signatureMismatch := false
+		callableActual := ""
+		if param.CallableSignature != "" && !callableContractUsesOpenTemplates(param.CallableSignature, method, scope, ctx) {
+			if wanted, ok := parseCallableContract(param.CallableSignature, FileTypeContext{}, nil); ok {
+				for i := range wanted.params {
+					wanted.params[i].Type = bindCalleeSignatureType(wanted.params[i].Type, method.DeclaringClass, calleeClass, ctx).dnfString()
+				}
+				wanted.returnType = bindCalleeSignatureType(wanted.returnType.dnfString(), method.DeclaringClass, calleeClass, ctx)
+				if supplied, known := inferCallableExpressionSignature(argExpr, scope, ctx); known {
+					signatureMismatch = callableContractMismatch(wanted, supplied, scope, ctx)
+					callableActual = callableContractDisplay(supplied, "Closure")
+				}
+			}
+		}
+		if !signatureMismatch && argumentExpectedTypeAcceptsActual(expected, actual, scope, ctx) {
 			usedParams[paramIndex] = struct{}{}
 			continue
 		}
-		if !analysisLevelAtLeast(ctx, argumentTypeIssueMinimumLevel(expected, actual, scope, ctx)) {
+		minimumLevel := argumentTypeIssueMinimumLevel(expected, actual, scope, ctx)
+		if signatureMismatch {
+			minimumLevel = 5
+		}
+		if !analysisLevelAtLeast(ctx, minimumLevel) {
 			usedParams[paramIndex] = struct{}{}
 			continue
 		}
 
 		actualLabel := actual.String()
+		expectedLabel := expected.String()
+		if signatureMismatch {
+			expectedLabel = param.CallableSignature
+			actualLabel = callableActual
+		}
 		if actualLabel == "" {
 			actualLabel = "mixed"
 		}
@@ -1825,7 +1857,7 @@ func checkResolvedCallArgTypes(target string, method ResolvedMethod, args []ast.
 			Line:     pos.Line,
 			Column:   pos.Column,
 			Code:     "A.ARG.TYPE",
-			Message:  fmt.Sprintf("%s argument %s expects %s, got %s", target, argLabel, expected.String(), actualLabel),
+			Message:  fmt.Sprintf("%s argument %s expects %s, got %s", target, argLabel, expectedLabel, actualLabel),
 		})
 
 		usedParams[paramIndex] = struct{}{}
@@ -1840,6 +1872,15 @@ func inferArgumentTypeWithFacts(filename string, expr ast.Node, scope *functionS
 	if variable, ok := expr.(*ast.VariableNode); ok && scope != nil {
 		if contextual, found := scope.variable(variable.Name); found && !contextual.IsEmpty() {
 			actual = contextual
+			if template, ok := actual.SingleClassName(); ok {
+				if bound, declared := scope.templateBounds[asciiLowerIdent(template)]; declared {
+					if bound == "" {
+						actual = MixedType()
+					} else {
+						actual = ParseType(bound)
+					}
+				}
+			}
 		}
 	}
 	switch node := expr.(type) {

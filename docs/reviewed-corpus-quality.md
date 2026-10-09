@@ -173,6 +173,58 @@ The remaining engine-only argument and return families contain 410 and 133
 findings respectively. The gate remains **failed** pending review/disposition.
 No performance result is claimed from these correctness runs.
 
+## Larger callable-semantics triage (2026-10-09)
+
+Supported unannotated arrows and simple closures now infer returns using isolated
+parameter scopes, implicit arrow captures, explicit closure captures, local
+assignments, and bounded nesting. Known standalone callback contracts check
+parameter contravariance, return covariance, and required/optional/variadic arity.
+Inherited callback metadata and arbitrary declared method template names survive
+binding. Initializer callbacks do not replace unrelated method-result templates.
+Callable unions retain their non-callable branch, native nullable parameters keep
+nullability, and supported anonymous or matching named return assertions survive
+CST lowering. Integer-range assertions remain conservative pending shared type
+normalization; complex control flow, references, dependent bounds, structured
+binding, and the full callback/array type lattice remain partial.
+
+The exact fixture packs pass **52/52 at level 3** (PHPStan 2.2.5) and **103/103
+at level 5** (PHPStan 2.2.16), with zero engine/reference mismatches. Full tests/vet
+pass on Go 1.23.12/macOS arm64; the full race suite and vet pass on Go 1.27.1.
+Both Symfony and WordPress lossless identity gates pass.
+
+A matched level-8 engine run against parent `4b0bde77` keeps all 1,775 PSL targets
+and 25 Revolt index dependencies, with zero read/parse failures. Raw diagnostics
+fall from **1,283 to 1,203**. Exact issue-set comparison removes 80 unique entries
+(54 argument, 24 return, one property, and one invalid binary operation) and adds
+none. Each side includes one duplicate raw issue. Removed findings are diagnostic
+deltas, not proof that every removed finding was correctly dispositioned: some
+unresolved templates conservatively become mixed.
+
+Symfony retains 10,026 analyzed files and its one pre-existing parse error;
+Composer retains 532 files with no parse errors. Exact code/location/span/message
+sets change by 208 removals / 31 additions and 25 removals / 3 additions,
+respectively. Of the additions, 22 Symfony and all three Composer entries replace
+messages at existing code/span locations. The nine new Symfony locations comprise
+two missing iterable-value annotations exposed by callback normalization, one
+empty callback supplied where a session return is required, three callback
+arguments involving an unindexed dependency's class hierarchy, one nullable
+callback after a branch join, and two downstream method checks exposed by more
+precise callback returns. The dependency, branch-join, and downstream findings
+remain review work; this is **not** an unchanged-issue-set or clean-corpus claim.
+
+The fresh dependency-aware PHPStan comparison uses the same PHP 8.4.25 / PHPStan
+2.2.16 setup and autoload workaround documented above. It analyzes all selected
+files and retains the same source/index/config manifests.
+
+| Level | F1 | Precision | Recall | Reviewed F1 | Exact | Engine | PHPStan | Engine-only | PHPStan-only | Unreviewed PHPStan-only |
+| ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| 8 | 4.26% | 3.41% | 5.66% | 6.01% | 41 | 1,203 | 724 | 1,162 | 683 | 563 |
+
+Remaining engine-only argument and return findings fall from 410 / 133 to
+**356 / 109**. The reviewed-corpus release gate remains **failed** pending
+individual review/disposition. Matched resource evidence is recorded in
+[the callable slice measurements](benchmarks/2026-10-09-callable-semantics.md).
+
 ## Reproduction
 
 Run from the repository root with PHP 8.4 or 8.5. Fetch the pinned PSL checkout

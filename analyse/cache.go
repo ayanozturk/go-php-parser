@@ -44,7 +44,7 @@ type SerializedProjectIndex struct {
 const (
 	// Bump whenever serialized fields or symbol-index construction semantics
 	// change; otherwise a new binary can reuse semantically stale signatures.
-	cacheVersion = 14
+	cacheVersion = 15
 	cacheFile    = "tusk-index.json"
 )
 

@@ -164,6 +164,8 @@ func TestBinaryOperationResultMatrix(t *testing.T) {
 		{name: "integer addition", operator: "+", left: "int", right: "int", result: "int", valid: true, known: true},
 		{name: "float multiplication", operator: "*", left: "int", right: "float", result: "float", valid: true, known: true},
 		{name: "array union", operator: "+", left: "array", right: "array", result: "array", valid: true, known: true},
+		{name: "nonempty array union", operator: "+", left: "non-empty-array", right: "array", result: "array", valid: true, known: true},
+		{name: "empty array union", operator: "+", left: "empty-array", right: "non-empty-array", result: "array", valid: true, known: true},
 		{name: "invalid string addition", operator: "+", left: "int", right: "string", valid: false, known: true},
 		{name: "comparison", operator: "<", left: "int", right: "string", result: "bool", valid: true, known: true},
 		{name: "spaceship", operator: "<=>", left: "int", right: "int", result: "int", valid: true, known: true},

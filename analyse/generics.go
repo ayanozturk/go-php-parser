@@ -400,6 +400,7 @@ func normalizeTemplateAwareTypeExpression(raw string, ctx FileTypeContext, templ
 	if isQuotedPHPDocString(raw) {
 		return raw
 	}
+
 	if instance, ok := parseGenericTypeFromString(raw); ok && strings.EqualFold(strings.TrimPrefix(instance.ClassName, `\`), "value-of") && len(instance.TypeArguments) == 1 {
 		if projected, supported := projectArrayShapeValueTypes(instance.TypeArguments[0], ctx, templates); supported {
 			return projected
@@ -424,6 +425,9 @@ func normalizeTemplateAwareTypeExpression(raw string, ctx FileTypeContext, templ
 			parts[idx] = normalizeTemplateAwareTypeExpression(part, ctx, templates)
 		}
 		return strings.Join(parts, "&")
+	}
+	if _, _, ok := phpDocCallableSignature(raw); ok {
+		return normalizeTypeWithContext(raw, ctx)
 	}
 	// Array shorthand binds to one type atom, not to a complete union. Check
 	// top-level union/intersection delimiters first so `string|Item[]` becomes

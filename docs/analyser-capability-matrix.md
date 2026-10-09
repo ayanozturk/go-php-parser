@@ -34,7 +34,7 @@ go run ./cmd/diagnostic-diff --fixtures testdata/diagnostic-differential-level7 
 go run ./cmd/diagnostic-diff --fixtures testdata/diagnostic-differential-level8 --phpstan-bin /absolute/path/to/phpstan --json
 ```
 
-Current executable gates: **103 / 37 / 118 / 48 / 7 / 95 / 30 / 19 / 51** (levels 0–8). These are case counts from the checked-in manifests. The ordinary Go suite uses engine-only mode so it does not silently download or depend on an external analyser. Ranked next coverage work is in `../roadmap.md`.
+Current executable gates: **103 / 37 / 118 / 52 / 7 / 103 / 30 / 19 / 51** (levels 0–8). These are case counts from the checked-in manifests. The ordinary Go suite uses engine-only mode so it does not silently download or depend on an external analyser. Ranked next coverage work is in `../roadmap.md`.
 
 Fixture differential evidence comes from `cmd/diagnostic-diff` against the checked-in packs above. Corpus diagnostic F1 is a separate workload-scoped metric produced by `cmd/phpstan-compat`; its methodology and reporting format are documented in `docs/phpstan-compatibility-metric.md`. The pack gate counts above remain the executable compatibility evidence; corpus F1 indicates diagnostic alignment on a selected project corpus and must not be treated as a substitute for those counts.
 

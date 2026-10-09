@@ -372,6 +372,26 @@
       "phpstanIdentifiers": [
         "return.type"
       ]
+    },
+    {
+      "id": "callable-return-assertion-clean",
+      "capability": "callable generic method binding, inherited signatures and explicit return assertions",
+      "file": "callable-return-assertion-clean.php",
+      "engineCodes": [],
+      "phpstanIdentifiers": []
+    },
+    {
+      "id": "callable-return-assertion-mismatch",
+      "capability": "callable generic method binding, inherited signatures and explicit return assertions",
+      "file": "callable-return-assertion-mismatch.php",
+      "engineCodes": [
+        "A.RETURN.TYPE",
+        "A.RETURN.TYPE"
+      ],
+      "phpstanIdentifiers": [
+        "return.type",
+        "return.type"
+      ]
     }
   ]
 }

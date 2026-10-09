@@ -54,8 +54,15 @@ diagnostic contract below.
 
 The release candidate adds `analyse.ResolvedParam.CallableReturnType` for
 PHPDoc callable-return metadata used by generic function inference. Existing
-keyed parameter literals may leave it empty. This is part of the supported
-`analyse` API; it does not change configuration or diagnostic identifiers.
+keyed parameter literals may leave it empty. It also adds
+`analyse.ResolvedParam.CallableSignature` for supported callback contracts and
+`ast.ReturnNode.PHPDoc` for return assertions. These are additions to supported
+APIs; configuration and diagnostic identifiers are unchanged. Persisted index
+caches from earlier semantic versions are invalidated (cache format version 15).
+
+`sharedcache.SplitLinesCached` now retains its source backing array until
+`DeleteCachedLines` or cache eviction. Callers should delete entries when releasing
+source content; its pointer identity is now visible to the Go garbage collector.
 
 ## Configuration schema
 

@@ -4,7 +4,6 @@ import (
 	"os"
 	"sync"
 	"sync/atomic"
-	"unsafe"
 
 	"github.com/ayanozturk/go-php-parser/token"
 )
@@ -59,11 +58,15 @@ type linesCacheEntry struct {
 }
 
 // SplitLinesCached converts content into lines once per backing array.
+// The cache retains the source backing array until deletion or eviction;
+// callers should delete entries when they release their source content.
 func SplitLinesCached(content []byte) []string {
 	if len(content) == 0 {
 		return nil
 	}
-	key := uintptr(unsafe.Pointer(&content[0]))
+	// A GC-visible key keeps the backing array alive and makes its identity
+	// stable when the compiler would otherwise place it on a movable stack.
+	key := &content[0]
 	first := content[0]
 	last := content[len(content)-1]
 
@@ -72,9 +75,8 @@ func SplitLinesCached(content []byte) []string {
 		if entry.length == len(content) && entry.firstByte == first && entry.lastByte == last {
 			return entry.lines
 		}
-		// Stale entry for a reused pointer (backing array freed and a new
-		// allocation landed at the same address): it will be overwritten
-		// below without double-counting linesCacheCount.
+		// A different view or edge mutation of this backing array replaces
+		// its entry without double-counting linesCacheCount.
 	} else if atomic.AddInt64(&linesCacheCount, 1) > linesCacheEvictionThreshold {
 		// ClearLinesCache zeros the live counter. Re-count the entry we are
 		// about to store so eviction does not leave the cache under-counted
@@ -102,7 +104,7 @@ func DeleteCachedLines(content []byte) {
 	if len(content) == 0 {
 		return
 	}
-	if _, ok := linesCache.LoadAndDelete(uintptr(unsafe.Pointer(&content[0]))); ok {
+	if _, ok := linesCache.LoadAndDelete(&content[0]); ok {
 		// Saturating decrement: concurrent ClearLinesCache may already have
 		// zeroed the counter before this delete lands.
 		for {

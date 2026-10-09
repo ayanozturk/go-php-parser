@@ -27,6 +27,8 @@ func TestCacheStoreAndLoad(t *testing.T) {
 	idx.Constants["global_status"] = struct{}{}
 	idx.globalConstantFiles["global_status"] = "file1.php"
 
+	idx.Functions["evaluate"] = ResolvedFunction{Name: "evaluate", Params: []ResolvedParam{{Name: "factory", Type: "callable", CallableReturnType: "Result", CallableSignature: "callable(): Result"}}}
+
 	// File checksums
 	checksums := map[string]string{
 		"file1.php": "abc123",
@@ -61,6 +63,10 @@ func TestCacheStoreAndLoad(t *testing.T) {
 	}
 	if !loadedIdx.ConstantExists("global_status") {
 		t.Fatal("global constant not preserved in cache")
+	}
+
+	if param := loadedIdx.Functions["evaluate"].Params[0]; param.CallableReturnType != "Result" || param.CallableSignature != "callable(): Result" {
+		t.Fatalf("callable contract not preserved in cache: %#v", param)
 	}
 
 	// Load with different checksums (cache miss)
