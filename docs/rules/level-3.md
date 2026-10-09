@@ -74,6 +74,13 @@ function countItems(): int { return "three"; }
 function countItems(): int { return 3; }
 ```
 
+Named generic function returns use call-site bindings from direct template
+arguments and declared callable returns, including imported function aliases.
+The level-3 clean/mismatch fixtures cover `preserve($value)` in an integer-returning
+wrapper. Repeated direct arguments join their inferred types; unresolved bindings
+use a bound or `mixed`. Structured parameter inference and unannotated callback
+return inference remain partial.
+
 ### `A.RETURN.VOID`
 
 **What it checks:** Reports returned values from functions or methods declared void.

@@ -671,6 +671,7 @@ func paramsFromNodesWithPHPDoc(nodes []ast.Node, doc *ast.PHPDocNode, ft FileTyp
 			}
 		}
 		typ = expandPHPDocTypeAliases(typ, aliases)
+		callableReturn := normalizeTemplateAwareType(rawCallableReturnType(typ), ft, templates)
 		// Composite types that mention call-site templates stay mixed until
 		// argument inference can bind them. Bare template names and
 		// class-string<T> stay so find(Foo::class) can substitute T.
@@ -678,12 +679,13 @@ func paramsFromNodesWithPHPDoc(nodes []ast.Node, doc *ast.PHPDocNode, ft FileTyp
 			typ = "mixed"
 		}
 		params = append(params, ResolvedParam{
-			Name:       param.Name,
-			Type:       normalizeTemplateAwareType(typ, ft, templates),
-			HasDefault: param.DefaultValue != nil,
-			IsVariadic: param.IsVariadic,
-			IsByRef:    param.IsByRef,
-			IsOut:      param.IsByRef,
+			CallableReturnType: callableReturn,
+			Name:               param.Name,
+			Type:               normalizeTemplateAwareType(typ, ft, templates),
+			HasDefault:         param.DefaultValue != nil,
+			IsVariadic:         param.IsVariadic,
+			IsByRef:            param.IsByRef,
+			IsOut:              param.IsByRef,
 		})
 	}
 	return params

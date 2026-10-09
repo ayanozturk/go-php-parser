@@ -231,12 +231,15 @@ type ResolvedFunction struct {
 }
 
 type ResolvedParam struct {
-	Name       string
-	Type       string
-	HasDefault bool
-	IsVariadic bool
-	IsByRef    bool
-	IsOut      bool // reference argument is defined without requiring an input read
+	// CallableReturnType retains the PHPDoc callable return before a
+	// template-bearing parameter is collapsed to mixed for argument checks.
+	CallableReturnType string
+	Name               string
+	Type               string
+	HasDefault         bool
+	IsVariadic         bool
+	IsByRef            bool
+	IsOut              bool // reference argument is defined without requiring an input read
 }
 
 type AnalysisContext struct {

@@ -864,6 +864,28 @@
       "file": "disjunctive-and-range-joins-boundary.php",
       "engineCodes": [],
       "phpstanIdentifiers": []
+    },
+    {
+      "id": "function-template-return-clean",
+      "capability": "generic function returns bind direct and declared callable argument types",
+      "file": "function-template-return-clean.php",
+      "engineCodes": [],
+      "phpstanIdentifiers": []
+    },
+    {
+      "id": "function-template-return-mismatch",
+      "capability": "generic function returns bind direct and declared callable argument types",
+      "file": "function-template-return-mismatch.php",
+      "engineCodes": [
+        "A.ARG.TYPE",
+        "A.ARG.TYPE",
+        "A.RETURN.TYPE"
+      ],
+      "phpstanIdentifiers": [
+        "argument.type",
+        "argument.type",
+        "return.type"
+      ]
     }
   ]
 }

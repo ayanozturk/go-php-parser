@@ -644,10 +644,12 @@ func inferFunctionCallType(n *ast.FunctionCallNode, scope *functionScope, ctx *A
 		}
 		resolvedName := resolveFunctionNameForCall(name, typeCtx, ctx)
 		if function, ok := resolveFunctionView(ctx.Resolver, resolvedName); ok && strings.TrimSpace(function.ReturnType) != "" {
-			if conditional := phpDocConditionalReturnTypeForCall(function.ConditionalReturnType, function.Params, n.Args, scope, ctx); !conditional.IsEmpty() {
+			bindings := bindCallSiteFunctionTemplates(function, n.Args, scope, ctx)
+			conditionalType := ApplyTemplateBindings(function.ConditionalReturnType, bindings)
+			if conditional := phpDocConditionalReturnTypeForCall(conditionalType, function.Params, n.Args, scope, ctx); !conditional.IsEmpty() {
 				return conditional
 			}
-			return ParseType(function.ReturnType)
+			return ParseType(ApplyTemplateBindings(function.ReturnType, bindings))
 		}
 	}
 	if id, ok := n.Name.(*ast.IdentifierNode); ok {
@@ -663,6 +665,70 @@ func inferFunctionCallType(n *ast.FunctionCallNode, scope *functionScope, ctx *A
 		}
 	}
 	return MixedType()
+}
+
+// bindCallSiteFunctionTemplates binds declared, direct template parameters
+// and the return template of callable parameters.
+// Structured parameter inference is deliberately left to a future slice;
+// unresolved templates use their bound (or mixed), never a fabricated class.
+func bindCallSiteFunctionTemplates(function ResolvedFunction, args []ast.Node, scope *functionScope, ctx *AnalysisContext) map[string]string {
+	if len(function.TemplateParams) == 0 {
+		return nil
+	}
+	declared := make(map[string]string, len(function.TemplateParams))
+	for i, name := range function.TemplateParams {
+		bound := "mixed"
+		if i < len(function.TemplateBounds) && strings.TrimSpace(function.TemplateBounds[i]) != "" {
+			bound = function.TemplateBounds[i]
+		}
+		declared[name] = bound
+	}
+	inferred := make(map[string]Type)
+	next := 0
+	for _, arg := range args {
+		if _, unpacked := arg.(*ast.UnpackedArgumentNode); unpacked {
+			break
+		}
+		index := -1
+		if named, ok := arg.(*ast.NamedArgumentNode); ok {
+			for i, param := range function.Params {
+				if param.Name == named.Name {
+					index = i
+					break
+				}
+			}
+		} else if next < len(function.Params) {
+			index = next
+			if !function.Params[index].IsVariadic {
+				next++
+			}
+		}
+		if index < 0 {
+			continue
+		}
+		name := strings.TrimSpace(function.Params[index].Type)
+		var actual Type
+		if _, ok := declared[name]; ok {
+			actual = inferArgumentTypeWithFacts("", argumentValue(arg), scope, ctx)
+		} else {
+			name = function.Params[index].CallableReturnType
+			if _, ok := declared[name]; !ok {
+				continue
+			}
+			actual = inferCallableInvocationReturn(argumentValue(arg), scope, ctx)
+		}
+		if actual.IsEmpty() {
+			continue
+		}
+		if previous, ok := inferred[name]; ok {
+			actual = unionInferredTypes(previous, actual)
+		}
+		inferred[name] = actual
+	}
+	for name, actual := range inferred {
+		declared[name] = actual.String()
+	}
+	return declared
 }
 
 func inferStaticMethodCallType(call *ast.FunctionCallNode, scope *functionScope, ctx *AnalysisContext) (Type, bool) {

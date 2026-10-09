@@ -128,6 +128,51 @@ execute PSL. Static analysis completed without executing PSL code, and
 Composer installs used `--ignore-platform-reqs`; this limitation is recorded
 because those native functions are part of PSL's runtime environment.
 
+## Named-function template-return triage (2026-10-09)
+
+Named generic functions now substitute their declared return templates from
+bare template arguments and declared callable returns. This supports arbitrary
+declared names, imported function aliases, named arguments, and repeated
+variadic contributions. Unresolved bindings use the declared bound or `mixed`;
+structured parameter inference, dependent bounds, and unannotated callback
+bodies remain unsupported. The added level-3 and level-5 clean/mismatch fixtures
+check both accepted integer returns and rejected string returns/arguments.
+The complete level-3 pack passes 50/50 cases against PHPStan 2.2.5 and the
+level-5 pack passes 97/97 against PHPStan 2.2.16, with zero engine/reference
+mismatches.
+
+A matched engine-only before/after run at level 8 selected the same 1,775 PSL
+source targets and 25 Revolt dependency files on both sides, with zero read or
+parse failures. Diagnostics fell from 1,317 to 1,283: 13 `A.ARG.TYPE`,
+14 `A.RETURN.TYPE`, and 7 `A.PROP.TYPE` entries disappeared, with zero additions.
+This is a diagnostic delta, not a disposition of every eliminated finding:
+unresolved callable templates can fall back to `mixed`, so it does not prove
+complete inference or recall. Symfony (10,026 files, one existing parse-error
+file) and Composer (532 files, no parse errors) had identical level-8 issue sets.
+The Symfony parse error continues to block a clean full-corpus release gate.
+
+The fresh dependency-aware PSL reference comparison completed at
+`2026-10-09T21:52:52Z` using PHP 8.4.25, PHPStan 2.2.16, and the same pinned PSL,
+configuration, first-party, and index manifests described above. This macOS
+host uses a case-insensitive filesystem. Ordinary PSR-4 fallback autoloading
+aborted with a duplicate function declaration when a missing class name mapped
+to a function file. Regenerating PSL's ignored vendor autoloader with
+`composer dump-autoload --no-dev --classmap-authoritative --ignore-platform-reqs`
+allowed the complete reference run. Its classmap and files-map SHA-256 hashes
+were `ad6ce608bab96ccb91042f826506895d112b638feff55f51158c3b715311cfa8`
+and `93b810b58a1870f1a08760beba279b0553b747d248ec930a5ad50e378b50e115`.
+The reference PHP process used a 1 GB memory limit. Both tools analyzed every
+selected source file. This environment differs from the earlier Linux/PHP
+8.4.24 comparison; reference-count changes are not attributed to the engine fix.
+
+| Level | F1 | Precision | Recall | Reviewed F1 | Exact | Engine | PHPStan | Engine-only | PHPStan-only | Unreviewed PHPStan-only |
+| ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| 8 | 4.09% | 3.20% | 5.66% | 5.68% | 41 | 1,283 | 724 | 1,242 | 683 | 563 |
+
+The remaining engine-only argument and return families contain 410 and 133
+findings respectively. The gate remains **failed** pending review/disposition.
+No performance result is claimed from these correctness runs.
+
 ## Reproduction
 
 Run from the repository root with PHP 8.4 or 8.5. Fetch the pinned PSL checkout

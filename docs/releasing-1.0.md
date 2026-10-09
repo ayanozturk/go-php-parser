@@ -57,3 +57,18 @@ The fuzz commands are scheduled smoke checks, not exhaustive proof. Also run the
 5. Present the exact tag, artifacts, checksums, and notes for final approval before publishing.
 
 No release tag or publication is authorized by this preparation checklist.
+
+### Named-function template-return follow-up
+
+The 2026-10-09 slice adds `analyse.ResolvedParam.CallableReturnType` metadata
+and uses direct/callable argument bindings for named generic function returns.
+Go 1.23.12/macOS arm64 full tests and vet plus focused analysis/command/rule
+race tests pass. The fresh PSL reference comparison and unchanged Symfony/
+Composer issue sets are recorded in [reviewed corpus quality](reviewed-corpus-quality.md).
+The diagnostic-quality and performance gates remain open.
+
+The host's Go 1.27.1 full suite failed before this change: parallel
+`testing.AllocsPerRun` panics in `TestWithRelativeClassNamesUnchangedDoesNotAllocate`,
+and `TestSplitLinesCachedAndDelete` fails pointer-based cache reuse. These
+failures require a separate compatibility fix; the minimum-toolchain result
+does not establish unrestricted newer-Go compatibility.

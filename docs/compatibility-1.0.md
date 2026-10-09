@@ -52,6 +52,11 @@ breaking API or module-path changes require a new major version. Additions and
 bug fixes remain possible. Diagnostic behavior changes are governed by the
 diagnostic contract below.
 
+The release candidate adds `analyse.ResolvedParam.CallableReturnType` for
+PHPDoc callable-return metadata used by generic function inference. Existing
+keyed parameter literals may leave it empty. This is part of the supported
+`analyse` API; it does not change configuration or diagnostic identifiers.
+
 ## Configuration schema
 
 Tusk searches only the current working directory for `tusk.yaml`. It does not
